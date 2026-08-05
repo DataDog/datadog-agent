@@ -6,6 +6,12 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+// Size limits for msgp deserialization
+const (
+	zeee5c012limitArrays = 500000
+	zeee5c012limitMaps   = 500000
+)
+
 // MarshalMsg implements msgp.Marshaler
 func (z *AgentPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
@@ -62,6 +68,10 @@ func (z *AgentPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
+	if zb0001 > zeee5c012limitMaps {
+		err = msgp.ErrLimitExceeded
+		return
+	}
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -87,6 +97,10 @@ func (z *AgentPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "TracerPayloads")
+				return
+			}
+			if zb0002 > zeee5c012limitArrays {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if cap(z.TracerPayloads) >= int(zb0002) {
@@ -117,6 +131,10 @@ func (z *AgentPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if zb0003 > zeee5c012limitMaps {
+				err = msgp.ErrLimitExceeded
 				return
 			}
 			if z.Tags == nil {

@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = ["connection_key.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/types",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/process/util"],
+)

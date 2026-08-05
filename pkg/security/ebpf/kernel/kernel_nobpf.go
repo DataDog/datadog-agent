@@ -20,6 +20,11 @@ func (k *Version) HasSKStorage() bool {
 	return false
 }
 
+// HaveIOURing returns whether the kernel supports io-uring.
+func (k *Version) HaveIOURing() bool {
+	return false
+}
+
 // HaveRingBuffers returns whether the kernel supports ring buffer.
 // here it's not, since we are built without eBPF support
 func (k *Version) HaveRingBuffers() bool {
@@ -83,6 +88,12 @@ func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 // HasBpfGetCurrentCgroupIDForSchedCLS returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
 // https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
 func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
+	return false
+}
+
+// HasBpfGetCurrentCgroupID returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
+// Kernel version >= 4.18
+func (k *Version) HasBpfGetCurrentCgroupID() bool {
 	return false
 }
 

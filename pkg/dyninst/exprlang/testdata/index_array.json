@@ -1,11 +1,17 @@
 {
-  "type": "unsupported",
-  "operation": "index",
-  "argument": [
-    {
-      "ref": "arr"
-    },
-    1
-  ],
+  "type": "index",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "arr",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": 1,
+    "error": ""
+  },
   "error": ""
 }

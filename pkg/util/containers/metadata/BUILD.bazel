@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metadata",
+    srcs = ["metadata.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/containers/cri",
+        "//pkg/util/docker",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+    ],
+)

@@ -1,0 +1,1 @@
+{"request_type":"agent-logs","payload":{"logs":[{"level":"ERROR","stack_trace":"goroutine 1 [running]:\nmain.main()\n\t/app/main.go:10 +0x58","tracer_time":1234567890,"count":3,"is_crash":false,"message":""}]}}

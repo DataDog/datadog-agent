@@ -8,7 +8,7 @@
 package k8s
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -24,9 +24,9 @@ import (
 )
 
 // NewNetworkPolicyCollectorVersions builds the group of collector versions.
-func NewNetworkPolicyCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewNetworkPolicyCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewNetworkPolicyCollector(metadataAsTags),
+		NewNetworkPolicyCollector(tagger),
 	)
 }
 
@@ -40,11 +40,7 @@ type NetworkPolicyCollector struct {
 
 // NewNetworkPolicyCollector creates a new collector for the Kubernetes
 // NetworkPolicy resource.
-func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPolicyCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.NetworkPolicyName, utilTypes.NetworkPolicyVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewNetworkPolicyCollector(tagger tagger.Component) *NetworkPolicyCollector {
 	return &NetworkPolicyCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -55,12 +51,11 @@ func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPoli
 			Name:                                 utilTypes.NetworkPolicyName,
 			Kind:                                 kubernetes.NetworkPolicyKind,
 			NodeType:                             orchestrator.K8sNetworkPolicy,
+			Group:                                utilTypes.NetworkPolicyGroup,
 			Version:                              utilTypes.NetworkPolicyVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.NetworkPolicyHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewNetworkPolicyHandlers(tagger)),
 	}
 }
 

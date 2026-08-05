@@ -13,6 +13,13 @@ const (
 	// VersionTagLabelKey is the label key of the version standard tag
 	VersionTagLabelKey = "tags.datadoghq.com/version"
 
+	// ADAnnotationPrefix is the prefix for Autodiscovery annotations on Kubernetes resources
+	ADAnnotationPrefix = "ad.datadoghq.com/"
+	// ADTagsAnnotation is the annotation key used to attach arbitrary tags to all metrics of a resource
+	ADTagsAnnotation = ADAnnotationPrefix + "tags"
+	// ADContainerTagsAnnotationFormat is the format string for per-container tag annotations; use fmt.Sprintf with the container name
+	ADContainerTagsAnnotationFormat = ADAnnotationPrefix + "%s.tags"
+
 	// KubeAppNameLabelKey is the label key of the name of the application
 	KubeAppNameLabelKey = "app.kubernetes.io/name"
 	// KubeAppInstanceLabelKey is the label key of unique name identifying the instance of an application
@@ -25,6 +32,28 @@ const (
 	KubeAppPartOfLabelKey = "app.kubernetes.io/part-of"
 	// KubeAppManagedByLabelKey is the label key of the tool being used to manage the operation of an application
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
+	// KueueQueueNameLabelKey is the queue selection label key used by Kueue-managed workloads
+	KueueQueueNameLabelKey = "kueue.x-k8s.io/queue-name"
+	// KueueLocalQueueNameLabelKey is the pod label key set by Kueue with the admitted local queue name
+	KueueLocalQueueNameLabelKey = "kueue.x-k8s.io/local-queue-name"
+	// KueueClusterQueueNameLabelKey is the pod label key set by Kueue with the admitted cluster queue name
+	KueueClusterQueueNameLabelKey = "kueue.x-k8s.io/cluster-queue-name"
+	// KueueGroupName is the API group used by Kueue resources
+	KueueGroupName = "kueue.x-k8s.io"
+	// KueueLocalQueueResourceName is the plural resource name for Kueue LocalQueue objects
+	KueueLocalQueueResourceName = "localqueues"
+	// KueueClusterQueueResourceName is the plural resource name for Kueue ClusterQueue objects
+	KueueClusterQueueResourceName = "clusterqueues"
+	// KueueResourceFlavorResourceName is the plural resource name for Kueue ResourceFlavor objects
+	KueueResourceFlavorResourceName = "resourceflavors"
+	// KueueWorkloadResourceName is the plural resource name for Kueue Workload objects
+	KueueWorkloadResourceName = "workloads"
+	// KueueWorkloadAnnotationKey is the pod annotation key set by Kueue with the admitted Workload name
+	KueueWorkloadAnnotationKey = "kueue.x-k8s.io/workload"
+	// KueuePodGroupNameLabelKey is the pod label key used by Kueue to group plain Pods into one Workload
+	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
+	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
+	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
@@ -71,6 +100,8 @@ const (
 	CronJobKind = "CronJob"
 	// ServiceKind represents the ServiceKind object kind
 	ServiceKind = "Service"
+	// ConfigMapKind represents the ConfigMap object kind
+	ConfigMapKind = "ConfigMap"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
 	// ClusterRoleKind represents the ClusterRole object kind
@@ -79,6 +110,14 @@ const (
 	ClusterRoleBindingKind = "ClusterRoleBinding"
 	// CustomResourceDefinitionKind represents the CustomResourceDefinition object kind
 	CustomResourceDefinitionKind = "CustomResourceDefinition"
+	// KueueLocalQueueKind represents the Kueue LocalQueue object kind
+	KueueLocalQueueKind = "LocalQueue"
+	// KueueClusterQueueKind represents the Kueue ClusterQueue object kind
+	KueueClusterQueueKind = "ClusterQueue"
+	// KueueResourceFlavorKind represents the Kueue ResourceFlavor object kind
+	KueueResourceFlavorKind = "ResourceFlavor"
+	// KueueWorkloadKind represents the Kueue Workload object kind
+	KueueWorkloadKind = "Workload"
 	// HorizontalPodAutoscalerKind represents the HorizontalPodAutoscaler object kind
 	HorizontalPodAutoscalerKind = "HorizontalPodAutoscaler"
 	// IngressKind represents the Ingress object kind

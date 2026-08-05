@@ -22,13 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 
-	classicECS "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
-	clb "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/lb"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
-	awsxEcs "github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
+	classicECS "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ecs"
+	clb "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/lb"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ssm"
+	awsxEcs "github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 )
 
 const (
@@ -228,6 +228,10 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 	if params.RetentionPeriod != "" {
 		command = append(command, "-retention-period="+params.RetentionPeriod)
 	}
+
+	// Always supply the global RC signing key so fakeintake's TUF root is
+	// deterministic and matches what the agent is configured with at provision time.
+	command = append(command, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
 	return &awsxEcs.TaskDefinitionContainerDefinitionArgs{
 		Name:        pulumi.String(containerName),

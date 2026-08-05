@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ecs",
+    srcs = [
+        "component.go",
+        "workload.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

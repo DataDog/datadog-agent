@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sbomcollector",
+    srcs = [
+        "sbom_collector.go",
+        "sbom_collector_unsupported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/sbomcollector",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/workloadmeta/collectors/internal/remote",
+        "//comp/core/workloadmeta/collectors/sbomutil",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/sbom",
+        "//pkg/util/flavor",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//grpclog",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "sbomcollector_test",
+    srcs = ["sbom_collector_test.go"],
+    embed = [":sbomcollector"],
+    flavors = [
+        "base",
+        "fips",
+    ],
+    deps = [
+        "//comp/core/workloadmeta/collectors/sbomutil",
+        "//comp/core/workloadmeta/def",
+        "//pkg/proto/pbgo/sbom",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

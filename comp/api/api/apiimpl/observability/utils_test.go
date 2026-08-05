@@ -41,6 +41,64 @@ func TestExtractPath(t *testing.T) {
 	})
 }
 
+func TestWrapWithRouteTemplate(t *testing.T) {
+	for _, template := range []string{"/test", "/test/", "/test/{id}"} {
+		t.Run(template, func(t *testing.T) {
+			var capturedTemplate string
+			mux := http.NewServeMux()
+			WrapWithRouteTemplate(mux, "GET", template, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
+					capturedTemplate = capture.template
+				}
+			}))
+
+			r, capture := withRouteCapture(httptest.NewRequest("GET", "http://agent.host"+template, nil))
+			mux.ServeHTTP(httptest.NewRecorder(), r)
+
+			assert.Equal(t, template, capture.template)
+			assert.Equal(t, template, capturedTemplate)
+		})
+	}
+
+	t.Run("no capture in context is a no-op", func(t *testing.T) {
+		called := false
+		mux := http.NewServeMux()
+		WrapWithRouteTemplate(mux, "GET", "/test", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		}))
+		req := httptest.NewRequest("GET", "http://agent.host/test", nil)
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, req)
+		assert.True(t, called)
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+}
+
+func TestMountWithPrefix(t *testing.T) {
+	t.Run("prepends prefix to template set by inner handler", func(t *testing.T) {
+		inner := http.NewServeMux()
+		WrapWithRouteTemplate(inner, "GET", "/{path}", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		r, capture := withRouteCapture(httptest.NewRequest("GET", "http://host/config/v1/log_level", nil))
+		MountWithPrefix("/config/v1", inner).ServeHTTP(httptest.NewRecorder(), r)
+
+		assert.Equal(t, "/config/v1/{path}", capture.template)
+	})
+
+	t.Run("no-op when inner sets no template", func(t *testing.T) {
+		inner := http.NewServeMux()
+		inner.HandleFunc("GET /plain", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+		r, capture := withRouteCapture(httptest.NewRequest("GET", "http://host/prefix/plain", nil))
+		MountWithPrefix("/prefix", inner).ServeHTTP(httptest.NewRecorder(), r)
+
+		assert.Equal(t, "", capture.template)
+	})
+}
+
 func TestExtractStatusHandler(t *testing.T) {
 	// can't test with status code 1xx since they are not final responses
 	testCases := []int{

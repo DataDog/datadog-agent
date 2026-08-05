@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"path"
 	"strconv"
 	"strings"
@@ -54,6 +55,7 @@ func HTMLFmap() pkghtmltemplate.FuncMap {
 			"ntpWarning":          ntpWarning,
 			"version":             getVersion,
 			"percent":             func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
+			"pctInt":              func(v float64) int { return int(math.Round(v * 100)) },
 			"complianceResult":    complianceResult,
 			"lastErrorTraceback":  lastErrorTracebackHTML,
 			"lastErrorMessage":    lastErrorMessageHTML,
@@ -256,7 +258,12 @@ func mkHumanDuration(i interface{}, unit string) string {
 		duration = time.Duration(int64(f)) * time.Second
 	}
 
-	return duration.String()
+	if duration < 24*time.Hour {
+		return duration.String()
+	}
+	days := int(duration.Hours()) / 24
+	remaining := duration - time.Duration(days)*24*time.Hour
+	return fmt.Sprintf("%dd%s", days, remaining)
 }
 
 func stringLength(s string) int {

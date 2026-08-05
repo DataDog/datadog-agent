@@ -8,11 +8,11 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +23,9 @@ import (
 )
 
 // NewPersistentVolumeClaimCollectorVersions builds the group of collector versions.
-func NewPersistentVolumeClaimCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewPersistentVolumeClaimCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewPersistentVolumeClaimCollector(metadataAsTags),
+		NewPersistentVolumeClaimCollector(tagger),
 	)
 }
 
@@ -39,11 +39,7 @@ type PersistentVolumeClaimCollector struct {
 
 // NewPersistentVolumeClaimCollector creates a new collector for the Kubernetes
 // PersistentVolumeClaim resource.
-func NewPersistentVolumeClaimCollector(metadataAsTags utils.MetadataAsTags) *PersistentVolumeClaimCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.PersistentVolumeClaimName, utilTypes.PersistentVolumeClaimVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewPersistentVolumeClaimCollector(tagger tagger.Component) *PersistentVolumeClaimCollector {
 	return &PersistentVolumeClaimCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,12 +50,11 @@ func NewPersistentVolumeClaimCollector(metadataAsTags utils.MetadataAsTags) *Per
 			Name:                                 utilTypes.PersistentVolumeClaimName,
 			Kind:                                 kubernetes.PersistentVolumeClaimKind,
 			NodeType:                             orchestrator.K8sPersistentVolumeClaim,
+			Group:                                utilTypes.PersistentVolumeClaimGroup,
 			Version:                              utilTypes.PersistentVolumeClaimVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeClaimHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewPersistentVolumeClaimHandlers(tagger)),
 	}
 }
 

@@ -1,0 +1,14 @@
+datadog:
+  clusterName: "e2e-admission-probe"
+  logLevel: DEBUG
+clusterAgent:
+  replicas: 1
+  admissionController:
+    enabled: true
+    mutateUnlabelled: true
+  envDict:
+    DD_HEALTH_PLATFORM_ENABLED: "true"
+    DD_HEALTH_PLATFORM_FORWARDER_INTERVAL: "30000000000"
+    DD_ADMISSION_CONTROLLER_PROBE_ENABLED: "true"
+    DD_ADMISSION_CONTROLLER_PROBE_INTERVAL: "15"
+    DD_ADMISSION_CONTROLLER_PROBE_GRACE_PERIOD: "10"

@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -39,7 +40,7 @@ type RCPolicyProvider struct {
 	sync.RWMutex
 
 	client               *client.Client
-	onNewPoliciesReadyCb func()
+	onNewPoliciesReadyCb func(silent bool)
 	lastDefaults         map[string]state.RawConfig
 	lastCustoms          map[string]state.RawConfig
 	lastRemediations     map[string]state.RawConfig
@@ -59,12 +60,12 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool), i
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(),
+	c, err := client.NewGRPCClient(ipcAddress, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		ipc.GetAuthToken(),
 		ipc.GetTLSClientConfig(),
 		client.WithAgent(agentName, agentVersion.String()),
@@ -236,7 +237,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
+func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func(silent bool)) {
 	r.onNewPoliciesReadyCb = cb
 }
 
@@ -249,7 +250,8 @@ func (r *RCPolicyProvider) onNewPoliciesReady() {
 			r.setEnforcementCb(true)
 		}
 
-		r.onNewPoliciesReadyCb()
+		// Remote config updates are never silent - they always trigger heartbeat events
+		r.onNewPoliciesReadyCb(false)
 	}
 }
 

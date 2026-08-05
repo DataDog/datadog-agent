@@ -1,0 +1,14 @@
+runtime_security_config:
+  enabled: false
+
+system_probe_config:
+  debug_port: 7654
+  telemetry_enabled: true
+
+network_config:
+  enabled: true
+  collect_tcp_v6: true
+
+ebpf_check:
+  enabled: true
+  kernel_bpf_stats: true

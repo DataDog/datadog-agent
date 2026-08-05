@@ -24,7 +24,7 @@ type AgentType int
 
 type checkFn func() error
 
-// nolint: deadcode, unused
+//nolint:unused
 type check struct {
 	name            string
 	run             checkFn
@@ -40,7 +40,7 @@ const (
 
 var checks = map[string]check{}
 
-// nolint: deadcode, unused
+//nolint:unused
 func registerCheck(name string, c checkFn, supportedAgentsSet map[AgentType]struct{}) {
 	checks[name] = check{name: name, run: c, supportedAgents: supportedAgentsSet}
 }

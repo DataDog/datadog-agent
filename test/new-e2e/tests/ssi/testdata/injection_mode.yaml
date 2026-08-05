@@ -2,12 +2,16 @@
 clusterAgent:
   admissionController:
     configMode: "hostip"
-
-# Temporary until the Datadog CSI driver is released
-datadog-csi-driver:
-  image:
-    repository: "gcr.io/datadoghq/csi-driver"
-    tag: "1.2.0"
+  env:
+    # Enable CSI auto-detection so the library injection AutoProvider switches
+    # to the CSI provider when the Datadog CSI driver is registered in the
+    # cluster (see TestInjectionMode/injection-mode-app-auto).
+    - name: DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED
+      value: "true"
+    # Disable gradual rollout so the injector resolves deterministically to the
+    # plain image tag (NoOpResolver) rather than a digest.
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
+      value: "false"
 
 datadog:
   csi:

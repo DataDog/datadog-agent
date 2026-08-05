@@ -107,7 +107,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	mgrOpts.DefaultKprobeAttachMethod = kprobeAttachMethod
 
-	if cfg.EnableCORE {
+	if cfg.EnableCORETracer {
 		err := isCORETracerSupported()
 		if err != nil && !errors.Is(err, errCORETracerNotSupported) {
 			return nil, nil, TracerTypeCORE, fmt.Errorf("error determining if CO-RE tracer is supported: %w", err)
@@ -136,7 +136,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 		}
 	}
 
-	if cfg.EnableRuntimeCompiler && (!cfg.EnableCORE || cfg.AllowRuntimeCompiledFallback) {
+	if cfg.EnableRuntimeCompiler && (!cfg.EnableCORETracer || cfg.AllowRuntimeCompiledFallback) {
 		m, closeFn, err := rcTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 		if err == nil {
 			return m, closeFn, TracerTypeRuntimeCompiled, err
@@ -176,7 +176,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
-		pcTailCalls := protocolClassificationTailCalls(config)
+		pcTailCalls := protocolClassificationTailCalls()
 		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(pcTailCalls))
 		for _, tailCall := range pcTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}

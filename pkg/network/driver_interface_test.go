@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
@@ -48,7 +48,15 @@ func (tdh *TestDriverHandleInfiniteLoop) GetWindowsHandle() windows.Handle {
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (tdh *TestDriverHandleInfiniteLoop) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
+func (tdh *TestDriverHandleInfiniteLoop) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error) {
+	return 0, nil
+}
+
+// Deprecated: matches the deprecated shim on driver.Handle so this mock still
+// satisfies the interface; remove together with the production shim.
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (tdh *TestDriverHandleInfiniteLoop) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) error {
 	return nil
 }
 

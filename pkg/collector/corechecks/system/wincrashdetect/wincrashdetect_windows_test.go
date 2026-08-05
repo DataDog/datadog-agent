@@ -48,8 +48,8 @@ func testSetup(t *testing.T) {
 
 func TestWinCrashReporting(t *testing.T) {
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
+	mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
 	// The test named pipe allows the current user.
 	listener, err := server.NewListenerForCurrentUser(systemProbeTestPipeName)
@@ -90,8 +90,8 @@ func TestWinCrashReporting(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		err = crashCheck.Run()
@@ -118,8 +118,8 @@ func TestWinCrashReporting(t *testing.T) {
 		}
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		// The text field describes the bugcheck information and callstack.
@@ -173,7 +173,7 @@ func TestWinCrashReporting(t *testing.T) {
 
 		check = newCheck()
 		crashCheck = check.(*WinCrashDetect)
-		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.Nil(t, err)
 		err = crashCheck.Run()
 		assert.Nil(t, err)
@@ -186,8 +186,8 @@ func TestWinCrashReporting(t *testing.T) {
 
 func TestCrashReportingStates(t *testing.T) {
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
+	mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
 	var crashStatus *probe.WinCrashStatus
 
@@ -248,8 +248,8 @@ func TestCrashReportingStates(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		crashStatus = &probe.WinCrashStatus{
@@ -311,8 +311,8 @@ func TestCrashReportingStates(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		noCrashStatus := &probe.WinCrashStatus{
@@ -336,8 +336,8 @@ func TestCrashReportingStates(t *testing.T) {
 
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
-		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		mock := mocksender.NewMockSender(t, crashCheck.ID())
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		failedStatus := &probe.WinCrashStatus{

@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import ClassVar
 
 import yaml
+from invoke.context import Context
 
 import tasks
 from tasks.libs.build.bazel import bazel
-from tasks.libs.common.utils import agent_working_directory
+from tasks.libs.common.utils import _resolve_target_platform, agent_working_directory
 
 
 class ConfigDumper(yaml.SafeDumper):
@@ -125,9 +126,9 @@ class GoModule:
 
     # Possible conditions for GoModule.should_test_condition
     SHOULD_TEST_CONDITIONS: ClassVar[dict[str, Callable]] = {
-        'always': lambda: True,
-        'never': lambda: False,
-        'is_linux': lambda: sys.platform == "linux",
+        'always': lambda platform=None: True,
+        'never': lambda platform=None: False,
+        'is_linux': lambda platform=None: (platform or sys.platform) == "linux",
     }
 
     # Posix path of the module's directory
@@ -212,12 +213,18 @@ class GoModule:
 
         return attrs
 
-    def should_test(self) -> bool:
-        """Verify that the module test condition is met from should_test_condition."""
+    def should_test(self, platform: str | None = None) -> bool:
+        """Verify that the module test condition is met from should_test_condition.
+
+        Args:
+            platform: Target platform to check condition against (e.g., "linux", "windows", "darwin").
+                     If None, uses sys.platform.
+        """
 
         function = GoModule.SHOULD_TEST_CONDITIONS[self.should_test_condition]
+        target_platform = _resolve_target_platform(platform)
 
-        return function()
+        return function(platform=target_platform)
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
@@ -230,11 +237,12 @@ class GoModule:
 
         return "v0" + agent_version[1:]
 
-    def __compute_dependencies(self):
+    def __compute_dependencies(self, ctx: Context):
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
         output = bazel(
+            ctx,
             "run",
             "//internal/tools/modparser",
             "--",
@@ -272,10 +280,9 @@ class GoModule:
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
 
-    @property
-    def dependencies(self):
+    def dependencies(self, ctx: Context):
         if not self._dependencies:
-            self._dependencies = self.__compute_dependencies()
+            self._dependencies = self.__compute_dependencies(ctx)
         return self._dependencies
 
     @property

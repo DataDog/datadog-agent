@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 // resultChanSize defines the result channel size

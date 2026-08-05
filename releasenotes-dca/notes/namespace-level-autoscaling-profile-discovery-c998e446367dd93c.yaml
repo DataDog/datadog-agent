@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add namespace-level batch onboarding for workload autoscaling profiles.
+    The Cluster Agent now discovers all workloads in namespaces labeled with
+    ``autoscaling.datadoghq.com/profile=<profile-name>`` and automatically
+    manages ``DatadogPodAutoscaler`` entries for them. Individual workloads
+    can opt out by setting ``autoscaling.datadoghq.com/profile=excluded``.

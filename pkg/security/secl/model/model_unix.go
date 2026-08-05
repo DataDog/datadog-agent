@@ -12,9 +12,9 @@
 package model
 
 import (
-	"net"
 	"net/netip"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -57,7 +56,7 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 	if fh.PCEs[pid] != nil {
 		return fh.PCEs[pid]
 	}
-	return GetPlaceholderProcessCacheEntry(pid, pid, false)
+	return GetPlaceholderProcessCacheEntry(PIDContext{Pid: pid})
 }
 
 // Event represents an event sent from the kernel
@@ -124,6 +123,7 @@ type Event struct {
 	Connect    ConnectEvent    `field:"connect" event:"connect"`       // [7.60] [Network] A connect was executed
 	Accept     AcceptEvent     `field:"accept" event:"accept"`         // [7.63] [Network] An accept was executed
 	SetSockOpt SetSockOptEvent `field:"setsockopt" event:"setsockopt"` // [7.68] [Network] A setsockopt was executed
+	Socket     SocketEvent     `field:"socket" event:"socket"`         // [7.81] [Network] A socket was created
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -207,17 +207,48 @@ func (e *Event) GetContainerID() string {
 	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
+// CGroupSource indicates the origin of a cgroup entry
+type CGroupSource uint64
+
+const (
+	// CGroupSourceUnknown defines a cgroup entry from an unknown source
+	CGroupSourceUnknown CGroupSource = iota
+	// CGroupSourceEvent defines a cgroup entry populated from a kernel event
+	CGroupSourceEvent
+	// CGroupSourceProcFS defines a cgroup entry populated from the procfs fallback
+	CGroupSourceProcFS
+)
+
+// String returns a string representation of the cgroup source
+func (s CGroupSource) String() string {
+	switch s {
+	case CGroupSourceEvent:
+		return "event"
+	case CGroupSourceProcFS:
+		return "procfs"
+	default:
+		return "unknown"
+	}
+}
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
 	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	CGroupSource  CGroupSource            `field:"-"`
+	CreatedAt     uint64                  `field:"created_at,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the cgroup`
+}
+
+// UnixCreatedAt returns the creation time of the cgroup
+func (cg *CGroupContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(cg.CreatedAt))
 }
 
 // IsNull returns true if the cgroup context is null
 func (cg *CGroupContext) IsNull() bool {
-	return cg.CGroupPathKey.IsNull()
+	return cg.CGroupPathKey.IsNull() && cg.CGroupID == ""
 }
 
 // IsResolved returns true if the cgroup context is resolved & not null
@@ -362,9 +393,6 @@ type Process struct {
 	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
-
 	TTYName     string      `field:"tty_name"`                                                          // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                                                              // SECLDoc[comm] Definition:`Comm attribute of the process`
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter,set_handler:SetInterpreterFields"` // Script interpreter as identified by the shebang
@@ -392,7 +420,7 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+	Tracer Tracer `field:"-"`
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -482,6 +510,11 @@ type FileFields struct {
 
 	NLink uint32 `field:"-"`
 	Flags int32  `field:"-"`
+}
+
+// IsDir reports whether the file mode represents a directory.
+func (f *FileFields) IsDir() bool {
+	return f.Mode&syscall.S_IFMT == syscall.S_IFDIR
 }
 
 // FileEvent is the common file event type
@@ -621,6 +654,8 @@ type OpenEvent struct {
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 
+	SampleCookie uint32 `field:"-"`
+
 	// Syscall context aliases
 	SyscallPath  string `field:"syscall.path,ref:open.syscall.str1"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 	SyscallFlags uint32 `field:"syscall.flags,ref:open.syscall.int2"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
@@ -643,7 +678,8 @@ type PIDContext struct {
 	Tid           uint32 `field:"tid"`        // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
 	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
-	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker/kthread`
+	SID           uint32 `field:"sid"`        // SECLDoc[sid] Definition:`Session ID of the process`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless
@@ -846,19 +882,27 @@ type NetworkDeviceContext struct {
 type BindEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Bound address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr         IPPortContext `field:"addr"`        // Bound address
+	AddrFamily   uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Protocol     uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	SampleCookie uint32        `field:"-"`
 }
 
 // ConnectEvent represents a connect event
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`                                                                          // Connection address
-	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr         IPPortContext `field:"addr"`                                                                          // Connection address
+	Hostnames    []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily   uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
+	Protocol     uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
+	SampleCookie uint32        `field:"-"`
+}
+
+// SampleRefreshEvent is a lightweight internal event sent when a dedup map
+// detects a duplicate and wants to refresh the cookie timestamp in userspace.
+type SampleRefreshEvent struct {
+	Cookie uint32
 }
 
 // AcceptEvent represents an accept event
@@ -935,14 +979,6 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
-}
-
-// SnapshottedBoundSocket represents a snapshotted bound socket
-type SnapshottedBoundSocket struct {
-	IP       net.IP
-	Port     uint16
-	Family   uint16
-	Protocol uint16
 }
 
 // RawPacketEvent represents a packet event
@@ -1086,6 +1122,14 @@ type SetSockOptEvent struct {
 	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Instructions of the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
 	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the currently attached filter using sha256. Only available if the optname is \`SO_ATTACH_FILTER\``
 	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
+}
+
+// SocketEvent represents a socket event
+type SocketEvent struct {
+	SyscallEvent
+	Domain   uint16 `field:"domain"`   // SECLDoc[domain] Definition:`Socket domain`
+	Type     uint16 `field:"type"`     // SECLDoc[type] Definition:`Socket type`
+	Protocol uint16 `field:"protocol"` // SECLDoc[protocol] Definition:`Socket protocol`
 }
 
 // CapabilitiesEvent is used to report capabilities usage

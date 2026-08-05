@@ -30,9 +30,9 @@ func TestDiscoveryCheckRun(t *testing.T) {
 	)
 
 	check := newCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "provider")
 	require.NoError(t, err)
 
 	err = check.Run()
@@ -55,9 +55,9 @@ func TestDiscoveryCheckWarningsPersist(t *testing.T) {
 	)
 
 	check := newCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "provider")
 	require.NoError(t, err)
 
 	err = check.Run()
@@ -97,9 +97,9 @@ func TestProcessLogWarningStructure(t *testing.T) {
 	)
 
 	check := newCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "provider")
 	require.NoError(t, err)
 
 	err = check.Run()
@@ -133,9 +133,9 @@ func TestProcessLogWarningRemoval(t *testing.T) {
 	AddWarning("file2.log", os.ErrNotExist, "File 2 warning")
 
 	check := newCheck()
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test")
+	err := check.Configure(senderManager, 0, integration.Data{}, integration.Data{}, "test", "provider")
 	require.NoError(t, err)
 
 	err = check.Run()

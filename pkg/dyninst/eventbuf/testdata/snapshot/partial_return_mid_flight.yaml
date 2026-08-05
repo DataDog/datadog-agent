@@ -1,0 +1,35 @@
+# Entry is complete, two return fragments arrive, then PARTIAL_RETURN
+# tells us last_seq=1 (two fragments total). The invocation finalizes
+# immediately, paired, with ReturnTruncated=true.
+config: {}
+ops:
+  - !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 50}
+  - !add-fragment {key: k1, side: return, seq: 0, final: false, expect_return: false, bytes: 40}
+  - !add-fragment {key: k1, side: return, seq: 1, final: false, expect_return: false, bytes: 40}
+  - !note-partial {key: k1, side: return, last_seq: 1}
+---
+op: !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 50}
+state:
+  budget_used: 50
+  bytes: 50
+  tree_size: 1
+---
+op: !add-fragment {key: k1, side: return, seq: 0, final: false, expect_return: false, bytes: 40}
+state:
+  budget_used: 90
+  bytes: 90
+  tree_size: 1
+---
+op: !add-fragment {key: k1, side: return, seq: 1, final: false, expect_return: false, bytes: 40}
+state:
+  budget_used: 130
+  bytes: 130
+  tree_size: 1
+---
+op: !note-partial {key: k1, side: return, last_seq: 1}
+readys:
+  - {key: k1, entry_frags: 1, entry_bytes: 50, return_frags: 2, return_bytes: 80, return_truncated: true}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0

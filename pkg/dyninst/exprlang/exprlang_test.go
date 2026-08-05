@@ -124,17 +124,68 @@ var testCases = []struct {
 	{name: "count", input: `{"count": {"ref": "payload"}}`},
 	{name: "substring negative", input: `{"substring": [{"ref": "s"}, -5, -1]}`},
 	{name: "nested filter with any", input: `{"len": {"filter": [{"ref": "collection"}, {"any": [{"ref": "@it"}, {"eq": [{"ref": "@it"}, 1]}]}]}}`},
-	// Test literal values (these should also fail - not objects)
+	// Test literal values
 	{name: "literal int", input: `42`},
 	{name: "literal bool", input: `true`},
+	// Test eq expressions
+	{name: "eq with int", input: `{"eq": [{"ref": "x"}, 42]}`},
+	{name: "eq with string", input: `{"eq": [{"ref": "name"}, "hello"]}`},
+	{name: "eq with float", input: `{"eq": [{"ref": "x"}, 3.14]}`},
+	{name: "literal string", input: `"hello"`},
+	{name: "literal float", input: `3.14`},
+	{name: "literal false", input: `false`},
+	{name: "literal null", input: `null`},
+	// Test len/isEmpty inside eq
+	{name: "eq with len", input: `{"eq": [{"len": {"ref": "s"}}, 5]}`},
+	{name: "eq with isEmpty", input: `{"eq": [{"isEmpty": {"ref": "s"}}, true]}`},
+	// Compound conditions (and/or binary, not unary).
+	{name: "not with eq", input: `{"not": {"eq": [{"ref": "x"}, 42]}}`},
+	{name: "or with nested and", input: `{"or": [{"and": [{"eq": [{"ref": "x"}, 1]}, {"eq": [{"ref": "y"}, 2]}]}, {"isEmpty": {"ref": "s"}}]}`},
+	{name: "deeply nested compound", input: `{"and": [{"or": [{"eq": [{"ref": "x"}, 1]}, {"eq": [{"ref": "x"}, 2]}]}, {"not": {"isEmpty": {"ref": "s"}}}]}`},
+	// Arity error cases for strictly-binary and/or.
+	{name: "and arity 1", input: `{"and": [{"eq": [{"ref": "x"}, 1]}]}`},
+	{name: "and arity 3", input: `{"and": [{"eq": [{"ref": "x"}, 1]}, {"eq": [{"ref": "y"}, 2]}, {"eq": [{"ref": "z"}, 3]}]}`},
+	{name: "or arity 0", input: `{"or": []}`},
+	// contains: map key-presence check.
+	{name: "contains int key", input: `{"contains": [{"ref": "m"}, 42]}`},
+	{name: "contains nested getmember", input: `{"contains": [{"getmember": [{"ref": "self"}, "m"]}, "k"]}`},
+	{name: "contains under not", input: `{"not": {"contains": [{"ref": "m"}, "k"]}}`},
+	{name: "contains in and", input: `{"and": [{"contains": [{"ref": "m"}, "k"]}, {"eq": [{"ref": "x"}, 1]}]}`},
+	{name: "contains arity 0", input: `{"contains": []}`},
+	{name: "contains arity 1", input: `{"contains": [{"ref": "m"}]}`},
+	{name: "contains arity 3", input: `{"contains": [{"ref": "m"}, "k", 1]}`},
+	// Nested forms of the inequality operators.
+	{name: "gt with len", input: `{"gt": [{"len": {"ref": "s"}}, 5]}`},
+	{name: "lt with getmember", input: `{"lt": [{"getmember": [{"ref": "x"}, "I32"]}, 100]}`},
+	{name: "ge with float", input: `{"ge": [{"ref": "x"}, 3.14]}`},
+	{name: "le with string", input: `{"le": [{"ref": "name"}, "hello"]}`},
+	{name: "ne with null", input: `{"ne": [{"ref": "p"}, null]}`},
+	{name: "and with gt and le", input: `{"and": [{"gt": [{"ref": "x"}, 1]}, {"le": [{"ref": "x"}, 10]}]}`},
+	// Arity error cases for the inequality operators.
+	{name: "lt arity 0", input: `{"lt": []}`},
+	{name: "le arity 1", input: `{"le": [{"ref": "x"}]}`},
+	{name: "gt arity 3", input: `{"gt": [1, 2, 3]}`},
+	{name: "ge arity 3", input: `{"ge": [{"ref": "x"}, 1, 2]}`},
+	{name: "ne arity 0", input: `{"ne": []}`},
+	{name: "eq arity 0", input: `{"eq": []}`},
+	// Arity error cases for any / all.
+	{name: "any arity 0", input: `{"any": []}`},
+	{name: "any arity 1", input: `{"any": [{"ref": "xs"}]}`},
+	{name: "any arity 3", input: `{"any": [{"ref": "xs"}, {"ref": "@it"}, 0]}`},
+	{name: "all arity 0", input: `{"all": []}`},
+	{name: "all arity 1", input: `{"all": [{"ref": "xs"}]}`},
+	{name: "all arity 3", input: `{"all": [{"ref": "xs"}, {"ref": "@it"}, 0]}`},
 }
 
 // exprResult represents the result of parsing an expression for storage in JSON.
 type exprResult struct {
-	Type      string          `json:"type"`          // "ref", "unsupported", or "error"
+	Type      string          `json:"type"`          // "ref", "unsupported", "eq", "literal", or "error"
 	Ref       string          `json:"ref,omitempty"` // Ref value (used for ref expressions)
 	Operation string          `json:"operation"`
 	Argument  json.RawMessage `json:"argument,omitempty"` // Raw json argument (used for unsupported expressions)
+	Left      *exprResult     `json:"left,omitempty"`     // Left operand (used for eq expressions)
+	Right     *exprResult     `json:"right,omitempty"`    // Right operand (used for eq expressions)
+	Value     any             `json:"value,omitempty"`    // Literal value
 	Error     string          `json:"error"`
 }
 
@@ -151,6 +202,69 @@ func exprToResult(expr Expr, err error) exprResult {
 		baseJSON, _ := json.Marshal(e.Base)
 		argJSON, _ := json.Marshal([]interface{}{json.RawMessage(baseJSON), e.Member})
 		return exprResult{Type: "unsupported", Operation: "getmember", Argument: json.RawMessage(argJSON)}
+	case *LenExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "len", Left: &operand}
+	case *IsEmptyExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "isEmpty", Left: &operand}
+	case *EqExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "eq", Left: &left, Right: &right}
+	case *NeExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "ne", Left: &left, Right: &right}
+	case *LtExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "lt", Left: &left, Right: &right}
+	case *LeExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "le", Left: &left, Right: &right}
+	case *GtExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "gt", Left: &left, Right: &right}
+	case *GeExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "ge", Left: &left, Right: &right}
+	case *IndexExpr:
+		base := exprToResult(e.Base, nil)
+		index := exprToResult(e.Index, nil)
+		return exprResult{Type: "index", Left: &base, Right: &index}
+	case *ContainsExpr:
+		base := exprToResult(e.Base, nil)
+		key := exprToResult(e.Key, nil)
+		return exprResult{Type: "contains", Left: &base, Right: &key}
+	case *AndExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "and", Left: &left, Right: &right}
+	case *OrExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "or", Left: &left, Right: &right}
+	case *NotExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "not", Left: &operand}
+	case *AnyExpr:
+		base := exprToResult(e.Base, nil)
+		pred := exprToResult(e.Pred, nil)
+		return exprResult{Type: "any", Left: &base, Right: &pred}
+	case *AllExpr:
+		base := exprToResult(e.Base, nil)
+		pred := exprToResult(e.Pred, nil)
+		return exprResult{Type: "all", Left: &base, Right: &pred}
+	case *FilterExpr:
+		base := exprToResult(e.Base, nil)
+		pred := exprToResult(e.Pred, nil)
+		return exprResult{Type: "filter", Left: &base, Right: &pred}
+	case *LiteralExpr:
+		return exprResult{Type: "literal", Value: e.Value}
 	case *UnsupportedExpr:
 		return exprResult{Type: "unsupported", Operation: e.Operation, Argument: json.RawMessage(e.Argument)}
 	default:
@@ -254,6 +368,26 @@ func TestParse(t *testing.T) {
 			switch expr.(type) {
 			case *RefExpr:
 				require.Equal(t, expectedResult.Ref, actualResult.Ref, "ref value mismatch")
+			case *LenExpr, *IsEmptyExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "len/isEmpty expression mismatch")
+			case *IndexExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "index expression mismatch")
+			case *EqExpr, *NeExpr, *LtExpr, *LeExpr, *GtExpr, *GeExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "comparison expression mismatch")
+			case *AnyExpr, *AllExpr, *FilterExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "any/all/filter expression mismatch")
+			case *LiteralExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "literal expression mismatch")
 			case *UnsupportedExpr:
 				if expectedResult.Argument == nil {
 					require.Equal(t, json.RawMessage("null"), actualResult.Argument, "argument mismatch")
@@ -281,3 +415,355 @@ func BenchmarkParse(b *testing.B) {
 		})
 	}
 }
+
+// TestRewrite exhaustively covers the Rewrite function across all expression
+// types, confirming that:
+//   - leaves (RefExpr, LiteralExpr, UnsupportedExpr) are visited and can be
+//     replaced or left alone,
+//   - every branch node (GetMemberExpr, EqExpr, IndexExpr, LenExpr,
+//     IsEmptyExpr) recurses into each child and rebuilds only when a child
+//     changed,
+//   - the visit order is bottom-up (children visited before parents),
+//   - unhandled expression types cause a panic.
+func TestRewrite(t *testing.T) {
+	t.Run("nil rewriter preserves identity", func(t *testing.T) {
+		cases := []Expr{
+			&RefExpr{Ref: "x"},
+			&LiteralExpr{Value: int64(42)},
+			&UnsupportedExpr{Operation: "foo", Argument: nil},
+			&GetMemberExpr{Base: &RefExpr{Ref: "x"}, Member: "f"},
+			&EqExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&NeExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&LtExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&LeExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&GtExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&GeExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
+			&LenExpr{Operand: &RefExpr{Ref: "s"}},
+			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
+			&AnyExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
+			&AllExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
+		}
+		for _, in := range cases {
+			out := Rewrite(in, func(Expr) Expr { return nil })
+			require.Samef(t, in, out, "expected identity for %T", in)
+		}
+	})
+
+	t.Run("rewrites RefExpr leaf", func(t *testing.T) {
+		in := &RefExpr{Ref: "x"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "x" {
+				return &RefExpr{Ref: "y"}
+			}
+			return nil
+		})
+		require.Equal(t, &RefExpr{Ref: "y"}, out)
+	})
+
+	t.Run("rewrites LiteralExpr leaf", func(t *testing.T) {
+		in := &LiteralExpr{Value: int64(1)}
+		out := Rewrite(in, func(e Expr) Expr {
+			if _, ok := e.(*LiteralExpr); ok {
+				return &LiteralExpr{Value: int64(2)}
+			}
+			return nil
+		})
+		require.Equal(t, &LiteralExpr{Value: int64(2)}, out)
+	})
+
+	t.Run("rewrites UnsupportedExpr leaf", func(t *testing.T) {
+		in := &UnsupportedExpr{Operation: "foo"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if _, ok := e.(*UnsupportedExpr); ok {
+				return &RefExpr{Ref: "replaced"}
+			}
+			return nil
+		})
+		require.Equal(t, &RefExpr{Ref: "replaced"}, out)
+	})
+
+	t.Run("rewrites GetMemberExpr base, preserves member", func(t *testing.T) {
+		in := &GetMemberExpr{Base: &RefExpr{Ref: "a"}, Member: "f"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "a" {
+				return &RefExpr{Ref: "b"}
+			}
+			return nil
+		})
+		require.Equal(t, &GetMemberExpr{Base: &RefExpr{Ref: "b"}, Member: "f"}, out)
+	})
+
+	t.Run("rewrites both sides of EqExpr", func(t *testing.T) {
+		in := &EqExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok {
+				return &RefExpr{Ref: ref.Ref + "!"}
+			}
+			return nil
+		})
+		require.Equal(t, &EqExpr{
+			Left:  &RefExpr{Ref: "a!"},
+			Right: &RefExpr{Ref: "b!"},
+		}, out)
+	})
+
+	t.Run("rewrites both sides of inequality nodes", func(t *testing.T) {
+		// Each new comparison node type recurses into Left and Right and
+		// rebuilds when either child changed.
+		factories := []struct {
+			name string
+			make func(left, right Expr) Expr
+		}{
+			{"NeExpr", func(l, r Expr) Expr { return &NeExpr{Left: l, Right: r} }},
+			{"LtExpr", func(l, r Expr) Expr { return &LtExpr{Left: l, Right: r} }},
+			{"LeExpr", func(l, r Expr) Expr { return &LeExpr{Left: l, Right: r} }},
+			{"GtExpr", func(l, r Expr) Expr { return &GtExpr{Left: l, Right: r} }},
+			{"GeExpr", func(l, r Expr) Expr { return &GeExpr{Left: l, Right: r} }},
+		}
+		for _, f := range factories {
+			t.Run(f.name, func(t *testing.T) {
+				in := f.make(&RefExpr{Ref: "a"}, &RefExpr{Ref: "b"})
+				out := Rewrite(in, func(e Expr) Expr {
+					if ref, ok := e.(*RefExpr); ok {
+						return &RefExpr{Ref: ref.Ref + "!"}
+					}
+					return nil
+				})
+				expected := f.make(&RefExpr{Ref: "a!"}, &RefExpr{Ref: "b!"})
+				require.Equal(t, expected, out)
+				require.NotSame(t, in, out)
+			})
+		}
+	})
+
+	t.Run("rewrites both sides of IndexExpr", func(t *testing.T) {
+		in := &IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}}
+		out := Rewrite(in, func(e Expr) Expr {
+			switch e := e.(type) {
+			case *RefExpr:
+				return &RefExpr{Ref: "b"}
+			case *LiteralExpr:
+				if v, ok := e.Value.(int64); ok {
+					return &LiteralExpr{Value: v + 1}
+				}
+			}
+			return nil
+		})
+		require.Equal(t, &IndexExpr{
+			Base:  &RefExpr{Ref: "b"},
+			Index: &LiteralExpr{Value: int64(1)},
+		}, out)
+	})
+
+	t.Run("rewrites LenExpr operand", func(t *testing.T) {
+		in := &LenExpr{Operand: &RefExpr{Ref: "s"}}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "s" {
+				return &RefExpr{Ref: "t"}
+			}
+			return nil
+		})
+		require.Equal(t, &LenExpr{Operand: &RefExpr{Ref: "t"}}, out)
+	})
+
+	t.Run("rewrites IsEmptyExpr operand", func(t *testing.T) {
+		in := &IsEmptyExpr{Operand: &RefExpr{Ref: "s"}}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "s" {
+				return &RefExpr{Ref: "t"}
+			}
+			return nil
+		})
+		require.Equal(t, &IsEmptyExpr{Operand: &RefExpr{Ref: "t"}}, out)
+	})
+
+	t.Run("preserves identity when children unchanged", func(t *testing.T) {
+		cases := []Expr{
+			&GetMemberExpr{Base: &RefExpr{Ref: "x"}, Member: "f"},
+			&EqExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&NeExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&LtExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&LeExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&GtExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&GeExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
+			&LenExpr{Operand: &RefExpr{Ref: "s"}},
+			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
+			&AnyExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
+			&AllExpr{Base: &RefExpr{Ref: "xs"}, Pred: &RefExpr{Ref: "@it"}},
+		}
+		for _, in := range cases {
+			out := Rewrite(in, func(Expr) Expr { return nil })
+			require.Samef(t, in, out,
+				"unchanged subtree should not reallocate %T", in)
+		}
+	})
+
+	t.Run("rebuilds parent only when child changed", func(t *testing.T) {
+		base := &RefExpr{Ref: "a"}
+		in := &GetMemberExpr{Base: base, Member: "f"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "a" {
+				return &RefExpr{Ref: "b"}
+			}
+			return nil
+		}).(*GetMemberExpr)
+		require.NotSame(t, in, out)
+		require.NotSame(t, base, out.Base)
+		require.Equal(t, "f", out.Member)
+	})
+
+	t.Run("bottom-up visit order", func(t *testing.T) {
+		// Expression: len(a.f)
+		// Expected visit order: a (leaf), a.f (parent), len(...) (root)
+		in := &LenExpr{Operand: &GetMemberExpr{
+			Base:   &RefExpr{Ref: "a"},
+			Member: "f",
+		}}
+		var order []string
+		Rewrite(in, func(e Expr) Expr {
+			switch e := e.(type) {
+			case *RefExpr:
+				order = append(order, "ref:"+e.Ref)
+			case *GetMemberExpr:
+				order = append(order, "getmember:"+e.Member)
+			case *LenExpr:
+				order = append(order, "len")
+			}
+			return nil
+		})
+		require.Equal(t, []string{"ref:a", "getmember:f", "len"}, order)
+	})
+
+	t.Run("nested rewrite propagates through tree", func(t *testing.T) {
+		// eq(len(a.f), 3) -> eq(len(b.f), 3)
+		in := &EqExpr{
+			Left: &LenExpr{Operand: &GetMemberExpr{
+				Base:   &RefExpr{Ref: "a"},
+				Member: "f",
+			}},
+			Right: &LiteralExpr{Value: int64(3)},
+		}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "a" {
+				return &RefExpr{Ref: "b"}
+			}
+			return nil
+		})
+		require.Equal(t, &EqExpr{
+			Left: &LenExpr{Operand: &GetMemberExpr{
+				Base:   &RefExpr{Ref: "b"},
+				Member: "f",
+			}},
+			Right: &LiteralExpr{Value: int64(3)},
+		}, out)
+	})
+
+	t.Run("replacement at root replaces entire tree", func(t *testing.T) {
+		in := &EqExpr{
+			Left:  &RefExpr{Ref: "a"},
+			Right: &LiteralExpr{Value: int64(1)},
+		}
+		out := Rewrite(in, func(e Expr) Expr {
+			if _, ok := e.(*EqExpr); ok {
+				return &LiteralExpr{Value: true}
+			}
+			return nil
+		})
+		require.Equal(t, &LiteralExpr{Value: true}, out)
+	})
+
+	t.Run("panics on unhandled expression type", func(t *testing.T) {
+		require.PanicsWithValue(t,
+			fmt.Sprintf("exprlang.Rewrite: unhandled expression type %T",
+				(*unknownExpr)(nil)),
+			func() {
+				Rewrite(&unknownExpr{}, func(Expr) Expr { return nil })
+			})
+	})
+}
+
+// unknownExpr is a test-only Expr type that the Rewrite switch does not
+// recognise; used to exercise the default panic.
+type unknownExpr struct{}
+
+// TestChildren covers the Children iterator: it visits every node bottom-up
+// (leaves before parents, root last), handles all node types, and supports
+// early termination via break.
+func TestChildren(t *testing.T) {
+	collect := func(root Expr) []Expr {
+		var out []Expr
+		for e := range Children(root) {
+			out = append(out, e)
+		}
+		return out
+	}
+
+	t.Run("yields single leaf", func(t *testing.T) {
+		in := &RefExpr{Ref: "x"}
+		require.Equal(t, []Expr{in}, collect(in))
+	})
+
+	t.Run("bottom-up traversal", func(t *testing.T) {
+		// eq(len(a.f), 3)
+		refA := &RefExpr{Ref: "a"}
+		gm := &GetMemberExpr{Base: refA, Member: "f"}
+		l := &LenExpr{Operand: gm}
+		lit := &LiteralExpr{Value: int64(3)}
+		root := &EqExpr{Left: l, Right: lit}
+
+		got := collect(root)
+		require.Equal(t, []Expr{refA, gm, l, lit, root}, got)
+	})
+
+	t.Run("visits IndexExpr base and index", func(t *testing.T) {
+		base := &RefExpr{Ref: "a"}
+		idx := &LiteralExpr{Value: int64(0)}
+		root := &IndexExpr{Base: base, Index: idx}
+		require.Equal(t, []Expr{base, idx, root}, collect(root))
+	})
+
+	t.Run("visits inequality node Left then Right", func(t *testing.T) {
+		// Bottom-up traversal applies to each new comparison node identically
+		// to EqExpr. Sample one (LtExpr) here; other types share the Rewrite
+		// implementation and are covered by TestRewrite.
+		left := &RefExpr{Ref: "a"}
+		right := &LiteralExpr{Value: int64(1)}
+		root := &LtExpr{Left: left, Right: right}
+		require.Equal(t, []Expr{left, right, root}, collect(root))
+	})
+
+	t.Run("visits IsEmptyExpr operand", func(t *testing.T) {
+		op := &RefExpr{Ref: "s"}
+		root := &IsEmptyExpr{Operand: op}
+		require.Equal(t, []Expr{op, root}, collect(root))
+	})
+
+	t.Run("early break stops iteration", func(t *testing.T) {
+		// eq(ref(a), ref(b)) — break after first node.
+		in := &EqExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}}
+		var count int
+		for range Children(in) {
+			count++
+			break
+		}
+		require.Equal(t, 1, count)
+	})
+
+	t.Run("break after match skips remainder", func(t *testing.T) {
+		in := &EqExpr{Left: &RefExpr{Ref: "target"}, Right: &RefExpr{Ref: "other"}}
+		var visited []string
+		for e := range Children(in) {
+			if ref, ok := e.(*RefExpr); ok {
+				visited = append(visited, ref.Ref)
+				if ref.Ref == "target" {
+					break
+				}
+			}
+		}
+		require.Equal(t, []string{"target"}, visited)
+	})
+}
+
+func (*unknownExpr) expr() {}

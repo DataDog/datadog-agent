@@ -1,8 +1,11 @@
 {
-  "type": "unsupported",
-  "operation": "isEmpty",
-  "argument": {
-    "ref": "empty_str"
+  "type": "isEmpty",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "empty_str",
+    "operation": "",
+    "error": ""
   },
   "error": ""
 }

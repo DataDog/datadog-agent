@@ -28,9 +28,93 @@ import (
 
 type dockerDaemonConfig map[string]interface{}
 
-var (
-	dockerDaemonPath = "/etc/docker/daemon.json"
-)
+const dockerDaemonPath = "/etc/docker/daemon.json"
+
+// sanitizeJSON removes Docker daemon.json extensions that encoding/json rejects.
+// It strips a leading UTF-8 BOM and Docker 28-style comments while preserving
+// comment markers inside JSON string values.
+func sanitizeJSON(content []byte) []byte {
+	content = bytes.TrimPrefix(content, []byte{0xEF, 0xBB, 0xBF})
+
+	sanitized := make([]byte, 0, len(content))
+	inString := false
+	escaped := false
+	for i := 0; i < len(content); {
+		c := content[i]
+		if inString {
+			sanitized = append(sanitized, c)
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+			i++
+			continue
+		}
+
+		if c == '"' {
+			inString = true
+			sanitized = append(sanitized, c)
+			i++
+			continue
+		}
+
+		if c == '/' && i+1 < len(content) {
+			switch content[i+1] {
+			case '/':
+				i += 2
+				for i < len(content) && content[i] != '\n' && content[i] != '\r' {
+					i++
+				}
+				continue
+			case '*':
+				blockStart := i
+				sanitizedLen := len(sanitized)
+				closed := false
+				i += 2
+				for i < len(content) {
+					if content[i] == '*' && i+1 < len(content) && content[i+1] == '/' {
+						i += 2
+						closed = true
+						break
+					}
+					if content[i] == '\n' || content[i] == '\r' {
+						sanitized = append(sanitized, content[i])
+					}
+					i++
+				}
+				if !closed {
+					// Keep unterminated block comments so json.Unmarshal can report
+					// the invalid content instead of silently discarding it.
+					sanitized = sanitized[:sanitizedLen]
+					sanitized = append(sanitized, content[blockStart:]...)
+				}
+				continue
+			}
+		}
+
+		sanitized = append(sanitized, c)
+		i++
+	}
+	return sanitized
+}
+
+func unmarshalDockerConfigContent(content []byte, dockerConfig *dockerDaemonConfig) error {
+	content = bytes.TrimSpace(sanitizeJSON(content))
+	if len(content) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(content, dockerConfig); err != nil {
+		return wrapDockerConfigError(err)
+	}
+	return nil
+}
+
+func wrapDockerConfigError(err error) error {
+	return fmt.Errorf("%s appears to contain invalid JSON: %w", dockerDaemonPath, err)
+}
 
 // instrumentDocker instruments the docker runtime to use the APM injector.
 func (a *InjectorInstaller) instrumentDocker(ctx context.Context) (func() error, error) {
@@ -81,7 +165,7 @@ func (a *InjectorInstaller) setDockerConfigContent(ctx context.Context, previous
 	dockerConfig := dockerDaemonConfig{}
 
 	if len(previousContent) > 0 {
-		err = json.Unmarshal(previousContent, &dockerConfig)
+		err = unmarshalDockerConfigContent(previousContent, &dockerConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +195,7 @@ func (a *InjectorInstaller) deleteDockerConfigContent(_ context.Context, previou
 	dockerConfig := dockerDaemonConfig{}
 
 	if len(previousContent) > 0 {
-		err := json.Unmarshal(previousContent, &dockerConfig)
+		err := unmarshalDockerConfigContent(previousContent, &dockerConfig)
 		if err != nil {
 			return nil, err
 		}

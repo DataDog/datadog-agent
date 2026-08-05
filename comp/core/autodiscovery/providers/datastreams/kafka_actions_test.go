@@ -14,12 +14,20 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type mockedRcClient struct{}
+
+func (m *mockedRcClient) SubscribeAgentTask() {}
+
+func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+}
 
 type mockedAutodiscoveryActions struct {
 	autodiscovery.Component
@@ -216,6 +224,14 @@ func TestNormalizeBootstrapServers(t *testing.T) {
 			name:     "leading and trailing special chars trimmed",
 			input:    "-broker.example.com:9092-",
 			expected: "broker.example.com:9092",
+		},
+		{
+			name:  "long broker list truncated to backend tag limit",
+			input: "b-1.demosumuseast1main.l4fk14.c6.kafka.us-east-1.amazonaws.com:9096,b-2.demosumuseast1main.l4fk14.c6.kafka.us-east-1.amazonaws.com:9096,b-3.demosumuseast1main.l4fk14.c6.kafka.us-east-1.amazonaws.com:9096",
+			// Full normalized value would be 202 chars, but the backend truncates
+			// the tag "bootstrap_servers:<value>" to 200 chars total, leaving
+			// 200 - len("bootstrap_servers:") = 182 chars for the value.
+			expected: "b_1.demosumuseast1main.l4fk14.c6.kafka.us_east_1.amazonaws.com:9096_b_2.demosumuseast1main.l4fk14.c6.kafka.us_east_1.amazonaws.com:9096_b_3.demosumuseast1main.l4fk14.c6.kafka.us_east",
 		},
 	}
 

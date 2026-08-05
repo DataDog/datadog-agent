@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -58,7 +58,7 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id": "test_container",
 			"location":     "test_region",
@@ -90,6 +90,40 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	}, tags)
 }
 
+func TestCloudRunJobsGetEnhancedMetricTags(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+	tags := map[string]string{
+		"job_name":     "test-job",
+		"location":     "us-central1",
+		"origin":       "cloudrunjobs",
+		"project_id":   "test-project",
+		"container_id": "abc123",
+	}
+	result := service.GetEnhancedMetricTags(tags)
+
+	assert.Equal(t, map[string]string{
+		"job_name":   "test-job",
+		"location":   "us-central1",
+		"origin":     "cloudrunjobs",
+		"project_id": "test-project",
+	}, result.Base)
+
+	assert.Equal(t, map[string]string{
+		"job_name":   "test-job",
+		"location":   "us-central1",
+		"origin":     "cloudrunjobs",
+		"project_id": "test-project",
+		"instance":   "abc123",
+	}, result.Usage)
+}
+
+func TestCloudRunJobsGetUsageMetricSuffix(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+	assert.Equal(t, "instance", service.GetUsageMetricSuffix())
+}
+
 func TestCloudRunJobsGetOrigin(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
@@ -118,15 +152,15 @@ func TestIsCloudRunJobWhenNotSet(t *testing.T) {
 func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	skipOnWindows(t)
 	demux := createDemultiplexer(t)
-	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
+	shutdownMetricName := "gcp.run.job.enhanced.task.ended"
 
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
 	require.Error(t, err)
-	jobs.Shutdown(agent, err)
+	jobs.Shutdown(agent, true, err)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Empty(t, timedMetrics)
@@ -145,12 +179,12 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	skipOnWindows(t)
 	demux := createDemultiplexer(t)
-	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
+	agent := &serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
+	shutdownMetricName := "gcp.run.job.enhanced.task.ended"
 
-	jobs.Shutdown(agent, nil)
+	jobs.Shutdown(agent, true, nil)
 
 	generatedMetrics, _ := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -192,6 +226,8 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID)
 		assert.NotNil(t, jobs.jobSpan.Meta)
 		assert.Equal(t, "cloudrunjobs", jobs.jobSpan.Meta["origin"])
+		// Verify _dd.measured=1 is set for stats computation
+		assert.Equal(t, float64(1), jobs.jobSpan.Metrics["_dd.measured"])
 	}
 }
 
@@ -273,7 +309,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 
 	// Simulate an error
 	testErr := errors.New("task failed")
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, testErr)
+	jobs.Shutdown(nil, true, testErr)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -303,7 +339,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
 	jobs.Init(&TracingContext{TraceAgent: mockAgent, SpanTags: spanTags})
 
 	// Simulate success (no error)
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
+	jobs.Shutdown(nil, true, nil)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -323,7 +359,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
 	// Don't call Init, so jobSpan remains nil
 
 	// Should not panic
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
+	jobs.Shutdown(nil, true, nil)
 
 	// Should not submit anything
 	assert.False(t, mockAgent.processCalled)

@@ -43,16 +43,6 @@ single_machine_performance-regression_detector-merge_base_check:
           echo "Merge base is ${SMP_MERGE_BASE}"
           BASELINE_SHA="${SMP_MERGE_BASE}"
       fi
-    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
-    # Check if baseline SHA is too old
-    - |
-      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
-      then
-          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-          datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
-          exit 1
-      fi
-    - echo "Commit ${BASELINE_SHA} is recent enough"
     # Setup AWS credentials for single-machine-performance AWS account to check ECR images
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
@@ -63,7 +53,20 @@ single_machine_performance-regression_detector-merge_base_check:
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
 
-    # Check if image exists for the baseline SHA
+    # Check if image exists for the baseline SHA, walking backwards on the
+    # commit graph until a container corresponding to the possible baseline is
+    # found, or the possible baseline commit is too old. If the commit is too
+    # old, the container corresponding to that commit has probably expired.
+    #
+    # We intentionally omit checking whether the baseline commit is too old
+    # *before* the loop in order to provide ourselves with a break-glass option
+    # in scenarios where we would like to use an old commit as a baseline (e.g.,
+    # backporting bugfixes to a release branch). In such a scenario, we could
+    # run CI on the release branch to generate a baseline image, even if the
+    # commit is too old. However, we also only omit the commit age check once so
+    # that we can still use it on predecessor commits that are usually older than
+    # the current commit under test -- this check gives us a fast-fail condition so
+    # we avoid wasting time checking for expired images in common cases.
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
       while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
@@ -74,7 +77,116 @@ single_machine_performance-regression_detector-merge_base_check:
           BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
           if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
           then
-              echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+              echo "ERROR: Baseline commit (${BASELINE_SHA}) for this branch (${CI_COMMIT_BRANCH}) is too old for SMP. Please update your branch by merging or rebasing it onto an up-to-date ${SMP_BASE_BRANCH} branch."
+              # Updating onto ${SMP_BASE_BRANCH} makes its tip this branch's new
+              # merge base, so the next pipeline needs a baseline image for that
+              # tip. A release branch can sit idle long enough for its tip's
+              # image to age out of ECR, in which case that next pipeline fails
+              # here too -- costing another image build, which takes 40-60
+              # minutes once started plus unknown runner queue time. Start the
+              # build now so it overlaps with the update instead of following it.
+              #
+              # Release branches only: a merge base with main has almost always
+              # been built already by some other recent pipeline, and updating
+              # onto main costs one pipeline rather than two.
+              #
+              # Best-effort -- a failure to trigger is reported but does not
+              # change this job's outcome, which is a failure either way.
+              if [[ "$SMP_BASE_BRANCH" =~ ^[0-9]+\.[0-9]+\.x$ ]]
+              then
+                  SMP_BASE_TIP=$(git rev-parse "origin/${SMP_BASE_BRANCH}")
+                  # Trigger only on a *confirmed* miss. Throttling, expired
+                  # credentials and network errors all leave `describe-images`
+                  # stdout empty too, so the `[[ ! $(...) ]]` test the loop
+                  # above uses cannot tell "no such image" from "could not
+                  # check". Guessing wrong is cheap in that loop -- it steps
+                  # back one commit -- but here it starts an ~860-job pipeline,
+                  # and the two failures correlate: credentials expiring
+                  # mid-loop is itself a way to reach this branch spuriously.
+                  # The distinguishing information is on stderr, so capture
+                  # that and discard stdout. `if VAR=$(...)` is exempt from
+                  # `set -e`.
+                  if SMP_ECR_ERROR=$(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${SMP_BASE_TIP}-7-full-amd64" 2>&1 >/dev/null)
+                  then
+                      echo "A baseline image already exists for the ${SMP_BASE_BRANCH} tip (${SMP_BASE_TIP})"
+                  elif [[ "${SMP_ECR_ERROR}" != *ImageNotFoundException* ]]
+                  then
+                      echo "WARNING: could not determine whether a baseline image exists for the ${SMP_BASE_BRANCH} tip (${SMP_BASE_TIP}), so not triggering a rebuild: ${SMP_ECR_ERROR}"
+                  else
+                      echo "No baseline image exists for the ${SMP_BASE_BRANCH} tip (${SMP_BASE_TIP}) - triggering a pipeline to build one now"
+                      # Report the triggered pipeline's URL rather than an
+                      # expected duration, which would go stale as build times
+                      # and runner queue depths change.
+                      #
+                      # `POST /trigger/pipeline`, not `POST /pipeline`: GitLab
+                      # allowlists `CI_JOB_TOKEN` for the former only, and it
+                      # authenticates through a `token` body parameter rather
+                      # than a header. `tasks/pipeline.py` starts child
+                      # pipelines the same way, for the same reason.
+                      #
+                      # This call therefore cannot be reproduced verbatim outside
+                      # a running job, since job tokens exist only inside one. A
+                      # personal token minted with `dda inv auth.gitlab` works
+                      # the other way around: it may use `POST /pipeline`, but is
+                      # not a valid `token` value for the trigger endpoint, which
+                      # accepts only trigger and job tokens. So the equivalent
+                      # local command is the `PRIVATE-TOKEN` one printed below,
+                      # aimed at a different endpoint on purpose.
+                      #
+                      # `CI_API_V4_URL` is https://gitlab.ddbuild.io/api/v4 and
+                      # `CI_PROJECT_ID` is 4670 for this project.
+                      #
+                      # The trailing `|| true` on both lines keeps this
+                      # best-effort. The runner runs this script under
+                      # `set -eo pipefail`, where a bare `VAR=$(failing-cmd)`
+                      # aborts the block -- which would skip the warning and
+                      # self-service output below, the most useful thing this
+                      # branch prints. `--fail` also makes curl exit nonzero on
+                      # an HTTP error while emitting nothing, and `jq` exits
+                      # nonzero on a non-JSON body, so the empty-string check
+                      # below is what actually detects failure.
+                      SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --data "token=${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/trigger/pipeline" || true)
+                      SMP_REBUILD_PIPELINE_URL=$(echo "${SMP_REBUILD_PIPELINE}" | jq -r '.web_url // empty' || true)
+                      if [[ -z "${SMP_REBUILD_PIPELINE_URL}" ]]
+                      then
+                          SMP_REBUILD_TRIGGERED="false"
+                          echo "WARNING: could not trigger a pipeline on ${SMP_BASE_BRANCH} - one may need to be started manually"
+                      else
+                          SMP_REBUILD_TRIGGERED="true"
+                          echo "Triggered ${SMP_REBUILD_PIPELINE_URL} on ${SMP_BASE_BRANCH}"
+                          # Name the job that publishes the image rather than
+                          # linking it. Resolving its URL means listing the
+                          # pipeline's jobs, and GitLab allowlists `CI_JOB_TOKEN`
+                          # for only `GET /job` out of the whole Jobs API, so that
+                          # lookup cannot succeed from here whatever it is given.
+                          echo "The baseline image for ${SMP_BASE_TIP} is published by the single_machine_performance-full-amd64-a7 job, listed at ${SMP_REBUILD_PIPELINE_URL}/builds"
+                      fi
+                      echo "NOTE: this job will keep failing until that image is published to SMP's ECR registry, so wait for it before re-running this job."
+                      # Give a self-service path to starting the build. Needed
+                      # when the trigger above failed, and also when a triggered
+                      # pipeline dies for reasons outside this job -- CI runners
+                      # are taken offline for maintenance periodically, which
+                      # kills the pipelines on them.
+                      #
+                      # `dda inv auth.gitlab` prints feature-flag lines to stdout
+                      # before the token, so the `tail -1` is load-bearing: without
+                      # it those lines land in the header value and curl fails with
+                      # "curl: (43) bad argument".
+                      echo "To start that pipeline yourself -- if the trigger above failed, or if the"
+                      echo "pipeline is cancelled, e.g. by CI runner maintenance -- either open"
+                      echo "    https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/new?ref=${SMP_BASE_BRANCH}"
+                      echo "and click the blue \"New pipeline\" button, or run this command from a"
+                      echo "datadog-agent checkout:"
+                      echo "    curl --silent --show-error --fail \\"
+                      echo "        --request POST \\"
+                      echo "        --header \"PRIVATE-TOKEN: \$(dda inv auth.gitlab | tail -1)\" \\"
+                      echo "        --data \"ref=${SMP_BASE_BRANCH}\" \\"
+                      echo "        \"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipeline\""
+                      # Report the outcome, not the attempt -- tagging "true"
+                      # unconditionally would hide the trigger's failure rate.
+                      datadog-ci tag --level job --tags smp_baseline_rebuild_triggered:"${SMP_REBUILD_TRIGGERED}"
+                  fi
+              fi
               datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
               exit 1
           fi
@@ -89,12 +201,8 @@ single_machine_performance-regression_detector-merge_base_check:
 # Trigger a child pipeline for SMP regression detection.
 # The parent pipeline does NOT wait for this child pipeline (no strategy: depend),
 # so the main pipeline completes without blocking on the ~1h SMP run.
-trigger-single-machine-performance-regression_detector:
+.trigger-single-machine-performance-regression_detector:
   stage: functional_test
-  rules:
-    - !reference [.except_coverage_pipeline]
-    - !reference [.on_main]  # Run on every main commit
-    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   needs:
     - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true  # Passes BASELINE_SHA dotenv variable to child pipeline
@@ -109,4 +217,26 @@ trigger-single-machine-performance-regression_detector:
     include:
       - local: .gitlab/childs/smp-regression-child-pipeline.yml
     # No strategy: depend — parent pipeline does not wait for the child pipeline to finish
+
+# This job is used to run the regression detector on dev branches. On dev branches, we allow the pipeline to continue.
+trigger-single-machine-performance-regression_detector:
+  extends:
+    - .trigger-single-machine-performance-regression_detector
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   allow_failure: true
+
+# This job is used to run the regression detector on the main branch. It remains
+# linked to the parent pipeline, but the detector job is currently allowed to
+# fail on main while #incident-57148 is investigated.
+trigger-single-machine-performance-regression_detector-main:
+  extends:
+    - .trigger-single-machine-performance-regression_detector
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_main]  # Run on every main commit
+  trigger:
+    strategy: depend
+  variables:
+    SMP_ALLOW_FAILURE: "true"

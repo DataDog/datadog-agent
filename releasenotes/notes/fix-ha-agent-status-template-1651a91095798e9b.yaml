@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix ``agent status`` failing when the HA Agent feature is enabled.
+    The status templates attempted to iterate over a struct with ``range``,
+    which is not supported by Go templates. The HA Agent Metadata section
+    now renders correctly.

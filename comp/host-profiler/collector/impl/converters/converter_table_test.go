@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && test
+//go:build test
 
 package converters
 
@@ -54,7 +54,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -70,7 +70,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 
 			// Update golden files if -update flag is set
 			if *updateGolden {
-				expectedPath := filepath.Join("td", tc.expected)
+				expectedPath := filepath.Join("testdata", tc.expected)
 				actualYAML, err := yaml.Marshal(conf.ToStringMap())
 				require.NoError(t, err, "failed to marshal output to YAML: %s", tc.provided)
 				err = os.WriteFile(expectedPath, actualYAML, 0644)
@@ -80,7 +80,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			}
 
 			// Load expected output
-			expectedPath := filepath.Join("td", tc.expected)
+			expectedPath := filepath.Join("testdata", tc.expected)
 			expectedData, err := os.ReadFile(expectedPath)
 			require.NoError(t, err, "failed to read expected file: %s", tc.expected)
 
@@ -102,7 +102,7 @@ func runErrorTests(t *testing.T, conv converter, tests []errorTestCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -134,7 +134,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/rm-infraattr-metrics/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-when-missing",
+			name:     "adds-profiling-when-missing",
 			provided: "no_agent/add-prof-missing/in.yaml",
 			expected: "no_agent/add-prof-missing/out.yaml",
 		},
@@ -144,7 +144,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/preserve-otlp-proto/out.yaml",
 		},
 		{
-			name:     "creates-default-hostprofiler",
+			name:     "creates-default-profiling",
 			provided: "no_agent/create-default-prof/in.yaml",
 			expected: "no_agent/create-default-prof/out.yaml",
 		},
@@ -169,7 +169,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-appkey/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-to-pipeline",
+			name:     "adds-profiling-to-pipeline",
 			provided: "no_agent/add-prof-to-pipe/in.yaml",
 			expected: "no_agent/add-prof-to-pipe/out.yaml",
 		},
@@ -179,9 +179,9 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/multi-symbol-ep/out.yaml",
 		},
 		{
-			name:     "multiple-hostprofiler-receivers",
-			provided: "no_agent/multi-hostprof-recv/in.yaml",
-			expected: "no_agent/multi-hostprof-recv/out.yaml",
+			name:     "multiple-profiling-receivers",
+			provided: "no_agent/multi-profiling-recv/in.yaml",
+			expected: "no_agent/multi-profiling-recv/out.yaml",
 		},
 		{
 			name:     "ensures-headers",
@@ -199,12 +199,12 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-key-exp/out.yaml",
 		},
 		{
-			name:     "multiple-otlphttp-exporters",
+			name:     "multiple-otlp_http-exporters",
 			provided: "no_agent/multi-otlp-exp/in.yaml",
 			expected: "no_agent/multi-otlp-exp/out.yaml",
 		},
 		{
-			name:     "ignores-non-otlphttp",
+			name:     "ignores-non-otlp_http",
 			provided: "no_agent/ignore-non-otlp/in.yaml",
 			expected: "no_agent/ignore-non-otlp/out.yaml",
 		},
@@ -244,9 +244,134 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/preserve-all-res-attrs/out.yaml",
 		},
 		{
-			name:     "preserve-res-attrs-no-system",
-			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
-			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
+			name:     "preserve-res-no-sys",
+			provided: "no_agent/preserve-res-no-sys/in.yaml",
+			expected: "no_agent/preserve-res-no-sys/out.yaml",
+		},
+		{
+			name:     "preserve-user-evp-headers",
+			provided: "no_agent/preserve-evp-headers/in.yaml",
+			expected: "no_agent/preserve-evp-headers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-creates-pipeline-with-inferred-endpoint",
+			provided: "no_agent/metrics-infer-ep/in.yaml",
+			expected: "no_agent/metrics-infer-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-reuses-exporter-with-bare-endpoint",
+			provided: "no_agent/metrics-bare-ep/in.yaml",
+			expected: "no_agent/metrics-bare-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-endpoint-takes-precedence-over-profiles-endpoint",
+			provided: "no_agent/metrics-prefer-ep/in.yaml",
+			expected: "no_agent/metrics-prefer-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-preserves-user-metrics-endpoint",
+			provided: "no_agent/metrics-existing-ep/in.yaml",
+			expected: "no_agent/metrics-existing-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-when-telemetry-level-none",
+			provided: "no_agent/metrics-level-none/in.yaml",
+			expected: "no_agent/metrics-level-none/out.yaml",
+		},
+		{
+			name:     "internal-metrics-preserves-absent-user-metrics-pipeline",
+			provided: "no_agent/metrics-absent-reader/in.yaml",
+			expected: "no_agent/metrics-absent-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-receiver-conflict",
+			provided: "no_agent/metrics-reserved-recv/in.yaml",
+			expected: "no_agent/metrics-reserved-recv/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-processor-conflict",
+			provided: "no_agent/metrics-reserved-proc/in.yaml",
+			expected: "no_agent/metrics-reserved-proc/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-pipeline-conflict",
+			provided: "no_agent/metrics-reserved-pipe/in.yaml",
+			expected: "no_agent/metrics-reserved-pipe/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-container-id-processor-conflict",
+			provided: "no_agent/reserved-cid-proc/in.yaml",
+			expected: "no_agent/reserved-cid-proc/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-explicit-prometheus-reader",
+			provided: "no_agent/metrics-explicit-reader/in.yaml",
+			expected: "no_agent/metrics-explicit-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-first-valid-prometheus-reader",
+			provided: "no_agent/metrics-multi-readers/in.yaml",
+			expected: "no_agent/metrics-multi-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-periodic-reader",
+			provided: "no_agent/metrics-periodic-reader/in.yaml",
+			expected: "no_agent/metrics-periodic-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-empty-readers",
+			provided: "no_agent/metrics-empty-readers/in.yaml",
+			expected: "no_agent/metrics-empty-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-malformed-prometheus-reader",
+			provided: "no_agent/metrics-bad-reader/in.yaml",
+			expected: "no_agent/metrics-bad-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-null-readers",
+			provided: "no_agent/metrics-null-readers/in.yaml",
+			expected: "no_agent/metrics-null-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-mixed-reader",
+			provided: "no_agent/metrics-mixed-reader/in.yaml",
+			expected: "no_agent/metrics-mixed-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-covered-by-user-pipeline",
+			provided: "no_agent/metrics-covered-user/in.yaml",
+			expected: "no_agent/metrics-covered-user/out.yaml",
+		},
+		{
+			name:     "internal-metrics-covered-with-explicit-scheme-and-metrics-path",
+			provided: "no_agent/metrics-covered-path/in.yaml",
+			expected: "no_agent/metrics-covered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-custom-metrics-path",
+			provided: "no_agent/metrics-uncovered-path/in.yaml",
+			expected: "no_agent/metrics-uncovered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-https-scheme",
+			provided: "no_agent/metrics-uncovered-scheme/in.yaml",
+			expected: "no_agent/metrics-uncovered-scheme/out.yaml",
+		},
+		{
+			name:     "internal-metrics-partial-user-pipeline-coverage",
+			provided: "no_agent/metrics-partial-coverage/in.yaml",
+			expected: "no_agent/metrics-partial-coverage/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skips-exporters-without-any-endpoint",
+			provided: "no_agent/metrics-mixed/in.yaml",
+			expected: "no_agent/metrics-mixed/out.yaml",
+		},
+		{
+			name:     "deprecated-otlphttp-name-accepted",
+			provided: "no_agent/deprecated-otlphttp/in.yaml",
+			expected: "no_agent/deprecated-otlphttp/out.yaml",
 		},
 	}
 
@@ -271,14 +396,14 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			expectedError: "symbol_endpoints cannot be empty",
 		},
 		{
-			name:          "errors-when-no-otlphttp",
+			name:          "errors-when-no-otlp_http",
 			provided:      "no_agent/error-no-otlp/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "empty-pipeline",
 			provided:      "no_agent/empty-pipeline/in.yaml",
-			expectedError: "no otlphttp exporter configured",
+			expectedError: "no otlp_http exporter configured",
 		},
 		{
 			name:          "non-string-processor-name-in-pipeline",
@@ -304,6 +429,11 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			name:          "reserved-processor-empty",
 			provided:      "no_agent/reserved-proc-empty/in.yaml",
 			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "multiple-ddprofiling-extensions",
+			provided:      "no_agent/multi-ddprofiling-ext/in.yaml",
+			expectedError: "only one ddprofiling extension can be enabled in standalone mode",
 		},
 	}
 

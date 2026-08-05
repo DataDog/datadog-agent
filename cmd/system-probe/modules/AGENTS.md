@@ -13,7 +13,6 @@ Each module is a `module.Factory` registered in `init()` with the following fiel
 ```go
 var MyModule = &module.Factory{
     Name:             config.MyModuleName,           // Unique identifier
-    ConfigNamespaces: []string{},                     // Config sections to load
     Fn:               createModule,                   // Constructor function
     NeedsEBPF:        func() bool { return true },    // eBPF requirement indicator
 }
@@ -28,10 +27,6 @@ func init() {
 - **Name**: Unique module identifier (type `types.ModuleName`)
   - Defined as constant in `pkg/system-probe/config/config.go`
   - Used to route HTTP requests to the module
-
-- **ConfigNamespaces**: List of configuration namespaces this module needs
-  - Empty list means no special config loading
-  - Module-specific configs are typically accessed via module name
 
 - **Fn**: Constructor function signature:
   ```go

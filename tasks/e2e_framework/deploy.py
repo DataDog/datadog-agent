@@ -1,3 +1,5 @@
+import os
+import sys
 from typing import Any
 
 import boto3
@@ -5,7 +7,29 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+
 from . import tool
+
+
+def get_pipeline_commit_sha(pipeline_id: str) -> str | None:
+    """
+    Fetch the short (8-char) commit SHA associated with a GitLab pipeline.
+    Returns None on failure.
+    """
+    try:
+        token = os.environ.get('GITLAB_TOKEN')
+        repo = get_gitlab_repo(token=token)
+        pipeline = repo.pipelines.get(int(pipeline_id))
+        return pipeline.sha[:8]
+    except Exception as e:
+        print(f"Warning: Could not fetch commit SHA for pipeline {pipeline_id}: {e}", file=sys.stderr)
+        if 'GITLAB_TOKEN' not in os.environ:
+            print(
+                "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)",
+                file=sys.stderr,
+            )
+        return None
 
 
 def deploy(
@@ -29,6 +53,8 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
+    pulumi_extra_args: str = "",
+    pulumi_env: dict[str, str] | None = None,
 ) -> str:
     from pydantic_core._pydantic_core import ValidationError
 
@@ -63,6 +89,48 @@ def deploy(
 
     flags["ddagent:pipeline_id"] = "" if pipeline_id is None else pipeline_id
 
+    # Configure SSH keys for the different cloud providers
+    privateKeyPassword = cfg.get_aws().privateKeyPassword
+    if privateKeyPassword is not None:
+        flags["ddinfra:aws/defaultPrivateKeyPassword"] = privateKeyPassword
+
+    privateKeyPassword = cfg.get_azure().privateKeyPassword
+    if privateKeyPassword is not None:
+        flags["ddinfra:az/defaultPrivateKeyPassword"] = privateKeyPassword
+
+    privateKeyPassword = cfg.get_gcp().privateKeyPassword
+    if privateKeyPassword is not None:
+        flags["ddinfra:gcp/defaultPrivateKeyPassword"] = privateKeyPassword
+
+    privateKeyPath = cfg.get_azure().privateKeyPath
+    if privateKeyPath is not None:
+        flags["ddinfra:az/defaultPrivateKeyPath"] = privateKeyPath
+
+    privateKeyPath = cfg.get_gcp().privateKeyPath
+    if privateKeyPath is not None:
+        flags["ddinfra:gcp/defaultPrivateKeyPath"] = privateKeyPath
+
+    privateKeyPath = cfg.get_aws().privateKeyPath
+    if privateKeyPath is not None:
+        flags["ddinfra:aws/defaultPrivateKeyPath"] = privateKeyPath
+
+    publicKeyPath = cfg.get_aws().publicKeyPath
+    if publicKeyPath is not None:
+        flags["ddinfra:aws/defaultPublicKeyPath"] = publicKeyPath
+
+    publicKeyPath = cfg.get_azure().publicKeyPath
+    if publicKeyPath is not None:
+        flags["ddinfra:az/defaultPublicKeyPath"] = publicKeyPath
+
+    publicKeyPath = cfg.get_gcp().publicKeyPath
+    if publicKeyPath is not None:
+        flags["ddinfra:gcp/defaultPublicKeyPath"] = publicKeyPath
+
+    if pipeline_id:
+        commit_sha = get_pipeline_commit_sha(pipeline_id)
+        if commit_sha:
+            flags["ddagent:commit_sha"] = commit_sha
+
     if install_agent:
         flags["ddagent:apiKey"] = config.get_api_key(cfg)
 
@@ -89,6 +157,8 @@ def deploy(
         debug,
         cfg.get_pulumi().logLevel,
         cfg.get_pulumi().logToStdErr,
+        pulumi_extra_args=pulumi_extra_args,
+        pulumi_env=pulumi_env,
     )
 
 
@@ -156,6 +226,8 @@ def _deploy(
     debug: bool | None,
     log_level: int | None,
     log_to_stderr: bool | None,
+    pulumi_extra_args: str = "",
+    pulumi_env: dict[str, str] | None = None,
 ) -> str:
     stack_name = tool.get_stack_name(stack_name, flags["scenario"])
     # make sure the stack name is safe
@@ -186,9 +258,12 @@ def _deploy(
 
     global_flags = " ".join(global_flags_array)
     _create_stack(ctx, stack_name, global_flags)
-    cmd = f"pulumi {global_flags} up --yes -s {stack_name} {up_flags}"
+    extra = f" {pulumi_extra_args}" if pulumi_extra_args else ""
+    env_prefix = " ".join(f"{k}={v}" for k, v in (pulumi_env or {}).items())
+    env_prefix = f"{env_prefix} " if env_prefix else ""
+    cmd = f"{env_prefix}pulumi {global_flags} up --yes{extra} -s {stack_name} {up_flags}"
 
-    pty = True
+    pty = not pulumi_extra_args  # disable pty when extra args are set (e.g. --non-interactive)
     if tool.is_windows():
         pty = False
     ctx.run(cmd, pty=pty)

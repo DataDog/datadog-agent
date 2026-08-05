@@ -1,4 +1,3 @@
 datadog:
   networkMonitoring:
     enabled: true
-

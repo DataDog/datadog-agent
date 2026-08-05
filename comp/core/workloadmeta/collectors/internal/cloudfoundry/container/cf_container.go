@@ -14,9 +14,9 @@ import (
 
 	"go.uber.org/fx"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -29,18 +29,26 @@ const (
 	sharedNodeAgentTagsFile = "/home/vcap/app/.datadog/node_agent_tags.txt"
 )
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
 	id       string
+	cfg      config.Component
 	store    workloadmeta.Component
 	nodeName string
 	catalog  workloadmeta.AgentType
 }
 
 // NewCollector instantiates a CollectorProvider which can provide a CF container collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:      collectorID,
+			cfg:     deps.Config,
 			catalog: workloadmeta.NodeAgent,
 		},
 	}, nil
@@ -57,7 +65,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	// Detect if we're on a PCF container
-	if !pkgconfigsetup.Datadog().GetBool("cloud_foundry_buildpack") {
+	if !c.cfg.GetBool("cloud_foundry_buildpack") {
 		return errors.NewDisabled(componentName, "Agent is not running on a CloudFoundry container")
 	}
 

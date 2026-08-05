@@ -32,6 +32,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./tools/host-profiler/Dockerfile", "FROM golang:", "-trixie", True),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
     ("./go.work", "go ", "", True),
+    ("./Dockerfiles/agent-ddot/Dockerfile.agent-otel", "ARG GO_VERSION=", "", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -68,7 +69,7 @@ def update_go(
     """
     import semver
 
-    if not semver.VersionInfo.isvalid(version):
+    if not semver.VersionInfo.isvalid(version):  # type: ignore[attr-defined]
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
@@ -90,21 +91,8 @@ def update_go(
 
     _update_references(warn, version)
     _update_go_mods(warn, version, include_otel_modules)
-
-    # check the installed go version before running tasks requiring the correct version
-    res = ctx.run("go version")
-    if res and res.stdout.startswith(f"go version go{version} "):
-        print("Updating the code in pkg/template...")
-        bazel("run", "//pkg/template:generate")
-        print("Running the tidy task...")
-        tidy(ctx)
-    else:
-        print(
-            color_message(
-                "WARNING: did not run `dda inv tidy` nor `dda inv pkg-template.generate` as the version of your `go` binary doesn't match the requested version",
-                "orange",
-            )
-        )
+    bazel(ctx, "run", "//pkg/template:generate")
+    tidy(ctx)
 
     if release_note:
         releasenote_path = _create_releasenote(ctx, version)

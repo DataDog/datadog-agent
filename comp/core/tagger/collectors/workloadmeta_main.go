@@ -30,17 +30,21 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource           = workloadmetaCollectorName + "-static"
-	podSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
-	containerImageSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
-	processSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
-	kubeMetadataSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
-	deploymentSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
-	gpuSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
-	crdSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
-	kubeCapabilitiesSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
+	staticSource              = workloadmetaCollectorName + "-static"
+	podSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource                = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
+	processSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
+	kubeMetadataSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	nodeSource                = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesNode)
+	deploymentSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
+	kueueQueueSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueQueue)
+	kueueResourceFlavorSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueResourceFlavor)
+	kueueWorkloadSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueWorkload)
+	gpuSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
+	crdSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
+	kubeCapabilitiesSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
 
 	clusterTagNamePrefix = tags.KubeClusterName
 )
@@ -52,6 +56,7 @@ var CollectorPriorities = make(map[string]types.CollectorPriority)
 // store.
 type WorkloadMetaCollector struct {
 	store        workloadmeta.Component
+	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
 
@@ -73,6 +78,14 @@ type WorkloadMetaCollector struct {
 	// events. This is the completeness of the entity itself, without
 	// considering cross-entity dependencies (for example, a container's pod).
 	entityCompleteness map[workloadmeta.EntityID]bool
+
+	// refreshCh routes tag refresh requests through the stream goroutine, avoiding races with staticTags reads in processEvents.
+	refreshCh chan refreshRequest
+}
+
+// refreshRequest asks the stream goroutine to recompute static global tags, signaling done once it has.
+type refreshRequest struct {
+	done chan struct{}
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
@@ -138,8 +151,24 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           true,
 		},
 	})
+}
+
+// RefreshGlobalTags recomputes and republishes global static tags on the stream goroutine, blocking until done or ctx is done.
+func (c *WorkloadMetaCollector) RefreshGlobalTags(ctx context.Context) {
+	done := make(chan struct{})
+	select {
+	case c.refreshCh <- refreshRequest{done: done}:
+	case <-ctx.Done():
+		return
+	}
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
 
 func (c *WorkloadMetaCollector) stream(ctx context.Context) {
@@ -166,6 +195,12 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 
 			c.processEvents(evBundle)
 
+		// Receives RefreshGlobalTags requests here.
+		// The caller blocks until close(req.done) below.
+		case req := <-c.refreshCh:
+			c.collectStaticGlobalTags(ctx, c.cfg)
+			close(req.done)
+
 		case <-health.C:
 
 		case <-ctx.Done():
@@ -181,11 +216,13 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
+		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
 		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
+		refreshCh:                         make(chan refreshRequest),
 	}
 
 	containerLabelsAsTags := mergeMaps(

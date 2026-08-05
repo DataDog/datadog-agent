@@ -21,7 +21,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -68,6 +68,7 @@ type CWSPtracerCtx struct {
 	cancel              context.Context
 	cancelFnc           context.CancelFunc
 	containerID         containerutils.ContainerID
+	cgroupID            containerutils.CGroupID
 	probeAddr           string
 	client              net.Conn
 	clientReady         chan bool
@@ -134,15 +135,9 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 		return nil, err
 	}
 
-	var client net.Conn
-	err = retry.Do(func() error {
-		client, err = net.DialTCP("tcp", nil, tcpAddr)
-		return err
-	}, retry.Delay(time.Second), retry.Attempts(nbAttempts), retry.DelayType(retry.FixedDelay))
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
+	return backoff.Retry(context.Background(), func() (net.Conn, error) {
+		return net.DialTCP("tcp", nil, tcpAddr)
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(nbAttempts))
 }
 
 func (ctx *CWSPtracerCtx) connectClient() error {
@@ -308,6 +303,10 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 	if err != nil {
 		logger.Errorf("Retrieve container ID from proc failed: %v\n", err)
 	}
+	ctx.cgroupID, err = getCurrentProcCGroupID()
+	if err != nil {
+		logger.Errorf("Retrieve cgroup ID from proc failed: %v\n", err)
+	}
 	containerCtx, err := newContainerContext(ctx.containerID)
 	if err != nil {
 		return err
@@ -325,6 +324,7 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 			Mode:             ctx.opts.mode,
 			NSID:             getNSID(),
 			ContainerContext: containerCtx,
+			CGroupID:         ctx.cgroupID,
 			EntrypointArgs:   ctx.Args,
 		},
 	}

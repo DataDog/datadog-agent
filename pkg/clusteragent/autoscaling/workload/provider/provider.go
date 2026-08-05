@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -24,13 +25,20 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"k8s.io/client-go/discovery"
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
@@ -44,6 +52,7 @@ func StartWorkloadAutoscaling(
 	wlm workloadmeta.Component,
 	taggerComp tagger.Component,
 	senderManager sender.SenderManager,
+	gate *autoscalinggate.Gate,
 ) (workload.PodPatcher, error) {
 	if apiCl == nil {
 		return nil, errors.New("Impossible to start workload autoscaling without valid APIClient")
@@ -53,10 +62,18 @@ func StartWorkloadAutoscaling(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-workload-autoscaler"})
 
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
-	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
+	// Open the gate the first time a DPA enters the store. This catches every
+	// path that creates a DPA: Kubernetes informer, remote config, and the
+	// profile syncer.
+	store.RegisterObserver(autoscalingstore.Observer{
+		SetFunc: func(string, autoscalingstore.SenderID) { gate.Enable() },
+	})
+
+	patcher := workloadpatcher.NewPatcher(apiCl.DynamicCl, isLeaderFunc)
+	podPatcher := workload.NewPodPatcher(store, patcher, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 
 	clock := clock.RealClock{}
@@ -84,18 +101,57 @@ func StartWorkloadAutoscaling(
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
+
+	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
+	profileController, err := profile.NewController(
+		clock,
+		apiCl.DynamicCl,
+		apiCl.DynamicInformerFactory,
+		isLeaderFunc,
+		profileStore,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
+	}
+
+	workloadResources := []profile.GroupVersionKindResource{
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
+	}
+	if isArgoRolloutsAvailable(apiCl.Cl.Discovery()) {
+		workloadResources = append(workloadResources, profile.GroupVersionKindResource{
+			GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
+			Kind:                 kubernetes.RolloutKind,
+		})
+		log.Info("Argo Rollouts CRD detected, enabling rollout support for autoscaling profiles")
+	}
+
+	workloadWatcher := profile.NewWorkloadWatcher(
+		profileStore,
+		isLeaderFunc,
+		apiCl.MetadataInformerCl,
+		workloadResources,
+		profileController.InitialSyncDone,
+	)
+
+	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.InitialSyncDone, workloadWatcher.HasSynced)
+	builtinManager := profile.NewBuiltinProfileManager(apiCl.DynamicInformerCl, isLeaderFunc)
 
 	// Start informers & controllers (informers can be started multiple times)
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
 	apiCl.InformerFactory.Start(ctx.Done())
 
-	// TODO: Wait POD Watcher sync before running the controller
-	go podWatcher.Run(ctx)
-	go controller.Run(ctx)
+	dpaNumWorkers := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.num_workers")
+	go builtinManager.Run(ctx)
+	go profileController.Run(ctx, 1)
+	go workloadWatcher.Run(ctx)
+	go autoscalerSyncer.Run(ctx)
+	go runPodWatcherWhenReady(ctx, gate, podWatcher.Run)
+	go controller.Run(ctx, dpaNumWorkers)
 
 	// Only start the local recommender if failover metrics collection is enabled
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
@@ -103,14 +159,41 @@ func StartWorkloadAutoscaling(
 		go localRecommender.Run(ctx)
 	}
 
-	externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
-	externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.external_recommender.enabled") {
+		externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
+		externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
+		}
+		go externalRecommender.Run(ctx)
 	}
-	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
+}
+
+func runPodWatcherWhenReady(ctx context.Context, gate *autoscalinggate.Gate, run func(context.Context)) {
+	if !gate.WaitForEnable(ctx) || ctx.Err() != nil {
+		return
+	}
+
+	if !gate.WaitForPodCollectionSynced(ctx) || ctx.Err() != nil {
+		return
+	}
+
+	run(ctx)
+}
+
+func isArgoRolloutsAvailable(discoveryClient discovery.DiscoveryInterface) bool {
+	resources, err := discoveryClient.ServerResourcesForGroupVersion(kubernetes.RolloutAPIVersion)
+	if err != nil {
+		return false
+	}
+	for _, r := range resources.APIResources {
+		if r.Name == "rollouts" {
+			return true
+		}
+	}
+	return false
 }
 
 func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSFilesConfig {

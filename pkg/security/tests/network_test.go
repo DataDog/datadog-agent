@@ -24,16 +24,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/cilium/ebpf"
-	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	ebpfprobes "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -51,12 +52,11 @@ func TestNetworkCIDR(t *testing.T) {
 		}
 	}
 
-	// write the rules using the local resolv.conf file
-	resolvFile, err := resolvconf.GetSpecific("/etc/resolv.conf")
+	// read the local resolv.conf file and parse nameservers
+	nameserversCIDR, err := parseNameserversFromResolvConf("/etc/resolv.conf")
 	if err != nil {
 		t.Fatal(err)
 	}
-	nameserversCIDR := resolvconf.GetNameserversAsPrefix(resolvFile.Content)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -83,6 +83,38 @@ func TestNetworkCIDR(t *testing.T) {
 			test.validateDNSSchema(t, event)
 		}, "test_rule")
 	})
+}
+
+// parseNameserversFromResolvConf reads a resolv.conf file and returns the
+// nameservers as netip.Prefix values (each as a /32 or /128 prefix).
+func parseNameserversFromResolvConf(path string) ([]netip.Prefix, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var prefixes []netip.Prefix
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "nameserver") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		addr, err := netip.ParseAddr(fields[1])
+		if err != nil {
+			continue
+		}
+		prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return prefixes, nil
 }
 
 func isRawPacketNotSupported(kv *kernel.Version) bool {
@@ -204,6 +236,47 @@ func TestRawPacket(t *testing.T) {
 		})
 	})
 }
+func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_raw_packet_router_sel",
+		Expression: `dns.question.name == "never.match.raw.packet.router.sel.test"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		t.Fatal("expected *probe.EBPFProbe")
+	}
+
+	selBefore, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager)
+	if err != nil {
+		t.Fatalf("raw_packet_router_sel (before reload): %v", err)
+	}
+	if selBefore != 0 && selBefore != 1 {
+		t.Fatalf("raw_packet_router_sel must be 0 or 1, got %d", selBefore)
+	}
+
+	if err := test.reloadPolicies(); err != nil {
+		t.Fatalf("reload policies: %v", err)
+	}
+
+	selAfter, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager)
+	if err != nil {
+		t.Fatalf("raw_packet_router_sel (after reload): %v", err)
+	}
+
+	assert.Equal(t, uint32(1)-selBefore, selAfter,
+		"raw_packet_router_sel must be flipped after ruleset reload")
+}
 
 func TestRawPacketAction(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
@@ -253,7 +326,7 @@ func TestRawPacketAction(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
 		}, "test_rule_raw_packet_drop")
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("test_rule_raw_packet_drop")
 			if msg == nil {
 				return errors.New("not found")
@@ -274,7 +347,7 @@ func TestRawPacketAction(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(60), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(60))
 		assert.NoError(t, err)
 
 		// wait for the action to be performed
@@ -285,7 +358,7 @@ func TestRawPacketAction(t *testing.T) {
 			t.Error("should return an error")
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("rawpacket_action")
 			if msg == nil {
 				return errors.New("not found")
@@ -293,9 +366,166 @@ func TestRawPacketAction(t *testing.T) {
 			validateRawPacketActionSchema(t, string(msg.Data))
 
 			return nil
-		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 		assert.NoError(t, err)
 	})
+}
+
+func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	const (
+		ruleID1       = "test_rule_raw_packet_drop_ping_metric"
+		ruleID2       = "test_rule_raw_packet_drop_ping_metric_2"
+		pingHost      = "8.8.8.8"
+		pingCount     = 3
+		totalExpected = 6
+	)
+
+	bootstrapRule := &rules.RuleDefinition{
+		ID:         "bootstrap_capture_container_id",
+		Expression: `exec.file.name == "id"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{bootstrapRule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	test.statsdClient.Flush()
+
+	captureContainerID := func(wrapper *dockerCmdWrapper) string {
+		var containerID string
+		test.WaitSignalFromRule(t, func() error {
+			return wrapper.Command("id", []string{}, []string{}).Run()
+		}, func(event *model.Event, _ *rules.Rule) {
+			containerID = event.GetContainerID()
+			assert.NotEmpty(t, containerID)
+		}, bootstrapRule.ID)
+		t.Logf("captured container ID: %s", containerID)
+		return containerID
+	}
+
+	triggerIsolation := func(wrapper *dockerCmdWrapper, ruleID string) {
+		test.WaitSignalFromRule(t, func() error {
+			return wrapper.Command("free", []string{}, []string{}).Run()
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, ruleID)
+		}, ruleID)
+	}
+
+	emitPackets := func(wrapper *dockerCmdWrapper, host string, count int) {
+		t.Helper()
+		cmd := wrapper.Command("sh", []string{
+			"-c",
+			fmt.Sprintf(`i=1; while [ $i -le %d ]; do echo test | nc -u -w1 %s 53; if [ $i -lt %d ]; then sleep 1; fi; i=$((i+1)); done`, count, host, count),
+		}, []string{})
+		_, _ = cmd.CombinedOutput()
+	}
+
+	waitForMetric := func(ruleID string, expected int64) {
+		t.Helper()
+		metricKey := metrics.MetricRawPacketDropped + ":rule_id:" + ruleID
+		err := retry(t, func() error {
+			test.sendStats()
+			count := test.statsdClient.Get(metricKey)
+			if count != expected {
+				return fmt.Errorf("expected %d dropped packets for %s, got %d (%+v)", expected, ruleID, count, test.statsdClient.GetByPrefix(metrics.MetricRawPacketDropped))
+			}
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
+		assert.NoError(t, err)
+	}
+
+	reloadPolicy := func(ruleDefs []*rules.RuleDefinition) {
+		t.Helper()
+		if err := setTestPolicy(commonCfgDir, nil, ruleDefs); err != nil {
+			t.Fatalf("failed to set policy: %v", err)
+		}
+		if err := test.reloadPolicies(); err != nil {
+			t.Fatalf("failed to reload policies: %v", err)
+		}
+	}
+
+	// 1) start container
+	cmdWrapperA, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapperA.stop()
+
+	// 2) recover container ID
+	containerAID := captureContainerID(cmdWrapperA)
+
+	// 2bis) Create second container for later
+	cmdWrapperB, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cmdWrapperB.start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapperB.stop()
+	time.Sleep(1 * time.Second)
+
+	containerBID := captureContainerID(cmdWrapperB)
+	rule2 := &rules.RuleDefinition{
+		ID:         ruleID2,
+		Expression: fmt.Sprintf(`exec.file.name == "free" && process.container.id == "%s"`, containerBID),
+		Actions: []*rules.ActionDefinition{
+			{
+				NetworkFilter: &rules.NetworkFilterDefinition{
+					BPFFilter: "host 1.1.1.1",
+					Scope:     "cgroup",
+					Policy:    "drop",
+				},
+			},
+		},
+	}
+
+	// 3) isolation rule on container A
+	rule1 := &rules.RuleDefinition{
+		ID:         ruleID1,
+		Expression: fmt.Sprintf(`exec.container.id == "%s"`, containerAID),
+		Actions: []*rules.ActionDefinition{
+			{
+				NetworkFilter: &rules.NetworkFilterDefinition{
+					BPFFilter: "host " + pingHost,
+					Scope:     "cgroup",
+					Policy:    "drop",
+				},
+			},
+		},
+	}
+	reloadPolicy([]*rules.RuleDefinition{bootstrapRule, rule1})
+	// trigger isolation by starting a first process on container A
+	cmdWrapperA.Command("free", []string{}, []string{}).Run()
+	time.Sleep(1 * time.Second)
+
+	// 4) 3 pings in container A async
+	go emitPackets(cmdWrapperA, pingHost, pingCount)
+
+	// 5) reload with a second rule on another container (free trigger, different filter)
+	reloadPolicy([]*rules.RuleDefinition{rule2, rule1})
+	triggerIsolation(cmdWrapperB, ruleID2)
+
+	// 6) add some pings in container B
+	go emitPackets(cmdWrapperB, "1.1.1.1", 2)
+
+	// 7) 3 more pings in container A
+	emitPackets(cmdWrapperA, pingHost, pingCount)
+	// wait until they have all been processed
+	time.Sleep(2 * time.Second)
+
+	// 8) rule1 counter should total 6 dropped packets across reload
+	waitForMetric(ruleID1, totalExpected)
 }
 
 func TestRawPacketActionWithSignature(t *testing.T) {
@@ -421,14 +651,14 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 	}
 
 	// Verify the raw packet action event was sent
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg("rawpacket_action")
 		if msg == nil {
 			return errors.New("not found")
 		}
 		validateRawPacketActionSchema(t, string(msg.Data))
 		return nil
-	}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)), backoff.WithMaxTries(30))
 	assert.NoError(t, err)
 
 	// Now remove the network isolation rule and verify DNS works again
@@ -688,9 +918,13 @@ func TestRawPacketFilter(t *testing.T) {
 		},
 		{
 			BPFFilter: "tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420",
+			CGroupPathKey: model.PathKey{
+				Inode: 1234,
+			},
 		},
 		{
 			BPFFilter: "icmp[icmptype] != icmp-echo and icmp[icmptype] != icmp-echoreply",
+			Pid:       123,
 		},
 		{
 			BPFFilter: "port ftp or ftp-data",
@@ -722,6 +956,11 @@ func TestRawPacketFilter(t *testing.T) {
 		progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), clsRouterMapFd.FD(), filters, opts)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, progSpecs)
+
+		for _, prog := range progSpecs {
+			// check if len of proc insturctions is lower than the limit
+			assert.Less(t, len(prog.Instructions), opts.MaxProgSize)
+		}
 
 		colSpec := ebpf.CollectionSpec{
 			Programs: make(map[string]*ebpf.ProgramSpec),
@@ -755,7 +994,7 @@ func TestRawPacketFilter(t *testing.T) {
 
 		opts := rawpacket.DefaultProgOpts()
 		opts.MaxProgSize = 4000
-		opts.NopInstLen = 3500
+		opts.NopInstLen = 1000
 		runTest(t, filters, opts)
 	})
 }

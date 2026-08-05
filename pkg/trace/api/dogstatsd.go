@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -39,6 +40,7 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req.Body = apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

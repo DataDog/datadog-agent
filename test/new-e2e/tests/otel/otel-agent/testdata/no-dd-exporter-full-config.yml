@@ -24,7 +24,7 @@ exporters:
       histograms:
         mode: distributions
         send_aggregation_metrics: false
-        send_count_sum_metrics: false
+
       instrumentation_scope_metadata_as_tags: true
       resource_attributes_as_tags: false
       summaries:
@@ -56,12 +56,10 @@ exporters:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       ignore_resources: []
-      peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
       span_name_as_resource_name: false
       span_name_remappings: {}
-      trace_buffer: 0
   debug:
     output_paths: []
     sampling_initial: 2
@@ -77,7 +75,10 @@ extensions:
       site: datadoghq.com
     deployment_type: daemonset
     force_attempt_http2: true
+    gateway_destination: ""
+    gateway_service: ""
     hostname: ""
+    installation_method: kubernetes
     http:
       cors: null
       endpoint: localhost:9875
@@ -133,7 +134,7 @@ extensions:
     write_timeout: 30s
 processors:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
-    error_mode: propagate
+    error_mode: ignore
     log_conditions: []
     logs:
       exclude: null
@@ -193,13 +194,17 @@ receivers:
   prometheus/dd-autoconfigured:
     api_server:
       enabled: false
+      max_connections: 512
       server_config:
         cors: null
-        idle_timeout: 0s
-        read_header_timeout: 0s
+        endpoint: 127.0.0.1:9090
+        idle_timeout: 1m0s
+        keep_alives_enabled: true
+        read_header_timeout: 1m0s
+        read_timeout: 10m0s
         tls: null
         transport: tcp
-        write_timeout: 0s
+        write_timeout: 30s
     config:
       global:
         evaluation_interval: 1m
@@ -238,7 +243,13 @@ receivers:
         - targets:
           - 0.0.0.0:8888
         track_timestamps_staleness: false
-    report_extra_scrape_metrics: false
+      storage:
+        tsdb:
+          outofordertimewindow: 0
+          retention: {}
+    discovery_reload_on_startup: false
+    initial_scrape_offset: 0s
+    scrape_on_shutdown: false
     target_allocator: null
     trim_metric_suffixes: false
 service:
@@ -295,8 +306,8 @@ service:
             prometheus:
               host: localhost
               port: 8888
-              with_resource_constant_labels:
-                included: []
               without_scope_info: true
               without_type_suffix: true
               without_units: true
+    resource:
+      schema_url: https://opentelemetry.io/schemas/1.40.0

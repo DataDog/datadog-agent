@@ -14,8 +14,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"github.com/gorilla/mux"
-
+	"github.com/DataDog/datadog-agent/pkg/api/middleware"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -82,21 +81,25 @@ func (l *localAPIImpl) Stop(ctx context.Context) error {
 }
 
 func (l *localAPIImpl) handler() http.Handler {
-	r := mux.NewRouter()
+	// API routes — all require Content-Type: application/json.
+	// Register on a sub-mux and wrap it once rather than per-handler.
+	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("GET /status", l.status)
+	apiMux.HandleFunc("POST /catalog", l.setCatalog)
+	apiMux.HandleFunc("POST /config_catalog", l.setConfigCatalog)
+	apiMux.HandleFunc("POST /{package}/experiment/start", l.startExperiment)
+	apiMux.HandleFunc("POST /{package}/experiment/stop", l.stopExperiment)
+	apiMux.HandleFunc("POST /{package}/experiment/promote", l.promoteExperiment)
+	apiMux.HandleFunc("POST /{package}/config_experiment/start", l.startConfigExperiment)
+	apiMux.HandleFunc("POST /{package}/config_experiment/stop", l.stopConfigExperiment)
+	apiMux.HandleFunc("POST /{package}/config_experiment/promote", l.promoteConfigExperiment)
+	apiMux.HandleFunc("POST /{package}/install", l.install)
+	apiMux.HandleFunc("POST /{package}/remove", l.remove)
 
-	// API routes with Content-Type requirement
-	api := r.Headers("Content-Type", "application/json").Subrouter()
-	api.HandleFunc("/status", l.status).Methods(http.MethodGet)
-	api.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
-	api.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
-	api.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
+	r := http.NewServeMux()
+	// Mount the API sub-mux behind the Content-Type check.
+	// More-specific /debug/pprof/ routes below take precedence, bypassing the middleware.
+	r.Handle("/", middleware.RequireContentType("application/json")(apiMux))
 
 	// pprof debug endpoints
 	r.HandleFunc("/debug/pprof/", pprof.Index)
@@ -163,7 +166,7 @@ func (l *localAPIImpl) setConfigCatalog(w http.ResponseWriter, r *http.Request) 
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var request experimentTaskParams
 	var response APIResponse
@@ -193,7 +196,7 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/stop -d '{}'
 func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var response APIResponse
 	defer func() {
@@ -210,7 +213,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/promote -d '{}'
 func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var response APIResponse
 	defer func() {
@@ -227,7 +230,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/start -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var request startConfigExperimentRequest
 	var response APIResponse
@@ -257,7 +260,7 @@ func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Requ
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/stop -d '{}'
 func (l *localAPIImpl) stopConfigExperiment(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var response APIResponse
 	defer func() {
@@ -274,7 +277,7 @@ func (l *localAPIImpl) stopConfigExperiment(w http.ResponseWriter, r *http.Reque
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/promote -d '{}'
 func (l *localAPIImpl) promoteConfigExperiment(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var response APIResponse
 	defer func() {
@@ -291,7 +294,7 @@ func (l *localAPIImpl) promoteConfigExperiment(w http.ResponseWriter, r *http.Re
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/install -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var request experimentTaskParams
 	var response APIResponse
@@ -326,7 +329,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/remove -d '{}'
 func (l *localAPIImpl) remove(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
+	pkg := r.PathValue("package")
 	w.Header().Set("Content-Type", "application/json")
 	var request experimentTaskParams
 	var response APIResponse
@@ -593,6 +596,7 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	var response APIResponse
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
@@ -601,7 +605,6 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 	if response.Error != nil {
 		return fmt.Errorf("error promoting config experiment: %s", response.Error.Message)
 	}
-	defer resp.Body.Close()
 	return nil
 }
 

@@ -79,10 +79,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-35",
+      "kernel": "5.10.0-39",
       "os_version": "11",
       "image": "debian-11-generic-x86_64.qcow2.xz",
-      "image_version": "20251015_301103a6",
+      "image_version": "20260413_5fca70eb",
       "alt_version_names": [
         "bullseye"
       ]
@@ -261,10 +261,10 @@
     "rocky_9.4": {
       "os_name": "Rocky Linux",
       "os_id": "rocky",
-      "kernel": "5.14.0-503.15.1.el9_5",
+      "kernel": "5.14.0-427.20.1.el9_4",
       "os_version": "9.4",
       "image": "rocky-9.4-x86_64.qcow2.xz",
-      "image_version": "20241209_f6a14db0"
+      "image_version": "20260421_d736dd42"
     },
     "rocky_8.4": {
       "os_name": "Rocky Linux",
@@ -295,6 +295,25 @@
       "alt_version_names": [
         "questing"
       ]
+    },
+    "ubuntu_26.04": {
+      "image": "ubuntu-26.04-x86_64.qcow2.xz",
+      "image_version": "20260610_1c4a8911",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "7.0.0-15-generic",
+      "os_version": "26.04",
+      "alt_version_names": [
+        "resolute"
+      ]
+    },
+    "amazon_6.12": {
+      "image": "amzn2023-x86_64-6.12.qcow2.xz",
+      "image_version": "20260623_da9ee25c",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "kernel": "6.12.90-120.164.amzn2023",
+      "os_version": "2023"
     }
   },
   "arm64": {
@@ -360,10 +379,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-35",
+      "kernel": "5.10.0-39",
       "os_version": "11",
       "image": "debian-11-generic-arm64.qcow2.xz",
-      "image_version": "20251015_301103a6",
+      "image_version": "20260413_5fca70eb",
       "alt_version_names": [
         "bullseye"
       ]
@@ -528,10 +547,10 @@
     "rocky_9.4": {
       "os_name": "Rocky Linux",
       "os_id": "rocky",
-      "kernel": "5.14.0-503.15.1.el9_5",
+      "kernel": "5.14.0-427.18.1.el9_4",
       "os_version": "9.4",
       "image": "rocky-9.4-arm64.qcow2.xz",
-      "image_version": "20241209_f6a14db0"
+      "image_version": "20260421_d736dd42"
     },
     "ubuntu_25.04": {
       "image": "ubuntu-25.04-arm64.qcow2.xz",
@@ -554,6 +573,25 @@
       "alt_version_names": [
         "questing"
       ]
+    },
+    "ubuntu_26.04": {
+      "image": "ubuntu-26.04-arm64.qcow2.xz",
+      "image_version": "20260610_1c4a8911",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "7.0.0-15-generic",
+      "os_version": "26.04",
+      "alt_version_names": [
+        "resolute"
+      ]
+    },
+    "amazon_6.12": {
+      "image": "amzn2023-arm64-6.12.qcow2.xz",
+      "image_version": "20260623_da9ee25c",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "kernel": "6.12.90-120.164.amzn2023",
+      "os_version": "2023"
     }
   }
 }

@@ -26,7 +26,7 @@ import (
 
 // startSBOMCollection starts the SBOM collection process and subscribes to image metadata events.
 func (c *collector) startSBOMCollection(ctx context.Context) error {
-	if !sbomCollectionIsEnabled() {
+	if !c.sbomCollectionIsEnabled() {
 		return nil
 	}
 	if err := overlayDirectoryAccess(); err != nil {

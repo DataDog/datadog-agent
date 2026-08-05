@@ -66,8 +66,8 @@ func TestIoCheckWindows(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
-	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:C:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.wkb_s", 1.333/kB, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(1)
@@ -102,8 +102,8 @@ func TestIoCheckLowercaseDeviceTag(t *testing.T) {
 	rawInitConfigYaml := []byte(`
 lowercase_device_tag: true
 `)
-	mock := mocksender.NewMockSender(ioCheck.ID())
-	err := ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, rawInitConfigYaml, "test")
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
+	err := ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, rawInitConfigYaml, "test", "provider")
 	require.NoError(t, err)
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:c:"}).Return().Times(1)
@@ -140,8 +140,8 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
-	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	pdhtest.AddCounterInstance("LogicalDisk", "Y:")
 	pdhtest.AddCounterInstance("LogicalDisk", "HarddiskVolume2")
@@ -200,8 +200,8 @@ func TestIoCheckInstanceRemoved(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(ioCheck.ID())
-	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(t, ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:C:"}).Return().Times(3)
 	mock.On("Gauge", "system.io.wkb_s", 1.333/kB, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(3)

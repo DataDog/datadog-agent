@@ -1,10 +1,18 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
+
+_HDRS = glob(["*.h"])
 
 cc_library(
     name = "ebpf_c_headers",
-    hdrs = glob(["*.h"]),
+    hdrs = _HDRS,
     includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ebpf_c_headers_files",
+    srcs = _HDRS,
     visibility = ["//visibility:public"],
 )
 
@@ -12,6 +20,7 @@ ebpf_prog(
     name = "lock_contention",
     src = "lock_contention.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = [":ebpf_c_headers"],
 )
 
@@ -19,5 +28,6 @@ ebpf_prog(
     name = "ksyms_iter",
     src = "ksyms_iter.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = [":ebpf_c_headers"],
 )

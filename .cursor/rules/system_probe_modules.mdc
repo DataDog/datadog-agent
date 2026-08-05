@@ -187,7 +187,6 @@ func (t *Tracer) GetAndFlush() model.Stats {
 ```go
 var MyModule = &module.Factory{
     Name:             config.MyModuleName,
-    ConfigNamespaces: []string{},
     Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
         t, err := probe.NewTracer(ebpf.NewConfig())
         if err != nil {

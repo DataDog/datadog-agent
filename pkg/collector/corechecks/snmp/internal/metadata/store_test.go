@@ -80,6 +80,30 @@ func TestStore_Column(t *testing.T) {
 	assert.Equal(t, []byte(nil), store.GetColumnAsByteArray("interface.does_not_exist", "1"))
 }
 
+func TestStore_GetColumnAsIPString(t *testing.T) {
+	store := NewMetadataStore()
+	// upstream decoders may store IPs either as raw bytes or as dotted-decimal strings
+	store.AddColumnValue("ip.from_bytes_v4", "1", valuestore.ResultValue{Value: []byte{199, 47, 37, 5}})
+	store.AddColumnValue("ip.from_bytes_v6", "1", valuestore.ResultValue{Value: []byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}})
+	store.AddColumnValue("ip.from_string_v4", "1", valuestore.ResultValue{Value: "199.47.37.5"})
+	store.AddColumnValue("ip.from_string_v6", "1", valuestore.ResultValue{Value: "2001:db8::1"})
+	store.AddColumnValue("ip.bad_bytes", "1", valuestore.ResultValue{Value: []byte{1, 2, 3}})
+	store.AddColumnValue("ip.bad_string", "1", valuestore.ResultValue{Value: "not an ip"})
+	store.AddColumnValue("ip.empty_string", "1", valuestore.ResultValue{Value: ""})
+	store.AddColumnValue("ip.wrong_type", "1", valuestore.ResultValue{Value: float64(1)})
+
+	assert.Equal(t, "199.47.37.5", store.GetColumnAsIPString("ip.from_bytes_v4", "1"))
+	assert.Equal(t, "2001:db8::1", store.GetColumnAsIPString("ip.from_bytes_v6", "1"))
+	assert.Equal(t, "199.47.37.5", store.GetColumnAsIPString("ip.from_string_v4", "1"))
+	assert.Equal(t, "2001:db8::1", store.GetColumnAsIPString("ip.from_string_v6", "1"))
+	assert.Equal(t, "", store.GetColumnAsIPString("ip.bad_bytes", "1"))
+	assert.Equal(t, "", store.GetColumnAsIPString("ip.bad_string", "1"))
+	assert.Equal(t, "", store.GetColumnAsIPString("ip.empty_string", "1"))
+	assert.Equal(t, "", store.GetColumnAsIPString("ip.wrong_type", "1"))
+	assert.Equal(t, "", store.GetColumnAsIPString("ip.does_not_exist", "1"))
+	assert.Equal(t, "", store.GetColumnAsIPString("ip.from_bytes_v4", "99"))
+}
+
 func TestStore_IDTags(t *testing.T) {
 	store := NewMetadataStore()
 	store.AddIDTags("interface", "1", []string{"aa"})

@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/fx"
 )
@@ -28,6 +29,12 @@ type Collector interface {
 
 	// GetTargetCatalog gets the expected catalog.
 	GetTargetCatalog() AgentType
+}
+
+// PullCollectorWithCustomInterval is an optional interface that pull collectors
+// can implement to override the default pull interval.
+type PullCollectorWithCustomInterval interface {
+	GetPullInterval() time.Duration
 }
 
 // CollectorProvider is the collector fx value group

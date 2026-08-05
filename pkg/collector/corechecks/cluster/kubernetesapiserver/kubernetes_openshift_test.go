@@ -31,17 +31,17 @@ func TestReportClusterQuotas(t *testing.T) {
 	require.Len(t, list.Items, 1)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_name", "test-cluster-name")
+	mockConfig.SetInTest("cluster_name", "test-cluster-name")
 
 	tagger := taggerfxmock.SetupFakeTagger(t)
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")
 	kubeASCheck := newCheck(tagger).(*KubeASCheck)
-	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
+	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test", "provider")
 	require.NoError(t, err)
 
-	mocked := mocksender.NewMockSender(kubeASCheck.ID())
+	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
 	mocked.SetupAcceptAll()
 	kubeASCheck.reportClusterQuotas(list.Items, mocked)
 	mocked.AssertNumberOfCalls(t, "Gauge", 9*3)

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	checkpkg "github.com/DataDog/datadog-agent/pkg/collector/check"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -103,7 +103,7 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 	}
 
 	// Try to fetch from console user's GUI
-	socketPath := filepath.Join(pkgconfigsetup.InstallPath, "run", "ipc", fmt.Sprintf("gui-%s.sock", uid))
+	socketPath := filepath.Join(defaultpaths.GetInstallPath(), "run", "ipc", fmt.Sprintf("gui-%s.sock", uid))
 	info, err := c.fetchWiFiFromGUI(socketPath, 1*time.Second)
 	if err != nil {
 		// GUI might not be running - try to launch it
@@ -143,7 +143,7 @@ func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
 // WiFi data is system-wide, so any user's GUI will return identical data
 func (c *WLANCheck) tryAnyAvailableGUISocket() (wifiInfo, error) {
 	// Find all GUI sockets
-	runPath := filepath.Join(pkgconfigsetup.InstallPath, "run", "ipc")
+	runPath := filepath.Join(defaultpaths.GetInstallPath(), "run", "ipc")
 	socketsPattern := filepath.Join(runPath, "gui-*.sock")
 	sockets, err := filepath.Glob(socketsPattern)
 	if err != nil {
@@ -426,7 +426,7 @@ func launchGUIApp(uid string) error {
 	// Fallback: Try to open the app directly
 	// This works even if the LaunchAgent isn't loaded
 	log.Debug("Using fallback method: launching GUI app directly")
-	cmd := exec.Command("/bin/launchctl", "asuser", uid, "/usr/bin/open", "-a", "Datadog Agent")
+	cmd := exec.Command("/bin/launchctl", "asuser", uid, "/usr/bin/open", "-g", "-j", "-a", "Datadog Agent")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to open GUI app: %w, output: %s", err, string(output))
@@ -462,8 +462,13 @@ func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (
 		}
 	}
 
-	// Send request
-	request := map[string]string{"command": "get_wifi_info"}
+	// Send request. request_location_permission comes from the WLAN check
+	// init_config; the GUI uses it to decide whether to show the macOS
+	// Location Services prompt.
+	request := map[string]any{
+		"command":                     "get_wifi_info",
+		"request_location_permission": c.requestLocationPermission,
+	}
 	requestData, err := json.Marshal(request)
 	if err != nil {
 		return wifiInfo{}, fmt.Errorf("failed to marshal request: %w", err)

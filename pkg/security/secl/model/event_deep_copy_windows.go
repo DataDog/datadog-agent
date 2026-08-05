@@ -9,7 +9,9 @@
 package model
 
 import (
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 // DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
@@ -96,7 +98,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.User = fieldToCopy.User
 	return copied
 }
@@ -123,6 +125,7 @@ func deepCopystringArr(fieldToCopy []string) []string {
 func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
+	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
@@ -152,6 +155,50 @@ func deepCopyFileEvent(fieldToCopy FileEvent) FileEvent {
 	copied.PathnameStr = fieldToCopy.PathnameStr
 	return copied
 }
+func deepCopyTracer(fieldToCopy Tracer) Tracer {
+	copied := Tracer{}
+	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
+	return copied
+}
+func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
+	copied := tracermetadata.TracerMetadata{}
+	copied.ContainerID = fieldToCopy.ContainerID
+	copied.Hostname = fieldToCopy.Hostname
+	copied.LogsCollected = fieldToCopy.LogsCollected
+	copied.ProcessTags = fieldToCopy.ProcessTags
+	copied.RuntimeID = fieldToCopy.RuntimeID
+	copied.SchemaVersion = fieldToCopy.SchemaVersion
+	copied.ServiceEnv = fieldToCopy.ServiceEnv
+	copied.ServiceName = fieldToCopy.ServiceName
+	copied.ServiceVersion = fieldToCopy.ServiceVersion
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
+	copied.TracerLanguage = fieldToCopy.TracerLanguage
+	copied.TracerVersion = fieldToCopy.TracerVersion
+	return copied
+}
+func deepCopySpanContext(fieldToCopy SpanContext) SpanContext {
+	copied := SpanContext{}
+	copied.Attributes = deepCopystringMap(fieldToCopy.Attributes)
+	copied.ExtraAttrsID = fieldToCopy.ExtraAttrsID
+	copied.HasExtraAttrs = fieldToCopy.HasExtraAttrs
+	copied.SpanID = fieldToCopy.SpanID
+	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
+	return copied
+}
+func deepCopystringMap(fieldToCopy map[string]string) map[string]string {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make(map[string]string, len(fieldToCopy))
+	for k, v := range fieldToCopy {
+		copied[k] = v
+	}
+	return copied
+}
+func deepCopyTraceID(fieldToCopy utils.TraceID) utils.TraceID {
+	return fieldToCopy
+}
 func deepCopyProcess(fieldToCopy Process) Process {
 	copied := Process{}
 	copied.ArgsEntry = deepCopyArgsEntryPtr(fieldToCopy.ArgsEntry)
@@ -169,7 +216,7 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
 	copied.PPid = fieldToCopy.PPid
 	copied.ScrubbedCmdLineResolved = fieldToCopy.ScrubbedCmdLineResolved
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.Tracer = deepCopyTracer(fieldToCopy.Tracer)
 	copied.User = fieldToCopy.User
 	return copied
 }
@@ -219,16 +266,6 @@ func deepCopyMatchedRulePtrArr(fieldToCopy []*MatchedRule) []*MatchedRule {
 	copied := make([]*MatchedRule, len(fieldToCopy))
 	for i := range fieldToCopy {
 		copied[i] = deepCopyMatchedRulePtr(fieldToCopy[i])
-	}
-	return copied
-}
-func deepCopystringMap(fieldToCopy map[string]string) map[string]string {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make(map[string]string, len(fieldToCopy))
-	for k, v := range fieldToCopy {
-		copied[k] = v
 	}
 	return copied
 }

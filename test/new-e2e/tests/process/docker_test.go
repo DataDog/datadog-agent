@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 
 	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -68,8 +69,8 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		assertProcessCollectedNew(c, payloads, false, "dd")
-		assertContainersCollectedNew(c, payloads, []string{"fake-process"})
+		assertProcessCollected(c, payloads, false, "dd")
+		assertContainersCollected(c, payloads, []string{"fake-process"})
 	}, 2*time.Minute, 10*time.Second)
 
 	// Verify the process-agent is not collected as it should not be running
@@ -82,6 +83,7 @@ func (s *dockerTestSuite) TestProcessDiscoveryCheck() {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", pulumi.StringPtr("true")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_DISCOVERY_ENABLED", pulumi.StringPtr("false")),
 		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
 	}
 
@@ -125,9 +127,9 @@ func (s *dockerTestSuite) TestProcessCheckWithIO() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, true, "dd")
+		assertProcessCollected(c, payloads, true, "dd")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *dockerTestSuite) TestProcessChecksWithNPM() {
@@ -135,6 +137,7 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_NETWORK_CONFIG_DIRECT_SEND", pulumi.StringPtr("false")),
 
 		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
 	}
@@ -152,10 +155,10 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "dd")
-	assertContainersCollected(t, payloads, []string{"fake-process"})
+		assertProcessCollected(c, payloads, false, "dd")
+		assertContainersCollected(c, payloads, []string{"fake-process"})
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *dockerTestSuite) TestManualProcessCheck() {

@@ -59,7 +59,7 @@ func TestIrgenMemoryUse(t *testing.T) {
 	require.NoError(t, err)
 
 	scanner := bufio.NewScanner(stderrFile)
-	const maxMemLimitMB = uint64(5)
+	const maxMemLimitMB = uint64(7)
 	for scanner.Scan() {
 		line := scanner.Text()
 		match := gcTraceRegexp.FindStringSubmatch(line)

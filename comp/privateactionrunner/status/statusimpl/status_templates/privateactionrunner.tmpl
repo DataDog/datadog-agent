@@ -1,0 +1,9 @@
+{{- with .privateActionRunnerStatus -}}
+  Status: {{- if .Enabled }} Enabled{{else}} Disabled{{end}}
+{{- if .Enabled }}
+  URN: {{ .URN }}
+  Self Enroll: {{ .SelfEnroll }}
+  Default Actions Enabled: {{ .DefaultActionsEnabled }}
+  Actions Allowlist: {{- if .ActionsAllowlist }} {{ .ActionsAllowlist }}{{else}} (none){{end}}
+{{- end }}
+{{- end }}

@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	winacls "github.com/hectane/go-acl"
+	winacls "github.com/DataDog/go-acl"
 )
 
 func processUntilAudit(t *testing.T, et *etwTester) {

@@ -1,0 +1,44 @@
+# gazelle:ignore
+
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+# Source files all carry //go:build linux_bpf, so callers must propagate the
+# linux_bpf tag (e.g. via gotags on a go_library/go_test) to compile in this
+# package.
+go_library(
+    name = "loader",
+    srcs = [
+        "loader.go",
+        "serialize.go",
+        "types_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/loader",
+    tags = ["manual"],  # keep
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/dyninst/compiler",
+        "//pkg/dyninst/ir",
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_cilium_ebpf//btf",
+        "@com_github_cilium_ebpf//features",
+        "@com_github_cilium_ebpf//ringbuf",
+    ],
+)
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+    hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
+    visibility = ["//visibility:public"],
+)

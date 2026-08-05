@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"google.golang.org/grpc"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -28,21 +29,20 @@ func init() { registerModule(DynamicInstrumentation) }
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into
 // running Go services without restarts.
 var DynamicInstrumentation = &module.Factory{
-	Name:             config.DynamicInstrumentationModule,
-	ConfigNamespaces: []string{},
+	Name: config.DynamicInstrumentationModule,
 	Fn: func(agentConfiguration *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get ipc address: %w", err)
 		}
 		client, err := ddgrpc.GetDDAgentSecureClient(
 			context.Background(),
 			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
+			pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 			deps.Ipc.GetTLSClientConfig().Clone(),
 			grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(deps.Ipc.GetAuthToken())),
 		)

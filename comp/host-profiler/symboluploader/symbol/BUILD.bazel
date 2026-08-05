@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "symbol",
+    srcs = [
+        "elf.go",
+        "elf_wrapper.go",
+        "source.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/symboluploader/pclntab",
+            "//pkg/util/safeelf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//process",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/symboluploader/pclntab",
+            "//pkg/util/safeelf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//process",
+        ],
+        "//conditions:default": [],
+    }),
+)

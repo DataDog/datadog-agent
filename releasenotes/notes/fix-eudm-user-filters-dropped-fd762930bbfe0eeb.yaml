@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes user-defined ``network_path.collector.filters`` being silently
+    dropped when ``infrastructure_mode`` is set to ``end_user_device``.
+    Custom filters are now correctly appended to the built-in EUDM defaults.

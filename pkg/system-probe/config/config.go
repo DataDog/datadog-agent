@@ -41,6 +41,7 @@ const (
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
+	NotableEventsModule          types.ModuleName = "notable_events"
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
@@ -123,12 +124,17 @@ func load() (*types.Config, error) {
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
+	eudmEnabled := coreCfg.GetString("infrastructure_mode") == "end_user_device"
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
+	// The GPU module only consumes process events when its eBPF probes are
+	// loaded, so the event monitor is only needed for that combination.
+	gpuEBPFProbesEnabled := gpuEnabled && cfg.GetBool(gpuNS("enable_ebpf_probes"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
+	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
 
-	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
+	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || discoveryServiceMapEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
@@ -139,9 +145,10 @@ func load() (*types.Config, error) {
 	}
 	if csmEnabled ||
 		cfg.GetBool(secNS("fim_enabled")) ||
+		coreCfg.GetBool("sbom.enrichment.usage.enabled") ||
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
-		gpuEnabled ||
+		gpuEBPFProbesEnabled ||
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
@@ -208,6 +215,9 @@ func load() (*types.Config, error) {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
 		}
+		if runtime.GOOS == "darwin" && coreCfg.GetBool("notable_events.enabled") {
+			c.EnabledModules[NotableEventsModule] = struct{}{}
+		}
 
 		// injector telemetry is enabled by default, disable only if explicitly configured by the user
 		injectorDefaultEnabled := false
@@ -223,21 +233,6 @@ func load() (*types.Config, error) {
 		if len(c.EnabledModules) > 0 && injectorDefaultEnabled {
 			c.EnabledModules[InjectorModule] = struct{}{}
 		}
-	}
-
-	// Enable discovery by default on Linux if system-probe has any modules
-	// enabled, unless the user has explicitly configured the discovery.enabled
-	// config key.
-	//
-	// Note that besides the support in system-probe itself (currently only
-	// implemented on Linux), the WorkloadMeta-based process collector in the
-	// core agent needs to be supported on the platform for discovery to work
-	// correctly.
-	if runtime.GOOS == "linux" &&
-		len(c.EnabledModules) > 0 &&
-		!c.ModuleIsEnabled(DiscoveryModule) &&
-		applyDefault(cfg, discoveryNS("enabled"), true) {
-		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

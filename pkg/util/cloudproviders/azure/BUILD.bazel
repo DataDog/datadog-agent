@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "azure",
+    srcs = [
+        "azure.go",
+        "diagnosis.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/cachedfetch",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/http",
+        "@com_github_cenkalti_backoff_v7//:backoff",
+    ],
+)
+
+dd_agent_go_test(
+    name = "azure_test",
+    srcs = ["azure_test.go"],
+    embed = [":azure"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

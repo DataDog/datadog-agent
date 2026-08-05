@@ -9,7 +9,9 @@ package goroutinesdump
 import (
 	"context"
 	"fmt"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -18,13 +20,13 @@ import (
 
 // Get returns the stack trace of every Go routine of a running Agent.
 func Get() (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
-	pprofURL := fmt.Sprintf("http://%v:%s/debug/pprof/goroutine?debug=2",
-		ipcAddress, pkgconfigsetup.Datadog().GetString("expvar_port"))
+	addr := net.JoinHostPort(ipcAddress, pkgconfigsetup.Datadog().GetString("expvar_port"))
+	pprofURL := fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=2", addr)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := http.Client{}

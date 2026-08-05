@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
@@ -70,13 +70,22 @@ type testState struct {
 	logComp       log.Component
 }
 
+func (ts *testState) stop(t *testing.T) {
+	assert.NoError(t, ts.lc.Stop(ts.ctx))
+}
+
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
+	// Ensure run_path is sandboxed so cache.persist() on stop doesn't write to
+	// the system path (/opt/datadog-agent/run on POSIX systems).
+	if _, ok := overrides["run_path"]; !ok {
+		overrides["run_path"] = t.TempDir()
+	}
 	config := config.NewMockWithOverrides(t, overrides)
 
 	logComp := logmock.New(t)
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 
 	requires := Requires{
 		Lifecycle:   lc,
@@ -167,17 +176,6 @@ func (ts *testState) validateMinimum(t *testing.T, minimumTelemetry map[string]f
 		assert.NoError(t, err)
 		assert.Len(t, metrics, 1)
 		assert.GreaterOrEqual(t, metrics[0].Value(), expected)
-	}
-}
-
-// validate that telemetry counter values are less than or equal to the expected maximum values
-func (ts *testState) validateMaximum(t *testing.T, maximumTelemetry map[string]float64) {
-	for name, expected := range maximumTelemetry {
-		ts.logComp.Debugf("Validating maximum telemetry counter %s", name)
-		metrics, err := ts.telemetryMock.GetCountMetric(moduleName, name)
-		assert.NoError(t, err)
-		assert.Len(t, metrics, 1)
-		assert.LessOrEqual(t, metrics[0].Value(), expected)
 	}
 }
 

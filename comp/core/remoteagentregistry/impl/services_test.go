@@ -10,6 +10,7 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	io_prometheus_client "github.com/prometheus/client_model/go"
@@ -45,21 +46,57 @@ func TestFlareProvider(t *testing.T) {
 	component := provides.Comp
 	flareProvider := provides.FlareProvider
 
-	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
 		WithFlareProvider(map[string][]byte{
 			"test_file.yaml": []byte("test_content"),
 		}),
 	)
 
-	fb := helpers.NewFlareBuilderMock(t, false)
-	fb.AssertNoFileExists("test-agent/test_file.yaml")
+	flareFilePath := "test-agent/test_file.yaml"
 
-	err := flareProvider.FlareFiller.Callback(fb)
+	fb := helpers.NewFlareBuilderMock(t, false)
+	fb.AssertNoFileExists(flareFilePath)
+
+	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
 	require.NoError(t, err)
 
-	flareFilePath := remoteAgent.RegistrationData.AgentDisplayName + "-" + remoteAgent.RegistrationData.AgentFlavor + "-" + remoteAgent.registeredSessionID + "/test_file.yaml"
 	fb.AssertFileExists(flareFilePath)
 	fb.AssertFileContent("test_content", flareFilePath)
+}
+
+// TestFillFlareWritesUnreachableOnGRPCError verifies that when ADP is enabled
+// but the gRPC call to GetFlareFiles fails, fillFlare writes an UNREACHABLE.txt
+// file instead of silently dropping the failure.
+func TestFillFlareWritesUnreachableOnGRPCError(t *testing.T) {
+	provides, _, cfg, _, ipcComp := buildComponent(t)
+	// Use a short timeout so the test doesn't wait 3 s for the default.
+	cfg.SetInTest("remote_agent.registry.query_timeout", 500*time.Millisecond)
+
+	component := provides.Comp
+	flareProvider := provides.FlareProvider
+
+	// Register an agent with a flare provider, then immediately stop its gRPC server
+	// so that the subsequent GetFlareFiles RPC fails.
+	agent := buildAndRegisterRemoteAgent(t, ipcComp, component, "adp", "Agent Data Plane", "42",
+		WithFlareProvider(map[string][]byte{
+			"runtime_config_dump.yaml": []byte("config: true"),
+		}),
+	)
+	agent.Stop() // bring down the gRPC server before the flare is collected
+
+	fb := helpers.NewFlareBuilderMock(t, false)
+
+	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
+	require.NoError(t, err)
+
+	// The nominal artifact must NOT be written because the server is down.
+	fb.AssertNoFileExists("agent-data-plane/runtime_config_dump.yaml")
+
+	// UNREACHABLE.txt must be present under the agent's sanitized display name.
+	fb.AssertFileExists("agent-data-plane/UNREACHABLE.txt")
+	// The file should contain a non-empty error message.
+	unreachablePath := "agent-data-plane/UNREACHABLE.txt"
+	fb.AssertFileContentMatch("could not be reached:", unreachablePath)
 }
 
 func TestGetTelemetry(t *testing.T) {
@@ -106,7 +143,7 @@ func TestGetTelemetry(t *testing.T) {
 			{
 				Label: []*io_prometheus_client.LabelPair{
 					{
-						Name:  proto.String(remoteAgentMetricTagName),
+						Name:  proto.String(emitterMetricTagName),
 						Value: proto.String("test-agent"),
 					},
 				},
@@ -127,7 +164,7 @@ func TestGetTelemetry(t *testing.T) {
 			{
 				Label: []*io_prometheus_client.LabelPair{
 					{
-						Name:  proto.String(remoteAgentMetricTagName),
+						Name:  proto.String(emitterMetricTagName),
 						Value: proto.String("test-agent"),
 					},
 					{
@@ -156,7 +193,7 @@ func TestGetTelemetry(t *testing.T) {
 			{
 				Label: []*io_prometheus_client.LabelPair{
 					{
-						Name:  proto.String(remoteAgentMetricTagName),
+						Name:  proto.String(emitterMetricTagName),
 						Value: proto.String("test-agent"),
 					},
 				},
@@ -183,91 +220,221 @@ func TestGetTelemetry(t *testing.T) {
 	}, protocmp.Transform()))
 }
 
-// TestGetTelemetryPreservesExistingRemoteAgentLabel verifies that when a metric already
-// has a remote_agent label (set by the remote agent itself via metrics.SetAgentIdentity),
-// the registry collector preserves it and does NOT add a duplicate.
-func TestGetTelemetryPreservesExistingRemoteAgentLabel(t *testing.T) {
+func TestGetTelemetryCollectsADPClientByteCounters(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	lc.Start(context.Background())
 	component := provides.Comp
 
-	// Simulate system-probe forwarding a metric that already has remote_agent="system-probe"
-	// set via metrics.SetAgentIdentity("system-probe").
 	promText := `
-		# HELP logs__bytes_sent Total number of bytes sent
-		# TYPE logs__bytes_sent counter
-		logs__bytes_sent{remote_agent="system-probe",source="logs"} 42
-		`
-
-	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "system-probe", "System Probe", "123",
+# TYPE dogstatsd_client__bytes_sent counter
+dogstatsd_client__bytes_sent 100
+# TYPE dogstatsd_client__bytes_dropped counter
+dogstatsd_client__bytes_dropped 7
+# TYPE dogstatsd_client__bytes_dropped_queue counter
+dogstatsd_client__bytes_dropped_queue 5
+# TYPE dogstatsd_client__bytes_dropped_writer counter
+dogstatsd_client__bytes_dropped_writer 2
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "agent-data-plane", "Agent Data Plane", "123",
 		withTelemetryProvider(promText),
 	)
 
 	metrics, err := telemetryComp.Gather(false)
 	require.NoError(t, err)
+	metricsByName := make(map[string]*io_prometheus_client.MetricFamily, len(metrics))
+	for _, metric := range metrics {
+		metricsByName[metric.GetName()] = metric
+	}
 
-	// Find the logs__bytes_sent metric and verify the remote_agent label
-	require.Contains(t, metricsToMap(metrics), "logs__bytes_sent")
-
-	for _, mf := range metrics {
-		if mf.GetName() != "logs__bytes_sent" {
-			continue
-		}
-		require.Len(t, mf.GetMetric(), 1)
-		m := mf.GetMetric()[0]
-
-		// Count remote_agent labels — there should be exactly one (not duplicated)
-		remoteAgentCount := 0
-		remoteAgentValue := ""
-		for _, label := range m.GetLabel() {
-			if label.GetName() == remoteAgentMetricTagName {
-				remoteAgentCount++
-				remoteAgentValue = label.GetValue()
-			}
-		}
-		assert.Equal(t, 1, remoteAgentCount, "Should have exactly one remote_agent label, not a duplicate")
-		assert.Equal(t, "system-probe", remoteAgentValue, "remote_agent value should be preserved from the metric, not overwritten by the registry")
-
-		// Also verify the source label is preserved
-		assert.Empty(t, cmp.Diff(mf, &io_prometheus_client.MetricFamily{
-			Name: proto.String("logs__bytes_sent"),
-			Type: io_prometheus_client.MetricType_COUNTER.Enum(),
-			Help: proto.String("Total number of bytes sent"),
-			Metric: []*io_prometheus_client.Metric{
-				{
-					Label: []*io_prometheus_client.LabelPair{
-						{
-							Name:  proto.String(remoteAgentMetricTagName),
-							Value: proto.String("system-probe"),
-						},
-						{
-							Name:  proto.String("source"),
-							Value: proto.String("logs"),
-						},
-					},
-					Counter: &io_prometheus_client.Counter{
-						Value: proto.Float64(42),
-					},
-				},
-			},
-		}, protocmp.Transform()))
+	for metricName, expectedValue := range map[string]float64{
+		"dogstatsd_client__bytes_sent":           100,
+		"dogstatsd_client__bytes_dropped":        7,
+		"dogstatsd_client__bytes_dropped_queue":  5,
+		"dogstatsd_client__bytes_dropped_writer": 2,
+	} {
+		metricFamily := metricsByName[metricName]
+		require.NotNil(t, metricFamily, metricName)
+		assert.Equal(t, io_prometheus_client.MetricType_COUNTER, metricFamily.GetType(), metricName)
+		require.Len(t, metricFamily.GetMetric(), 1, metricName)
+		assert.Equal(t, expectedValue, metricFamily.GetMetric()[0].GetCounter().GetValue(), metricName)
+		assert.Equal(t, "agent-data-plane", metricFamily.GetMetric()[0].GetLabel()[0].GetValue(), metricName)
 	}
 }
 
-// TestGetTelemetryMixedLabels verifies the registry handles a mix of metrics:
-// some with pre-existing remote_agent labels and some without.
+func TestGetTelemetryCollectsADPTransactionSuccessCounters(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	lc.Start(context.Background())
+	component := provides.Comp
+
+	promText := `
+# TYPE transactions__success counter
+transactions__success{domain="remote-config",endpoint="/v1/transactions",proto_version="v1"} 42
+# TYPE transactions__success_bytes counter
+transactions__success_bytes{domain="remote-config",endpoint="/v1/transactions"} 1024
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "agent-data-plane", "Agent Data Plane", "123",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+	metricsByName := metricsToMap(metrics)
+
+	for metricName, expected := range map[string]struct {
+		value  float64
+		labels map[string]string
+	}{
+		"transactions__success": {
+			value: 42,
+			labels: map[string]string{
+				"domain":        "remote-config",
+				"endpoint":      "/v1/transactions",
+				"proto_version": "v1",
+				"emitter":       "agent-data-plane",
+			},
+		},
+		"transactions__success_bytes": {
+			value: 1024,
+			labels: map[string]string{
+				"domain":   "remote-config",
+				"endpoint": "/v1/transactions",
+				"emitter":  "agent-data-plane",
+			},
+		},
+	} {
+		metricFamily := metricsByName[metricName]
+		require.NotNil(t, metricFamily, metricName)
+		assert.Equal(t, io_prometheus_client.MetricType_COUNTER, metricFamily.GetType(), metricName)
+		require.Len(t, metricFamily.GetMetric(), 1, metricName)
+		metric := metricFamily.GetMetric()[0]
+		assert.Equal(t, expected.value, metric.GetCounter().GetValue(), metricName)
+
+		actualLabels := make(map[string]string, len(metric.GetLabel()))
+		for _, label := range metric.GetLabel() {
+			actualLabels[label.GetName()] = label.GetValue()
+		}
+		assert.Equal(t, expected.labels, actualLabels, metricName)
+	}
+}
+
+func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
+	testCases := []struct {
+		name               string
+		labels             string
+		expectedNonEmitter map[string]string
+	}{
+		{
+			name:               "missing incoming emitter label",
+			labels:             `source="missing",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "missing", "status": "ok"},
+		},
+		{
+			name:               "empty incoming emitter label",
+			labels:             `emitter="",source="empty",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "empty", "status": "ok"},
+		},
+		{
+			name:               "matching incoming emitter label",
+			labels:             `emitter="registered-agent",source="matching",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "matching", "status": "ok"},
+		},
+		{
+			name:               "mismatched incoming emitter label",
+			labels:             `emitter="spoofed-agent",source="mismatched",status="ok"`,
+			expectedNonEmitter: map[string]string{"source": "mismatched", "status": "ok"},
+		},
+	}
+
+	t.Run("duplicate incoming emitter labels", func(t *testing.T) {
+		incoming := []*io_prometheus_client.LabelPair{
+			{Name: proto.String(emitterMetricTagName), Value: proto.String("spoofed-agent-one")},
+			{Name: proto.String("source"), Value: proto.String("remote")},
+			{Name: proto.String(emitterMetricTagName), Value: proto.String("spoofed-agent-two")},
+			{Name: proto.String("status"), Value: proto.String("ok")},
+		}
+
+		labelNames, labelValues := canonicalMetricLabels(incoming, "registered-agent")
+		require.Equal(t, []string{emitterMetricTagName, "source", "status"}, labelNames)
+		require.Equal(t, []string{"registered-agent", "remote", "ok"}, labelValues)
+	})
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+			require.NoError(t, lc.Start(context.Background()))
+			t.Cleanup(func() {
+				require.NoError(t, lc.Stop(context.Background()))
+			})
+
+			promText := `# HELP authoritative_emitter_metric A remotely emitted metric
+# TYPE authoritative_emitter_metric gauge
+authoritative_emitter_metric{` + testCase.labels + `} 1
+`
+			_ = buildAndRegisterRemoteAgent(t, ipcComp, provides.Comp, "registered-flavor", "Registered Agent", "123",
+				withTelemetryProvider(promText),
+			)
+
+			metrics, err := telemetryComp.Gather(false)
+			require.NoError(t, err)
+			metricFamily := metricsToMap(metrics)["authoritative_emitter_metric"]
+			require.NotNil(t, metricFamily)
+			require.Len(t, metricFamily.GetMetric(), 1)
+
+			actualNonEmitter := make(map[string]string, len(testCase.expectedNonEmitter))
+			emitterCount := 0
+			for _, label := range metricFamily.GetMetric()[0].GetLabel() {
+				if label.GetName() == emitterMetricTagName {
+					emitterCount++
+					require.Equal(t, "registered-agent", label.GetValue())
+					continue
+				}
+				actualNonEmitter[label.GetName()] = label.GetValue()
+			}
+			require.Equal(t, 1, emitterCount)
+			require.Equal(t, testCase.expectedNonEmitter, actualNonEmitter)
+		})
+	}
+}
+
+func TestRegistrationRejectsEmptyDisplayName(t *testing.T) {
+	testCases := []struct {
+		name        string
+		displayName string
+	}{
+		{name: "empty", displayName: ""},
+		{name: "spaces only", displayName: "   "},
+		{name: "other whitespace only", displayName: "\t\n\r"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			provides, _, _, _, _ := buildComponent(t)
+			component := provides.Comp.(*remoteAgentRegistry)
+			registration := remoteagent.RegistrationData{
+				AgentDisplayName: testCase.displayName,
+				APIEndpointURI:   "127.0.0.1:1",
+			}
+
+			_, _, err := component.RegisterRemoteAgent(&registration)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "display name")
+			require.Empty(t, component.GetRegisteredAgents())
+		})
+	}
+}
+
+// TestGetTelemetryMixedLabels verifies the registry applies the registered identity
+// to a mix of metrics with and without incoming emitter labels.
 func TestGetTelemetryMixedLabels(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	lc.Start(context.Background())
 	component := provides.Comp
 
-	// Simulate an agent sending two metrics:
-	// - logs__bytes_sent already has remote_agent (should be preserved)
-	// - some_other_metric does NOT have remote_agent (should be injected by registry)
+	// Simulate an agent sending one metric with a matching emitter and one without an emitter.
 	promText := `
 		# HELP logs__bytes_sent Total number of bytes sent
 		# TYPE logs__bytes_sent counter
-		logs__bytes_sent{remote_agent="system-probe",source="logs"} 100
+		logs__bytes_sent{emitter="system-probe",source="logs"} 100
 		# HELP some_other_metric Another metric
 		# TYPE some_other_metric gauge
 		some_other_metric{tag="value"} 7
@@ -282,27 +449,27 @@ func TestGetTelemetryMixedLabels(t *testing.T) {
 
 	metricsMap := metricsToMap(metrics)
 
-	// logs__bytes_sent: remote_agent should be "system-probe" (from the metric itself)
+	// logs__bytes_sent should use the registered sanitized display name.
 	require.Contains(t, metricsMap, "logs__bytes_sent")
 	for _, m := range metricsMap["logs__bytes_sent"].GetMetric() {
 		for _, label := range m.GetLabel() {
-			if label.GetName() == remoteAgentMetricTagName {
-				assert.Equal(t, "system-probe", label.GetValue(), "Pre-existing remote_agent should be preserved")
+			if label.GetName() == emitterMetricTagName {
+				assert.Equal(t, "system-probe", label.GetValue(), "emitter should use the registered sanitized display name")
 			}
 		}
 	}
 
-	// some_other_metric: remote_agent should be "system-probe" (injected by registry from display name)
+	// some_other_metric should receive the same registered identity.
 	require.Contains(t, metricsMap, "some_other_metric")
 	for _, m := range metricsMap["some_other_metric"].GetMetric() {
-		foundRemoteAgent := false
+		foundEmitter := false
 		for _, label := range m.GetLabel() {
-			if label.GetName() == remoteAgentMetricTagName {
-				foundRemoteAgent = true
-				assert.Equal(t, "system-probe", label.GetValue(), "Registry should inject remote_agent for metrics without it")
+			if label.GetName() == emitterMetricTagName {
+				foundEmitter = true
+				assert.Equal(t, "system-probe", label.GetValue(), "registry should inject emitter for metrics without it")
 			}
 		}
-		assert.True(t, foundRemoteAgent, "Registry should add remote_agent label when missing")
+		assert.True(t, foundEmitter, "registry should add emitter label when missing")
 	}
 }
 
@@ -346,7 +513,7 @@ remote_agent_registry_action_duration_seconds_count 20
 		)
 
 		// This should NOT panic - the remote agent metric uses ConstHistogram which is not registered
-		// and the remote_agent label provides namespace separation
+		// and the emitter label provides namespace separation
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
 
@@ -355,9 +522,9 @@ remote_agent_registry_action_duration_seconds_count 20
 		for _, mf := range metrics {
 			if mf.GetName() == "remote_agent_registry_action_duration_seconds" {
 				for _, m := range mf.GetMetric() {
-					// Check if this metric has the remote_agent label (from the remote agent)
+					// Check if this metric has the emitter label (from the remote agent)
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName && label.GetValue() == "test-agent" {
+						if label.GetName() == emitterMetricTagName && label.GetValue() == "test-agent" {
 							foundRemoteAgentHistogram = true
 							// Verify the bucket configuration is from the remote agent (3 buckets)
 							require.NotNil(t, m.GetHistogram())
@@ -416,7 +583,7 @@ my_shared_histogram_count 300
 			if mf.GetName() == "my_shared_histogram" {
 				for _, m := range mf.GetMetric() {
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName {
+						if label.GetName() == emitterMetricTagName {
 							switch label.GetValue() {
 							case "agent-one":
 								foundAgent1 = true
@@ -442,23 +609,23 @@ my_shared_histogram_count 300
 		defer lc.Stop(context.Background())
 		component := provides.Comp
 
-		// This histogram tries to use the same labels ("name", "action") as the internal metric
-		// but the remote_agent label will still be injected, making them distinct
+		// This histogram tries to use the same labels ("remote_agent_name", "action") as the internal metric
+		// but the emitter label will still be injected, making them distinct
 		promText := `
 # HELP remote_agent_registry_action_duration_seconds Histogram trying to match internal labels
 # TYPE remote_agent_registry_action_duration_seconds histogram
-remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="0.5"} 10
-remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="2.0"} 25
-remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="+Inf"} 30
-remote_agent_registry_action_duration_seconds_sum{name="fake-agent",action="query"} 12.5
-remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="query"} 30
+remote_agent_registry_action_duration_seconds_bucket{remote_agent_name="fake-agent",action="query",le="0.5"} 10
+remote_agent_registry_action_duration_seconds_bucket{remote_agent_name="fake-agent",action="query",le="2.0"} 25
+remote_agent_registry_action_duration_seconds_bucket{remote_agent_name="fake-agent",action="query",le="+Inf"} 30
+remote_agent_registry_action_duration_seconds_sum{remote_agent_name="fake-agent",action="query"} 12.5
+remote_agent_registry_action_duration_seconds_count{remote_agent_name="fake-agent",action="query"} 30
 `
 
 		_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "sneaky-agent", "Sneaky Agent", "999",
 			withTelemetryProvider(promText),
 		)
 
-		// This should NOT panic - the remote_agent label is always injected
+		// This should NOT panic - the emitter label is always injected
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
 
@@ -467,15 +634,15 @@ remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="qu
 			if mf.GetName() == "remote_agent_registry_action_duration_seconds" {
 				for _, m := range mf.GetMetric() {
 					labels := m.GetLabel()
-					// Check for remote_agent label being present and find it among all labels
-					var hasRemoteAgentLabel, hasNameLabel, hasActionLabel bool
+					// Check for emitter label being present and find it among all labels
+					var hasEmitterLabel, hasNameLabel, hasActionLabel bool
 					for _, label := range labels {
 						switch label.GetName() {
-						case remoteAgentMetricTagName:
+						case emitterMetricTagName:
 							if label.GetValue() == "sneaky-agent" {
-								hasRemoteAgentLabel = true
+								hasEmitterLabel = true
 							}
-						case "name":
+						case "remote_agent_name":
 							if label.GetValue() == "fake-agent" {
 								hasNameLabel = true
 							}
@@ -485,15 +652,15 @@ remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="qu
 							}
 						}
 					}
-					if hasRemoteAgentLabel && hasNameLabel && hasActionLabel {
+					if hasEmitterLabel && hasNameLabel && hasActionLabel {
 						foundSneakyHistogram = true
-						// Verify all 3 labels are present: remote_agent, name, action
+						// Verify all 3 labels are present: emitter, remote_agent_name, action
 						require.Len(t, labels, 3, "Should have exactly 3 labels")
 					}
 				}
 			}
 		}
-		require.True(t, foundSneakyHistogram, "Sneaky agent histogram should be present with remote_agent label")
+		require.True(t, foundSneakyHistogram, "Sneaky agent histogram should be present with emitter label")
 	})
 
 	t.Run("scenario 4: unique histogram name works fine", func(t *testing.T) {
@@ -526,7 +693,7 @@ completely_unique_histogram_count 40
 			if mf.GetName() == "completely_unique_histogram" {
 				for _, m := range mf.GetMetric() {
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName && label.GetValue() == "unique-agent" {
+						if label.GetName() == emitterMetricTagName && label.GetValue() == "unique-agent" {
 							foundUniqueHistogram = true
 							require.NotNil(t, m.GetHistogram())
 							require.Len(t, m.GetHistogram().GetBucket(), 5, "Expected 5 buckets")
@@ -550,7 +717,7 @@ func TestDescriptorConflicts(t *testing.T) {
 		defer lc.Stop(context.Background())
 		component := provides.Comp
 
-		// Both agents send the EXACT same metric with same labels - only remote_agent will differ
+		// Both agents send the EXACT same metric with same labels - only emitter will differ
 		promText := `
 # HELP shared_request_duration Request duration
 # TYPE shared_request_duration histogram
@@ -568,7 +735,7 @@ shared_request_duration_count{method="GET",path="/api"} 30
 			withTelemetryProvider(promText),
 		)
 
-		// This tests if having identical metrics (except remote_agent label) causes issues
+		// This tests if having identical metrics (except emitter label) causes issues
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
 
@@ -577,7 +744,7 @@ shared_request_duration_count{method="GET",path="/api"} 30
 			if mf.GetName() == "shared_request_duration" {
 				for _, m := range mf.GetMetric() {
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName {
+						if label.GetName() == emitterMetricTagName {
 							switch label.GetValue() {
 							case "agent-a":
 								agentAFound = true
@@ -683,9 +850,9 @@ http_requests{endpoint="api",status="200"} 50
 		)
 
 		// This is the interesting case - same metric name but DIFFERENT label schemas
-		// The remote_agent label is added to both, making them:
-		// - http_requests{remote_agent="agent-labels-1", method="GET", path="/api"}
-		// - http_requests{remote_agent="agent-labels-2", endpoint="api", status="200"}
+		// The emitter label is added to both, making them:
+		// - http_requests{emitter="agent-labels-1", method="GET", path="/api"}
+		// - http_requests{emitter="agent-labels-2", endpoint="api", status="200"}
 		// These have different label sets which could cause issues with some Prometheus registries
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
@@ -697,7 +864,7 @@ http_requests{endpoint="api",status="200"} 50
 					labelNames := make(map[string]bool)
 					for _, label := range m.GetLabel() {
 						labelNames[label.GetName()] = true
-						if label.GetName() == remoteAgentMetricTagName {
+						if label.GetName() == emitterMetricTagName {
 							switch label.GetValue() {
 							case "agent-labels-1":
 								agent1Found = true
@@ -773,7 +940,7 @@ request_duration_count 25
 			if mf.GetName() == "request_duration" {
 				for _, m := range mf.GetMetric() {
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName {
+						if label.GetName() == emitterMetricTagName {
 							bucketCount := len(m.GetHistogram().GetBucket())
 							switch label.GetValue() {
 							case "agent-3-buckets":
@@ -911,7 +1078,7 @@ api_latency_count 100
 			if mf.GetName() == "api_latency" {
 				for _, m := range mf.GetMetric() {
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName {
+						if label.GetName() == emitterMetricTagName {
 							bucketCount := len(m.GetHistogram().GetBucket())
 							t.Logf("Agent %s has %d buckets", label.GetValue(), bucketCount)
 							switch label.GetValue() {
@@ -974,7 +1141,7 @@ response_time_count 40
 			if mf.GetName() == "response_time" {
 				for _, m := range mf.GetMetric() {
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName {
+						if label.GetName() == emitterMetricTagName {
 							switch label.GetValue() {
 							case "agent-superset":
 								foundSuperset = true
@@ -1038,7 +1205,7 @@ process_time_count 50
 			if mf.GetName() == "process_time" {
 				for _, m := range mf.GetMetric() {
 					for _, label := range m.GetLabel() {
-						if label.GetName() == remoteAgentMetricTagName {
+						if label.GetName() == emitterMetricTagName {
 							switch label.GetValue() {
 							case "agent-boundaries-1":
 								found1 = true

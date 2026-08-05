@@ -1,0 +1,45 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "socket.schema.json",
+    "type": "object",
+    "required" : ["socket"],
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "socket": {
+                    "type": "object",
+                    "required": [
+                        "domain",
+                        "type",
+                        "protocol"
+                    ],
+                    "properties": {
+                        "domain": {
+                            "type": "string"
+                        },
+                        "type": {
+                            "type": "string"
+                        },
+                        "protocol": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

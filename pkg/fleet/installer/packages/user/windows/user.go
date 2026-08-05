@@ -239,6 +239,13 @@ func IsServiceAccount(sid *windows.SID) (bool, error) {
 			// At this point we know the account does exist, so we won't treat this as an error and instead
 			// will assume the account is a regular domain account.
 			return false, nil
+		} else if errors.Is(err, STATUS_NAME_TOO_LONG) {
+			// This error can be returned when the domain name portion of the account name
+			// cannot be resolved, e.g. when querying a trusted/parent domain.
+			// Similar to STATUS_INVALID_ACCOUNT_NAME, at this point we know the account
+			// does exist (SID lookup succeeded), so we assume the account is a regular
+			// domain account.
+			return false, nil
 		}
 
 		// Do not add punctuation after %w, the error message already contains it.
@@ -340,6 +347,30 @@ func GetAgentUserNameFromRegistry() (string, error) {
 	}
 
 	return user, nil
+}
+
+// GetAgentUserKeepRightsFromRegistry returns the DDAGENTUSER_KEEP_RIGHTS opt-out value stored
+// in the registry by the Agent MSI, if any. Returns an empty string with no error if the value
+// is not present (e.g. the opt-out was never used, or a full uninstall already cleared it).
+func GetAgentUserKeepRightsFromRegistry() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.QUERY_VALUE)
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer k.Close()
+
+	keepRights, _, err := k.GetStringValue("keepRights")
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("could not read keepRights in registry: %w", err)
+	}
+
+	return keepRights, nil
 }
 
 // GetAgentUserFromService returns the fully qualified username for the Agent service user

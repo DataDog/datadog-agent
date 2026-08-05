@@ -21,13 +21,38 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
+
+func TestPersistentVolumeClaimHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.PersistentVolumeClaim{}
+	resource := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pvc",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("", "persistentvolumeclaims")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewPersistentVolumeClaimHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestPersistentVolumeClaimHandlers_ExtractResource(t *testing.T) {
 	handlers := &PersistentVolumeClaimHandlers{}
@@ -94,16 +119,16 @@ func TestPersistentVolumeClaimHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*corev1.PersistentVolumeClaim)
 	assert.True(t, ok)
 	assert.Equal(t, "test-pvc", resource1.Name)
-	assert.NotSame(t, pvc1, resource1) // Should be a copy
+	assert.Same(t, pvc1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*corev1.PersistentVolumeClaim)
 	assert.True(t, ok)
 	assert.Equal(t, "pvc2", resource2.Name)
-	assert.NotSame(t, pvc2, resource2) // Should be a copy
+	assert.Same(t, pvc2, resource2) // ResourceList returns raw informer references
 }
 
 func TestPersistentVolumeClaimHandlers_ResourceUID(t *testing.T) {
@@ -302,7 +327,7 @@ func TestPersistentVolumeClaimProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process persistent volume claims
-	processor := processors.NewProcessor(&PersistentVolumeClaimHandlers{})
+	processor := processors.NewProcessor(&PersistentVolumeClaimHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*corev1.PersistentVolumeClaim{pvc1, pvc2})
 
 	assert.Equal(t, 2, listed)
@@ -405,4 +430,14 @@ func createTestPersistentVolumeClaim() *corev1.PersistentVolumeClaim {
 			},
 		},
 	}
+}
+
+func TestPersistentVolumeClaimHandlers_CloneResource(t *testing.T) {
+	handlers := &PersistentVolumeClaimHandlers{}
+	original := createTestPersistentVolumeClaim()
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*corev1.PersistentVolumeClaim)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

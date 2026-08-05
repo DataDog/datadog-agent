@@ -38,7 +38,7 @@ var defaultContainerNames = []string{defaultTestContainer}
 var defaultLibraries = map[string]string{
 	"dotnet": "v3",
 	"java":   "v1",
-	"js":     "v5",
+	"js":     "v6",
 	"php":    "v1",
 	"python": "v4",
 	"ruby":   "v2",
@@ -287,6 +287,34 @@ func TestAutoinstrumentation(t *testing.T) {
 				injectorVersion: defaultInjectorVersion,
 				libraryVersions: map[string]string{
 					"php": "v1",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"pod with mutate label and c annotation should mutate": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/c-lib.version": "v0",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"c": "v0",
 				},
 				containerNames: defaultContainerNames,
 			},
@@ -1283,6 +1311,67 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: defaultContainerNames,
 			},
 		},
+		"local sdk injection with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version":          "v3",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"},{"name":"DD_DATA_JOBS_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"ruby": "v3",
+				},
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
+					"DD_DATA_JOBS_ENABLED": "true",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"inject-all annotation with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version":           "latest",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
 		"targets with matching rule and local sdk injection but no label favors target": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
@@ -1551,27 +1640,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				unmutatedContainers: []string{"istio-proxy"},
 			},
 		},
-		"injection does not occur in the namespace where datadog is deployed": {
-			config: map[string]any{
-				"apm_config.instrumentation.enabled": true,
-				"kube_resources_namespace":           "datadog-test",
-			},
-			pod: common.FakePodSpec{
-				Name:       "test",
-				NS:         "datadog-test",
-				ParentKind: "replicaset",
-				ParentName: "deployment-123",
-			}.Create(),
-			deployments: []common.MockDeployment{
-				{
-					ContainerName:  defaultTestContainer,
-					DeploymentName: "deployment",
-					Namespace:      "datadog-test",
-				},
-			},
-			shouldMutate: false,
-		},
-		"injection does occur in the outside the datadog namespace": {
+		"injection does occur outside the datadog namespace": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 				"kube_resources_namespace":           "datadog-test",
@@ -2633,7 +2702,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
-				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v5, v1
+				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v6, v1
 				containerNames:  defaultContainerNames,
 			},
 		},
@@ -2700,14 +2769,14 @@ func TestAutoinstrumentation(t *testing.T) {
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 			// Disable gradual rollout for this test to use the NoOpResolver.
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2760,6 +2829,84 @@ func TestAutoinstrumentation(t *testing.T) {
 			validator.RequireAnnotations(t, test.expected.expectedAnnotations)
 		})
 	}
+}
+
+func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTargetContainer(t *testing.T) {
+	mockConfig := common.FakeConfigWithValues(t, map[string]any{
+		"apm_config.instrumentation.enabled":     false,
+		"admission_controller.mutate_unlabelled": false,
+	})
+	mockMeta := common.FakeStoreWithDeployment(t, defaultDeployments)
+	mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+	mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+
+	for _, ns := range defaultNamespaces {
+		mockMeta.(workloadmetamock.Mock).Set(&ns)
+	}
+
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+	require.NoError(t, err)
+
+	pod := common.FakePodSpec{
+		Name:       "app",
+		NS:         "application",
+		ParentKind: "replicaset",
+		ParentName: "deployment-123",
+		Annotations: map[string]string{
+			"admission.datadoghq.com/app.java-lib.version": "v1",
+		},
+		Labels: map[string]string{
+			admissioncommon.EnabledLabelKey: "true",
+		},
+		Containers: []corev1.Container{
+			{Name: "app2"},
+		},
+	}.Create()
+
+	mutated, err := webhook.MutatePod(pod, pod.Namespace, mockDynamic)
+	require.NoError(t, err)
+	require.True(t, mutated)
+
+	validator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+	validator.RequireInjectorVersion(t, defaultInjectorVersion)
+	validator.RequireLibraryVersions(t, map[string]string{"java": "v1"})
+
+	var appCtr, app2Ctr *corev1.Container
+	for i := range pod.Spec.Containers {
+		switch pod.Spec.Containers[i].Name {
+		case "app":
+			appCtr = &pod.Spec.Containers[i]
+		case "app2":
+			app2Ctr = &pod.Spec.Containers[i]
+		}
+	}
+
+	require.NotNil(t, appCtr)
+	require.NotNil(t, app2Ctr)
+
+	appValidator := testutils.NewContainerValidator(appCtr, nil)
+	appValidator.RequireEnvs(t, map[string]string{
+		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+		"DD_INJECT_SENDER_TYPE": "k8s",
+	})
+
+	app2Validator := testutils.NewContainerValidator(app2Ctr, nil)
+	app2Validator.RequireEnvs(t, map[string]string{
+		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+		"DD_INJECT_SENDER_TYPE": "k8s",
+	})
+
+	hasLibraryMount := func(ctr *corev1.Container) bool {
+		for _, mount := range ctr.VolumeMounts {
+			if mount.MountPath == "/opt/datadog/apm/library" {
+				return true
+			}
+		}
+		return false
+	}
+
+	require.True(t, hasLibraryMount(appCtr), "target container should have the library mount")
+	require.False(t, hasLibraryMount(app2Ctr), "non-target container should not have the library mount")
 }
 
 func TestEnvVarsAlreadySet(t *testing.T) {
@@ -2852,7 +2999,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -2860,7 +3007,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3051,7 +3198,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -3059,7 +3206,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

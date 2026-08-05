@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "filewriter",
+    srcs = ["file_writer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "filewriter_test",
+    srcs = ["file_writer_test.go"],
+    embed = [":filewriter"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

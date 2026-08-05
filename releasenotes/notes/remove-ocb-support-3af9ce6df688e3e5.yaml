@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    Removed support for using the OpenTelemetry components contained
+    in this repo from an external collector, using OCB.
+    The equivalent components in the opentelemetry-collector-contrib
+    repository are designed exactly for this use case and should be used instead:
+      - `datadog exporter <https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/datadogexporter>`_
+      - `datadog extension <https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/datadogextension>`_

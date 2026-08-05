@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "internal_lib",
+    srcs = ["generate_goid_lut.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/go/goid/internal",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/network/go/dwarfutils",
+        "//pkg/network/go/goversion",
+        "//pkg/network/go/lutgen",
+        "//pkg/util/safeelf",
+    ],
+)
+
+go_binary(
+    name = "internal",
+    embed = [":internal_lib"],
+    visibility = ["//pkg/network/go/goid:__subpackages__"],
+)

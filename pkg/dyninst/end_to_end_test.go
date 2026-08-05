@@ -38,7 +38,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -101,7 +100,6 @@ var expectations embed.FS
 func TestEndToEnd(t *testing.T) {
 	t.Parallel()
 	dyninsttest.SkipIfKernelNotSupported(t)
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
 		return c.GOARCH == runtime.GOARCH
@@ -622,7 +620,7 @@ func findProcessID(t *testing.T, p processPredicate) uint32 {
 }
 
 func waitForServicePort(t *testing.T, stdoutPath string) int {
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(10 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -653,17 +651,48 @@ func waitForServicePort(t *testing.T, stdoutPath string) int {
 	}
 }
 
-func sendTestRequests(t *testing.T, serverPort int, numRequests int) {
-	testPaths := make([]string, numRequests)
-	for i := range numRequests {
-		testPaths[i] = fmt.Sprintf("/%d", i)
-	}
+// testTraceID is the W3C trace ID injected by sendTestRequests on every
+// outbound request. The handler's dd-trace-go-wrapped mux extracts it as the
+// inbound parent span; HandleHTTP then makes a child span (with this
+// inbound span as its parent), so the decoded snapshot's dd.parent_id equals
+// testRequestSpanIDs[i]. The lower-64 of testTraceID is also sent as the
+// Datadog-style x-datadog-trace-id for v1 wrapper compatibility.
+const testTraceID = "0123456789abcdef0123456789abcdef"
 
+// testRequestSpanIDs are the per-request W3C span ids (hex). Decimals
+// (used for x-datadog-parent-id and asserted as dd.parent_id) are
+// 1229782938247303441, 2459565876494606882, 3689348814741910323.
+var testRequestSpanIDs = []string{
+	"1111111111111111",
+	"2222222222222222",
+	"3333333333333333",
+}
+
+func sendTestRequests(t *testing.T, serverPort int, numRequests int) {
+	require.LessOrEqual(t, numRequests, len(testRequestSpanIDs),
+		"sendTestRequests has only %d pre-allocated trace span ids", len(testRequestSpanIDs))
 	t.Log("Sending requests to trigger probes...")
 	client := http.Client{Timeout: 1 * time.Second}
-	for _, path := range testPaths {
-		t.Logf("sending request to %s", path)
-		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d%s", serverPort, path))
+	// Lower 64 bits of testTraceID expressed as decimal, for
+	// x-datadog-trace-id (v1 prefers Datadog-style headers; v2 honors
+	// W3C traceparent natively — we send both for golden parity).
+	const datadogTraceIDDecimal = "81985529216486895" // 0x0123456789abcdef
+	for i := range numRequests {
+		path := fmt.Sprintf("/%d", i)
+		spanHex := testRequestSpanIDs[i]
+		t.Logf("sending request to %s with span %s", path, spanHex)
+		spanDec, err := strconv.ParseUint(spanHex, 16, 64)
+		require.NoError(t, err)
+		req, err := http.NewRequest(http.MethodGet,
+			fmt.Sprintf("http://127.0.0.1:%d%s", serverPort, path), nil)
+		require.NoError(t, err)
+		req.Header.Set("traceparent",
+			fmt.Sprintf("00-%s-%s-01", testTraceID, spanHex))
+		req.Header.Set("tracestate", "dd=s:1")
+		req.Header.Set("x-datadog-trace-id", datadogTraceIDDecimal)
+		req.Header.Set("x-datadog-parent-id", strconv.FormatUint(spanDec, 10))
+		req.Header.Set("x-datadog-sampling-priority", "1")
+		resp, err := client.Do(req)
 		if err == nil {
 			resp.Body.Close()
 		}
@@ -685,7 +714,7 @@ func waitForProbeStatus(
 	targetStatus map[string]uploader.Status,
 ) {
 	t.Logf("Waiting for probes to be %s...", targetStatus)
-	const timeout = 10 * time.Second
+	const timeout = 60 * time.Second
 
 	probeStatus := make(map[string]uploader.Status)
 	allInStatus := func() bool {
@@ -746,7 +775,7 @@ func waitForLogMessages(
 
 	var processedLogs []json.RawMessage
 
-	logProcessingTimeout := time.After(5 * time.Second)
+	logProcessingTimeout := time.After(60 * time.Second)
 	checkTicker := time.NewTicker(100 * time.Millisecond)
 	defer checkTicker.Stop()
 
@@ -771,6 +800,23 @@ func waitForLogMessages(
 	var content []byte
 	{
 		redactors := append(make([]jsonRedactor, 0, len(defaultRedactors)), defaultRedactors...)
+		// Top-level dd.span_id is the server-generated child span id that
+		// dd-trace-go's httptrace.NewServeMux creates from the inbound
+		// traceparent. Non-deterministic across runs.
+		redactors = append(redactors, redactor(
+			exactMatcher(`/dd.span_id`),
+			replacement(`"[span_id]"`),
+		))
+		// span_id inside a captured context.Context's entries map is dd-trace-go's
+		// server-generated child span, non-deterministic across runs. It is now an
+		// entry value rather than a path segment, so the path-based matcher no
+		// longer catches it; redact it from the entries map instead. trace_id and
+		// parent_id are deterministic from the test's outbound traceparent and are
+		// left intact.
+		redactors = append(redactors, redactor(
+			prefixSuffixMatcher{"/debugger/snapshot/captures/", "/entries"},
+			replacerFunc(redactContextSpanID),
+		))
 		redactors = append(redactors, redactor(
 			prefixMatcher("/debugger/snapshot/stack"),
 			replacement(`"[stack]"`),

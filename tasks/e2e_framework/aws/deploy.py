@@ -8,16 +8,12 @@ from invoke.exceptions import Exit
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
 
-default_public_path_key_name = "ddinfra:aws/defaultPublicKeyPath"
-default_private_path_key_name = "ddinfra:aws/defaultPrivateKeyPath"
-
 
 def deploy(
     ctx: Context,
     scenario_name: str,
     config_path: str | None = None,
     key_pair_required: bool = False,
-    public_key_required: bool = False,
     app_key_required: bool = False,
     stack_name: str | None = None,
     pipeline_id: str | None = None,
@@ -36,6 +32,9 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
+    pulumi_extra_args: str = "",
+    pulumi_env: dict[str, str] | None = None,
+    needs_agent_containers: bool = True,
 ) -> str:
     from pydantic_core._pydantic_core import ValidationError
 
@@ -48,14 +47,11 @@ def deploy(
     except ValidationError as e:
         raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
-    defaultPublicKeyPath = cfg.get_aws().publicKeyPath
-    if public_key_required and defaultPublicKeyPath is None:
-        raise Exit(f"Your scenario requires to define {default_public_path_key_name} in the configuration file")
-    flags[default_public_path_key_name] = defaultPublicKeyPath
+    # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
+    # rename like account-admin -> account-admin-8h). No-op if already present.
+    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
 
-    privateKeyPath = cfg.get_aws().privateKeyPath
-    if privateKeyPath is not None:
-        flags[default_private_path_key_name] = privateKeyPath
+    setup_aws_sso_config(cfg, interactive=False)
 
     awsKeyPairName = cfg.get_aws().keyPairName
 
@@ -65,7 +61,7 @@ def deploy(
 
     # Verify image deployed and not outdated in s3
     if deploy_job is not None and pipeline_id is not None:
-        cmd = f"inv -e check-s3-image-exists --pipeline-id={pipeline_id} --deploy-job={deploy_job}"
+        cmd = f"inv -e e2e.check-s3-image-exists --pipeline-id={pipeline_id} --deploy-job={deploy_job}"
         cmd = tool.get_aws_wrapper(aws_account) + cmd
         output = ctx.run(cmd, warn=True)
 
@@ -81,8 +77,9 @@ def deploy(
     if key_pair_required and cfg.get_options().checkKeyPair:
         _check_key_pair(awsKeyPairName)
 
-    if (
-        full_image_path is not None
+    if needs_agent_containers and (
+        pipeline_id is not None
+        or full_image_path is not None
         and full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
         or cluster_agent_full_image_path is not None
         and cluster_agent_full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
@@ -101,7 +98,7 @@ def deploy(
         flags["ddagent:imagePullRegistry"] = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
         flags["ddagent:imagePullUsername"] = "AWS"
         flags["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password --region us-east-1",
+            "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region us-east-1",
             hide=True,
         ).stdout.strip()
     return common_deploy(
@@ -125,6 +122,8 @@ def deploy(
         agent_env,
         helm_config,
         local_package,
+        pulumi_extra_args=pulumi_extra_args,
+        pulumi_env=pulumi_env,
     )
 
 

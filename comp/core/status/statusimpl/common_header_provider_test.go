@@ -8,7 +8,6 @@ package statusimpl
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -34,13 +33,11 @@ func TestCommonHeaderProviderIndex(t *testing.T) {
 func TestCommonHeaderProviderJSON(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	config := config.NewMock(t)
@@ -67,6 +64,7 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 func TestCommonHeaderProviderText(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
@@ -145,6 +143,7 @@ func TestCommonHeaderProviderConfig(t *testing.T) {
 func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
@@ -173,13 +172,11 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 func TestCommonHeaderProviderHTML(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	config := config.NewMock(t)
@@ -201,7 +198,8 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
-    FIPS Mode: not available<br>
+    FIPS Mode: %s<br>
+    Log File: %s<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -218,7 +216,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
     <br>Build arch: %s
   </span>
 </div>
-`, version.AgentVersion, agentFlavor, pid, config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
+`, version.AgentVersion, agentFlavor, pid, populateFIPSStatus(config), config.GetString("log_file"), config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.ReplaceAll(expectedHTMLOutput, "\r\n", "\n")
@@ -230,13 +228,11 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
+	forceUTC(t)
 
 	defer func() {
 		nowFunc = time.Now
 		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
 	}()
 
 	overrides := map[string]interface{}{
@@ -261,7 +257,8 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
-    FIPS Mode: proxy<br>
+    FIPS Mode: %s<br>
+    Log File: %s<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -286,7 +283,7 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
       - Starting port range: 9803<br>
   </span>
 </div>
-`, version.AgentVersion, agentFlavor, pid, config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
+`, version.AgentVersion, agentFlavor, pid, populateFIPSStatus(config), config.GetString("log_file"), config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.ReplaceAll(expectedHTMLOutput, "\r\n", "\n")

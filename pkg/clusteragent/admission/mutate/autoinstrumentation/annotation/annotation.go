@@ -30,6 +30,12 @@ const (
 	// InjectionMode specifies the injection mode (e.g. init_container, csi).
 	// Example value: csi
 	InjectionMode = "admission.datadoghq.com/apm-inject.injection-mode"
+	// TracerConfigs sets tracer configuration options (injected as environment variables) during
+	// Local SDK Injection. It is the annotation-based equivalent of the targets[].ddTraceConfigs
+	// config option. The value is a JSON array of objects matching the ddTraceConfigs schema, and
+	// every entry's name must start with the DD_ prefix.
+	// Example value: [{"name":"DD_PROFILING_ENABLED","value":"true"}]
+	TracerConfigs = "admission.datadoghq.com/apm-inject.tracer-configs"
 	// LibraryVersion sets the library to use during Local SDK Injection.
 	// Example annotation: admission.datadoghq.com/python-lib.version
 	// Example value: v3
@@ -68,6 +74,48 @@ const (
 	// LibraryCanonicalVersion is set with the actual version of the library as opposed to a resolved digest.
 	// Example value: 3.19.2
 	LibraryCanonicalVersion LibraryAnnotationFormat = "internal.apm.datadoghq.com/%s-canonical-version"
+	// EffectiveInjectionMode is set with the injection mode that was actually used by the webhook,
+	// regardless of the configured or requested mode. For "auto" mode, this reflects the resolved mode.
+	// Example value: csi
+	EffectiveInjectionMode = "internal.apm.datadoghq.com/effective-injection-mode"
+	// CSIDriverStatus is set with the observed state of the Datadog CSI driver at
+	// injection time. It is only present when CSI driver detection is active
+	// (i.e. CSIDriverWatcher is non-nil). See the CSIDriverStatus* constants below.
+	CSIDriverStatus = "internal.apm.datadoghq.com/csi-driver-status"
+	// InjectionStatus is set with the overall outcome of the APM injection attempt.
+	// See the InjectionStatus* constants below for possible values.
+	InjectionStatus = "internal.apm.datadoghq.com/injection-status"
+	// InjectedLibraries is set with a JSON array of components effectively injected into the pod.
+	// Each entry has at minimum "name" (component name or language) and "image" (full OCI image reference).
+	// Example value: [{"name":"injector","image":"gcr.io/datadoghq/apm-inject:0.52.0"},{"name":"java","image":"gcr.io/datadoghq/dd-lib-java-init:1.30.0"}]
+	InjectedLibraries = "internal.apm.datadoghq.com/injected-libraries"
+)
+
+// CSIDriverStatus annotation values.
+const (
+	// CSIDriverStatusAPMEnabled means the Datadog CSI driver is installed and
+	// has advertised APM SSI support (csi.datadoghq.com/apm-enabled="true").
+	CSIDriverStatusAPMEnabled = "apm-enabled"
+	// CSIDriverStatusAPMDisabled means the Datadog CSI driver is installed but
+	// APM SSI support is not advertised — add the annotation to the CSIDriver object to enable it.
+	CSIDriverStatusAPMDisabled = "apm-disabled"
+	// CSIDriverStatusNotInstalled means the Datadog CSI driver object was not
+	// found in the cluster.
+	CSIDriverStatusNotInstalled = "not-installed"
+)
+
+// InjectionStatus annotation values.
+const (
+	// InjectionStatusInjected means the injector and all requested libraries were successfully injected.
+	InjectionStatusInjected = "injected"
+	// InjectionStatusPartial means the injector succeeded but at least one library was skipped
+	// (e.g. unsupported language).
+	InjectionStatusPartial = "partial"
+	// InjectionStatusSkipped means injection was skipped before it started
+	// (e.g. insufficient pod resources, incompatible runtime, or disabled injection mode).
+	InjectionStatusSkipped = "skipped"
+	// InjectionStatusError means a fatal error prevented the injector from running.
+	InjectionStatusError = "error"
 )
 
 // LibraryAnnotationFormat is a helper type to format an annotation with a language.

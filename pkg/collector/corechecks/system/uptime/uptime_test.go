@@ -24,11 +24,11 @@ func TestUptimeCheckLinux(t *testing.T) {
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
-	mockSender := mocksender.NewMockSender("")
+	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	uptimeCheck := new(Check)
-	uptimeCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	uptimeCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mockSender, uptimeCheck.ID())

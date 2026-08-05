@@ -7,6 +7,8 @@
 package probe
 
 import (
+	"time"
+
 	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -87,7 +89,7 @@ func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
 
 // IsCapabilitiesMonitoringSupported returns if the capabilities monitoring feature is supported
 func IsCapabilitiesMonitoringSupported(kv *kernel.Version) bool {
-	return kv.HasBPFForEachMapElemHelper()
+	return kv.HasBPFForEachMapElemHelper() && kv.Code != 0
 }
 
 // NewAgentContainerContext returns the agent container context
@@ -103,7 +105,7 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 		return nil, err
 	}
 	acc := &events.AgentContainerContext{
-		CreatedAt: uint64(createTime),
+		CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.UnixMilli(createTime)),
 	}
 
 	cfs := utils.DefaultCGroupFS()

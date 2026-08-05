@@ -44,18 +44,21 @@ func NewVM(e azure.Environment, name string, params ...VMOption) (*remote.Host, 
 		var err error
 		var privateIP pulumi.StringOutput
 		var password pulumi.StringOutput
+		var readyFunc command.ReadyFunc
 
 		if vmArgs.osInfo.Family() == os.LinuxFamily {
-			_, privateIP, err = compute.NewLinuxInstance(e, c.Name(), imageInfo.urn, vmArgs.instanceType, pulumi.StringPtr(vmArgs.userData), pulumi.Parent(c))
+			_, privateIP, err = compute.NewLinuxInstance(e, c.Name(), imageInfo.urn, vmArgs.instanceType, vmArgs.enableAcceleratedNetworking, pulumi.StringPtr(vmArgs.userData), pulumi.Parent(c))
 			if err != nil {
 				return err
 			}
+			readyFunc = command.WaitForCloudInit
 			password = pulumi.String("").ToStringOutput()
 		} else if vmArgs.osInfo.Family() == os.WindowsFamily {
-			_, privateIP, password, err = compute.NewWindowsInstance(e, c.Name(), imageInfo.urn, vmArgs.instanceType, pulumi.StringPtr(vmArgs.userData), nil, pulumi.Parent(c))
+			_, privateIP, password, err = compute.NewWindowsInstance(e, c.Name(), imageInfo.urn, vmArgs.instanceType, vmArgs.enableAcceleratedNetworking, pulumi.StringPtr(vmArgs.userData), nil, pulumi.Parent(c))
 			if err != nil {
 				return err
 			}
+			readyFunc = command.WaitForSuccessfulConnection
 		} else {
 			return fmt.Errorf("unsupported OS family %v", vmArgs.osInfo.Family())
 		}
@@ -68,13 +71,14 @@ func NewVM(e azure.Environment, name string, params ...VMOption) (*remote.Host, 
 			compute.AdminUsername,
 			remote.WithPrivateKeyPath(e.DefaultPrivateKeyPath()),
 			remote.WithPrivateKeyPassword(e.DefaultPrivateKeyPassword()),
+			remote.WithDialErrorLimit(e.InfraDialErrorLimit()),
+			remote.WithPerDialTimeoutSeconds(e.InfraPerDialTimeoutSeconds()),
 		)
 		if err != nil {
 			return err
 		}
 
-		// TODO: Check support of cloud-init on Azure
-		return remote.InitHost(&e, connection.ToConnectionOutput(), *vmArgs.osInfo, compute.AdminUsername, password, command.WaitForSuccessfulConnection, c)
+		return remote.InitHost(&e, connection.ToConnectionOutput(), *vmArgs.osInfo, compute.AdminUsername, password, readyFunc, c)
 	}, vmArgs.pulumiResourceOptions...)
 }
 

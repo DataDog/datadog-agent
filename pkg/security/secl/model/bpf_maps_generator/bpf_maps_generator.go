@@ -8,11 +8,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	_ "embed"
 	"flag"
 	"fmt"
+	"go/format"
 	"os"
-	"os/exec"
 	"regexp"
 	"sort"
 	"text/template" //nolint:depguard
@@ -96,24 +97,20 @@ func main() {
 		panic(err)
 	}
 
-	outputFile, err := os.Create(outputPath)
-	if err != nil {
-		panic(err)
-	}
-
-	if err := tmpl.Execute(outputFile, tmplContext{
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, tmplContext{
 		PackageName: packageName,
 		Entries:     entries,
 	}); err != nil {
 		panic(err)
 	}
 
-	if err := outputFile.Close(); err != nil {
+	formatted, err := format.Source(buf.Bytes())
+	if err != nil {
 		panic(err)
 	}
 
-	cmd := exec.Command("gofmt", "-s", "-w", outputPath)
-	if err := cmd.Run(); err != nil {
+	if err := os.WriteFile(outputPath, formatted, 0644); err != nil {
 		panic(err)
 	}
 }

@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ func testGroupID(groupID int32) func() int32 {
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
 	procsByPid = make(map[int32]*procutil.Process)
 	for _, p := range procs {
@@ -387,10 +386,4 @@ func yieldConnections(count int) []*model.Connection {
 		result[i] = &model.Connection{LastBytesReceived: 10, LastBytesSent: 20}
 	}
 	return result
-}
-
-func constantMockClock(time time.Time) *clock.Mock {
-	c := clock.NewMock()
-	c.Set(time)
-	return c
 }

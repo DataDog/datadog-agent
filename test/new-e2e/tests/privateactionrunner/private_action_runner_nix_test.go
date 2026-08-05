@@ -67,12 +67,10 @@ func (s *linuxPrivateActionRunnerSuite) TestPrivateActionRunnerStopsWhenDisabled
 	}, 2*time.Minute, 5*time.Second, "privateactionrunner process should not be running when disabled")
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, logExistsErr := host.Execute("sudo test -f " + privateActionRunnerLogFile)
-		assert.NoError(c, logExistsErr)
+		host.MustExecuteOn(c, "sudo test -f "+privateActionRunnerLogFile)
 	}, 2*time.Minute, 5*time.Second, "private action runner log file should exist")
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, logContainsErr := host.Execute(fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerDisabledLogLine, privateActionRunnerLogFile))
-		assert.NoError(c, logContainsErr)
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerDisabledLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the disabled message")
 }

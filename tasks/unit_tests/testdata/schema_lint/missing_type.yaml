@@ -1,0 +1,8 @@
+properties:
+  with_type:
+    node_type: setting
+    type: string
+    default: ok
+  no_type:
+    node_type: setting
+    default: 42

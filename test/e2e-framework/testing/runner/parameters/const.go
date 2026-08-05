@@ -25,6 +25,12 @@ const (
 	AWSPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPasswordSuffix)
 	// AWSPrivateKeyPath private ssh key path
 	AWSPrivateKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPathSuffix)
+	// Registry used for image pulls (in K8s and manually running `docker run`)
+	ImagePullRegistry StoreKey = "image_pull_registry"
+	// Username used for image pulls (in K8s and manually running `docker run`)
+	ImagePullUsername StoreKey = "image_pull_username"
+	// Password used for image pulls (in K8s and manually running `docker run`)
+	ImagePullPassword StoreKey = "image_pull_password"
 	// Profile aws profile name
 	Profile StoreKey = "profile"
 	// AWSPublicKeyPath public ssh key path
@@ -88,6 +94,9 @@ const (
 	CoverageOutDir StoreKey = "coverage_out_dir"
 	// SkipWindows skips Windows infrastructure and workloads in tests
 	SkipWindows StoreKey = "skip_windows"
+	// FakeintakeImageOverride overrides the pinned fakeintake image (CI sets it to
+	// the freshly built server image on a fakeintake PR). See test/fakeintake/version.
+	FakeintakeImageOverride StoreKey = "fakeintake_image_override"
 )
 
 const (

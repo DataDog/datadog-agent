@@ -537,11 +537,11 @@ import (
 
 func TestWithConfigFlag(t *testing.T) {
     // Enable feature flag before configuring check
-    pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+    pkgconfigsetup.Datadog().SetInTest("gpu.enabled", true)
 
     // Clean up after test
     t.Cleanup(func() {
-        pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
+        pkgconfigsetup.Datadog().SetInTest("gpu.enabled", false)
     })
 
     check := newCheck()

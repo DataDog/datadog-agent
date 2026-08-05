@@ -6,17 +6,18 @@
 package api
 
 import (
-	"fmt"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"net"
+	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // newListener creates a listening connection
 func newListener() (net.Listener, error) {
-	address, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	address, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port")))
+	return net.Listen("tcp", net.JoinHostPort(address, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port"))))
 }

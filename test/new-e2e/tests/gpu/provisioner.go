@@ -191,17 +191,19 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
 
-		// install the ECR credentials helper
-		// required to get pipeline agent images or other internally hosted images
-		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		// TEMPORARY: install runtime deps missing from GPU AMIs. Remove once
+		// GPU-e2e AMI variants ship with these tools pre-baked. See runtime_installs.go.
+		runtimeDeps, err := installGPURuntimeDeps(&awsEnv, host)
 		if err != nil {
-			return fmt.Errorf("ec2.InstallECRCredentialsHelper: %w", err)
+			return fmt.Errorf("installGPURuntimeDeps: %w", err)
 		}
 
-		// Install Docker (only after GPU devices are validated and the ECR credentials helper is installed)
-		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		// Set up Docker (after GPU devices are validated). Docker, jq, the ECR
+		// credential helper, and docker-compose all come from runtimeDeps above;
+		// GPU AMIs are bare CUDA images without these tools pre-baked.
+		dockerManager, err := docker.NewAWSManager(&awsEnv, host, utils.PulumiDependsOn(runtimeDeps))
 		if err != nil {
-			return fmt.Errorf("docker.NewManager: %w", err)
+			return fmt.Errorf("docker.NewAWSManager: %w", err)
 		}
 
 		// Pull all the docker images required for the tests
@@ -258,9 +260,16 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("ec2.NewVM: %w", err)
 		}
 
-		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		// TEMPORARY: install runtime deps missing from GPU AMIs. Remove once
+		// GPU-e2e AMI variants ship with these tools pre-baked. See runtime_installs.go.
+		runtimeDeps, err := installGPURuntimeDeps(&awsEnv, host)
 		if err != nil {
-			return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
+			return fmt.Errorf("installGPURuntimeDeps: %w", err)
+		}
+
+		installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host, utils.PulumiDependsOn(runtimeDeps))
+		if err != nil {
+			return fmt.Errorf("docker.SetupECRDockerAuth %w", err)
 		}
 
 		validateDevices, err := validateGPUDevices(&awsEnv, host, params.systemData.cudaVersion)

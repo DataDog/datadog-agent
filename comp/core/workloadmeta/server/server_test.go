@@ -277,6 +277,7 @@ func newWorkloadmetaMock(t *testing.T) workloadmetamock.Mock {
 func newTestServer(store workloadmeta.Component) *Server {
 	return &Server{
 		wmeta:             store,
+		maxEventSize:      6 << 20, // 6 MB, same as default (12 MB / 2)
 		streamSendTimeout: time.Second,
 		sendQueueTimeout:  100 * time.Millisecond,
 	}

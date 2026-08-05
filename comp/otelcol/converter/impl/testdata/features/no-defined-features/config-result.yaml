@@ -11,6 +11,7 @@ extensions:
       site: "datadoghq.eu"
     deployment_type: daemonset
     hostname: test-host
+    installation_method: ""
   ddflare/dd-autoconfigured:
   health_check/dd-autoconfigured:
   pprof/dd-autoconfigured:
@@ -18,6 +19,7 @@ extensions:
     endpoint: "localhost:55679"
 
 processors:
+  cumulativetodelta/dd-autoconfigured:
   infraattributes/dd-autoconfigured:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     metrics:
@@ -64,6 +66,7 @@ service:
         - "datadog/connector"
       processors:
         - "infraattributes/dd-autoconfigured"
+        - cumulativetodelta/dd-autoconfigured
       exporters:
         - "datadog"
     metrics/dd-autoconfigured/datadog:

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "etw",
+    srcs = [
+        "doc.go",
+        "etl.go",
+        "etw.c",
+        "etw.h",
+        "event.go",
+        "guid.go",
+        "properties.c",
+        "properties.go",
+        "properties.h",
+        "session.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:windows": [
+            "-ltdh",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/etw",
+    target_compatible_with = ["@platforms//os:windows"],  # keep
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

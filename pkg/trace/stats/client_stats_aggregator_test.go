@@ -110,6 +110,8 @@ func getTestStatsWithStart(t *testing.T, start time.Time, incPeerTags bool) *pb.
 			s.PeerTags = nil
 		}
 		s.DBType = ""
+		s.SpanDerivedPrimaryTags = nil
+		s.AdditionalMetricTags = nil
 		s.OkSummary = encodeTestSketch(t, generateTestSketch(t))
 		s.ErrorSummary = encodeTestSketch(t, generateTestSketch(t))
 		stats = append(stats, s)
@@ -603,16 +605,6 @@ func TestAggregationVersionData(t *testing.T) {
 		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
 		require.Len(t, msw.payloads, 1)
 
-		// Add the expected gitCommitSha and imageTag on c1, c2, c3, and cDefault for these assertions.
-		c1.GitCommitSha = "sha-from-container-tags"
-		c1.ImageTag = "image-tag-from-container-tags"
-		c2.GitCommitSha = "sha-from-container-tags"
-		c2.ImageTag = "image-tag-from-container-tags"
-		c3.GitCommitSha = "sha-from-container-tags"
-		c3.ImageTag = "image-tag-from-container-tags"
-		cDefault.GitCommitSha = "sha-from-container-tags"
-		cDefault.ImageTag = "image-tag-from-container-tags"
-
 		aggCounts := msw.payloads[0]
 		assertAggCountsPayload(t, aggCounts)
 
@@ -637,6 +629,54 @@ func TestAggregationVersionData(t *testing.T) {
 		assert.Equal("image-tag-from-container-tags", aggCounts.Stats[0].ImageTag)
 		assert.Equal("sha-from-container-tags", aggCounts.Stats[0].GitCommitSha)
 		assert.Len(a.buckets, 0)
+	})
+
+	t.Run("version comes from container tags when not set in payload", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		cfg := config.New()
+		cfg.ContainerTags = func(_ string) ([]string, error) {
+			return []string{"git.commit.sha:sha-from-container-tags", "image_tag:image-tag-from-container-tags", "version:version-from-container-tags"}, nil
+		}
+		a.conf = cfg
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "", "", "", "", 11, 7, 100)
+
+		a.add(testTime, deepCopy(c1))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+
+		aggCounts := msw.payloads[0]
+		assert.Equal("version-from-container-tags", aggCounts.Stats[0].Version)
+		assert.Equal("image-tag-from-container-tags", aggCounts.Stats[0].ImageTag)
+		assert.Equal("sha-from-container-tags", aggCounts.Stats[0].GitCommitSha)
+	})
+
+	t.Run("payload version overrides container tags", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		cfg := config.New()
+		cfg.ContainerTags = func(_ string) ([]string, error) {
+			return []string{"version:version-from-container-tags"}, nil
+		}
+		a.conf = cfg
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "payload-version", "", "", "", 11, 7, 100)
+
+		a.add(testTime, deepCopy(c1))
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+
+		aggCounts := msw.payloads[0]
+		assert.Equal("payload-version", aggCounts.Stats[0].Version)
 	})
 
 	t.Run("payload git commit sha and image tag override container tags", func(t *testing.T) {
@@ -912,6 +952,65 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	})
 }
 
+func TestNewBucketAggregationKeyAdditionalMetricTags(t *testing.T) {
+	tagsHash := tagsFnvHash([]string{"env:prod", "region:us-east-1"})
+	t.Run("empty", func(t *testing.T) {
+		assert := assert.New(t)
+		r := newBucketAggregationKey(&pb.ClientGroupedStats{Service: "a"})
+		assert.Equal(BucketsAggregationKey{Service: "a"}, r)
+	})
+	t.Run("populated", func(t *testing.T) {
+		assert := assert.New(t)
+		r := newBucketAggregationKey(&pb.ClientGroupedStats{Service: "a", AdditionalMetricTags: []string{"env:prod", "region:us-east-1"}})
+		assert.Equal(BucketsAggregationKey{Service: "a", AdditionalMetricTagsHash: tagsHash}, r)
+	})
+}
+
+func TestCountAggregationAdditionalMetricTags(t *testing.T) {
+	assert := assert.New(t)
+	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	testTime := time.Unix(time.Now().Unix(), 0)
+
+	tags := []string{"env:prod", "region:us-east-1"}
+	tagsHash := tagsFnvHash(tags)
+	k := BucketsAggregationKey{Service: "s", AdditionalMetricTagsHash: tagsHash}
+
+	c1 := payloadWithCounts(testTime, k, "", "test-version", "", "", "", 11, 7, 100)
+	c2 := payloadWithCounts(testTime, k, "", "test-version", "", "", "", 27, 2, 300)
+	c1.Stats[0].Stats[0].AdditionalMetricTags = tags
+	c2.Stats[0].Stats[0].AdditionalMetricTags = tags
+
+	keyDefault := BucketsAggregationKey{}
+	cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", "", 0, 2, 4)
+
+	a.add(testTime, deepCopy(c1))
+	a.add(testTime, deepCopy(c2))
+	a.add(testTime, deepCopy(cDefault))
+	a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+	require.Len(t, msw.payloads, 1)
+
+	payload := msw.payloads[0]
+	assertAggCountsPayload(t, payload)
+
+	assert.ElementsMatch(payload.Stats[0].Stats[0].Stats, []*pb.ClientGroupedStats{
+		{
+			Service:              "s",
+			Hits:                 38,
+			Errors:               9,
+			Duration:             400,
+			AdditionalMetricTags: tags,
+		},
+		{
+			Hits:     0,
+			Errors:   2,
+			Duration: 4,
+		},
+	})
+	assert.Len(a.buckets, 0)
+}
+
 func TestGoroutineShutdown(t *testing.T) {
 	a := NewClientStatsAggregator(&config.AgentConfig{}, &mockStatsWriter{}, &statsd.NoOpClient{})
 
@@ -982,25 +1081,25 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 		}
 
 		stats[i] = &pb.ClientGroupedStats{
-			Service:                b.GetService(),
-			Name:                   b.GetName(),
-			Resource:               b.GetResource(),
-			HTTPStatusCode:         b.GetHTTPStatusCode(),
-			Type:                   b.GetType(),
-			DBType:                 b.GetDBType(),
-			Hits:                   b.GetHits(),
-			Errors:                 b.GetErrors(),
-			Duration:               b.GetDuration(),
-			Synthetics:             b.GetSynthetics(),
-			TopLevelHits:           b.GetTopLevelHits(),
-			SpanKind:               b.GetSpanKind(),
-			PeerTags:               b.GetPeerTags(),
-			ServiceSource:          b.GetServiceSource(),
-			IsTraceRoot:            b.GetIsTraceRoot(),
-			GRPCStatusCode:         b.GetGRPCStatusCode(),
-			HTTPMethod:             b.GetHTTPMethod(),
-			HTTPEndpoint:           b.GetHTTPEndpoint(),
-			SpanDerivedPrimaryTags: b.GetSpanDerivedPrimaryTags(),
+			Service:              b.GetService(),
+			Name:                 b.GetName(),
+			Resource:             b.GetResource(),
+			HTTPStatusCode:       b.GetHTTPStatusCode(),
+			Type:                 b.GetType(),
+			DBType:               b.GetDBType(),
+			Hits:                 b.GetHits(),
+			Errors:               b.GetErrors(),
+			Duration:             b.GetDuration(),
+			Synthetics:           b.GetSynthetics(),
+			TopLevelHits:         b.GetTopLevelHits(),
+			SpanKind:             b.GetSpanKind(),
+			PeerTags:             b.GetPeerTags(),
+			ServiceSource:        b.GetServiceSource(),
+			IsTraceRoot:          b.GetIsTraceRoot(),
+			GRPCStatusCode:       b.GetGRPCStatusCode(),
+			HTTPMethod:           b.GetHTTPMethod(),
+			HTTPEndpoint:         b.GetHTTPEndpoint(),
+			AdditionalMetricTags: b.GetAdditionalMetricTags(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))

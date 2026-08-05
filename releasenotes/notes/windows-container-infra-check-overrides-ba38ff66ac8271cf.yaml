@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Add environment variable overrides to selectively keep infrastructure checks
+    enabled in Windows containers. By default, the disk, network, winproc,
+    file_handle, and io checks are still removed at startup for backward
+    compatibility. Set ``DD_WINDOWS_HOST_METRICS=true`` to keep all infra checks,
+    or use per-check variables (e.g. ``DD_WINDOWS_ENABLE_DISK_CHECK=true``,
+    ``DD_WINDOWS_ENABLE_IO_CHECK=true``) to enable individual checks.

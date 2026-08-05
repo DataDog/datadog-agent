@@ -190,7 +190,7 @@ func TestTraces(t *testing.T) {
 	})
 
 	t.Run("normalize, obfuscate, sqllexer", func(t *testing.T) {
-		if err := r.RunAgent([]byte("apm_config:\r\n  features:[\"sqllexer\"]\r\n")); err != nil {
+		if err := r.RunAgent([]byte("apm_config:\r\n  features: [\"sqllexer\"]\r\n")); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()

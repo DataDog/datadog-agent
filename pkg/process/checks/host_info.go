@@ -18,8 +18,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -147,12 +148,12 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
-	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), tlsConfig)
+	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()), tlsConfig)
 	if err != nil {
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}
@@ -173,7 +174,10 @@ func getContainerHostType() model.ContainerHostType {
 	case fargate.EKS:
 		return model.ContainerHostType_fargateEKS
 	case fargate.ECSManagedInstances:
-		return model.ContainerHostType_sidecar
+		if fargate.IsSidecar() {
+			return model.ContainerHostType_sidecar
+		}
+		return model.ContainerHostType_notSpecified
 	}
 	return model.ContainerHostType_notSpecified
 }

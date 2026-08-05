@@ -16,6 +16,10 @@ import (
 // Note: This must not exceed d10 or c10 below.
 const maxRun = 10
 
+// maxSpecialTokenLen is the maximum character run length eligible for special token
+// promotion. Longest critical keyword: "EMERGENCY" / "EXCEPTION" = 9 chars.
+const maxSpecialTokenLen = 9
+
 // tokenLookup is a 256-byte lookup table for single-byte token classification.
 // Initialized via function call to ensure it happens before other package vars use it.
 var tokenLookup = makeTokenLookup()
@@ -126,8 +130,8 @@ func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 // emitToken appends a token to the output slices, checking for special tokens first.
 // Returns the updated slices.
 func (t *Tokenizer) emitToken(ts []Token, indicies []int, lastToken Token, run, idx int) ([]Token, []int) {
-	// Check for special tokens (only for C1/letter runs, length 1-4)
-	if lastToken == C1 && t.strLen > 0 && t.strLen <= 4 {
+	// Check for special tokens (only for C1/letter runs, length 1-maxSpecialTokenLen)
+	if lastToken == C1 && t.strLen > 0 && t.strLen <= maxSpecialTokenLen {
 		if t.strLen == 1 {
 			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != End {
 				return append(ts, specialToken), append(indicies, idx)
@@ -255,10 +259,61 @@ func getSpecialLongToken(input string) Token {
 		}
 	case 4:
 		switch input {
+		case "WARN":
+			return Warn
+		case "CRIT":
+			return Critical
 		case "CEST", "NZST", "NZDT", "ACST", "ACDT",
 			"AEST", "AEDT", "AWST", "AWDT", "AKST",
 			"AKDT", "CHST", "CHDT":
 			return Zone
+		}
+	case 5:
+		switch input {
+		case "FATAL":
+			return Fatal
+		case "ERROR":
+			return Error
+		case "PANIC":
+			return Panic
+		case "ALERT":
+			return Alert
+		case "EMERG":
+			return Emergency
+		case "CRASH":
+			return Crash
+		}
+	case 6:
+		switch input {
+		case "SEVERE":
+			return Severe
+		case "FAILED":
+			return Failure
+		}
+	case 7:
+		switch input {
+		case "WARNING":
+			return Warn
+		case "CRASHED":
+			return Crash
+		case "FAILURE":
+			return Failure
+		case "TIMEOUT":
+			return Timeout
+		}
+	case 8:
+		switch input {
+		case "CRITICAL":
+			return Critical
+		case "DEADLOCK":
+			return Deadlock
+		}
+	case 9:
+		switch input {
+		case "EMERGENCY":
+			return Emergency
+		case "EXCEPTION":
+			return Exception
 		}
 	}
 	return End
@@ -341,6 +396,32 @@ func tokenToString(token Token) string {
 		return "T"
 	case Zone:
 		return "ZONE"
+	case Warn:
+		return "WARN"
+	case Fatal:
+		return "FATAL"
+	case Error:
+		return "ERROR"
+	case Panic:
+		return "PANIC"
+	case Alert:
+		return "ALERT"
+	case Severe:
+		return "SEVERE"
+	case Critical:
+		return "CRIT"
+	case Emergency:
+		return "EMERG"
+	case Exception:
+		return "EXCEPTION"
+	case Crash:
+		return "CRASH"
+	case Failure:
+		return "FAILURE"
+	case Deadlock:
+		return "DEADLOCK"
+	case Timeout:
+		return "TIMEOUT"
 	}
 	return ""
 }

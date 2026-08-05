@@ -16,6 +16,8 @@ import (
 
 // ExtractDaemonSet returns the protobuf model corresponding to a Kubernetes
 // DaemonSet resource.
+//
+//nolint:revive
 func ExtractDaemonSet(ctx processors.ProcessorContext, ds *appsv1.DaemonSet) *model.DaemonSet {
 	daemonSet := model.DaemonSet{
 		Metadata: extractMetadata(&ds.ObjectMeta),
@@ -56,9 +58,8 @@ func ExtractDaemonSet(ctx processors.ProcessorContext, ds *appsv1.DaemonSet) *mo
 
 	daemonSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(ds.Spec.Template)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveUnifiedServiceTags(ds.ObjectMeta.Labels)...)
-	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveMetadataTags(ds.ObjectMeta.Labels, ds.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveTeamTag(ds.ObjectMeta.Labels, ds.ObjectMeta.Annotations)...)
 
 	return &daemonSet
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build (linux && linux_bpf) || darwin
 
 package ebpfless
 
@@ -12,13 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/google/gopacket/layers"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -152,7 +151,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 		st.connDirection = connDirectionFromPktType(pktType)
 	}
 	// progress the synStates based off this packet
-	if pktType == unix.PACKET_OUTGOING {
+	if pktType == filter.PacketOutgoing {
 		st.localSynState.update(tcp.SYN, tcp.ACK)
 	} else {
 		st.remoteSynState.update(tcp.SYN, tcp.ACK)
@@ -180,7 +179,7 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
 	st.lastUpdateEpoch = timestampNs
-	if pktType == unix.PACKET_OUTGOING {
+	if pktType == filter.PacketOutgoing {
 		conn.Monotonic.SentPackets++
 		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
 		packetCanRetransmit := nextSeq != tcp.Seq
@@ -244,7 +243,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 	nextSeq := calcNextSeq(tcp, payloadLen)
 	// update FIN sequence numbers
 	if tcp.FIN {
-		if pktType == unix.PACKET_OUTGOING {
+		if pktType == filter.PacketOutgoing {
 			st.hasLocalFin = true
 			st.localFinSeq = nextSeq
 		} else {
@@ -292,7 +291,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
 // TCP state machine.
 func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) (ProcessResult, error) {
-	if pktType != unix.PACKET_OUTGOING && pktType != unix.PACKET_HOST {
+	if pktType != filter.PacketOutgoing && pktType != filter.PacketHost {
 		return ProcessResultNone, fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
 	}
 	payloadLen, err := TCPPayloadLen(conn.Family, ip4, ip6, tcp)

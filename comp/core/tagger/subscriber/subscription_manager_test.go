@@ -14,8 +14,8 @@ import (
 
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -61,7 +61,7 @@ func TestSubscriptionManager(t *testing.T) {
 			},
 		},
 	}
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	sm := NewSubscriptionManager(telemetryStore)
 
@@ -244,7 +244,7 @@ func assertReceivedEvents(t *testing.T, ch chan []types.EntityEvent, expectedEve
 }
 
 func TestSubscriptionManagerDuplicateSubscriberID(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	sm := NewSubscriptionManager(telemetryStore)
 
@@ -258,7 +258,7 @@ func TestSubscriptionManagerDuplicateSubscriberID(t *testing.T) {
 }
 
 func TestUnsubscribe(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	sm := NewSubscriptionManager(telemetryStore)
 
@@ -266,7 +266,7 @@ func TestUnsubscribe(t *testing.T) {
 }
 
 func TestConcurrentSubscribe(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	sm := NewSubscriptionManager(telemetryStore)
 

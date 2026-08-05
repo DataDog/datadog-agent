@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    On macOS, the Agent now installs as a system-wide LaunchDaemon running under
+    a dedicated ``_dd-agent`` service user instead of a per-user LaunchAgent.
+    Existing per-user installations will need to uninstall and reinstall to adopt
+    the new mode. The previous install script is preserved as
+    ``install_mac_os_v1.sh`` for versions prior to 7.79.0.
+features:
+  - |
+    The macOS install script now performs a system-wide installation by default.
+    The Agent runs as a dedicated ``_dd-agent`` user via LaunchDaemon.
+deprecations:
+  - |
+    Per-user macOS Agent installations (LaunchAgent mode) are deprecated.
+    Use the default system-wide installation going forward.

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -111,7 +112,7 @@ func (r *HTTPReceiver) openLineageProxyHandler() http.Handler {
 // The tags will be added as a header to all proxied requests.
 func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[openlineage] Creating reverse proxy")
-	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
+	cidProvider := NewContainerIDProviderFromConfig(conf)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -135,7 +136,7 @@ func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []strin
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "openlineage.Proxy: ", 0),
-		Transport: &openLineageTransport{rt: conf.NewHTTPTransport(), urls: urls, keys: keys},
+		Transport: &openLineageTransport{rt: conf.NewHTTPTransport(), urls: urls, keys: keys, maxRequestBytes: conf.MaxRequestBytes},
 	}
 }
 
@@ -146,9 +147,10 @@ func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []strin
 // response is discarded. There is no de-duplication done between endpoint
 // hosts or api keys.
 type openLineageTransport struct {
-	rt   http.RoundTripper
-	urls []*url.URL
-	keys []string
+	rt              http.RoundTripper
+	urls            []*url.URL
+	keys            []string
+	maxRequestBytes int64
 }
 
 func (m *openLineageTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -169,6 +171,7 @@ func (m *openLineageTransport) RoundTrip(req *http.Request) (rresp *http.Respons
 
 		return rresp, rerr
 	}
+	req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err

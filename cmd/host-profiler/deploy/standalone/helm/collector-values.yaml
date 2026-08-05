@@ -1,0 +1,118 @@
+# Names used by the OpenTelemetry Collector Helm chart for generated resources.
+nameOverride: host-profiler-collector
+fullnameOverride: host-profiler-collector
+
+# Recommended: run as a DaemonSet to collect profiles from every supported node
+# and provide a cluster-wide view.
+mode: daemonset
+
+# Host Profiler preview image. Update the tag when using a newer preview build.
+image:
+  repository: registry.datadoghq.com/ddot-ebpf
+  tag: 7.81.0-preview-host-profiler-1.0
+
+# Environment variables used by helm/collector-config-values.yaml.
+extraEnvs:
+  # Change this if your Datadog site is not datadoghq.com.
+  - name: DD_SITE
+    value: "datadoghq.com"
+  # helm/collector-config-values.yaml references DD_API_KEY for profile export and debug
+  # symbol upload. This example reads it from a Kubernetes Secret named
+  # datadog-secret with key api-key in the Helm release namespace.
+  # If you use another secret-management mechanism, replace this valueFrom block
+  # so the container still receives DD_API_KEY.
+  - name: DD_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: datadog-secret
+        key: api-key
+
+# Enable the chart integrations the Host Profiler relies on. The profiling
+# preset configures host-level profiling settings such as hostPID and the
+# profile receiver wiring; kubernetesAttributes adds Kubernetes metadata.
+presets:
+  profiling:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+
+# Required for node and kubelet metadata used during host/profile enrichment.
+clusterRole:
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/proxy", "nodes/spec"]
+      verbs: ["get", "list"]
+
+# Required Linux capabilities for host-wide eBPF profiling.
+# The container is not privileged and drops all default capabilities.
+securityContext:
+  privileged: false
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  # AppArmor is optional. The default is unconfined so this example works on
+  # clusters that do not support or manage AppArmor profiles.
+  appArmorProfile:
+    type: Unconfined
+  capabilities:
+    add:
+      - BPF
+      - PERFMON
+      - SYS_PTRACE
+      - SYS_RESOURCE
+      - DAC_READ_SEARCH
+      - SYSLOG
+      - CHECKPOINT_RESTORE
+      - IPC_LOCK
+    drop:
+      - ALL
+  seccompProfile:
+    type: Localhost
+    localhostProfile: host-profiler.json
+
+# Install the seccomp profile from the Host Profiler image onto each node.
+# The main container references this profile through securityContext.seccompProfile.
+initContainers:
+  - name: seccomp-installer
+    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    command:
+      - cp
+      - /etc/dd-host-profiler/seccomp.json
+      - /host/var/lib/kubelet/seccomp/host-profiler.json
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      appArmorProfile:
+        type: Unconfined
+      capabilities:
+        drop:
+          - ALL
+    volumeMounts:
+      - name: host-seccomp
+        mountPath: /host/var/lib/kubelet/seccomp
+
+# Resource defaults for the Host Profiler container. Explicit zero requests avoid
+# reserving CPU or memory on every node, while limits cap runaway usage. Set
+# nonzero requests if your cluster policy requires them or you want reserved capacity.
+# Increase the memory limit if the Host Profiler uploads debug symbols for large binaries.
+resources:
+  requests:
+    cpu: "0"
+    memory: "0"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+extraVolumeMounts:
+  # /tmp is required because the container uses a read-only root filesystem.
+  - name: tmpdir
+    mountPath: /tmp
+
+extraVolumes:
+  - name: tmpdir
+    emptyDir: {}
+  # Host path where kubelet reads Localhost seccomp profiles.
+  - name: host-seccomp
+    hostPath:
+      path: /var/lib/kubelet/seccomp
+      type: DirectoryOrCreate

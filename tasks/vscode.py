@@ -72,6 +72,7 @@ def set_buildtags(
         build_include=build_include,
         build_exclude=build_exclude,
         flavor=flavor,
+        platform="linux",
     )
 
     if not os.path.exists(VSCODE_DIR):
@@ -111,7 +112,8 @@ def setup_devcontainer(
         build_include=build_include,
         build_exclude=build_exclude,
         flavor=flavor,
-        image=image,
+        # Fall back to the default developer environment image when none is given.
+        image=image or devcontainer.DEVCONTAINER_IMAGE,
     )
 
 
@@ -203,7 +205,7 @@ def setup_settings(_, force=False):
         if not force:
             return
 
-    build_tags = sorted(compute_config_build_tags())
+    build_tags = sorted(compute_config_build_tags(platform="linux"))
     with open(template) as template_f, open(settings, "w") as settings_f:
         vscode_config_template = template_f.read()
         settings_f.write(

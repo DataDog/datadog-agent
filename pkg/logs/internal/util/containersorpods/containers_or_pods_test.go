@@ -31,7 +31,7 @@ func TestChoose(t *testing.T) {
 			env.SetFeatures(t, features...)
 
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("logs_config.k8s_container_use_file", k8sContainerUseFile)
+			mockConfig.SetInTest("logs_config.k8s_container_use_file", k8sContainerUseFile)
 
 			chsr := chooser{
 				choice:       make(chan LogWhat, 1),

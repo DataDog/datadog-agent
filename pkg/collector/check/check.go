@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -33,7 +34,7 @@ type Check interface {
 	// This is used in tags so should match the tag value format constraints (eg. lowercase, no spaces)
 	Loader() string
 	// Configure configures the check
-	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
+	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance
@@ -46,6 +47,8 @@ type Check interface {
 	Version() string
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
+	// ConfigProvider returns the name of the config provider that issued the check config
+	ConfigProvider() string
 	// IsTelemetryEnabled returns if telemetry is enabled for this check
 	IsTelemetryEnabled() bool
 	// InitConfig returns the init_config configuration of the check
@@ -71,6 +74,8 @@ type Info interface {
 	Version() string
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
+	// ConfigProvider returns the configuration provider of the check
+	ConfigProvider() string
 	// InitConfig returns the init_config configuration of the check
 	InitConfig() string
 	// InstanceConfig returns the instance configuration of the check
@@ -90,3 +95,11 @@ type Info interface {
 // match the right version, without raising errors to the log or agent status. If another error is
 // returned then the errors will be properly logged and reported in the agent status.
 var ErrSkipCheckInstance = errors.New("refused to load the check instance")
+
+// IssueAwareCheck is an optional interface that Go integrations implement to receive
+// an IssueReporter before each run. The CheckWrapper detects this interface and calls
+// SetIssueReporter before invoking Run, so checks can report health issues directly
+// into the health platform store without polling or dedicated core checks.
+type IssueAwareCheck interface {
+	SetIssueReporter(reporter healthplatformstore.Component)
+}

@@ -7,6 +7,8 @@ package installer
 
 import (
 	"strings"
+
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 // JavaHelper provides reusable Java testing functionality that can be composed with any test suite.
@@ -24,32 +26,23 @@ func NewJavaHelper(s WindowsSuite) *JavaHelper {
 // This should be called in the suite's SetupSuite method.
 func (h *JavaHelper) SetupJava() {
 	host := h.suite.Env().RemoteHost
+	// https://adoptium.net/installation/windows
+	openjdkS3Path := "windows-products/OpenJDK11U-jdk_x64_windows_hotspot_11.0.28_6.msi"
+	openjdkLocalMSI, err := windowsCommon.GetTemporaryFile(host)
+	h.suite.Require().NoError(err, "failed to get temporary file")
 
-	script := `
-# Install Chocolatey if not already installed
-if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
-	Set-ExecutionPolicy Bypass -Scope Process -Force
-	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-	Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+	err = host.HostArtifactClient.Get(openjdkS3Path, openjdkLocalMSI)
+	h.suite.Require().NoError(err, "failed to download OpenJDK from S3")
 
-	# Refresh PATH for current session
-	$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-}
+	err = windowsCommon.InstallMSI(host, openjdkLocalMSI, "INSTALLLEVEL=1", "")
+	h.suite.Require().NoError(err, "failed to install OpenJDK")
 
-# Install Java
-choco install openjdk11 -y
-
-# Refresh PATH again to pick up Java
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-
-# Verify Java installation
-java -version
-	`
-	output, err := host.Execute(script)
-	h.suite.Require().NoErrorf(err, "failed to install Java: %s", output)
 	// force host to reconnect to update the PATH
 	err = host.Reconnect()
 	h.suite.Require().NoError(err, "failed to reconnect to host")
+
+	output, err := host.Execute("java -version")
+	h.suite.Require().NoErrorf(err, "java not available after install: %s", output)
 }
 
 // StartJavaApp deploys, compiles, and runs a simple Java application.

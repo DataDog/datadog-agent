@@ -9,20 +9,25 @@ package ksm
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
+	ksmutil "k8s.io/kube-state-metrics/v2/pkg/util"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -739,7 +744,7 @@ func TestProcessMetrics(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
 		if _, ok := test.metricsToProcess["kube_customresource_metric_info"]; ok {
@@ -999,7 +1004,7 @@ func TestSendTelemetry(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
 		kubeStateMetricsSCheck.telemetry = test.cache
@@ -1706,8 +1711,47 @@ func TestResourceNameFromMetric(t *testing.T) {
 	}
 }
 
+func TestUsesCustomResourceMetrics(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		expected bool
+	}{
+		{
+			name:     "empty config",
+			config:   &KSMConfig{},
+			expected: false,
+		},
+		{
+			name: "custom resource metrics configured",
+			config: &KSMConfig{
+				CustomResource: customresourcestate.Metrics{
+					Spec: customresourcestate.MetricsSpec{
+						Resources: []customresourcestate.Resource{
+							{
+								GroupVersionKind: customresourcestate.GroupVersionKind{
+									Group:   "datadoghq.com",
+									Version: "v1",
+									Kind:    "DatadogAgent",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.config.usesCustomResourceMetrics())
+		})
+	}
+}
+
 func TestAllowDeny(t *testing.T) {
-	deniedMetrics := buildDeniedMetricsSet(options.DefaultResources.AsSlice())
+	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
 	assert.NoError(t, err)
 
@@ -1717,31 +1761,47 @@ func TestAllowDeny(t *testing.T) {
 	// Make sure denied metrics have been parsed and excluded
 	assert.NotEqual(t, "", allowDenyList.Status())
 	for metric := range deniedMetrics {
-		assert.False(t, allowDenyList.IsIncluded(metric))
-		assert.True(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isExcluded)
 	}
 
 	// Make sure we don't exclude metrics by mistake
 	for metric := range defaultMetricNamesMapper() {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 
 	// Make sure we don't exclude metric transformers
 	for metric := range defaultMetricTransformers(nil) {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 
 	// Make sure we don't exclude metadata metrics
 	for _, metric := range metadataMetrics {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 }
 
 func TestCreationMetricsFiltering(t *testing.T) {
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(options.DefaultResources.AsSlice()))
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
@@ -1749,8 +1809,12 @@ func TestCreationMetricsFiltering(t *testing.T) {
 
 	included := []string{"kube_node_created", "kube_pod_created"}
 	for _, metric := range included {
-		assert.True(t, allowDenyList.IsIncluded(metric))
-		assert.False(t, allowDenyList.IsExcluded(metric))
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
 	}
 
 	excluded := []string{
@@ -1758,6 +1822,7 @@ func TestCreationMetricsFiltering(t *testing.T) {
 		"kube_daemonset_created",
 		"kube_deployment_created",
 		"kube_endpoint_created",
+		"kube_endpointslice_created",
 		"kube_job_created",
 		"kube_namespace_created",
 		"kube_replicaset_created",
@@ -1765,8 +1830,12 @@ func TestCreationMetricsFiltering(t *testing.T) {
 		"kube_replicationcontroller_created",
 	}
 	for _, metric := range excluded {
-		assert.True(t, allowDenyList.IsExcluded(metric))
-		assert.False(t, allowDenyList.IsIncluded(metric))
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isExcluded)
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isIncluded)
 	}
 }
 
@@ -1838,7 +1907,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := configmock.New(t)
-			conf.SetWithoutSource("tags", tt.tagsInConfig)
+			conf.SetInTest("tags", tt.tagsInConfig)
 
 			k := &KSMCheck{
 				instance:            tt.fields.instance,
@@ -1924,4 +1993,179 @@ func BenchmarkOwnerTags(b *testing.B) {
 			_ = ownerTags("Job", "foo-1627309500")
 		}
 	})
+}
+
+func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	sourceMetric := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// A non-.total aggregator source (pod.count) must not double-count in aggregatesOnly mode.
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	hasTotalGauge := func(s *mocksender.MockSender) bool {
+		for _, call := range s.Mock.Calls {
+			if call.Method == "Gauge" {
+				if name, ok := call.Arguments.Get(0).(string); ok && strings.Contains(name, ".total") {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	tests := []struct {
+		name         string
+		mode         podCollectionMode
+		flagEnabled  bool
+		wantSuppress bool // node should NOT emit .total when true
+		wantHasTotal bool // node SHOULD emit .total when true
+	}{
+		{
+			name: "node_kubelet + flag=true → suppress (DCA is authoritative)",
+			mode: nodeKubeletPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "node_kubelet + flag=false → emit (safe rollout, DCA not ready)",
+			mode: nodeKubeletPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "cluster_unassigned + flag=true → suppress",
+			mode: clusterUnassignedPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "cluster_unassigned + flag=false → emit",
+			mode: clusterUnassignedPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=true → emit (single full-pod check is authoritative, design goal #5)",
+			mode: defaultPodCollection, flagEnabled: true,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=false → emit (backwards-compat: feature off, no change)",
+			mode: defaultPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: tt.mode, ClusterAggregatesEnabled: tt.flagEnabled}, fakeTagger, nil)
+
+			s := mocksender.NewMockSender(t, k.ID())
+			s.SetupAcceptAll()
+
+			k.processMetrics(s, sourceMetric, newLabelJoiner(nil), time.Now())
+			for _, agg := range k.metricAggregators {
+				agg.flush(s, k, newLabelJoiner(nil))
+			}
+
+			if tt.wantSuppress {
+				for _, call := range s.Mock.Calls {
+					if call.Method == "Gauge" {
+						name, _ := call.Arguments.Get(0).(string)
+						assert.NotContains(t, name, ".total", "mode=%s flag=%v must suppress .total", tt.mode, tt.flagEnabled)
+					}
+				}
+			}
+			if tt.wantHasTotal {
+				assert.True(t, hasTotalGauge(s), "mode=%s flag=%v must emit .total", tt.mode, tt.flagEnabled)
+			}
+		})
+	}
+}
+
+func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection, ClusterAggregatesEnabled: true}, fakeTagger, nil)
+
+	metrics := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// pod.count source: must NOT be accumulated (double-count prevention)
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	s := mocksender.NewMockSender(t, k.ID())
+	s.SetupAcceptAll()
+
+	k.processMetrics(s, metrics, newLabelJoiner(nil), time.Now())
+	for _, agg := range k.metricAggregators {
+		agg.flush(s, k, newLabelJoiner(nil))
+	}
+
+	for _, call := range s.Mock.Calls {
+		if call.Method == "Gauge" {
+			name, _ := call.Arguments.Get(0).(string)
+			// Only .total metrics should be emitted
+			assert.True(t, strings.HasSuffix(name, ".total") || strings.HasPrefix(name, "kubernetes_state.telemetry"),
+				"cluster_aggregates_only must not emit non-.total metric %q", name)
+			// pod.count must not appear (it's a non-.total aggregator)
+			assert.NotContains(t, name, "pod.count")
+		}
+	}
+}
+
+// TestDiscoverCustomResources_ClusterAggregatesOnly guards the wiring that makes
+// cluster_aggregates_only build ONLY the extended pod store: discoverCustomResources
+// must return exactly the extended pods GVR key (not the plain "pods" collector, and
+// not nil). If this regresses, the aggregate pod store is never built and the .total
+// family silently disappears.
+func TestDiscoverCustomResources_ClusterAggregatesOnly(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection}, fakeTagger, nil)
+	c := &apiserver.APIClient{Cl: fakeclientset.NewSimpleClientset()}
+
+	cr := k.discoverCustomResources(c, []string{"pods"}, nil)
+
+	assert.Equal(t, []string{extendedCollectors["pods"]}, cr.collectors,
+		"cluster_aggregates_only must enable ONLY the extended pods store, not the standard 'pods' collector")
+	assert.NotContains(t, cr.collectors, "pods",
+		"the standard pods collector must not be enabled in cluster_aggregates_only mode")
+	assert.Len(t, cr.factories, 1, "cluster_aggregates_only should register exactly the extended pod factory")
+}
+
+// TestExtendedPodsCollectorKeyMatchesFactory guards the invariant the whole
+// cluster_aggregates_only fix hinges on: extendedCollectors["pods"] must be byte-for-byte
+// equal to the GVR key the extended pod factory registers under
+// (util.GVRFromType(factory.Name(), factory.ExpectedType())). If either side drifts,
+// enabledResources won't match availableStores, no pod store is built, and .total vanishes.
+func TestExtendedPodsCollectorKeyMatchesFactory(t *testing.T) {
+	f := customresources.NewExtendedPodFactoryForKubelet() // same Name()/ExpectedType() as NewExtendedPodFactory
+	gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
+	require.NoError(t, err)
+	require.NotNil(t, gvr)
+	assert.Equal(t, extendedCollectors["pods"], gvr.String(),
+		"extendedCollectors[\"pods\"] must equal the extended pod factory's registered GVR key; "+
+			"if these drift, cluster_aggregates_only builds no pod store and .total disappears")
 }

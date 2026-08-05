@@ -20,9 +20,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 //go:embed fixtures/api_v2_series_response
@@ -74,6 +78,17 @@ func NewServer(handler http.Handler) *httptest.Server {
 	})
 
 	return httptest.NewServer(handlerWitHeader)
+}
+
+func newAgentDiscoveryPayloadData(t *testing.T, payloads ...*agentdiscovery.AgentDiscoveryPayload) []byte {
+	t.Helper()
+
+	data, err := proto.Marshal(&agentdiscovery.AgentDiscoveryPayloadBatch{
+		Payloads: payloads,
+		HostId:   "test-host",
+	})
+	require.NoError(t, err)
+	return data
 }
 
 func TestClient(t *testing.T) {
@@ -572,6 +587,84 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, ndmPayload.Subnet)
 	})
 
+	t.Run("getAgentDiscoveryPayloads", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			payloads := []api.Payload{
+				{
+					Data: newAgentDiscoveryPayloadData(t, &agentdiscovery.AgentDiscoveryPayload{
+						Integration: "redisdb",
+						Runtime:     "docker",
+						RuntimeId:   "abc123",
+						ConfigFiles: []*agentdiscovery.AgentDiscoveryConfigFile{
+							{
+								Path:          "/usr/local/etc/redis/redis.conf",
+								Content:       []byte("port 6379\n"),
+								PayloadFormat: agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF,
+							},
+						},
+					}),
+				},
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getAgentDiscoveryPayloads()
+		require.NoError(t, err)
+		assert.True(t, client.agentDiscoveryAggregator.ContainsPayloadName("redisdb:docker:abc123"))
+	})
+
+	t.Run("GetAgentDiscoveryPayloads", func(t *testing.T) {
+		ingestionTime := time.Unix(1_723_456_789, 123_000_000).UTC()
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			payloads := []api.Payload{
+				{
+					Data:        []byte("{}"),
+					Encoding:    "application/json",
+					ContentType: "application/json",
+				},
+				{
+					Data: newAgentDiscoveryPayloadData(t, &agentdiscovery.AgentDiscoveryPayload{
+						Integration:        "redisdb",
+						Runtime:            "docker",
+						RuntimeId:          "abc123",
+						IngestionTimestamp: timestamppb.New(ingestionTime),
+						ConfigFiles: []*agentdiscovery.AgentDiscoveryConfigFile{
+							{
+								Path:          "/usr/local/etc/redis/redis.conf",
+								Content:       []byte("port 6379\n"),
+								PayloadFormat: agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF,
+							},
+						},
+					}),
+				},
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		payloads, err := client.GetAgentDiscoveryPayloads()
+		require.NoError(t, err)
+		require.Len(t, payloads, 1)
+		assert.Equal(t, "redisdb", payloads[0].Integration)
+		assert.Equal(t, "test-host", payloads[0].HostID)
+		assert.Equal(t, "abc123", payloads[0].RuntimeID)
+		assert.Equal(t, ingestionTime, payloads[0].IngestionTimestamp)
+		require.Len(t, payloads[0].ConfigFiles, 1)
+		assert.Equal(t, "/usr/local/etc/redis/redis.conf", payloads[0].ConfigFiles[0].Path)
+		assert.Equal(t, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF, payloads[0].ConfigFiles[0].PayloadFormat)
+	})
+
 	t.Run("getNDMFlows", func(t *testing.T) {
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write(apiV2NDMFlow)
@@ -726,9 +819,56 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "Docker Permissions Issue", issue.IssueName)
 		assert.Equal(t, "Docker socket permissions error", issue.Title)
 		assert.Equal(t, "permissions", issue.Category)
-		assert.Equal(t, "error", issue.Severity)
+		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, issue.Severity)
 		assert.Contains(t, issue.Tags, "os:linux")
 		assert.Contains(t, issue.Tags, "docker:installed")
+	})
+
+	t.Run("getAgentTelemetryLogs", func(t *testing.T) {
+		payload := `{"request_type":"agent-logs","payload":{"logs":[{"level":"ERROR","stack_trace":"main.main()","tracer_time":1234567890,"count":3,"is_crash":false,"message":""}]}}`
+		response, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: []api.Payload{
+				{Data: []byte(payload), Encoding: "application/json"},
+			},
+		})
+		require.NoError(t, err)
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(response)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err = client.getAgentTelemetryLogs()
+		require.NoError(t, err)
+		assert.True(t, client.agentTelemetryLogAggregator.ContainsPayloadName("agent-errortracking"))
+		assert.False(t, client.agentTelemetryLogAggregator.ContainsPayloadName("totoro"))
+	})
+
+	t.Run("GetAgentTelemetryLogs", func(t *testing.T) {
+		payload := `{"request_type":"agent-logs","payload":{"logs":[{"level":"ERROR","stack_trace":"main.main()","tracer_time":1234567890,"count":3,"is_crash":false,"message":""}]}}`
+		response, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: []api.Payload{
+				{Data: []byte(payload), Encoding: "application/json"},
+			},
+		})
+		require.NoError(t, err)
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(response)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		logs, err := client.GetAgentTelemetryLogs()
+		require.NoError(t, err)
+		require.Len(t, logs, 1)
+		assert.Equal(t, "ERROR", logs[0].Level)
+		assert.Equal(t, "main.main()", logs[0].StackTrace)
+		assert.Equal(t, int64(1234567890), logs[0].TracerTime)
+		assert.Equal(t, 3, logs[0].Count)
+		assert.False(t, logs[0].IsCrash)
+		assert.Empty(t, logs[0].Message)
 	})
 
 }

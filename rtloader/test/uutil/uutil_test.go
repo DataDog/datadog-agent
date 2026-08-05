@@ -33,8 +33,7 @@ func TestSubprocessOutputWrongArg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: get_subprocess_output() missing required argument 'command' (pos 1)" && // Python 3
-		out != "TypeError: Required argument 'command' (pos 1) not found" { // Python 2
+	if out != "TypeError: get_subprocess_output() missing required argument 'command' (pos 1)" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 

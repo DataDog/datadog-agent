@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    APM: Restored the deprecated ``DD_APM_SPAN_DERIVED_PRIMARY_TAGS`` configuration
+    option, but only in serverless contexts: the Datadog Azure App Services
+    extension (``DD_AZURE_APP_SERVICES=1``) and ``serverless-init`` (Cloud Run,
+    Container Apps, Cloud Run Functions). In all other deployments the option is
+    silently ignored. Tracers should populate ``additional_metric_tags`` instead;
+    do not use ``DD_APM_SPAN_DERIVED_PRIMARY_TAGS`` in new deployments.

@@ -1,27 +1,44 @@
 {
-  "type": "unsupported",
-  "operation": "len",
-  "argument": {
-    "filter": [
-      {
-        "ref": "collection"
+  "type": "len",
+  "operation": "",
+  "left": {
+    "type": "filter",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "collection",
+      "operation": "",
+      "error": ""
+    },
+    "right": {
+      "type": "any",
+      "operation": "",
+      "left": {
+        "type": "ref",
+        "ref": "@it",
+        "operation": "",
+        "error": ""
       },
-      {
-        "any": [
-          {
-            "ref": "@it"
-          },
-          {
-            "eq": [
-              {
-                "ref": "@it"
-              },
-              1
-            ]
-          }
-        ]
-      }
-    ]
+      "right": {
+        "type": "eq",
+        "operation": "",
+        "left": {
+          "type": "ref",
+          "ref": "@it",
+          "operation": "",
+          "error": ""
+        },
+        "right": {
+          "type": "literal",
+          "operation": "",
+          "value": 1,
+          "error": ""
+        },
+        "error": ""
+      },
+      "error": ""
+    },
+    "error": ""
   },
   "error": ""
 }

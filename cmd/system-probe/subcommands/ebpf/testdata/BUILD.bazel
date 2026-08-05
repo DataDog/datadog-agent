@@ -1,4 +1,4 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 ebpf_prog(
     name = "btf_test",
@@ -8,5 +8,6 @@ ebpf_prog(
         "-g",
         "-DDEBUG=1",
     ],
+    visibility = ["//visibility:public"],
     deps = ["//pkg/ebpf/c:ebpf_c_headers"],
 )

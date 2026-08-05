@@ -63,6 +63,18 @@ func TestTagsProvider_NoClusterTagsAvailable(t *testing.T) {
 	assert.Contains(t, tags, "agent_flavor:agent")
 }
 
+func TestTagsProvider_EmptyHostnameOmitted(t *testing.T) {
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	provider := NewTagsProvider(mockTagger)
+
+	tags := provider.GetTags(context.Background(), "runner-abc", "")
+
+	require.Len(t, tags, 2)
+	assert.Contains(t, tags, "runner-id:runner-abc")
+	assert.Contains(t, tags, "agent_flavor:agent")
+	assert.NotContains(t, tags, "hostname:")
+}
+
 func TestTagsProvider_AllWhitelistedTags(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockTagger.SetGlobalTags([]string{

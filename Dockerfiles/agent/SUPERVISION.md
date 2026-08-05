@@ -33,12 +33,14 @@ The supported way to pass envvars to the agent is to set container envvars.
 
 ## Services
 
-The image starts four services:
+The image starts the following services:
 
 - `agent` is the main agent. The container will exit if it stops.
-- `trace-agent`, `process-agent`, and `system-probe` are auxiliary services.
-They will be restarted after crashing, but not if exiting normally (for example, the
-`trace-agent` will disable itself if `DD_APM_ENABLED` is false).
+- `trace-agent`, `process-agent`, `system-probe`, and `data-plane` (Agent Data Plane)
+are auxiliary services. They will be restarted after crashing, but not if exiting
+normally (for example, the `trace-agent` will disable itself if `DD_APM_ENABLED` is
+false). The `data-plane` service self-disables if the `agent-data-plane` binary is
+not bundled in the image.
 
 ## Useful commands
 

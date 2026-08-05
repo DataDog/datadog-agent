@@ -69,7 +69,7 @@ func (s *GetEventsTestSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 	err = s.ti.InstallSource(s.channelPath, s.eventSource)
 	require.NoError(s.T(), err)
-	s.sender = mocksender.NewMockSender("")
+	s.sender = mocksender.NewMockSender(s.T(), "")
 }
 
 func (s *GetEventsTestSuite) TearDownSuite() {
@@ -89,7 +89,7 @@ func (s *GetEventsTestSuite) testsetup() {
 	// they will load bookmarks from previous runs.
 	testDir := s.T().TempDir()
 	mockConfig := agentConfigmock.New(s.T())
-	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetInTest("run_path", testDir)
 }
 
 func (s *GetEventsTestSuite) SetupTest() {
@@ -134,7 +134,7 @@ func newCheck(api evtapi.API, sender *mocksender.MockSender, instanceConfig []by
 	mocksender.SetSender(sender, check.ID())
 	sender.On("FinalizeCheckServiceTag").Return()
 
-	err := check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, initConfig, "test")
+	err := check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, initConfig, "test", "")
 	return check, err
 }
 
@@ -787,7 +787,7 @@ start: oldest
 
 			check := new(Check)
 			check.evtapi = s.ti.API()
-			err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+			err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "")
 			require.ErrorContains(s.T(), err, tc.errorMatch)
 		})
 	}
@@ -860,7 +860,7 @@ start: oldest
 
 			check := new(Check)
 			check.evtapi = s.ti.API()
-			err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, []byte(instanceConfig), []byte(sharedConfig), "test")
+			err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, []byte(instanceConfig), []byte(sharedConfig), "test", "")
 			require.ErrorContains(s.T(), err, tc.errorMatch)
 			if tc.errorIs != nil {
 				require.ErrorIs(s.T(), err, *tc.errorIs)
@@ -1106,7 +1106,7 @@ func BenchmarkGetEvents(b *testing.B) {
 
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
-	sender := mocksender.NewMockSender("")
+	sender := mocksender.NewMockSender(b, "")
 
 	benchmarkStartTime := time.Now()
 	benchmarkTotalEvents := uint(0)
@@ -1145,7 +1145,7 @@ payload_size: %d
 					for i := 0; i < b.N; i++ {
 						// create tmpdir to store bookmark
 						testDir := b.TempDir()
-						mockConfig.SetWithoutSource("run_path", testDir)
+						mockConfig.SetInTest("run_path", testDir)
 						// create check
 						check, err := newCheck(ti.API(), sender, instanceConfig)
 						require.NoError(b, err)

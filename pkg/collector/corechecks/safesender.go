@@ -8,6 +8,7 @@ package corechecks
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 )
 
 // SafeSender implements sender.Sender, wrapping the methods to provide
@@ -84,6 +85,11 @@ func (ss *safeSender) ServiceCheck(checkName string, status servicecheck.Service
 	ss.Sender.ServiceCheck(checkName, status, hostname, cloneTags(tags), message)
 }
 
+// OpenmetricsBucket implements sender.Sender#OpenmetricsBucket.
+func (ss *safeSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	ss.Sender.OpenmetricsBucket(metric, value, lowerBound, upperBound, monotonic, hostname, cloneTags(tags), flushFirstValue)
+}
+
 // HistogramBucket implements sender.Sender#HistogramBucket.
 func (ss *safeSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	ss.Sender.HistogramBucket(metric, value, lowerBound, upperBound, monotonic, hostname, cloneTags(tags), flushFirstValue)
@@ -92,4 +98,9 @@ func (ss *safeSender) HistogramBucket(metric string, value int64, lowerBound, up
 // SetCheckCustomTags implements sender.Sender#SetCheckCustomTags.
 func (ss *safeSender) SetCheckCustomTags(tags []string) {
 	ss.Sender.SetCheckCustomTags(cloneTags(tags))
+}
+
+// SetInfraTagger delegates to SetInfraTagger on the underlying sender.
+func (ss *safeSender) SetInfraTagger(tagger *infratags.Tagger) {
+	ss.Sender.SetInfraTagger(tagger)
 }

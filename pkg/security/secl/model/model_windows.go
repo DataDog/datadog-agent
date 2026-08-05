@@ -156,7 +156,7 @@ type Process struct {
 
 	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
-	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+	Tracer Tracer `field:"-"` // APM tracer state: metadata + captured span
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`

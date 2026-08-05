@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultOperatorImageRepo = "gcr.io/datadoghq/operator"
+	defaultOperatorImageRepo = "registry.datadoghq.com/operator"
 	defaultOperatorImageTag  = "latest"
 )
 

@@ -1,0 +1,7 @@
+---
+security:
+  - |
+    Upgrade the Docker SDK dependency from ``github.com/docker/docker`` v28.5.2
+    to ``github.com/moby/moby`` v29 (``moby/moby/api`` v1.54.1,
+    ``moby/moby/client`` v0.4.0) to fix CVE-2026-34040 (High, CVSS 7.8)
+    and CVE-2026-33997 (Medium, CVSS 8.1).

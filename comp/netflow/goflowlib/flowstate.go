@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -51,13 +51,14 @@ func StartFlowRoutine(
 	workers int,
 	namespace string,
 	fieldMappings []config.Mapping,
+	enableBiflowParsing bool,
 	flowInChan chan *common.Flow,
 	logger log.Component,
 	atomicErr *atomic.String,
 	listenerFlowCount *atomic.Int64) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
 
-	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace, listenerFlowCount)
+	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace, listenerFlowCount, enableBiflowParsing)
 	goflowLogger := &GoflowLoggerAdapter{logger}
 	ctx := context.Background()
 
@@ -69,7 +70,7 @@ func StartFlowRoutine(
 		}
 		defer templateSystem.Close(ctx)
 
-		state := netflowstate.NewStateNetFlow(fieldMappings)
+		state := netflowstate.NewStateNetFlow(fieldMappings, enableBiflowParsing)
 		state.Format = formatDriver
 		state.Logger = goflowLogger
 		state.TemplateSystem = templateSystem

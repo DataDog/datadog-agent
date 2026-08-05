@@ -42,11 +42,11 @@ func (_m *SecurityModuleCmdClient) EXPECT() *SecurityModuleCmdClient_Expecter {
 // DumpActivity provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) DumpActivity(ctx context.Context, in *api.ActivityDumpParams, opts ...grpc.CallOption) (*api.ActivityDumpMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -84,9 +84,9 @@ type SecurityModuleCmdClient_DumpActivity_Call struct {
 //   - ctx context.Context
 //   - in *api.ActivityDumpParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) DumpActivity(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_DumpActivity_Call {
+func (_e *SecurityModuleCmdClient_Expecter) DumpActivity(ctx any, in any, opts ...any) *SecurityModuleCmdClient_DumpActivity_Call {
 	return &SecurityModuleCmdClient_DumpActivity_Call{Call: _e.mock.On("DumpActivity",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_DumpActivity_Call) Run(run func(ctx context.Context, in *api.ActivityDumpParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_DumpActivity_Call {
@@ -129,11 +129,11 @@ func (_c *SecurityModuleCmdClient_DumpActivity_Call) RunAndReturn(run func(ctx c
 // DumpDiscarders provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) DumpDiscarders(ctx context.Context, in *api.DumpDiscardersParams, opts ...grpc.CallOption) (*api.DumpDiscardersMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -171,9 +171,9 @@ type SecurityModuleCmdClient_DumpDiscarders_Call struct {
 //   - ctx context.Context
 //   - in *api.DumpDiscardersParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) DumpDiscarders(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_DumpDiscarders_Call {
+func (_e *SecurityModuleCmdClient_Expecter) DumpDiscarders(ctx any, in any, opts ...any) *SecurityModuleCmdClient_DumpDiscarders_Call {
 	return &SecurityModuleCmdClient_DumpDiscarders_Call{Call: _e.mock.On("DumpDiscarders",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_DumpDiscarders_Call) Run(run func(ctx context.Context, in *api.DumpDiscardersParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_DumpDiscarders_Call {
@@ -216,11 +216,11 @@ func (_c *SecurityModuleCmdClient_DumpDiscarders_Call) RunAndReturn(run func(ctx
 // DumpNetworkNamespace provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) DumpNetworkNamespace(ctx context.Context, in *api.DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*api.DumpNetworkNamespaceMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -258,9 +258,9 @@ type SecurityModuleCmdClient_DumpNetworkNamespace_Call struct {
 //   - ctx context.Context
 //   - in *api.DumpNetworkNamespaceParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) DumpNetworkNamespace(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_DumpNetworkNamespace_Call {
+func (_e *SecurityModuleCmdClient_Expecter) DumpNetworkNamespace(ctx any, in any, opts ...any) *SecurityModuleCmdClient_DumpNetworkNamespace_Call {
 	return &SecurityModuleCmdClient_DumpNetworkNamespace_Call{Call: _e.mock.On("DumpNetworkNamespace",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_DumpNetworkNamespace_Call) Run(run func(ctx context.Context, in *api.DumpNetworkNamespaceParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_DumpNetworkNamespace_Call {
@@ -303,11 +303,11 @@ func (_c *SecurityModuleCmdClient_DumpNetworkNamespace_Call) RunAndReturn(run fu
 // DumpProcessCache provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) DumpProcessCache(ctx context.Context, in *api.DumpProcessCacheParams, opts ...grpc.CallOption) (*api.SecurityDumpProcessCacheMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -345,9 +345,9 @@ type SecurityModuleCmdClient_DumpProcessCache_Call struct {
 //   - ctx context.Context
 //   - in *api.DumpProcessCacheParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) DumpProcessCache(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_DumpProcessCache_Call {
+func (_e *SecurityModuleCmdClient_Expecter) DumpProcessCache(ctx any, in any, opts ...any) *SecurityModuleCmdClient_DumpProcessCache_Call {
 	return &SecurityModuleCmdClient_DumpProcessCache_Call{Call: _e.mock.On("DumpProcessCache",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_DumpProcessCache_Call) Run(run func(ctx context.Context, in *api.DumpProcessCacheParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_DumpProcessCache_Call {
@@ -390,11 +390,11 @@ func (_c *SecurityModuleCmdClient_DumpProcessCache_Call) RunAndReturn(run func(c
 // GetConfig provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) GetConfig(ctx context.Context, in *api.GetConfigParams, opts ...grpc.CallOption) (*api.SecurityConfigMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -432,9 +432,9 @@ type SecurityModuleCmdClient_GetConfig_Call struct {
 //   - ctx context.Context
 //   - in *api.GetConfigParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) GetConfig(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_GetConfig_Call {
+func (_e *SecurityModuleCmdClient_Expecter) GetConfig(ctx any, in any, opts ...any) *SecurityModuleCmdClient_GetConfig_Call {
 	return &SecurityModuleCmdClient_GetConfig_Call{Call: _e.mock.On("GetConfig",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_GetConfig_Call) Run(run func(ctx context.Context, in *api.GetConfigParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_GetConfig_Call {
@@ -474,14 +474,101 @@ func (_c *SecurityModuleCmdClient_GetConfig_Call) RunAndReturn(run func(ctx cont
 	return _c
 }
 
-// GetRuleSetReport provides a mock function for the type SecurityModuleCmdClient
-func (_mock *SecurityModuleCmdClient) GetRuleSetReport(ctx context.Context, in *api.GetRuleSetReportParams, opts ...grpc.CallOption) (*api.GetRuleSetReportMessage, error) {
+// GetLoadedPolicies provides a mock function for the type SecurityModuleCmdClient
+func (_mock *SecurityModuleCmdClient) GetLoadedPolicies(ctx context.Context, in *api.GetLoadedPoliciesParams, opts ...grpc.CallOption) (*api.GetLoadedPoliciesMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _mock.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLoadedPolicies")
+	}
+
+	var r0 *api.GetLoadedPoliciesMessage
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams, ...grpc.CallOption) (*api.GetLoadedPoliciesMessage, error)); ok {
+		return returnFunc(ctx, in, opts...)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams, ...grpc.CallOption) *api.GetLoadedPoliciesMessage); ok {
+		r0 = returnFunc(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.GetLoadedPoliciesMessage)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *api.GetLoadedPoliciesParams, ...grpc.CallOption) error); ok {
+		r1 = returnFunc(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// SecurityModuleCmdClient_GetLoadedPolicies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLoadedPolicies'
+type SecurityModuleCmdClient_GetLoadedPolicies_Call struct {
+	*mock.Call
+}
+
+// GetLoadedPolicies is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *api.GetLoadedPoliciesParams
+//   - opts ...grpc.CallOption
+func (_e *SecurityModuleCmdClient_Expecter) GetLoadedPolicies(ctx any, in any, opts ...any) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	return &SecurityModuleCmdClient_GetLoadedPolicies_Call{Call: _e.mock.On("GetLoadedPolicies",
+		append([]any{ctx, in}, opts...)...)}
+}
+
+func (_c *SecurityModuleCmdClient_GetLoadedPolicies_Call) Run(run func(ctx context.Context, in *api.GetLoadedPoliciesParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *api.GetLoadedPoliciesParams
+		if args[1] != nil {
+			arg1 = args[1].(*api.GetLoadedPoliciesParams)
+		}
+		var arg2 []grpc.CallOption
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
+	})
+	return _c
+}
+
+func (_c *SecurityModuleCmdClient_GetLoadedPolicies_Call) Return(getLoadedPoliciesMessage *api.GetLoadedPoliciesMessage, err error) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	_c.Call.Return(getLoadedPoliciesMessage, err)
+	return _c
+}
+
+func (_c *SecurityModuleCmdClient_GetLoadedPolicies_Call) RunAndReturn(run func(ctx context.Context, in *api.GetLoadedPoliciesParams, opts ...grpc.CallOption) (*api.GetLoadedPoliciesMessage, error)) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetRuleSetReport provides a mock function for the type SecurityModuleCmdClient
+func (_mock *SecurityModuleCmdClient) GetRuleSetReport(ctx context.Context, in *api.GetRuleSetReportParams, opts ...grpc.CallOption) (*api.GetRuleSetReportMessage, error) {
+	// grpc.CallOption
+	_va := make([]any, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -519,9 +606,9 @@ type SecurityModuleCmdClient_GetRuleSetReport_Call struct {
 //   - ctx context.Context
 //   - in *api.GetRuleSetReportParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) GetRuleSetReport(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_GetRuleSetReport_Call {
+func (_e *SecurityModuleCmdClient_Expecter) GetRuleSetReport(ctx any, in any, opts ...any) *SecurityModuleCmdClient_GetRuleSetReport_Call {
 	return &SecurityModuleCmdClient_GetRuleSetReport_Call{Call: _e.mock.On("GetRuleSetReport",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_GetRuleSetReport_Call) Run(run func(ctx context.Context, in *api.GetRuleSetReportParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_GetRuleSetReport_Call {
@@ -564,11 +651,11 @@ func (_c *SecurityModuleCmdClient_GetRuleSetReport_Call) RunAndReturn(run func(c
 // GetStatus provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) GetStatus(ctx context.Context, in *api.GetStatusParams, opts ...grpc.CallOption) (*api.Status, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -606,9 +693,9 @@ type SecurityModuleCmdClient_GetStatus_Call struct {
 //   - ctx context.Context
 //   - in *api.GetStatusParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) GetStatus(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_GetStatus_Call {
+func (_e *SecurityModuleCmdClient_Expecter) GetStatus(ctx any, in any, opts ...any) *SecurityModuleCmdClient_GetStatus_Call {
 	return &SecurityModuleCmdClient_GetStatus_Call{Call: _e.mock.On("GetStatus",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_GetStatus_Call) Run(run func(ctx context.Context, in *api.GetStatusParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_GetStatus_Call {
@@ -651,11 +738,11 @@ func (_c *SecurityModuleCmdClient_GetStatus_Call) RunAndReturn(run func(ctx cont
 // ListActivityDumps provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) ListActivityDumps(ctx context.Context, in *api.ActivityDumpListParams, opts ...grpc.CallOption) (*api.ActivityDumpListMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -693,9 +780,9 @@ type SecurityModuleCmdClient_ListActivityDumps_Call struct {
 //   - ctx context.Context
 //   - in *api.ActivityDumpListParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) ListActivityDumps(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_ListActivityDumps_Call {
+func (_e *SecurityModuleCmdClient_Expecter) ListActivityDumps(ctx any, in any, opts ...any) *SecurityModuleCmdClient_ListActivityDumps_Call {
 	return &SecurityModuleCmdClient_ListActivityDumps_Call{Call: _e.mock.On("ListActivityDumps",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_ListActivityDumps_Call) Run(run func(ctx context.Context, in *api.ActivityDumpListParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_ListActivityDumps_Call {
@@ -738,11 +825,11 @@ func (_c *SecurityModuleCmdClient_ListActivityDumps_Call) RunAndReturn(run func(
 // ListSecurityProfiles provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) ListSecurityProfiles(ctx context.Context, in *api.SecurityProfileListParams, opts ...grpc.CallOption) (*api.SecurityProfileListMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -780,9 +867,9 @@ type SecurityModuleCmdClient_ListSecurityProfiles_Call struct {
 //   - ctx context.Context
 //   - in *api.SecurityProfileListParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) ListSecurityProfiles(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_ListSecurityProfiles_Call {
+func (_e *SecurityModuleCmdClient_Expecter) ListSecurityProfiles(ctx any, in any, opts ...any) *SecurityModuleCmdClient_ListSecurityProfiles_Call {
 	return &SecurityModuleCmdClient_ListSecurityProfiles_Call{Call: _e.mock.On("ListSecurityProfiles",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_ListSecurityProfiles_Call) Run(run func(ctx context.Context, in *api.SecurityProfileListParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_ListSecurityProfiles_Call {
@@ -825,11 +912,11 @@ func (_c *SecurityModuleCmdClient_ListSecurityProfiles_Call) RunAndReturn(run fu
 // ReloadPolicies provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) ReloadPolicies(ctx context.Context, in *api.ReloadPoliciesParams, opts ...grpc.CallOption) (*api.ReloadPoliciesResultMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -867,9 +954,9 @@ type SecurityModuleCmdClient_ReloadPolicies_Call struct {
 //   - ctx context.Context
 //   - in *api.ReloadPoliciesParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) ReloadPolicies(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_ReloadPolicies_Call {
+func (_e *SecurityModuleCmdClient_Expecter) ReloadPolicies(ctx any, in any, opts ...any) *SecurityModuleCmdClient_ReloadPolicies_Call {
 	return &SecurityModuleCmdClient_ReloadPolicies_Call{Call: _e.mock.On("ReloadPolicies",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_ReloadPolicies_Call) Run(run func(ctx context.Context, in *api.ReloadPoliciesParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_ReloadPolicies_Call {
@@ -912,11 +999,11 @@ func (_c *SecurityModuleCmdClient_ReloadPolicies_Call) RunAndReturn(run func(ctx
 // RunSelfTest provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) RunSelfTest(ctx context.Context, in *api.RunSelfTestParams, opts ...grpc.CallOption) (*api.SecuritySelfTestResultMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -954,9 +1041,9 @@ type SecurityModuleCmdClient_RunSelfTest_Call struct {
 //   - ctx context.Context
 //   - in *api.RunSelfTestParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) RunSelfTest(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_RunSelfTest_Call {
+func (_e *SecurityModuleCmdClient_Expecter) RunSelfTest(ctx any, in any, opts ...any) *SecurityModuleCmdClient_RunSelfTest_Call {
 	return &SecurityModuleCmdClient_RunSelfTest_Call{Call: _e.mock.On("RunSelfTest",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_RunSelfTest_Call) Run(run func(ctx context.Context, in *api.RunSelfTestParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_RunSelfTest_Call {
@@ -999,11 +1086,11 @@ func (_c *SecurityModuleCmdClient_RunSelfTest_Call) RunAndReturn(run func(ctx co
 // SaveSecurityProfile provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) SaveSecurityProfile(ctx context.Context, in *api.SecurityProfileSaveParams, opts ...grpc.CallOption) (*api.SecurityProfileSaveMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -1041,9 +1128,9 @@ type SecurityModuleCmdClient_SaveSecurityProfile_Call struct {
 //   - ctx context.Context
 //   - in *api.SecurityProfileSaveParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) SaveSecurityProfile(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_SaveSecurityProfile_Call {
+func (_e *SecurityModuleCmdClient_Expecter) SaveSecurityProfile(ctx any, in any, opts ...any) *SecurityModuleCmdClient_SaveSecurityProfile_Call {
 	return &SecurityModuleCmdClient_SaveSecurityProfile_Call{Call: _e.mock.On("SaveSecurityProfile",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_SaveSecurityProfile_Call) Run(run func(ctx context.Context, in *api.SecurityProfileSaveParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_SaveSecurityProfile_Call {
@@ -1086,11 +1173,11 @@ func (_c *SecurityModuleCmdClient_SaveSecurityProfile_Call) RunAndReturn(run fun
 // StopActivityDump provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) StopActivityDump(ctx context.Context, in *api.ActivityDumpStopParams, opts ...grpc.CallOption) (*api.ActivityDumpStopMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -1128,9 +1215,9 @@ type SecurityModuleCmdClient_StopActivityDump_Call struct {
 //   - ctx context.Context
 //   - in *api.ActivityDumpStopParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) StopActivityDump(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_StopActivityDump_Call {
+func (_e *SecurityModuleCmdClient_Expecter) StopActivityDump(ctx any, in any, opts ...any) *SecurityModuleCmdClient_StopActivityDump_Call {
 	return &SecurityModuleCmdClient_StopActivityDump_Call{Call: _e.mock.On("StopActivityDump",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_StopActivityDump_Call) Run(run func(ctx context.Context, in *api.ActivityDumpStopParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_StopActivityDump_Call {
@@ -1173,11 +1260,11 @@ func (_c *SecurityModuleCmdClient_StopActivityDump_Call) RunAndReturn(run func(c
 // TranscodingRequest provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) TranscodingRequest(ctx context.Context, in *api.TranscodingRequestParams, opts ...grpc.CallOption) (*api.TranscodingRequestMessage, error) {
 	// grpc.CallOption
-	_va := make([]interface{}, len(opts))
+	_va := make([]any, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
-	var _ca []interface{}
+	var _ca []any
 	_ca = append(_ca, ctx, in)
 	_ca = append(_ca, _va...)
 	ret := _mock.Called(_ca...)
@@ -1215,9 +1302,9 @@ type SecurityModuleCmdClient_TranscodingRequest_Call struct {
 //   - ctx context.Context
 //   - in *api.TranscodingRequestParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleCmdClient_Expecter) TranscodingRequest(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_TranscodingRequest_Call {
+func (_e *SecurityModuleCmdClient_Expecter) TranscodingRequest(ctx any, in any, opts ...any) *SecurityModuleCmdClient_TranscodingRequest_Call {
 	return &SecurityModuleCmdClient_TranscodingRequest_Call{Call: _e.mock.On("TranscodingRequest",
-		append([]interface{}{ctx, in}, opts...)...)}
+		append([]any{ctx, in}, opts...)...)}
 }
 
 func (_c *SecurityModuleCmdClient_TranscodingRequest_Call) Run(run func(ctx context.Context, in *api.TranscodingRequestParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_TranscodingRequest_Call {

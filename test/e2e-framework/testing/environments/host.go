@@ -27,6 +27,7 @@ import (
 
 // Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
 type Host struct {
+	CoverageBase
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
 	Agent      *components.RemoteHostAgent
@@ -126,7 +127,9 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 	// to redirect stdin to null, on linux adding `</dev/null`
 	// on windows prepending command with `@() |`, pre-piping with an empty array
 	// discard error, flare command might return error if there is no intake, but it the archive is still generated
-	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
+	// --keep-archive prevents the agent from deleting the local archive after a successful upload,
+	// since we need it to still be on disk afterwards to download it below.
+	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--keep-archive"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {
@@ -161,9 +164,10 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 }
 
 func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec, error) {
+	var targets []CoverageTargetSpec
 	switch family {
 	case os.LinuxFamily:
-		return []CoverageTargetSpec{{
+		targets = []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",
 			CoverageCommand: []string{"sudo", "datadog-agent", "coverage", "generate"},
 			Required:        true,
@@ -183,10 +187,10 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			AgentName:       "system-probe",
 			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/system-probe", "coverage", "generate"},
 			Required:        false,
-		}}, nil
+		}}
 	case os.WindowsFamily:
 		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
-		return []CoverageTargetSpec{{
+		targets = []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",
 			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent.exe" "coverage" "generate"`, installPath)},
 			Required:        true,
@@ -206,9 +210,12 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			AgentName:       "system-probe",
 			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath)},
 			Required:        false,
-		}}, nil
+		}}
+	default:
+		return nil, fmt.Errorf("unsupported OS family: %v", family)
 	}
-	return nil, fmt.Errorf("unsupported OS family: %v", family)
+	e.applyCoverageOverrides(targets)
+	return targets, nil
 }
 
 // Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory

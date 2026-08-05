@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package runner
 
 import (
@@ -12,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
-	"github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -23,11 +25,11 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsfxnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
+	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
+	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
@@ -464,10 +466,13 @@ type submitterDeps struct {
 }
 
 func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysprobeconfigOverrides map[string]interface{}) submitterDeps {
+	sysprobeConf := sysprobeconfigmock.NewMock(t)
+	for k, v := range sysprobeconfigOverrides {
+		sysprobeConf.SetInTest(k, v)
+	}
 	return fxutil.Test[submitterDeps](t, fx.Options(
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, configOverrides) }),
-		sysprobeconfigimpl.MockModule(),
-		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeconfigOverrides}),
+		fx.Provide(func() sysprobeconfig.Component { return sysprobeConf }),
 		connectionsforwarderfx.Module(),
 		secretsfxnoop.Module(),
 		forwardersimpl.Module(),
@@ -485,7 +490,7 @@ func getSubmitterDepsWithConfig(t *testing.T, configObj config.Component) submit
 		fx.Provide(func() config.Component {
 			return configObj
 		}),
-		sysprobeconfigimpl.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 		connectionsforwarderfx.Module(),
 		secretsfxnoop.Module(),
 		forwardersimpl.Module(),

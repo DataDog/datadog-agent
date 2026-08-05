@@ -31,7 +31,10 @@ def set_buildtags(
         build_include=build_include,
         build_exclude=build_exclude,
         flavor=flavor,
+        platform="linux",
     )
 
     with open(".vimrc", "w") as f:
-        f.write(f"let g:ale_go_gopls_init_options = {{'buildFlags': ['-tags', '{','.join(sorted(use_tags))}']}}\n")
+        f.write(
+            f"let g:ale_go_gopls_init_options = {{'buildFlags': ['-tags', '{','.join(sorted(use_tags))}', '-buildvcs=false']}}\n"
+        )

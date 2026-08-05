@@ -17,6 +17,8 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -24,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -138,7 +141,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 	return nil
 }
 
-// writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml
+// writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml, fallback with env variables.
 func writeOTelConfigWindows(ctx HookContext) error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	// Prefer packaged example/template from the installed package repository
@@ -204,6 +207,9 @@ func ensureDDOTService() error {
 		}
 		// Best-effort: align service DACL to allow the core Agent user to control OTEL service
 		configureDDOTServicePermissions(s)
+		if err := setDDOTServiceEnvVars(); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -223,6 +229,9 @@ func ensureDDOTService() error {
 	}
 	// Best-effort: align service DACL to allow the core Agent user to control OTEL service
 	configureDDOTServicePermissions(s)
+	if err := setDDOTServiceEnvVars(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -337,6 +346,20 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 	}
 }
 
+// setDDOTServiceEnvVars writes the DDOT service environment variables to the registry.
+func setDDOTServiceEnvVars() error {
+	key, err := registry.OpenKey(
+		registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Services\`+otelServiceName,
+		registry.SET_VALUE,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to open service registry key: %w", err)
+	}
+	defer key.Close()
+	return key.SetStringsValue("Environment", []string{"DD_OTELCOLLECTOR_INSTALLATION_METHOD=bare-metal"})
+}
+
 // stopServiceIfExists stops the service if it exists
 func stopServiceIfExists(name string) error {
 	// Use robust stop; ignore 'service does not exist'
@@ -416,14 +439,40 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
 	}
 
-	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
-		return fmt.Errorf("failed to create DDOT service: %w", err)
+	if env.FromEnv().ProcessManagerEnabled {
+		if err := processmanager.WriteDDOTProcmgrConfig(packagePath); err != nil {
+			return fmt.Errorf("failed to write DDOT process manager config: %w", err)
+		}
+	} else if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
+		log.Warnf("DDOT: could not remove stale process manager config: %v", err)
 	}
+
+	// Register the legacy SCM service (Manual, not started) so operators can fall back without reinstalling.
+	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
+		return fmt.Errorf("failed to register DDOT Windows service for rollback: %w", err)
+	}
+	if err := stopServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("DDOT: could not ensure %s is stopped after registration: %v", otelServiceName, err)
+	}
+	// No RestartService(dd-procmgr-service) here: InstallExtensions restarts Datadog agent services
+	// after all extension hooks return, which reloads dd-procmgr and picks up processes.d.
 	return nil
 }
 
-// preRemoveDDOTExtension stops and removes the DDOT service before extension removal
-func preRemoveDDOTExtension(_ HookContext) error {
+// preRemoveDDOTExtension removes DDOT process manager config, reloads dd-procmgrd (or restarts the
+// Windows service as fallback) so supervised DDOT stops before extension files are removed, then
+// stops/removes the legacy SCM entry and disables otelcollector in datadog.yaml.
+func preRemoveDDOTExtension(ctx HookContext) error {
+	packagePath := ctx.PackagePath
+	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
+		packagePath = resolved
+	}
+	if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
+		log.Warnf("failed to remove DDOT process manager config: %v", err)
+	}
+	if env.FromEnv().ProcessManagerEnabled {
+		processmanager.ReloadOrRestartProcmgr()
+	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {
 		log.Warnf("failed to stop DDOT service: %s", err)
 	}
@@ -444,7 +493,9 @@ func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) erro
 	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
 }
 
-// ensureDDOTServiceForExtension ensures the DDOT service exists and is configured correctly for extension
+// ensureDDOTServiceForExtension registers or updates the datadog-otel-agent Windows service as
+// Manual start. It never starts the service — default supervision is dd-procmgrd; the SCM entry
+// exists for optional rollback (e.g. stop procmgr-managed DDOT, then Start-Service).
 func ensureDDOTServiceForExtension(binaryPath string) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -481,6 +532,9 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 			return err
 		}
 		configureDDOTServicePermissions(s)
+		if err := setDDOTServiceEnvVars(); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -498,5 +552,8 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 		return err
 	}
 	configureDDOTServicePermissions(s)
+	if err := setDDOTServiceEnvVars(); err != nil {
+		return err
+	}
 	return nil
 }

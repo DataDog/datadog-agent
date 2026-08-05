@@ -18,9 +18,8 @@ func init() { registerModule(EventMonitor) }
 
 // EventMonitor - Event monitor Factory
 var EventMonitor = &module.Factory{
-	Name:             config.EventMonitorModule,
-	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
-	Fn:               createEventMonitorModule,
+	Name: config.EventMonitorModule,
+	Fn:   createEventMonitorModule,
 }
 
 func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor, _ *netconfig.Config) error {

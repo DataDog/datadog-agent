@@ -3,15 +3,18 @@ secret_generic_connector namespaced tasks
 """
 
 import os
+import platform
+import sys
 
 from invoke import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.constants import REPO_PATH
+from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name
 from tasks.libs.releasing.version import get_version
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BINARY_NAME = "secret-generic-connector"
 BIN_DIR = os.path.join(".", "bin", "secret-generic-connector")
@@ -29,12 +32,24 @@ def build(
     output_bin=None,
     strip_binary=True,
     fips_mode=False,
+    arch_suffix=False,
 ):
     """
     Build the secret-generic-connector binary.
     """
 
     version = get_version(ctx, include_git=True)
+
+    # generate windows resources
+    if sys.platform == 'win32':
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx)
+        build_rc(
+            ctx,
+            "cmd/secret-generic-connector/windows_resources/secret-generic-connector.rc",
+            vars=vars,
+            out="cmd/secret-generic-connector/rsrc.syso",
+        )
 
     # ldflags: -s -w to reduce binary size, -s not compatible with FIPS
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
@@ -60,6 +75,10 @@ def build(
         build="secret-generic-connector", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
     )
     bin_path = output_bin or BIN_PATH
+
+    if arch_suffix:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+        bin_path = f'{bin_path}.{arch}'
 
     go_build(
         ctx,

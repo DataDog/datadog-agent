@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl-zlib",
+    srcs = ["zlib_strategy.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/compression"],
+)
+
+dd_agent_go_test(
+    name = "impl-zlib_test",
+    srcs = ["zlib_strategy_test.go"],
+    embed = [":impl-zlib"],
+)

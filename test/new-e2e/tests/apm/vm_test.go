@@ -243,7 +243,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
+		testAutoVersionTraces(s.T(), c, service, s.Env().FakeIntake)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces")
 }
@@ -266,7 +266,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionStats() {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
+		testAutoVersionStats(s.T(), c, service, s.Env().FakeIntake)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
@@ -289,7 +289,7 @@ func (s *VMFakeintakeSuite) TestIsTraceRootTag() {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testIsTraceRootTag(s.T(), c, s.Env().FakeIntake)
+		testIsTraceRootTag(s.T(), c, service, s.Env().FakeIntake)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
@@ -326,18 +326,18 @@ func (s *VMFakeintakeSuite) TestProcessTagsHeaderTrace() {
 	s.T().Log("Waiting for Trace Agent to be live.")
 	s.Require().NoError(waitRemotePort(s, 8126))
 
-	traceWithProcessTagsWithHeader(s.Env().RemoteHost, "binary:generator", "test-service")
+	traceWithProcessTagsWithHeader(s.Env().RemoteHost, "binary:generator-1", "test-service")
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator-1")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator-1")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }
@@ -350,18 +350,18 @@ func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
 	s.T().Log("Waiting for Trace Agent to be live.")
 	s.Require().NoError(waitRemotePort(s, 8126))
 
-	traceWithProcessTags(s.Env().RemoteHost, "binary:generator", "test-service")
+	traceWithProcessTags(s.Env().RemoteHost, "binary:generator-2", "test-service")
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator-2")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator-2")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }
@@ -395,7 +395,7 @@ apm_config.probabilistic_sampler.hash_seed: 22
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
+		tracesSampledByProbabilitySampler(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
 
@@ -417,7 +417,7 @@ func (s *VMFakeintakeSuite) TestAPMModeDefault() {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testAPMMode(c, s.Env().FakeIntake, "")
+		testAPMMode(c, s.Env().FakeIntake, service, "")
 		s.logJournal(false)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with correct APM mode")
 }
@@ -449,7 +449,7 @@ func (s *VMFakeintakeSuite) TestAPMModeEdge() {
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testAPMMode(c, s.Env().FakeIntake, "edge")
+		testAPMMode(c, s.Env().FakeIntake, service, "edge")
 		s.logJournal(false)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with _dd.apm_mode=edge")
 }

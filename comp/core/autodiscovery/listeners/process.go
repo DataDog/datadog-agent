@@ -29,16 +29,18 @@ import (
 // as services (i.e., processes with a non-nil Service property).
 type ProcessListener struct {
 	workloadmetaListener
-	tagger         tagger.Component
-	processFilters workloadfilter.FilterBundle
+	tagger            tagger.Component
+	processFilters    workloadfilter.FilterBundle
+	staticConfigIndex *StaticConfigIndex
 }
 
 // NewProcessListener returns a new ProcessListener.
 func NewProcessListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-processlistener"
 	l := &ProcessListener{
-		tagger:         options.Tagger,
-		processFilters: options.Filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELGlobal}}),
+		tagger:            options.Tagger,
+		processFilters:    options.Filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELGlobal}}),
+		staticConfigIndex: options.StaticConfigIndex,
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -137,10 +139,11 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 		ports:    ports,
 		pid:      int(process.Pid),
 		// Host processes are accessible at localhost
-		hosts:  map[string]string{"host": "127.0.0.1"},
-		ready:  true,
-		tagger: l.tagger,
-		wmeta:  l.Store(),
+		hosts:             map[string]string{"host": "127.0.0.1"},
+		ready:             true,
+		tagger:            l.tagger,
+		wmeta:             l.Store(),
+		staticConfigIndex: l.staticConfigIndex,
 	}
 
 	svcID := buildSvcID(process.GetID())
@@ -149,14 +152,15 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 
 // ProcessService implements the Service interface for process entities.
 type ProcessService struct {
-	process  *workloadmeta.Process
-	tagsHash string
-	hosts    map[string]string
-	ports    []workloadmeta.ContainerPort
-	pid      int
-	ready    bool
-	tagger   tagger.Component
-	wmeta    workloadmeta.Component
+	process           *workloadmeta.Process
+	tagsHash          string
+	hosts             map[string]string
+	ports             []workloadmeta.ContainerPort
+	pid               int
+	ready             bool
+	tagger            tagger.Component
+	wmeta             workloadmeta.Component
+	staticConfigIndex *StaticConfigIndex
 }
 
 var _ Service = &ProcessService{}
@@ -234,8 +238,30 @@ func (s *ProcessService) HasFilter(_ workloadfilter.Scope) bool {
 }
 
 // FilterTemplates implements Service#FilterTemplates.
+//
+// In addition to the default AD-identifier matching filter, templates whose
+// integration name already has a scheduled non-template (static) config are
+// dropped so the static config wins. This dedup is intentionally scoped to
+// process services: users configure single-instance process integrations via
+// conf.d, and we don't want the dynamic process listener to schedule a second
+// instance behind their back.
+//
+// Discovery templates are then dropped if any other config source has matched
+// this service for the same integration: a sibling non-discovery template, or
+// a scheduled static config.
 func (s *ProcessService) FilterTemplates(configs map[string]integration.Config) {
+	// Step 1: CEL Matching
 	filterTemplatesMatched(s, configs)
+
+	// Step 2: Static Config Deduplication
+	for digest, cfg := range configs {
+		if s.staticConfigIndex.Has(cfg.Name) {
+			delete(configs, digest)
+		}
+	}
+
+	// Step 3: Discovery Template Deduplication
+	filterTemplatesDiscovery(s.staticConfigIndex, configs)
 }
 
 // GetExtraConfig returns extra configuration associated with the service.

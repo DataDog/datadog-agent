@@ -134,8 +134,8 @@ func TestEventsMarshaler2(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 500)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_payload_size", 500)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
 
 			bytePayloads, err := MarshalEvents(
@@ -143,7 +143,7 @@ func TestEventsMarshaler2(t *testing.T) {
 				"",
 				mockConfig,
 				logmock.New(t),
-				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+				metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp,
 			)
 			assert.NoError(t, err)
 			payloads := decodePayload(t, mockConfig, bytePayloads)
@@ -166,8 +166,8 @@ func TestEventsMarshaler2Split(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 400)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_payload_size", 400)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
 
 			bytePayloads, err := MarshalEvents(
@@ -175,7 +175,7 @@ func TestEventsMarshaler2Split(t *testing.T) {
 				"",
 				mockConfig,
 				logmock.New(t),
-				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+				metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp,
 			)
 			assert.NoError(t, err)
 			payloads := decodePayload(t, mockConfig, bytePayloads)
@@ -201,8 +201,8 @@ func TestEventsMarshaler2Drop(t *testing.T) {
 
 			largeText := strings.Repeat("1", 500)
 
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 400)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_payload_size", 400)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "2", "1", "1", largeText)
 			events[3].Text = largeText
 
@@ -211,7 +211,7 @@ func TestEventsMarshaler2Drop(t *testing.T) {
 				"",
 				mockConfig,
 				logmock.New(t),
-				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+				metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp,
 			)
 
 			// assert positions of big events in the sorted array to make sure we're testing the expected states
@@ -234,7 +234,7 @@ func BenchmarkMarshaler2(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
 		logger := logmock.New(b)
-		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+		compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: cfg}).Comp
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()

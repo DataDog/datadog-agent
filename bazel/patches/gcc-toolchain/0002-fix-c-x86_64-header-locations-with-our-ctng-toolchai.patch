@@ -53,8 +53,8 @@ index 7c8787f..2560783 100644
 +        ]
 +    ]
  
-     target_compatible_with = [
-         v.format(target_arch = target_arch)
+     f_builtin_includes = [
+         include.format(
 -- 
 2.43.0
 

@@ -13,12 +13,14 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/framer"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -63,6 +65,7 @@ type MinimalPod struct {
 
 // MinimalPodSpec contains only the pod spec fields we need
 type MinimalPodSpec struct {
+	NodeName          string             `json:"nodeName,omitempty"`
 	Containers        []MinimalContainer `json:"containers"`
 	Volumes           []MinimalVolume    `json:"volumes,omitempty"`
 	RuntimeClassName  *string            `json:"runtimeClassName,omitempty"`
@@ -71,8 +74,9 @@ type MinimalPodSpec struct {
 
 // MinimalContainer contains only the container fields we need
 type MinimalContainer struct {
-	Name      string                      `json:"name"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Name         string                         `json:"name"`
+	Resources    corev1.ResourceRequirements    `json:"resources,omitempty"`
+	ResizePolicy []corev1.ContainerResizePolicy `json:"resizePolicy,omitempty"`
 }
 
 // MinimalVolume contains only the volume fields we need
@@ -133,6 +137,13 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 					resIn.Claims[j].DeepCopyInto(&resOut.Claims[j])
 				}
 			}
+
+			if p.Spec.Containers[i].ResizePolicy != nil {
+				out.Spec.Containers[i].ResizePolicy = make([]corev1.ContainerResizePolicy, len(p.Spec.Containers[i].ResizePolicy))
+				for j := range p.Spec.Containers[i].ResizePolicy {
+					p.Spec.Containers[i].ResizePolicy[j].DeepCopyInto(&out.Spec.Containers[i].ResizePolicy[j])
+				}
+			}
 		}
 	}
 
@@ -145,6 +156,7 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 		}
 	}
 
+	out.Spec.NodeName = p.Spec.NodeName
 	out.Spec.PriorityClassName = p.Spec.PriorityClassName
 
 	if p.Spec.RuntimeClassName != nil {
@@ -254,21 +266,38 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 	pod := obj.(*MinimalPod)
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, o := range pod.OwnerReferences {
+		gv, _ := schema.ParseGroupVersion(o.APIVersion)
 		owners = append(owners, workloadmeta.KubernetesPodOwner{
-			Kind: o.Kind,
-			Name: o.Name,
-			ID:   string(o.UID),
+			Kind:  o.Kind,
+			Name:  o.Name,
+			ID:    string(o.UID),
+			Group: gv.Group,
 		})
 	}
 
 	var ready bool
+	var readyTimestamp *time.Time
 	for _, condition := range pod.Status.Conditions {
 		if condition.Type == corev1.PodReady {
 			if condition.Status == corev1.ConditionTrue {
 				ready = true
+				// Leave readyTimestamp nil when the transition time is unknown (omitted/zero),
+				// so the warmup gate treats the readiness time as unknown rather than year 1.
+				if !condition.LastTransitionTime.IsZero() {
+					t := condition.LastTransitionTime.Time
+					readyTimestamp = &t
+				}
 			}
 			break
 		}
+	}
+
+	// DeletionTimestamp is set once the pod is terminating; cluster-agent workload autoscaling
+	// uses it to exclude terminating pods from its replica calculation (matching the HPA).
+	var deletionTimestamp *time.Time
+	if pod.DeletionTimestamp != nil {
+		t := pod.DeletionTimestamp.Time
+		deletionTimestamp = &t
 	}
 
 	var pvcNames []string
@@ -314,6 +343,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
 			c.Resources.MemoryLimit = kubeutil.FormatMemoryRequests(memoryLimit)
 		}
+		c.ResizePolicy = kubernetesresourceparsers.ResizePolicyFromContainerResizePolicy(container.ResizePolicy)
 		containersList = append(containersList, c)
 	}
 
@@ -338,6 +368,10 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
+		CreationTimestamp:          pod.CreationTimestamp.Time,
+		ReadyTimestamp:             readyTimestamp,
+		DeletionTimestamp:          deletionTimestamp,
+		NodeName:                   pod.Spec.NodeName,
 	}
 }
 

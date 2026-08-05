@@ -12,9 +12,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"go.yaml.in/yaml/v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -109,7 +111,7 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, c.unknownKeys)...)
+	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, &c.unknownKeys)...)
 	return nil
 }
 
@@ -132,7 +134,7 @@ var valuelessLeaf = &nodeImpl{}
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys map[string]struct{}) []error {
+func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys *sync.Map) []error {
 	warnings := []error{}
 	for key, value := range inData {
 		key = strings.ToLower(key)
@@ -150,7 +152,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 		if err != nil {
 			isLeaf, isKnown := knownKeys[currPath]
 			if isLeaf {
-				// Not found but known, the leaf setting must be valueless (defined by BindEnv or SetKnown)
+				// Not found but known, the leaf setting must be valueless. This should never happen
 				schemaChild = valuelessLeaf
 			} else {
 				if !isKnown {
@@ -160,7 +162,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				// if the key is not defined in the schema, we can still add it to the destination
 				if value == nil || isScalar(value) || isSlice(value) {
 					dest.InsertChildNode(key, newLeafNode(value, source))
-					unknownKeys[currPath] = struct{}{}
+					unknownKeys.Store(currPath, struct{}{})
 					continue
 				}
 
@@ -189,7 +191,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				//    setting_name_1:      # no value -> nil in Go
 				//    setting name_2: 1234
 				if value != nil {
-					if converted, err := convertToDefaultType(value, schemaChild.Get()); err == nil {
+					if converted, err := basic.ConvertToDefaultType(value, schemaChild.Get(), false); err == nil {
 						value = converted
 					}
 					// normalize YAML v2 map[interface{}]interface{} to map[string]interface{}

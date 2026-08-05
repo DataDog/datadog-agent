@@ -86,7 +86,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", false),
 				}),
 				flare.Module(flareParams),
-				core.Bundle(core.WithSecrets()),
+				core.Bundle(),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
 				// Provide required modules
@@ -164,13 +164,18 @@ func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
 		return "", fmt.Errorf("failed to collect OTel data: %w", err)
 	}
 
-	// Create flare archive
+	// Private, unpredictable dir (0700 on Unix; per-user temp ACL on Windows) so others can't read/symlink the flare.
+	// Not RemoveAccessToOtherUsers: it grants dd-agent, not the caller, locking out a non-admin operator on Windows.
+	tmpDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp dir for flare: %w", err)
+	}
+
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	filename := fmt.Sprintf("otel-agent-flare_%s.zip", timestamp)
-	filePath := filepath.Join(os.TempDir(), filename)
+	filePath := filepath.Join(tmpDir, filename)
 
-	err = createFlareArchive(filePath, data)
-	if err != nil {
+	if err := createFlareArchive(filePath, data); err != nil {
 		return "", fmt.Errorf("failed to create flare archive: %w", err)
 	}
 
@@ -502,7 +507,7 @@ func extractZpagesEndpoint(conf *confmap.Conf) (string, error) {
 
 // createFlareArchive creates a zip archive with the diagnostic data
 func createFlareArchive(filePath string, data *extensiontypes.Response) error {
-	// Create zip file
+	// Parent dir is created private (0700) by createOTelFlare, so no other user can pre-seed a symlink here.
 	zipFile, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create zip file: %w", err)

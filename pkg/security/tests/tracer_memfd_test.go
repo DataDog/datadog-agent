@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -29,7 +30,7 @@ import (
 type tracerMemfdConsumer struct {
 	capturedPid            atomic.Uint32
 	capturedFd             atomic.Uint32
-	capturedTags           []string
+	capturedMetadata       tracermetadata.TracerMetadata
 	capturedSerializedJSON []byte
 	capturedMutex          sync.Mutex
 	eventReceived          atomic.Bool
@@ -71,7 +72,7 @@ func (c *tracerMemfdConsumer) HandleEvent(event any) {
 	c.capturedPid.Store(ev.pid)
 	c.capturedFd.Store(ev.fd)
 	c.capturedMutex.Lock()
-	c.capturedTags = ev.tracerTags
+	c.capturedMetadata = ev.tracerMetadata
 	c.capturedSerializedJSON = ev.serializedJSON
 	c.capturedMutex.Unlock()
 	c.eventReceived.Store(true)
@@ -81,7 +82,7 @@ func (c *tracerMemfdConsumer) HandleEvent(event any) {
 type tracerMemfdEvent struct {
 	pid            uint32
 	fd             uint32
-	tracerTags     []string
+	tracerMetadata tracermetadata.TracerMetadata
 	serializedJSON []byte
 }
 
@@ -92,15 +93,9 @@ func (c *tracerMemfdConsumer) Copy(ev *model.Event) any {
 	}
 
 	event := &tracerMemfdEvent{
-		pid: ev.GetProcessPid(),
-		fd:  ev.TracerMemfdSeal.Fd,
-	}
-
-	// Copy the TracerTags using the getter
-	tracerTags := ev.GetProcessTracerTags()
-	if len(tracerTags) > 0 {
-		event.tracerTags = make([]string, len(tracerTags))
-		copy(event.tracerTags, tracerTags)
+		pid:            ev.GetProcessPid(),
+		fd:             ev.TracerMemfdSeal.Fd,
+		tracerMetadata: ev.GetProcessTracerMetadata(),
 	}
 
 	// Serialize the event to JSON for validation
@@ -153,22 +148,42 @@ func TestTracerMemfd(t *testing.T) {
 		require.NotZero(t, capturedFd, "fd should be non-zero")
 		require.Greater(t, capturedFd, uint32(2), "fd should be > 2 (stdin/stdout/stderr)")
 
-		// Verify tracer tags from ProcessCacheEntry
+		// Verify tracer metadata from ProcessCacheEntry
 		consumer.capturedMutex.Lock()
-		tracerTags := consumer.capturedTags
+		tmeta := consumer.capturedMetadata
 		consumer.capturedMutex.Unlock()
 
-		require.NotEmpty(t, tracerTags, "TracerTags should not be empty")
+		require.NotEqual(t, tracermetadata.TracerMetadata{}, tmeta, "TracerMetadata should not be empty")
 
-		// Verify expected tags from the msgp-encoded metadata
-		expectedTags := []string{
-			"tracer_service_name:test-service",
-			"tracer_service_env:test-env",
-			"tracer_service_version:1.0.0",
-			"custom.tag:value",
-		}
+		assert.Equal(t, "test-service", tmeta.ServiceName, "ServiceName mismatch")
+		assert.Equal(t, "test-env", tmeta.ServiceEnv, "ServiceEnv mismatch")
+		assert.Equal(t, "1.0.0", tmeta.ServiceVersion, "ServiceVersion mismatch")
+		assert.Contains(t, tmeta.ProcessTags, "custom.tag:value", "ProcessTags should contain custom.tag")
+	})
 
-		require.ElementsMatch(t, tracerTags, expectedTags, "TracerTags")
+	test.RunMultiMode(t, "validate-threadlocal-attribute-keys", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
+		consumer.eventReceived.Store(false)
+		consumer.capturedPid.Store(0)
+		consumer.capturedFd.Store(0)
+
+		cmdExec := cmd(syscallTester, []string{"tracer-memfd-with-keys"}, nil)
+		_ = cmdExec.Run()
+
+		require.Eventually(t, consumer.eventReceived.Load, 2*time.Second, 200*time.Millisecond, "tracer-memfd event should be received")
+
+		consumer.capturedMutex.Lock()
+		tmeta := consumer.capturedMetadata
+		consumer.capturedMutex.Unlock()
+
+		require.NotEmpty(t, tmeta.ServiceName, "ServiceName should not be empty")
+		assert.Equal(t, "test-service", tmeta.ServiceName, "ServiceName mismatch")
+		assert.Equal(t, "cpp", tmeta.TracerLanguage, "TracerLanguage mismatch")
+
+		// Verify threadlocal_attribute_keys are parsed from the memfd
+		require.Len(t, tmeta.ThreadlocalAttributeKeys, 3, "should have 3 threadlocal attribute keys")
+		assert.Equal(t, "http.method", tmeta.ThreadlocalAttributeKeys[0])
+		assert.Equal(t, "http.target", tmeta.ThreadlocalAttributeKeys[1])
+		assert.Equal(t, "http.user", tmeta.ThreadlocalAttributeKeys[2])
 	})
 
 	test.RunMultiMode(t, "validate-tracer-serialization", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
@@ -198,9 +213,12 @@ func TestTracerMemfd(t *testing.T) {
 		tracerData, ok := processData["tracer"].(map[string]interface{})
 		require.True(t, ok, "tracer field should be present in serialized process, got: %v", processData)
 
-		assert.Equal(t, "test-service", tracerData["tracer_service_name"], "tracer_service_name mismatch")
-		assert.Equal(t, "test-env", tracerData["tracer_service_env"], "tracer_service_env mismatch")
-		assert.Equal(t, "1.0.0", tracerData["tracer_service_version"], "tracer_service_version mismatch")
-		assert.Equal(t, "value", tracerData["custom.tag"], "custom.tag mismatch")
+		metadataData, ok := tracerData["metadata"].(map[string]interface{})
+		require.True(t, ok, "metadata field should be present in serialized tracer, got: %v", tracerData)
+
+		assert.Equal(t, "test-service", metadataData["service_name"], "service_name mismatch")
+		assert.Equal(t, "test-env", metadataData["service_env"], "service_env mismatch")
+		assert.Equal(t, "1.0.0", metadataData["service_version"], "service_version mismatch")
+		assert.Contains(t, metadataData["process_tags"], "custom.tag:value", "process_tags should contain custom.tag:value")
 	})
 }

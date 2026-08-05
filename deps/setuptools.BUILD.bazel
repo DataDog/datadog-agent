@@ -1,0 +1,14 @@
+# Build file for the @setuptools external repository (the setuptools source tree).
+
+filegroup(
+    name = "srcs",
+    srcs = glob(["**"]),
+    visibility = ["//visibility:public"],
+)
+
+# Single-file anchor used to derive the source directory via dirname() in the genrule.
+filegroup(
+    name = "pyproject_toml",
+    srcs = ["pyproject.toml"],
+    visibility = ["//visibility:public"],
+)

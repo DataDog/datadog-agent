@@ -59,7 +59,9 @@ func runTest(
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
-	probesCfgs = slices.DeleteFunc(probesCfgs, testprogs.HasIssueTag)
+	probesCfgs = slices.DeleteFunc(probesCfgs, func(p ir.ProbeDefinition) bool {
+		return testprogs.HasIssueTag(p, cfg)
+	})
 	iro, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
 	require.Empty(t, iro.Issues)

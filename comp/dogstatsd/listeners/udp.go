@@ -144,7 +144,7 @@ func (l *UDPListener) listen() {
 			l.telemetryStore.tlmUDPPackets.Inc("ok")
 
 			udpBytes.Add(int64(n))
-			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n))
+			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n), "agent")
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packetAssembler.AddMessage(l.buffer[:n])

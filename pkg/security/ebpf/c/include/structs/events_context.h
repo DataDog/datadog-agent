@@ -22,6 +22,7 @@ struct syscall_context_t {
 struct span_context_t {
     u64 span_id;
     u64 trace_id[2];
+    u64 extra_attrs_id; // reserved for extra span attributes; 0 when none are available
 };
 
 struct process_context_t {
@@ -30,6 +31,7 @@ struct process_context_t {
     u32 netns;
     u32 mntns;
     u32 is_kworker;
+    u32 sid;
     u64 inode;
     u64 user_session_id;
 };
@@ -58,7 +60,7 @@ struct file_t {
 };
 
 struct cgroup_context_t {
-    struct path_key_t cgroup_file;
+    struct path_key_t path_key;
 };
 
 #endif

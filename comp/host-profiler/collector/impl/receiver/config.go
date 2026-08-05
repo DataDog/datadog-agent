@@ -16,7 +16,8 @@ import (
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 	ebpfconfig "go.opentelemetry.io/ebpf-profiler/collector/config"
-	"go.opentelemetry.io/ebpf-profiler/tracer/types"
+	"go.opentelemetry.io/ebpf-profiler/interpreter"
+	"go.opentelemetry.io/ebpf-profiler/interpreter/interpreterconfig"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 )
@@ -52,12 +53,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if c.CollectContext {
-		includeTracers, err := types.Parse(c.EbpfCollectorConfig.Tracers)
-		if err != nil {
-			return err
-		}
-		includeTracers.Enable(types.Labels)
-		c.EbpfCollectorConfig.Tracers = includeTracers.String()
+		c.EbpfCollectorConfig.Interpreters.Go.Labels.Disabled = false
 	}
 
 	includeEnvVars := append([]string{}, defaultEnvVars...)
@@ -83,16 +79,16 @@ func (c *Config) Validate() error {
 }
 
 // This is the default config for the profiles receiver
-func defaultConfig() component.Config {
+func defaultConfig(profilerName string) component.Config {
 	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
-	cfg.Tracers = getDefaultTracersString()
+	cfg.Interpreters = defaultInterpretersConfig()
 	// 60s batches more samples per report, improving compression and reducing upload bandwidth
 	cfg.ReporterInterval = 60 * time.Second
 	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
 
-	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig()
+	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{
 		EbpfCollectorConfig: cfg,
 		SymbolUploader:      symbolUploaderConfig,
@@ -100,14 +96,16 @@ func defaultConfig() component.Config {
 	}
 }
 
-func getDefaultTracersString() string {
-	tracers := types.AllTracers()
-
-	// Disable Go interpreter by default because we are doing Go symbolization remotely.
-	tracers.Disable(types.GoTracer)
-
-	// Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
-	tracers.Disable(types.Labels)
-
-	return tracers.String()
+func defaultInterpretersConfig() interpreterconfig.Config {
+	cfg := interpreterconfig.AllInterpreters()
+	// Disable Go symbolization by default because we do Go symbolization remotely.
+	cfg.Go.Symbolization = interpreter.BaseConfig{Disabled: true}
+	//  Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
+	cfg.Go.Labels = interpreter.BaseConfig{Disabled: true}
+	// CRuby has lots of Ruby->native->Ruby transitions which runs out of ebpf tail calls very fast
+	// and captures only a small part of the stack. This config fixes this by skipping native frames
+	// (and tail calls) for Ruby methods implemented in C. Leaf native frames are still captured.
+	// See https://github.com/open-telemetry/opentelemetry-ebpf-profiler/pull/1335
+	cfg.Ruby.SkipNativeResume = true
+	return cfg
 }

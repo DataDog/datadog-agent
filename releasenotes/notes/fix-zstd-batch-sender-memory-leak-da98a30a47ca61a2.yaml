@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a C-memory leak in the logs batch sender where ``resetBatch()`` replaced
+    the zstd ``StreamCompressor`` without closing the previous one.

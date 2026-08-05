@@ -33,6 +33,7 @@ type Check struct {
 	libraryLoader  ffi.LibraryLoader // FFI handler
 	lib            *ffi.Library      // handle of the associated shared library and pointers to its symbols
 	source         string
+	provider       string
 	initConfig     string // json string of check init config
 	instanceConfig string // json string of specific instance config
 	cancelled      bool
@@ -117,6 +118,11 @@ func (c *Check) ConfigSource() string {
 	return c.source
 }
 
+// ConfigProvider returns the name of the config provider that issued the check config
+func (c *Check) ConfigProvider() string {
+	return c.provider
+}
+
 // Loader returns the check loader
 func (c *Check) Loader() string {
 	return CheckLoaderName
@@ -138,7 +144,7 @@ func (*Check) GetWarnings() []error {
 }
 
 // Configure the shared library check from YAML data
-func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64, instanceConfig integration.Data, initConfig integration.Data, source string, provider string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instanceConfig, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}
@@ -147,13 +153,22 @@ func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64
 		return err
 	}
 
-	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
+	// See if a collection interval was specified. An explicit
+	// min_collection_interval: 0 schedules a one-shot check (interval 0).
+	if commonOptions.MinCollectionInterval == 0 {
+		var rawInst integration.RawMap
+		if err := yaml.Unmarshal(instanceConfig, &rawInst); err == nil {
+			if _, ok := rawInst["min_collection_interval"]; ok {
+				c.interval = 0
+			}
+		}
+	} else if commonOptions.MinCollectionInterval > 0 {
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
 
 	// configuration fields
 	c.source = source
+	c.provider = provider
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(instanceConfig)
 

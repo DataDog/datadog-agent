@@ -9,10 +9,13 @@ package localkubernetes
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -34,16 +37,28 @@ const (
 type ProvisionerParams struct {
 	name                string
 	agentOptions        []kubernetesagentparams.Option
+	preAgentHooks       []PreAgentHook
 	fakeintakeOptions   []fakeintake.Option
 	extraConfigParams   runner.ConfigMap
 	workloadAppFuncs    []kubeComp.WorkloadAppFunc
 	depWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
+	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
+	// Distribution of OpenTelemetry) agent DaemonSet in addition to (or instead
+	// of) the Datadog Helm chart. See StandaloneDdotDeployFunc.
+	standaloneDdotFunc StandaloneDdotDeployFunc
+	// agentOptionsSet is true once WithAgentOptions or WithoutAgent has been called
+	// explicitly. It lets KindRunFunc distinguish "caller wants the Helm agent deployed
+	// alongside a standalone DDOT agent" from "agentOptions is just its non-nil zero value".
+	agentOptionsSet bool
+	workerNodes     []kubeComp.KindWorkerNode
+	imagesToLoad    []string
 }
 
 func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
 		name:              defaultVMName,
 		agentOptions:      []kubernetesagentparams.Option{},
+		preAgentHooks:     []PreAgentHook{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
 	}
@@ -51,6 +66,17 @@ func newProvisionerParams() *ProvisionerParams {
 
 // ProvisionerOption is a function that modifies the ProvisionerParams
 type ProvisionerOption func(*ProvisionerParams) error
+
+// PreAgentHook is executed after the Kubernetes provider is ready but before the agent is installed.
+// It is called during the Pulumi program registration phase to register additional resources
+// (e.g. RBAC bindings) that must be created before the agent is deployed.
+type PreAgentHook func(e config.Env, kubeProvider *kubernetes.Provider) error
+
+// StandaloneDdotDeployFunc is a callback invoked by KindRunFunc to deploy a
+// standalone DDOT (Datadog Distribution of OpenTelemetry) agent DaemonSet
+// (e.g. otel-agent with DD_OTEL_STANDALONE=true) after the cluster and
+// fakeintake have been provisioned.
+type StandaloneDdotDeployFunc func(e config.Env, kubeProvider *kubernetes.Provider, fakeIntake *fakeintakeComp.Fakeintake) (*agent.KubernetesAgent, error)
 
 // WithName sets the name of the provisioner
 func WithName(name string) ProvisionerOption {
@@ -63,7 +89,17 @@ func WithName(name string) ProvisionerOption {
 // WithAgentOptions adds options to the agent
 func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.agentOptions = opts
+		// Ensure non-nil so calling WithAgentOptions() (with zero opts) never disables agent deployment.
+		params.agentOptions = append([]kubernetesagentparams.Option{}, opts...)
+		params.agentOptionsSet = true
+		return nil
+	}
+}
+
+// WithPreAgentHook adds a hook that runs before the agent installation.
+func WithPreAgentHook(hook PreAgentHook) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.preAgentHooks = append(params.preAgentHooks, hook)
 		return nil
 	}
 }
@@ -80,6 +116,7 @@ func WithoutFakeIntake() ProvisionerOption {
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
+		params.agentOptionsSet = true
 		return nil
 	}
 }
@@ -104,6 +141,37 @@ func WithWorkloadApp(appFunc kubeComp.WorkloadAppFunc) ProvisionerOption {
 func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.depWorkloadAppFuncs = append(params.depWorkloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
+// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources.
+// By default this replaces the Datadog Helm chart; combine with an explicit
+// WithAgentOptions call to deploy both side by side (e.g. to test that a standalone
+// otel-agent doesn't conflict with a co-located core Agent).
+func WithStandaloneOTelAgent(fn StandaloneDdotDeployFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.standaloneDdotFunc = fn
+		return nil
+	}
+}
+
+// WithKindWorkerNodes sets the worker nodes for the kind cluster.
+func WithKindWorkerNodes(nodes ...kubeComp.KindWorkerNode) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.workerNodes = nodes
+		return nil
+	}
+}
+
+// WithKindLoadImage pre-loads a Docker image into the kind cluster before the agent is deployed.
+// This is required when using locally-built images that are not available in any registry;
+// pair it with imagePullPolicy: Never in Helm values.
+// The image must be present in the local Docker daemon before running the test.
+func WithKindLoadImage(image string) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.imagesToLoad = append(params.imagesToLoad, image)
 		return nil
 	}
 }
@@ -135,7 +203,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, params.name, localEnv.KubernetesVersion())
+	kindCluster, err := kubeComp.NewLocalKindClusterWithConfig(&localEnv, params.name, localEnv.KubernetesVersion(), kubeComp.KindConfigFlags{
+		WorkerNodes: params.workerNodes,
+	})
 	if err != nil {
 		return err
 	}
@@ -153,8 +223,51 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
+	// Execute pre-agent hooks to allow callers to register additional Pulumi resources
+	// (e.g. RBAC bindings) that must exist before the agent is installed.
+	for _, hook := range params.preAgentHooks {
+		if err := hook(&localEnv, kubeProvider); err != nil {
+			return err
+		}
+	}
+
+	// Load images into kind cluster before agent deployment.
+	// Creates a Pulumi local.Command resource for each image that depends on the cluster being up.
+	// The agent deployment will depend on these commands to ensure images are loaded first.
+	var imageLoadOptions []kubernetesagentparams.Option
+	if len(params.imagesToLoad) > 0 {
+		localRunner := command.NewLocalRunner(&localEnv, command.LocalRunnerArgs{
+			OSCommand: command.NewUnixOSCommand(),
+		})
+		var imageLoadDeps []pulumi.Resource
+		for i, img := range params.imagesToLoad {
+			img := img // capture for closure
+			loadCmd, loadErr := localRunner.Command(
+				fmt.Sprintf("kind-load-image-%d", i),
+				&command.Args{
+					Create: kindCluster.ClusterName.ApplyT(func(name string) string {
+						return fmt.Sprintf("kind load docker-image %s --name %s", img, name)
+					}).(pulumi.StringOutput),
+					// Trigger re-run when the cluster is recreated. KubeConfig changes on
+					// every new cluster (new TLS certs), so this ensures the image is
+					// reloaded into the replacement cluster even when the cluster name and
+					// image haven't changed.
+					Triggers: pulumi.Array{kindCluster.KubeConfig},
+				},
+				utils.PulumiDependsOn(kindCluster),
+			)
+			if loadErr != nil {
+				return loadErr
+			}
+			imageLoadDeps = append(imageLoadDeps, loadCmd)
+		}
+		imageLoadOptions = append(imageLoadOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(imageLoadDeps...)))
+	}
+
+	var fakeIntake *fakeintakeComp.Fakeintake
+
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
+		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
 		if err != nil {
 			return err
 		}
@@ -171,7 +284,15 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
-	if params.agentOptions != nil {
+	// deployHelmAgent decides whether the Datadog Helm chart is installed. It's always
+	// installed when the caller didn't request a standalone DDOT agent (preserving the
+	// pre-existing default). When a standalone DDOT agent is requested, the Helm chart is
+	// only installed on top of it if the caller explicitly opted in via WithAgentOptions
+	// (or WithoutAgent) - otherwise standaloneDdotFunc alone continues to mean
+	// "standalone DDOT agent only", matching prior behavior.
+	deployHelmAgent := params.agentOptions != nil && (params.standaloneDdotFunc == nil || params.agentOptionsSet)
+
+	if deployHelmAgent {
 		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(`
 datadog:
@@ -184,6 +305,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
+		params.agentOptions = append(params.agentOptions, imageLoadOptions...)
 		agent, err := helm.NewKubernetesAgent(&localEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
@@ -199,8 +321,21 @@ agents:
 				return err
 			}
 		}
-	} else {
+	} else if params.standaloneDdotFunc == nil {
 		env.Agent = nil
+	}
+
+	// The standalone DDOT agent is deployed after (and, when both are present, exported
+	// after) the Helm agent so env.Agent resolves to the standalone DDOT agent - mirroring
+	// scenarios/aws/kindvm/run.go's ordering for the AWS KinD scenario.
+	if params.standaloneDdotFunc != nil {
+		standaloneDdot, err := params.standaloneDdotFunc(&localEnv, kubeProvider, fakeIntake)
+		if err != nil {
+			return err
+		}
+		if err := standaloneDdot.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+			return err
+		}
 	}
 
 	for _, appFunc := range params.workloadAppFuncs {

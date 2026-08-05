@@ -14,7 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
@@ -26,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
@@ -54,6 +55,7 @@ type factory struct {
 	mclientwrapper *metricsclient.StatsdClientWrapper
 	gatewayUsage   otel.GatewayUsage
 	store          serializerexporter.TelemetryStore
+	coreCfg        coreconfig.Component
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -80,6 +82,7 @@ func newFactoryWithRegistry(
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
 	store serializerexporter.TelemetryStore,
+	coreCfg coreconfig.Component,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -90,6 +93,7 @@ func newFactoryWithRegistry(
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
 		store:          store,
+		coreCfg:        coreCfg,
 	}
 
 	return exporter.NewFactory(
@@ -110,8 +114,9 @@ func NewFactory(
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
 	store serializerexporter.TelemetryStore,
+	coreCfg coreconfig.Component,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store, coreCfg)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -216,22 +221,12 @@ func (f *factory) createMetricsExporter(
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 
 	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
-	ex := &serializerexporter.ExporterConfig{
-		Metrics: serializerexporter.MetricsConfig{
-			Metrics: cfg.Metrics,
-		},
-		TimeoutConfig: exporterhelper.TimeoutConfig{
-			Timeout: cfg.Timeout,
-		},
-		HostMetadata:     cfg.HostMetadata,
-		QueueBatchConfig: cfg.QueueSettings,
-		ShutdownFunc: func(context.Context) error {
-			cancel()  // first cancel context
-			wg.Wait() // then wait for shutdown
-			close(statsIn)
-			return nil
-		},
-	}
+	ex := buildMetricsExporterConfig(cfg, func(context.Context) error {
+		cancel()  // first cancel context
+		wg.Wait() // then wait for shutdown
+		close(statsIn)
+		return nil
+	})
 	return sf.CreateMetrics(ctx, set, ex)
 }
 
@@ -266,6 +261,71 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 	}
 }
 
+// buildMetricsExporterConfig translates a datadogconfig.Config into the
+// serializerexporter.ExporterConfig used to drive metrics export. Extracted
+// as a pure function so it can be unit-tested independently of the factory.
+func buildMetricsExporterConfig(cfg *datadogconfig.Config, shutdownFunc component.ShutdownFunc) *serializerexporter.ExporterConfig {
+	// Carry user-configured HTTP settings (proxy, TLS, headers, timeout …)
+	// into the serializer exporter. Apply a 20 s default when the user hasn't
+	// set an explicit timeout so the HTTP client stays bounded even without
+	// context propagation inside OTelSyncForwarder.
+	httpCfg := cfg.ClientConfig
+	if httpCfg.Timeout == 0 {
+		httpCfg.Timeout = 20 * time.Second
+	}
+	return &serializerexporter.ExporterConfig{
+		Metrics:       serializerexporter.MetricsConfig{Metrics: cfg.Metrics},
+		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: httpCfg.Timeout},
+		HTTPConfig:    httpCfg,
+		// Start from the legacy forwarder retry budget (2-64s / 15 min) so DDOT
+		// retries for as long as the async forwarder used to. Fields that differ
+		// from the OTel default are treated as explicit user overrides and take
+		// precedence; fields equal to the OTel default are assumed unconfigured.
+		RetryConfig: mergeRetryConfig(serializerexporter.DefaultAgentRetryConfig(), cfg.BackOffConfig),
+		// API carries the key and site so that when UseSyncForwarder is enabled
+		// the DDOT path can create its own serializer/forwarder rather than reusing
+		// the agent's shared serializer (which has an async forwarder).
+		API:              cfg.API,
+		HostMetadata:     cfg.HostMetadata,
+		QueueBatchConfig: cfg.QueueSettings,
+		ShutdownFunc:     shutdownFunc,
+	}
+}
+
+// mergeRetryConfig blends user-provided OTel retry settings onto legacy agent
+// defaults. Fields equal to the OTel defaults are treated as "not explicitly
+// configured" and the agent default is preserved; fields that differ from the
+// OTel default are treated as explicit user overrides.
+func mergeRetryConfig(base configretry.BackOffConfig, user configretry.BackOffConfig) configretry.BackOffConfig {
+	otel := configretry.NewDefaultBackOffConfig()
+	if user.Enabled != otel.Enabled {
+		base.Enabled = user.Enabled
+	}
+	if user.InitialInterval != otel.InitialInterval {
+		base.InitialInterval = user.InitialInterval
+	}
+	if user.RandomizationFactor != otel.RandomizationFactor {
+		base.RandomizationFactor = user.RandomizationFactor
+	}
+	if user.Multiplier != otel.Multiplier {
+		base.Multiplier = user.Multiplier
+	}
+	if user.MaxInterval != otel.MaxInterval {
+		base.MaxInterval = user.MaxInterval
+	}
+	if user.MaxElapsedTime != otel.MaxElapsedTime {
+		base.MaxElapsedTime = user.MaxElapsedTime
+	}
+	return base
+}
+
+// orchestratorForwardingEnabled reports whether k8s object logs should be routed
+// to the orchestrator intake (only in standalone mode), and whether an enabled
+// orchestrator_explorer is being ignored (connected mode) and should be warned about.
+func orchestratorForwardingEnabled(standalone, orchestratorExplorerEnabled bool) (enabled, warnIgnored bool) {
+	return standalone && orchestratorExplorerEnabled, orchestratorExplorerEnabled && !standalone
+}
+
 // createLogsExporter creates a logs exporter based on the config.
 func (f *factory) createLogsExporter(
 	ctx context.Context,
@@ -291,11 +351,38 @@ func (f *factory) createLogsExporter(
 	}
 
 	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
+
+	// Orchestrator Explorer (Kubernetes Resources) collection via the
+	// k8sobjectsreceiver is only enabled in standalone mode. In connected mode
+	// the core/cluster agent already collects and ships orchestrator data, so
+	// enabling it here as well would duplicate manifests.
+	standalone := f.coreCfg != nil && f.coreCfg.GetBool("otel_standalone")
+	orchestratorEnabled, warnIgnored := orchestratorForwardingEnabled(standalone, cfg.OrchestratorExplorer.Enabled)
+	if warnIgnored {
+		set.Logger.Warn("orchestrator_explorer is enabled on the datadog exporter but will be ignored: it is only supported in standalone mode (DD_OTEL_STANDALONE=true); in connected mode the Datadog cluster agent collects orchestrator data")
+	}
+	if orchestratorEnabled && f.h == nil {
+		set.Logger.Warn("orchestrator_explorer is enabled but no hostname source provider is available; Kubernetes object forwarding will be disabled")
+		orchestratorEnabled = false
+	}
+
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
 		QueueSettings: cfg.QueueSettings,
 		HostMetadata:  cfg.HostMetadata,
+		// OrchestratorConfig routes logs from the k8sobjectsreceiver to the
+		// orchestrator intake (Orchestrator Explorer / Kubernetes Resources).
+		// It only takes effect when orchestrator_explorer.enabled is set, the
+		// otel-agent runs standalone, AND a k8sobjects receiver feeds this
+		// exporter's logs pipeline.
+		OrchestratorConfig: logsagentexporter.OrchestratorConfig{
+			Hostname: newHostnameService(f.h),
+			Key:      string(cfg.API.Key),
+			Site:     cfg.API.Site,
+			Endpoint: cfg.OrchestratorExplorer.Endpoint,
+			Enabled:  orchestratorEnabled,
+		},
 	}
 	return lf.CreateLogs(ctx, set, lc)
 }

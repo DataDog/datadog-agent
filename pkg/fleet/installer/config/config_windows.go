@@ -111,7 +111,12 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	// Skip copying deployment ID during rollback - we want to preserve stable's deployment ID
 	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
 	if err != nil {
-		return fmt.Errorf("error backing up stable directory: %w", err)
+		return fmt.Errorf("error restoring stable directory: %w", err)
+	}
+	// robocopy does not carry ACLs, so re-grant Everyone read on application_monitoring.yaml
+	// (the only world-readable config file) after restoring the stable directory.
+	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
+		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
 	}
 	err = os.RemoveAll(d.ExperimentPath)
 	if err != nil {
@@ -140,6 +145,9 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("failed to open target directory: %w", err)
 	}
 
+	// robocopy exit codes 1-7 indicate successful copies with various informational statuses.
+	// Only codes >=8 indicate copy errors.
+	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/return-codes-used-robocopy-utility
 	cmd := telemetry.CommandContext(
 		ctx,
 		"robocopy",
@@ -148,7 +156,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		sourcePath,
 		targetPath,
 		"*.yaml",
-	)
+	).WithExpectedExitCodes(1, 2, 3, 4, 5, 6, 7)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -176,8 +184,32 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 	return paths.SecureCreateDirectory(targetPath, sddl)
 }
 
-// setFileOwnershipAndPermissions is a no-op on Windows as file ownership and permissions
-// are handled differently through ACLs, not POSIX ownership and modes.
-func setFileOwnershipAndPermissions(_ context.Context, _ *os.Root, _ string, _ *configFileSpec) error {
-	return nil
+// setFileOwnershipAndPermissions sets ACLs for a config file based on its configFileSpec.
+//
+// Windows has no POSIX ownership; ACLs are inherited from C:\ProgramData\Datadog, which is
+// restricted to Administrators and ddagentuser. For files Linux makes world-readable
+// (mode 0644 — only application_monitoring.yaml), we grant Everyone read so non-admin
+// identities (e.g. IIS App Pool) can read fleet config. Restricted files (mode 0640) keep the
+// inherited admin/ddagentuser-only ACL — we only ever grant, never modify other files' ACLs.
+func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path string, spec *configFileSpec) error {
+	if spec.mode&0o004 == 0 {
+		return nil
+	}
+	return paths.SetFileReadableByEveryone(filepath.Join(root.Name(), path))
+}
+
+// grantApplicationMonitoringReadAccess re-grants Everyone read on application_monitoring.yaml
+// under stablePath, if it exists. application_monitoring.yaml is the only world-readable config
+// file, and robocopy (used to restore the stable directory during a rollback) does not carry
+// ACLs, so the ACE must be reapplied afterward.
+func grantApplicationMonitoringReadAccess(stablePath string) error {
+	appMonitoringPath := filepath.Join(stablePath, "application_monitoring.yaml")
+	_, err := os.Stat(appMonitoringPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("error checking application_monitoring.yaml: %w", err)
+	}
+	return paths.SetFileReadableByEveryone(appMonitoringPath)
 }

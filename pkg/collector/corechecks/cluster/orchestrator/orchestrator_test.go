@@ -81,10 +81,10 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var scheme = kscheme.Scheme
 
 	client := fake.NewSimpleClientset()
-	vpaClient := vpa.NewSimpleClientset()
+	vpaClient := vpa.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 	crdClient := crd.NewSimpleClientset()
 	crClient := cr.NewSimpleDynamicClient(scheme)
-	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient, DynamicInformerCl: crClient}
+	cl := &apiserver.APIClient{Cl: client, InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient, DynamicInformerCl: crClient}
 
 	cfg := mockconfig.New(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -95,8 +95,8 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
-	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
@@ -160,13 +160,13 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	t.Run("with no tags", func(t *testing.T) {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 
-		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 		assert.Empty(t, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
@@ -175,7 +175,7 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		fakeTagger.SetGlobalTags([]string{"tag1:value1", "tag2:value2"}, nil, nil, nil)
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 
-		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 		assert.ElementsMatch(t, []string{"tag1:value1", "tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
@@ -192,7 +192,7 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		err = instanceConfigData.MergeAdditionalTags([]string{"instance_tag1:value1", "instance_tag2:value2"})
 		assert.NoError(t, err)
 
-		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, instanceConfigData, "test")
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, instanceConfigData, "test", "provider")
 		assert.ElementsMatch(t, []string{"init_tag1:value1", "init_tag2:value2", "instance_tag1:value1", "instance_tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
@@ -204,13 +204,14 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	setupMockAPIClient := func(orchCheck *OrchestratorCheck) {
 		client := fake.NewSimpleClientset()
-		vpaClient := vpa.NewSimpleClientset()
+		vpaClient := vpa.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 		crdClient := crd.NewSimpleClientset()
 		orchCheck.apiClient = &apiserver.APIClient{
+			Cl:                client,
 			InformerCl:        client,
 			VPAInformerClient: vpaClient,
 			CRDInformerClient: crdClient,
@@ -224,8 +225,8 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		// Reset cluster name before each test
 		clustername.ResetClusterName()
 		// Set configuration in global Datadog config
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "test-cluster")
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("cluster_name", "test-cluster")
 		// Set cluster ID environment variable to avoid cluster agent calls
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 	}
@@ -233,14 +234,14 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 	t.Run("failure when orchestrator collection is disabled", func(t *testing.T) {
 		env.SetFeatures(t, env.Kubernetes)
 		clustername.ResetClusterName()
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", false)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", false)
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 		setupMockAPIClient(orchCheck)
 
-		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "orchestrator check is configured but the feature is disabled")
 	})
@@ -248,7 +249,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 	t.Run("failure when cluster name is empty", func(t *testing.T) {
 		env.SetFeatures(t, env.Kubernetes)
 		clustername.ResetClusterName()
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", true)
 		// Don't set cluster_name to test empty cluster name scenario
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
@@ -256,7 +257,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 		setupMockAPIClient(orchCheck)
 
-		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		err := orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "orchestrator check is configured but the cluster name is empty")
 	})
@@ -312,13 +313,13 @@ extra_sync_timeout_seconds: 30
 		clustername.ResetClusterName()
 
 		// Set custom configuration values
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "custom-cluster")
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.max_per_message", 75)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.max_message_bytes", 30000000)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.collector_discovery.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.container_scrubbing.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("cluster_name", "custom-cluster")
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.max_per_message", 75)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.max_message_bytes", 30000000)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.collector_discovery.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.container_scrubbing.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.manifest_collection.enabled", true)
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -374,7 +375,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		}
 
 		// Leader election is not enabled
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.False(t, isLeader)
@@ -393,7 +394,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		}
 
 		// Leader election is not enabled
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.False(t, isLeader)
@@ -409,7 +410,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		orchCheck.instance = &OrchestratorInstance{}
 
 		// Explicitly disable leader election
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.False(t, isLeader)
@@ -427,7 +428,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		}
 
 		// Even if leader election is disabled, should still return true
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.True(t, isLeader)

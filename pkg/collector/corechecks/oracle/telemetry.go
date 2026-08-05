@@ -8,18 +8,18 @@
 package oracle
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 // These collectors gather telemetry data for cross-org analysis
 // They are not expected to appear in the originiating org's metrics
 var (
 	// TlmOracleActivityLatency is the time for the activity gathering to complete
-	TlmOracleActivityLatency = telemetry.NewHistogram("oracle", "activity_latency", nil, "Histogram of activity query latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
+	TlmOracleActivityLatency = telemetryimpl.GetCompatComponent().NewHistogram("oracle", "activity_latency", nil, "Histogram of activity query latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// TlmOracleActivitySamplesCount is the number of activity samples collected
-	TlmOracleActivitySamplesCount = telemetry.NewGauge("oracle", "activity_samples_count", nil, "Number of activity samples collected")
+	TlmOracleActivitySamplesCount = telemetryimpl.GetCompatComponent().NewGauge("oracle", "activity_samples_count", nil, "Number of activity samples collected")
 	// TlmOracleStatementMetricsLatency is the time for the statement metrics gathering to complete
-	TlmOracleStatementMetricsLatency = telemetry.NewHistogram("oracle", "statement_metrics", nil, "Histogram of statement metrics latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
+	TlmOracleStatementMetricsLatency = telemetryimpl.GetCompatComponent().NewHistogram("oracle", "statement_metrics", nil, "Histogram of statement metrics latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// TlmOracleStatementMetricsErrorCount is the number of statement plan errors
-	TlmOracleStatementMetricsErrorCount = telemetry.NewGauge("oracle", "statement_plan_errors", nil, "Number of statement plan errors")
+	TlmOracleStatementMetricsErrorCount = telemetryimpl.GetCompatComponent().NewGauge("oracle", "statement_plan_errors", nil, "Number of statement plan errors")
 )

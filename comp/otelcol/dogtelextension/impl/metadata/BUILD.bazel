@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metadata",
+    srcs = ["metadata.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metadata",
+    visibility = ["//visibility:public"],
+    deps = ["@io_opentelemetry_go_collector_component//:component"],
+)

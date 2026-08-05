@@ -303,6 +303,12 @@ func TestDeviceCacheRefresh_Concurrent(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 	cache := NewDeviceCache()
 	require.NotNil(t, cache)
+	// Pre-initialize the cache so the reader goroutine's Count() never triggers
+	// ensureInit() → Refresh(). Without this, the reader's first Refresh() can
+	// observe an inconsistent device count: DeviceGetCount() and
+	// DeviceGetHandleByIndex() each read numDevicesAvailable independently, and
+	// the updater's Store() can land between those reads.
+	require.NoError(t, cache.Refresh())
 
 	// launch two workers, one refreshing the cache and one reading from it
 	var wg sync.WaitGroup

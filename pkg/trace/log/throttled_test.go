@@ -9,17 +9,14 @@ import (
 	"bytes"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestThrottled(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
-	t.Run("basic", func(t *testing.T) {
+	basic := func(t *testing.T) {
 		l := NewThrottled(2, 10*time.Millisecond)
 		var out bytes.Buffer
 		logFunc := func(format string, params ...interface{}) {
@@ -33,9 +30,9 @@ func TestThrottled(t *testing.T) {
 			l.log(logFunc, "%d\n", i)
 		}
 		assert.Equal(t, "0\n1\nToo many similar messages, pausing up to 10ms...10\n11\nToo many similar messages, pausing up to 10ms...", out.String())
-	})
+	}
 
-	t.Run("resets", func(t *testing.T) {
+	resets := func(t *testing.T) {
 		l := NewThrottled(2, 10*time.Millisecond)
 		var out bytes.Buffer
 		logFunc := func(format string, params ...interface{}) {
@@ -50,9 +47,9 @@ func TestThrottled(t *testing.T) {
 		l.log(logFunc, "5\n")
 		l.log(logFunc, "6\n")
 		assert.Equal(t, "1\n2\n3\n4\n5\nToo many similar messages, pausing up to 10ms...", out.String())
-	})
+	}
 
-	t.Run("io.Writer", func(t *testing.T) {
+	ioWriter := func(t *testing.T) {
 		var out bytes.Buffer
 		SetLogger(NewBufferLogger(&out))
 		l := NewThrottled(2, 10*time.Millisecond)
@@ -69,5 +66,9 @@ func TestThrottled(t *testing.T) {
 		l.Write([]byte("9\n"))
 		logger.Flush()
 		assert.Equal(t, "[ERROR] 1\n[ERROR] 2\n[ERROR] 3\n[ERROR] 4\n[ERROR] 5\n[ERROR] Too many similar messages, pausing up to 10ms...", out.String())
-	})
+	}
+
+	t.Run("basic", func(t *testing.T) { synctest.Test(t, basic) })
+	t.Run("resets", func(t *testing.T) { synctest.Test(t, resets) })
+	t.Run("io.Writer", func(t *testing.T) { synctest.Test(t, ioWriter) })
 }

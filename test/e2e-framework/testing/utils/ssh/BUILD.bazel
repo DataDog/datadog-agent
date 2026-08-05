@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ssh",
+    srcs = ["ssh.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/ssh",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_x_crypto//ssh",
+        "@org_golang_x_crypto//ssh/agent",
+    ],
+)

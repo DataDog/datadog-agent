@@ -55,6 +55,7 @@ type SecurityModuleCmdClientWrapper interface {
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
+	GetLoadedPolicies(includeBundled bool) (*api.GetLoadedPoliciesMessage, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
@@ -145,6 +146,15 @@ func (c *RuntimeSecurityCmdClient) ReloadPolicies() (*api.ReloadPoliciesResultMe
 // GetRuleSetReport gets the currently ruleset loaded status
 func (c *RuntimeSecurityCmdClient) GetRuleSetReport() (*api.GetRuleSetReportMessage, error) {
 	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// GetLoadedPolicies returns the currently loaded policies as JSON
+func (c *RuntimeSecurityCmdClient) GetLoadedPolicies(includeBundled bool) (*api.GetLoadedPoliciesMessage, error) {
+	response, err := c.apiClient.GetLoadedPolicies(context.Background(), &api.GetLoadedPoliciesParams{IncludeBundled: includeBundled})
 	if err != nil {
 		return nil, err
 	}
@@ -265,13 +275,13 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 			return nil, err
 		}
 
-		cmdPort, parseErr := strconv.Atoi(sPort)
+		cmdPort, parseErr := strconv.ParseUint(sPort, 10, 16)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid vsock socket path '%s'", socketPath)
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%s' for vsock", socketPath)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		cid := uint32(vsock.Host)

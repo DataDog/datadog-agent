@@ -6,6 +6,8 @@
 package compute
 
 import (
+	"maps"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -16,6 +18,7 @@ type vmArgs struct {
 	instanceType string
 	imageName    string
 	nestedVirt   bool
+	labels       map[string]string
 }
 
 type VMOption = func(*vmArgs) error
@@ -57,6 +60,15 @@ func WithOSArch(osDesc os.Descriptor, arch os.Architecture) VMOption {
 func WithNestedVirt(enabled bool) VMOption {
 	return func(p *vmArgs) error {
 		p.nestedVirt = enabled
+		return nil
+	}
+}
+
+// WithLabels adds labels to the VM
+// This is usefull to identify the VM later
+func WithLabels(labels map[string]string) VMOption {
+	return func(p *vmArgs) error {
+		p.labels = maps.Clone(labels)
 		return nil
 	}
 }

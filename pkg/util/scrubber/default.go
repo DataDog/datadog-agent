@@ -7,6 +7,7 @@ package scrubber
 
 import (
 	"fmt"
+	"math/bits"
 	"regexp"
 	"slices"
 	"strings"
@@ -60,6 +61,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`$1************************************$2`),
 
 		LastUpdated: defaultVersion,
+	}
+	prefixedAPPKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9_]{30}([a-zA-Z0-9_]{4})`),
+		Hints: []string{"ddapp_"},
+		Repl:  []byte(`************************************$1`),
+
+		LastUpdated: parseVersion("7.78.5"),
 	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
@@ -119,6 +127,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
+		Hints: []string{"@"}, // regex cannot match without it, so skipping spares a backtracking scan
 		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:\s]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 
@@ -145,18 +154,25 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.73.1"),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
-		`token`,
-		[]string{"token"},
+		`_?(token|jwt)`,
+		[]string{"token", "jwt"},
 		[]byte(`$1 "********"`),
 	)
-	tokenReplacer.LastUpdated = parseVersion("7.70.2")
+	tokenReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
 
-	secretReplacer := matchYAMLKey(
-		`(token_secret|consumer_secret)`,
-		[]string{"token_secret", "consumer_secret"},
+	secretReplacer := matchYAMLKeyEnding(
+		`_secret(_id)?`,
+		[]string{"secret", "secret_id"},
 		[]byte(`$1 "********"`),
 	)
-	secretReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
+	secretReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
+
+	accessKeyReplacer := matchYAMLKeyEnding(
+		`access_key`,
+		[]string{"access_key"},
+		[]byte(`$1 "********"`),
+	)
+	accessKeyReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
 
 	// OAuth credentials scrubbers for continuous_ai_netsuite and similar integrations
 	consumerKeyAndTokenIDReplacer := matchYAMLKey(
@@ -201,9 +217,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
-				if len(apiKey) == 32 {
-					return HideKeyExceptLastFourChars(apiKey)
-				}
+				return HideKeyExceptLastChars(apiKey)
 			}
 			return defaultReplacement
 		},
@@ -218,14 +232,45 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if appKey == "" {
 					return ""
 				}
-				if len(appKey) == 40 {
-					return HideKeyExceptLastFourChars(appKey)
-				}
+				return HideKeyExceptLastChars(appKey)
 			}
 			return defaultReplacement
 		},
 	)
 	appKeyYaml.LastUpdated = parseVersion("7.44.0") // https://github.com/DataDog/datadog-agent/pull/15707
+
+	// additional_endpoints has two schemas in the codebase:
+	//
+	//   Format A: map[string][]string keyed by endpoint URL
+	//     - Top-level  `additional_endpoints`, `process_config.additional_endpoints`, etc.
+	//     - Sub-values are endpoint URLs
+	//     - Each URL maps to an array of API keys
+	//
+	//   Format B: []map[string]interface{} a list of structured endpoints with well-defined fields
+	//     - Fields include `api_key` which should be scrubbed, and `host`, `port`, etc. which shouldn't
+	//     - Used by `logs_config.additional_endpoints`
+	//
+	// For A we scrub all leaf nodes aggressively. For B we re-enter the scrubber on the subtree so
+	// the existing key-based replacers (apiKeyYaml, passwordReplacer, ...) handle the sensitive
+	// fields (just api_key right now, maybe more in the future) while preserving host / port / etc.
+	//
+	// (We have to manually recurse in the case of Format B because otherwise matching the top-level
+	//  additional-endpoints key would cause the YAML parser to skip all subnodes).
+	additionalEndpointsYaml := Replacer{
+		YAMLKeyRegex: regexp.MustCompile(`^additional_endpoints$`),
+		ProcessValue: func(data any) any {
+			switch data.(type) {
+			case map[string]interface{}, map[interface{}]interface{}:
+				return scrubAllLeafValues(data)
+			case []interface{}:
+				wrapped := data
+				scrubber.ScrubDataObj(&wrapped)
+				return wrapped
+			}
+			return data
+		},
+		LastUpdated: parseVersion("7.78.5"),
+	}
 
 	// HTTP header-style API keys with "key" suffix
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
@@ -265,8 +310,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Exact key matches for specific API keys and auth tokens
 	exactKeyReplacer := matchYAMLKey(
-		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
-		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
+		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|dd-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
+		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "dd-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
 		[]byte(`$1 "********"`),
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
@@ -281,6 +326,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
@@ -300,10 +346,12 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, consumerKeyAndTokenIDReplacer)
 	scrubber.AddReplacer(SingleLine, secretReplacer)
+	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
+	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
@@ -320,7 +368,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:).+`, part)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:)\s+.+`, part)),
 		YAMLKeyRegex: regexp.MustCompile(part),
 		Hints:        hints,
 		Repl:         repl,
@@ -329,7 +377,7 @@ func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:)\s+.+`, key)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s$`, key)),
 		Hints:        hints,
 		Repl:         repl,
@@ -338,7 +386,7 @@ func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:).+`, ending)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:)\s+.+`, ending)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^.*%s$`, ending)),
 		Hints:        hints,
 		Repl:         repl,
@@ -347,7 +395,7 @@ func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:).+`, prefix, suffix)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:)\s+.+`, prefix, suffix)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
 		Hints:        hints,
 		Repl:         repl,
@@ -471,14 +519,75 @@ func ScrubDataObj(data *interface{}) {
 	DefaultScrubber.ScrubDataObj(data)
 }
 
-// HideKeyExceptLastFourChars replaces all characters in the key with "*", except
-// for the last 4 characters. If the key is an unrecognized length, replace
-// all of it with the default string of "*"s instead.
-func HideKeyExceptLastFourChars(key string) string {
-	if len(key) != 32 && len(key) != 40 {
+// scrubAllLeafValues recursively walks data and replaces every leaf value with
+// defaultReplacement while preserving the surrounding map and slice structure.
+// Nil values are preserved so YAML round-trips don't materialize "********" in
+// place of an absent value. ENC[] secret-backend placeholders are also preserved
+// so they remain useful in flare output.
+func scrubAllLeafValues(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		for k, vv := range v {
+			v[k] = scrubAllLeafValues(vv)
+		}
+		return v
+	case map[interface{}]interface{}:
+		for k, vv := range v {
+			v[k] = scrubAllLeafValues(vv)
+		}
+		return v
+	case []interface{}:
+		for i, vv := range v {
+			v[i] = scrubAllLeafValues(vv)
+		}
+		return v
+	case nil:
+		return nil
+	case string:
+		// Preserve ENC[] secret-backend placeholders, matching ScrubDataObj's
+		// handling of ENC values elsewhere so flares keep useful diagnostics.
+		if IsEnc(v) {
+			return v
+		}
+		return defaultReplacement
+	default:
 		return defaultReplacement
 	}
-	return strings.Repeat("*", len(key)-4) + key[len(key)-4:]
+}
+
+// HideKeyExceptLastChars replaces all characters in the key with "*", except
+// for the last N characters, where N scales logarithmically with key length:
+//   - ≤ 4 chars: fully replaced with defaultReplacement
+//   - 5–7 chars: show last 1 char
+//   - 8–15 chars: show last 2 chars
+//   - 16–31 chars: show last 3 chars
+//   - 32+ chars: show last 4 chars
+//
+// This avoids exposing a disproportionate share of shorter keys (e.g. 8–10 char
+// third-party keys) while preserving enough suffix for identification on longer ones.
+func HideKeyExceptLastChars(key string) string {
+	n := visibleKeyChars(len(key))
+	if n == 0 {
+		return defaultReplacement
+	}
+	return strings.Repeat("*", len(key)-n) + key[len(key)-n:]
+}
+
+// visibleKeyChars returns how many trailing characters of a key of the given
+// length should remain visible, clamped to [1, 4].
+func visibleKeyChars(keyLen int) int {
+	if keyLen <= 4 {
+		return 0
+	}
+	// bits.Len(n) == floor(log2(n)) + 1 for n > 0
+	n := bits.Len(uint(keyLen)) - 2
+	if n < 1 {
+		return 1
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies

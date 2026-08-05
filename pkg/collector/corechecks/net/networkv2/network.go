@@ -112,7 +112,17 @@ type connectionStateEntry struct {
 }
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
-	return net.IOCounters(pernic)
+	// Use explicit path so that in containerized environments we read from the host
+	// namespace (e.g. /host/proc/1/net/dev) instead of the container's /host/proc/net/dev
+	// which is a symlink to self and resolves to the container namespace (AGENT-15840).
+	netDevPath := filepath.Join(n.GetNetProcBasePath(), "net/dev")
+	stats, err := net.IOCountersByFile(pernic, netDevPath)
+	if err != nil {
+		// Fallback to default when path is missing (e.g. tests with mocked proc, or non-standard setup)
+		log.Debugf("network check: IOCountersByFile(%s) failed, falling back to net.IOCounters: %v", netDevPath, err)
+		return net.IOCounters(pernic)
+	}
+	return stats, nil
 }
 
 func (n defaultNetworkStats) NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error) {
@@ -936,8 +946,8 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return err
 	}

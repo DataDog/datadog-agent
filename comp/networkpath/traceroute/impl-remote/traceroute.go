@@ -13,11 +13,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -60,9 +61,9 @@ type remoteTraceroute struct {
 }
 
 func (t *remoteTraceroute) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
-	resp, err := t.getTracerouteFromSysProbe(ctx, clientID, cfg.DestHostname, cfg.DestPort, cfg.Protocol, cfg.TCPMethod, cfg.TCPSynParisTracerouteMode, cfg.DisableWindowsDriver, cfg.ReverseDNS, cfg.MaxTTL, cfg.Timeout, cfg.TracerouteQueries, cfg.E2eQueries)
+	resp, err := t.getTracerouteFromSysProbe(ctx, clientID, cfg.DestHostname, cfg.DestPort, cfg.Protocol, cfg.TCPMethod, cfg.TCPSynParisTracerouteMode, cfg.DisableWindowsDriver, cfg.ReverseDNS, cfg.DisableSourcePublicIPCollection, cfg.MaxTTL, cfg.Timeout, cfg.TracerouteQueries, cfg.E2eQueries)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %s", err)
+		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %w", err)
 	}
 
 	var path payload.NetworkPath
@@ -86,13 +87,18 @@ var getSysProbeClient = funcs.MemoizeArgNoError(func(socket string) *http.Client
 	}
 })
 
-func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
+func isSACKNotSupportedMessage(message string) bool {
+	return strings.Contains(message, "SACK not supported for this target/source") ||
+		strings.Contains(message, "found no SACK options")
+}
+
+func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, disableSourcePublicIPCollection bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	t.log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 
-	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&disable_windows_driver=%t&reverse_dns=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, disableWindowsDriver, reverseDNS, tracerouteQueries, e2eQueries))
+	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&disable_windows_driver=%t&reverse_dns=%t&disable_source_public_ip_collection=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, disableWindowsDriver, reverseDNS, disableSourcePublicIPCollection, tracerouteQueries, e2eQueries))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -116,6 +122,26 @@ func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, client
 		if err != nil {
 			return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 		}
+
+		// Try to parse structured error response
+		var errResp payload.TracerouteErrorResponse
+		if json.Unmarshal(body, &errResp) == nil && errResp.Code != "" {
+			// Remap SACK_NOT_SUPPORTED directly, and detect SACK patterns in UNKNOWN.
+			// Compatibility: datadog-traceroute versions without a dedicated SACK_NOT_SUPPORTED
+			// code classify sack.NotSupportedError as UNKNOWN; detect it by message content.
+			if errResp.Code == payload.TracerouteErrCodeSACKNotSupported ||
+				(errResp.Code == payload.TracerouteErrCodeUnknown && isSACKNotSupportedMessage(errResp.Message)) {
+				return nil, &payload.TracerouteError{
+					Code:    payload.TracerouteErrCodeSACKNotSupported,
+					Message: "SACK is not supported for this target/source.",
+				}
+			}
+			return nil, &payload.TracerouteError{
+				Code:    errResp.Code,
+				Message: errResp.Message,
+			}
+		}
+
 		return nil, fmt.Errorf("traceroute request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
 	}
 

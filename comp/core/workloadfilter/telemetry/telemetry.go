@@ -7,7 +7,7 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 const (

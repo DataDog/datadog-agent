@@ -13,14 +13,15 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/prometheus/client_golang/prometheus"
+
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -34,8 +35,7 @@ var _ module.Module = &injectorModule{}
 
 // Injector Factory
 var Injector = &module.Factory{
-	Name:             config.InjectorModule,
-	ConfigNamespaces: []string{},
+	Name: config.InjectorModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating Windows Injector module")
 
@@ -105,6 +105,11 @@ func (m *injectorModule) GetStats() map[string]interface{} {
 		"pe_memory_allocation_failures":            m.counters.PeMemoryAllocationFailures.Get(),
 		"pe_injection_context_allocated":           m.counters.PeInjectionContextAllocated.Get(),
 		"pe_injection_context_cleanedup":           m.counters.PeInjectionContextCleanedup.Get(),
+		"crashes_during_injection":                 m.counters.CrashesDuringInjection.Get(),
+		"crashes_post_injection":                   m.counters.CrashesPostInjection.Get(),
+		"boot_recovery_crash_boots_detected":       m.counters.BootRecoveryCrashBootsDetected.Get(),
+		"boot_recovery_driver_self_disabled":       m.counters.BootRecoveryDriverSelfDisabled.Get(),
+		"boot_recovery_stability_timer_fired":      m.counters.BootRecoveryStabilityTimerFired.Get(),
 	}
 }
 
@@ -181,6 +186,28 @@ func (m *injectorModule) initializeMetrics() {
 	m.counters.PeInjectionContextCleanedup = m.telemetry.NewSimpleGauge(
 		subsystem, "pe_injection_context_cleanedup",
 		"Number of PE injection contexts cleaned up")
+
+	// v2 counters: crash / boot-recovery telemetry. Registered unconditionally;
+	// they remain 0 against V1-only drivers.
+	m.counters.CrashesDuringInjection = m.telemetry.NewSimpleGauge(
+		subsystem, "crashes_during_injection",
+		"Number of crashes observed during injection")
+
+	m.counters.CrashesPostInjection = m.telemetry.NewSimpleGauge(
+		subsystem, "crashes_post_injection",
+		"Number of crashes observed after injection")
+
+	m.counters.BootRecoveryCrashBootsDetected = m.telemetry.NewSimpleGauge(
+		subsystem, "boot_recovery_crash_boots_detected",
+		"Number of crash boots detected by boot recovery")
+
+	m.counters.BootRecoveryDriverSelfDisabled = m.telemetry.NewSimpleGauge(
+		subsystem, "boot_recovery_driver_self_disabled",
+		"Number of times the driver self-disabled via boot recovery")
+
+	m.counters.BootRecoveryStabilityTimerFired = m.telemetry.NewSimpleGauge(
+		subsystem, "boot_recovery_stability_timer_fired",
+		"Number of times the boot recovery stability timer fired")
 }
 
 // Describe implements prometheus.Collector - no-op for dynamic metrics

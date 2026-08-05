@@ -1,0 +1,14 @@
+---
+issuer: https://token.actions.githubusercontent.com
+
+subject: repo:DataDog/datadog-agent:ref:refs/heads/main
+
+claim_pattern:
+  ref: refs/heads/main
+  ref_protected: "true"
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/update-ebpf-profiler-branch\.yml@refs/heads/main
+
+permissions:
+  contents: write
+  pull_requests: write
+  members: read

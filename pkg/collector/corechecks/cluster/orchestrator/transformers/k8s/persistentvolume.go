@@ -19,6 +19,8 @@ import (
 
 // ExtractPersistentVolume returns the protobuf model corresponding to a Kubernetes
 // PersistentVolume resource.
+//
+//nolint:revive
 func ExtractPersistentVolume(ctx processors.ProcessorContext, pv *corev1.PersistentVolume) *model.PersistentVolume {
 	message := &model.PersistentVolume{
 		Metadata: extractMetadata(&pv.ObjectMeta),
@@ -83,9 +85,8 @@ func ExtractPersistentVolume(ctx processors.ProcessorContext, pv *corev1.Persist
 
 	addAdditionalPersistentVolumeTags(message)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pv.ObjectMeta.Labels)...)
-	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(pv.ObjectMeta.Labels, pv.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	message.Tags = append(message.Tags, transformers.RetrieveTeamTag(pv.ObjectMeta.Labels, pv.ObjectMeta.Annotations)...)
 
 	return message
 }

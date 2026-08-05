@@ -20,12 +20,36 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestClusterRoleHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.ClusterRole{}
+	resource := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-clusterrole",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("rbac.authorization.k8s.io", "clusterroles")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewClusterRoleHandlers(tagger)
+
+	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestClusterRoleHandlers_ExtractResource(t *testing.T) {
 	handlers := &ClusterRoleHandlers{}
@@ -90,16 +114,16 @@ func TestClusterRoleHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify deep copy was made
+	// Verify raw informer references are returned
 	resource1, ok := resources[0].(*rbacv1.ClusterRole)
 	assert.True(t, ok)
 	assert.Equal(t, "clusterrole-1", resource1.Name)
-	assert.NotSame(t, clusterRole1, resource1) // Should be a copy
+	assert.Same(t, clusterRole1, resource1) // ResourceList returns raw informer references
 
 	resource2, ok := resources[1].(*rbacv1.ClusterRole)
 	assert.True(t, ok)
 	assert.Equal(t, "clusterrole-2", resource2.Name)
-	assert.NotSame(t, clusterRole2, resource2) // Should be a copy
+	assert.Same(t, clusterRole2, resource2) // ResourceList returns raw informer references
 }
 
 func TestClusterRoleHandlers_ResourceUID(t *testing.T) {
@@ -307,7 +331,7 @@ func TestClusterRoleProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process cluster roles
-	processor := processors.NewProcessor(&ClusterRoleHandlers{})
+	processor := processors.NewProcessor(&ClusterRoleHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*rbacv1.ClusterRole{clusterRole1, clusterRole2})
 
 	assert.Equal(t, 2, listed)
@@ -399,4 +423,14 @@ func createTestClusterRole(name, namespace string) *rbacv1.ClusterRole {
 			},
 		},
 	}
+}
+
+func TestClusterRoleHandlers_CloneResource(t *testing.T) {
+	handlers := &ClusterRoleHandlers{}
+	original := createTestClusterRole("test", "ns")
+	cloned := handlers.CloneResource(original)
+	clonedTyped, ok := cloned.(*rbacv1.ClusterRole)
+	assert.True(t, ok)
+	assert.NotSame(t, original, clonedTyped)
+	assert.Equal(t, original, clonedTyped)
 }

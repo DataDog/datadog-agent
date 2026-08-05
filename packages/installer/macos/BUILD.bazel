@@ -1,0 +1,50 @@
+"""Installer package components specific to macOS."""
+
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_filegroup",
+    "pkg_files",
+)
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/rules:compression.bzl", "get_compression_level")
+load("//compliance:package_licenses.bzl", "package_licenses")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# The installer binary, placed at bin/installer/ within the install dir.
+pkg_files(
+    name = "installer_binary",
+    srcs = ["@installer_binary//:installer"],
+    prefix = "bin/installer",
+)
+
+# Everything that belongs under /opt/datadog-installer/
+pkg_filegroup(
+    name = "installer_components",
+    srcs = [":installer_binary"],
+    prefix = "/opt/datadog-installer",
+)
+
+# Intermediate node for the license-gathering aspect.
+pkg_filegroup(
+    name = "everything",
+    srcs = [":installer_components"],
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ],
+    compression_level = get_compression_level(),
+    extension = "tar.xz",
+    owner = "0.0",
+)
+
+# TODO: DMG target when a pkg_dmg rule is available.

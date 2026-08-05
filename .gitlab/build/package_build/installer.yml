@@ -3,7 +3,7 @@
 # Datadog installer payloads
 #
 .common_build_oci:
-  extends: .bazel:defs:cache:omnibus-transition
+  extends: [ .bazel:defs:cache:omnibus-transition ]
   script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"
@@ -21,7 +21,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --flavor "$FLAVOR" --install-directory="$INSTALL_DIR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -34,7 +34,7 @@
       - $OMNIBUS_PACKAGE_DIR
 
 datadog-agent-oci-x64-a7:
-  extends: .common_build_oci
+  extends: [.common_build_oci, .agent_base_flavor]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -43,7 +43,6 @@ datadog-agent-oci-x64-a7:
   tags: ["arch:amd64", "specific:true"]
   needs:
     [
-      "go_mod_tidy_check",
       "build_system-probe-x64",
       "go_deps",
       "generate_minimized_btfs_x64",
@@ -52,10 +51,9 @@ datadog-agent-oci-x64-a7:
     PACKAGE_ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 datadog-agent-oci-arm64-a7:
-  extends: .common_build_oci
+  extends: [.common_build_oci, .agent_base_flavor]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -64,7 +62,6 @@ datadog-agent-oci-arm64-a7:
   tags: ["arch:arm64", "specific:true"]
   needs:
     [
-      "go_mod_tidy_check",
       "build_system-probe-arm64",
       "go_deps",
       "generate_minimized_btfs_arm64",
@@ -73,7 +70,44 @@ datadog-agent-oci-arm64-a7:
     PACKAGE_ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
     DD_CXX: "aarch64-unknown-linux-gnu-g++"
-    DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
+
+datadog-agent-oci-x64-a7-fips:
+  extends: [.common_build_oci, .agent_fips_flavor]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    [
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
+  variables:
+    PACKAGE_ARCH: amd64
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+
+datadog-agent-oci-arm64-a7-fips:
+  extends: [.common_build_oci, .agent_fips_flavor]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+  needs:
+    [
+      "build_system-probe-arm64",
+      "go_deps",
+      "generate_minimized_btfs_arm64",
+    ]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -87,7 +121,6 @@ installer-install-scripts:
   tags: ["arch:amd64", "specific:true"]
   needs:
     [
-      "go_mod_tidy_check",
       "go_deps",
       "installer-amd64-oci",
       "installer-arm64-oci",
@@ -127,7 +160,7 @@ installer-install-scripts:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" --flavor "${FLAVOR:-base}" ${INSTALL_DIR_PARAM}
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -142,15 +175,23 @@ installer-install-scripts:
 # We build a "regular" installer, meant to be packaged as deb/rpm, without a custom install path
 # and an artifact intended for OCI packaging, which has a custom install path
 
-installer-amd64:
-  extends: .installer_build_common
+.installer_linux_common:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  needs: ["go_deps"]
+
+.installer_oci_common:
+  before_script:
+    - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
+    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
+
+installer-amd64:
+  extends: [.installer_build_common, .installer_linux_common]
   tags: ["arch:amd64", "specific:true"]
-  needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
@@ -158,14 +199,8 @@ installer-amd64:
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 installer-arm64:
-  extends: .installer_build_common
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  extends: [.installer_build_common, .installer_linux_common]
   tags: ["arch:arm64", "specific:true"]
-  needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
@@ -173,19 +208,41 @@ installer-arm64:
     DD_CXX: "aarch64-unknown-linux-gnu-g++"
 
 installer-amd64-oci:
-  extends: installer-amd64
+  extends: [installer-amd64, .installer_oci_common]
   variables:
     DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
-  before_script:
-    - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
-    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 installer-arm64-oci:
-  extends: installer-arm64
+  extends: [installer-arm64, .installer_oci_common]
   variables:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
-  before_script:
-    - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
-    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
+
+# FIPS flavor of the installer. Built with AGENT_FLAVOR=fips so the binary is
+# FIPS-built (BuiltForFIPS() == true); packaged as the "fips" variant of the
+# datadog-installer OCI image in .gitlab/build/packaging/oci.yml.
+
+.installer-fips-amd64:
+  extends: [.installer_build_common, .installer_linux_common, .agent_fips_flavor]
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+
+.installer-fips-arm64:
+  extends: [.installer_build_common, .installer_linux_common, .agent_fips_flavor]
+  tags: ["arch:arm64", "specific:true"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+
+installer-fips-amd64-oci:
+  extends: [.installer-fips-amd64, .installer_oci_common]
+  variables:
+    DESTINATION_FILE: "datadog-fips-installer_7-amd64-oci.tar.xz"
+
+installer-fips-arm64-oci:
+  extends: [.installer-fips-arm64, .installer_oci_common]
+  variables:
+    DESTINATION_FILE: "datadog-fips-installer_7-arm64-oci.tar.xz"

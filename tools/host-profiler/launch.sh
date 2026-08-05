@@ -11,5 +11,5 @@ cd /app
 
 # Run the profiler (uses localhost for agent connection via shared network namespace)
 # IPC artifacts (auth_token, ipc_cert.pem) are in /etc/datadog-agent from shared volume
-sudo -E ./bin/full-host-profiler/full-host-profiler run \
+sudo -E ./bin/host-profiler/host-profiler run \
   --core-config /etc/datadog-agent/datadog.yaml

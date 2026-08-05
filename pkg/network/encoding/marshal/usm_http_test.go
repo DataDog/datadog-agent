@@ -15,12 +15,14 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -115,6 +117,68 @@ func TestFormatHTTPStats(t *testing.T) {
 	// For this test we spread the bits (one per RequestStats) and httpStats1,2
 	// and we test if all the bits has been aggregated together
 	assert.Equal(t, uint64((1<<len(statusCodes))-1), tags)
+}
+
+func TestFormatHTTPStatsDiscoveryMode(t *testing.T) {
+	mockSystemProbe := mock.NewSystemProbe(t)
+	mockSystemProbe.SetInTest("discovery.service_map.enabled", true)
+
+	const (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		// Per-request latency (nanoseconds) used as the running sum increment.
+		latencyNs = 1_000_000.0 // 1ms
+	)
+	localhost := util.AddressFromString("127.0.0.1")
+
+	// Discovery mode: empty path, MethodUnknown, and the in-memory
+	// LatencySum is populated as a running sum.
+	key := http.Key{
+		ConnectionKey: types.NewConnectionKey(localhost, localhost, clientPort, serverPort),
+		Path:          http.Path{Content: http.Interner.GetString("")},
+	}
+	stats := http.NewRequestStats()
+	const numRequests = 4
+	for i := 0; i < numRequests; i++ {
+		stats.AddDiscoveryRequest(200, latencyNs, 0, nil)
+	}
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{ConnectionTuple: network.ConnectionTuple{
+					Source: localhost, Dest: localhost,
+					SPort: clientPort, DPort: serverPort,
+				}},
+			},
+		},
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{key: stats},
+		},
+	}
+
+	httpEncoder := newHTTPEncoder(in.USMData.HTTP)
+	require.True(t, httpEncoder.discoveryMode, "encoder should be in discovery mode")
+
+	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
+	require.NotNil(t, aggregations)
+	require.Len(t, aggregations.EndpointAggregations, 1)
+
+	endpoint := aggregations.EndpointAggregations[0]
+	// Path/method/fullPath should be skipped in discovery mode.
+	assert.Empty(t, endpoint.Path, "path should not be serialized in discovery mode")
+	assert.False(t, endpoint.FullPath, "fullPath should not be serialized in discovery mode")
+	assert.Equal(t, model.HTTPMethod(0), endpoint.Method, "method should not be serialized in discovery mode")
+
+	bucket := endpoint.StatsByStatusCode[int32(200)]
+	require.NotNil(t, bucket, "expected 200 success bucket")
+	assert.Equal(t, uint32(numRequests), bucket.Count)
+	// LatencySum should be the raw running sum of per-request latencies.
+	assert.Equal(t, latencyNs*float64(numRequests), bucket.LatencySum,
+		"latencySum should equal numRequests * per-request latency")
+	// FirstLatencySample and Latencies must NOT be populated in discovery mode.
+	assert.Zero(t, bucket.FirstLatencySample, "firstLatencySample should not be set in discovery mode")
+	assert.Empty(t, bucket.Latencies, "latencies (DDSketch) should not be set in discovery mode")
 }
 
 func TestFormatHTTPStatsByPath(t *testing.T) {
@@ -334,7 +398,7 @@ func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.Connectio
 	streamer.Unwrap(t, &conn)
 
 	var aggregations model.HTTPAggregations
-	err := proto.Unmarshal(conn.HttpAggregations, &aggregations)
+	err := aggregations.Unmarshal(conn.HttpAggregations)
 	require.NoError(t, err)
 
 	return &aggregations, staticTags, dynamicTags

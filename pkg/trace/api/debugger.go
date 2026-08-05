@@ -7,6 +7,7 @@ package api
 
 import (
 	"fmt"
+	"io"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/google/uuid"
@@ -35,6 +37,9 @@ const (
 // debuggerLogsProxyHandler returns an http.Handler proxying Dynamic Instrumentation dynamic logs
 // to the logs intake.
 func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
+	if !r.conf.DebuggerLogsEnabled {
+		return debuggerLogsDisabledHandler(r.conf.MaxRequestBytes)
+	}
 	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
 }
 
@@ -49,7 +54,23 @@ func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
 // to the debuggerLogsProxyHandler above which proxies to the logs track for old
 // tracers).
 func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
+	if !r.conf.DebuggerLogsEnabled {
+		return debuggerLogsDisabledHandler(r.conf.MaxRequestBytes)
+	}
 	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
+}
+
+// debuggerLogsDisabledHandler returns an http.Handler that silently drops
+// debugger data when logs are disabled at the agent level (logs_enabled: false).
+// It returns 200 OK so tracers do not retry or log errors.
+func debuggerLogsDisabledHandler(maxBytes int64) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		log.Debug("Debugger proxy: dropping request because logs are disabled (logs_enabled: false)")
+		// Drain up to maxBytes so normal uploads get a clean 200 instead of a connection reset,
+		// without waiting on an unbounded body before acknowledging.
+		_, _ = io.Copy(io.Discard, apiutil.NewLimitedReader(req.Body, maxBytes))
+		w.WriteHeader(http.StatusOK)
+	})
 }
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the configured intake. If the intake url cannot be
@@ -75,7 +96,7 @@ func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig conf
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{}, r.statsd)
+		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, r.conf.MaxRequestBytes, "datadog.trace_agent.debugger", []string{}, r.statsd)
 	return newDebuggerProxy(r.conf, transport, hostTags)
 }
 
@@ -89,7 +110,7 @@ func debuggerErrorHandler(err error) http.Handler {
 
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
 func newDebuggerProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTags string) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
+	cidProvider := NewContainerIDProviderFromConfig(conf)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  getDirector(hostTags, cidProvider, conf.ContainerTags),

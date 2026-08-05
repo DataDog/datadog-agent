@@ -23,6 +23,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -176,10 +178,18 @@ func (olr *OverlappedReader) Stop() {
 	olr.cleanBuffers()
 }
 
-// Ioctl passes an ioctl() through to the underlying handle
-func (olr *OverlappedReader) Ioctl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
-	return windows.DeviceIoControl(olr.h, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
+// SynchronousDeviceIoControl issues a synchronous IOCTL on the underlying
+// handle. The OverlappedReader's handle is always opened with
+// FILE_FLAG_OVERLAPPED and bound to an IOCP (see Open), so this delegates
+// unconditionally to winutil.SynchronousOverlappedDeviceIoControl -- which
+// arranges for the IOCTL's completion to bypass the IOCP (otherwise the
+// IOCP read loop in Read() could receive an IOCTL completion where it
+// expects a *readbuffer). See that function for the full rationale and the
+// WINA-2669 hang it exists to prevent.
+func (olr *OverlappedReader) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (uint32, error) {
+	return winutil.SynchronousOverlappedDeviceIoControl(olr.h, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize)
 }
+
 func (olr *OverlappedReader) initiateReads() error {
 	for _, buf := range olr.buffers {
 		if buf == nil {

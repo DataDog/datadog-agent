@@ -5,6 +5,8 @@
 
 package config
 
+//go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=mock_remote_client.go -build_constraint test
+
 import (
 	"crypto/tls"
 	"errors"
@@ -152,6 +154,13 @@ func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.Obfuscat
 	return ""
 }
 
+// EffectiveSQLObfuscationMode returns the SQL obfuscation mode the agent
+// actually uses at runtime. When SQLObfuscationMode is not explicitly set,
+// the mode is derived from feature flags (e.g. sqllexer → obfuscate_only).
+func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
+	return obfuscationMode(c, c.HasFeature("sqllexer"))
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
@@ -160,7 +169,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
+			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
@@ -259,14 +268,33 @@ const (
 	OrchestratorUnknown FargateOrchestratorName = "Unknown"
 )
 
+// ProfilingMainEndpointMode controls whether the profiling proxy forwards to
+// the implicit main Datadog intake.
+type ProfilingMainEndpointMode int
+
+const (
+	// ProfilingMainEndpointSend forwards profiles to the implicit main intake
+	// in addition to any AdditionalEndpoints. This is the default (zero value).
+	ProfilingMainEndpointSend ProfilingMainEndpointMode = iota
+	// ProfilingMainEndpointSkip skips the implicit main intake; only
+	// AdditionalEndpoints receive profiles.
+	ProfilingMainEndpointSkip
+)
+
 // ProfilingProxyConfig ...
 type ProfilingProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// MainEndpointMode controls forwarding to the implicit main intake.
+	// Defaults to ProfilingMainEndpointSend.
+	MainEndpointMode ProfilingMainEndpointMode
 	// ReceiverTimeout is the timeout in seconds for profile upload requests
 	ReceiverTimeout int
+	// MaxRequestBytes is the maximum body size buffered when fanning out to
+	// multiple profiling endpoints. Defaults to 50 MB.
+	MaxRequestBytes int64
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -277,14 +305,14 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
-	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
-	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+	// ReceiverTimeoutDuration overrides ReceiverTimeout when non-zero; allows sub-second values in tests.
+	ReceiverTimeoutDuration time.Duration
 }
 
 // OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
@@ -358,12 +386,15 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators          []string      // DEPRECATED
-	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
-	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags               []string      // additional tags to use for peer entity stats aggregation
+	// Deprecated/Experimental: only populated when the agent runs in a serverless
+	// context (Datadog AAS extension or cmd/serverless-init). See
+	// ConfiguredSpanDerivedPrimaryTagKeys.
+	SpanDerivedPrimaryTagKeys []string
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -387,18 +418,19 @@ type AgentConfig struct {
 	ErrorTrackingStandalone bool
 
 	// Receiver
-	ReceiverEnabled     bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost        string
-	ReceiverPort        int
-	ReceiverSocket      string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit     int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout     int
-	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections.
-	MaxRequestBytes     int64         // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer         int           // specifies the number of traces to buffer before blocking.
-	Decoders            int           // specifies the number of traces that can be concurrently decoded.
-	MaxConnections      int           // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout      int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	ReceiverEnabled         bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost            string
+	ReceiverPort            int
+	ReceiverSocket          string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit         int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout         int
+	ReceiverTimeoutDuration time.Duration // overrides ReceiverTimeout when non-zero; allows sub-second values in tests
+	ReceiverIdleTimeout     time.Duration // idle timeout for keepalive connections.
+	MaxRequestBytes         int64         // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer             int           // specifies the number of traces to buffer before blocking.
+	Decoders                int           // specifies the number of traces that can be concurrently decoded.
+	MaxConnections          int           // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout          int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -502,6 +534,11 @@ type AgentConfig struct {
 	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
 	DebuggerIntakeProxy DebuggerProxyConfig
 
+	// DebuggerLogsEnabled indicates whether logs are enabled at the agent level.
+	// When false, debugger proxy endpoints drop incoming data to respect the
+	// customer's intent of having the Logs product disabled.
+	DebuggerLogsEnabled bool
+
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 
@@ -518,13 +555,30 @@ type AgentConfig struct {
 	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
 	MRFRemoteConfigClient RemoteClient `json:"-"`
 
+	// RemoteConfigAPMSamplingEnabled gates the trace-agent's APM_SAMPLING subscription.
+	RemoteConfigAPMSamplingEnabled bool
+	// RemoteConfigAgentConfigEnabled gates the trace-agent's AGENT_CONFIG subscription.
+	// When the user has not set remote_configuration.agent_config.enabled explicitly,
+	// this is initialised by inheriting remote_configuration.apm_sampling.enabled.
+	RemoteConfigAgentConfigEnabled bool
+	// RemoteConfigAPMSemanticsEnabled gates the trace-agent's APM_SEMANTIC_CORE_DD subscription.
+	RemoteConfigAPMSemanticsEnabled bool
+
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsWithCompleteness returns the tags for a given container ID
+	// along with a completeness flag indicating whether all expected tag
+	// sources have reported data for this container.
+	ContainerTagsWithCompleteness func(cid string) ([]string, bool, error) `json:"-"`
 	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
 	ContainerTagsBuffer bool
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
+
+	// HasContainerFeatures indicates whether any container feature is present in the environment.
+	// When false, the trace API uses a noop IDProvider that does not read HTTP headers or call ContainerIDFromOriginInfo.
+	HasContainerFeatures bool
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
@@ -563,10 +617,25 @@ type AgentConfig struct {
 	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
 	OTelGateway bool
 
+	// EnableOPMFetch controls whether the trace-agent will make a background
+	// request to the /api/v2/validate intake endpoint to derive an Org
+	// Propagation Marker (OPM) and expose it in the /info endpoint.
+	// Disabled by default so library users of pkg/trace are unaffected.
+	EnableOPMFetch bool
+
+	// OPMValidateURL is the full URL of the /api/v2/validate endpoint used by
+	// the OPM background fetch. Derived from dd_url / site via utils.GetMainEndpoint.
+	// Empty when EnableOPMFetch is false.
+	OPMValidateURL string
+
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh
 	// completes and returns a message and any error encountered.
 	SecretsRefreshFn func() (string, error) `json:"-"`
+
+	// APIKeyIsFromSecretFn reports whether an API key value was resolved from a
+	// secret handle (and can therefore be changed by a refresh).
+	APIKeyIsFromSecretFn func(apiKey string) bool `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -614,20 +683,24 @@ func New() *AgentConfig {
 
 		ErrorTrackingStandalone: false,
 
-		ReceiverEnabled:        true,
-		ReceiverHost:           "localhost",
-		ReceiverPort:           8126,
-		ReceiverIdleTimeout:    60 * time.Second,
-		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
+		ReceiverEnabled:     true,
+		ReceiverHost:        "localhost",
+		ReceiverPort:        8126,
+		ReceiverIdleTimeout: 60 * time.Second,
+		MaxRequestBytes:     25 * 1024 * 1024, // 25MB
+		ProfilingProxy: ProfilingProxyConfig{
+			MaxRequestBytes: 50 * 1024 * 1024, // 50MB
+		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:                   new(WriterConfig),
-		TraceWriter:                   new(WriterConfig),
-		ConnectionResetInterval:       0, // disabled
-		MaxSenderRetries:              4,
-		APIKeyRefreshThrottleInterval: 2 * time.Minute,
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
+		MaxSenderRetries:        4,
+		// opt in via secret_refresh_on_api_key_failure_interval (0 = disabled)
+		APIKeyRefreshThrottleInterval: 0,
 		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
@@ -647,11 +720,14 @@ func New() *AgentConfig {
 
 		GlobalTags: computeGlobalTags(),
 
-		Proxy:                     http.ProxyFromEnvironment,
-		OTLPReceiver:              &OTLP{},
-		ContainerTags:             noopContainerTagsFunc,
-		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
-		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
+		Proxy:                         http.ProxyFromEnvironment,
+		OTLPReceiver:                  &OTLP{},
+		ContainerTags:                 noopContainerTagsFunc,
+		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
+		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
+		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
+		HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
+
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -687,6 +763,10 @@ var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defi
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
+}
+
+func noopContainerTagsWithCompletenessFunc(_ string) ([]string, bool, error) {
+	return nil, false, ErrContainerTagsFuncNotDefined
 }
 
 // ErrContainerIDFromOriginInfoFuncNotDefined is returned when the ContainerIDFromOriginInfo function is not defined.
@@ -772,16 +852,18 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
 // for aggregation based on the various config values and the base set of tags.
+// For callers that need to cache the result against the live semantic registry
+// version (e.g. the Concentrator's hot path), use PeerTagsCache instead.
 func (c *AgentConfig) ConfiguredPeerTags() []string {
-	if !c.PeerTagsAggregation {
-		return nil
-	}
-	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+	return c.PeerTagsCache().Keys
 }
 
-// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
-// for stats aggregation. These tag keys will be used to extract tags from spans
-// for use in aggregation keys, similar to peer tags.
+// ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary
+// tag keys used for stats aggregation.
+//
+// Deprecated/Experimental: this is only populated in serverless contexts (the
+// Datadog AAS extension, or cmd/serverless-init for Cloud Run / Container Apps /
+// Cloud Run Functions). Tracers should send additional_metric_tags instead.
 func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
 	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
 		return nil

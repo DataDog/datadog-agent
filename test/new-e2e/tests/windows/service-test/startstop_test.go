@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
@@ -45,6 +45,9 @@ var agentConfigTADisabled string
 
 //go:embed fixtures/datadog-di-disabled.yaml
 var agentConfigDIDisabled string
+
+//go:embed fixtures/datadog-rc-enabled.yaml
+var agentConfigRCEnabled string
 
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
@@ -77,6 +80,31 @@ const defaultTimeoutScale = 1
 const driverVerifierTimeoutScale = 10
 
 type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
+
+// TestServiceBehaviorInstallerWithRemoteConfig tests that the installer runs
+// when remote_configuration is explicitly enabled, which is required in FIPS mode.
+// TODO: remove this test when installer runs fully in FIPS mode.
+func TestServiceBehaviorInstallerWithRemoteConfig(t *testing.T) {
+	s := &installerWithRemoteConfigSuite{}
+	run(t, s, systemProbeConfig, agentConfigRCEnabled, securityAgentConfig)
+}
+
+type installerWithRemoteConfigSuite struct {
+	powerShellServiceCommandSuite
+}
+
+func (s *installerWithRemoteConfigSuite) SetupSuite() {
+	s.powerShellServiceCommandSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	// With remote_configuration enabled, the installer should run even in FIPS mode
+	s.runningUserServices = func() []string {
+		return s.getInstalledUserServices()
+	}
+	s.runningServices = func() []string {
+		return s.getInstalledServices()
+	}
+}
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -337,6 +365,11 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
+	// TODO: This service is not supported in FIPS mode yet
+	if s.Env().Agent.FIPSEnabled && !slices.Contains(s.disabledServices, "Datadog Installer") {
+		s.disabledServices = append(s.disabledServices, "Datadog Installer")
+	}
+
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
 		runningServices := []string{}
@@ -385,6 +418,15 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 		// verify that we only try user services
 		if !slices.Contains(kernel, service) {
+			// In FIPS builds the installer does not start correctly
+			// when remote configuration is disabled and Start-Service fails.
+			// TODO: remove this when installer runs fully in FIPS mode.
+			if s.Env().Agent.FIPSEnabled && service == "Datadog Installer" {
+				err := windowsCommon.StartService(s.Env().RemoteHost, service)
+				s.Require().Error(err, "should fail to start "+service+" in FIPS mode")
+				continue
+			}
+
 			// try and start it and verify that it does correctly outputs to event log
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
 			s.Require().NoError(err, "should start "+service)
@@ -509,6 +551,12 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 }
 
 func (s *baseStartStopSuite) SetupSuite() {
+	// Preserve timeout scales explicitly configured by specialized suites, such as
+	// the Driver Verifier suites. The zero value means no scale was configured.
+	if s.timeoutScale == 0 {
+		s.timeoutScale = defaultTimeoutScale
+	}
+
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
@@ -537,6 +585,14 @@ func (s *baseStartStopSuite) SetupSuite() {
 			s.T().Logf("Driver verifier output:\n%s", out)
 		}
 
+		// Driver Verifier adds system-wide kernel overhead that slows Go runtime and
+		// package init, causing user-mode services to exceed the default 30s SCM
+		// startup timeout (ServicesPipeTimeout) before reaching StartServiceCtrlDispatcher.
+		// Raise the timeout to 120s so security-agent and installer survive the extra load.
+		cmd = `Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name ServicesPipeTimeout -Value 120000 -Type DWORD`
+		_, err = host.Execute(cmd)
+		s.Require().NoError(err, "should increase SCM ServicesPipeTimeout for driver verifier")
+
 		windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
 	}
 
@@ -547,8 +603,21 @@ func (s *baseStartStopSuite) SetupSuite() {
 	s.dumpFolder = werCrashDumpFolder
 	err := windowsCommon.EnableWERGlobalDumps(host, s.dumpFolder)
 	s.Require().NoError(err, "should enable WER dumps")
+
+	// Setup cdb.exe for automated crash dump analysis
+	err = windowsCommon.SetupCdb(host)
+	if err != nil {
+		s.T().Logf("Warning: failed to setup cdb for crash dump analysis: %v", err)
+	}
 	env := map[string]string{
 		"GOTRACEBACK": "wer",
+		// Force a crash dump (via WER) on hard stop timeout so we capture goroutine
+		// state when a service hangs during shutdown. See servicemain.EnvCrashOnHardStopTimeout.
+		"DD_CRASH_ON_HARDSTOP_TIMEOUT": "1",
+		// Capture a Go execution trace of each service's startup into the logs folder,
+		// which collectAgentLogs() uploads as a CI artifact on failure. See
+		// servicemain.EnvStartupTraceDir.
+		"DD_STARTUP_TRACE_DIR": `C:\ProgramData\Datadog\logs`,
 	}
 	for _, svc := range s.getInstalledUserServices() {
 		err := windowsCommon.SetServiceEnvironment(host, svc, env)
@@ -557,15 +626,25 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	// Setup default expected services
 	s.runningUserServices = func() []string {
-		return s.getInstalledUserServices()
+		services := s.getInstalledUserServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
 	s.runningServices = func() []string {
-		return s.getInstalledServices()
+		services := s.getInstalledServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
-
-	// By default driver verifier is disabled.
-	s.enableDriverVerifier = false
-	s.timeoutScale = defaultTimeoutScale
 }
 
 func (s *baseStartStopSuite) TearDownSuite() {
@@ -604,18 +683,102 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	s.T().Logf("Clearing dump folder")
 	err = windowsCommon.CleanDirectory(host, s.dumpFolder)
 	s.Require().NoError(err, "should clean dump folder")
+
+	// Start xperf tracing to capture service start/stop timing under Driver Verifier.
+	// Two ETW sessions run concurrently (circular buffers, merged on stop):
+	//   - NT Kernel Logger: scheduler, loader, CPU profile, context switch with stacks
+	//   - scm-trace: Microsoft-Windows-Services SCM events (SetServiceStatus transitions)
+	// The merged .etl is only downloaded on test failure. See AfterTest -> collectXperf.
+	s.startXperf(host)
+}
+
+// xperfSCMSessionName is the user-mode ETW session name that captures Microsoft-Windows-Services
+// SCM events (matches the name in the MS-published TSS xperf recipe).
+const xperfSCMSessionName = "scm-trace"
+
+// startXperf starts xperf tracing on the remote host with two concurrent sessions
+// (NT Kernel Logger + scm-trace user session for the SCM provider). Both use circular
+// FileMode so that for tests with multiple start/stop iterations the trace captures
+// the tail of activity around whichever iteration fails.
+func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
+	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	if !s.Assert().NoError(err, "should fetch xperf artifact") {
+		return
+	}
+
+	// Extract if C:/xperf dir does not exist.
+	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	if !s.Assert().NoError(err, "should expand xperf archive") {
+		return
+	}
+
+	// Single xperf invocation starts both the NT Kernel Logger (-on <KernelGroups> -f kernel.etl ...)
+	// and a named user-mode session (-start scm-trace -on Microsoft-Windows-Services) per the
+	// MS TSS xperf SCM-tracing recipe. -d on stop will merge both into a single .etl.
+	xperfPath := "C:/xperf/xperf.exe"
+	cmd := fmt.Sprintf(
+		`& "%s" -on Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f C:/kernel.etl -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular -start %s -on Microsoft-Windows-Services`,
+		xperfPath, xperfSCMSessionName,
+	)
+	_, err = host.Execute(cmd)
+	s.Assert().NoError(err, "should start xperf tracing (kernel + scm-trace)")
+}
+
+// collectXperf stops both xperf sessions, merges them, and downloads the resulting
+// .etl to the session output dir if the test failed.
+func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	// Stop kernel logger (-stop) and the named SCM user session (-stop scm-trace), then -d
+	// merges both into outputPath. Matches the MS TSS recipe.
+	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -stop %s -d %s`, xperfPath, xperfSCMSessionName, outputPath))
+	if !s.Assert().NoError(err, "should stop and merge xperf trace") {
+		return
+	}
+
+	// Only collect the trace artifact if the test failed. Use a tempfile pattern in the
+	// session output dir so multiple failing tests in the same suite don't overwrite each
+	// other's traces.
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		f, err := os.CreateTemp(outDir, "xperf-*.etl")
+		if !s.Assert().NoError(err, "should create local xperf trace file") {
+			return
+		}
+		localPath := f.Name()
+		_ = f.Close()
+		err = host.GetFile(outputPath, localPath)
+		s.Assert().NoError(err, "should download xperf trace")
+	}
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
-	s.BaseSuite.AfterTest(suiteName, testName)
+	// Stop xperf and merge to .etl as early as possible after the test body, so the
+	// circular trace is preserved before any subsequent diagnostic collection further
+	// perturbs system state. .etl is only downloaded if the test failed.
+	s.collectXperf(s.Env().RemoteHost)
 
-	// look for and download crashdumps
+	// look for and download crashdumps. Dumps from processes in
+	// DefaultIgnoredCrashDumpImages are still downloaded as artifacts but do
+	// not fail the test.
 	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 	s.Assert().NoError(err, "should download crash dumps")
-	if !s.Assert().Empty(dumps, "should not have crash dumps") {
-		s.T().Logf("Found crash dumps:")
-		for _, dump := range dumps {
-			s.T().Logf("  %s", dump)
+	failing, ignored := windowsCommon.PartitionDownloadedWERDumps(dumps, windowsCommon.DefaultIgnoredCrashDumpImages)
+	if len(ignored) > 0 {
+		s.T().Logf("Ignoring %d crash dumps from known-noisy processes:", len(ignored))
+		for _, dump := range ignored {
+			s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
+		}
+	}
+	if !s.Assert().Empty(failing, "should not have crash dumps") {
+		s.T().Logf("Found unexpected crash dumps:")
+		for _, dump := range failing {
+			s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
+		}
+		// Run !analyze -v on each crash dump on the remote VM
+		if analyzeErr := windowsCommon.AnalyzeAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir(), s.T()); analyzeErr != nil {
+			s.T().Logf("Warning: crash dump analysis errors: %v", analyzeErr)
 		}
 	}
 
@@ -638,8 +801,25 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		s.collectAgentLogs()
 	}
 
+	// Analyze kernel crash dump on the remote VM before downloading it
+	if exists, _ := s.Env().RemoteHost.FileExists(systemCrashDumpFile); exists {
+		output, analyzeErr := windowsCommon.AnalyzeKernelDump(s.Env().RemoteHost, systemCrashDumpFile)
+		if analyzeErr != nil {
+			s.T().Logf("Warning: kernel dump analysis error: %v", analyzeErr)
+		} else {
+			s.T().Logf("=== Kernel crash dump analysis ===\n%s", output)
+			analysisPath := filepath.Join(s.SessionOutputDir(), "kernel-dump-analysis.txt")
+			_ = os.WriteFile(analysisPath, []byte(output), 0644)
+		}
+	}
+
 	// check if the host crashed.
 	s.Require().False(s.collectSystemCrashDump(), "should not have system crash dump")
+
+	// Run BaseSuite.AfterTest last: on failure it invokes environment diagnose,
+	// which may call require (aborting anything after it) and perturbs system
+	// state. Our collection above must complete first.
+	s.BaseSuite.AfterTest(suiteName, testName)
 }
 
 func (s *baseStartStopSuite) collectAgentLogs() {

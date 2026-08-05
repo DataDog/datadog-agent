@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    system-probe: The discovery module (``discovery.enabled``) and
+    system-probe-lite (``discovery.use_system_probe_lite``) are now enabled by
+    default on Linux.  When discovery is the only enabled system-probe module,
+    system-probe-lite is automatically used to minimize resource usage.  To
+    disable discovery, set ``discovery.enabled: false`` in
+    ``system-probe.yaml``.

@@ -18,11 +18,11 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -229,14 +229,6 @@ func (c *logonDurationComponent) detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
-// safeDurationSeconds returns a.Sub(b).Seconds() if both are non-zero, otherwise 0.
-func safeDurationSeconds(a, b time.Time) float64 {
-	if a.IsZero() || b.IsZero() {
-		return 0
-	}
-	return a.Sub(b).Seconds()
-}
-
 // safeDurationMs returns a.Sub(b).Milliseconds() if both are non-zero, otherwise 0.
 func safeDurationMs(a, b time.Time) int64 {
 	if a.IsZero() || b.IsZero() {
@@ -248,38 +240,46 @@ func safeDurationMs(a, b time.Time) int64 {
 func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamps) []Milestone {
 	const tsFmt = "2006-01-02T15:04:05.000Z"
 
-	formatTS := func(t time.Time) string {
-		if t.IsZero() {
-			return ""
-		}
-		return t.UTC().Format(tsFmt)
+	candidates := []struct {
+		id       string
+		name     string
+		ts       time.Time
+		duration int64
+	}{
+		{"boot_duration", "Boot Duration", bootTime, safeDurationMs(ts.LoginWindowTime, bootTime)},
+		{"login_window_ready", "Login Window Ready", ts.LoginWindowTime, 0},
+		{"logon_duration", "Logon Duration", ts.LoginTime, safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)},
 	}
 
-	milestones := []Milestone{
-		{
-			Name:      "Boot Start",
-			OffsetS:   0,
-			DurationS: safeDurationSeconds(ts.LoginWindowTime, bootTime),
-			Timestamp: bootTime.UTC().Format(tsFmt),
-		},
-		{
-			Name:      "Login Window Ready",
-			OffsetS:   safeDurationSeconds(ts.LoginWindowTime, bootTime),
-			DurationS: safeDurationSeconds(ts.LoginTime, ts.LoginWindowTime),
-			Timestamp: formatTS(ts.LoginWindowTime),
-		},
-		{
-			Name:      "User Login",
-			OffsetS:   safeDurationSeconds(ts.LoginTime, bootTime),
-			DurationS: safeDurationSeconds(ts.DesktopReadyTime, ts.LoginTime),
-			Timestamp: formatTS(ts.LoginTime),
-		},
-		{
-			Name:      "Desktop Ready",
-			OffsetS:   safeDurationSeconds(ts.DesktopReadyTime, bootTime),
-			DurationS: 0,
-			Timestamp: formatTS(ts.DesktopReadyTime),
-		},
+	hasBootRef := !bootTime.IsZero()
+
+	// gap is the idle time at the login screen (LoginWindowTime -> LoginTime).
+	// It is collapsed out of post-login offsets so the timeline renders
+	// contiguously; the per-milestone Timestamp retains wall-clock truth.
+	gap := time.Duration(0)
+	if !ts.LoginWindowTime.IsZero() && !ts.LoginTime.IsZero() && ts.LoginTime.After(ts.LoginWindowTime) {
+		gap = ts.LoginTime.Sub(ts.LoginWindowTime)
+	}
+
+	var milestones []Milestone
+	for _, c := range candidates {
+		if c.ts.IsZero() {
+			continue
+		}
+		var offset float64
+		if hasBootRef {
+			offset = float64(c.ts.Sub(bootTime).Milliseconds())
+			if gap > 0 && !c.ts.Before(ts.LoginTime) {
+				offset -= float64(gap.Milliseconds())
+			}
+		}
+		milestones = append(milestones, Milestone{
+			ID:         c.id,
+			Name:       c.name,
+			OffsetMs:   offset,
+			DurationMs: float64(c.duration),
+			Timestamp:  c.ts.UTC().Format(tsFmt),
+		})
 	}
 
 	return milestones
@@ -288,15 +288,30 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) map[string]interface{} {
 	custom := make(map[string]interface{})
 
-	custom["boot_timeline"] = buildTimelineMilestones(bootTime, ts)
+	milestones := buildTimelineMilestones(bootTime, ts)
+	custom["boot_timeline"] = milestones
 
 	bootMs := safeDurationMs(ts.LoginWindowTime, bootTime)
 	logonMs := safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
 
-	custom["durations"] = map[string]interface{}{
-		"boot_duration_ms":       bootMs,
-		"logon_duration_ms":      logonMs,
-		"total_boot_duration_ms": bootMs + logonMs,
+	durations := make(map[string]interface{})
+	durations["boot_duration_ms"] = bootMs
+	durations["logon_duration_ms"] = logonMs
+	durations["total_boot_duration_ms"] = bootMs + logonMs
+
+	for _, milestone := range milestones {
+		// boot_duration and logon_duration are already represented by the
+		// authoritative boot_duration_ms / logon_duration_ms keys above.
+		if milestone.ID == "boot_duration" || milestone.ID == "logon_duration" {
+			continue
+		}
+		if milestone.DurationMs > 0 {
+			durations[milestone.ID] = milestone.DurationMs
+		}
+	}
+
+	if len(durations) > 0 {
+		custom["durations"] = durations
 	}
 
 	custom["filevault_enabled"] = ts.FileVaultEnabled
@@ -309,15 +324,22 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
 	custom := buildCustomPayload(bootTime, ts)
 
-	msg := "macOS logon duration analysis after reboot"
+	haveBoot := !bootTime.IsZero() && !ts.LoginWindowTime.IsZero()
+	haveLogon := !ts.LoginTime.IsZero() && !ts.DesktopReadyTime.IsZero()
+	complete := haveBoot && haveLogon
+	totalMs := safeDurationMs(ts.LoginWindowTime, bootTime) + safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
+	title := buildEventTitle(complete, totalMs)
+
+	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if logonMs, ok := durations["logon_duration_ms"]; ok {
-			msg = fmt.Sprintf("macOS logon took %d ms", logonMs)
+		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
+			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 		}
 	}
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{
 		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Title:     title,
 		Message:   msg,
 		Timestamp: bootTime,
 		Custom:    custom,

@@ -24,6 +24,7 @@ type filterSelection struct {
 	containerSBOM                 [][]workloadfilter.ContainerFilter
 	containerCompliance           [][]workloadfilter.ContainerFilter
 	containerRuntimeSecurity      [][]workloadfilter.ContainerFilter
+	containerCWSAdmission         [][]workloadfilter.ContainerFilter
 
 	// Pod filters
 	podSharedMetric [][]workloadfilter.PodFilter
@@ -55,6 +56,7 @@ func (pf *filterSelection) initializeSelections(cfg config.Component) {
 
 	pf.containerCompliance = pf.computeContainerComplianceFilters(cfg)
 	pf.containerRuntimeSecurity = pf.computeContainerRuntimeSecurityFilters(pkgconfigsetup.SystemProbe())
+	pf.containerCWSAdmission = [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyCWSAdmission}}
 
 	// Initialize container paused and SBOM filters
 	pf.containerPaused = pf.computeContainerPausedFilters(cfg)

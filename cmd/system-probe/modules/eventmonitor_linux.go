@@ -24,9 +24,8 @@ func init() { registerModule(EventMonitor) }
 
 // EventMonitor - Event monitor Factory
 var EventMonitor = &module.Factory{
-	Name:             config.EventMonitorModule,
-	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
-	Fn:               createEventMonitorModule,
+	Name: config.EventMonitorModule,
+	Fn:   createEventMonitorModule,
 	NeedsEBPF: func() bool {
 		return !secconfig.IsEBPFLessModeEnabled()
 	},
@@ -45,7 +44,7 @@ var (
 )
 
 func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netconfig.Config) error {
-	if !usmconfig.IsUSMSupportedAndEnabled(config) || !usmconfig.NeedProcessMonitor(config) || usmstate.Get() != usmstate.Running {
+	if !usmconfig.IsUSMSupportedAndEnabled(config) || !usmconfig.NeedProcessMonitor(config) || !usmstate.IsActive() {
 		return nil
 	}
 

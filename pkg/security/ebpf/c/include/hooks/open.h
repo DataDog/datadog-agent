@@ -10,8 +10,10 @@
 #include "helpers/iouring.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
-    if (is_discarded_by_pid()) {
+// pid_tgid == 0 selects SYNC_SYSCALL with the current task; a non-zero pid_tgid
+// switches the syscall to ASYNC_SYSCALL and identifies the owner thread.
+int __attribute__((always_inline)) trace__sys_openat2(void *ctx, const char *path, int flags, umode_t mode, u64 pid_tgid) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_OPEN)) {
         return 0;
     }
 
@@ -19,62 +21,58 @@ int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN,
         .policy = policy,
-        .async = async,
+        .async = pid_tgid ? ASYNC_SYSCALL : SYNC_SYSCALL,
         .open = {
             .flags = flags,
             .mode = mode & S_IALLUGO,
+            .pid_tgid = pid_tgid,
         }
     };
 
-    if (pid_tgid > 0) {
-        syscall.open.pid_tgid = pid_tgid;
-    }
-
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1) | SYSCALL_CTX_ARG_INT(2), (void *)path, (void *)&flags, (void *)&mode);
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_openat(const char *path, u8 async, int flags, umode_t mode) {
-    return trace__sys_openat2(path, async, flags, mode, 0);
+int __attribute__((always_inline)) trace__sys_openat(void *ctx, const char *path, int flags, umode_t mode) {
+    return trace__sys_openat2(ctx, path, flags, mode, 0);
 }
 
 HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
     int flags = O_CREAT | O_WRONLY | O_TRUNC;
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
     umode_t mode = 0;
-    return trace__sys_openat(NULL, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, NULL, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY1(truncate, const char *, filename) {
     int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY0(ftruncate) {
     int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
     char filename[1] = "";
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY3(open, const char *, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char *, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_open_how *, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
-    return trace__sys_openat(filename, SYNC_SYSCALL, how.flags, how.mode);
+    return trace__sys_openat(ctx, filename, how.flags, how.mode);
 }
 
 int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
@@ -98,12 +96,22 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
 
     set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
-    // do not pop, we want to keep track of the mount ref counter later in the stack
     approve_syscall(syscall, open_approvers);
+
+    // the runtime itself opens cgroupfs paths during cgroup resolution; those reads
+    // must not be promoted to INTERNAL events or they would feed the resolver in a loop.
+    u8 is_cgroupfs = is_cgroup2fs(syscall->open.dentry) && !is_runtime_request();
+
+    if (syscall->state != ACCEPTED && syscall->state != APPROVED && is_cgroupfs) {
+        syscall->state = INTERNAL;
+    }
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.event_type = syscall->type;
+    // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
+    // to track cgroup lifecycle, and a discarder match here would drop them.
+    syscall->resolver.flags = get_resolver_flags(syscall, !is_cgroupfs);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -122,7 +130,19 @@ int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path 
 
 HOOK_ENTRY("do_truncate")
 int hook_do_truncate(ctx_t *ctx) {
+    // filp is the 4th argument on older kernels; the idmapped-mounts series (kernel 5.12) prepended
+    // an idmap/user_namespace argument to do_truncate, shifting filp to the 5th position. This is
+    // detected specifically for do_truncate, as its argument gained the idmap argument independently
+    // of the security_* hooks.
+    u64 do_truncate_has_idmap_arg;
+    LOAD_CONSTANT("do_truncate_has_idmap_arg", do_truncate_has_idmap_arg);
+
     struct file *f = (struct file *)CTX_PARM4(ctx);
+    if (do_truncate_has_idmap_arg) {
+        // prevent the verifier from whining
+        bpf_probe_read(&f, sizeof(f), &f);
+        f = (struct file *)CTX_PARM5(ctx);
+    }
     if (f == NULL) {
         return 0;
     }
@@ -196,7 +216,7 @@ int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
     if (!syscall) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
-        return trace__sys_openat2(NULL, ASYNC_SYSCALL, flags, mode, pid_tgid);
+        return trace__sys_openat2(ctx, NULL, flags, mode, pid_tgid);
     } else {
         syscall->open.pid_tgid = get_pid_tgid_from_iouring(raw_req);
     }
@@ -213,19 +233,32 @@ int hook_io_openat2(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
+// io_ftruncate (IORING_OP_FTRUNCATE, kernel 6.9+) calls do_ftruncate -> do_truncate, which
+// is already hooked (hook_do_truncate). As with the ftruncate syscall, we model it as an
+// open with O_TRUNC and let the do_truncate hook resolve the path from the file.
+HOOK_ENTRY("io_ftruncate")
+int hook_io_ftruncate(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
+    return trace__sys_openat2(ctx, NULL, flags, 0, pid_tgid);
+}
+
 // used by both tail call callback and directly for tracepoints
 int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
     if (IS_UNHANDLED_ERROR(syscall->retval)) {
         return 0;
     }
 
-    // check if the syscall was discarded
-    if (syscall->state == DISCARDED) {
-        return 0;
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_OPEN);
+    apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
+    if (syscall->state == DISCARDED) {
         return 0;
     }
 
@@ -237,14 +270,22 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         .syscall.retval = syscall->retval,
         .syscall_ctx.id = syscall->ctx_id,
         .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-                       (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
-                       (syscall->resolver.flags & ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0),
+                       (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
+                       (syscall->resolver.flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
+                       (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
+        .sample_cookie = syscall->sample_cookie,
     };
 
     fill_file(syscall->open.dentry, &event.file);
+
+    // INTERNAL cgroupfs events are forwarded only to feed the userspace cgroup resolver,
+    // which only cares about directory entries; drop the rest.
+    if (syscall->state == INTERNAL && !S_ISDIR(event.file.metadata.mode)) {
+        return 0;
+    }
 
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
@@ -295,6 +336,16 @@ HOOK_SYSCALL_COMPAT_EXIT(truncate) {
 
 HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
     return sys_open_ret(ctx);
+}
+
+HOOK_EXIT("io_ftruncate")
+int rethook_io_ftruncate(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall || !syscall->open.dentry) {
+        return 0;
+    }
+    syscall->retval = CTX_PARMRET(ctx);
+    return _sys_open_ret(ctx, syscall);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(open) {

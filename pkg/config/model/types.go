@@ -31,7 +31,7 @@ const (
 	// SourceDefault are the values from defaults.
 	SourceDefault Source = "default"
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
-	// SetWithoutSource.
+	// SetInTest.
 	SourceUnknown Source = "unknown"
 	// SourceInfraMode are the values set by infrastructure mode configurations. These values have higher
 	// priority than defaults but lower priority than user configuration (file, env vars, etc.).
@@ -40,16 +40,16 @@ const (
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
 	SourceEnvVar Source = "environment-variable"
-	// SourceSecretBackend are the values resolved from a secret backend (replacing ENC[] placeholders).
-	// Stored as a separate layer so that config can be dumped without secrets to prevent leaks.
-	SourceSecretBackend Source = "secret-backend"
+	// SourceConfigPostInit are values computed by the agent during initial config setup.
+	SourceConfigPostInit Source = "config-post-init"
+	// SourceSecret are values resolved from secrets (ENC[...] placeholders).
+	SourceSecret Source = "secret"
+	// SourceLocalConfigProcess are the values mirrored from the config process via the configsync HTTP
+	// polling mechanism.
+	SourceLocalConfigProcess Source = "local-config-process"
 	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
 	// value for some settings when not set by the user.
 	SourceAgentRuntime Source = "agent-runtime"
-	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
-	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
-	// the core-agent.
-	SourceLocalConfigProcess Source = "local-config-process"
 	// SourceRC are the values loaded from remote-config (aka Datadog backend)
 	SourceRC Source = "remote-config"
 	// SourceFleetPolicies are the values loaded from remote-config file
@@ -68,9 +68,10 @@ var Sources = []Source{
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
-	SourceAgentRuntime,
-	SourceSecretBackend,
+	SourceConfigPostInit,
+	SourceSecret,
 	SourceLocalConfigProcess,
+	SourceAgentRuntime,
 	SourceRC,
 	SourceCLI,
 }
@@ -85,11 +86,12 @@ var sourcesPriority = map[Source]int{
 	SourceFile:               3,
 	SourceEnvVar:             4,
 	SourceFleetPolicies:      5,
-	SourceAgentRuntime:       6,
-	SourceSecretBackend:      7,
+	SourceConfigPostInit:     6,
+	SourceSecret:             7,
 	SourceLocalConfigProcess: 8,
-	SourceRC:                 9,
-	SourceCLI:                10,
+	SourceAgentRuntime:       9,
+	SourceRC:                 10,
+	SourceCLI:                11,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
@@ -135,9 +137,6 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
-	// GetLibType returns the lib used to power the configuration (viper / tee / nodetreemodel)
-	GetLibType() string
-
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
@@ -157,23 +156,17 @@ type Reader interface {
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
-	GetSubfields(key string) []string
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
-	AllSettingsBySource() map[Source]interface{}
-	// AllSettingsWithoutSecrets returns all settings from the config, merging every layer except the
-	// secret backend layer. This provides a safe way to dump config without risking resolved secret leaks.
+	// AllSettingsWithoutSecrets returns all settings excluding the secrets layer.
 	AllSettingsWithoutSecrets() map[string]interface{}
-	// AllSettingsWithoutDefaultOrSecrets returns all non-default settings, excluding the secret backend
-	// layer as well.
+	// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and the secrets layer.
 	AllSettingsWithoutDefaultOrSecrets() map[string]interface{}
-	// GetSecretSettingPaths returns the flattened key path that exist in the secrets layer.
-	// This allows the scrubber to know exactly which settings contain secrets
-	GetSecretSettingPaths() []string
+	AllSettingsBySource() map[Source]interface{}
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
@@ -188,12 +181,6 @@ type Reader interface {
 	// can modify env vars and the config will rebuild itself, etc)
 	SetTestOnlyDynamicSchema(allow bool)
 
-	// IsSet return true if a non nil values is found in the configuration, including defaults. This is legacy
-	// behavior from viper and don't answer the need to know if something was set by the user (see IsConfigured for
-	// this).
-	//
-	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
-	IsSet(key string) bool
 	// IsConfigured returns true if a setting is configured by the user. This means that either:
 	//  1. The key is for a leaf, and the setting has a non-nil value on a non-default source OR
 	//  2. The key is for an inner node, and one of its children IsConfigured
@@ -203,10 +190,11 @@ type Reader interface {
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
+	// IsSetting returns whether the key identifies a setting (and not a section)
+	IsSetting(key string) bool
 
-	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
-	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
-	// Note that it returns the keys lowercased.
+	// GetKnownKeysLowercased returns all the keys that are known by the config
+	// Note: that it returns the keys lowercased.
 	GetKnownKeysLowercased() map[string]interface{}
 
 	// GetEnvVars returns a list of the env vars that the config supports.
@@ -215,6 +203,9 @@ type Reader interface {
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() *Warnings
+
+	// StartTime returns the time at which the agent process started (completes config.Component interface)
+	StartTime() time.Time
 
 	// Object returns Reader to config (completes config.Component interface)
 	Object() Reader
@@ -230,7 +221,7 @@ type Reader interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
-	SetWithoutSource(key string, value interface{})
+	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 }
 
@@ -250,19 +241,19 @@ type Setup interface {
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
-	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
-	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
-	// support historic behavior. Refrain from adding more as it's most likely a sign of poorly design configuration
-	// layout.
+	// ParseEnvSplitComma registers a transformer to parse the env var for key as a comma-separated list.
+	ParseEnvSplitComma(key string)
+	// ParseEnvSplitSpace registers a transformer to parse the env var for key as a space-separated list.
+	ParseEnvSplitSpace(key string)
+	// ParseEnvJSON registers a transformer to parse the env var for key as a JSON payload into varType.
+	// varType must be a zero value of the target type (e.g. []string{}, []map[string]string{}).
+	ParseEnvJSON(key string, varType any)
+
+	// The following helpers are legacy and should no longer be used. Instead leverage the one above
 	ParseEnvAsStringSlice(key string, fx func(string) []string)
 	ParseEnvAsMapStringInterface(key string, fx func(string) map[string]interface{})
-	ParseEnvAsSliceMapString(key string, fx func(string) []map[string]string)
-	ParseEnvAsSlice(key string, fx func(string) []interface{})
-
-	// SetKnown adds a key to the set of known valid config keys
-	SetKnown(key string)
 
 	// API not implemented by viper.Viper and that have proven useful for our config usage
 
@@ -300,9 +291,6 @@ type Compound interface {
 type Config interface {
 	ReaderWriter
 	Compound
-	// TODO: This method shouldn't be here, but it is depended upon by an external repository
-	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
-	SetKnown(key string)
 }
 
 // BuildableConfig is the most-general interface for the Config, it can be

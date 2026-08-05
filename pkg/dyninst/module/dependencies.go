@@ -68,11 +68,22 @@ type KernelLoader interface {
 	Load(compiler.Program) (*loader.Program, error)
 }
 
-// Attacher connects a loaded program to a target process.
+// Attacher connects a loaded program to a target process. The
+// returned AttachedProgram is wrapped by the runtime in
+// attachedProgramImpl before it reaches the actuator, so it only
+// needs to satisfy the inner Detach contract.
 type Attacher interface {
 	Attach(
 		*loader.Program, actuator.Executable, actuator.ProcessID,
-	) (actuator.AttachedProgram, error)
+	) (InnerAttachedProgram, error)
+}
+
+// InnerAttachedProgram is the contract the module runtime requires of
+// an attached uprobe handle (the inner side of attachedProgramImpl).
+// It is intentionally narrower than actuator.AttachedProgram: the
+// runtime adds the per-probe diagnostic plumbing on top.
+type InnerAttachedProgram interface {
+	Detach(reason error) error
 }
 
 // DecoderFactory is a factory for creating decoders.
@@ -154,6 +165,7 @@ type Actuator interface {
 type Dispatcher interface {
 	RegisterSink(progID ir.ProgramID, sink dispatcher.Sink)
 	UnregisterSink(progID ir.ProgramID)
+	EvictOlderThan(progID ir.ProgramID, cutoffKtimeNs uint64)
 	Shutdown() error
 }
 

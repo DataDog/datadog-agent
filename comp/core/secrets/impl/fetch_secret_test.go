@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -79,6 +79,26 @@ func copyFileToBuildDir(t *testing.T, inFile, targetDir string) {
 // getBackendCommandBinary compiles a binary from source, then sets the proper
 // permissions on it
 func getBackendCommandBinary(t *testing.T) (string, func()) {
+	// Under Bazel, use the pre-built go_binary from data deps instead of compiling at runtime.
+	// Copy to a temp dir so we can fix permissions (Bazel runfiles are world-readable).
+	if testSrcDir := os.Getenv("TEST_SRCDIR"); testSrcDir != "" {
+		binName := "test_command"
+		if runtime.GOOS == "windows" {
+			binName += ".exe"
+		}
+		srcBin := filepath.Join(testSrcDir, os.Getenv("TEST_WORKSPACE"),
+			"comp/core/secrets/impl/test/src/test_command/test_command_", binName)
+		require.FileExists(t, srcBin, "pre-built test_command binary not found in runfiles")
+
+		tmpDir := t.TempDir()
+		dstBin := filepath.Join(tmpDir, binName)
+		data, err := os.ReadFile(srcBin)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(dstBin, data, 0700))
+		filesystem.SetCorrectRight(dstBin)
+		return dstBin, func() {}
+	}
+
 	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
 
 	// create a temp directory to build the command in
@@ -131,7 +151,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		// Error because resolver was not configured and has no command
 		require.NotNil(t, err)
 	})
@@ -140,9 +160,10 @@ func TestExecCommandError(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
 		// The "timeout" arg makes the command sleep for 2 second, it should timeout
 		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"timeout"}, Timeout: 1})
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NotNil(t, err)
-		require.Equal(t, "error while running '"+backendCommandBin+"': command timeout", err.Error())
+		require.Contains(t, err.Error(), "timed out after 1 seconds")
+		require.Contains(t, err.Error(), "secret_backend_timeout")
 	})
 
 	t.Run("No Error", func(t *testing.T) {
@@ -153,7 +174,7 @@ func TestExecCommandError(t *testing.T) {
 			Timeout:          30,
 			AuditFileMaxSize: 1024 * 1024,
 		})
-		resp, err := resolver.execCommand(inputPayload)
+		resp, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NoError(t, err)
 		require.Equal(t, "{\"sec1\":{\"value\":\"arg_password\"}}", string(resp))
 	})
@@ -162,7 +183,7 @@ func TestExecCommandError(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
 		// This "error" arg makes the command return an erroneous exit code
 		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"error"}})
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NotNil(t, err)
 	})
 
@@ -176,9 +197,10 @@ func TestExecCommandError(t *testing.T) {
 			Timeout:          30,
 			AuditFileMaxSize: 1024 * 1024,
 		})
-		_, err := resolver.execCommand(inputPayload)
+		_, err := resolver.execCommand(inputPayload, resolver.backendTimeout)
 		require.NotNil(t, err)
-		assert.Equal(t, "error while running '"+backendCommandBin+"': command output was too long: exceeded 20 bytes", err.Error())
+		assert.Contains(t, err.Error(), "command output was too long: exceeded 20 bytes")
+		assert.Contains(t, err.Error(), secretsManagementDocsURL)
 	})
 }
 
@@ -186,16 +208,16 @@ func TestFetchSecretExecError(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, errors.New("some error") }
-	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
-	assert.NotNil(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1", "handle2"})
+	assert.NotEmpty(t, handleErrors)
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
 	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
-	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
-	assert.NotNil(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1", "handle2"})
+	assert.NotEmpty(t, handleErrors)
 
 	metrics, err := tel.GetCountMetric("secret_backend", "unmarshal_errors_count")
 	require.NoError(t, err)
@@ -210,8 +232,9 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
 	_, err := resolver.fetchSecret(secrets)
-	assert.NotNil(t, err)
-	assert.Equal(t, "secret handle 'handle1' was not resolved by the secret_backend_command", err.Error())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "secret handle 'handle1' was not resolved by the secret_backend_command")
+	assert.Contains(t, err.Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 1, "missing", "handle1")
 }
 
@@ -222,8 +245,8 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
 	}
 	_, err := resolver.fetchSecret([]string{"handle1"})
-	assert.NotNil(t, err)
-	assert.Equal(t, "an error occurred while resolving 'handle1': some error", err.Error())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "an error occurred while resolving 'handle1': some error")
 	checkErrorCountMetric(t, tel, 1, "error", "handle1")
 }
 
@@ -234,16 +257,18 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
 	}
 	_, err := resolver.fetchSecret([]string{"handle1"})
-	assert.NotNil(t, err)
-	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "resolved secret for 'handle1' is empty")
+	assert.Contains(t, err.Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 1, "empty", "handle1")
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": \"\"}}"), nil
 	}
 	_, err = resolver.fetchSecret([]string{"handle1"})
-	assert.NotNil(t, err)
-	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "resolved secret for 'handle1' is empty")
+	assert.Contains(t, err.Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 2, "empty", "handle1")
 }
 
@@ -273,8 +298,8 @@ func TestFetchSecret(t *testing.T) {
 		                "handle3":{"value":"p3"}}`)
 		return res, nil
 	}
-	resp, err := resolver.fetchSecret(secrets)
-	require.NoError(t, err)
+	resp, handleErrors := resolver.fetchSecret(secrets)
+	require.Empty(t, handleErrors)
 	assert.Equal(t, map[string]string{
 		"handle1": "p1",
 		"handle2": "p2",
@@ -292,8 +317,8 @@ func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
 	}
 	resolver.removeTrailingLinebreak = true
 	secrets := []string{"handle1"}
-	resp, err := resolver.fetchSecret(secrets)
-	require.NoError(t, err)
+	resp, handleErrors := resolver.fetchSecret(secrets)
+	require.Empty(t, handleErrors)
 	assert.Equal(t, map[string]string{"handle1": "some data"}, resp)
 }
 
@@ -307,8 +332,8 @@ func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
 		capturedPayload = payload
 		return []byte(`{"handle1":{"value":"test_value"}}`), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
-	require.NoError(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1"})
+	require.Empty(t, handleErrors)
 	assert.Contains(t, capturedPayload, `"type":"aws.secrets"`)
 	assert.Contains(t, capturedPayload, `"config":{"foo":"bar"}`)
 }
@@ -322,8 +347,8 @@ func TestFetchSecretPayloadIncludesTimeout(t *testing.T) {
 		capturedPayload = payload
 		return []byte(`{"handle1":{"value":"test_value"}}`), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
-	require.NoError(t, err)
+	_, handleErrors := resolver.fetchSecret([]string{"handle1"})
+	require.Empty(t, handleErrors)
 	assert.Contains(t, capturedPayload, `"secret_backend_timeout":60`)
 }
 
@@ -358,4 +383,5 @@ func TestFetchSecretBackendVersionNoBackendType(t *testing.T) {
 	_, err := resolver.fetchSecretBackendVersion()
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "secret_backend_type")
+	assert.ErrorContains(t, err, "multi_secret_backends")
 }

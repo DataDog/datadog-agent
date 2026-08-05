@@ -1,0 +1,88 @@
+[
+  {
+    "service": "panic_recover",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.probedDeep",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.probedDeep",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 164
+          },
+          {
+            "function": "main.unprobedMiddle",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 154
+          },
+          {
+            "function": "main.probedRecoverer",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 146
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 40
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "probedDeep",
+          "location": {
+            "method": "main.probedDeep"
+          }
+        },
+        "captures": {
+          "return": {
+            "captureExpressions": {
+              "@exception": {
+                "type": "interface {}",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "synthetic from probedDeep depth=42"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "function did not return: panic was recovered by an ancestor frame"
+          }
+        ]
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

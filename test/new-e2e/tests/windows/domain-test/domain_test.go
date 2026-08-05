@@ -45,14 +45,20 @@ func TestInstallsOnDomainController(t *testing.T) {
 		suite := suite
 		t.Run(reflect.TypeOf(suite).Elem().Name(), func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgent(
-				awsHostWindows.WithRunOptions(
-					scenwindows.WithActiveDirectoryOptions(
-						activedirectory.WithDomainController(TestDomain, TestPassword),
-						activedirectory.WithDomainUser(TestUser, TestPassword),
+			e2e.Run(t, suite,
+				// Keep the stack alive on failure so the team can investigate Active
+				// Directory provisioning failures (see WINA-1965). A Datadog log monitor
+				// on the "SkipDeleteOnFailure feature is enabled" line notifies
+				// #windows-products-ops.
+				e2e.WithSkipDeleteOnFailure(),
+				e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgent(
+					awsHostWindows.WithRunOptions(
+						scenwindows.WithActiveDirectoryOptions(
+							activedirectory.WithDomainController(TestDomain, TestPassword),
+							activedirectory.WithDomainUser(TestUser, TestPassword),
+						),
 					),
-				),
-			)))
+				)))
 		})
 	}
 }

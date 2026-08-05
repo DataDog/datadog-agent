@@ -8,7 +8,7 @@
 package dns
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -18,5 +18,10 @@ func NewReverseDNS(cfg *config.Config, telemetrycomp telemetry.Component) (Rever
 	if err != nil {
 		return nil, err
 	}
-	return newSocketFilterSnooper(cfg, packetSrc)
+	snoop, err := newSocketFilterSnooper(cfg, packetSrc, nil)
+	if err != nil {
+		return nil, err
+	}
+	snoop.startPolling()
+	return snoop, nil
 }

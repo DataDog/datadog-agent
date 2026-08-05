@@ -13,18 +13,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var podGVR = corev1.SchemeGroupVersion.WithResource("pods")
 
 // PodPatcher allows a workload patcher to patch a workload with the recommendations from the autoscaler
 type PodPatcher interface {
@@ -41,19 +39,17 @@ type PodPatcher interface {
 
 type podPatcher struct {
 	store         *store
-	isLeader      func() bool
-	client        dynamic.Interface
+	patcher       *workloadpatcher.Patcher
 	eventRecorder record.EventRecorder
 }
 
 var _ PodPatcher = podPatcher{}
 
 // NewPodPatcher creates a new PodPatcher
-func NewPodPatcher(store *store, isLeader func() bool, client dynamic.Interface, eventRecorder record.EventRecorder) PodPatcher {
+func NewPodPatcher(store *store, patcher *workloadpatcher.Patcher, eventRecorder record.EventRecorder) PodPatcher {
 	return podPatcher{
 		store:         store,
-		isLeader:      isLeader,
-		client:        client,
+		patcher:       patcher,
 		eventRecorder: eventRecorder,
 	}
 }
@@ -93,14 +89,26 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return patched, nil
 	}
 
-	// Patching the pod with the recommendations
-	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
-		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
+	// Re-derive the burstable/constraint transformations here so they are applied consistently on
+	// every replica. The controller stamps the removeLimitSentinel only on the leader (and it is
+	// stripped from the DPA status), so a follower webhook would otherwise leave the CPU limit in
+	// place. Inputs come from the spec/annotations, available on all replicas; idempotent on the leader.
+	constrainedVertical := autoscaler.ScalingValues().Vertical.DeepCopy()
+	if _, err := applyVerticalConstraints(constrainedVertical, autoscaler.Spec().Constraints, autoscaler.IsBurstable()); err != nil {
+		log.Warnf("Autoscaler %s: failed to apply vertical constraints for POD %s/%s, not patching resources: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+		return patched, nil
+	}
+
+	// Use the active scaling values hash (mirrored to the DPA status) so the annotation stays
+	// identical across replicas; not the recomputed constrained hash.
+	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
+	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
+		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
 		patched = true
 	}
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
-	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
+	for _, reco := range constrainedVertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
 	}
 
@@ -141,7 +149,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	// TODO: Implementation is slow
-	podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
+	podAutoscalers := pa.store.List(func(podAutoscaler model.PodAutoscalerInternal) bool {
 		if podAutoscaler.Namespace() == pod.Namespace &&
 			podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
 			podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&
@@ -169,7 +177,20 @@ func (pa podPatcher) shouldObservePod(pod *workloadmeta.KubernetesPod) bool {
 }
 
 func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.KubernetesPod) {
-	if !pa.isLeader() {
+	intent := workloadpatcher.NewPatchIntent(workloadpatcher.PodTarget(pod.Namespace, pod.Name)).
+		With(workloadpatcher.SetMetadataAnnotations(map[string]interface{}{
+			model.RecommendationAppliedEventGeneratedAnnotation: "true",
+		}))
+
+	applied, err := pa.patcher.Apply(ctx, intent, workloadpatcher.PatchOptions{
+		Caller: "autoscaling_pod_patcher",
+	})
+	if err != nil {
+		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
+		return
+	}
+	if !applied {
+		// Skip: not leader
 		return
 	}
 
@@ -188,11 +209,6 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 		"POD patched with recommendations from autoscaler %s, recommendation id: %s", pod.Annotations[model.AutoscalerIDAnnotation], pod.Annotations[model.RecommendationIDAnnotation],
 	)
 
-	podPatch := []byte(`{"metadata": {"annotations": {"` + model.RecommendationAppliedEventGeneratedAnnotation + `": "true"}}}`)
-	_, err := pa.client.Resource(podGVR).Namespace(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, podPatch, metav1.PatchOptions{})
-	if err != nil {
-		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
-	}
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
 }
 
@@ -229,15 +245,22 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	if cont.Resources.Requests == nil {
 		cont.Resources.Requests = corev1.ResourceList{}
 	}
-	for resource, limit := range reco.Limits {
-		if limit != cont.Resources.Limits[resource] {
-			cont.Resources.Limits[resource] = limit
+	for resourceName, limit := range reco.Limits {
+		if limit.Cmp(removeLimitSentinel) == 0 {
+			// Sentinel: applyVerticalConstraints signalled that this limit must be actively
+			// removed from the pod (e.g. CPURequestsRemoveLimitsMemoryRequestsAndLimits).
+			if _, exists := cont.Resources.Limits[resourceName]; exists {
+				delete(cont.Resources.Limits, resourceName)
+				patched = true
+			}
+		} else if limit.Cmp(cont.Resources.Limits[resourceName]) != 0 {
+			cont.Resources.Limits[resourceName] = limit
 			patched = true
 		}
 	}
-	for resource, request := range reco.Requests {
-		if request != cont.Resources.Requests[resource] {
-			cont.Resources.Requests[resource] = request
+	for resourceName, request := range reco.Requests {
+		if request.Cmp(cont.Resources.Requests[resourceName]) != 0 {
+			cont.Resources.Requests[resourceName] = request
 			patched = true
 		}
 	}

@@ -9,6 +9,7 @@ package errors
 import (
 	"encoding/json"
 	"errors"
+	"runtime"
 )
 
 // InstallerErrorCode is an error code used by the installer.
@@ -32,8 +33,9 @@ const (
 
 // InstallerError is an error type used by the installer.
 type InstallerError struct {
-	err  error
-	code InstallerErrorCode
+	err   error
+	code  InstallerErrorCode
+	stack []uintptr
 }
 
 type installerErrorJSON struct {
@@ -52,6 +54,16 @@ func (e InstallerError) Is(target error) bool {
 	return ok
 }
 
+// Unwrap returns the underlying error.
+func (e *InstallerError) Unwrap() error {
+	return e.err
+}
+
+// StackTrace returns the stack trace captured at the point where the error was wrapped.
+func (e *InstallerError) StackTrace() []uintptr {
+	return e.stack
+}
+
 // Wrap wraps the given error with an installer error.
 // If the given error is already an installer error, it is not wrapped and
 // left as it is. Only the deepest InstallerError remains.
@@ -59,9 +71,12 @@ func Wrap(errCode InstallerErrorCode, err error) error {
 	if errors.Is(err, &InstallerError{}) {
 		return err
 	}
+	var pcs [32]uintptr
+	n := runtime.Callers(2, pcs[:])
 	return &InstallerError{
-		err:  err,
-		code: errCode,
+		err:   err,
+		code:  errCode,
+		stack: pcs[:n],
 	}
 }
 
@@ -102,4 +117,34 @@ func FromJSON(errStr string) *InstallerError {
 		err:  errors.New(jsonError.Error),
 		code: InstallerErrorCode(jsonError.Code),
 	}
+}
+
+// stackError wraps an error with a stack trace captured at creation time.
+type stackError struct {
+	err   error
+	stack []uintptr
+}
+
+func (e *stackError) Error() string { return e.err.Error() }
+
+func (e *stackError) Unwrap() error { return e.err }
+
+func (e *stackError) StackTrace() []uintptr { return e.stack }
+
+// WithStack wraps an error with a stack trace captured at the call site.
+// Returns nil if err is nil. Returns err unchanged if it already carries a stack trace.
+func WithStack(err error) error {
+	if err == nil {
+		return nil
+	}
+	type hasStack interface {
+		StackTrace() []uintptr
+	}
+	var st hasStack
+	if errors.As(err, &st) {
+		return err
+	}
+	var pcs [32]uintptr
+	n := runtime.Callers(2, pcs[:])
+	return &stackError{err: err, stack: pcs[:n]}
 }

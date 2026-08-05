@@ -17,32 +17,33 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
+const profilerName = "host-profiler"
+
 func TestReporterInterval(t *testing.T) {
-	config := defaultConfig()
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 	require.Equal(t, 60*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
 }
 
-func TestTracers(t *testing.T) {
-	config := defaultConfig()
+func TestInterpreters(t *testing.T) {
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 
-	require.Greater(t, len(cfg.EbpfCollectorConfig.Tracers), 0)
-	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "go")
-	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
+	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsSymbolizationDisabled())
+	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
 
 	cfg.CollectContext = false
 	cfg.SymbolUploader.Enabled = false
 	require.NoError(t, cfg.Validate())
-	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
+	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
 
 	cfg.CollectContext = true
 	require.NoError(t, cfg.Validate())
-	require.Contains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
+	require.False(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsLabelsDisabled())
 }
 
 func TestDefaultEnvVars(t *testing.T) {
-	config := defaultConfig()
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 	cfg.SymbolUploader.Enabled = false
 	require.Equal(t, "", cfg.EbpfCollectorConfig.IncludeEnvVars)
@@ -52,7 +53,7 @@ func TestDefaultEnvVars(t *testing.T) {
 }
 
 func TestSymbolUploader(t *testing.T) {
-	config := defaultConfig()
+	config := defaultConfig(profilerName)
 	cfg := config.(Config)
 	cfg.SymbolUploader.Enabled = false
 	require.NoError(t, cfg.Validate())
@@ -71,18 +72,24 @@ func TestSymbolUploader(t *testing.T) {
 func TestFlatConfigParsingIsAccepted(t *testing.T) {
 	input := map[string]any{
 		"reporter_interval": "30s",
-		"tracers":           "native",
+		"interpreters": map[string]any{
+			"go": map[string]any{
+				"symbolization": map[string]any{
+					"disabled": true,
+				},
+			},
+		},
 		"symbol_uploader": map[string]any{
 			"enabled": false,
 		},
 	}
 
-	cfg := defaultConfig().(Config)
+	cfg := defaultConfig(profilerName).(Config)
 	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
 	require.NoError(t, err)
 
 	require.Equal(t, 30*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
-	require.Equal(t, "native", cfg.EbpfCollectorConfig.Tracers)
+	require.True(t, cfg.EbpfCollectorConfig.Interpreters.Go.IsSymbolizationDisabled())
 	require.False(t, cfg.SymbolUploader.Enabled)
 
 	require.NoError(t, cfg.Validate())
@@ -99,7 +106,7 @@ func TestNestedConfigIsRejected(t *testing.T) {
 		},
 	}
 
-	cfg := defaultConfig().(Config)
+	cfg := defaultConfig(profilerName).(Config)
 	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ebpf_collector")

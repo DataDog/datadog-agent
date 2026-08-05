@@ -1,0 +1,24 @@
+properties:
+  desc_with_linebreak:
+    node_type: setting
+    type: string
+    default: hello
+    description: "First line\\nSecond line"
+    visibility: public
+  example_with_linebreak:
+    node_type: setting
+    type: string
+    default: hello
+    example: "example line one\\nexample line two"
+    visibility: public
+  title_with_linebreak:
+    node_type: setting
+    type: string
+    default: hello
+    title: "Title first\\nTitle second"
+  no_linebreak:
+    node_type: setting
+    type: string
+    default: hello
+    description: A plain single-line description.
+    visibility: public

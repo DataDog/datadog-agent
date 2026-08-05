@@ -1,11 +1,12 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 # CO-RE program
 ebpf_prog(
     name = "uprobe-trigger",
     src = "uprobe-trigger.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = ["//pkg/ebpf/c:ebpf_c_headers"],
 )
 
@@ -21,5 +22,6 @@ cc_binary(
         "@platforms//cpu:x86_64",
         "@platforms//os:linux",
     ],
+    visibility = ["//visibility:public"],
     deps = ["@libseccomp"],
 )

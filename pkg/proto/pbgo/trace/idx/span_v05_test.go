@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	vmsgp "github.com/vmihailenco/msgpack/v4"
+	vmsgp "github.com/vmihailenco/msgpack/v5"
 )
 
 func TestBuildStringTable(t *testing.T) {
@@ -230,4 +230,10 @@ func TestUnmarshalMsgDictionaryLimitsSize(t *testing.T) {
 			assert.EqualError(t, err, "too long payload")
 		})
 	}
+}
+
+func TestUnmarshalMsgDictionaryRejectsInvalidStringRef(t *testing.T) {
+	var tp InternalTracerPayload
+	err := tp.UnmarshalMsgDictionary([]byte("\x91\x90\x91\x91\x9c\x0000000000\x80\x800"))
+	assert.EqualError(t, err, "dictionary index 0 out of range")
 }

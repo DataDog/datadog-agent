@@ -1,8 +1,5 @@
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@bazelisk_check//:defs.bzl", "check_bazel_version")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-
-check_bazel_version()
 
 py_binary(
     name = "go_mod_tidy_all",
@@ -19,8 +16,20 @@ py_binary(
     visibility = ["//deps:__subpackages__"],
 )
 
-bzl_library(
-    name = "generate_module_bazel_bzl",
-    srcs = ["generate_module_bazel.bzl"],
-    visibility = ["//deps:__subpackages__"],
+# @llvm_toolchain_llvm//:install-name-tool is only defined for macos and linux.
+# This acts as a replacement to avoid analysis-time failures on windows.
+write_file(
+    name = "_empty_install_name_tool",
+    out = "empty_install_name_tool",
+    is_executable = True,
+)
+
+alias(
+    name = "install_name_tool",
+    actual = select({
+        "@platforms//os:linux": "@llvm_toolchain_llvm//:install-name-tool",
+        "@platforms//os:macos": "@llvm_toolchain_llvm//:install-name-tool",
+        "//conditions:default": ":_empty_install_name_tool",
+    }),
+    visibility = ["//visibility:public"],
 )

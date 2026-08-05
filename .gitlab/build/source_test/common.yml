@@ -7,6 +7,11 @@
   - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
   - dda inv -- -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
+.upload_coverage_datadog:
+  # Upload coverage files to Datadog Code Coverage. Never fail on coverage upload.
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+  - datadog-ci coverage upload --format=go-coverprofile coverage.out || true
+
 .unit_test_base:
   extends: .bazel:defs:cache:progressive
   variables:

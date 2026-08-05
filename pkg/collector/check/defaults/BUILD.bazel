@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "defaults",
+    srcs = [
+        "defaults.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/defaults",
+    visibility = ["//visibility:public"],
+)

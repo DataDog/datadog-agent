@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 	"unsafe"
@@ -22,13 +23,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,8 +49,8 @@ var ciliumConntrackerTelemetry = struct {
 	getsDuration telemetry.Histogram
 	getsTotal    telemetry.Counter
 }{
-	telemetry.NewHistogram(ciliumConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
-	telemetry.NewCounter(ciliumConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
+	telemetryimpl.GetCompatComponent().NewHistogram(ciliumConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
+	telemetryimpl.GetCompatComponent().NewCounter(ciliumConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 }
 
 type tupleKey4 struct {
@@ -155,6 +156,15 @@ func newCiliumLoadBalancerConntracker(cfg *config.Config) (netlink.Conntracker, 
 	return clb, nil
 }
 
+// ciliumBPFRoot returns the root of the bpffs where cilium maps are pinned.
+// The system-probe container has a volume mounted at /sys/fs/bpf pointing directly to the host's bpffs.
+//
+// bpffs is a separate virtual filesystem, meaning that since /host is not a recursive
+// bind mount, it's not going to have /host/sys/fs/bpf, it will just be missing.
+func ciliumBPFRoot() string {
+	return "/sys/fs/bpf"
+}
+
 func loadMaps() (ctTCP, ctUDP, backends *ebpf.Map, err error) {
 	defer func() {
 		if err != nil {
@@ -164,17 +174,18 @@ func loadMaps() (ctTCP, ctUDP, backends *ebpf.Map, err error) {
 		}
 	}()
 
-	ctTCP, err = loadMap(kernel.HostSys("/fs/bpf/tc/globals/cilium_ct4_global"))
+	bpffsRoot := ciliumBPFRoot()
+	ctTCP, err = loadMap(filepath.Join(bpffsRoot, "tc/globals/cilium_ct4_global"))
 	if ctTCP == nil {
 		return nil, nil, nil, err
 	}
 
-	ctUDP, err = loadMap(kernel.HostSys("/fs/bpf/tc/globals/cilium_ct_any4_global"))
+	ctUDP, err = loadMap(filepath.Join(bpffsRoot, "tc/globals/cilium_ct_any4_global"))
 	if ctUDP == nil {
 		return nil, nil, nil, err
 	}
 
-	backends, err = loadMap(kernel.HostSys("/fs/bpf/tc/globals/cilium_lb4_backends_v3"))
+	backends, err = loadMap(filepath.Join(bpffsRoot, "tc/globals/cilium_lb4_backends_v3"))
 	if backends == nil {
 		return nil, nil, nil, err
 	}

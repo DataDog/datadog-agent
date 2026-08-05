@@ -100,6 +100,26 @@ func TestConfigAppKey(t *testing.T) {
 		`   app_key:   '************************************bbbb'   `)
 }
 
+func TestConfigPrefixedAppKey(t *testing.T) {
+	// Identifiable app key format: ddapp_<random28><checksum6> (40 chars total)
+	// Last 4 chars of the checksum are preserved in output
+	assertClean(t,
+		`ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`************************************bcde`)
+	assertClean(t,
+		`app_key: ddapp_aaaaaaaaaaaaaaaaaaaaaaaaaaaa_Abcde`,
+		`app_key: ************************************bcde`)
+	assertClean(t,
+		`config with ddapp_AAAAAAAAAAAAAAAAAAAAAAAAAAAA_aBCDE in the middle`,
+		`config with ************************************BCDE in the middle`)
+	assertClean(t,
+		`api_key: ddapp_7qvWg9fxH76ym3f9gfnrs3EeFoc04bjmf4`, // Generated randomly to look valid
+		`api_key: ************************************jmf4`)
+	assertClean(t,
+		`api_key: ddapp_7qvWg9fxH76ym3f9gfnrs3EeFo_04bjmf4`, // Generated randomly to look valid
+		`api_key: ************************************jmf4`)
+}
+
 func TestConfigRCAppKey(t *testing.T) {
 	assertClean(t,
 		`key: "DDRCM_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCDE"`,
@@ -692,6 +712,34 @@ func TestOAuthCredentials(t *testing.T) {
   token_secret: "********"`)
 }
 
+func TestSecretBackendCredentials(t *testing.T) {
+	// Verifies that all sensitive credential keys used by secret backend integrations
+	// are scrubbed when they appear under a nested session config block.
+	assertClean(t,
+		`secret_backend_config:
+  session:
+    azure_client_secret: my-sp-secret
+    azure_client_certificate_password: my-cert-password
+    aws_secret_access_key: AKIAIOSFODNN7EXAMPLE
+    vault_secret_id: my-vault-secret-id
+    vault_password: my-vault-password
+    vault_ldap_password: my-ldap-password
+    vault_token: s.my-vault-token
+    vault_kubernetes_jwt: eyJhbGciOiJSUzI1NiJ9
+    akeyless_access_key: my-akeyless-key`,
+		`secret_backend_config:
+  session:
+    azure_client_secret: "********"
+    azure_client_certificate_password: "********"
+    aws_secret_access_key: "********"
+    vault_secret_id: "********"
+    vault_password: "********"
+    vault_ldap_password: "********"
+    vault_token: "********"
+    vault_kubernetes_jwt: "********"
+    akeyless_access_key: "********"`)
+}
+
 func TestScrubCommandsEnv(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -954,6 +1002,9 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 		`cms-svc-api-key: cmskey789`,
 		`cms-svc-api-key: "********"`)
 	assertClean(t,
+		`dd-api-key: someapikey123`,
+		`dd-api-key: "********"`)
+	assertClean(t,
 		`lodauth: lodauth123`,
 		`lodauth: "********"`)
 	assertClean(t,
@@ -992,4 +1043,44 @@ func TestPrivateActionRunnerPrivateKey(t *testing.T) {
 	assertClean(t,
 		`private_key: abc123def456`,
 		`private_key: "********"`)
+}
+
+func TestHideKeyExceptLastChars(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      string
+		expected string
+	}{
+		{"empty", "", defaultReplacement},
+		{"1 char", "a", defaultReplacement},
+		{"4 chars", "abcd", defaultReplacement},
+		{"5 chars: show 1", "abcde", "****e"},
+		{"7 chars: show 1", "abcdefg", "******g"},
+		{"8 chars: show 2", "abcdefgh", "******gh"},
+		{"15 chars: show 2", "abcdefghijklmno", "*************no"},
+		{"16 chars: show 3", "abcdefghijklmnop", "*************nop"},
+		{"31 chars: show 3", "abcdefghijklmnopqrstuvwxyz01234", "****************************234"},
+		{"32 chars: show 4 (DD API key length)", "abcdefghijklmnopqrstuvwxyz012345", "****************************2345"},
+		{"40 chars: show 4 (DD app key length)", "abcdefghijklmnopqrstuvwxyz0123456789abcd", "************************************abcd"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, HideKeyExceptLastChars(tt.key))
+		})
+	}
+}
+
+func TestDontScrubNonMapping(t *testing.T) {
+	assertClean(t,
+		`mysql_password:password`,
+		`mysql_password:password`)
+	assertClean(t,
+		`- mysql_password:password`,
+		`- mysql_password:password`)
+	assertClean(t,
+		`"mysql_password:password"`,
+		`"mysql_password:password"`)
+	assertClean(t,
+		`- "mysql_password:password"`,
+		`- "mysql_password:password"`)
 }

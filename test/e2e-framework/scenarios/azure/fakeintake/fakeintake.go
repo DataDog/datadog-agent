@@ -6,6 +6,8 @@
 package fakeintake
 
 import (
+	"strings"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -30,7 +32,15 @@ func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintak
 		if err != nil {
 			return err
 		}
-		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm))
+		dockerInstall, err := docker.InstallDocker(vm, pulumi.Parent(vm))
+		if err != nil {
+			return err
+		}
+		composeInstall, err := docker.InstallCompose(vm, pulumi.Parent(vm))
+		if err != nil {
+			return err
+		}
+		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall, composeInstall))
 		if err != nil {
 			return err
 		}
@@ -44,8 +54,10 @@ func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintak
 			cmdArgs = append(cmdArgs, "-retention-period="+params.RetentionPeriod)
 		}
 
+		cmdArgs = append(cmdArgs, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
+
 		_, err = vm.OS.Runner().Command("docker_run_fakeintake", &command.Args{
-			Create: pulumi.Sprintf("docker run --restart unless-stopped --name fakeintake -d -p 80:80 -e DD_API_KEY=%s %s %s", e.AgentAPIKey(), params.ImageURL, cmdArgs),
+			Create: pulumi.Sprintf("docker run --restart unless-stopped --name fakeintake -d -p 80:80 -e DD_API_KEY=%s %s %s", e.AgentAPIKey(), params.ImageURL, strings.Join(cmdArgs, " ")),
 			Delete: pulumi.String("docker stop fakeintake"),
 		}, utils.PulumiDependsOn(manager), pulumi.DeleteBeforeReplace(true))
 		if err != nil {

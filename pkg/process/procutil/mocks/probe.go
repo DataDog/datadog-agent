@@ -107,7 +107,7 @@ type Probe_ProcessesByPID_Call struct {
 // ProcessesByPID is a helper method to define mock.On call
 //   - now time.Time
 //   - collectStats bool
-func (_e *Probe_Expecter) ProcessesByPID(now interface{}, collectStats interface{}) *Probe_ProcessesByPID_Call {
+func (_e *Probe_Expecter) ProcessesByPID(now any, collectStats any) *Probe_ProcessesByPID_Call {
 	return &Probe_ProcessesByPID_Call{Call: _e.mock.On("ProcessesByPID", now, collectStats)}
 }
 
@@ -175,7 +175,7 @@ type Probe_StatsForPIDs_Call struct {
 // StatsForPIDs is a helper method to define mock.On call
 //   - pids []int32
 //   - now time.Time
-func (_e *Probe_Expecter) StatsForPIDs(pids interface{}, now interface{}) *Probe_StatsForPIDs_Call {
+func (_e *Probe_Expecter) StatsForPIDs(pids any, now any) *Probe_StatsForPIDs_Call {
 	return &Probe_StatsForPIDs_Call{Call: _e.mock.On("StatsForPIDs", pids, now)}
 }
 
@@ -242,7 +242,7 @@ type Probe_StatsWithPermByPID_Call struct {
 
 // StatsWithPermByPID is a helper method to define mock.On call
 //   - pids []int32
-func (_e *Probe_Expecter) StatsWithPermByPID(pids interface{}) *Probe_StatsWithPermByPID_Call {
+func (_e *Probe_Expecter) StatsWithPermByPID(pids any) *Probe_StatsWithPermByPID_Call {
 	return &Probe_StatsWithPermByPID_Call{Call: _e.mock.On("StatsWithPermByPID", pids)}
 }
 

@@ -1,0 +1,68 @@
+# A RETURN_LOST notification arrives for a key that has been fully
+# finalized. This creates a zombie tree entry. A later
+# EvictOlderThan call with a cutoff at the zombie's EntryKtime reaps it.
+config: {}
+ops:
+  # First invocation: pair and finalize k1 (EntryKtime=1000).
+  - !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 40}
+  - !add-fragment {key: k1, side: return, seq: 0, final: true, expect_return: false, bytes: 40}
+  # Stale RETURN_LOST for k1 creates a zombie (no fragments exist).
+  - !note-return-lost {key: k1}
+  # Unrelated activity on other keys (k2..k4 have EntryKtimes 2000/3000/4000).
+  - !add-fragment {key: k2, side: entry, seq: 0, final: true, expect_return: false, bytes: 10}
+  - !add-fragment {key: k3, side: entry, seq: 0, final: true, expect_return: false, bytes: 10}
+  - !add-fragment {key: k4, side: entry, seq: 0, final: true, expect_return: false, bytes: 10}
+  # Cutoff 1500 catches the k1 zombie (EntryKtime=1000) but leaves k2..k4.
+  - !evict-older-than {cutoff: 1500}
+---
+op: !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 40}
+state:
+  budget_used: 40
+  bytes: 40
+  tree_size: 1
+---
+op: !add-fragment {key: k1, side: return, seq: 0, final: true, expect_return: false, bytes: 40}
+readys:
+  - {key: k1, entry_frags: 1, entry_bytes: 40, return_frags: 1, return_bytes: 40}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0
+---
+op: !note-return-lost {key: k1}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 1
+---
+op: !add-fragment {key: k2, side: entry, seq: 0, final: true, expect_return: false, bytes: 10}
+readys:
+  - {key: k2, entry_frags: 1, entry_bytes: 10, return_frags: 0, return_bytes: 0}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 1
+---
+op: !add-fragment {key: k3, side: entry, seq: 0, final: true, expect_return: false, bytes: 10}
+readys:
+  - {key: k3, entry_frags: 1, entry_bytes: 10, return_frags: 0, return_bytes: 0}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 1
+---
+op: !add-fragment {key: k4, side: entry, seq: 0, final: true, expect_return: false, bytes: 10}
+readys:
+  - {key: k4, entry_frags: 1, entry_bytes: 10, return_frags: 0, return_bytes: 0}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 1
+---
+op: !evict-older-than {cutoff: 1500}
+readys:
+  - {key: k1, entry_frags: 0, entry_bytes: 0, return_frags: 0, return_bytes: 0, entry_truncated: true, return_lost: true}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "basic",
+    srcs = [
+        "convert.go",
+        "validate_basic.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/basic",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_spf13_cast//:cast"],
+)
+
+dd_agent_go_test(
+    name = "basic_test",
+    srcs = [
+        "convert_test.go",
+        "validate_basic_test.go",
+    ],
+    embed = [":basic"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

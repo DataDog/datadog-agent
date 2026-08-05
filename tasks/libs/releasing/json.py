@@ -36,7 +36,6 @@ UNFREEZE_REPO_AGENT = "datadog-agent"
 INTERNAL_DEPS_REPOS = ["omnibus-ruby"]
 DEPENDENT_REPOS = INTERNAL_DEPS_REPOS + ["integrations-core"]
 ALL_REPOS = DEPENDENT_REPOS + [UNFREEZE_REPO_AGENT]
-UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT] + ["datadog-agent-buildimages"]
 DEFAULT_BRANCHES = {
     "omnibus-ruby": "datadog-5.5.0",
     "datadog-agent": "main",
@@ -281,17 +280,6 @@ def _get_release_json_value(key):
         release_json = release_json.get(element)
 
     return release_json
-
-
-def set_new_release_branch(branch):
-    rj = load_release_json()
-
-    rj["base_branch"] = branch
-
-    for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-        rj[RELEASE_JSON_DEPENDENCIES][field] = f"{branch}"
-
-    _save_release_json(rj)
 
 
 def set_current_milestone(milestone):

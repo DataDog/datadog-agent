@@ -23,6 +23,7 @@ func TestEventMonitor(t *testing.T) {
 
 	for i, tc := range []struct {
 		cws, fim, networkEvents, gpu bool
+		gpuEBPFProbes                bool
 		usmEvents                    bool
 		enabled                      bool
 	}{
@@ -34,7 +35,11 @@ func TestEventMonitor(t *testing.T) {
 		{cws: false, fim: true, networkEvents: true, enabled: true},
 		{cws: true, fim: false, networkEvents: true, enabled: true},
 		{cws: true, fim: true, networkEvents: true, enabled: true},
-		{cws: false, fim: false, networkEvents: false, gpu: true, enabled: true},
+		// GPU monitoring only needs the event monitor to feed its eBPF probes,
+		// so both settings have to be enabled for the module to be pulled in.
+		{cws: false, fim: false, networkEvents: false, gpu: true, gpuEBPFProbes: true, enabled: true},
+		{cws: false, fim: false, networkEvents: false, gpu: true, gpuEBPFProbes: false, enabled: false},
+		{cws: false, fim: false, networkEvents: false, gpu: false, gpuEBPFProbes: true, enabled: false},
 		{usmEvents: true, enabled: true},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -44,6 +49,9 @@ func TestEventMonitor(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_GPU_MONITORING_ENABLED", strconv.FormatBool(tc.gpu))
+			// Set explicitly rather than relying on the default, which is
+			// subject to change as the eBPF probes are deprecated.
+			t.Setenv("DD_GPU_MONITORING_ENABLE_EBPF_PROBES", strconv.FormatBool(tc.gpuEBPFProbes))
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(tc.usmEvents))
 			t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", strconv.FormatBool(tc.usmEvents))
 
@@ -71,7 +79,7 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 func TestEnableDiscovery(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		cfg := mock.NewSystemProbe(t)
-		cfg.SetWithoutSource("discovery.enabled", true)
+		cfg.SetInTest("discovery.enabled", true)
 		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
 	})
 
@@ -83,7 +91,18 @@ func TestEnableDiscovery(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		cfg := mock.NewSystemProbe(t)
-		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
+		assert.Equal(t, runtime.GOOS == "linux", cfg.GetBool(discoveryNS("enabled")))
+	})
+
+	t.Run("default disabled on ECS Fargate", func(t *testing.T) {
+		t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_FARGATE")
+
+		// Reset global config to avoid test interference.
+		_ = mock.NewSystemProbe(t)
+
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 
 	discoveryDefaultEnabled := runtime.GOOS == "linux"
@@ -110,6 +129,16 @@ func TestEnableDiscovery(t *testing.T) {
 		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 
+	t.Run("default enabled standalone on linux", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
+		// No other modules enabled — discovery should still auto-enable on Linux
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
+	})
+
 	t.Run("force disabled with USM via env var", func(t *testing.T) {
 		// Reset global config to avoid test interference
 		_ = mock.NewSystemProbe(t)
@@ -127,7 +156,7 @@ func TestEnableDiscovery(t *testing.T) {
 		mockCfg := mock.NewSystemProbe(t)
 
 		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-		mockCfg.SetWithoutSource("discovery.enabled", false)
+		mockCfg.SetInTest("discovery.enabled", false)
 
 		cfg, err := New("", "")
 		require.NoError(t, err)

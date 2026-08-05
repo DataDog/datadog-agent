@@ -71,7 +71,7 @@ func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolv
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
-		return model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
+		return model.GetPlaceholderProcessCacheEntry(ev.PIDContext), false
 	}
 
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
@@ -79,7 +79,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext)
 		return ev.ProcessCacheEntry, false
 	}
 
@@ -427,7 +427,7 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
-	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext.ContainerContext.ContainerID, f); pkg != nil {
+	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
 		f.PkgEpoch = pkg.Epoch
@@ -702,8 +702,8 @@ func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *mod
 }
 
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
-func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
-	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e)
+func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event, process *model.Process) []model.AWSSecurityCredentials {
+	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e, process)
 }
 
 // ResolveSyscallCtxArgs resolve syscall ctx
@@ -1029,7 +1029,7 @@ func (fh *EBPFFieldHandlers) ResolveSessionIdentity(e *model.Event, evtCtx *mode
 	if evtCtx.K8SUsername != "" {
 		sessionIdentity = evtCtx.K8SUsername
 	} else if evtCtx.SSHClientPort != 0 {
-		sessionIdentity = evtCtx.SSHClientIP.String() + ":" + strconv.Itoa(evtCtx.SSHClientPort)
+		sessionIdentity = utils.GetIPStringFromIPNet(evtCtx.SSHClientIP) + ":" + strconv.Itoa(evtCtx.SSHClientPort)
 	} else {
 		sessionIdentity = e.ProcessContext.User
 	}

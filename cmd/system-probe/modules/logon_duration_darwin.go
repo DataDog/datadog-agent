@@ -22,8 +22,7 @@ func init() { registerModule(LogonDuration) }
 
 // LogonDuration Factory
 var LogonDuration = &module.Factory{
-	Name:             config.LogonDurationModule,
-	ConfigNamespaces: []string{"logon_duration"},
+	Name: config.LogonDurationModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &logonDurationModule{}, nil
 	},

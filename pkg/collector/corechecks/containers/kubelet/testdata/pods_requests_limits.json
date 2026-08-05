@@ -35,6 +35,16 @@
         ]
       },
       "spec":{
+        "resources": {
+          "limits": {
+            "cpu": "1",
+            "memory": "2Gi"
+          },
+          "requests": {
+            "cpu": "750m",
+            "memory": "1536Mi"
+          }
+        },
         "volumes":[
           {
             "name":"cassandra-data",

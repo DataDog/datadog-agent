@@ -8,11 +8,10 @@ package client
 import (
 	"context"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/client"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 type agentDockerExecutor struct {
@@ -22,10 +21,11 @@ type agentDockerExecutor struct {
 
 var _ agentCommandExecutor = &agentDockerExecutor{}
 
-func newAgentDockerExecutor(context common.Context, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
-	dockerClient, err := NewDocker(context.T(), dockerAgentOutput.DockerManager)
+func newAgentDockerExecutor(context Context, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
+	dockerClient, err := NewDocker(context, dockerAgentOutput.DockerManager)
 	if err != nil {
-		panic(err)
+		context.FailNow("%v", err)
+		return nil
 	}
 	return &agentDockerExecutor{
 		dockerClient:       dockerClient,
@@ -44,5 +44,6 @@ func (ae agentDockerExecutor) execute(arguments []string) (string, error) {
 func (ae agentDockerExecutor) restart() error {
 	ctx := context.Background()
 	timeout := 30
-	return ae.dockerClient.client.ContainerRestart(ctx, ae.agentContainerName, container.StopOptions{Timeout: &timeout})
+	_, err := ae.dockerClient.client.ContainerRestart(ctx, ae.agentContainerName, client.ContainerRestartOptions{Timeout: &timeout})
+	return err
 }

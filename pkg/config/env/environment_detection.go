@@ -96,7 +96,7 @@ func IsAutoconfigEnabled(cfg model.Reader) bool {
 // DetectFeatures runs the feature detection.
 // We guarantee that Datadog configuration is entirely loaded (env + YAML)
 // before this function is called
-func DetectFeatures(cfg model.Reader) {
+func DetectFeatures(cfg model.ReaderWriter) {
 	featureLock.Lock()
 	defer featureLock.Unlock()
 
@@ -152,7 +152,7 @@ func excludeFeatures(detectedFeatures FeatureMap, excludedFeatures []string) {
 	}
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func registerFeature(f Feature) {
 	knownFeatures[f] = struct{}{}
 }

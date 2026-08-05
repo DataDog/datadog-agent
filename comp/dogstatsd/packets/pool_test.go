@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,9 +23,9 @@ func TestPoolTelemetry(t *testing.T) {
 		usedByTestTelemetry = false
 	}()
 
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
-	pool := NewPool(1024, packetsTelemetryStore)
+	pool := NewPool(configmock.New(t), 1024, packetsTelemetryStore)
 
 	packet := &Packet{
 		Contents:   []byte("test"),

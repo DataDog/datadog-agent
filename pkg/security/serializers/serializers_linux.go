@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"path"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -266,6 +266,8 @@ type ProcessSerializer struct {
 	Pid uint32 `json:"pid,omitempty"`
 	// Parent Process ID
 	PPid *uint32 `json:"ppid,omitempty"`
+	// Session ID
+	SID uint32 `json:"sid"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
 	// ForkFlags
@@ -332,10 +334,28 @@ type ProcessSerializer struct {
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
-	// Tags from an APM tracer instrumentation
-	Tracer map[string]string `json:"tracer,omitempty"`
+	// Tracer bundles the per-process APM tracer state: the captured span
+	// (trace_id / span_id / attributes) under "trace", and the tracer
+	// metadata under "metadata". For a process that fork+exec'd a
+	// subprocess, .trace carries the parent's span captured by
+	// fill_span_context at sched_process_fork; the top-level event
+	// "dd"/"trace" fields are built by newTraceSerializer which walks the
+	// ancestor lineage to find the same value.
+	Tracer *TracerSerializer `json:"tracer,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
+}
+
+// TracerSerializer groups the per-process APM tracer information surfaced
+// under the "tracer" key in the serialized process: the captured span
+// context (.trace) and the static tracer metadata (.metadata).
+// easyjson:json
+type TracerSerializer struct {
+	// Captured APM span context for this process.
+	Trace *TraceSerializer `json:"trace,omitempty"`
+	// Metadata from APM tracer instrumentation (for example, schema version, language,
+	// version, or thread-local attribute keys).
+	Metadata *tracermetadata.TracerMetadata `json:"metadata,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -617,25 +637,35 @@ type SyscallArgsSerializer struct {
 // SetSockOptEventSerializer defines a setsockopt event serializer
 // easyjson:json
 type SetSockOptEventSerializer struct {
-	// Socket file descriptor
+	// Socket type
 	SocketType string `json:"socket_type"`
 	// Socket family
 	SocketFamily string `json:"socket_family"`
-	// Length of the filter
-	FilterLen uint16 `json:"filter_len,omitempty"`
 	// Socket protocol
 	SocketProtocol string `json:"socket_protocol"`
-
 	// Level at which the option is defined
 	Level string `json:"level"`
 	// Name of the option being set
 	OptName string `json:"optname"`
-	// Filter truncated
+	// Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)
+	FilterLen uint16 `json:"filter_len,omitempty"`
+	// Filter truncation flag (available when OptName == SO_ATTACH_FILTER)
 	IsFilterTruncated bool `json:"is_filter_truncated,omitempty"`
-	// Filter instructions
+	// Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)
 	FilterInstructions string `json:"filter,omitempty"`
-	//Filter hash
+	// Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)
 	FilterHash string `json:"filter_hash,omitempty"`
+}
+
+// SocketEventSerializer serializes a socket event to JSON
+// easyjson:json
+type SocketEventSerializer struct {
+	// Socket domain
+	Domain string `json:"domain"`
+	// Socket type
+	Type string `json:"type"`
+	// Socket protocol
+	Protocol string `json:"protocol"`
 }
 
 // PrCtlEventSerializer serializes a prctl event
@@ -788,8 +818,16 @@ type EventSerializer struct {
 	*BaseEventSerializer
 	Signature string `json:"signature,omitempty"`
 
-	*NetworkContextSerializer         `json:"network,omitempty"`
-	*DDContextSerializer              `json:"dd,omitempty"`
+	*NetworkContextSerializer `json:"network,omitempty"`
+	// DD holds the APM correlation span context under the "dd" key, the
+	// shape the Datadog backend expects at ingest. This field is consumed
+	// by the intake and not surfaced back to end users.
+	DD *TraceSerializer `json:"dd,omitempty"`
+	// Trace is the same span/trace/attributes payload, exposed under a
+	// user-facing key. Built from newTraceSerializer just like the "dd"
+	// field above — the two pointers reference the same serializer
+	// instance, so the two views can never drift.
+	Trace                             *TraceSerializer `json:"trace,omitempty"`
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 	*CGroupContextSerializer          `json:"cgroup,omitempty"`
 
@@ -818,6 +856,7 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SocketEventSerializer        `json:"socket,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -962,6 +1001,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			SID:             ps.SID,
 			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
@@ -999,34 +1039,50 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e)
 		}
 
-		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e)
+		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e, ps)
 		if len(awsSecurityCredentials) > 0 {
 			for _, creds := range awsSecurityCredentials {
 				psSerializer.AWSSecurityCredentials = append(psSerializer.AWSSecurityCredentials, newAWSSecurityCredentialsSerializer(&creds))
 			}
 		}
 
-		if len(ps.TracerTags) > 0 {
-			tracerTags := make(map[string]string, len(ps.TracerTags))
-			for _, tag := range ps.TracerTags {
-				key, value, found := strings.Cut(tag, ":")
-				if found {
-					tracerTags[key] = value
-				}
+		// Build the per-process "tracer" object lazily — it appears only
+		// when either the static metadata or the captured span is set.
+		var tracer *TracerSerializer
+		if !ps.Tracer.Metadata.IsZero() {
+			tmetaCopy := ps.Tracer.Metadata
+			if tracer == nil {
+				tracer = &TracerSerializer{}
 			}
-			psSerializer.Tracer = tracerTags
+			tracer.Metadata = &tmetaCopy
+		}
+		if ps.Tracer.Trace.SpanID != 0 && (ps.Tracer.Trace.TraceID.Hi != 0 || ps.Tracer.Trace.TraceID.Lo != 0) {
+			if tracer == nil {
+				tracer = &TracerSerializer{}
+			}
+			tracer.Trace = &TraceSerializer{
+				SpanID:     strconv.FormatUint(ps.Tracer.Trace.SpanID, 10),
+				TraceID:    ps.Tracer.Trace.TraceID.HexString(),
+				Attributes: ps.Tracer.Trace.Attributes,
+			}
+		}
+		if tracer != nil {
+			psSerializer.Tracer = tracer
 		}
 
 		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
 		}
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID: string(ps.CGroup.CGroupID),
+				ID:        string(ps.CGroup.CGroupID),
+				Source:    ps.CGroup.CGroupSource.String(),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.CGroup.UnixCreatedAt()),
 			}
 		}
 
@@ -1035,6 +1091,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return &ProcessSerializer{
 		Pid:             ps.Pid,
 		Tid:             ps.Tid,
+		SID:             ps.SID,
 		IsKworker:       ps.IsKworker,
 		IsExec:          ps.IsExec,
 		IsExecExec:      ps.IsExecExec,
@@ -1057,20 +1114,10 @@ func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSess
 }
 
 func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
-	sshClientIP := ctx.SSHClientIP.IP.String()
-	if sshClientIP == "<nil>" {
-		sshClientIP = ""
-	}
-
-	sshAuthMethod := model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
-	if sshAuthMethod == "<nil>" {
-		sshAuthMethod = ""
-	}
-
 	userSessionContextSerializer.SSHSessionID = strconv.FormatUint(uint64(ctx.SSHSessionID), 16)
 	userSessionContextSerializer.SSHClientPort = ctx.SSHClientPort
-	userSessionContextSerializer.SSHClientIP = sshClientIP
-	userSessionContextSerializer.SSHAuthMethod = sshAuthMethod
+	userSessionContextSerializer.SSHClientIP = utils.GetIPStringFromIPNet(ctx.SSHClientIP)
+	userSessionContextSerializer.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
 	userSessionContextSerializer.SSHPublicKey = ctx.SSHPublicKey
 }
 
@@ -1452,42 +1499,50 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 	return &ps
 }
 
-// DDContextSerializer serializes a span context to JSON
+// TraceSerializer serializes a span context to JSON
 // easyjson:json
-type DDContextSerializer struct {
+type TraceSerializer struct {
 	// Span ID used for APM correlation
 	SpanID string `json:"span_id,omitempty"`
 	// Trace ID used for APM correlation
 	TraceID string `json:"trace_id,omitempty"`
+	// Custom OTel thread-local attributes from the span context
+	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-func newDDContextSerializer(e *model.Event) *DDContextSerializer {
-	s := &DDContextSerializer{}
+// newTraceSerializer builds a TraceSerializer from the event's span context,
+// falling back to the first ancestor process that carries tracer data. It
+// returns nil when no span context is available so that the "dd" and "trace"
+// JSON keys (both omitempty pointers) are omitted entirely rather than emitted
+// as empty objects.
+func newTraceSerializer(e *model.Event) *TraceSerializer {
 	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
-		s.SpanID = strconv.FormatUint(e.SpanContext.SpanID, 10)
-		s.TraceID = fmt.Sprintf("%x%x", e.SpanContext.TraceID.Hi, e.SpanContext.TraceID.Lo)
-		return s
+		return &TraceSerializer{
+			SpanID:     strconv.FormatUint(e.SpanContext.SpanID, 10),
+			TraceID:    e.SpanContext.TraceID.HexString(),
+			Attributes: e.SpanContext.Attributes,
+		}
 	}
 
 	ctx := eval.NewContext(e)
 	it := &model.ProcessAncestorsIterator{Root: e.ProcessContext.Ancestor}
-	ptr := it.Front(ctx)
 
-	for ptr != nil {
+	for ptr := it.Front(ctx); ptr != nil; ptr = it.Next(ctx) {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		if pce.SpanID != 0 && (pce.TraceID.Hi != 0 || pce.TraceID.Lo != 0) {
-			s.SpanID = strconv.FormatUint(pce.SpanID, 10)
-			s.TraceID = fmt.Sprintf("%x%x", pce.TraceID.Hi, pce.TraceID.Lo)
-			break
+		if pce.Tracer.Trace.SpanID != 0 && (pce.Tracer.Trace.TraceID.Hi != 0 || pce.Tracer.Trace.TraceID.Lo != 0) {
+			return &TraceSerializer{
+				SpanID:     strconv.FormatUint(pce.Tracer.Trace.SpanID, 10),
+				TraceID:    pce.Tracer.Trace.TraceID.HexString(),
+				Attributes: pce.Tracer.Trace.Attributes,
+			}
 		}
-
-		ptr = it.Next(ctx)
 	}
-	return s
+
+	return nil
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContext) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
 		Device:           newNetworkDeviceSerializer(&networkCtx.Device, e),
@@ -1563,6 +1618,14 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 	}
 }
 
+func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
+	return &SocketEventSerializer{
+		Domain:   model.SocketDomain(e.Socket.Domain).String(),
+		Type:     model.SocketType(e.Socket.Type).String(),
+		Protocol: model.SocketProtocol(e.Socket.Protocol).String(),
+	}
+}
+
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 	return &CGroupWriteEventSerializer{
 		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
@@ -1593,10 +1656,16 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *EventSerializer {
+	// One trace serializer powers two top-level JSON keys: "dd" (consumed
+	// by the Datadog intake, not visible to users) and "trace" (user-
+	// facing). Sharing the pointer guarantees both views stay in lock step
+	// with no risk of divergence.
+	spanCtx := newTraceSerializer(event)
 	s := &EventSerializer{
 		BaseEventSerializer:   NewBaseEventSerializer(event, rule, scrubber),
 		UserContextSerializer: newUserContextSerializer(event),
-		DDContextSerializer:   newDDContextSerializer(event),
+		DD:                    spanCtx,
+		Trace:                 spanCtx,
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
 	s.Signature = event.FieldHandlers.ResolveSignature(event)
@@ -1612,6 +1681,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.ContainerContext.IsNull() {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
 		}
@@ -1620,6 +1690,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.CGroup.IsNull() {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
+			Source:    event.ProcessContext.CGroup.CGroupSource.String(),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(event.ProcessContext.CGroup.UnixCreatedAt()),
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
@@ -1883,6 +1955,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SocketEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
+		s.SocketEventSerializer = newSocketEventSerializer(event)
 	}
 
 	return s

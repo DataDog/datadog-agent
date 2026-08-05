@@ -10,7 +10,6 @@ package config
 import (
 	"context"
 
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	v1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,6 +27,35 @@ const (
 	// InjectionModeSidecar injects the processor as a sidecar in proxy pods
 	InjectionModeSidecar InjectionMode = "sidecar"
 )
+
+// MutationOutcome names the terminal state of a MutatePod / PodDeleted call.
+type MutationOutcome int
+
+const (
+	MutationMutated MutationOutcome = iota // success, err == nil
+	MutationSkipped                        // owned but declined, err is *MutationSkippedReason
+	MutationError                          // real failure, err is a real error
+)
+
+// MutationSkipReason is a bounded enum of owned-but-skipped reasons.
+type MutationSkipReason string
+
+const (
+	SkipReasonAlreadySidecar          MutationSkipReason = "already_sidecar"
+	SkipReasonAlreadySocketVolume     MutationSkipReason = "already_socket_volume"
+	SkipReasonMissingUDSPath          MutationSkipReason = "missing_uds_path"
+	SkipReasonGatewayOptOut           MutationSkipReason = "gateway_opt_out"
+	SkipReasonAlreadyInitSidecar      MutationSkipReason = "already_init_sidecar"
+	SkipReasonCrossNamespaceConfigMap MutationSkipReason = "cross_namespace_configmap"
+	SkipReasonInvalidConfigMapArg     MutationSkipReason = "invalid_configmap_arg"
+	SkipReasonUnknown                 MutationSkipReason = "unknown" // decorator-only sentinel; never emitted by proxies
+)
+
+type MutationSkippedReason struct {
+	Reason MutationSkipReason
+}
+
+func (s *MutationSkippedReason) Error() string { return "mutation skipped: " + string(s.Reason) }
 
 // InjectionPattern is the main interface to implement to support a new proxy type
 // for appsec injection. It is similar to the controller pattern used in
@@ -55,16 +83,30 @@ type InjectionPattern interface {
 	Deleted(ctx context.Context, obj *unstructured.Unstructured) error
 }
 
+// Starter optional reconciler (e.g. nginx ConfigMap sync).
+// Patterns that need background reconciliation implement this interface.
+type Starter interface {
+	Start(ctx context.Context) error
+}
+
 // SidecarInjectionPattern extends InjectionPattern for SIDECAR mode
 // Implementations provide both proxy configuration AND sidecar injection logic
 type SidecarInjectionPattern interface {
 	InjectionPattern
-	mutatecommon.MutatorWithFilter
 
-	// PodDeleted is called when a pod that has gotten through all the conditions is getting deleted
-	PodDeleted(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error)
+	// IsPodEligible is a PURE OWNERSHIP PREDICATE. It answers "is this pod one THIS
+	// pattern owns?" — nothing about idempotency, opt-out, or config validity.
+	// Ownership-negative outcomes (return false) are NOT skips and are NOT counted.
+	// Owned-but-skipped checks live inside MutatePod as MutationSkipped +
+	// *MutationSkippedReason.
+	IsPodEligible(pod *corev1.Pod, ns string) bool
 
-	// MatchCondition is used to filter early in the apiserver if the pod should be sent to the webhook.
-	// This expression will be OR-ed with all other patterns
+	// MutatePod mutates the pod or reports why it declined.
+	MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (MutationOutcome, error)
+
+	// PodDeleted mirrors MutatePod for DELETE admissions.
+	PodDeleted(pod *corev1.Pod, ns string, dc dynamic.Interface) (MutationOutcome, error)
+
+	// MatchCondition is unchanged — apiserver-level prefilter, OR-ed across patterns.
 	MatchCondition() v1.MatchCondition
 }

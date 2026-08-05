@@ -24,14 +24,42 @@ import (
 // CheckFactory factory function type to instantiate checks
 type CheckFactory func() check.Check
 
+// LoadMode describes why a core check is being constructed.
+type LoadMode string
+
+const (
+	// NormalLoadMode constructs a normal collector check.
+	NormalLoadMode LoadMode = "normal"
+	// ShadowLoadMode constructs a shadow collector check.
+	ShadowLoadMode LoadMode = "shadow"
+)
+
+// ConstructionContext is passed to factories that need mode-specific
+// dependencies while constructing a check instance.
+type ConstructionContext struct {
+	Mode LoadMode
+}
+
+// ContextualCheckFactory instantiates checks with construction context.
+type ContextualCheckFactory func(ConstructionContext) check.Check
+
 // Catalog keeps track of Go checks by name
-var catalog = make(map[string]CheckFactory)
+var catalog = make(map[string]ContextualCheckFactory)
 
 // GoCheckLoaderName is the name of the Go loader
 const GoCheckLoaderName string = "core"
 
 // RegisterCheck adds a check to the catalog
 func RegisterCheck(name string, checkFactory option.Option[func() check.Check]) {
+	if v, ok := checkFactory.Get(); ok {
+		catalog[name] = func(ConstructionContext) check.Check {
+			return v()
+		}
+	}
+}
+
+// RegisterContextualCheck adds a context-aware check factory to the catalog.
+func RegisterContextualCheck(name string, checkFactory option.Option[func(ConstructionContext) check.Check]) {
 	if v, ok := checkFactory.Get(); ok {
 		catalog[name] = v
 	}
@@ -48,11 +76,32 @@ func GetRegisteredFactoryKeys() []string {
 }
 
 // GoCheckLoader is a specific loader for checks living in this package
-type GoCheckLoader struct{}
+type GoCheckLoader struct {
+	mode LoadMode
+}
+
+// GoCheckLoaderOption configures a GoCheckLoader.
+type GoCheckLoaderOption func(*GoCheckLoader)
+
+// WithLoadMode configures the construction mode for loaded checks.
+func WithLoadMode(mode LoadMode) GoCheckLoaderOption {
+	return func(gl *GoCheckLoader) {
+		gl.mode = mode
+	}
+}
+
+// LoadMode returns the loader's check construction mode.
+func (gl *GoCheckLoader) LoadMode() LoadMode {
+	return gl.mode
+}
 
 // NewGoCheckLoader creates a loader for go checks
-func NewGoCheckLoader() (*GoCheckLoader, error) {
-	return &GoCheckLoader{}, nil
+func NewGoCheckLoader(opts ...GoCheckLoaderOption) (*GoCheckLoader, error) {
+	loader := &GoCheckLoader{mode: NormalLoadMode}
+	for _, opt := range opts {
+		opt(loader)
+	}
+	return loader, nil
 }
 
 // Name return returns Go loader name
@@ -70,13 +119,17 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 		return c, errors.New(msg)
 	}
 
-	c = factory()
+	c = factory(ConstructionContext{Mode: gl.mode})
+	if c == nil {
+		msg := fmt.Sprintf("Check %s factory returned nil", config.Name)
+		return c, errors.New(msg)
+	}
 
 	configSource := config.Source
 	if instanceIndex >= 0 {
 		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
 	}
-	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, configSource); err != nil {
+	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, configSource, config.Provider); err != nil {
 		if errors.Is(err, check.ErrSkipCheckInstance) {
 			return c, err
 		}

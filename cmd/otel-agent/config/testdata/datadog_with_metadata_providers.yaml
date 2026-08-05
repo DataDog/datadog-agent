@@ -1,0 +1,5 @@
+metadata_providers:
+  - name: resources
+    interval: 300
+  - name: host
+    interval: 60

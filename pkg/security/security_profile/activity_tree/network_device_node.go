@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -23,6 +24,14 @@ type NetworkDeviceNode struct {
 	FlowNodes map[model.FiveTuple]*FlowNode
 }
 
+// size approximates this node's own heap footprint
+func (netdevice *NetworkDeviceNode) size() int64 {
+	s := int64(unsafe.Sizeof(*netdevice))
+	s += fixedKeyMapBytes(netdevice.FlowNodes)
+	s += sliceBackingBytes(cap(netdevice.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	return s
+}
+
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
 func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGenerationType) *NetworkDeviceNode {
 	node := &NetworkDeviceNode{
@@ -33,23 +42,24 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 	return node
 }
 
-func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string, timestamp time.Time) {
+func (netdevice *NetworkDeviceNode) appendImageTag(imageTagID uint64, timestamp time.Time) {
 	for _, flow := range netdevice.FlowNodes {
-		flow.AppendImageTag(imageTag, timestamp)
+		flow.AppendImageTagID(imageTagID, timestamp)
 	}
 }
 
-func (netdevice *NetworkDeviceNode) evictImageTag(imageTag string) bool {
+func (netdevice *NetworkDeviceNode) evictImageTag(imageTagID uint64) (bool, int64) {
+	var removed int64
 	for key, flow := range netdevice.FlowNodes {
-		if flow.EvictImageTag(imageTag) {
+		if flow.EvictImageTag(imageTagID) {
+			removed += flow.size()
 			delete(netdevice.FlowNodes, key)
 		}
 	}
-
-	return len(netdevice.FlowNodes) == 0
+	return len(netdevice.FlowNodes) == 0, removed
 }
 
-func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string, stats *Stats) bool {
+func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTagID uint64, stats *Stats) bool {
 	if len(rules) > 0 {
 		netdevice.MatchedRules = model.AppendMatchedRule(netdevice.MatchedRules, rules)
 	}
@@ -59,7 +69,7 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 		existingNode, ok := netdevice.FlowNodes[flow.GetFiveTuple()]
 		if ok {
 			if !dryRun {
-				existingNode.addFlow(flow, evt, imageTag)
+				existingNode.addFlow(flow, evt, imageTagID)
 			}
 		} else {
 			newFlow = true
@@ -68,8 +78,10 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 				return newFlow
 			}
 			// create new entry
-			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, evt, generationType, imageTag)
+			flowNode := NewFlowNode(flow, evt, generationType, imageTagID)
+			netdevice.FlowNodes[flow.GetFiveTuple()] = flowNode
 			stats.FlowNodes++
+			stats.SizeBytes += flowNode.size()
 		}
 	}
 

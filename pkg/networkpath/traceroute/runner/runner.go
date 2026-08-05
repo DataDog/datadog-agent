@@ -20,13 +20,14 @@ import (
 	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/traceroute"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,11 +51,11 @@ const (
 
 // Telemetry
 var tracerouteRunnerTelemetry = struct {
-	runs       *telemetry.StatCounterWrapper
-	failedRuns *telemetry.StatCounterWrapper
+	runs       *telemetryComponent.StatCounterWrapper
+	failedRuns *telemetryComponent.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
-	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
 }
 
 func init() {
@@ -116,12 +117,12 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
-		maxTTL = setup.DefaultNetworkPathMaxTTL
+		maxTTL = constants.DefaultNetworkPathMaxTTL
 	}
 
 	var timeout time.Duration
 	if cfg.Timeout == 0 {
-		timeout = setup.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
+		timeout = constants.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
 	} else {
 		timeout = cfg.Timeout
 	}
@@ -137,7 +138,7 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 		TCPMethod:             traceroute.TCPMethod(cfg.TCPMethod),
 		WantV6:                false,
 		ReverseDns:            cfg.ReverseDNS,
-		CollectSourcePublicIP: true,
+		CollectSourcePublicIP: !cfg.DisableSourcePublicIPCollection,
 		UseWindowsDriver:      !cfg.DisableWindowsDriver,
 		TracerouteQueries:     cfg.TracerouteQueries,
 		E2eQueries:            cfg.E2eQueries,

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/updater/ssistatus/def",
+        "//comp/updater/ssistatus/impl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

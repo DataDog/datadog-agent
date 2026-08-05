@@ -9,6 +9,7 @@ import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/workloadfilter/workloadfilter.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
 import "datadog/kubemetadata/kubemetadata.proto";
+import "datadog/healthplatform/healthplatform.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
@@ -73,4 +74,38 @@ service AgentSecure {
 
     // Streams pod-to-service metadata for a specific node.
     rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);
+
+    // Reports a fully-built health issue to the core agent's health platform store.
+    // Registered remote agents (e.g. ADP) MUST supply remote_agent_session_id so the
+    // server can validate the session is live; unregistered sub-agents (system-probe,
+    // process-agent, security-agent) that connect over mTLS but do not call
+    // RegisterRemoteAgent may leave it empty.
+    rpc ReportHealthIssue(datadog.api.v1.ReportHealthIssueRequest) returns (google.protobuf.Empty);
+
+    // Resolves (clears) a previously reported health issue by its unique ID.
+    // This is an idempotent delete: OK is returned whether the issue existed or not.
+    // Registered remote agents MUST supply remote_agent_session_id (same rules as
+    // ReportHealthIssue).
+    rpc ResolveHealthIssue(datadog.api.v1.ResolveHealthIssueRequest) returns (google.protobuf.Empty);
+}
+
+// ReportHealthIssueRequest carries a health issue from a sub-agent or registered
+// remote agent to the core agent's health platform store.
+message ReportHealthIssueRequest {
+    // session_id issued by RegisterRemoteAgent. Required for registered remote
+    // agents (ADP, OTel collector, etc.); the server validates the session is still
+    // live and rejects stale or unknown session IDs with UNAUTHENTICATED.
+    // Leave empty for sub-agents (system-probe, process-agent, security-agent)
+    // that are not registered with the Remote Agent Registry.
+    string remote_agent_session_id = 1;
+    datadog.healthplatform.Issue issue = 2;
+}
+
+// ResolveHealthIssueRequest clears a previously reported health issue.
+message ResolveHealthIssueRequest {
+    // session_id of the calling remote agent. Same rules as
+    // remote_agent_session_id in ReportHealthIssueRequest.
+    string remote_agent_session_id = 1;
+    // Unique instance id of the issue to resolve.
+    string issue_id = 2;
 }

@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "remoteconfighandler",
+    srcs = [
+        "agent_failover.go",
+        "mock_samplers.go",
+        "remote_config_handler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/remoteconfig/state",
+        "//pkg/remoteconfig/state/products/apmsampling",
+        "//pkg/trace/config",
+        "//pkg/trace/log",
+        "//pkg/trace/semantics",
+        "//pkg/util/log",
+        "@com_github_davecgh_go_spew//spew",
+        "@org_uber_go_mock//gomock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "remoteconfighandler_test",
+    srcs = ["remote_config_handler_test.go"],
+    embed = [":remoteconfighandler"],
+    deps = [
+        "//pkg/remoteconfig/state",
+        "//pkg/remoteconfig/state/products/apmsampling",
+        "//pkg/trace/config",
+        "//pkg/trace/semantics",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_mock//gomock",
+    ],
+)

@@ -6,7 +6,7 @@
 package aws
 
 import (
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws"
 )
 
 const (
@@ -158,7 +158,7 @@ func agentSandboxDefault() environmentDefault {
 	return environmentDefault{
 		aws: awsProvider{
 			region:  string(aws.RegionUSEast1),
-			profile: "exec-sso-agent-sandbox-account-admin",
+			profile: "exec-sso-agent-sandbox-account-admin-8h",
 		},
 		ddInfra: ddInfra{
 			defaultVPCID: "vpc-029c0faf8f49dee8d",
@@ -197,7 +197,7 @@ func agentSandboxDefault() environmentDefault {
 
 			eks: ddInfraEKS{
 				readOnlySSORole:     "arn:aws:iam::376334461865:role/AWSReservedSSO_read-only_14b5d3ee971c41e7",
-				accountAdminSSORole: "arn:aws:iam::376334461865:role/AWSReservedSSO_account-admin_6b545a7026a0a2d4",
+				accountAdminSSORole: "arn:aws:iam::376334461865:role/AWSReservedSSO_account-admin-8h_8fadaeaca2040435",
 				podSubnets: []DDInfraEKSPodSubnets{
 					{
 						AZ:       "us-east-1a",

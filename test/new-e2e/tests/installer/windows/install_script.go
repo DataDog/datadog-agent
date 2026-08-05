@@ -76,6 +76,13 @@ func (b *baseInstaller) getInstallerURL(params Params) (string, error) {
 func (b *baseInstaller) getBaseEnvVars() map[string]string {
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
 	envVars["DD_API_KEY"] = installer.GetAPIKey()
+	// Skip the version-handoff in `setup` by default so each test exercises the
+	// locally-uploaded installer.exe rather than re-execing into the OCI-
+	// published one (which would otherwise fire because InstallScriptEnv pins
+	// DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT to pipeline-<id>). Tests
+	// that specifically want to exercise the handoff override this to "" via
+	// extraEnvVars (see TestSetupHandoff).
+	envVars["DD_INSTALLER_FROM_VERSION_HANDOFF"] = "true"
 	maps.Copy(envVars, b.params.extraEnvVars)
 	envVars["DD_REMOTE_UPDATES"] = "true"
 	return envVars

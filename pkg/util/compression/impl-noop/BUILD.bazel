@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-noop",
+    srcs = ["no_strategy.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/compression"],
+)

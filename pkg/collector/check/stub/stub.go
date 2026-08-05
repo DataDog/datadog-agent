@@ -32,6 +32,9 @@ func (c *StubCheck) Version() string { return "" }
 // ConfigSource returns the empty string
 func (c *StubCheck) ConfigSource() string { return "" }
 
+// ConfigProvider returns the empty string
+func (c *StubCheck) ConfigProvider() string { return "" }
+
 // Loader returns a stubbed loader name
 func (*StubCheck) Loader() string { return "stub" }
 
@@ -42,7 +45,7 @@ func (c *StubCheck) Stop() {}
 func (c *StubCheck) Cancel() {}
 
 // Configure is a noop
-func (c *StubCheck) Configure(sender.SenderManager, uint64, integration.Data, integration.Data, string) error {
+func (c *StubCheck) Configure(sender.SenderManager, uint64, integration.Data, integration.Data, string, string) error {
 	return nil
 }
 

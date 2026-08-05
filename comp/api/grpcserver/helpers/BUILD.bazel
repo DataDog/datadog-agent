@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "helpers",
+    srcs = ["grpc.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/grpc/context",
+    ],
+)

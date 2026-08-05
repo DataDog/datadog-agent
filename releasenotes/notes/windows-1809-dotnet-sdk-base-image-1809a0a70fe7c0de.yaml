@@ -1,0 +1,9 @@
+---
+security:
+  - |
+    Updated the Windows 1809 / LTSC 2019 Agent container base images from the
+    deprecated ``mcr.microsoft.com/powershell:*-1809`` images to
+    ``mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-1809`` (nanoserver) and
+    ``mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2019``
+    (servercore). The previous PowerShell base images were unmaintained and
+    still shipped PowerShell 7.1.0, which is affected by CVE-2022-26788.

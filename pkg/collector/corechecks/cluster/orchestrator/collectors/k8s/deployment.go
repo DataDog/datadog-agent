@@ -8,11 +8,11 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +23,9 @@ import (
 )
 
 // NewDeploymentCollectorVersions builds the group of collector versions.
-func NewDeploymentCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewDeploymentCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDeploymentCollector(metadataAsTags),
+		NewDeploymentCollector(tagger),
 	)
 }
 
@@ -39,11 +39,7 @@ type DeploymentCollector struct {
 
 // NewDeploymentCollector creates a new collector for the Kubernetes Deployment
 // resource.
-func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.DeploymentName, utilTypes.DeploymentVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewDeploymentCollector(tagger tagger.Component) *DeploymentCollector {
 	return &DeploymentCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,12 +50,11 @@ func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentColl
 			Name:                                 utilTypes.DeploymentName,
 			Kind:                                 kubernetes.DeploymentKind,
 			NodeType:                             orchestrator.K8sDeployment,
+			Group:                                utilTypes.DeploymentGroup,
 			Version:                              utilTypes.DeploymentVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewDeploymentHandlers(tagger)),
 	}
 }
 

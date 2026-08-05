@@ -26,10 +26,10 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
-	mock := mocksender.NewMockSender("")
+	mock := mocksender.NewMockSender(t, "")
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mock, fileHandleCheck.ID())

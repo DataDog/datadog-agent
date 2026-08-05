@@ -82,6 +82,10 @@ func (a *agentSuiteWindows) Hostname() string {
 	return a.Env().Agent.Client.Hostname()
 }
 
+func (a *agentSuiteWindows) InstanceID() string {
+	return ""
+}
+
 func (a *agentSuiteWindows) Client() *api.Client {
 	return a.apiClient
 }
@@ -160,7 +164,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	var policies string
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, systemProbePathWindows))
+		policies = a.Env().RemoteHost.MustExecuteOn(c, fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, systemProbePathWindows))
 		assert.NotEmpty(c, policies, "should not be empty")
 	}, 1*time.Minute, 1*time.Second)
 

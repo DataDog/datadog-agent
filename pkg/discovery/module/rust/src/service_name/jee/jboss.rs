@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use super::xml_parser::{self, Action, XmlHandler, XmlParser};
 use super::{Deployment, DeploymentFs, Error, extract_java_property_from_args};
 use crate::fs::SubDirFs;
 use crate::procfs::Cmdline;
 use crate::service_name::context::DetectionContext;
-use serde::Deserialize;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use xml::attribute::OwnedAttribute;
 
 const SERVER_NAME: &str = "-D[Server:";
 const HOME_DIR_SYS_PROP: &str = "-Djboss.home.dir=";
@@ -29,90 +30,24 @@ const DOMAIN_CONFIG: &str = "--domain-config";
 const WEB_XML_FILE_META_INF: &str = "META-INF/jboss-web.xml";
 const WEB_XML_FILE_WEB_INF: &str = "WEB-INF/jboss-web.xml";
 
-/// Deployment content hash
-#[derive(Debug, Clone, Deserialize)]
-struct DeployedContent {
-    #[serde(rename = "@sha1")]
-    hash: String,
-}
-
 /// Server deployment information
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 struct ServerDeployment {
-    #[serde(rename = "@name")]
     name: String,
-    #[serde(rename = "@runtime-name")]
     runtime_name: String,
-    #[serde(rename = "@enabled", default)]
     enabled: Option<String>,
-    #[serde(default)]
-    content: Option<DeployedContent>,
+    content_hash: Option<String>,
 }
 
-/// Standalone XML structure
-#[derive(Debug, Deserialize)]
-struct StandaloneXML {
-    #[serde(rename = "deployments", default)]
-    deployments: Deployments,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct Deployments {
-    #[serde(rename = "deployment", default)]
-    deployment: Vec<ServerDeployment>,
-}
-
-/// Domain XML structure
-#[derive(Debug, Deserialize)]
-struct DomainXML {
-    #[serde(rename = "deployments", default)]
-    deployments: Deployments,
-    #[serde(rename = "server-groups", default)]
-    server_groups: ServerGroups,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct ServerGroups {
-    #[serde(rename = "server-group", default)]
-    server_group: Vec<ServerGroup>,
-}
-
-/// Server group information
-#[derive(Debug, Deserialize)]
-struct ServerGroup {
-    #[serde(rename = "@name")]
-    name: String,
-    #[serde(rename = "deployments", default)]
-    deployments: Deployments,
-}
-
-/// Host XML structure
-#[derive(Debug, Deserialize)]
-struct HostXML {
-    #[serde(rename = "servers", default)]
-    servers: Servers,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct Servers {
-    #[serde(rename = "server", default)]
-    server: Vec<HostServer>,
-}
-
-/// Host server information (mapping server name to server group)
-#[derive(Debug, Deserialize)]
-struct HostServer {
-    #[serde(rename = "@name")]
-    name: String,
-    #[serde(rename = "@group")]
-    group: String,
-}
-
-/// JBoss-web.xml structure
-#[derive(Debug, Deserialize)]
-struct WebXML {
-    #[serde(rename = "context-root", default)]
-    context_root: String,
+impl ServerDeployment {
+    fn from_attributes(attributes: &[OwnedAttribute]) -> Self {
+        Self {
+            name: xml_parser::get_attr(attributes, "name").unwrap_or_default(),
+            runtime_name: xml_parser::get_attr(attributes, "runtime-name").unwrap_or_default(),
+            enabled: xml_parser::get_attr(attributes, "enabled"),
+            content_hash: None,
+        }
+    }
 }
 
 fn extract_server_name(cmdline: &Cmdline) -> (Option<String>, bool) {
@@ -157,22 +92,133 @@ fn extract_config_filename(cmdline: &Cmdline, domain: bool) -> Cow<'static, str>
     default_config.into()
 }
 
+enum FindServerGroupState {
+    Top,
+    InHost,
+    InServers,
+}
+
+struct FindServerGroupHandler<'a> {
+    server_name: &'a str,
+    result: Option<String>,
+}
+
+impl XmlHandler for FindServerGroupHandler<'_> {
+    type State = FindServerGroupState;
+
+    fn start_element(
+        &mut self,
+        state: Self::State,
+        name: &str,
+        attributes: &[OwnedAttribute],
+    ) -> Action<Self::State> {
+        match (state, name) {
+            (FindServerGroupState::Top, "host") => Action::Descend(FindServerGroupState::InHost),
+            (FindServerGroupState::InHost, "servers") => {
+                Action::Descend(FindServerGroupState::InServers)
+            }
+            (FindServerGroupState::InServers, "server") => {
+                let name_attr = xml_parser::get_attr(attributes, "name");
+                let group = xml_parser::get_attr(attributes, "group");
+                if let (Some(n), Some(g)) = (name_attr, group)
+                    && n == self.server_name
+                {
+                    self.result = Some(g);
+                    return Action::Break;
+                }
+                Action::Same(FindServerGroupState::InServers)
+            }
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
+        match (state, name) {
+            (FindServerGroupState::InServers, "servers") => {
+                Action::Ascend(FindServerGroupState::InHost)
+            }
+            (FindServerGroupState::InHost, _) => Action::Break,
+            (s, _) => Action::Same(s),
+        }
+    }
+}
+
 fn find_server_group(domain_fs: &SubDirFs, server_name: &str) -> Result<String, Error> {
     let host_xml_path = Path::new(CONFIG_DIR).join(HOST_XML_FILE);
     let file = domain_fs.open(&host_xml_path)?;
     let reader = BufReader::new(file.verify(None)?);
-    let host: HostXML = quick_xml::de::from_reader(reader)
-        .map_err(|e| Error::XmlParse(format!("Failed to parse host.xml: {}", e)))?;
+    let mut parser = XmlParser::new(reader);
 
-    for server in host.servers.server {
-        if server.name == server_name {
-            return Ok(server.group);
+    let mut handler = FindServerGroupHandler {
+        server_name,
+        result: None,
+    };
+    parser.run(&mut handler, FindServerGroupState::Top)?;
+
+    handler.result.ok_or_else(|| {
+        Error::MissingConfig(format!("Server '{}' not found in host.xml", server_name))
+    })
+}
+
+enum StandaloneState {
+    Top,
+    InServer,
+    InDeployments,
+    InDeployment,
+}
+
+struct StandaloneHandler {
+    deployments: Vec<ServerDeployment>,
+    current_deployment: Option<ServerDeployment>,
+}
+
+impl XmlHandler for StandaloneHandler {
+    type State = StandaloneState;
+
+    fn start_element(
+        &mut self,
+        state: Self::State,
+        name: &str,
+        attributes: &[OwnedAttribute],
+    ) -> Action<Self::State> {
+        match (state, name) {
+            (StandaloneState::Top, "server") => Action::Descend(StandaloneState::InServer),
+            (StandaloneState::InServer, "deployments") => {
+                Action::Descend(StandaloneState::InDeployments)
+            }
+            (StandaloneState::InDeployments, "deployment") => {
+                self.current_deployment = Some(ServerDeployment::from_attributes(attributes));
+                Action::Descend(StandaloneState::InDeployment)
+            }
+            (StandaloneState::InDeployment, "content") => {
+                if let Some(hash) = xml_parser::get_attr(attributes, "sha1")
+                    && let Some(ref mut d) = self.current_deployment
+                {
+                    d.content_hash = Some(hash);
+                }
+                Action::Same(StandaloneState::InDeployment)
+            }
+            (s, _) => Action::Same(s),
         }
     }
-    Err(Error::MissingConfig(format!(
-        "Server '{}' not found in host.xml",
-        server_name
-    )))
+
+    fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
+        match (state, name) {
+            (StandaloneState::InDeployment, "deployment") => {
+                if let Some(d) = self.current_deployment.take()
+                    && xml_string_to_bool(d.enabled.as_deref())
+                {
+                    self.deployments.push(d);
+                }
+                Action::Ascend(StandaloneState::InDeployments)
+            }
+            (StandaloneState::InDeployments, "deployments") => {
+                Action::Ascend(StandaloneState::InServer)
+            }
+            (StandaloneState::InServer, "server") => Action::Break,
+            (s, _) => Action::Same(s),
+        }
+    }
 }
 
 fn standalone_find_deployments(
@@ -182,17 +228,115 @@ fn standalone_find_deployments(
     let config_path = Path::new(CONFIG_DIR).join(config_file);
     let file = base_fs.open(&config_path)?;
     let reader = BufReader::new(file.verify(None)?);
-    let descriptor: StandaloneXML = quick_xml::de::from_reader(reader)
-        .map_err(|e| Error::XmlParse(format!("Failed to parse {}: {}", config_file, e)))?;
+    let mut parser = XmlParser::new(reader);
 
-    let result: Vec<_> = descriptor
-        .deployments
-        .deployment
-        .into_iter()
-        .filter(|d| xml_string_to_bool(d.enabled.as_deref()))
-        .collect();
+    let mut handler = StandaloneHandler {
+        deployments: Vec::new(),
+        current_deployment: None,
+    };
+    parser.run(&mut handler, StandaloneState::Top)?;
 
-    Ok(result)
+    Ok(handler.deployments)
+}
+
+enum DomainSection {
+    Top,
+    InDomain,
+    TopDeployments,
+    ServerGroups,
+    MatchingGroup,
+    NonMatchingGroup,
+    GroupDeployments,
+}
+
+struct DomainHandler {
+    server_group: String,
+    top_deployments: HashMap<String, ServerDeployment>,
+    group_deployments: Vec<ServerDeployment>,
+    current_deployment: Option<ServerDeployment>,
+    found_matching_group: bool,
+}
+
+impl XmlHandler for DomainHandler {
+    type State = DomainSection;
+
+    fn start_element(
+        &mut self,
+        state: Self::State,
+        name: &str,
+        attributes: &[OwnedAttribute],
+    ) -> Action<Self::State> {
+        match (state, name) {
+            (DomainSection::Top, "domain") => Action::Descend(DomainSection::InDomain),
+            (DomainSection::InDomain, "server-groups") => {
+                Action::Descend(DomainSection::ServerGroups)
+            }
+            (DomainSection::ServerGroups, "server-group") => {
+                let group_name = xml_parser::get_attr(attributes, "name").unwrap_or_default();
+                if group_name == self.server_group {
+                    self.found_matching_group = true;
+                    Action::Descend(DomainSection::MatchingGroup)
+                } else {
+                    Action::Descend(DomainSection::NonMatchingGroup)
+                }
+            }
+            (DomainSection::InDomain, "deployments") => {
+                Action::Descend(DomainSection::TopDeployments)
+            }
+            (DomainSection::MatchingGroup, "deployments") => {
+                Action::Descend(DomainSection::GroupDeployments)
+            }
+            (
+                s @ (DomainSection::TopDeployments | DomainSection::GroupDeployments),
+                "deployment",
+            ) => {
+                self.current_deployment = Some(ServerDeployment::from_attributes(attributes));
+                Action::Descend(s)
+            }
+            (s, "content") if self.current_deployment.is_some() => {
+                if let Some(hash) = xml_parser::get_attr(attributes, "sha1")
+                    && let Some(ref mut d) = self.current_deployment
+                {
+                    d.content_hash = Some(hash);
+                }
+                Action::Same(s)
+            }
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
+        match (state, name) {
+            (DomainSection::TopDeployments, "deployment") if self.current_deployment.is_some() => {
+                if let Some(d) = self.current_deployment.take() {
+                    self.top_deployments.insert(d.name.clone(), d);
+                }
+                Action::Ascend(DomainSection::TopDeployments)
+            }
+            (DomainSection::GroupDeployments, "deployment")
+                if self.current_deployment.is_some() =>
+            {
+                if let Some(d) = self.current_deployment.take() {
+                    self.group_deployments.push(d);
+                }
+                Action::Ascend(DomainSection::GroupDeployments)
+            }
+            (DomainSection::TopDeployments, "deployments") => {
+                Action::Ascend(DomainSection::InDomain)
+            }
+            (DomainSection::GroupDeployments, "deployments") => {
+                Action::Ascend(DomainSection::MatchingGroup)
+            }
+            (DomainSection::MatchingGroup | DomainSection::NonMatchingGroup, "server-group") => {
+                Action::Ascend(DomainSection::ServerGroups)
+            }
+            (DomainSection::ServerGroups, "server-groups") => {
+                Action::Ascend(DomainSection::InDomain)
+            }
+            (DomainSection::InDomain, "domain") => Action::Break,
+            (s, _) => Action::Same(s),
+        }
+    }
 }
 
 fn domain_find_deployments(
@@ -207,37 +351,36 @@ fn domain_find_deployments(
     let config_path = Path::new(CONFIG_DIR).join(config_file);
     let file = base_fs.open(&config_path)?;
     let reader = BufReader::new(file.verify(None)?);
-    let descriptor: DomainXML = quick_xml::de::from_reader(reader)
-        .map_err(|e| Error::XmlParse(format!("Failed to parse {}: {}", config_file, e)))?;
+    let mut parser = XmlParser::new(reader);
 
-    // Find the matching server group
-    let current_group = descriptor
-        .server_groups
-        .server_group
-        .iter()
-        .find(|g| g.name == server_group)
-        .ok_or_else(|| {
-            Error::MissingConfig(format!(
-                "Server group '{}' not found in domain.xml",
-                server_group
-            ))
-        })?;
+    let mut handler = DomainHandler {
+        server_group,
+        top_deployments: HashMap::new(),
+        group_deployments: Vec::new(),
+        current_deployment: None,
+        found_matching_group: false,
+    };
+    parser.run(&mut handler, DomainSection::Top)?;
 
-    // Index top-level deployments by name for faster lookup
-    let indexed: HashMap<&str, &ServerDeployment> = descriptor
-        .deployments
-        .deployment
-        .iter()
-        .map(|d| (d.name.as_str(), d))
-        .collect();
+    let DomainHandler {
+        server_group,
+        top_deployments,
+        group_deployments,
+        found_matching_group,
+        ..
+    } = handler;
 
-    // Filter to only include enabled deployments from this server group
-    let result: Vec<_> = current_group
-        .deployments
-        .deployment
-        .iter()
+    if !found_matching_group {
+        return Err(Error::MissingConfig(format!(
+            "Server group '{}' not found in domain.xml",
+            server_group
+        )));
+    }
+
+    let result: Vec<_> = group_deployments
+        .into_iter()
         .filter(|d| xml_string_to_bool(d.enabled.as_deref()))
-        .filter_map(|d| indexed.get(d.name.as_str()).copied().cloned())
+        .filter_map(|d| top_deployments.get(&d.name).cloned())
         .collect();
 
     Ok(result)
@@ -284,8 +427,7 @@ pub fn find_deployed_apps(
     let result: Vec<_> = deployments
         .into_iter()
         .filter_map(|d| {
-            let content = d.content?;
-            let hash = &content.hash;
+            let hash = d.content_hash.as_ref()?;
             let path = domain_home
                 .join(DATA_DIR)
                 .join(CONTENT_DIR)
@@ -308,12 +450,11 @@ pub fn find_deployed_apps(
 pub fn custom_extract_war_context_root(deployment_fs: &mut DeploymentFs) -> Option<String> {
     // Try WEB-INF first, then META-INF
     for xml_file in [WEB_XML_FILE_WEB_INF, WEB_XML_FILE_META_INF] {
-        let xml_path = Path::new(xml_file);
-        if let Ok(buf) = deployment_fs.read_file_to_vec(xml_path)
-            && let Ok(jboss_web) = quick_xml::de::from_reader::<_, WebXML>(buf.as_slice())
-            && !jboss_web.context_root.is_empty()
+        if let Ok(buf) = deployment_fs.read_file_to_vec(xml_file)
+            && let Some(cr) = super::parse_context_root(&buf, "jboss-web")
+            && !cr.is_empty()
         {
-            return Some(jboss_web.context_root);
+            return Some(cr);
         }
     }
     None
@@ -1038,5 +1179,222 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Worst-case memory test for standalone: many enabled deployments with
+    /// large attribute values, sized to fit within the 1 MiB file size cap.
+    /// Measured peak heap with massif: ~2.6 MiB.
+    #[test]
+    fn test_worst_case_memory_standalone() {
+        let n = 1_490;
+        let pad: String = "x".repeat(200);
+
+        let mut xml = String::from("<server><deployments>");
+        for i in 0..n {
+            xml.push_str(&format!(
+                "<deployment name=\"dep{i}{pad}\" \
+                 runtime-name=\"rt{i}{pad}\" enabled=\"true\">\
+                 <content sha1=\"hash{i}{pad}\"/>\
+                 </deployment>"
+            ));
+        }
+        xml.push_str("</deployments></server>");
+
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let config_dir = tmp_dir.path().join(CONFIG_DIR);
+        std::fs::create_dir(&config_dir).unwrap();
+        std::fs::write(config_dir.join("standalone.xml"), &xml).unwrap();
+
+        assert!(xml.len() <= 1024 * 1024, "XML exceeds 1 MiB cap");
+
+        let base_fs = SubDirFs::new(tmp_dir.path()).unwrap();
+        let result = standalone_find_deployments(&base_fs, "standalone.xml").unwrap();
+        assert_eq!(result.len(), n);
+    }
+
+    /// Verify that <server> at the wrong depth is ignored.
+    /// In host.xml the hierarchy is host > servers > server (depth 3).
+    #[test]
+    fn test_find_server_group_wrong_depth() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        // <server> nested inside an extra wrapper — should not match.
+        let host_xml = r#"<host>
+  <servers>
+    <wrapper>
+      <server name="server-one" group="main-server-group"/>
+    </wrapper>
+  </servers>
+</host>"#;
+
+        let tmp_dir = TempDir::new().unwrap();
+        let config_dir = tmp_dir.path().join("configuration");
+        fs::create_dir(&config_dir).unwrap();
+        fs::write(config_dir.join("host.xml"), host_xml).unwrap();
+
+        let domain_fs = SubDirFs::new(tmp_dir.path()).unwrap();
+        let result = find_server_group(&domain_fs, "server-one");
+        assert!(result.is_err(), "server at wrong depth should not be found");
+    }
+
+    /// Verify that standalone_find_deployments ignores elements at the
+    /// wrong depth in the hierarchy.
+    #[test]
+    fn test_standalone_hierarchy() {
+        // <deployments> inside a wrapper should be ignored;
+        // only the direct-child <deployments> should be processed.
+        let xml = r#"<server>
+  <subsystem>
+    <deployments>
+      <deployment name="nested.war" runtime-name="nested.war" enabled="true">
+        <content sha1="nestedhash"/>
+      </deployment>
+    </deployments>
+  </subsystem>
+  <deployments>
+    <deployment name="correct.war" runtime-name="correct.war" enabled="true">
+      <content sha1="correcthash"/>
+    </deployment>
+  </deployments>
+</server>"#;
+
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let config_dir = tmp_dir.path().join(CONFIG_DIR);
+        std::fs::create_dir(&config_dir).unwrap();
+        std::fs::write(config_dir.join("standalone.xml"), xml).unwrap();
+
+        let base_fs = SubDirFs::new(tmp_dir.path()).unwrap();
+        let result = standalone_find_deployments(&base_fs, "standalone.xml").unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "correct.war");
+    }
+
+    /// Verify that domain_find_deployments ignores <deployment> at the
+    /// wrong depth and <server-groups> inside wrappers.
+    #[test]
+    fn test_domain_hierarchy() {
+        let host_xml = r#"<host>
+  <servers>
+    <server name="srv1" group="main-group"/>
+  </servers>
+</host>"#;
+
+        // Top-level <deployments> with one correct and one incorrectly-
+        // nested deployment; matching server-group with correct deployment.
+        let domain_xml = r#"<domain>
+  <deployments>
+    <deployment name="app.war" runtime-name="app.war">
+      <content sha1="hash1"/>
+    </deployment>
+    <wrapper>
+      <deployment name="nested.war" runtime-name="nested.war">
+        <content sha1="nestedhash"/>
+      </deployment>
+    </wrapper>
+  </deployments>
+  <server-groups>
+    <server-group name="main-group">
+      <deployments>
+        <deployment name="app.war" runtime-name="app.war" enabled="true"/>
+      </deployments>
+    </server-group>
+  </server-groups>
+</domain>"#;
+
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let config_dir = tmp_dir.path().join(CONFIG_DIR);
+        std::fs::create_dir(&config_dir).unwrap();
+        std::fs::write(config_dir.join(HOST_XML_FILE), host_xml).unwrap();
+        std::fs::write(config_dir.join("domain.xml"), domain_xml).unwrap();
+
+        let base_fs = SubDirFs::new(tmp_dir.path()).unwrap();
+        let result = domain_find_deployments(&base_fs, "domain.xml", "srv1").unwrap();
+        // Only app.war should match — nested.war is inside a wrapper.
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "app.war");
+    }
+
+    /// Verify that <server-groups> inside a wrapper is ignored.
+    #[test]
+    fn test_domain_server_groups_at_wrong_depth() {
+        let host_xml = r#"<host>
+  <servers>
+    <server name="srv1" group="main-group"/>
+  </servers>
+</host>"#;
+
+        let domain_xml = r#"<domain>
+  <deployments>
+    <deployment name="app.war" runtime-name="app.war">
+      <content sha1="hash1"/>
+    </deployment>
+  </deployments>
+  <wrapper>
+    <server-groups>
+      <server-group name="main-group">
+        <deployments>
+          <deployment name="app.war" runtime-name="app.war" enabled="true"/>
+        </deployments>
+      </server-group>
+    </server-groups>
+  </wrapper>
+</domain>"#;
+
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let config_dir = tmp_dir.path().join(CONFIG_DIR);
+        std::fs::create_dir(&config_dir).unwrap();
+        std::fs::write(config_dir.join(HOST_XML_FILE), host_xml).unwrap();
+        std::fs::write(config_dir.join("domain.xml"), domain_xml).unwrap();
+
+        let base_fs = SubDirFs::new(tmp_dir.path()).unwrap();
+        let result = domain_find_deployments(&base_fs, "domain.xml", "srv1");
+        // server-groups at wrong depth — server group not found.
+        assert!(result.is_err());
+    }
+
+    /// Worst-case memory test for domain: many deployments in both top-level
+    /// and server-group sections, sized to fit within the 1 MiB file size cap.
+    /// Measured peak heap with massif: ~3.6 MiB.
+    #[test]
+    fn test_worst_case_memory_domain() {
+        let n = 1_900;
+        let pad: String = "x".repeat(200);
+        let group = "main-server-group";
+
+        let host_xml = format!(
+            "<host><servers>\
+             <server name=\"srv1\" group=\"{group}\"/>\
+             </servers></host>"
+        );
+
+        let mut domain_xml = String::from("<domain><deployments>");
+        for i in 0..n {
+            domain_xml.push_str(&format!(
+                "<deployment name=\"dep{i}\" runtime-name=\"rt{i}{pad}\">\
+                 <content sha1=\"hash{i}{pad}\"/>\
+                 </deployment>"
+            ));
+        }
+        domain_xml.push_str("</deployments><server-groups>");
+        domain_xml.push_str(&format!("<server-group name=\"{group}\"><deployments>"));
+        for i in 0..n {
+            domain_xml.push_str(&format!(
+                "<deployment name=\"dep{i}\" runtime-name=\"rt{i}\" enabled=\"true\"/>"
+            ));
+        }
+        domain_xml.push_str("</deployments></server-group></server-groups></domain>");
+
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let config_dir = tmp_dir.path().join(CONFIG_DIR);
+        std::fs::create_dir(&config_dir).unwrap();
+        std::fs::write(config_dir.join(HOST_XML_FILE), &host_xml).unwrap();
+        std::fs::write(config_dir.join("domain.xml"), &domain_xml).unwrap();
+
+        assert!(domain_xml.len() <= 1024 * 1024, "XML exceeds 1 MiB cap");
+
+        let base_fs = SubDirFs::new(tmp_dir.path()).unwrap();
+        let result = domain_find_deployments(&base_fs, "domain.xml", "srv1").unwrap();
+        assert_eq!(result.len(), n);
     }
 }

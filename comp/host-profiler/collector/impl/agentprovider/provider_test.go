@@ -22,9 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -39,6 +41,10 @@ import (
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
+
+type testCollectorParams struct{}
+
+func (testCollectorParams) GetGoRuntimeMetrics() bool { return false }
 
 const testVersion = "7.0.0-test"
 
@@ -55,8 +61,9 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	t.Helper()
 
 	receivers, err := otelcol.MakeFactoryMap(
-		receiver.NewFactory(),
+		receiver.NewFactory(version.BundledProfilerName),
 		otlpreceiver.NewFactory(),
+		prometheusreceiver.NewFactory(),
 	)
 	require.NoError(t, err)
 
@@ -69,6 +76,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	processors, err := otelcol.MakeFactoryMap(
 		attributesprocessor.NewFactory(),
 		cumulativetodeltaprocessor.NewFactory(),
+		filterprocessor.NewFactory(),
 		infraattributesprocessor.NewFactory(),
 		k8sattributesprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
@@ -79,7 +87,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	// Create standalone extensions (without Agent dependencies)
 	// Note: hpflareextension is passed nil for ipc component since we're only validating config structure
 	extensionFactories := []extension.Factory{
-		ddprofilingextensionimpl.NewFactory(),
+		ddprofilingextensionimpl.NewFactoryForAgent(nil, nil),
 		hpflareextension.NewFactoryForAgent(nil),
 	}
 	extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
@@ -169,8 +177,8 @@ func TestProvider(t *testing.T) {
 		},
 		{
 			name:         "additional-endpoints-only",
-			agentConfig:  "provider/additional-endpoints-only/agent.yaml",
-			expectedOTel: "provider/additional-endpoints-only/otel.yaml",
+			agentConfig:  "provider/additional-ep-only/agent.yaml",
+			expectedOTel: "provider/additional-ep-only/otel.yaml",
 		},
 		{
 			name:         "profiling-dd-url-precedence",
@@ -184,7 +192,7 @@ func TestProvider(t *testing.T) {
 		},
 		{
 			name:        "invalid-profiling-dd-url",
-			agentConfig: "provider/invalid-profiling-dd-url/agent.yaml",
+			agentConfig: "provider/inval-prof-dd-url/agent.yaml",
 			shouldError: true,
 		},
 		{
@@ -202,12 +210,52 @@ func TestProvider(t *testing.T) {
 			agentConfig:  "provider/infer-dc-add-ep/agent.yaml",
 			expectedOTel: "provider/infer-dc-add-ep/otel.yaml",
 		},
+		{
+			name:         "debug-enabled",
+			agentConfig:  "provider/debug-enabled/agent.yaml",
+			expectedOTel: "provider/debug-enabled/otel.yaml",
+		},
+		{
+			name:         "debug-disabled",
+			agentConfig:  "provider/debug-disabled/agent.yaml",
+			expectedOTel: "provider/debug-disabled/otel.yaml",
+		},
+		{
+			name:         "additional-http-headers",
+			agentConfig:  "provider/add-headers/agent.yaml",
+			expectedOTel: "provider/add-headers/otel.yaml",
+		},
+		{
+			name:         "additional-http-headers-with-debug",
+			agentConfig:  "provider/add-headers-debug/agent.yaml",
+			expectedOTel: "provider/add-headers-debug/otel.yaml",
+		},
+		{
+			name:         "ddprofiling",
+			agentConfig:  "provider/ddprofiling/agent.yaml",
+			expectedOTel: "provider/ddprofiling/otel.yaml",
+		},
+		{
+			name:         "health-metrics-disabled",
+			agentConfig:  "provider/health-metrics-dis/agent.yaml",
+			expectedOTel: "provider/health-metrics-dis/otel.yaml",
+		},
+		{
+			name:         "health-metrics-custom",
+			agentConfig:  "provider/health-metrics-cust/agent.yaml",
+			expectedOTel: "provider/health-metrics-cust/otel.yaml",
+		},
+		{
+			name:         "hpflare-custom-port",
+			agentConfig:  "provider/hpflare-custom-port/agent.yaml",
+			expectedOTel: "provider/hpflare-custom-port/otel.yaml",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := loadConfig(t, filepath.Join("td", tt.agentConfig))
-			provider := newProvider(cfg)(confmap.ProviderSettings{})
+			cfg := loadConfig(t, filepath.Join("testdata", tt.agentConfig))
+			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 
@@ -227,7 +275,7 @@ func TestProvider(t *testing.T) {
 			require.NoError(t, err, "OTEL config validation failed")
 
 			if *updateGolden {
-				path := filepath.Join("td", tt.expectedOTel)
+				path := filepath.Join("testdata", tt.expectedOTel)
 				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
 				data, err := yaml.Marshal(actual.ToStringMap())
 				require.NoError(t, err)
@@ -235,7 +283,7 @@ func TestProvider(t *testing.T) {
 				return
 			}
 
-			expectedData, err := os.ReadFile(filepath.Join("td", tt.expectedOTel))
+			expectedData, err := os.ReadFile(filepath.Join("testdata", tt.expectedOTel))
 			require.NoError(t, err)
 			expectedRetrieved, err := confmap.NewRetrievedFromYAML(expectedData)
 			require.NoError(t, err)
@@ -250,8 +298,8 @@ func TestProvider(t *testing.T) {
 // TestProviderMultipleEndpoints tests the multiple-endpoints case with structure validation
 // instead of golden file comparison due to non-deterministic map iteration order
 func TestProviderMultipleEndpoints(t *testing.T) {
-	cfg := loadConfig(t, filepath.Join("td", "provider/multiple-endpoints/agent.yaml"))
-	provider := newProvider(cfg)(confmap.ProviderSettings{})
+	cfg := loadConfig(t, filepath.Join("testdata", "provider/multiple-endpoints/agent.yaml"))
+	provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
 
 	retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 	require.NoError(t, err)
@@ -271,14 +319,14 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 
 	// Validate symbol endpoints
 	receivers := actualMap["receivers"].(map[string]interface{})
-	hostprofiler := receivers["hostprofiler"].(map[string]interface{})
-	symbolUploader := hostprofiler["symbol_uploader"].(map[string]interface{})
+	profiling := receivers["profiling"].(map[string]interface{})
+	symbolUploader := profiling["symbol_uploader"].(map[string]interface{})
 	symbolEndpoints := symbolUploader["symbol_endpoints"].([]interface{})
 	require.Len(t, symbolEndpoints, 4, "should have 4 symbol endpoints (2 EU + 1 US3 + 1 main)")
 }
 
 func TestProviderMethods(t *testing.T) {
-	provider := newProvider(config.NewMock(t))(confmap.ProviderSettings{})
+	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 
 	require.Equal(t, "dd", provider.Scheme())
 

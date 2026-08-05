@@ -597,6 +597,53 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			},
 		},
 		{
+			// When Timestamp is unset (0), ObservedTimestamp should be used instead.
+			// This matches the OTLP spec and handles SDKs that only set observed_time_unix_nano.
+			name: "ObservedTimestamp used as fallback when Timestamp is zero",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.SetObservedTimestamp(pcommon.Timestamp(uint64(1700499303397000000)))
+					l.SetSeverityNumber(5)
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString(""),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					ddTimestamp:        "2023-11-20T16:55:03.397Z",
+					otelTimestamp:      "1700499303397000000",
+				},
+			},
+		},
+		{
+			name: "EventName is mapped to otel.event_name",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.SetEventName("app.screen.click")
+					l.SetSeverityNumber(5)
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString(""),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					otelEventName:      "app.screen.click",
+				},
+			},
+		},
+		{
 			name: "scope attributes",
 			args: args{
 				lr: func() plog.LogRecord {

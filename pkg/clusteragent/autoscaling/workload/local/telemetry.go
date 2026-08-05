@@ -8,19 +8,20 @@
 package local
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 const (
-	subsystem = "autoscaling_workload_local"
+	subsystem = "autoscaling_workload_local" //nolint:unused
 )
 
 var (
-	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
+	commonOpts = telemetrydef.Options{NoDoubleUnderscoreSep: true} //nolint:unused
 
 	// telemetryHorizontalLocalRecommendations tracks the local horizontal scaling recommendation values
-	telemetryHorizontalLocalRecommendations = telemetry.NewGaugeWithOpts(
+	telemetryHorizontalLocalRecommendations = telemetryimpl.GetCompatComponent().NewGaugeWithOpts( //nolint:unused
 		subsystem,
 		"horizontal_scaling_recommended_replicas",
 		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
@@ -28,7 +29,7 @@ var (
 		commonOpts,
 	)
 
-	telemetryHorizontalLocalUtilizationPct = telemetry.NewGaugeWithOpts(
+	telemetryHorizontalLocalUtilizationPct = telemetryimpl.GetCompatComponent().NewGaugeWithOpts( //nolint:unused
 		subsystem,
 		"horizontal_utilization_pct",
 		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},

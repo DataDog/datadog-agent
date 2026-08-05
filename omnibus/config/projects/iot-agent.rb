@@ -12,15 +12,11 @@ license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
+install_dir ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
+
 if ohai['platform'] == "windows"
-  # Note: this is not the final install dir, not even the default one, just a convenient
-  # spaceless dir in which the agent will be built.
-  # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
-  # to put a space here...
-  install_dir "C:/opt/datadog-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
   if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
@@ -179,6 +175,7 @@ package :msi do
 
   # For a consistent package management, please NEVER change this code
   arch = "x64"
+  # NOTE: We no longer build for 32 bit windows, so we always take the x64 path.
   if windows_arch_i386?
     full_agent_upgrade_code = '2497f989-f07e-4e8c-9e05-841ad3d4405f'
     upgrade_code '6f7ac237-334c-44c8-9fec-ec8f3459db37'
@@ -202,6 +199,8 @@ package :msi do
   #end
   if ENV['SIGN_WINDOWS_DD_WCS']
     dd_wcssign true
+    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
+    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
   end
 
   parameters({

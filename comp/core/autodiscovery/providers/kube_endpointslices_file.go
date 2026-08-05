@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -19,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -74,7 +75,7 @@ type KubeEndpointSlicesFileConfigProvider struct {
 }
 
 // NewKubeEndpointSlicesFileConfigProvider returns a new KubeEndpointSlicesFileConfigProvider
-func NewKubeEndpointSlicesFileConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesFileConfigProvider(_ *constants.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
 	templates, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, err
@@ -222,27 +223,21 @@ func (p *KubeEndpointSlicesFileConfigProvider) buildConfigStore(templates []inte
 
 		// Configuration defined using only CEL selectors
 		if len(tpl.AdvancedADIdentifiers) == 0 && len(tpl.CELSelector.KubeEndpoints) > 0 {
-			// Create matching program from CEL rules
-			matchingProg, celADID, compileErr, recError := integration.CreateMatchingProgram(tpl.CELSelector)
-			if celADID != adtypes.CelEndpointIdentifier {
+			// Create matching programs from CEL rules
+			programs, celADIDs, err := integration.CreateMatchingPrograms(tpl.CELSelector, true)
+			if !slices.Contains(celADIDs, adtypes.CelEndpointIdentifier) {
 				errMsg := fmt.Sprintf("CEL selector for template %s is not targeting endpoints", tpl.Name)
 				log.Error(errMsg)
 				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
-			if compileErr != nil {
-				errMsg := fmt.Sprintf("Failed to compile CEL selector for template %s: %v", tpl.Name, compileErr)
+			if err != nil {
+				errMsg := fmt.Sprintf("Failed to create CEL matching program for template %s: %v", tpl.Name, err)
 				log.Error(errMsg)
 				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
-			if recError != nil {
-				errMsg := fmt.Sprintf("Failed to check rule recommendations for CEL selector for template %s: %v", tpl.Name, recError)
-				log.Error(errMsg)
-				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
-				continue
-			}
-			tpl.SetMatchingProgram(matchingProg)
+			tpl.SetMatchingPrograms(programs)
 			p.store.insertTemplate(celEndpointSliceID, tpl, kubeEndpointResolveAuto)
 		}
 	}

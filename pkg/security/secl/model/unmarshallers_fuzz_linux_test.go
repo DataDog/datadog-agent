@@ -139,7 +139,7 @@ func FuzzSELinuxEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzPIDContext_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &PIDContext{} }, 40)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &PIDContext{} }, 48)
 }
 
 func FuzzSyscallEvent_UnmarshalBinary(f *testing.F) {
@@ -155,7 +155,7 @@ func FuzzSyscallsEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzSpanContext_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SpanContext{} }, 24)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SpanContext{} }, 32)
 }
 
 func FuzzExitEvent_UnmarshalBinary(f *testing.F) {
@@ -171,7 +171,7 @@ func FuzzArgsEnvsEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzProcess_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &Process{} }, 292)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &Process{} }, 300)
 }
 
 func FuzzBPFEvent_UnmarshalBinary(f *testing.F) {

@@ -43,6 +43,27 @@ const (
 	// headers are included in the log frame.  The size in those headers is not
 	// consulted.  The result does not include the trailing newlines.
 	DockerStream
+
+	// SyslogFraming handles syslog TCP streams per RFC 6587. It auto-detects
+	// between octet counting (MSG-LEN SP SYSLOG-MSG) and non-transparent
+	// framing (LF or NUL delimited) on a per-message basis.
+	SyslogFraming
+
+	// UTF8NewlineDatagram splits on newlines like UTF8Newline, but also
+	// flushes any remaining data at the end of each Process() call. This is
+	// appropriate for datagram transports (UDP, unixgram) where each
+	// Process() call represents a complete, discrete message — there is no
+	// subsequent data that could complete a partial frame.
+	UTF8NewlineDatagram
+
+	// UTF8NewlineStream splits on newlines like UTF8Newline, but emits any
+	// buffered remainder when the framer is flushed (Flush()). Used by
+	// stream-oriented transports where the end-of-stream (e.g. peer-driven
+	// TCP close) is a legitimate frame boundary for the final message —
+	// some forwarders send one message per connection without a trailing
+	// newline. Unlike UTF8NewlineDatagram, partial frames are only emitted
+	// at end-of-stream, not after every Process() call.
+	UTF8NewlineStream
 )
 
 // Framer gets chunks of bytes (via Process(..)) and uses an
@@ -69,6 +90,16 @@ type Framer struct {
 	// Over this size, the framer will break the bytes into individual frames
 	// of this size with no delimiting.
 	contentLenLimit int
+
+	// flushAfterProcess, when true, emits any unframed remainder at the end
+	// of each Process() call. Used for datagram transports where each call
+	// is a complete, discrete message.
+	flushAfterProcess bool
+
+	// lastInput holds the most recent message passed to Process(), used by
+	// Flush() to inherit metadata (Origin, tags, etc.) when emitting a
+	// buffered remainder at end-of-stream.
+	lastInput *message.Message
 }
 
 // NewFramer initializes a Framer.
@@ -89,7 +120,7 @@ func NewFramer(
 	var matcher FrameMatcher
 	switch framing {
 	case UTF8Newline:
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
 	case UTF16BENewline:
 		contentLenLimit = contentLenLimit & ^0x1 // align to 2-byte character boundary for UTF-16
 		if contentLenLimit < 2 {
@@ -105,22 +136,36 @@ func NewFramer(
 	case SHIFTJISNewline:
 		// No special handling required for the newline matcher since Shift JIS does not use
 		// newline characters (0x0a) as the second byte of a multibyte sequence.
-		matcher = &oneByteNewLineMatcher{contentLenLimit}
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
+	case SyslogFraming:
+		matcher = &syslogFrameMatcher{contentLenLimit: contentLenLimit}
 	case NoFraming:
 		matcher = &noFramingMatcher{}
+	case UTF8NewlineDatagram:
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit}
+	case UTF8NewlineStream:
+		matcher = &oneByteNewLineMatcher{contentLenLimit: contentLenLimit, flushPartial: true}
 	default:
 		panic(fmt.Sprintf("unknown framing %d", framing))
 	}
 
+	return newFramer(outputFn, matcher, contentLenLimit, framing == UTF8NewlineDatagram)
+}
+
+// newFramer builds a Framer around an already-constructed matcher. NewFramer
+// and NewSyslogFramer both route through it so the Framer struct is initialized
+// in exactly one place and neither constructor silently misses a future field.
+func newFramer(outputFn func(input *message.Message, rawDataLen int), matcher FrameMatcher, contentLenLimit int, flushAfterProcess bool) *Framer {
 	return &Framer{
-		frames:          atomic.NewInt64(0),
-		outputFn:        outputFn,
-		matcher:         matcher,
-		buffer:          bytes.Buffer{},
-		bytesFramed:     0,
-		contentLenLimit: contentLenLimit,
+		frames:            atomic.NewInt64(0),
+		outputFn:          outputFn,
+		matcher:           matcher,
+		buffer:            bytes.Buffer{},
+		bytesFramed:       0,
+		contentLenLimit:   contentLenLimit,
+		flushAfterProcess: flushAfterProcess,
 	}
 }
 
@@ -133,6 +178,8 @@ func (fr *Framer) GetFrameCount() int64 {
 // Process handles an incoming chunk of data.  It will call outputFn for any recognized frames.  Partial
 // frames are maintained between calls to Process.  The passed buffer is not used after return.
 func (fr *Framer) Process(input *message.Message) {
+	fr.lastInput = input
+
 	// we can only process unstructured message in the framer
 	if input.State != message.StateUnstructured {
 		fr.outputFn(input, len(input.GetContent()))
@@ -164,45 +211,34 @@ func (fr *Framer) Process(input *message.Message) {
 
 		content, rawDataLen, isTruncated := fr.matcher.FindFrame(buf, seen-framed)
 		if content == nil {
+			// A matcher may consume bytes that do not form a frame (e.g. a
+			// stray syslog delimiter or a zero-length declared frame). It
+			// signals this by returning nil content with a positive rawDataLen:
+			// advance past those bytes without emitting an empty frame.
+			if rawDataLen > 0 {
+				framed += rawDataLen
+				seen = framed
+				continue
+			}
 			// if the matcher was asked to match more than contentLenLimit,
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
 				isTruncated = true
 			} else {
-				// matcher didn't find a frame, so leave the remainder in
-				// buffer
 				break
 			}
 		}
 
-		// copy the data so that we can reuse fr.buffer (`content` is a slice
-		// of `fr.buffer`)
-		owned := make([]byte, len(content))
-		copy(owned, content)
-
-		// Copy ParsingExtra and override frame-specific fields
-		parsingExtra := input.ParsingExtra
-		parsingExtra.IsTruncated = isTruncated
-
-		c := &message.Message{
-			MessageContent: message.MessageContent{
-				State: message.StateUnstructured,
-			},
-			MessageMetadata: message.MessageMetadata{
-				Origin:             input.Origin,
-				Status:             input.Status,
-				IngestionTimestamp: input.IngestionTimestamp,
-				ParsingExtra:       parsingExtra,
-				ServerlessExtra:    input.ServerlessExtra,
-			},
-		}
-		c.SetContent(owned)
-
-		fr.outputFn(c, rawDataLen)
-		fr.frames.Inc()
+		fr.emitFrame(input, content, rawDataLen, isTruncated)
 		framed += rawDataLen
 		seen = framed
+	}
+
+	if fr.flushAfterProcess && framed < end {
+		buf := fr.buffer.Bytes()[framed:]
+		fr.emitFrame(input, buf, len(buf), false)
+		framed = end
 	}
 
 	fr.bytesFramed = framed
@@ -231,6 +267,56 @@ func (fr *Framer) normalizeBuffer() {
 		fr.buffer.Truncate(len(unframed))
 		fr.bytesFramed = 0
 	}
+}
+
+// Flush emits any unframed remainder left in the buffer by delegating to the
+// matcher's FlushFrame in a loop. Called by the decoder at end-of-stream
+// (e.g. when a TCP connection closes). A flushed frame is always the terminal
+// segment of its logical line, so it is never reported as truncated — see the
+// "never the last" contract on FrameMatcher.
+func (fr *Framer) Flush() {
+	for {
+		framed := fr.bytesFramed
+		end := fr.buffer.Len()
+		if framed >= end || fr.lastInput == nil {
+			break
+		}
+		buf := fr.buffer.Bytes()[framed:]
+		content, rawDataLen := fr.matcher.FlushFrame(buf)
+		if content == nil {
+			break
+		}
+		fr.emitFrame(fr.lastInput, content, rawDataLen, false)
+		fr.bytesFramed += rawDataLen
+	}
+	fr.normalizeBuffer()
+}
+
+// emitFrame copies content out of the framer buffer and sends it as a new
+// unstructured message, inheriting metadata from the original input message.
+func (fr *Framer) emitFrame(input *message.Message, content []byte, rawDataLen int, isTruncated bool) {
+	owned := make([]byte, len(content))
+	copy(owned, content)
+
+	parsingExtra := input.ParsingExtra
+	parsingExtra.IsTruncated = isTruncated
+
+	c := &message.Message{
+		MessageContent: message.MessageContent{
+			State: message.StateUnstructured,
+		},
+		MessageMetadata: message.MessageMetadata{
+			Origin:             input.Origin,
+			Status:             input.Status,
+			IngestionTimestamp: input.IngestionTimestamp,
+			ParsingExtra:       parsingExtra,
+			ServerlessExtra:    input.ServerlessExtra,
+		},
+	}
+	c.SetContent(owned)
+
+	fr.outputFn(c, rawDataLen)
+	fr.frames.Inc()
 }
 
 // reset resets the framer to begin framing a new stream, for testing.

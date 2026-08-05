@@ -2,11 +2,15 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
+
+// stringutils.h includes Python.h which must come before system headers, see
+// https://docs.python.org/3/c-api/intro.html#include-files
+#include "stringutils.h"
+
 #include <stdlib.h>
 
 #include "rtloader_mem.h"
 #include "rtloader_types.h"
-#include "stringutils.h"
 
 
 PyObject * jloads = NULL;
@@ -27,31 +31,23 @@ char *as_string(PyObject *object)
         return NULL;
     }
 
-    char *retval = NULL;
-
-    PyObject *temp_bytes = NULL;
-
     if (PyBytes_Check(object)) {
-        // We already have an encoded string, we suppose it has the correct encoding (UTF-8)
-        temp_bytes = object;
-        Py_INCREF(temp_bytes);
+        // Already encoded; we assume the correct encoding (UTF-8). PyBytes_AS_STRING borrows the
+        // internal buffer, which stays valid while the caller holds a reference to `object`.
+        return strdupe(PyBytes_AS_STRING(object));
     } else if (PyUnicode_Check(object)) {
-        // Encode the Unicode string that was given
-        temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
-        if (temp_bytes == NULL) {
-            // PyUnicode_AsEncodedString might raise an error if the codec raised an
-            // exception
+        // PyUnicode_AsUTF8 returns a borrowed, NUL-terminated UTF-8 buffer cached on the unicode
+        // object. It uses strict error handling, so strings that cannot be encoded as UTF-8
+        // (e.g. lone surrogates) return NULL.
+        const char *utf8 = PyUnicode_AsUTF8(object);
+        if (utf8 == NULL) {
             PyErr_Clear();
             return NULL;
         }
-    } else {
-        return NULL;
+        return strdupe(utf8);
     }
 
-    retval = strdupe(PyBytes_AS_STRING(temp_bytes));
-    Py_XDECREF(temp_bytes);
-
-    return retval;
+    return NULL;
 }
 
 int init_stringutils(void) {
