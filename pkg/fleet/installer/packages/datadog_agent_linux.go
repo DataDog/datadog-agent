@@ -566,14 +566,6 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
-	// A config experiment writes the experiment artifacts into the tree the experiment link points
-	// at, which for a config experiment is the stable version. Rewriting the stable set restores the
-	// invariant that stable's artifacts describe stable; without it the promoted host keeps
-	// experiment-flavoured definitions and would resolve them through the experiment link the next
-	// time a package experiment moves it.
-	if err := agentService.WriteStable(ctx); err != nil {
-		return err
-	}
 	err := agentService.RestartStable(ctx)
 	if err != nil {
 		return err

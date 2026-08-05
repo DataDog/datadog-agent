@@ -398,9 +398,9 @@ func verifyDDOTRunning(t *testing.T, a *agent.Agent) {
 }
 
 // verifyDDOTServiceRemoved verifies DDOT was fully removed: the legacy SCM service is gone on
-// Windows, and the dd-procmgrd-supervised process is no longer registered on either platform. DDOT
-// defaults to procmgr management on fresh installs, so checking only the legacy service would pass
-// trivially without proving removal actually stopped the supervised process.
+// Windows, and the dd-procmgrd-supervised process is no longer running. DDOT defaults to procmgr
+// management on fresh installs, so checking only the legacy service would pass trivially without
+// proving removal actually stopped the supervised process.
 func (s *extensionsSuite) verifyDDOTServiceRemoved() {
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		isDDOTRemoved := assert.Eventually(s.T(), func() bool {
@@ -411,5 +411,5 @@ func (s *extensionsSuite) verifyDDOTServiceRemoved() {
 			s.T().Fatalf("DDOT service should be removed")
 		}
 	}
-	s.Host.AssertProcessNotLoaded(s.T(), ddotProcessName, fleethost.LinuxStableInstallDir)
+	s.Host.AssertProcessNotRunning(s.T(), ddotProcessName, fleethost.LinuxStableInstallDir)
 }

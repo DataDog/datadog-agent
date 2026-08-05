@@ -225,6 +225,23 @@ func (h *Host) AssertProcessNotLoaded(t *testing.T, name, installDir string) {
 	}, 2*time.Minute, 5*time.Second)
 }
 
+// AssertProcessNotRunning fails the test unless dd-procmgrd reports name as not running. A process
+// that is not registered at all also counts as not running: on Windows the DDOT processes.d entry
+// is deleted on extension removal, while on Linux that entry belongs to the agent package's static
+// process set and stays registered, gated by condition_path_exists.
+func (h *Host) AssertProcessNotRunning(t *testing.T, name, installDir string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		info, ok, err := h.DescribeProcess(name, installDir)
+		require.NoError(c, err)
+		if !ok {
+			return
+		}
+		assert.NotContains(c, []string{"Starting", "Running"}, info.State,
+			"process %s is still running (state %s, pid %d)", name, info.State, info.PID)
+	}, 2*time.Minute, 5*time.Second)
+}
+
 // AssertSystemdUnitNotActive fails the test unless every given systemd unit is not active. Linux only.
 func (h *Host) AssertSystemdUnitNotActive(t *testing.T, units ...string) {
 	t.Helper()
