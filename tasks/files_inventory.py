@@ -76,7 +76,7 @@ def compare_inventories(_, parent_inventory_report, current_inventory_report):
     added, removed, changed = _compare_inventories(parent_file_inventory, current_file_inventory)
     if len(added) == 0 and len(removed) == 0 and len(changed) == 0:
         print(color_message('✅ No change detected', 'green'))
-        body = "No change detected"
+        body = "No change detected\n\n"
     else:
         _print_inventory_diff(added, removed, changed)
         body = _inventory_changes_to_comment(added, removed, changed)
@@ -120,12 +120,12 @@ def _inventory_changes_to_comment(added, removed, changed):
         body += f"<details><summary>\n\n### {len(added)} Added files:\n\n</summary>\n\n"
         for f in added:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
-        body += "</details>"
+        body += "</details>\n\n"
     if len(removed):
         body += f"<details><summary>\n\n### {len(removed)} Removed files:\n\n</summary>\n\n"
         for f in removed:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
-        body += "</details>"
+        body += "</details>\n\n"
     if len(changed):
         body += f"<details><summary>\n\n### {len(changed)} Changed files:\n\n</summary>\n\n"
         for path, change in changed.items():
@@ -137,7 +137,7 @@ def _inventory_changes_to_comment(added, removed, changed):
             if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
                 change_str += f'  * File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}\n'
             body += change_str
-        body += "</details>"
+        body += "</details>\n\n"
     return body
 
 
