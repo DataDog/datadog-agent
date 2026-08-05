@@ -462,8 +462,30 @@ func TestIsNamespaceEligible(t *testing.T) {
 	}
 }
 
-func TestIsNamespaceEligibleFailsClosedWhenNamespaceMetadataIsUnavailable(t *testing.T) {
-	const cfg = `
+func TestIsNamespaceEligibleSkipsTargetWhenNamespaceMetadataIsUnavailable(t *testing.T) {
+	tests := map[string]struct {
+		fallback string
+		want     bool
+	}{
+		"catch-all fallback makes namespace eligible": {
+			fallback: `
+      - name: "fallback"`,
+			want: true,
+		},
+		"pod-only fallback makes namespace eligible": {
+			fallback: `
+      - name: "pod-only"
+        podSelector:
+          matchLabels:
+            app: "web"`,
+			want: true,
+		},
+		"no fallback leaves namespace ineligible": {
+			want: false,
+		},
+	}
+
+	const configTemplate = `
 apm_config:
   instrumentation:
     enabled: true
@@ -472,12 +494,17 @@ apm_config:
         namespaceSelector:
           matchLabels:
             instrument: "true"
-      - name: "fallback"
+%s
 `
-	wmeta := newMatchTestWmeta(t)
-	m := newMatchMutator(t, cfg, wmeta)
 
-	require.False(t, m.IsNamespaceEligible("temporarily-unavailable"))
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			wmeta := newMatchTestWmeta(t)
+			m := newMatchMutator(t, fmt.Sprintf(configTemplate, test.fallback), wmeta)
+
+			require.Equal(t, test.want, m.IsNamespaceEligible("temporarily-unavailable"))
+		})
+	}
 }
 
 func TestGetTargetFromAnnotation(t *testing.T) {
@@ -790,7 +817,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: nil,
 		},
-		"missing namespace in store gets no tracers": {
+		// When the namespace is absent from the store, the namespace-label rule
+		// ("Enabled Prod Namespaces") cannot be evaluated and is skipped, so the
+		// pod falls through to the selector-less "Default" target rather than
+		// aborting all matching.
+		"missing namespace in store falls through to the default target": {
 			configPath: "testdata/filter.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -798,7 +829,11 @@ func TestGetTargetLibraries(t *testing.T) {
 					Labels:    map[string]string{},
 				},
 			},
-			expected: nil,
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(js, "v5"),
+				},
+			},
 		},
 		"unset tracer versions applies all tracers": {
 			configPath: "testdata/filter.yaml",
@@ -929,6 +964,7 @@ func TestLanguageDetection(t *testing.T) {
 		deployments                []mutatecommon.MockDeployment
 		expectNoMutation           bool
 		expectedInitContainerNames []string
+		expectedEnv                map[string]string
 	}{
 		"default target uses language detection when enabled": {
 			config: map[string]interface{}{
@@ -979,7 +1015,7 @@ func TestLanguageDetection(t *testing.T) {
 				"datadog-lib-python-init",
 			},
 		},
-		"fallback target is not used when namespace metadata is unavailable": {
+		"fallback target is used when namespace metadata is unavailable": {
 			configYAML: `
 apm_config:
   instrumentation:
@@ -1012,7 +1048,16 @@ admission_controller:
 					Languages:      languageSetOf("python"),
 				},
 			},
-			expectNoMutation: true,
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+			},
+			expectedEnv: map[string]string{
+				"DD_TRACE_ENABLED":                "true",
+				"DD_LOGS_INJECTION":               "true",
+				"DD_RUNTIME_METRICS_ENABLED":      "true",
+				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+			},
 		},
 		"default target does not use language detection when disabled": {
 			config: map[string]interface{}{
@@ -1080,6 +1125,14 @@ admission_controller:
 				actualInitContainerNames = append(actualInitContainerNames, container.Name)
 			}
 			require.ElementsMatch(t, test.expectedInitContainerNames, actualInitContainerNames)
+
+			actualEnv := make(map[string]string)
+			for _, env := range test.pod.Spec.Containers[0].Env {
+				actualEnv[env.Name] = env.Value
+			}
+			for name, expected := range test.expectedEnv {
+				require.Equal(t, expected, actualEnv[name], "environment variable %s", name)
+			}
 		})
 	}
 }

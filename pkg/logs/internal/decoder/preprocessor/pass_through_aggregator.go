@@ -29,7 +29,7 @@ func NewPassThroughAggregator(lineLimit int) *PassThroughAggregator {
 
 // Process handles a log line, applying truncation flags if the content exceeds
 // lineLimit, and returns it as a single-element slice. label is unused.
-func (a *PassThroughAggregator) Process(msg *message.Message, _ Label, tokens []Token) []AggregatedMessageWithTokens {
+func (a *PassThroughAggregator) Process(msg *message.Message, _ Label, tokens BorrowedTokens) []AggregatedMessageWithTokens {
 	lastWasTruncated := a.shouldTruncate
 	content := msg.GetContent()
 	a.shouldTruncate = len(content) > a.lineLimit || msg.ParsingExtra.IsTruncated

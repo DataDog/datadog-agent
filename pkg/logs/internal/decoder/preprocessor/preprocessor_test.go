@@ -23,7 +23,7 @@ type captureSampler struct {
 	emitted []*message.Message
 }
 
-func (s *captureSampler) Process(msg *message.Message, _ []Token) *message.Message {
+func (s *captureSampler) Process(msg *message.Message, _ BorrowedTokens) *message.Message {
 	s.emitted = append(s.emitted, msg)
 	return msg
 }
@@ -35,7 +35,7 @@ type captureAggregator struct {
 	received []*message.Message
 }
 
-func (a *captureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
+func (a *captureAggregator) Process(msg *message.Message, _ Label, _ BorrowedTokens) []AggregatedMessageWithTokens {
 	a.received = append(a.received, msg)
 	return []AggregatedMessageWithTokens{{Msg: msg}}
 }
@@ -48,7 +48,7 @@ type flushCaptureAggregator struct {
 	pending *message.Message
 }
 
-func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
+func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ BorrowedTokens) []AggregatedMessageWithTokens {
 	a.pending = msg
 	return nil // buffer the message
 }

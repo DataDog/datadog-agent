@@ -41,7 +41,7 @@ func assertMessageContent(t *testing.T, m *message.Message, content string) {
 // processMsg calls Process with nil tokens and returns only the messages, for tests that
 // don't need to inspect token propagation.
 func processMsg(ag Aggregator, msg *message.Message, label Label) []*message.Message {
-	completed := ag.Process(msg, label, nil)
+	completed := ag.Process(msg, label, BorrowedTokens{})
 	out := make([]*message.Message, len(completed))
 	for i, c := range completed {
 		out[i] = c.Msg
@@ -265,12 +265,13 @@ func TestOverflowedGroupEmitsOriginalTokens(t *testing.T) {
 	firstTokens := []Token{1, 2}
 	secondTokens := []Token{3, 4}
 
-	require.Empty(t, ag.Process(newMessage("123"), startGroup, firstTokens))
+	require.Empty(t, ag.Process(newMessage("123"), startGroup, newBorrowedTokens(firstTokens, nil)))
+	firstTokens[0] = 9
 
-	completed := ag.Process(newMessage("456"), aggregate, secondTokens)
+	completed := ag.Process(newMessage("456"), aggregate, newBorrowedTokens(secondTokens, nil))
 	require.Len(t, completed, 2)
-	assert.Equal(t, firstTokens, completed[0].Tokens)
-	assert.Equal(t, secondTokens, completed[1].Tokens)
+	assert.Equal(t, []Token{1, 2}, completed[0].Tokens.Borrow())
+	assert.Equal(t, secondTokens, completed[1].Tokens.Borrow())
 }
 
 func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
@@ -454,6 +455,18 @@ func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
 	assert.Equal(t, "START second group", string(msgs[0].GetContent()))
 }
 
+func TestRegexAggregatorRetainsFirstLineTokens(t *testing.T) {
+	ag := NewRegexAggregator(regexp.MustCompile(`^START`), 1000, false, status.NewInfoRegistry(), "multi_line")
+	tokens := []Token{1, 2}
+
+	require.Empty(t, ag.Process(newMessage("START first group"), noAggregate, newBorrowedTokens(tokens, nil)))
+	tokens[0] = 9
+	completed := ag.Process(newMessage("START second group"), noAggregate, BorrowedTokens{})
+
+	require.Len(t, completed, 1)
+	assert.Equal(t, []Token{1, 2}, completed[0].Tokens.Borrow())
+}
+
 // Tests for detectingAggregator
 
 func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
@@ -475,6 +488,18 @@ func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "at line 2", string(msgs[0].GetContent()))
 	assert.NotContains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
+}
+
+func TestDetectingAggregatorRetainsPendingTokens(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
+	tokens := []Token{1, 2}
+
+	require.Empty(t, ag.Process(newMessage("Error: Exception"), startGroup, newBorrowedTokens(tokens, nil)))
+	tokens[0] = 9
+	completed := ag.Process(newMessage("  at line 1"), aggregate, BorrowedTokens{})
+
+	require.Len(t, completed, 2)
+	assert.Equal(t, []Token{1, 2}, completed[0].Tokens.Borrow())
 }
 
 func TestDetectingAggregator_SingleLineNotTagged(t *testing.T) {
@@ -720,9 +745,9 @@ func TestDetectingAggregator_COATTelemetry_WouldCombine(t *testing.T) {
 	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
 
 	// startGroup followed by two aggregates: both aggregates would be combined
-	ag.Process(newMessage("timestamp line"), startGroup, nil)
-	ag.Process(newMessage("  continuation 1"), aggregate, nil)
-	ag.Process(newMessage("  continuation 2"), aggregate, nil)
+	ag.Process(newMessage("timestamp line"), startGroup, BorrowedTokens{})
+	ag.Process(newMessage("  continuation 1"), aggregate, BorrowedTokens{})
+	ag.Process(newMessage("  continuation 2"), aggregate, BorrowedTokens{})
 	ag.Flush()
 
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
@@ -742,8 +767,8 @@ func TestDetectingAggregator_COATTelemetry_NoCombineForStandaloneAggregates(t *t
 	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
 
 	// Aggregate lines without a preceding startGroup should NOT count as would-combine
-	ag.Process(newMessage("orphan 1"), aggregate, nil)
-	ag.Process(newMessage("orphan 2"), aggregate, nil)
+	ag.Process(newMessage("orphan 1"), aggregate, BorrowedTokens{})
+	ag.Process(newMessage("orphan 2"), aggregate, BorrowedTokens{})
 
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -763,8 +788,8 @@ func TestDetectingAggregator_COATTelemetry_OverflowingGroupsAreNotCombined(t *te
 
 	// startGroup(10 bytes) + aggregate(15 bytes) would overflow once the escaped
 	// newline separator is added, so combining mode would abandon aggregation.
-	ag.Process(newMessage("1234567890"), startGroup, nil)     // 10 bytes content
-	ag.Process(newMessage("123456789012345"), aggregate, nil) // 10+2+15 >= 20 → do not combine
+	ag.Process(newMessage("1234567890"), startGroup, BorrowedTokens{})     // 10 bytes content
+	ag.Process(newMessage("123456789012345"), aggregate, BorrowedTokens{}) // 10+2+15 >= 20 → do not combine
 
 	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
@@ -784,10 +809,10 @@ func TestDetectingAggregator_COATTelemetry_LateOverflowDropsWholeGroup(t *testin
 	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
 	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
 
-	ag.Process(newMessage("1234"), startGroup, nil) // 4
-	ag.Process(newMessage("12"), aggregate, nil)    // 4+2+2 = 8
-	ag.Process(newMessage("12"), aggregate, nil)    // 8+2+2 = 12
-	ag.Process(newMessage("12"), aggregate, nil)    // 12+2+2 = 16 >= 15, abandon group
+	ag.Process(newMessage("1234"), startGroup, BorrowedTokens{}) // 4
+	ag.Process(newMessage("12"), aggregate, BorrowedTokens{})    // 4+2+2 = 8
+	ag.Process(newMessage("12"), aggregate, BorrowedTokens{})    // 8+2+2 = 12
+	ag.Process(newMessage("12"), aggregate, BorrowedTokens{})    // 12+2+2 = 16 >= 15, abandon group
 
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -807,8 +832,8 @@ func TestDetectingAggregator_COATTelemetry_NoTruncateForOversizedSingleLine(t *t
 
 	// A single startGroup >= maxContentSize is excluded from truncation counts
 	// (it would be truncated regardless of auto-multiline)
-	ag.Process(newMessage("12345"), startGroup, nil) // RawDataLen=5 >= maxContentSize=5
-	ag.Process(newMessage("67"), aggregate, nil)     // Not in group since startGroup was oversized
+	ag.Process(newMessage("12345"), startGroup, BorrowedTokens{}) // RawDataLen=5 >= maxContentSize=5
+	ag.Process(newMessage("67"), aggregate, BorrowedTokens{})     // Not in group since startGroup was oversized
 
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -825,8 +850,8 @@ func TestDetectingAggregator_COATTelemetry_NoCountsWhenNotDefaultPath(t *testing
 	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
 	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
 
-	ag.Process(newMessage("timestamp line"), startGroup, nil)
-	ag.Process(newMessage("  continuation"), aggregate, nil)
+	ag.Process(newMessage("timestamp line"), startGroup, BorrowedTokens{})
+	ag.Process(newMessage("  continuation"), aggregate, BorrowedTokens{})
 
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -846,16 +871,16 @@ func TestDetectingAggregator_COATTelemetry_MultiGroupWithOverflow(t *testing.T) 
 	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
 
 	// Group 1: fits (5 content + 2 LF + 3 content = 10 < 15)
-	ag.Process(newMessage("12345"), startGroup, nil) // 5 bytes
-	ag.Process(newMessage("678"), aggregate, nil)    // 5+2+3 = 10 < 15 → combine
+	ag.Process(newMessage("12345"), startGroup, BorrowedTokens{}) // 5 bytes
+	ag.Process(newMessage("678"), aggregate, BorrowedTokens{})    // 5+2+3 = 10 < 15 → combine
 
 	// Group 2: would overflow (10+2+10 = 22 >= 15), so it is not counted as combined.
-	ag.Process(newMessage("1234567890"), startGroup, nil) // 10 bytes, starts new group
-	ag.Process(newMessage("1234567890"), aggregate, nil)  // 10+2+10 >= 15 → abandon aggregation
-	ag.Process(newMessage("123"), aggregate, nil)         // Aggregate out of a group should not count as would-combine
+	ag.Process(newMessage("1234567890"), startGroup, BorrowedTokens{}) // 10 bytes, starts new group
+	ag.Process(newMessage("1234567890"), aggregate, BorrowedTokens{})  // 10+2+10 >= 15 → abandon aggregation
+	ag.Process(newMessage("123"), aggregate, BorrowedTokens{})         // Aggregate out of a group should not count as would-combine
 
 	// noAggregate standalone
-	ag.Process(newMessage("standalone"), noAggregate, nil)
+	ag.Process(newMessage("standalone"), noAggregate, BorrowedTokens{})
 
 	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()

@@ -250,21 +250,25 @@ impl AggregatorStub {
         }
     }
 
-    /// Builds an [`AgentCheck`] wired to this stub. Panics on invalid YAML.
-    pub fn agent_check(&self, init_config: &str, instance_config: &str) -> AgentCheck {
-        let aggregator = Aggregator::new(
+    /// Builds the recording [`Aggregator`] wired to this stub's callbacks.
+    pub fn aggregator(&self) -> Aggregator {
+        Aggregator::new(
             record_metric,
             record_service_check,
             record_event,
             record_histogram_bucket,
             record_event_platform_event,
             log_msg,
-        );
+        )
+    }
+
+    /// Builds an [`AgentCheck`] wired to this stub. Panics on invalid YAML.
+    pub fn agent_check(&self, init_config: &str, instance_config: &str) -> AgentCheck {
         AgentCheck::new(
             self.check_id.clone(),
             Config::from_str(init_config).expect("invalid init_config YAML"),
             Config::from_str(instance_config).expect("invalid instance_config YAML"),
-            aggregator,
+            self.aggregator(),
         )
     }
 

@@ -56,6 +56,7 @@ type errorTrackingClusterAgentSuite struct {
 // TestErrorTrackingClusterAgentSuite is the cluster-agent variant of
 // TestAgentTelemetryErrorTrackingSuite.
 func TestErrorTrackingClusterAgentSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &errorTrackingClusterAgentSuite{},
 		e2e.WithProvisioner(provkind.Provisioner(
 			provkind.WithRunOptions(
