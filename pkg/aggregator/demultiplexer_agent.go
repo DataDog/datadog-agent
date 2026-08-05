@@ -91,6 +91,8 @@ type AgentDemultiplexerOptions struct {
 	DogStatsDLookback        DogStatsDLookback
 	DogStatsDLookbackFactory DogStatsDLookbackFactory
 
+	FinalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
+
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 
 	UseDogstatsdContextLimiter bool
@@ -197,6 +199,7 @@ func initAgentDemultiplexer(log log.Component,
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
 		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
+		statsdSampler.finalDogStatsDSerieObservers = append([]FinalDogStatsDSerieObserver(nil), options.FinalDogStatsDSerieObservers...)
 
 		// its worker (process loop + flush/serialization mechanism)
 

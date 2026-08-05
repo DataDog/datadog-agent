@@ -8,6 +8,9 @@ use crate::config::SubTask;
 #[cfg(feature = "engine-postgres")]
 mod postgres;
 
+#[cfg(test)]
+pub(crate) mod mock;
+
 /// One scanned column's name and its source data type (e.g. `text`, `varchar`).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ScannedColumn {
@@ -17,7 +20,7 @@ pub struct ScannedColumn {
 
 /// The result of running a sub task's query: the `{ column: [values] }` map fed
 /// to the scanner, plus metadata describing what was scanned.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ScanData {
     /// Column-oriented values consumed by the scanner.
     // TODO(dsec-173): return an `Event` (dd-sensitive-data-scanner) per backend
@@ -43,6 +46,8 @@ fn engines() -> &'static [&'static dyn ScanEngine] {
     &[
         #[cfg(feature = "engine-postgres")]
         &postgres::ENGINE,
+        #[cfg(test)]
+        &mock::ENGINE,
     ]
 }
 

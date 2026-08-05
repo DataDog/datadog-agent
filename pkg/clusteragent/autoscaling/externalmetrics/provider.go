@@ -157,7 +157,7 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 	info.Metric = strings.ToLower(info.Metric)
 
 	// If the metric name is already prefixed, we can directly look up metrics in store
-	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric)
+	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric, namespace)
 	if !hasPrefix {
 		datadogMetricID = p.autogenNamespace + kubernetesNamespaceSep + getAutogenDatadogMetricNameFromSelector(info.Metric, metricSelector)
 		parsed = true

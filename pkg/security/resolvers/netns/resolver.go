@@ -11,6 +11,7 @@ package netns
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -36,6 +38,24 @@ var (
 	// flushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
 	flushNamespacesPeriod = 30 * time.Second
 )
+
+// linkListAttempts is the number of times an interface dump is retried. The kernel marks a dump it
+// could not keep consistent - the link table changed while it was being generated - and our netlink
+// fork reports that as EINTR; re-issuing the dump is the only way to recover from it. Beware that a
+// newer netlink reports it as ErrDumpInterrupted instead, which would stop this retry from firing.
+const linkListAttempts = 3
+
+func listLinks(sock *netlink.Handle) ([]netlink.Link, error) {
+	var links []netlink.Link
+	var err error
+
+	for range linkListAttempts {
+		if links, err = sock.LinkList(); !errors.Is(err, unix.EINTR) {
+			break
+		}
+	}
+	return links, err
+}
 
 // Resolver is used to store namespace handles
 type Resolver struct {
@@ -197,7 +217,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 		return 0
 	}
 
-	links, err := ntl.Sock.LinkList()
+	links, err := listLinks(ntl.Sock)
 	if err != nil {
 		seclog.Errorf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
 		return 0
@@ -573,7 +593,7 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 
 			ntl, err = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 			if err == nil {
-				links, err = ntl.Sock.LinkList()
+				links, err = listLinks(ntl.Sock)
 				if err == nil {
 					for _, link := range links {
 						netnsDump.Devices = append(netnsDump.Devices, NetworkDeviceDump{

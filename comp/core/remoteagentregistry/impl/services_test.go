@@ -261,6 +261,62 @@ dogstatsd_client__bytes_dropped_writer 2
 	}
 }
 
+func TestGetTelemetryCollectsADPTransactionSuccessCounters(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	lc.Start(context.Background())
+	component := provides.Comp
+
+	promText := `
+# TYPE transactions__success counter
+transactions__success{domain="remote-config",endpoint="/v1/transactions",proto_version="v1"} 42
+# TYPE transactions__success_bytes counter
+transactions__success_bytes{domain="remote-config",endpoint="/v1/transactions"} 1024
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "agent-data-plane", "Agent Data Plane", "123",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+	metricsByName := metricsToMap(metrics)
+
+	for metricName, expected := range map[string]struct {
+		value  float64
+		labels map[string]string
+	}{
+		"transactions__success": {
+			value: 42,
+			labels: map[string]string{
+				"domain":        "remote-config",
+				"endpoint":      "/v1/transactions",
+				"proto_version": "v1",
+				"emitter":       "agent-data-plane",
+			},
+		},
+		"transactions__success_bytes": {
+			value: 1024,
+			labels: map[string]string{
+				"domain":   "remote-config",
+				"endpoint": "/v1/transactions",
+				"emitter":  "agent-data-plane",
+			},
+		},
+	} {
+		metricFamily := metricsByName[metricName]
+		require.NotNil(t, metricFamily, metricName)
+		assert.Equal(t, io_prometheus_client.MetricType_COUNTER, metricFamily.GetType(), metricName)
+		require.Len(t, metricFamily.GetMetric(), 1, metricName)
+		metric := metricFamily.GetMetric()[0]
+		assert.Equal(t, expected.value, metric.GetCounter().GetValue(), metricName)
+
+		actualLabels := make(map[string]string, len(metric.GetLabel()))
+		for _, label := range metric.GetLabel() {
+			actualLabels[label.GetName()] = label.GetValue()
+		}
+		assert.Equal(t, expected.labels, actualLabels, metricName)
+	}
+}
+
 func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
 	testCases := []struct {
 		name               string

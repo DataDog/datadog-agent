@@ -34,7 +34,7 @@ const (
 type LogSource struct {
 	Name     string
 	Config   *config.LogsConfig
-	Status   *status.LogStatus
+	status   *status.LogStatus
 	inputs   map[string]bool
 	lock     *sync.Mutex
 	Messages *config.Messages
@@ -58,7 +58,7 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 	source := &LogSource{
 		Name:             name,
 		Config:           cfg,
-		Status:           status.NewLogStatus(),
+		status:           status.NewLogStatus(),
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
@@ -97,6 +97,21 @@ func (s *LogSource) GetInputs() []string {
 		inputs = append(inputs, input)
 	}
 	return inputs
+}
+
+// Status returns the status tracker for this source.
+func (s *LogSource) Status() *status.LogStatus {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.status
+}
+
+// SetStatus sets the status tracker for this source. This is used when a source inherits
+// the status of another one, e.g. when a tailer is reused across sources.
+func (s *LogSource) SetStatus(newStatus *status.LogStatus) {
+	s.lock.Lock()
+	s.status = newStatus
+	s.lock.Unlock()
 }
 
 // SetSourceType sets a format that give information on how the source lines should be parsed
@@ -190,7 +205,7 @@ func (s *LogSource) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("&LogsSource @ %p = {"), s)
 	fmt.Fprintf(&b, ws("Name: %#v,"), s.Name)
 	fmt.Fprintf(&b, ws("Config: %s,"), indent(s.Config.Dump(multiline)))
-	fmt.Fprintf(&b, ws("Status: %s,"), indent(s.Status.Dump()))
+	fmt.Fprintf(&b, ws("Status: %s,"), indent(s.status.Dump()))
 	fmt.Fprintf(&b, ws("inputs: %#v,"), s.inputs)
 	fmt.Fprintf(&b, ws("Messages: %#v,"), s.Messages.GetMessages())
 	fmt.Fprintf(&b, ws("sourceType: %#v,"), s.sourceType)

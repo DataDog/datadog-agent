@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = [
+        "component.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def",
+    visibility = ["//visibility:public"],
+    deps = ["@io_k8s_api//batch/v1:batch"],
+)

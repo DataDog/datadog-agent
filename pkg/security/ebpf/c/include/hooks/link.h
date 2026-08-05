@@ -134,8 +134,24 @@ int rethook_filename_create(ctx_t *ctx) {
     return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK_FILENAME_CREATE);
 }
 
+// __filename_create is the pre-5.15 upstream (and some el9 z-streams') name for
+// the same function: identical signature, returns the target dentry.
+HOOK_EXIT("__filename_create")
+int rethook___filename_create(ctx_t *ctx) {
+    return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK_FILENAME_CREATE);
+}
+
 HOOK_EXIT("__lookup_hash")
 int rethook___lookup_hash(ctx_t *ctx) {
+    return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
+}
+
+// lookup_one_qstr_excl replaces __lookup_hash on upstream >= 6.5 and on el9
+// z-streams that backported the rename. Same return value semantics — the
+// resolved target dentry — so we route it through the same origin so the
+// overlayfs-aware state machine (see comment above) still picks "last call".
+HOOK_EXIT("lookup_one_qstr_excl")
+int rethook_lookup_one_qstr_excl(ctx_t *ctx) {
     return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
 }
 

@@ -6,10 +6,13 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,8 +37,25 @@ func startTestServer(t *testing.T, handler http.Handler) (string, *httptest.Serv
 
 func resetStartupChecker() {
 	checker := getStartChecker()
+	checker.mutex.Lock()
+	defer checker.mutex.Unlock()
 	checker.startTime = time.Now()
 	checker.started = false
+	checker.inFlight = nil
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func successfulCheckResponse() *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(`{}`)),
+	}
 }
 
 func TestConstructURL(t *testing.T) {
@@ -163,7 +183,9 @@ func TestGetCheckStartup(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotStartedYet)
 
 	// Test after grace period
+	client.startupChecker.mutex.Lock()
 	client.startupChecker.startTime = time.Now().Add(-6 * time.Minute)
+	client.startupChecker.mutex.Unlock()
 
 	// The error should not be ErrNotStartedYet since we're past the grace period
 	_, err = GetCheck[testData](client, "test")
@@ -176,4 +198,105 @@ func TestGetCheckStartup(t *testing.T) {
 	resp, err := GetCheck[testData](client, "test")
 	require.NoError(t, err)
 	assert.Equal(t, 42, resp.Num)
+}
+
+func TestStartCheckerCanceledWaiterDoesNotWaitForBlockedProbe(t *testing.T) {
+	firstStarted := make(chan struct{})
+	var once sync.Once
+	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		once.Do(func() { close(firstStarted) })
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
+	checker := &startChecker{
+		startTime:      time.Now(),
+		startupTimeout: time.Minute,
+	}
+
+	ownerCtx, cancelOwner := context.WithCancel(context.Background())
+	ownerDone := make(chan error)
+	go func() {
+		ownerDone <- checker.ensureStarted(ownerCtx, httpClient)
+	}()
+	<-firstStarted
+
+	waiterCtx, cancelWaiter := context.WithCancel(context.Background())
+	cancelWaiter()
+	require.ErrorIs(t, checker.ensureStarted(waiterCtx, httpClient), context.Canceled)
+
+	select {
+	case err := <-ownerDone:
+		require.Failf(t, "probe owner returned before cancellation", "error: %v", err)
+	default:
+	}
+	cancelOwner()
+	require.ErrorIs(t, <-ownerDone, context.Canceled)
+}
+
+func TestStartCheckerWaiterRetriesAfterProbeOwnerCancellation(t *testing.T) {
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	var mu sync.Mutex
+	calls := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		mu.Lock()
+		calls++
+		call := calls
+		mu.Unlock()
+		if call == 1 {
+			close(firstStarted)
+			<-req.Context().Done()
+			return nil, req.Context().Err()
+		}
+		close(secondStarted)
+		return successfulCheckResponse(), nil
+	})}
+	checker := &startChecker{
+		startTime:      time.Now(),
+		startupTimeout: time.Minute,
+	}
+
+	ownerCtx, cancelOwner := context.WithCancel(context.Background())
+	ownerDone := make(chan error)
+	go func() {
+		ownerDone <- checker.ensureStarted(ownerCtx, httpClient)
+	}()
+	<-firstStarted
+
+	waiterDone := make(chan error)
+	go func() {
+		waiterDone <- checker.ensureStarted(context.Background(), httpClient)
+	}()
+	cancelOwner()
+
+	require.ErrorIs(t, <-ownerDone, context.Canceled)
+	<-secondStarted
+	require.NoError(t, <-waiterDone)
+	mu.Lock()
+	assert.Equal(t, 2, calls)
+	mu.Unlock()
+}
+
+func TestGetCheckWithContextCancelsModuleRequest(t *testing.T) {
+	requestStarted := make(chan struct{})
+	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		close(requestStarted)
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
+	checker := &startChecker{started: true}
+	client := NewCheckClient(httpClient, httpClient)
+	client.startupChecker = checker
+
+	ctx, cancel := context.WithCancel(context.Background())
+	requestDone := make(chan error)
+	go func() {
+		_, err := GetCheckWithContext[testData](ctx, client, "context-cancel")
+		requestDone <- err
+	}()
+	<-requestStarted
+	cancel()
+
+	require.Error(t, <-requestDone)
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
 }

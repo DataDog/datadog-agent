@@ -1602,12 +1602,31 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 
 // UpdateProcessContexts updates the cgroup context and container ID of the process matching the provided PID
 func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgroupContext model.CGroupContext, containerContext model.ContainerContext) {
+	p.Lock()
+	defer p.Unlock()
+
 	if !cgroupContext.IsNull() {
 		pce.Process.CGroup = cgroupContext
 	}
 	if !containerContext.IsNull() {
 		pce.Process.ContainerContext = containerContext
 	}
+}
+
+// UpdateSID updates the SID of the given process cache entry
+func (p *EBPFResolver) UpdateSID(pce *model.ProcessCacheEntry, sid uint32) {
+	p.RLock()
+	currSID := pce.SID
+	p.RUnlock()
+
+	if currSID == sid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	pce.SID = sid
 }
 
 const (

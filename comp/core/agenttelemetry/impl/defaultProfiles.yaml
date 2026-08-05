@@ -87,6 +87,15 @@ profiles:
         preserve_tags:
           - domain
           - endpoint
+      - name: transactions.success
+        preserve_tags:
+          - domain
+          - endpoint
+          - proto_version
+      - name: transactions.success_bytes
+        preserve_tags:
+          - domain
+          - endpoint
       - name: transactions.requeued
       - name: transactions.retries
       - name: transactions.http_errors

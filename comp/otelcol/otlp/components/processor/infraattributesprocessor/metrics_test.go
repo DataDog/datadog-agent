@@ -363,7 +363,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"kubernetes_metadata:///nodes//k8s_node_name_goes_here"},
+			entityIDs: []string{"kubernetes_node://k8s_node_name_goes_here"},
 		},
 		{
 			name: "only process pid",

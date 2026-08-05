@@ -25,6 +25,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -151,6 +152,16 @@ func readProfileData(client ipc.HTTPClient, seconds int) (clusterAgentFlare.Prof
 	return pdata, nil
 }
 
+// resolveDCALogFile returns the log file to bundle in a cluster-agent flare.
+// The cluster-agent doesn't register its own default for "log_file", so an
+// unconfigured value resolves to the generic agent default, not "".
+func resolveDCALogFile(cfg pkgconfigmodel.Reader) string {
+	if !cfg.IsConfigured("log_file") {
+		return defaultpaths.GetDefaultDCALogFile()
+	}
+	return cfg.GetString("log_file")
+}
+
 func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Component, ipc ipc.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
@@ -159,10 +170,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 	)
 	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
-	logFile := pkgconfigsetup.Datadog().GetString("log_file")
-	if logFile == "" {
-		logFile = defaultpaths.GetDefaultDCALogFile()
-	}
+	logFile := resolveDCALogFile(pkgconfigsetup.Datadog())
 
 	if cliParams.profiling >= 30 {
 		settingsClient := settingshttp.NewSecureClient(ipc.GetClient(), urlstr, "datadog-cluster-agent", ipchttp.WithLeaveConnectionOpen)

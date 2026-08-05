@@ -58,7 +58,7 @@ func (l *Launcher) run() {
 		select {
 		case source := <-l.sources:
 			l.startNewTailer(source)
-			source.Status.Success()
+			source.Status().Success()
 		case <-l.stop:
 			return
 		}

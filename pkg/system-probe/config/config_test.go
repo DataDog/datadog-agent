@@ -23,6 +23,7 @@ func TestEventMonitor(t *testing.T) {
 
 	for i, tc := range []struct {
 		cws, fim, networkEvents, gpu bool
+		gpuEBPFProbes                bool
 		usmEvents                    bool
 		enabled                      bool
 	}{
@@ -34,7 +35,11 @@ func TestEventMonitor(t *testing.T) {
 		{cws: false, fim: true, networkEvents: true, enabled: true},
 		{cws: true, fim: false, networkEvents: true, enabled: true},
 		{cws: true, fim: true, networkEvents: true, enabled: true},
-		{cws: false, fim: false, networkEvents: false, gpu: true, enabled: true},
+		// GPU monitoring only needs the event monitor to feed its eBPF probes,
+		// so both settings have to be enabled for the module to be pulled in.
+		{cws: false, fim: false, networkEvents: false, gpu: true, gpuEBPFProbes: true, enabled: true},
+		{cws: false, fim: false, networkEvents: false, gpu: true, gpuEBPFProbes: false, enabled: false},
+		{cws: false, fim: false, networkEvents: false, gpu: false, gpuEBPFProbes: true, enabled: false},
 		{usmEvents: true, enabled: true},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -44,6 +49,9 @@ func TestEventMonitor(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_GPU_MONITORING_ENABLED", strconv.FormatBool(tc.gpu))
+			// Set explicitly rather than relying on the default, which is
+			// subject to change as the eBPF probes are deprecated.
+			t.Setenv("DD_GPU_MONITORING_ENABLE_EBPF_PROBES", strconv.FormatBool(tc.gpuEBPFProbes))
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(tc.usmEvents))
 			t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", strconv.FormatBool(tc.usmEvents))
 

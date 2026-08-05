@@ -20,8 +20,6 @@ const (
 	// sometimes want things like LLDP data that are under lower prefixes
 	// (LLDP goes under .1.0.*). So we just start as low as possible.
 	baseOID = ".0.0"
-	// Java SNMP uses 50, snmp-net uses 10
-	defaultMaxRepetitions = 50
 )
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
@@ -31,7 +29,6 @@ func ConditionalWalk(
 	ctx context.Context,
 	session *gosnmp.GoSNMP,
 	rootOID string,
-	useBulk bool,
 	callInterval time.Duration,
 	maxCallCount int,
 	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
@@ -46,11 +43,6 @@ func ConditionalWalk(
 
 	oid := rootOID
 	requests := 0
-	maxReps := session.MaxRepetitions
-
-	if maxReps == 0 {
-		maxReps = defaultMaxRepetitions
-	}
 
 RequestLoop:
 	for {
@@ -71,13 +63,7 @@ RequestLoop:
 			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
 		}
 
-		var response *gosnmp.SnmpPacket
-		var err error
-		if useBulk {
-			response, err = session.GetBulk([]string{oid}, 0, maxReps)
-		} else {
-			response, err = session.GetNext([]string{oid})
-		}
+		response, err := session.GetNext([]string{oid})
 		if err != nil {
 			return NewConnectionError(err)
 		}

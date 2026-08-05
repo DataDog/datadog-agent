@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The Cluster Agent no longer opens a second, redundant cluster-wide
+    ``ListWatch`` for Kubernetes Nodes. Setting ``kubernetes_node_labels_as_tags``
+    or ``kubernetes_node_annotations_as_tags`` used to start an extra
+    Node metadata watch in addition to the one already used to populate the
+    Node cache; that extra watch has been removed and label/annotation-as-tags
+    extraction now relies solely on the existing Node cache.

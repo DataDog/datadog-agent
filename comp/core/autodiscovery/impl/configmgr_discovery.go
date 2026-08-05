@@ -112,6 +112,21 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 		// Template was removed while the probe was in flight.
 		return changes
 	}
+
+	// The probe was enqueued (in resolveTemplateForService) when this
+	// template was still expected for the service. A probe can take several
+	// retry cycles to complete, and by the time it does, a sibling config, a
+	// static config, or a generic-integration (openmetrics/prometheus)
+	// config may have appeared that would now cause FilterTemplates to drop
+	// this template. Re-run that same filtering here, immediately before
+	// applying the result, so a slow-arriving probe can't schedule a
+	// duplicate/conflicting check on top of a config that showed up while it
+	// was in flight.
+	if _, stillExpected := cm.expectedFilteredTemplatesLocked(svcID)[tplDigest]; !stillExpected {
+		log.Debugf("autodiscovery: discarding stale discovery result for %s on service %s: no longer expected after re-filtering", tpl.Name, svcID)
+		return changes
+	}
+
 	if len(configs) == 0 {
 		return changes
 	}

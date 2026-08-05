@@ -69,6 +69,15 @@ func Run(ctx *pulumi.Context) error {
 			k8sAgentOptions = append(
 				k8sAgentOptions,
 				kubernetesagentparams.WithGKEAutopilot(),
+				// maintain backwards compatibility and avoid
+				// setting logs/container collect all to be unconditionally true
+				// for all GKE Autopilot scenarios
+				kubernetesagentparams.WithHelmValues(`
+datadog:
+  logs:
+    enabled: true
+    containerCollectAll: true
+`),
 			)
 		}
 
