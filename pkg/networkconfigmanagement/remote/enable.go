@@ -136,12 +136,9 @@ func readUntilMatch(r *bufio.Reader, re *regexp.Regexp) ([]byte, error) {
 }
 
 // readUntilValid reads from r one byte at a time, accumulating into a buffer,
-// until a Reject rule matches (failure, returned immediately without waiting
-// for more output) or the response can be deemed successful. If Require rules
-// are configured, success means all of them match. Otherwise - a Reject-only
-// (or empty) Validator can't positively confirm success from matching text
-// alone, so it waits for the device to return to its CLI prompt, which is
-// itself a signal that no more output (e.g. a rejection) is coming.
+// until the validator passes. If the validator ever returns a RejectedError,
+// reading will stop immediately; otherwise this will read until
+// maxEnableHandshakeBytes have been read or the reader ends.
 func readUntilValid(r *bufio.Reader, v profile.Validator) error {
 	var buf []byte
 	for len(buf) < maxEnableHandshakeBytes {
@@ -154,16 +151,15 @@ func readUntilValid(r *bufio.Reader, v profile.Validator) error {
 		}
 		buf = append(buf, b)
 		text := string(buf)
-		for _, rule := range v.Reject {
-			if rule.MatchString(text) {
-				return fmt.Errorf("matches failure regex %q", rule)
+		if err := v.Validate(text); err != nil {
+			if _, ok := errors.AsType[*profile.MissingRequirementError](err); ok {
+				// if the failure is just that we didn't match the required
+				// regex, keep waiting for more input.
+				continue
 			}
-		}
-		if len(v.Require) > 0 {
-			if v.Validate(text) == nil {
-				return nil
-			}
-			continue
+			// otherwise, we've already matched a rejected regex and we can fail
+			// immediately - no need to wait for more output.
+			return err
 		}
 		if trailingPromptRE.MatchString(lastLine(text)) {
 			return nil

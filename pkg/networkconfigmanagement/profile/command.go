@@ -20,15 +20,38 @@ type Validator struct {
 	Reject  []*regexp.Regexp `json:"reject,omitempty"`
 }
 
+// RejectedError indicates that the string matched an explicit failure regex.
+type RejectedError struct {
+	rule string
+}
+
+func (r *RejectedError) Error() string {
+	return fmt.Sprintf("matches failure regex %q", r.rule)
+}
+
+// MissingRequirementError indicates that the string failed to match a required
+// regex.
+type MissingRequirementError struct {
+	rule string
+}
+
+func (r *MissingRequirementError) Error() string {
+	return fmt.Sprintf("does not match required regex %q", r.rule)
+}
+
+// Validate checks the validators rejection and requirement regexes against the
+// given text. Rejections are checked first, and the returned error will be a
+// *RejectedError or *RequirementError, so that callers can validate incomplete
+// text.
 func (v *Validator) Validate(text string) error {
-	for _, rule := range v.Require {
-		if !rule.MatchString(text) {
-			return fmt.Errorf("does not match required regex %q", rule)
-		}
-	}
 	for _, rule := range v.Reject {
 		if rule.MatchString(text) {
-			return fmt.Errorf("matches failure regex %q", rule)
+			return &RejectedError{rule.String()}
+		}
+	}
+	for _, rule := range v.Require {
+		if !rule.MatchString(text) {
+			return &MissingRequirementError{rule.String()}
 		}
 	}
 	return nil
