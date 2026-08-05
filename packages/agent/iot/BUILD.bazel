@@ -105,6 +105,8 @@ pkg_mkdirs(
     attributes = pkg_attributes(mode = "755"),
     dirs = [
         "bin",
+        "embedded/bin",
+        "embedded/lib",
         "run",
     ],
 )
