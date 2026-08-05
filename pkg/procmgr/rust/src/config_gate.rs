@@ -819,8 +819,7 @@ process_config:
     fn env_bool_and_configured_ignore_empty_values() {
         with_env_lock(|| {
             clear_gated_env_vars();
-            let _empty =
-                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
+            let _empty = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
 
             assert_eq!(
                 env_bool_for_config_key("process_config.process_discovery.enabled"),
@@ -836,10 +835,8 @@ process_config:
     fn env_bool_falls_through_empty_to_next_bound_var() {
         with_env_lock(|| {
             clear_gated_env_vars();
-            let _empty =
-                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
-            let _legacy =
-                EnvGuard::set("DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "true");
+            let _empty = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
+            let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "true");
 
             assert_eq!(
                 env_bool_for_config_key("process_config.process_discovery.enabled"),
@@ -1365,8 +1362,7 @@ process_config:
     fn env_whitespace_padded_bool_does_not_enable_process_gates() {
         with_env_lock(|| {
             clear_gated_env_vars();
-            let _discovery =
-                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", " true ");
+            let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", " true ");
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
