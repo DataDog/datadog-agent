@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    CWS: added a host-wide activity capture window, driven by the new
+    ``system-probe runtime activity-dump host start`` and ``host stop``
+    commands and gated behind
+    ``runtime_security_config.security_profile.v2.host_dump.enabled``
+    (disabled by default). Enabling it also enables the V2 security profile
+    manager and the profiling of host (systemd) cgroups, so that a single
+    setting captures the activity of the whole host between the two commands.
+    Profiles recorded during a window are written to local storage only and
+    are never forwarded to the backend, which makes the feature suitable for
+    local and CI investigations.
