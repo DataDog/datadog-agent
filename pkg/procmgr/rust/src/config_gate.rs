@@ -486,6 +486,14 @@ fn lookup_dotted_key<'a>(root: &'a serde_yaml::Value, key: &str) -> Option<&'a s
     lookup_dotted_key_in_mapping(root, key)
 }
 
+/// Whether a YAML node counts as an explicit config value for presence/`IsConfigured`.
+///
+/// Mirrors Agent `read_config_file.go`: known nil leaves (`setting_name:` with no value)
+/// are ignored and do not mark the key configured.
+fn yaml_value_is_set(value: &serde_yaml::Value) -> bool {
+    !matches!(value, serde_yaml::Value::Null)
+}
+
 /// Resolves a dotted config key in raw YAML, mirroring Agent flattened keys.
 ///
 /// The Agent expands keys containing `.` into nested maps in
@@ -498,11 +506,14 @@ fn lookup_dotted_key_in_mapping<'a>(
     let mapping = current.as_mapping()?;
 
     if let Some(value) = lookup_mapping_case_insensitive(mapping, key) {
-        return Some(value);
+        return yaml_value_is_set(value).then_some(value);
     }
 
     let (first, rest) = key.split_once('.')?;
     let next = lookup_mapping_case_insensitive(mapping, first)?;
+    if !yaml_value_is_set(next) {
+        return None;
+    }
     lookup_dotted_key_in_mapping(next, rest)
 }
 
@@ -687,6 +698,24 @@ process_config:
             lookup_dotted_key(&yaml, "process_config.process_collection.enabled"),
             Some(&serde_yaml::Value::Bool(true))
         );
+    }
+
+    #[test]
+    fn lookup_dotted_key_treats_null_leaf_as_absent() {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(
+            "network_config:\n  enabled:\nsystem_probe_config:\n  enabled: true\n",
+        )
+        .unwrap();
+        assert_eq!(lookup_dotted_key(&yaml, "network_config.enabled"), None);
+        assert_eq!(
+            lookup_dotted_key(&yaml, "system_probe_config.enabled"),
+            Some(&serde_yaml::Value::Bool(true))
+        );
+
+        let flat: serde_yaml::Value =
+            serde_yaml::from_str("network_config.enabled:\nsystem_probe_config.enabled: true\n")
+                .unwrap();
+        assert_eq!(lookup_dotted_key(&flat, "network_config.enabled"), None);
     }
 
     #[test]
@@ -1543,6 +1572,28 @@ process_config:
                 dir.path(),
                 "system-probe.yaml",
                 "system_probe_config:\n  enabled: true\nservice_monitoring_config:\n  enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_windows_conditions(
+                agent, sysprobe
+            )));
+        });
+    }
+
+    #[test]
+    fn derived_npm_back_compat_ignores_valueless_network_config_enabled() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "system_probe_config:\n  enabled: true\nnetwork_config:\n  enabled:\nservice_monitoring_config:\n  enabled: false\n",
             );
             assert!(condition_config_any_met(&process_agent_windows_conditions(
                 agent, sysprobe
