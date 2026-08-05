@@ -288,7 +288,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 	retryOpts := []backoff.RetryOption{backoff.WithBackOff(backoff.NewConstantBackOff(30 * time.Second)), backoff.WithMaxTries(10)}
 	err = s.WaitForServicesWithBackoff("Running", consts.RunningSCMServices, retryOpts...)
 	s.Require().NoError(err, "Failed waiting for services after config experiment start")
-	err = s.WaitForServicesWithBackoff("Stopped", consts.LegacySCMServices, retryOpts...)
+	err = s.WaitForStoppedServicesAllowAbsent(consts.LegacySCMServices, retryOpts...)
 	s.Require().NoError(err, "legacy SCM services should stay stopped under procmgr")
 
 	// Promote config experiment (restarts the services)
@@ -296,7 +296,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 
 	err = s.WaitForServicesWithBackoff("Running", consts.RunningSCMServices, retryOpts...)
 	s.Require().NoError(err, "Failed waiting for services after config experiment promote")
-	err = s.WaitForServicesWithBackoff("Stopped", consts.LegacySCMServices, retryOpts...)
+	err = s.WaitForStoppedServicesAllowAbsent(consts.LegacySCMServices, retryOpts...)
 	s.Require().NoError(err, "legacy SCM services should stay stopped under procmgr")
 }
 
