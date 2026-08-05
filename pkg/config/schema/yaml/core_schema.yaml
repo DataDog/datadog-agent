@@ -6163,14 +6163,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-          cross_signal:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           cusum:
             node_type: section
             type: object
@@ -6204,14 +6196,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-          passthrough:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           rrcf:
             node_type: section
             type: object
