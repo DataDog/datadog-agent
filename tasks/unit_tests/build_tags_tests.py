@@ -82,6 +82,13 @@ class TestCodegenPayloadData(unittest.TestCase):
     def test_common_tags_payload_matches_constant(self):
         self.assertEqual(_payload()["common_tags"], sorted(COMMON_TAGS))
 
+    def test_openmetrics_agent_flavors(self):
+        for flavor in (AgentFlavor.base, AgentFlavor.fips, AgentFlavor.heroku):
+            with self.subTest(flavor=flavor.name):
+                self.assertIn("openmetrics", build_tags.build_tags[flavor]["agent"])
+        self.assertNotIn("openmetrics", build_tags.build_tags[AgentFlavor.iot]["agent"])
+        self.assertNotIn("python", build_tags.build_tags[AgentFlavor.iot]["agent"])
+
 
 def _bzl_flavor_unit_test_tags():
     """Exec build_tags.bzl (valid Python) and return its FLAVOR_UNIT_TEST_TAGS."""

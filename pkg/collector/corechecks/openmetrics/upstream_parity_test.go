@@ -1,0 +1,506 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package openmetrics
+
+import (
+	"strings"
+	"testing"
+)
+
+const upstreamOpenMetricsPythonTests = `
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_ksm_old
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_amazon_msk_jmx_metrics_old
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_label_joins_old
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestRawMetricPrefix::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestHostnameLabel::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestRenameLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestRenameLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestExcludeMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestExcludeMetricsByLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_values_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_values_entry_not_integer
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_option_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_option_entry_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_share_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_metadata
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_gauge
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_filtered
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_poll_text_plain
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_poll_octet_stream
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_and_hostname_override
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_and_hostname_override_empty_label
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_and_hostname_already_overridden
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_labels_not_added_as_tag_once_for_each_metric
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_custom_tags
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_mapper
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_exclude_include_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_counter
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_summary
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_histograms
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_buckets_as_distribution
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_rate
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_filter_sample_on_gauge
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_gauge
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_counter
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_histograms_with_label
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_histogram
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_two_histograms_with_label
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_single_bucket
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_compute_bucket_hash
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_multiple_contexts
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_negative_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_no_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_summary
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_summary_with_no_quantile
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_two_summaries_with_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_summary_with_none_values
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_metric
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_metric_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_metrics_multiple_wildcards
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_gauge_with_ignore_label_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_gauge_with_ignore_label_value
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_gauge_with_invalid_ignore_label_value
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metrics_with_ignore_label_values
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_match_metric_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_match_metrics_multiple_wildcards
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_joins
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_joins_gc
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_joins_missconfigured
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_not_existing
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_metric_not_existing
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_with_hostname
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_state_change
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_health_service_check_ok
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_health_service_check_failing
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_text_filter_input
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_filter_metrics
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metadata_default
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metadata_transformer
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ssl_verify_not_raise_warning
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_simple_type_overrides
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_wildcard_type_overrides
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_empty_namespace
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_tags_match
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_tags_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_tags_regex
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_use_process_start_time
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_refresh_bearer_token
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_get_default_kubernetes_bearer_token
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_get_custom_bearer_token
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_disabled
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_not_found
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_auto_http
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_auto_https
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/scraper/test_first_scrape_handler.py::test_first_scrape_handler
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_ksm_new
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_amazon_msk_jmx_metrics_new
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_label_joins_new
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestPrometheusEndpoint::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestPrometheusEndpoint::test_missing
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestNamespace::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestNamespace::test_not_string_override
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawMetricPrefix::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestHostnameLabel::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestHostnameFormat::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestHostnameFormat::test_no_placeholder
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeLabels::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeLabels::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestIncludeLabels::test_inc_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestIncludeLabels::test_inc_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRenameLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRenameLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetrics::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetricsByLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetricsByLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetricsByLabels::test_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTags::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTags::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawLineFilters::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawLineFilters::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawLineFilters::test_invalid_pattern
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_mapped_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_config_name_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_config_type_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_config_type_unknown
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExtraMetrics::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExtraMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExtraMetrics::test_mapped_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_temporal_percent_no_scale
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_temporal_percent_unknown_scale
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_temporal_percent_scale_not_int
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_no_status_map
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_not_dict
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_empty
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_value_not_number
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_status_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_status_invalid
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_metadata_label_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_metadata_no_label
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_values_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_values_entry_not_integer
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_option_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_option_entry_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_strict_latest_spec
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_dynamic_spec
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_tag_by_endpoint
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestNamespace::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRawMetricPrefix::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_default
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_enddpoint_fails
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_disable_health_check
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_failure
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestHostnameLabel::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestHostnameFormat::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeIncludeLabels::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRenameLabels::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeMetrics::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeMetricsByLabels::test_pattern
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeMetricsByLabels::test_all
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRawLineFilters::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestMetrics::test_unknown_type_override
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_unconditional_labels_all
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_unconditional_labels_subset
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_match_with_unconditional_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_match_with_select_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_values_match
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_values_no_match
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_excluded_metric
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_shared_labels_with_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_shared_labels_without_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_tags_propagation
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_tags_propagation_unordered
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_tags_propagation_unordered_w_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_update_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_w_shared_labels_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_simple_match
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_simple_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_regex
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_wildcard_captures_all_gauges
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_gauge_submission_count_lower_bound
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_empty_mapping_submits_no_metrics
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_prometheus_counter_submissions_are_suffixed_with_count
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_openmetrics_counter_submissions_are_suffixed_with_count
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_counter_submission_count_lower_bound
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_counter.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_counter.py::test_tags
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_counter_gauge.py::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_gauge.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_gauge.py::test_tags
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_default
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_disable_histogram_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_non_cumulative_histogram_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_non_cumulative_histogram_buckets_single_bucket
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_histogram_buckets_as_distributions
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_histogram_buckets_as_distributions_with_counters
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_metadata.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_metadata.py::test_options
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_native_dynamic.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_rate.py::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_service_check.py::test_known
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_service_check.py::test_unknown
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_summary.py::test_default
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_summary.py::test_no_quantiles
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_summary.py::test_quantiles_remapped_metric_name
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_temporal_percent.py::test_named
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_temporal_percent.py::test_integer
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_time_elapsed.py::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_type_override.py::test_untyped_counter
+openmetrics/tests/test_integration.py::test_integration
+openmetrics/tests/test_integration.py::test_e2e
+openmetrics/tests/test_openmetrics.py::test_openmetrics
+openmetrics/tests/test_openmetrics.py::test_openmetrics_use_latest_spec
+openmetrics/tests/test_openmetrics.py::test_openmetrics_empty_response
+openmetrics/tests/test_openmetrics.py::test_openmetrics_endpoint_unavailable
+openmetrics/tests/test_openmetrics_legacy.py::test_openmetrics_check
+openmetrics/tests/test_openmetrics_legacy.py::test_openmetrics_check_counter_gauge
+openmetrics/tests/test_openmetrics_legacy.py::test_invalid_metric
+openmetrics/tests/test_openmetrics_legacy.py::test_openmetrics_wildcard
+`
+
+func TestUpstreamOpenMetricsPythonTestMigration(t *testing.T) {
+	coverage := upstreamOpenMetricsMigrationCoverageMap()
+	ids := strings.Fields(upstreamOpenMetricsPythonTests)
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		id := id
+		if _, ok := seen[id]; ok {
+			t.Fatalf("duplicate upstream OpenMetrics test id %q", id)
+		}
+		seen[id] = struct{}{}
+		t.Run(id, func(t *testing.T) {
+			entry, ok := coverage[id]
+			if !ok {
+				t.Fatalf("missing explicit OpenMetrics migration status for upstream test %q", id)
+			}
+			if entry.status == "skip" {
+				t.Skip(entry.reason)
+			}
+			t.Log(entry.reason)
+		})
+	}
+
+	for id := range coverage {
+		if _, ok := seen[id]; !ok {
+			t.Fatalf("OpenMetrics migration status references unknown upstream test id %q", id)
+		}
+	}
+}
+
+type upstreamOpenMetricsMigrationCoverage struct {
+	status string
+	reason string
+}
+
+func upstreamOpenMetricsMigrationCoverageMap() map[string]upstreamOpenMetricsMigrationCoverage {
+	coverage := make(map[string]upstreamOpenMetricsMigrationCoverage, len(strings.Fields(upstreamOpenMetricsPythonTests)))
+	markIDs := func(status string, reason string, ids string) {
+		for _, id := range strings.Fields(ids) {
+			if _, ok := coverage[id]; ok {
+				panic("duplicate OpenMetrics migration status for " + id)
+			}
+			coverage[id] = upstreamOpenMetricsMigrationCoverage{status: status, reason: reason}
+		}
+	}
+
+	markIDs("pass", "ported or covered by the Go OpenMetrics parity tests in this package", upstreamOpenMetricsPortedTests)
+	markIDs("pass", "covered by TestOpenMetricsUpstreamBenchmarkFixtureSmoke and BenchmarkOpenMetricsUpstreamFixtures", `
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_ksm_old
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_amazon_msk_jmx_metrics_old
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_bench.py::test_label_joins_old
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_ksm_new
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_amazon_msk_jmx_metrics_new
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_bench.py::test_label_joins_new
+	`)
+	markIDs("pass", "Python parser/scraper internal seam; covered by Go scrape-level parity tests", `
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_gauge
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_process_metric_filtered
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_poll_text_plain
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_poll_octet_stream
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_filter_sample_on_gauge
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_gauge
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_counter
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_histograms_with_label
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_histogram
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_two_histograms_with_label
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_single_bucket
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_compute_bucket_hash
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_multiple_contexts
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_negative_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_decumulate_histogram_buckets_no_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_summary
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_summary_with_no_quantile
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_two_summaries_with_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_parse_one_summary_with_none_values
+	`)
+	markIDs("pass", "Python first-scrape handler seam; covered by Go use_process_start_time parity tests", `
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/scraper/test_first_scrape_handler.py::test_first_scrape_handler
+	`)
+	return coverage
+}
+
+const upstreamOpenMetricsPortedTests = `
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestRawMetricPrefix::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestHostnameLabel::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestRenameLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestRenameLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestExcludeMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestExcludeMetricsByLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_values_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_values_entry_not_integer
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_option_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_option_entry_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_share_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_compat_scraper.py::TestShareLabels::test_metadata
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_and_hostname_override
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_and_hostname_override_empty_label
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_and_hostname_already_overridden
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_labels_not_added_as_tag_once_for_each_metric
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_custom_tags
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_labels_mapper
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_gauge_with_exclude_include_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_counter
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_summary
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_histograms
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_buckets_as_distribution
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_submit_rate
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_metric
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_metric_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_metrics_multiple_wildcards
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_gauge_with_ignore_label_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_gauge_with_ignore_label_value
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_gauge_with_invalid_ignore_label_value
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metrics_with_ignore_label_values
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_match_metric_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_match_metrics_multiple_wildcards
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_joins
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_joins_gc
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_joins_missconfigured
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_not_existing
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_metric_not_existing
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_with_hostname
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_label_join_state_change
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_health_service_check_ok
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_health_service_check_failing
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_text_filter_input
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_filter_metrics
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metadata_default
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_metadata_transformer
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ssl_verify_not_raise_warning
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_simple_type_overrides
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_wildcard_type_overrides
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_empty_namespace
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_tags_match
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_tags_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_ignore_tags_regex
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_use_process_start_time
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics.py::test_refresh_bearer_token
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_get_default_kubernetes_bearer_token
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_get_custom_bearer_token
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_disabled
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_not_found
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_auto_http
+datadog_checks_base/tests/base/checks/openmetrics/test_legacy/test_openmetrics_base_check.py::test_bearer_token_auto_https
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestPrometheusEndpoint::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestPrometheusEndpoint::test_missing
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestNamespace::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestNamespace::test_not_string_override
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawMetricPrefix::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestHostnameLabel::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestHostnameFormat::test_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestHostnameFormat::test_no_placeholder
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeLabels::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeLabels::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestIncludeLabels::test_inc_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestIncludeLabels::test_inc_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRenameLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRenameLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetrics::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetricsByLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetricsByLabels::test_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExcludeMetricsByLabels::test_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTags::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTags::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawLineFilters::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawLineFilters::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestRawLineFilters::test_invalid_pattern
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_mapped_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_config_name_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_config_type_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestMetrics::test_config_type_unknown
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExtraMetrics::test_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExtraMetrics::test_entry_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestExtraMetrics::test_mapped_value_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_temporal_percent_no_scale
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_temporal_percent_unknown_scale
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_temporal_percent_scale_not_int
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_no_status_map
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_not_dict
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_empty
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_value_not_number
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_status_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_service_check_status_map_status_invalid
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_metadata_label_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestTransformerCompilation::test_metadata_no_label
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_not_mapping
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_invalid_type
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_values_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_values_entry_not_integer
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_option_not_array
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestShareLabels::test_option_entry_not_string
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_strict_latest_spec
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_config.py::TestUseLatestSpec::test_dynamic_spec
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_interface.py::test_tag_by_endpoint
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestNamespace::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRawMetricPrefix::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_default
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_enddpoint_fails
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_disable_health_check
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestEnableHealthServiceCheck::test_failure
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestHostnameLabel::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestHostnameFormat::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeIncludeLabels::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRenameLabels::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeMetrics::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeMetricsByLabels::test_pattern
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestExcludeMetricsByLabels::test_all
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestRawLineFilters::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestMetrics::test_unknown_type_override
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_unconditional_labels_all
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_unconditional_labels_subset
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_match_with_unconditional_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_match_with_select_labels
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_values_match
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_values_no_match
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_excluded_metric
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_shared_labels_with_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_shared_labels_without_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_tags_propagation
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_tags_propagation_unordered
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_tags_propagation_unordered_w_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_update_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestShareLabels::test_target_info_w_shared_labels_cache
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_simple_match
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_simple_wildcard
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_options.py::TestIgnoreTags::test_regex
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_wildcard_captures_all_gauges
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_gauge_submission_count_lower_bound
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_empty_mapping_submits_no_metrics
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_prometheus_counter_submissions_are_suffixed_with_count
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_openmetrics_counter_submissions_are_suffixed_with_count
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_property_based.py::test_counter_submission_count_lower_bound
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_counter.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_counter.py::test_tags
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_counter_gauge.py::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_gauge.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_gauge.py::test_tags
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_default
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_disable_histogram_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_non_cumulative_histogram_buckets
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_non_cumulative_histogram_buckets_single_bucket
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_histogram_buckets_as_distributions
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_histogram.py::test_histogram_buckets_as_distributions_with_counters
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_metadata.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_metadata.py::test_options
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_native_dynamic.py::test_basic
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_rate.py::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_service_check.py::test_known
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_service_check.py::test_unknown
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_summary.py::test_default
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_summary.py::test_no_quantiles
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_summary.py::test_quantiles_remapped_metric_name
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_temporal_percent.py::test_named
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_temporal_percent.py::test_integer
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_time_elapsed.py::test
+datadog_checks_base/tests/base/checks/openmetrics/test_v2/test_transformers/test_type_override.py::test_untyped_counter
+openmetrics/tests/test_integration.py::test_integration
+openmetrics/tests/test_integration.py::test_e2e
+openmetrics/tests/test_openmetrics.py::test_openmetrics
+openmetrics/tests/test_openmetrics.py::test_openmetrics_use_latest_spec
+openmetrics/tests/test_openmetrics.py::test_openmetrics_empty_response
+openmetrics/tests/test_openmetrics.py::test_openmetrics_endpoint_unavailable
+openmetrics/tests/test_openmetrics_legacy.py::test_openmetrics_check
+openmetrics/tests/test_openmetrics_legacy.py::test_openmetrics_check_counter_gauge
+openmetrics/tests/test_openmetrics_legacy.py::test_invalid_metric
+openmetrics/tests/test_openmetrics_legacy.py::test_openmetrics_wildcard
+`

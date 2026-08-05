@@ -126,6 +126,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 		corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
 	}
 	corecheckLoader.RegisterCheck(nvidia.CheckName, nvidia.Factory())
+	registerOpenMetricsCheck()
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
 	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
 	if cfg.GetBool("use_diskv2_check") {
