@@ -68,7 +68,11 @@ func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn nc
 		configs = append(configs, *runningConfig)
 	}
 
-	if startupConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.STARTUP); err != nil {
+	// Some profiles (e.g. pan-os) have no separate startup config; skip rather
+	// than failing the check when the profile doesn't define a startup command.
+	if dc.profile.Commands.GetStartup == nil {
+		logger.Debugf("profile %q has no startup config command, skipping startup config", dc.profile.Name)
+	} else if startupConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.STARTUP); err != nil {
 		logger.Warnf("unable to retrieve startup config, will not send: %v", err)
 		errors = append(errors, fmt.Errorf("failed to retrieve startup config: %w", err))
 	} else {
