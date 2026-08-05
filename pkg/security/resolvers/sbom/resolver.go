@@ -664,12 +664,17 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 		sb.state.Store(computedState)
 
+		r.sbomsCacheHit.Inc()
+
 		r.removePendingScan(sb.ContainerID)
 		r.processPendingFileEvents(sb)
 
 		return nil
 	}
 	r.dataCacheLock.Unlock()
+
+	// Only count a cache miss when we actually do the scan
+	r.sbomsCacheMiss.Inc()
 
 	report, scanErr := r.doScan(sb)
 	if scanErr != nil {
@@ -880,7 +885,8 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 
 		return
 	}
-	r.sbomsCacheMiss.Inc()
+	// Do not increment sbomsCacheMiss here since the SBOM can still hit
+	// the cache after it has been dequeued.
 
 	r.triggerScan(sbom)
 }

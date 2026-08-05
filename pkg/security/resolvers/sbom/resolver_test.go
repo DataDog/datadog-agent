@@ -126,6 +126,8 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
 		dataCache:         dataCache,
 		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
 
 	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
@@ -150,6 +152,12 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() {
 		t.Errorf("package = %+v, want last access set from the queued accesses", pkg)
 	}
+	if got := r.sbomsCacheHit.Load(); got != 1 {
+		t.Errorf("cache hits = %d, want 1: the scan avoided while queued was not counted", got)
+	}
+	if got := r.sbomsCacheMiss.Load(); got != 0 {
+		t.Errorf("cache misses = %d, want 0: the workload did not scan", got)
+	}
 }
 
 // TestAnalyzeWorkloadSkipsStoppedWorkload checks that a workload stopped while it was
@@ -165,6 +173,8 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
 		dataCache:         dataCache,
 		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
 
 	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
