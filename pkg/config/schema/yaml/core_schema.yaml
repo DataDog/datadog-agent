@@ -8763,6 +8763,10 @@ properties:
             node_type: setting
             type: integer
             default: 7778
+      log_file:
+        node_type: setting
+        type: string
+        default: ${log_path}/host-profiler.log
     tags:
     - full-agent-only:true
   hpa_configmap_name:
