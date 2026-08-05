@@ -791,6 +791,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 	}
 
+	if ctx.Err() != nil {
+		return
+	}
+
 	configAndPackageStates, err := d.installer(d.env).ConfigAndPackageStates(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
