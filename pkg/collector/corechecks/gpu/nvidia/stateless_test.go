@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -148,6 +149,135 @@ func TestECCMetricsEmitAggregateAndVolatileCounters(t *testing.T) {
 			Tags:  []string{"memory_location:device_memory"},
 		},
 	}, metricsOut)
+}
+
+func TestAllECCAPIHandlers(t *testing.T) {
+	sramStatus := nvml.EccSramErrorStatus{
+		AggregateCor:            101,
+		VolatileCor:             102,
+		AggregateUncParity:      103,
+		VolatileUncParity:       104,
+		AggregateUncSecDed:      105,
+		VolatileUncSecDed:       106,
+		AggregateUncBucketL2:    107,
+		AggregateUncBucketSm:    108,
+		AggregateUncBucketPcie:  109,
+		AggregateUncBucketMcu:   110,
+		AggregateUncBucketOther: 111,
+		BThresholdExceeded:      112,
+	}
+	sramExpectedMetrics := []Metric{
+		{Name: "errors.ecc.corrected.total", Value: 101, Type: metrics.GaugeType, Tags: []string{"memory_location:sram"}},
+		{Name: "errors.ecc.corrected.volatile", Value: 102, Type: metrics.GaugeType, Tags: []string{"memory_location:sram"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 103, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:parity"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 104, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:parity"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.total", Value: 105, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:secded"}},
+		{Name: "errors.ecc.sram.uncorrected_by_subtype.volatile", Value: 106, Type: metrics.GaugeType, Tags: []string{"memory_location:sram", "error_subtype:secded"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 107, Type: metrics.GaugeType, Tags: []string{"memory_location:l2_cache"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 108, Type: metrics.GaugeType, Tags: []string{"memory_location:sm"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 109, Type: metrics.GaugeType, Tags: []string{"memory_location:pcie"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 110, Type: metrics.GaugeType, Tags: []string{"memory_location:microcontroller"}},
+		{Name: "errors.ecc.uncorrected.total", Value: 111, Type: metrics.GaugeType, Tags: []string{"memory_location:other"}},
+		{Name: "errors.ecc.sram.threshold_exceeded", Value: 1, Type: metrics.GaugeType},
+	}
+
+	legacyCounterValue := func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) uint64 {
+		return uint64(errorType)*100 + uint64(counterType)*10 + uint64(memoryLocation) + 1
+	}
+	legacyMetric := func(errorType, counterType, memoryLocation string, value uint64) Metric {
+		return Metric{
+			Name:  fmt.Sprintf("errors.ecc.%s.%s", errorType, counterType),
+			Value: float64(value),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:" + memoryLocation},
+		}
+	}
+
+	legacyMetrics := make([]Metric, 0, 32)
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			for counterType, counterTypeName := range eccCounterTypeToName {
+				legacyMetrics = append(legacyMetrics, legacyMetric(
+					errorTypeName,
+					counterTypeName,
+					memoryLocationName,
+					legacyCounterValue(errorType, counterType, memoryLocation),
+				))
+			}
+		}
+	}
+	ampereExpectedMetrics := append(slices.Clone(sramExpectedMetrics),
+		legacyMetric("corrected", "volatile", "l1_cache", 1),
+		legacyMetric("corrected", "volatile", "l2_cache", 2),
+		legacyMetric("corrected", "volatile", "device_memory", 3),
+		legacyMetric("corrected", "volatile", "register_file", 4),
+		legacyMetric("corrected", "volatile", "texture_memory", 5),
+		legacyMetric("corrected", "volatile", "texture_shm", 6),
+		legacyMetric("corrected", "volatile", "cbu", 7),
+		legacyMetric("corrected", "total", "l1_cache", 11),
+		legacyMetric("corrected", "total", "l2_cache", 12),
+		legacyMetric("corrected", "total", "device_memory", 13),
+		legacyMetric("corrected", "total", "register_file", 14),
+		legacyMetric("corrected", "total", "texture_memory", 15),
+		legacyMetric("corrected", "total", "texture_shm", 16),
+		legacyMetric("corrected", "total", "cbu", 17),
+		legacyMetric("uncorrected", "volatile", "l1_cache", 101),
+		legacyMetric("uncorrected", "volatile", "l2_cache", 102),
+		legacyMetric("uncorrected", "volatile", "device_memory", 103),
+		legacyMetric("uncorrected", "volatile", "register_file", 104),
+		legacyMetric("uncorrected", "volatile", "texture_memory", 105),
+		legacyMetric("uncorrected", "volatile", "texture_shm", 106),
+		legacyMetric("uncorrected", "volatile", "cbu", 107),
+		legacyMetric("uncorrected", "volatile", "sram", 108),
+		legacyMetric("uncorrected", "total", "l1_cache", 111),
+		legacyMetric("uncorrected", "total", "device_memory", 113),
+		legacyMetric("uncorrected", "total", "register_file", 114),
+		legacyMetric("uncorrected", "total", "texture_memory", 115),
+		legacyMetric("uncorrected", "total", "texture_shm", 116),
+		legacyMetric("uncorrected", "total", "cbu", 117),
+	)
+	configureEccAPIs := func(device *mock.Device) {
+		device.GetMemoryErrorCounterFunc = func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, nvml.Return) {
+			return legacyCounterValue(errorType, counterType, memoryLocation), nvml.SUCCESS
+		}
+		device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
+			return sramStatus, nvml.SUCCESS
+		}
+	}
+
+	for _, tt := range []struct {
+		name         string
+		architecture string
+		expected     []Metric
+	}{
+		{name: "turing", architecture: "turing", expected: legacyMetrics},
+		{name: "ampere", architecture: "ampere", expected: ampereExpectedMetrics},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			device := setupMockDevice(t,
+				testutil.WithArchitecture(tt.architecture),
+				testutil.WithCustomHook(configureEccAPIs),
+			)
+
+			apis := createStatelessAPIs(&CollectorDependencies{})
+			var metricsOut []Metric
+			for _, api := range apis {
+				if api.Name != "sram_ecc_error_status" && !strings.HasPrefix(api.Name, "ecc_errors.") {
+					continue
+				}
+
+				metrics, _, err := api.Handler(device, 0)
+				if err != nil {
+					require.Empty(t, metrics)
+					require.True(t, safenvml.IsUnsupported(err))
+					continue
+				}
+				metricsOut = append(metricsOut, metrics...)
+			}
+
+			require.ElementsMatch(t, tt.expected, metricsOut)
+		})
+	}
 }
 
 // TestNewStatelessCollector tests stateless collector-specific initialization with dynamic API creation
