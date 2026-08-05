@@ -43,6 +43,7 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/message",
         "//pkg/util/compression",
         "//pkg/util/ecs/metadata",

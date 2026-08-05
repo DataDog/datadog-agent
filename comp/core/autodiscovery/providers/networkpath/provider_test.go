@@ -32,6 +32,7 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 		"path/a": {Config: []byte(`{
 			"type": "scheduled",
 			"test_config_id": "test-config-a",
+			"tags": ["team:payments", "env:prod"],
 			"unknown_root_field": true,
 			"config": {
 				"unknown_config_field": true,
@@ -83,11 +84,12 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 	assert.Equal(t, 50, instance["e2e_queries"])
 	assert.Equal(t, "frontend", instance["source_service"])
 	assert.Equal(t, "api", instance["destination_service"])
-	assert.Equal(t, []interface{}{"env:prod"}, instance["tags"])
+	assert.Equal(t, []interface{}{"team:payments", "env:prod"}, instance["tags"])
 
 	second := unmarshalInstance(t, changes.Schedule[1].Instances[0])
 	assert.Equal(t, "test-config-a", second["test_config_id"])
 	assert.Equal(t, "db.example.com", second["hostname"])
+	assert.Equal(t, []interface{}{"team:payments", "env:prod"}, second["tags"])
 }
 
 func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {

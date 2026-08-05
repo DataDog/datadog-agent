@@ -5,7 +5,7 @@
 
 // Package reporterimpl provides the live reporter implementations:
 // a stdout reporter (always active) and an optional Datadog event reporter
-// (active when anomaly_detection.reporting.enabled=true).
+// (active when anomaly_detection.reporting.events.enabled=true).
 package reporterimpl
 
 import (
@@ -44,7 +44,7 @@ type Provides struct {
 }
 
 // NewComponent creates the live reporter component. It always provides a
-// stdoutReporter and, when anomaly_detection.reporting.enabled=true and the
+// stdoutReporter and, when anomaly_detection.reporting.events.enabled=true and the
 // event-platform forwarder is available, also provides an EventReporter that
 // posts Datadog change events through the event-management intake pipeline.
 func NewComponent(req Requires) (Provides, error) {
