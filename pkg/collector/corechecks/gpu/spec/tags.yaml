@@ -46,6 +46,8 @@ tags:
     regex: "^\\d+$"
   recovery_action:
     regex: "^(none|reset|reboot|drain|drain_and_reset|unknown_-?\\d+)$"
+  throttle_reason:
+    regex: "^(applications_clocks_setting|sw_power_cap|hw_slowdown|sync_boost|sw_thermal_slowdown|hw_thermal_slowdown|hw_power_brake_slowdown|display_clock_setting|not_throttled)$"
 
 tagsets:
   container:

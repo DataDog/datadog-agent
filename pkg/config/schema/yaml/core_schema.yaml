@@ -9599,6 +9599,10 @@ properties:
       or connected mode (expects core agent for secrets and tagger)
   otelcollector:
     $ref: otelcollector.yaml
+  patch_prometheus_client:
+    node_type: setting
+    type: boolean
+    default: true
   prioritize_go_check_loader:
     node_type: setting
     type: boolean
