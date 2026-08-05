@@ -208,7 +208,19 @@ keeps working unchanged via the default pass described in Step 3.
    robust — this must never make CI worse than the status quo.**
 3. Merge junit + testjson across passes (reuse `concatenateJsons` and the `xml.go` helpers). Verify
    no duplicate entries and that the total test count matches a single-pass run.
-4. Give each pass its own `-test.timeout` rather than one 55m budget for everything. Side benefit: a
+   **Gotcha:** the artifact paths are derived from the package name only —
+   `junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")`, then `<prefix>.xml` / `<prefix>.json`.
+   N passes over the same package would write the same two files and silently clobber all but the
+   last, so the merged report would look like most tests vanished. Add a group index to the prefix
+   (`pkg-security-g03.xml`). `concatenateJsons` globs the whole json dir, so distinct names are
+   picked up automatically; `addProperties` must run per pass against its own file.
+4. **There is no parallelism to preserve.** `testPass()` is a sequential `for` loop with a blocking
+   `cmd.Run()` — no goroutines, no errgroup, no `-p` — and the CWS suite is strictly serial anyway
+   because the eBPF probe is a process-global singleton. Chaining passes costs only fixed per-pass
+   startup: **measured 0.061s** for binary load + runtime + package init + `TestMain`
+   (`testsuite -test.list ZZZ_no_match`), against 5-24s per avoided rebuild. Conversely, groups are
+   independently runnable, so they make cross-microVM sharding nearly free later.
+5. Give each pass its own `-test.timeout` rather than one 55m budget for everything. Side benefit: a
    hung test then kills only its own pass instead of aborting every rerun.
 
 ### The default pass — where undeclared tests run
