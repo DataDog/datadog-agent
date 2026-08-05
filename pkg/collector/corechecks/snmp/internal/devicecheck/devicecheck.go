@@ -293,8 +293,12 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// from the metadata payload, so only the resource tag is needed on metrics.
 	// Otherwise, there is no enrichment payload and legacy device tags must be kept
 	// so existing queries/monitors keep matching.
+	//
+	// `enrich_device_tags_from_resource: false` opts out of the backend enrichment and keeps the
+	// device tags on every metric, for setups that cannot tolerate the delay between a metric
+	// being submitted and its metadata payload being processed.
 	var metricTags []string
-	if d.config.CollectDeviceMetadata {
+	if d.config.CollectDeviceMetadata && d.config.EnrichDeviceTagsFromResource {
 		metricTags = []string{"dd.internal.resource:ndm_device:" + d.GetDeviceID()}
 	} else {
 		metricTags = append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())

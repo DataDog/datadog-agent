@@ -1031,6 +1031,52 @@ collect_vpn: true
 	assert.False(t, config.CollectVPN)
 }
 
+func Test_buildConfig_enrichDeviceTagsFromResource(t *testing.T) {
+	tests := []struct {
+		name         string
+		instanceYaml string
+		initYaml     string
+		expected     bool
+	}{
+		{
+			name:     "enabled by default",
+			expected: true,
+		},
+		{
+			name:     "disabled in init config",
+			initYaml: "enrich_device_tags_from_resource: false",
+			expected: false,
+		},
+		{
+			name:         "disabled in instance config",
+			instanceYaml: "enrich_device_tags_from_resource: false",
+			expected:     false,
+		},
+		{
+			name:         "instance config overrides init config",
+			instanceYaml: "enrich_device_tags_from_resource: true",
+			initYaml:     "enrich_device_tags_from_resource: false",
+			expected:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// language=yaml
+			rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+` + tt.instanceYaml)
+			// language=yaml
+			rawInitConfig := []byte(`
+oid_batch_size: 10
+` + tt.initYaml)
+			config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected, config.EnrichDeviceTagsFromResource)
+		})
+	}
+}
+
 func Test_buildConfig_namespace(t *testing.T) {
 	mockConfig := configmock.New(t)
 

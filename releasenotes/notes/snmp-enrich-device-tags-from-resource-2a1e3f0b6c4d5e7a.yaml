@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Added the ``enrich_device_tags_from_resource`` option to the SNMP check
+    (and ``network_devices.autodiscovery.enrich_device_tags_from_resource``
+    for SNMP autodiscovery), enabled by default. When device metadata
+    collection is enabled, device tags are attached to metrics by the backend
+    from the metadata payload instead of being sent with every metric. Setting
+    this option to ``false`` restores the previous behavior where the Agent
+    attaches the device tags to every metric it submits.
