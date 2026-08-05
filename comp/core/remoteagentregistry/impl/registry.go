@@ -47,6 +47,11 @@ type Provides struct {
 
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) Provides {
+	enabled := reqs.Config.GetBool("remote_agent.registry.enabled")
+	if !enabled {
+		return Provides{}
+	}
+
 	registry := newRegistry(reqs)
 
 	return Provides{

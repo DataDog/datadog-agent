@@ -112,6 +112,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	bs := readSettings(reqs.Params.CLIConfigPath)
+	if !bs.RARRegistryEnabled {
+		return Provides{}, fmt.Errorf("configstream consumer requires remote_agent.registry.enabled=true; refusing to start %s without RAR", reqs.Params.ClientName)
+	}
 
 	configstreambootstrap.SeedGlobalBuilder(bs, resolvedConfigFile(reqs.Params.CLIConfigPath))
 
