@@ -269,8 +269,11 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 .Should()
                 .Be(ActionResult.Success);
 
+            // Local accounts with no fetched password get a newly generated one; the assertion
+            // here is that SCM was not consulted when the agent service is absent.
             Test.Properties.Should()
-                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && string.IsNullOrEmpty(kvp.Value));
+                .Contain("DDAGENTUSER_RESET_PASSWORD", "yes").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && !string.IsNullOrEmpty(kvp.Value));
             Test.NativeMethods.Verify(
                 nativeMethods => nativeMethods.FetchSecret(scmPasswordKey),
                 Times.Never);
