@@ -688,6 +688,7 @@
 /pkg/tagset/                            @DataDog/agent-runtimes
 /pkg/util/                              @DataDog/agent-runtimes
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform
+/pkg/util/aws/creds/                    @DataDog/credential-management
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/agent-integrations
 /pkg/util/clusteragent/                 @DataDog/container-platform
 /pkg/util/confmaputils                       @DataDog/opentelemetry-agent @DataDog/profiling-full-host
