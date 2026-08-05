@@ -41,19 +41,28 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	}
 	defer session.Close()
 
-	command := cmd.Command
-	if len(cmd.SetupCommands) > 0 {
-		lines := append(append([]string{}, cmd.SetupCommands...), cmd.Command)
-		command = strings.Join(lines, "\n")
-	}
-
 	ch := make(chan *types.CommandResult, 1)
 	go func() {
-		output, err := session.CombinedOutput(command)
+		var output string
+		var execErr error
+		if cmd.Interactive {
+			// Some CLIs (e.g. PAN-OS) only emit output on an interactive TTY; a
+			// one-shot exec returns just the login banner.
+			output, execErr = runInteractive(session, cmd)
+		} else {
+			command := cmd.Command
+			if len(cmd.SetupCommands) > 0 {
+				lines := append(append([]string{}, cmd.SetupCommands...), cmd.Command)
+				command = strings.Join(lines, "\n")
+			}
+			var out []byte
+			out, execErr = session.CombinedOutput(command)
+			output = string(out)
+		}
 		ch <- &types.CommandResult{
 			CommandStr: cmd.Command,
-			Output:     string(output),
-			Error:      errorStr(err),
+			Output:     output,
+			Error:      errorStr(execErr),
 		}
 	}()
 	select {
