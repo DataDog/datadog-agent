@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -330,12 +331,17 @@ func start(log log.Component,
 		return errors.New("no API key configured, exiting")
 	}
 
-	// Expose the registered metrics via HTTP.
-	http.Handle("/metrics", telemetry.Handler())
+	// Expose the registered metrics via HTTP. /metrics must stay reachable on
+	// all interfaces so the node agent can scrape cluster-agent telemetry, but
+	// the pprof/expvar handlers that main.go registers on http.DefaultServeMux
+	// must not: gate everything under /debug/ to loopback callers only.
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", telemetry.Handler())
+	metricsMux.Handle("/debug/", loopbackOnly(http.DefaultServeMux))
 	metricsPort := config.GetInt("metrics_port")
 	metricsServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
-		Handler: http.DefaultServeMux,
+		Handler: metricsMux,
 	}
 
 	go func() {
@@ -768,6 +774,25 @@ func start(log log.Component,
 	pkglog.Flush()
 
 	return nil
+}
+
+// loopbackOnly serves h only for requests originating from a loopback address;
+// any other client receives a 404. The check uses the transport-level
+// RemoteAddr, not forwardable headers, so it cannot be spoofed by an off-host
+// caller. This keeps the pprof/expvar debug handlers reachable for local
+// tooling (e.g. the cluster-agent flare) while hiding them on the network.
+func loopbackOnly(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	}
 }
 
 func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
