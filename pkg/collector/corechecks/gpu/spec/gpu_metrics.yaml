@@ -522,6 +522,29 @@ metrics:
         mig: false
         physical: true
         vgpu: true
+  errors.ecc.sram.uncorrected_by_subtype.volatile:
+    metadata:
+      metric_type: gauge
+      description: >-
+        SRAM uncorrectable ECC errors since the last driver load or device reset,
+        split by subtype.
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+      - error_subtype
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
   ecc.repair_pending.channel:
     metadata:
       metric_type: gauge
