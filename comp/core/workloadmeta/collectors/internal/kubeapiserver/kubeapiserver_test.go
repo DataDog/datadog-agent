@@ -631,7 +631,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "",
 			},
-			expectedResources: []string{"//nodes"},
+			expectedResources: nil,
 		},
 		{
 			name: "duplicate versions for the same group/resource should not be allowed",
@@ -639,7 +639,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets apps//deployments apps/v1/statefulsets apps/v1/daemonsets",
 			},
-			expectedResources: []string{"//nodes", "apps/v1/daemonsets"},
+			expectedResources: []string{"apps/v1/daemonsets"},
 		},
 		{
 			name: "with generic resource tagging based on annotations and/or labels configured",
@@ -651,7 +651,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_resources_labels_as_tags":              `{"deployments.apps": {"x-team": "team"}, "custom.example.com": {"x-team": "team"}}`,
 				"kubernetes_resources_annotations_as_tags":         `{"namespaces": {"x-team": "team"}}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces", "example.com//custom"},
+			expectedResources: []string{"//namespaces", "example.com//custom"},
 		},
 		{
 			name: "generic resources tagging should be exclude invalid resources",
@@ -663,7 +663,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_resources_labels_as_tags":              `{"-invalid": {"x-team": "team"}, "invalid.exa_mple.com": {"x-team": "team"}}`,
 				"kubernetes_resources_annotations_as_tags":         `{"in valid.example.com": {"x-team": "team"}, "invalid.example.com-": {"x-team": "team"}}`,
 			},
-			expectedResources: []string{"//nodes"},
+			expectedResources: nil,
 		},
 		{
 			name: "deployments should be excluded from metadata collection",
@@ -673,7 +673,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/deployments",
 			},
-			expectedResources: []string{"apps//daemonsets", "//nodes"},
+			expectedResources: []string{"apps//daemonsets"},
 		},
 		{
 			name: "pods should be excluded from metadata collection",
@@ -682,7 +682,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets pods",
 			},
-			expectedResources: []string{"apps//daemonsets", "//nodes"},
+			expectedResources: []string{"apps//daemonsets"},
 		},
 		{
 			name: "resources explicitly requested",
@@ -690,7 +690,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets example.com/custom",
 			},
-			expectedResources: []string{"//nodes", "apps//statefulsets", "example.com//custom"},
+			expectedResources: []string{"apps//statefulsets", "example.com//custom"},
 		},
 		{
 			name: "non-core resources whose name merely ends in nodes should not be excluded",
@@ -698,7 +698,19 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "storage.k8s.io/csinodes metrics.k8s.io/nodes",
 			},
-			expectedResources: []string{"//nodes", "storage.k8s.io//csinodes", "metrics.k8s.io//nodes"},
+			expectedResources: []string{"storage.k8s.io//csinodes", "metrics.k8s.io//nodes"},
+		},
+		{
+			name: "core nodes are excluded from metadata collection even with node labels/annotations as tags configured",
+			cfg: map[string]interface{}{
+				"kubernetes_node_labels_as_tags": map[string]string{
+					"label1": "tag1",
+				},
+				"kubernetes_node_annotations_as_tags": map[string]string{
+					"annotation1": "tag1",
+				},
+			},
+			expectedResources: nil,
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",
@@ -707,7 +719,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace annotations as tags",
@@ -716,7 +728,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"annotation1": "tag1",
 				},
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace labels and annotations as tags",
@@ -724,7 +736,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"kubernetes_namespace_labels_as_tags":      `{"label1": "tag1"}`,
 				"kubernetes_namespace_annotations_as_tags": `{"annotation1": "tag2"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 		{
 			name: "resources explicitly requested and also needed for namespace labels as tags",
@@ -733,7 +745,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources": "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tags":              `{"label1": "tag1"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"}, // namespaces are not duplicated
+			expectedResources: []string{"//namespaces"}, // namespaces are not duplicated
 		},
 		{
 			name: "resources explicitly requested with apm enabled and also needed for namespace labels as tags",
@@ -743,14 +755,14 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.resources":                       "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tagkubernetes_namespace_labels_as_tagss": `{"label1": "tag1"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"}, // namespaces are not duplicated
+			expectedResources: []string{"//namespaces"}, // namespaces are not duplicated
 		},
 		{
 			name: "apm enabled enables namespace collection",
 			cfg: map[string]interface{}{
 				"apm_config.instrumentation.enabled": true,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//namespaces"},
 		},
 	}
 

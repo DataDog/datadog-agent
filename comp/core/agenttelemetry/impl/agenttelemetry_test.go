@@ -190,6 +190,26 @@ func testMetricFamily(metricType dto.MetricType, metrics ...*dto.Metric) *dto.Me
 	return &dto.MetricFamily{Name: &name, Type: &metricType, Metric: metrics}
 }
 
+func TestConvertPromCountersTreatsDecreaseAsReset(t *testing.T) {
+	previousValues := make(map[string]float64)
+
+	for _, testCase := range []struct {
+		current float64
+		want    float64
+	}{
+		{current: 100, want: 100},
+		{current: 175, want: 75},
+		{current: 20, want: 20},
+		{current: 35, want: 15},
+	} {
+		metric := testCounterMetric(testCase.current)
+		convertPromCountersToDatadogCountersValues([]*dto.Metric{metric}, previousValues, []string{"test-counter"})
+
+		require.Equal(t, testCase.want, metric.GetCounter().GetValue())
+		require.Equal(t, testCase.current, previousValues["test-counter"])
+	}
+}
+
 func metricLabels(metric *dto.Metric) map[string]string {
 	labels := make(map[string]string, len(metric.GetLabel()))
 	for _, label := range metric.GetLabel() {
@@ -2795,6 +2815,81 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	assert.Equal(t, 20.0, m2.Value)
 }
 
+func TestDefaultProfilesExportRARClientByteCounters(t *testing.T) {
+	config := getCommonYAMLConfig(true, "")
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("dogstatsd_client", "bytes_sent", []string{"emitter"}, "")
+	counter.Add(100, "agent-data-plane")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, config, sender, nil, runner)
+	require.True(t, a.enabled)
+
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "dogstatsd_client.bytes_sent", sender.sentMetrics[0].name)
+	require.Len(t, sender.sentMetrics[0].metrics, 1)
+	metric := sender.sentMetrics[0].metrics[0]
+	assert.Equal(t, 100.0, metric.GetCounter().GetValue())
+	assert.Equal(t, map[string]string{"emitter": "agent-data-plane"}, metricLabels(metric))
+}
+
+func TestDefaultProfilesExportRARTransactionSuccessCounters(t *testing.T) {
+	config := getCommonYAMLConfig(true, "")
+	tel := makeTelMock(t)
+	success := tel.NewCounter("transactions", "success", []string{"domain", "endpoint", "proto_version", "emitter"}, "")
+	success.Add(42, "remote-config", "/v1/transactions", "v1", "agent-data-plane")
+	successBytes := tel.NewCounter("transactions", "success_bytes", []string{"domain", "endpoint", "emitter"}, "")
+	successBytes.Add(1024, "remote-config", "/v1/transactions", "agent-data-plane")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, config, sender, nil, runner)
+	require.True(t, a.enabled)
+
+	a.start()
+	runner.(*runnerMock).run()
+
+	expectedMetrics := map[string]struct {
+		value  float64
+		labels map[string]string
+	}{
+		"transactions.success": {
+			value: 42,
+			labels: map[string]string{
+				"domain":        "remote-config",
+				"endpoint":      "/v1/transactions",
+				"proto_version": "v1",
+				"emitter":       "agent-data-plane",
+			},
+		},
+		"transactions.success_bytes": {
+			value: 1024,
+			labels: map[string]string{
+				"domain":   "remote-config",
+				"endpoint": "/v1/transactions",
+				"emitter":  "agent-data-plane",
+			},
+		},
+	}
+
+	require.Len(t, sender.sentMetrics, len(expectedMetrics))
+	for _, payload := range sender.sentMetrics {
+		expected, ok := expectedMetrics[payload.name]
+		require.True(t, ok, payload.name)
+		require.Len(t, payload.metrics, 1, payload.name)
+		metric := payload.metrics[0]
+		require.NotNil(t, metric.GetCounter(), payload.name)
+		assert.Equal(t, expected.value, metric.GetCounter().GetValue(), payload.name)
+		assert.Equal(t, expected.labels, metricLabels(metric), payload.name)
+		delete(expectedMetrics, payload.name)
+	}
+	require.Empty(t, expectedMetrics)
+}
+
 func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)
@@ -2818,12 +2913,18 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}{
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
+		{name: "dogstatsd_client.bytes_sent"},
+		{name: "dogstatsd_client.bytes_dropped"},
+		{name: "dogstatsd_client.bytes_dropped_queue"},
+		{name: "dogstatsd_client.bytes_dropped_writer"},
 		{name: "logs.bytes_sent", aggregateTotal: true},
 		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
 		{name: "point.sent", preserveTags: []string{"domain"}},
 		{name: "point.dropped", preserveTags: []string{"domain"}},
 		{name: "transactions.input_count", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.input_bytes", preserveTags: []string{"domain", "endpoint"}},
+		{name: "transactions.success", preserveTags: []string{"domain", "endpoint", "proto_version"}, aggregateTotal: false},
+		{name: "transactions.success_bytes", preserveTags: []string{"domain", "endpoint"}, aggregateTotal: false},
 		{name: "transactions.http_errors", preserveTags: []string{"code", "endpoint"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

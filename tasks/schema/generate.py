@@ -5,6 +5,7 @@ Schema generation tasks
 import json
 import os
 import shutil
+import sys
 import tempfile
 
 import yaml
@@ -78,7 +79,48 @@ yaml.add_representer(str, str_presenter)
 
 @task
 def compress(ctx, output_dir=COMPRESS_DIR):
+    """
+    Compress the schema files for embedding into the Go binary.
+
+    Uses bazel, except on AIX build hosts, which don't have bazel: there,
+    transparently falls back to `_compress_no_bazel`.
+    """
+    if sys.platform == "aix":
+        _compress_no_bazel(ctx, output_dir)
+        return
     bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+
+
+# Must match the ZSTD_ARGS in pkg/config/schema/BUILD.bazel: --no-check to
+# match DataDog/zstd Go library behavior (no XXH64 frame checksum), -5 to
+# match DataDog/zstd's DefaultCompression.
+_ZSTD_ARGS = "--no-check -5"
+
+
+def _compress_no_bazel(ctx, output_dir=COMPRESS_DIR):
+    """
+    Compress the schema files without bazel.
+
+    Reimplements the pipeline in pkg/config/schema/BUILD.bazel (inline $refs,
+    strip build-time-only keys, zstd-compress) by calling the same helpers
+    bazel wraps as py_binary tools, plus a system `zstd` binary. Used on
+    build hosts that cannot run bazel (e.g. AIX).
+    """
+    compressed_dir = os.path.join(output_dir, "compressed")
+    os.makedirs(compressed_dir, exist_ok=True)
+
+    for name, top_schema in (
+        ("core_schema", CORE_SCHEMA_MAIN_FILE),
+        ("system-probe_schema", SYSTEM_PROBE_SCHEMA_MAIN_FILE),
+    ):
+        embedded_fd, embedded_path = tempfile.mkstemp(suffix=".yaml")
+        os.close(embedded_fd)
+        try:
+            produce_byproduct("embedded", top_schema, embedded_path)
+            out_path = os.path.join(compressed_dir, f"{name}.yaml.zstd")
+            ctx.run(f"zstd --force {_ZSTD_ARGS} {embedded_path} -o {out_path}")
+        finally:
+            os.remove(embedded_path)
 
 
 _SUBSCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
@@ -271,6 +313,21 @@ def filter(expect, filename):
     return comparator
 
 
+def generated_files(tmpdir):
+    """
+    Yield a (generated file, destination file) pair for every file produced by the codegen.
+
+    The codegen lays its output out as a mirror of SETUP_INIT_DIR, so a file generated at
+    `<tmpdir>/constants/generated.go` belongs to `pkg/config/setup/constants/generated.go`.
+    """
+    for dirpath, _, filenames in os.walk(tmpdir):
+        relative_dir = os.path.relpath(dirpath, tmpdir)
+        for filename in sorted(filenames):
+            source = os.path.join(dirpath, filename)
+            destination = os.path.normpath(os.path.join(SETUP_INIT_DIR, relative_dir, filename))
+            yield source, destination
+
+
 @task
 def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
     """
@@ -297,10 +354,10 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
         print("Codegen complete. Output dir: %s" % tmpdir)
 
     if check:
-        # Compare tmpdir against SETUP_INIT_DIR, fail if different
+        # Compare each generated file against its counterpart in SETUP_INIT_DIR, fail if different
         try:
-            for file in os.listdir(tmpdir):
-                ctx.run(f"diff {os.path.join(tmpdir, file)} {SETUP_INIT_DIR}/")
+            for source, destination in generated_files(tmpdir):
+                ctx.run(f"diff {source} {destination}")
         except Failure as e:
             print(
                 color_message(
@@ -310,9 +367,12 @@ def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
             raise Exit(code=1) from e
 
     if fix:
-        # Fix any differences by copying the codegen results into SETUP_INIT_DIR
-        ctx.run(f"cp {tmpdir}/*_settings.go {SETUP_INIT_DIR}/")
-        ctx.run(f"cp {tmpdir}/*generated.go {SETUP_INIT_DIR}/")
+        # Fix any differences by copying each generated file over its counterpart in SETUP_INIT_DIR
+        for source, destination in generated_files(tmpdir):
+            destination_dir = os.path.dirname(destination)
+            if not os.path.isdir(destination_dir):
+                raise Exit(f"Cannot copy generated file {source}: {destination_dir} does not exist", code=1)
+            ctx.run(f"cp {source} {destination}")
 
     if not keeptmp and not display:
         shutil.rmtree(tmpdir)
