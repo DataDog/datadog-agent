@@ -865,26 +865,32 @@ func (o *observerImpl) DebugBaselineStatus() BaselineDebugStatus {
 }
 
 type baselineCompletedCallbackSink struct {
-	engine   *engine
-	callback func(int64, []string)
+	engine      *engine
+	callback    func(int64, []string)
+	mutedGroups map[string]struct{}
 }
 
 func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
-	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil || !evt.baselineCompleted.allComplete {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
 		return
 	}
-	seen := make(map[string]struct{}, len(evt.baselineCompleted.mutedRefs))
-	var groups []string
+	if s.mutedGroups == nil {
+		s.mutedGroups = make(map[string]struct{})
+	}
 	for _, ref := range evt.baselineCompleted.mutedRefs {
 		meta := s.engine.storage.GetSeriesMeta(ref)
 		if meta == nil {
 			continue
 		}
 		key := meta.Namespace + "/" + meta.Name
-		if _, ok := seen[key]; !ok {
-			seen[key] = struct{}{}
-			groups = append(groups, key)
-		}
+		s.mutedGroups[key] = struct{}{}
+	}
+	if !evt.baselineCompleted.allComplete {
+		return
+	}
+	groups := make([]string, 0, len(s.mutedGroups))
+	for group := range s.mutedGroups {
+		groups = append(groups, group)
 	}
 	sort.Strings(groups)
 	s.callback(evt.timestamp, groups)

@@ -100,6 +100,44 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 	}
 }
 
+func TestBaselineCompletedCallbackSink_AccumulatesGroupsUntilAllBaselinesComplete(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
+
+	var callbackEndSec int64
+	var callbackGroups []string
+	sink := &baselineCompletedCallbackSink{
+		engine: newEngine(engineConfig{storage: storage}),
+		callback: func(endSec int64, groups []string) {
+			callbackEndSec = endSec
+			callbackGroups = groups
+		},
+	}
+
+	// The first detector finds a metric-backed anomaly. The final detector
+	// models a detector such as RRCF, which has no per-series source refs.
+	sink.onEngineEvent(engineEvent{
+		kind: eventBaselineCompleted,
+		baselineCompleted: &baselineCompletedEvent{
+			mutedRefs: []observerdef.SeriesRef{ref},
+		},
+	})
+	sink.onEngineEvent(engineEvent{
+		kind:      eventBaselineCompleted,
+		timestamp: 200,
+		baselineCompleted: &baselineCompletedEvent{
+			allComplete: true,
+		},
+	})
+
+	if callbackEndSec != 200 {
+		t.Fatalf("callback end time = %d, want 200", callbackEndSec)
+	}
+	if len(callbackGroups) != 1 || callbackGroups[0] != "ns/cpu" {
+		t.Fatalf("callback groups = %v, want [ns/cpu]", callbackGroups)
+	}
+}
+
 type countingSeriesDetector struct {
 	anomalies []observerdef.Anomaly
 }
