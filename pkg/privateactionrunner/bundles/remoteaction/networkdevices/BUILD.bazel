@@ -10,13 +10,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkdevices",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/networkdevice/pinger",
+        "//comp/core/ipc/def",
+        "//pkg/config/helper",
+        "//pkg/config/setup",
+        "//pkg/networkdevices/connectivity",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "//pkg/snmp/gosnmplib",
-        "@com_github_gosnmp_gosnmp//:gosnmp",
-        "@org_golang_x_sync//errgroup",
     ],
 )
 
@@ -25,6 +25,7 @@ dd_agent_go_test(
     srcs = ["connectivity_check_test.go"],
     embed = [":networkdevices"],
     deps = [
+        "//comp/core/ipc/mock",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/types",
         "@com_github_stretchr_testify//require",

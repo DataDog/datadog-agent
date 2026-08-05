@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -30,22 +31,6 @@ func TestConnectivityCheckHandlerRun(t *testing.T) {
 			expectedErr: "failed to parse connectivityCheck inputs",
 		},
 		{
-			name: "fails when ping options are missing",
-			taskInputs: map[string]any{
-				"targetIPs": []string{"10.0.0.1"},
-				"checks":    []string{"ping"},
-			},
-			expectedErr: "failed to run connectivity checks",
-		},
-		{
-			name: "fails when snmp options are missing",
-			taskInputs: map[string]any{
-				"targetIPs": []string{"10.0.0.1"},
-				"checks":    []string{"snmp"},
-			},
-			expectedErr: "failed to run connectivity checks",
-		},
-		{
 			name: "fails when secret inputs cannot be decrypted",
 			taskInputs: map[string]any{
 				"targetIPs":            []string{},
@@ -58,7 +43,7 @@ func TestConnectivityCheckHandlerRun(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore())
+			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), ipcmock.New(t).GetClient())
 
 			res, err := handler.Run(context.Background(), makeConnectivityTask(tc.taskInputs), nil)
 			require.Equal(t, tc.expectedResults, res)

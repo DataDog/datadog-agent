@@ -137,6 +137,7 @@ go_library(
         "//comp/netflow/server/def",
         "//comp/networkconfigmanagement/def",
         "//comp/networkconfigmanagement/fx",
+        "//comp/networkdevices/fx",
         "//comp/networkpath",
         "//comp/networkpath/rcprovider/fx",
         "//comp/networkpath/traceroute/def",

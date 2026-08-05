@@ -920,6 +920,12 @@ Package metriclookback defines the metric lookback component.
 
 Package networkconfigmanagement provides the component for retrieving network device configurations.
 
+### [comp/networkdevices](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdevices)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package networkdevices provides the Agent-side component for NDM.
+
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
 *Datadog Team*: windows-products

@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package com_datadoghq_remoteaction_networkdevices provides PAR actions that run
-// connectivity checks against network devices for NDM onboarding.
+// Package com_datadoghq_remoteaction_networkdevices provides PAR actions for NDM.
 package com_datadoghq_remoteaction_networkdevices
 
 import (
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -18,10 +18,10 @@ type NetworkDevicesBundle struct {
 }
 
 // NewNetworkDevices creates a new network devices bundle.
-func NewNetworkDevices(encryptionStore *encryptioncontext.Store) types.Bundle {
+func NewNetworkDevices(encryptionStore *encryptioncontext.Store, ipcClient ipc.HTTPClient) types.Bundle {
 	return &NetworkDevicesBundle{
 		actions: map[string]types.Action{
-			"connectivityCheck": NewConnectivityCheckHandler(encryptionStore),
+			"connectivityCheck": NewConnectivityCheckHandler(encryptionStore, ipcClient),
 		},
 	}
 }
