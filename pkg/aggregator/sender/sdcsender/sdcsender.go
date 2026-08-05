@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/sdc"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -129,18 +128,6 @@ func compressorConfig() sdc.Config {
 	}
 }
 
-// windowDuration is how often a compressed context force-closes and ships a
-// point even if nothing has changed. Reuses the real aggregator's own flush
-// cadence (pkg/aggregator.DefaultFlushInterval) rather than an independently
-// hardcoded duplicate, since accumulated Gauge/Count/Rate/MonotonicCount
-// samples never actually leave the process before that tick fires anyway
-// (see BufferedAggregator.flushSeriesAndSketches) — shipping a compressed
-// breakpoint any more often than that would be pointless. There's still no
-// access to the real flush tick itself from the sender side (no config key
-// exposes it either — it's a plain Go constant), so this is tracked
-// independently by wall-clock time; only the duration value is shared.
-const windowDuration = aggregator.DefaultFlushInterval
-
 // timeNow is a seam for testing; production code always uses time.Now.
 var timeNow = time.Now
 
@@ -149,6 +136,9 @@ var timeNow = time.Now
 type SenderManager struct {
 	inner  sender.SenderManager
 	dryRun bool
+
+	// windowDuration: see Wrap's doc comment.
+	windowDuration time.Duration
 
 	mu      sync.Mutex
 	senders map[checkid.ID]*Sender
@@ -159,8 +149,27 @@ type SenderManager struct {
 // samples_total/breakpoints_total telemetry reflects what compression would
 // do), but the check's original, uncompressed calls are what actually reach
 // the real sender — nothing forwarded by the compressor itself ships.
+//
+// windowDuration comes from checks.sdc_compression_window_duration: how
+// often a compressed context force-closes and ships a point even if
+// nothing has changed. Defaults to 15s, matching the real aggregator's own
+// flush cadence (pkg/aggregator.DefaultFlushInterval) — accumulated
+// Gauge/Count/Rate/MonotonicCount samples never actually leave the process
+// before that tick fires anyway (see BufferedAggregator.
+// flushSeriesAndSketches), so shipping a compressed breakpoint any more
+// often than that is pointless by default. Configurable since a shorter
+// window trades compression ratio for fresher-looking graphs (and vice
+// versa for a longer one) independent of that default reasoning. There's
+// still no access to the real flush tick itself from the sender side, so
+// this is tracked independently by wall-clock (sample-timestamp) time.
 func Wrap(inner sender.SenderManager, dryRun bool) *SenderManager {
-	return &SenderManager{inner: inner, dryRun: dryRun, senders: make(map[checkid.ID]*Sender)}
+	iv := setup.Datadog().GetInt("checks.sdc_compression_window_duration")
+	return &SenderManager{
+		inner:          inner,
+		dryRun:         dryRun,
+		windowDuration: time.Duration(iv) * time.Second,
+		senders:        make(map[checkid.ID]*Sender),
+	}
 }
 
 // sdcCompressedCheckNames returns the set of check names that should get
@@ -215,7 +224,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real, m.dryRun, checkName)
+	s := newSender(real, m.dryRun, checkName, m.windowDuration)
 	m.senders[id] = s
 	return s, nil
 }
@@ -338,6 +347,12 @@ type Sender struct {
 	// instead (see compressAt/forwardRaw).
 	dryRun bool
 
+	// windowDuration: see Wrap's doc comment. Captured once at
+	// construction time, like dryRun — checks.sdc_compression_window_duration
+	// has no hot-reload wiring, matching every other checks.sdc_compression_*
+	// key.
+	windowDuration time.Duration
+
 	tlmContexts telemetry.SimpleGauge
 
 	mu sync.Mutex
@@ -352,13 +367,14 @@ type Sender struct {
 	lastFlushTs float64
 }
 
-func newSender(real sender.Sender, dryRun bool, checkName string) *Sender {
+func newSender(real sender.Sender, dryRun bool, checkName string, windowDuration time.Duration) *Sender {
 	return &Sender{
-		Sender:      real,
-		checkName:   checkName,
-		dryRun:      dryRun,
-		tlmContexts: tlmContexts.WithValues(checkName),
-		contexts:    make(map[string]*contextState),
+		Sender:         real,
+		checkName:      checkName,
+		dryRun:         dryRun,
+		windowDuration: windowDuration,
+		tlmContexts:    tlmContexts.WithValues(checkName),
+		contexts:       make(map[string]*contextState),
 	}
 }
 
@@ -657,7 +673,7 @@ func (s *Sender) ship(ctx *contextState, bp sdc.Point, floorBound bool) {
 // point every window even when its signal is flat. Must be called with
 // s.mu held.
 func (s *Sender) maybeFlushWindow(now float64) {
-	if now-s.lastFlushTs < windowDuration.Seconds() {
+	if now-s.lastFlushTs < s.windowDuration.Seconds() {
 		return
 	}
 	s.lastFlushTs = now

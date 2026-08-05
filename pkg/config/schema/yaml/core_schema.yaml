@@ -6837,6 +6837,17 @@ properties:
         node_type: setting
         type: integer
         default: 2
+      sdc_compression_window_duration:
+        node_type: setting
+        type: integer
+        default: 15
+        comment: "How often (in seconds) a compressed context force-closes and ships\
+          \ a\npoint even if nothing has changed. Defaults to 15s, matching the real\n\
+          aggregator's own flush cadence \u2014 accumulated Gauge/Count/Rate/\nMonotonicCount\
+          \ samples never actually leave the process before that\ntick fires anyway,\
+          \ so shipping a compressed breakpoint any more often\nthan that is pointless\
+          \ by default. A shorter window trades\ncompression ratio for fresher-looking\
+          \ graphs, and vice versa."
   clc_runner_enabled:
     node_type: setting
     type: boolean

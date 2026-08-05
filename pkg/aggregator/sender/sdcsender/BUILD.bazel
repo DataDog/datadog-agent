@@ -11,7 +11,6 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
-        "//pkg/aggregator",
         "//pkg/aggregator/internal/sdc",
         "//pkg/aggregator/sender",
         "//pkg/collector/check/id",

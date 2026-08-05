@@ -69,6 +69,14 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// gpu.collection_interval_override, generalized to any SDC-compressed
 	// check instead of just the gpu check.
 	config.BindEnvAndSetDefault("checks.sdc_compression_interval_override", 0)
+	// How often (in seconds) a compressed context force-closes and ships a
+	// point even if nothing has changed. Defaults to 15s, matching the real
+	// aggregator's own flush cadence — accumulated Gauge/Count/Rate/
+	// MonotonicCount samples never actually leave the process before that
+	// tick fires anyway, so shipping a compressed breakpoint any more often
+	// than that is pointless by default. A shorter window trades
+	// compression ratio for fresher-looking graphs, and vice versa.
+	config.BindEnvAndSetDefault("checks.sdc_compression_window_duration", 15)
 	// SDC compressor tuning (see pkg/aggregator/internal/sdc.Config): the
 	// shipped tolerance is max(sdc_compression_epsilon*scale,
 	// sdc_compression_floor), where scale is an EWMA (smoothing factor
