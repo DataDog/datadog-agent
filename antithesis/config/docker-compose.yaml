@@ -166,15 +166,16 @@ services:
       # AlwaysAllow force-disables anonymous auth, so /healthz needs the static
       # bearer token like any other authenticated request.
       #
-      # Widened from retries:60/interval:2s (~120s budget) after a real
-      # Antithesis run timed out waiting for setup-complete at vtime=132.67s —
-      # kube-apiserver's raw container-metadata stream showed it eventually
-      # going healthy, but docker compose's own depends_on:service_healthy
-      # wait never observed it in time (compose's event log shows it stuck at
-      # "Waiting" and never logs "Healthy"). The real VM appears to need
-      # meaningfully longer than local Colima for kube-apiserver to pass its
-      # healthcheck. ~300s comfortably covers that with margin.
-      test: ["CMD", "sh", "-c", "wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz | grep -q ok"]
+      # Three consecutive real runs failed at ~132s regardless of the retry
+      # budget (60 vs 100 retries made no difference), and --v=3 request
+      # logging showed zero /healthz requests EVER reached kube-apiserver on
+      # real hardware (only its own internal bootstrap calls appear) — so the
+      # wget call itself is failing before completing an HTTP request, not
+      # timing out waiting for readiness. Docker healthcheck exec output isn't
+      # normally captured, so tee wget's actual exit code/output into
+      # kube-apiserver's own stdout (PID 1 in this container) via
+      # /proc/1/fd/1 to see what's actually failing.
+      test: ["CMD", "sh", "-c", "OUT=$$(wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz 2>&1); RC=$$?; echo \"[healthcheck] rc=$$RC out=$$OUT\" > /proc/1/fd/1; echo \"$$OUT\" | grep -q ok"]
       interval: 3s
       timeout: 5s
       retries: 100
