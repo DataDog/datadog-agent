@@ -1,12 +1,12 @@
 ---
-name: babysit-pr
+name: follow-pr
 description: >-
   Monitor the current PR's GitLab pipeline to completion, then report success or investigate a failure.
   Use when the user asks to follow, babysit, watch, or wait on a PR/pipeline, or just after pushing to / creating a PR.
 model: sonnet
 ---
 
-# Babysit PR
+# Follow PR
 
 Watch the latest Gitlab CI pipeline for the current PR to a terminal state and report the outcome.
 
@@ -30,7 +30,7 @@ dda env dev run --id ${ATTACH_DEVENV_ID} -- [command]
 ```
 Watch out for space-splitting. For example:
 ```bash
-dda env dev run --id babysit-pr-attach-7C2C42F6 -- ddgl attach --detail=normal --follow --plain
+dda env dev run --id follow-pr-attach-7C2C42F6 -- ddgl attach --detail=normal --follow --plain
 ```
 
 ## Step 1: Determine the target
