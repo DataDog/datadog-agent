@@ -12983,6 +12983,10 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  dogstatsd_socket_fd_from:
+    node_type: setting
+    type: string
+    default: ''
   dogstatsd_stream_socket:
     node_type: setting
     type: string
