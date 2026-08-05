@@ -209,6 +209,10 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Session
                 .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{domain}\\{ddAgentUserName}");
+            Test.Session
+                .Setup(session => session["DDAGENT_installedDomain"]).Returns(domain);
+            Test.Session
+                .Setup(session => session["DDAGENT_installedUser"]).Returns(ddAgentUserName);
             Test.NativeMethods
                 .Setup(nativeMethods => nativeMethods.FetchSecret(agentPasswordKey))
                 .Throws(new Exception("not found"));
@@ -223,6 +227,44 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && kvp.Value == "scm-password");
+        }
+
+        [Fact]
+        public void ProcessDdAgentUserCredentials_Skips_Scm_Password_When_Service_Account_Differs()
+        {
+            const string ddAgentUserName = "newuser";
+            const string oldAgentUserName = "olduser";
+            const string domain = "EXAMPLE";
+            var agentPasswordKey = Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
+            var scmPasswordKey = $"_SC_{Constants.AgentServiceName}";
+
+            Test.WithDomainClient(domain)
+                .WithDomainUser(ddAgentUserName)
+                .WithDatadogAgentService();
+
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{domain}\\{ddAgentUserName}");
+            Test.Session
+                .Setup(session => session["DDAGENT_installedDomain"]).Returns(domain);
+            Test.Session
+                .Setup(session => session["DDAGENT_installedUser"]).Returns(oldAgentUserName);
+            Test.NativeMethods
+                .Setup(nativeMethods => nativeMethods.FetchSecret(agentPasswordKey))
+                .Throws(new Exception("not found"));
+            Test.NativeMethods
+                .Setup(nativeMethods => nativeMethods.FetchSecret(scmPasswordKey))
+                .Returns("scm-password");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && string.IsNullOrEmpty(kvp.Value));
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(scmPasswordKey),
+                Times.Never);
         }
     }
 }
