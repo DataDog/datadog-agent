@@ -245,11 +245,16 @@ type AutoMultilineSample struct {
 // deserialized directly from YAML/JSON. String fields are validated and
 // converted to typed values when building the TLS configuration.
 type TLSListenerConfig struct {
-	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
-	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
-	CAFile        string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
-	ClientAuth    string `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
-	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
+	CertFile string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
+	KeyFile  string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
+	CAFile   string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	// AllowedClientNames lists the client identities permitted to connect,
+	// matched against the subject alternative names and common name of the
+	// client certificate. Empty means every client the CA trusts is accepted.
+	// Requires client_auth to be "required".
+	AllowedClientNames StringSliceField `mapstructure:"allowed_client_names" json:"allowed_client_names,omitempty" yaml:"allowed_client_names,omitempty"`
+	ClientAuth         string           `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
+	MinTLSVersion      string           `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
 }
 
 // BuildTLSConfig validates user-facing strings, converts them to typed values,
@@ -264,11 +269,12 @@ func (t *TLSListenerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, er
 		return nil, err
 	}
 	cfg := &tlsutil.ServerConfig{
-		CertFile:   t.CertFile,
-		KeyFile:    t.KeyFile,
-		CAFile:     t.CAFile,
-		ClientAuth: clientAuth,
-		MinVersion: minVer,
+		CertFile:           t.CertFile,
+		KeyFile:            t.KeyFile,
+		CAFile:             t.CAFile,
+		AllowedClientNames: t.AllowedClientNames,
+		ClientAuth:         clientAuth,
+		MinVersion:         minVer,
 	}
 	return cfg.BuildTLSConfig(ctx)
 }
@@ -350,8 +356,8 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
 		if c.TLS != nil {
-			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
-				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
+			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, AllowedClientNames: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
+				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.AllowedClientNames, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
 		}
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
@@ -593,7 +599,27 @@ func (c *LogsConfig) validateTLS() error {
 	if tlsutil.ClientAuthRequiresVerification(auth) && c.TLS.CAFile == "" {
 		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
 	}
+	if err := c.validateAllowedClientNames(auth); err != nil {
+		return err
+	}
 	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
+	return nil
+}
+
+func (c *LogsConfig) validateAllowedClientNames(auth tls.ClientAuthType) error {
+	if len(c.TLS.AllowedClientNames) == 0 {
+		return nil
+	}
+	// Anything short of "required" lets a client skip the certificate entirely,
+	// which would skip the allowlist with it.
+	if auth != tls.RequireAndVerifyClientCert {
+		return fmt.Errorf("tls allowed_client_names requires client_auth to be \"required\", got %q", c.TLS.ClientAuth)
+	}
+	for _, name := range c.TLS.AllowedClientNames {
+		if strings.TrimSpace(name) == "" {
+			return errors.New("tls allowed_client_names must not contain empty entries")
+		}
+	}
 	return nil
 }
 

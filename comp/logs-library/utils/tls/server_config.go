@@ -24,11 +24,15 @@ import (
 // calling config layer is responsible for parsing and validating raw input
 // before constructing a ServerConfig.
 type ServerConfig struct {
-	CertFile   string
-	KeyFile    string
-	CAFile     string
-	ClientAuth tls.ClientAuthType
-	MinVersion uint16
+	CertFile string
+	KeyFile  string
+	CAFile   string
+	// AllowedClientNames restricts which client identities may connect once
+	// their certificate chain is trusted. Empty means any client the CA vouches
+	// for is accepted.
+	AllowedClientNames []string
+	ClientAuth         tls.ClientAuthType
+	MinVersion         uint16
 }
 
 // BuildTLSConfig loads certificates from disk and returns a *tls.Config ready
@@ -41,6 +45,9 @@ type ServerConfig struct {
 // and perform CA verification in VerifyConnection against the
 // dynamically-reloaded pool. This follows the pattern recommended by the Go
 // crypto team: https://go.dev/issue/64796
+//
+// When client names are configured, the same callback additionally requires the
+// client certificate to present an allowed identity.
 func (c *ServerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -67,8 +74,13 @@ func (c *ServerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, error) 
 		if _, err := caReloader.GetPool(); err != nil {
 			return nil, fmt.Errorf("failed to load TLS CA: %w", err)
 		}
+		var nameMatcher *clientNameMatcher
+		if matcher := newClientNameMatcher(c.AllowedClientNames); !matcher.empty() {
+			nameMatcher = matcher
+		}
+
 		tlsCfg.ClientAuth = clientAuthNoVerify(c.ClientAuth)
-		tlsCfg.VerifyConnection = buildCAVerifier(caReloader)
+		tlsCfg.VerifyConnection = buildCAVerifier(caReloader, nameMatcher)
 	}
 
 	return tlsCfg, nil
@@ -90,6 +102,12 @@ func (c *ServerConfig) Validate() error {
 	}
 	if ClientAuthRequiresVerification(c.ClientAuth) && c.CAFile == "" {
 		return errors.New("tls client_auth requires ca_file to be set")
+	}
+	// With client_auth "optional" a client that presents no certificate is
+	// accepted and never reaches the name check, so the allowlist would be
+	// trivially bypassable.
+	if len(c.AllowedClientNames) > 0 && c.ClientAuth != tls.RequireAndVerifyClientCert {
+		return errors.New(`tls allowed_client_names requires client_auth to be "required"`)
 	}
 	WarnKeyFilePermissions(c.KeyFile)
 	return nil
@@ -134,8 +152,9 @@ func clientAuthNoVerify(auth tls.ClientAuthType) tls.ClientAuthType {
 }
 
 // buildCAVerifier returns a VerifyConnection callback that verifies client
-// certificates against the CAReloader's current pool.
-func buildCAVerifier(caReloader *certreloader.CAReloader) func(tls.ConnectionState) error {
+// certificates against the CAReloader's current pool. When nameMatcher is
+// non-nil, a trusted certificate must additionally present an allowed identity.
+func buildCAVerifier(caReloader *certreloader.CAReloader, nameMatcher *clientNameMatcher) func(tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		if len(cs.PeerCertificates) == 0 {
 			return nil
@@ -155,6 +174,13 @@ func buildCAVerifier(caReloader *certreloader.CAReloader) func(tls.ConnectionSta
 			Intermediates: intermediates,
 			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		})
-		return err
+		if err != nil {
+			return err
+		}
+
+		if nameMatcher == nil {
+			return nil
+		}
+		return nameMatcher.verify(cs.PeerCertificates[0])
 	}
 }

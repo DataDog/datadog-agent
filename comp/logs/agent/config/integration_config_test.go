@@ -453,6 +453,59 @@ func TestValidateTLSConfig(t *testing.T) {
 			assert.Contains(t, err.Error(), "unrecognized min_tls_version")
 		}
 	})
+
+	t.Run("allowed_client_names with required client auth is valid", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS: &TLSListenerConfig{
+				CertFile:           "/cert",
+				KeyFile:            "/key",
+				CAFile:             "/ca",
+				ClientAuth:         "required",
+				AllowedClientNames: StringSliceField{"relay.example.com"},
+			},
+		}
+		assert.Nil(t, cfg.validateTLS())
+	})
+
+	// Under any weaker mode a client can decline to send a certificate and the
+	// allowlist never applies, so accepting the setting would be misleading.
+	t.Run("allowed_client_names without required client auth is rejected", func(t *testing.T) {
+		for _, auth := range []string{"", "none", "optional"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS: &TLSListenerConfig{
+					CertFile:           "/cert",
+					KeyFile:            "/key",
+					CAFile:             "/ca",
+					ClientAuth:         auth,
+					AllowedClientNames: StringSliceField{"relay.example.com"},
+				},
+			}
+			err := cfg.validateTLS()
+			assert.NotNil(t, err, "allowed_client_names with client_auth %q should be rejected", auth)
+			assert.Contains(t, err.Error(), "allowed_client_names requires client_auth")
+		}
+	})
+
+	t.Run("empty allowed_client_names entry is rejected", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS: &TLSListenerConfig{
+				CertFile:           "/cert",
+				KeyFile:            "/key",
+				CAFile:             "/ca",
+				ClientAuth:         "required",
+				AllowedClientNames: StringSliceField{"relay.example.com", " "},
+			},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "must not contain empty entries")
+	})
 }
 
 func TestParseTLSVersion(t *testing.T) {
