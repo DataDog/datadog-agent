@@ -227,15 +227,25 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 	// Standalone mode runs without a core Datadog Agent on the same host, so
 	// every client that would otherwise contact it over IPC (trace-agent
-	// hostname acquisition, remote tagger, remote workloadmeta, ...) must be
-	// disabled. cmd_port=-1 is the conventional way to express "no core agent
-	// IPC" and is honored by those callers; forcing it here means users only
-	// have to set DD_OTEL_STANDALONE=true.
+	// hostname acquisition, remote tagger, remote workloadmeta, configsync,
+	// ...) must be disabled. cmd_port=-1 is the conventional way to express
+	// "no core agent IPC" and is honored by those callers; forcing it here
+	// means users only have to set DD_OTEL_STANDALONE=true.
+	//
+	// All of these are set with SourceAgentRuntime, which outranks
+	// SourceEnvVar, so they can't be silently re-enabled by a deployment tool
+	// that colocates otel-agent with a core agent and injects that agent's
+	// env vars (e.g. DD_REMOTE_CONFIGURATION_ENABLED=true,
+	// DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL) into this container too.
 	if pkgconfig.GetBool("otel_standalone") {
 		pkgconfig.Set("cmd_port", -1, pkgconfigmodel.SourceAgentRuntime)
+		// There is no core agent to sync config from; disable configsync
+		// regardless of whether it's configured over agent_ipc.port or
+		// agent_ipc.use_socket.
+		pkgconfig.Set("agent_ipc.config_refresh_interval", 0, pkgconfigmodel.SourceAgentRuntime)
 	}
 	if pkgconfig.GetInt("cmd_port") <= 0 {
-		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)
+		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	}
 
 	if !pkgconfig.IsConfigured("apm_config.features") {
