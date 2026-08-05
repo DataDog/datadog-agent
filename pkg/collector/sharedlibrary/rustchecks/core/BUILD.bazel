@@ -24,8 +24,8 @@ rust_library(
 
 # Unit tests embedded in the crate sources (run with `bazel test`).
 rust_test(
-    name = "core_test",
-    crate = ":core",
+    name = "shlib_core_test",
+    crate = ":shlib_core",
     edition = "2024",
     target_compatible_with = _LINUX,
 )
