@@ -78,8 +78,9 @@ properties:
     default: []
     items:
       type: string
-    comment: GPU device UUIDs to exclude from metric collection. UUID matching is
-      case-insensitive.
+    comment: |-
+      GPU device UUIDs to exclude from metric collection. UUID matching is case-insensitive.
+      MIG devices can only be excluded by their own UUID, not by the parent device UUID.
   integrate_with_workloadmeta_processes:
     node_type: setting
     type: boolean
