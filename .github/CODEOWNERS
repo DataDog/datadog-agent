@@ -384,6 +384,7 @@
 /comp/forwarder @DataDog/agent-metric-pipelines
 /comp/healthplatform @DataDog/fleet-remediation
 /comp/host-profiler @DataDog/opentelemetry-agent @DataDog/profiling-full-host
+/comp/kubeactions @DataDog/container-integrations
 /comp/logs @DataDog/agent-log-pipelines
 /comp/logs-library @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/fleet-automation
@@ -523,6 +524,7 @@
 /pkg/jmxfetch/                          @DataDog/agent-metric-pipelines
 /pkg/metrics/                           @DataDog/agent-metric-pipelines
 /pkg/metrics/metricsource.go            @DataDog/agent-metric-pipelines @DataDog/agent-integrations
+/pkg/notableevents/                     @DataDog/windows-products
 /pkg/serializer/                        @DataDog/agent-metric-pipelines
 /pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-metric-pipelines @DataDog/agent-integrations
 /pkg/serverless/                        @DataDog/serverless-azure-gcp

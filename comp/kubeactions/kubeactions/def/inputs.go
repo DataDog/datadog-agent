@@ -16,8 +16,13 @@ import (
 // workflow-input equivalent of the protobuf KubeResource message used by the
 // remote-config implementation.
 //
-// JSON field names mirror the original proto so the backend workflow input
-// spec maps onto them directly.
+// The JSON tags are camelCase (resourceId, apiVersion, ...) because these
+// structs deserialize the workflow action inputs dispatched by
+// wf-actions-server, which follow the action-platform manifest input
+// convention shared by the other kubernetes bundles. This is deliberately
+// distinct from the snake_case EVP payload the reporter emits
+// (impl.ActionResultEvent, matching agent-payload's KubeAction.json) — that
+// event schema is a separate hop and is unchanged.
 type ResourceRef struct {
 	Kind       string `json:"kind"`
 	Name       string `json:"name"`

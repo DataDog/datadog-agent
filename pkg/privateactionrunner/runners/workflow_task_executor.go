@@ -11,6 +11,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -47,10 +48,11 @@ func NewWorkflowTaskExecutor(
 	eventPlatform eventplatform.Component,
 	ipcClient ipc.HTTPClient,
 	encryptionStore *encryptioncontext.Store,
+	ha helmactions.Component,
 	ka kubeactions.Component,
 ) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ka),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
 		config:       configuration,
 		taskVerifier: taskVerifier,
 		resolver:     resolver.NewPrivateCredentialResolver(),

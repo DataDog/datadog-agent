@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/core/ipc/def",
         "//comp/forwarder/eventplatform/def",
+        "//comp/kubeactions/helmactions/def",
         "//comp/kubeactions/kubeactions/def",
         "//comp/networkpath/traceroute/def",
         "//pkg/privateactionrunner/adapters/config",
@@ -34,6 +35,7 @@ go_library(
         "//pkg/privateactionrunner/bundles/gitlab/repositoryfiles",
         "//pkg/privateactionrunner/bundles/gitlab/tags",
         "//pkg/privateactionrunner/bundles/gitlab/users",
+        "//pkg/privateactionrunner/bundles/helm",
         "//pkg/privateactionrunner/bundles/http",
         "//pkg/privateactionrunner/bundles/jenkins",
         "//pkg/privateactionrunner/bundles/kubernetes/apiextensions",
