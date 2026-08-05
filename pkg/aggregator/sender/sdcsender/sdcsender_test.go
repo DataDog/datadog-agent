@@ -8,6 +8,7 @@ package sdcsender
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -114,12 +115,12 @@ func (f *fakeSender) OrchestratorManifest([]types.ProcessMessageBody, string)   
 
 func newTestSender() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, false, "my_check"), fake
+	return newSender(fake, false, "my_check", 15*time.Second), fake
 }
 
 func newTestSenderDryRun() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, true, "my_check"), fake
+	return newSender(fake, true, "my_check", 15*time.Second), fake
 }
 
 func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
@@ -465,6 +466,37 @@ func TestWindowFlush_DrivenBySampleTimestampsNotWallClock(t *testing.T) {
 	require.Len(t, fake.gauges, 3, "window boundary crossed: the pending point must ship")
 }
 
+// TestWindowFlush_DurationIsConfigurable is a regression test for
+// checks.sdc_compression_window_duration: the force-flush boundary must
+// track whatever duration the Sender was constructed with, not the
+// previous hardcoded 15s.
+func TestWindowFlush_DurationIsConfigurable(t *testing.T) {
+	fake := &fakeSender{}
+	s := newSender(fake, false, "my_check", 5*time.Second)
+
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
+	require.Len(t, fake.gauges, 1, "warmup ships the first sample verbatim")
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 1, false)
+	require.Len(t, fake.gauges, 2, "warmup(2) ships the second sample verbatim too")
+
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 4, false)
+	require.Len(t, fake.gauges, 2, "still inside the configured 5s window: no new breakpoint yet")
+
+	// Cross the configured 5 sample-seconds (not the old 15s default):
+	// must force-close.
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 6, false)
+	require.Len(t, fake.gauges, 3, "the shorter, configured window boundary crossed: the pending point must ship")
+}
+
+func TestWrap_ReadsWindowDurationFromConfig(t *testing.T) {
+	cfg := pkgconfigsetup.Datadog()
+	cfg.SetInTest("checks.sdc_compression_window_duration", 5)
+	t.Cleanup(func() { cfg.SetInTest("checks.sdc_compression_window_duration", 15) })
+
+	m := Wrap(nil, false)
+	require.Equal(t, 5*time.Second, m.windowDuration)
+}
+
 func TestDifferentTagsAreIndependentContexts(t *testing.T) {
 	s, fake := newTestSender()
 
@@ -568,7 +600,7 @@ func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
 	// so reusing a name other tests already incremented would make this
 	// test's absolute-value assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_tlm_contexts_test")
+	s := newSender(fake, false, "check_tlm_contexts_test", 15*time.Second)
 
 	require.Equal(t, 0.0, s.tlmContexts.Get())
 
@@ -599,7 +631,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	// (check_name, metric_name) pair another test already observed into
 	// would make this test's exact Count/Sum assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_scale_deviation_test")
+	s := newSender(fake, false, "check_scale_deviation_test", 15*time.Second)
 
 	values := []float64{10, 20, 15, 100, 12}
 	alpha := compressorConfig().Alpha
@@ -631,7 +663,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 func TestFloorBoundTelemetry_TracksSwallowedPointsWhenFloorDominates(t *testing.T) {
 	// A dedicated check name: see TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_floor_bound_dominates_test")
+	s := newSender(fake, false, "check_floor_bound_dominates_test", 15*time.Second)
 
 	// A near-zero-scale signal: with the default config (Epsilon=0.02,
 	// Floor=1e-3), Epsilon*scale (~2e-8) is many orders of magnitude below
@@ -652,7 +684,7 @@ func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
 	t.Cleanup(func() { pkgconfigsetup.Datadog().SetInTest("checks.sdc_compression_floor", 1e-3) })
 
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_floor_bound_disabled_test")
+	s := newSender(fake, false, "check_floor_bound_disabled_test", 15*time.Second)
 
 	for i := 0; i < 20; i++ {
 		s.compressAt(kindGauge, "my.tiny_gauge", 1e-6, "host", nil, float64(i), false)
@@ -666,9 +698,9 @@ func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
 
 func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 	fakeA := &fakeSender{}
-	sA := newSender(fakeA, false, "check_a")
+	sA := newSender(fakeA, false, "check_a", 15*time.Second)
 	fakeB := &fakeSender{}
-	sB := newSender(fakeB, false, "check_b")
+	sB := newSender(fakeB, false, "check_b", 15*time.Second)
 
 	sA.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
 	sA.compressAt(kindGauge, "my.gauge2", 1, "host", nil, 0, false)
