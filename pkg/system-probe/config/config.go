@@ -41,6 +41,7 @@ const (
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
+	NotableEventsModule          types.ModuleName = "notable_events"
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
@@ -126,6 +127,9 @@ func load() (*types.Config, error) {
 	eudmEnabled := coreCfg.GetString("infrastructure_mode") == "end_user_device"
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
+	// The GPU module only consumes process events when its eBPF probes are
+	// loaded, so the event monitor is only needed for that combination.
+	gpuEBPFProbesEnabled := gpuEnabled && cfg.GetBool(gpuNS("enable_ebpf_probes"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
 	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
@@ -144,7 +148,7 @@ func load() (*types.Config, error) {
 		coreCfg.GetBool("sbom.enrichment.usage.enabled") ||
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
-		gpuEnabled ||
+		gpuEBPFProbesEnabled ||
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
@@ -213,6 +217,9 @@ func load() (*types.Config, error) {
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
+		}
+		if runtime.GOOS == "darwin" && coreCfg.GetBool("notable_events.enabled") {
+			c.EnabledModules[NotableEventsModule] = struct{}{}
 		}
 
 		// injector telemetry is enabled by default, disable only if explicitly configured by the user
