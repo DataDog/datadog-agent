@@ -125,6 +125,39 @@ func Test_TMOSGetRunningValidator(t *testing.T) {
 	assert.Error(t, v.Validate("not a tmos config header\n"))
 }
 
+func Test_PanOSGetRunningValidator(t *testing.T) {
+	// Depending on PAN-OS version, `show config running` returns either
+	// angle-bracket XML or curly-brace hierarchical output; the validator must
+	// accept both. See AGENT-16721.
+	v := DefaultProfile(t, ProfilePanOS).Commands.GetRunning.Validator
+
+	// XML format
+	assert.NoError(t, v.Validate("<?xml version=\"1.0\"?>\n<config version=\"7.1.0\">\n  <mgt-config/>\n</config>\n"))
+	// Curly-brace format (operational mode on newer PAN-OS)
+	assert.NoError(t, v.Validate("config {\n  mgt-config {\n    users {\n    }\n  }\n}\n"))
+	assert.NoError(t, v.Validate("config {\n  devices {\n  }\n}\n"))
+	// Neither format -> error (e.g. an error string or empty output)
+	assert.Error(t, v.Validate("Invalid syntax.\n"))
+	assert.Error(t, v.Validate(""))
+}
+
+func Test_PanOSRedaction(t *testing.T) {
+	// The phash password hash must be redacted in both output formats.
+	rules := DefaultProfile(t, ProfilePanOS).Redactions
+
+	// XML format
+	xmlRedacted, err := Redact([]byte("<phash>$1$ljjdxeva$.isIbumicIMfaHvG/EKqd.</phash>\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(xmlRedacted), "ljjdxeva")
+	assert.Contains(t, string(xmlRedacted), "<phash><secret hidden></phash>")
+
+	// Curly-brace format
+	curlyRedacted, err := Redact([]byte("      admin {\n        phash $1$ljjdxeva$.isIbumicIMfaHvG/EKqd.;\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(curlyRedacted), "ljjdxeva")
+	assert.Contains(t, string(curlyRedacted), "phash <secret hidden>;")
+}
+
 func Test_DefaultProfiles_Startup(t *testing.T) {
 	tests := []struct {
 		name                      string

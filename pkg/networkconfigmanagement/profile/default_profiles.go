@@ -399,11 +399,17 @@ var DefaultProfiles = Map{
 		Name: ProfilePanOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("show system info", Expect(`model: *PA-`)),
-			GetRunning: MkCommand("show config running", Expect(`(?s)<config.*</config>`)),
+			// Depending on PAN-OS version, `show config running` returns either
+			// angle-bracket XML (`<config>...</config>`) or curly-brace
+			// hierarchical output (`config { ... }`); accept both.
+			GetRunning: MkCommand("show config running", Expect(`(?s)(<config.*</config>|config\s*\{)`)),
 			GetVersion: MkCommand("show system info"),
 		},
 		Redactions: []RedactionRule{
+			// XML output: <phash>...</phash>
 			MkRedaction(`<phash>.*?</phash>`, WithReplacement("<phash><secret hidden></phash>")),
+			// Curly-brace output: phash $5$...;
+			MkRedaction(`phash\s+\S+;`, WithReplacement("phash <secret hidden>;")),
 		},
 	},
 
