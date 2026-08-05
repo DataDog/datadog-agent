@@ -185,11 +185,6 @@ restart: always
 description: E2E userprofile env check
 `, markerPath)
 
-	host.MustExecute(`powershell -Command "Stop-Service datadogagent -Force -ErrorAction SilentlyContinue"`)
-	defer func() {
-		_, _ = host.Execute(`powershell -Command "Start-Service datadogagent -ErrorAction SilentlyContinue"`)
-	}()
-
 	host.MustExecute(psRemote(
 		`$ErrorActionPreference='Stop'; Set-Content -LiteralPath '%s' -Value @'
 %s
