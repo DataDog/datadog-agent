@@ -105,13 +105,13 @@ pub(super) fn env_bool_for_config_key(key: &str) -> Option<bool> {
     env_bool_from_names(&[&auto])
 }
 
-/// Whether any env var bound to `key` is set (mirrors Go `IsConfigured` env source).
+/// Whether any env var bound to `key` is set to a non-empty value (mirrors Go `IsConfigured` env source).
 pub(super) fn env_configured_for_key(key: &str) -> bool {
     let names = env_vars_for_key(key);
     if !names.is_empty() {
-        return names.iter().any(|name| std::env::var(name).is_ok());
+        return names.iter().any(|name| env_var_nonempty(name));
     }
-    std::env::var(auto_env_var_for_key(key)).is_ok()
+    env_var_nonempty(&auto_env_var_for_key(key))
 }
 
 pub(super) fn env_string_for_config_key(key: &str) -> Option<String> {
@@ -142,9 +142,18 @@ fn auto_env_var_for_key(key: &str) -> String {
     format!("DD_{}", key.replace('.', "_").to_uppercase())
 }
 
+fn env_var_nonempty(name: &str) -> bool {
+    std::env::var(name)
+        .ok()
+        .is_some_and(|value| !value.is_empty())
+}
+
 fn env_bool_from_names(names: &[&str]) -> Option<bool> {
     for name in names {
         if let Ok(value) = std::env::var(name) {
+            if value.is_empty() {
+                continue;
+            }
             return Some(super::parse_agent_bool_string(&value).unwrap_or(false));
         }
     }
