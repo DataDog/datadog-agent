@@ -144,6 +144,12 @@ Package configstreamconsumer implements a component that consumes config streams
 
 Package configsync implements synchronizing the configuration using the core agent config API
 
+### [comp/core/delegatedauth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/delegatedauth)
+
+*Datadog Team*: credential-management
+
+Package delegatedauth manages cloud-based delegated authentication for the agent.
+
 ### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
 
 *Datadog Team*: fleet-remediation
