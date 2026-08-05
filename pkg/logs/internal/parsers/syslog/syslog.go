@@ -173,6 +173,17 @@ func Parse(line []byte) (SyslogMessage, error) {
 	var msg SyslogMessage
 	var err error
 
+	// Cisco's EMBLEM dialect terminates the PRI with a colon rather than going
+	// straight into the header: the default remote-logging format on NX-OS is
+	// "<189>:2025 Mar 27 16:22:24 switch %SYSLOG-...", and ASA emits the same
+	// shape when EMBLEM is enabled. The colon carries nothing, so step over it —
+	// but only when a timestamp follows, so that CONTENT which merely begins
+	// with a colon is still treated as MSG per RFC 3164 §4.3.2.
+	if line[pos] == ':' && pos+1 < len(line) &&
+		(bsdTimestampLen(line[pos+1:]) > 0 || isoTimestampLen(line[pos+1:]) > 0) {
+		pos++
+	}
+
 	b := line[pos]
 	switch {
 	case b >= '0' && b <= '9':
@@ -184,13 +195,15 @@ func Parse(line []byte) (SyslogMessage, error) {
 		// remainder as MSG CONTENT per RFC 3164 §4.3.2.
 		switch {
 		case isValidBSDTimestampYearFirst(line[pos:]):
-			// Cisco NX-OS: "<PRI>YYYY Mmm DD HH:MM:SS host %FAC-SEV-MNEMONIC:".
-			// The leading year also matches the RFC 5424 VERSION-SP shape, so
-			// this must be tested first or the year is read as a VERSION.
+			// Cisco NX-OS: "YYYY Mmm DD HH:MM:SS host %FAC-SEV-MNEMONIC:", which
+			// is the platform default. The leading year also matches the RFC 5424
+			// VERSION-SP shape, so this must be tested first or the year is read
+			// as a VERSION.
 			msg, err = parseBSD(line, pri, pos)
 		case isoTimestampLen(line[pos:]) > 0:
-			// Cisco ASA/FTD and Picus put an ISO 8601 timestamp straight after
-			// the PRI, with no RFC 5424 VERSION.
+			// Cisco ASA and FTD emit an ISO 8601 timestamp straight after the
+			// PRI, with no RFC 5424 VERSION, under "logging timestamp rfc5424";
+			// Picus does the same.
 			msg, err = parseBSD(line, pri, pos)
 		case isRFC5424Header(line, pos):
 			msg, err = parseRFC5424(line, pri, pos)
@@ -292,19 +305,9 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// RFC 5424 HEADER fields are single tokens (no embedded spaces), but it
 	// will mis-parse non-conformant TIMESTAMP values that contain extra spaces.
 	// This is an intentional performance trade-off vs. regex or field-by-field parsing.
-	//
-	// Some appliances (e.g. Claroty CTD) emit more than one SP between VERSION
-	// and TIMESTAMP. RFC 5424 allows exactly one, but skipping the extra spaces
-	// costs nothing and avoids yielding an empty TIMESTAMP and shifting every
-	// later field by one position.
-	tsStart := sp + 1
-	for tsStart < len(line) && line[tsStart] == ' ' {
-		tsStart++
-	}
-
 	var spPos [5]int
 	found := 0
-	for i := tsStart; i < len(line); i++ {
+	for i := sp + 1; i < len(line); i++ {
 		if line[i] == ' ' {
 			spPos[found] = i
 			found++
@@ -329,13 +332,13 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 
 	if found < 1 {
 		// Only VERSION; remainder is MSG.
-		if tsStart < len(line) {
-			msg.Msg = line[tsStart:]
+		if sp+1 < len(line) {
+			msg.Msg = line[sp+1:]
 		}
 		msg.Partial = true
 		return msg, errHeaderTooShort
 	}
-	msg.Timestamp = toHeaderString(line[tsStart:spPos[0]])
+	msg.Timestamp = toHeaderString(line[sp+1 : spPos[0]])
 
 	if found < 2 {
 		if spPos[0]+1 < len(line) {
@@ -509,10 +512,13 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 
 	// Detect "double-header" formats where a second timestamp appears in the TAG
 	// position — an ISO 8601 one (e.g. Cisco FTD: "YYYY-MM-DDThh:mm:ssZ hostname
-	// ...") or a repeated BSD one (e.g. Cisco ISE: "<PRI>Mmm dd hh:mm:ss MGMT_IP
-	// Mmm dd hh:mm:ss hostname CISE_... "). No real TAG is present; treat the
-	// entire remainder as MSG. Without the BSD case the month abbreviation of the
-	// second timestamp is extracted as the APP-NAME.
+	// ...") or a repeated BSD one ("Mmm dd hh:mm:ss MGMT_IP Mmm dd hh:mm:ss
+	// hostname CISE_..."). The repeated BSD form is generally not a device
+	// behavior but a relay artifact: an aggregator that fails to recognize a line
+	// as already-formatted syslog prepends its own TIMESTAMP HOSTNAME to the
+	// whole thing, so any source behind a misconfigured relay can produce it.
+	// No real TAG is present; treat the entire remainder as MSG. Without the BSD
+	// case the month abbreviation of the second timestamp becomes the APP-NAME.
 	if looksLikeISOTimestamp(rest) || bsdTimestampLen(rest) > 0 {
 		msg.Msg = rest
 		return msg, nil
@@ -710,9 +716,11 @@ func isValidBSDTimestampWithYear(b []byte) bool {
 //	RFC 3164:      "Jan  9 03:47:40" (15 bytes, day space-padded)
 //	Non-padded:    "Jan 9 03:47:40"  (14 bytes)
 //
-// Several appliances emit the non-padded form (BeyondTrust Privileged Remote
-// Access, Cisco ISE, Infoblox DDI). Structural checks: valid month at [0:3],
-// space at [3], a digit day at [4], space at [5], colons at [8] and [11].
+// The non-padded form is common enough in the field that syslog-ng carries a
+// dedicated detector for it and grok, Fluentd, and Vector all accept one or two
+// spaces; it shows up here in Infoblox, Cisco ISE, and NX-OS samples.
+// Structural checks: valid month at [0:3], space at [3], a digit day at [4],
+// space at [5], colons at [8] and [11].
 func isValidBSDTimestampSingleSpaceDay(b []byte) bool {
 	if len(b) < 14 {
 		return false
