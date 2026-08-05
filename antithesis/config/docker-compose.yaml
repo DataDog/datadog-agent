@@ -164,10 +164,19 @@ services:
     healthcheck:
       # AlwaysAllow force-disables anonymous auth, so /healthz needs the static
       # bearer token like any other authenticated request.
+      #
+      # Widened from retries:60/interval:2s (~120s budget) after a real
+      # Antithesis run timed out waiting for setup-complete at vtime=132.67s —
+      # kube-apiserver's raw container-metadata stream showed it eventually
+      # going healthy, but docker compose's own depends_on:service_healthy
+      # wait never observed it in time (compose's event log shows it stuck at
+      # "Waiting" and never logs "Healthy"). The real VM appears to need
+      # meaningfully longer than local Colima for kube-apiserver to pass its
+      # healthcheck. ~300s comfortably covers that with margin.
       test: ["CMD", "sh", "-c", "wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz | grep -q ok"]
-      interval: 2s
-      timeout: 2s
-      retries: 60
+      interval: 3s
+      timeout: 5s
+      retries: 100
 
   dca-1:
     container_name: cluster-agent-dca-1
