@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	ebpfmanager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -125,6 +128,10 @@ type ManagerV2 struct {
 	pendingProfileRemovalsLock sync.Mutex
 
 	// Sample refresh: maps kernel dedup cookie → (process node, event node, imageTag)
+	// kernel dedup sample maps, only resolved in host-dump mode so that opening a capture
+	// window can flush them and let already-seen activity be delivered again
+	sampleDedupMaps []*ebpf.Map
+
 	sampleCookieMap       *lru.Cache[uint32, sampleCookieEntry]
 	sampleRefreshReceived *atomic.Uint64
 	sampleRefreshHits     *atomic.Uint64
@@ -134,7 +141,7 @@ type ManagerV2 struct {
 	imageExcluder    *imageExcluder
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfManager *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -156,12 +163,33 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		))
 	}
 
-	configuredStorageRequests = append(configuredStorageRequests, config.NewStorageRequest(
-		config.RemoteStorage,
-		config.Protobuf,
-		true, // force remote compression
-		"",
-	))
+	// host_dump is a local-only capture mode: skip the remote storage request entirely so no
+	// profile is ever forwarded to the backend and the intake endpoints are not even set up.
+	if !cfg.RuntimeSecurity.SecurityProfileV2HostDumpEnabled {
+		configuredStorageRequests = append(configuredStorageRequests, config.NewStorageRequest(
+			config.RemoteStorage,
+			config.Protobuf,
+			true, // force remote compression
+			"",
+		))
+	}
+
+	// In host-dump mode, resolve the kernel dedup sample maps so that opening a capture window
+	// can flush them. They are global LRUs keyed by (process, target), so without flushing, an
+	// open/bind/connect already seen before the window would never be re-delivered during it.
+	var sampleDedupMaps []*ebpf.Map
+	if cfg.RuntimeSecurity.SecurityProfileV2HostDumpEnabled && ebpfManager != nil {
+		for _, name := range []string{"open_samples", "bind_samples", "connect_samples", "pid_path_keys"} {
+			sampleMap, err := managerhelper.Map(ebpfManager, name)
+			if err != nil {
+				// not fatal: the capture window still works, it just cannot replay activity
+				// that was already deduplicated before the window was opened
+				seclog.Warnf("host dump: couldn't resolve the %s map, dedup entries will not be flushed on host start: %v", name, err)
+				continue
+			}
+			sampleDedupMaps = append(sampleDedupMaps, sampleMap)
+		}
+	}
 
 	cookieMap, _ := lru.New[uint32, sampleCookieEntry](sampleCookieMapSize)
 
@@ -197,6 +225,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleDedupMaps:           sampleDedupMaps,
 		sampleCookieMap:           cookieMap,
 		sampleRefreshReceived:     atomic.NewUint64(0),
 		sampleRefreshHits:         atomic.NewUint64(0),
@@ -493,8 +522,10 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
-	// Filter out systemd cgroups for now, we will add support for them later
-	if event.ProcessContext.Process.ContainerContext.IsNull() {
+	// Host (systemd) cgroups are only profiled in host-dump mode, the dedicated local/CI
+	// capture mode. Outside of it, V2 profiles containers only.
+	isHostWorkload := event.ProcessContext.Process.ContainerContext.IsNull()
+	if isHostWorkload && !m.config.RuntimeSecurity.SecurityProfileV2HostDumpEnabled {
 		return
 	}
 
@@ -516,9 +547,15 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		em.eventsReceived.Inc()
 	}
 
-	// Try to resolve tags for this workload
+	// Try to resolve tags for this workload. Host cgroups are tagged service/version rather
+	// than image_name/image_tag, so the readiness check differs.
 	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_tag", workloadTags) != ""
+	tagsResolved := err == nil && len(workloadTags) != 0
+	if isHostWorkload {
+		tagsResolved = tagsResolved && utils.GetTagValue("service", workloadTags) != ""
+	} else {
+		tagsResolved = tagsResolved && utils.GetTagValue("image_tag", workloadTags) != ""
+	}
 
 	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
@@ -860,8 +897,17 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Ensure version context exists for this selector
 	m.ensureVersionContext(secprof, selector.Tag)
 
-	// Insert the event into the profile's activity tree
+	// Insert the event into the profile's activity tree. Host workloads are tagged
+	// service/version rather than image_name/image_tag: without this fallback their image tag
+	// would be empty, which resolves to tag ID 0 and makes AppendImageTagID skip the node, so
+	// the persisted profile would carry no first/last seen timestamps for host activity.
 	imageTag := secprof.GetTagValue("image_tag")
+	if imageTag == "" {
+		imageTag = secprof.GetTagValue("version")
+	}
+	if imageTag == "" {
+		imageTag = "latest"
+	}
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
@@ -897,7 +943,13 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 // buildWorkloadSelector creates a workload selector from the event's container tags
 func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.WorkloadSelector, error) {
-	imageName := utils.GetTagValue("image_name", event.ProcessContext.Process.ContainerContext.Tags)
+	workloadTags := event.ProcessContext.Process.ContainerContext.Tags
+	if event.ProcessContext.Process.ContainerContext.IsNull() {
+		// Host workload: key the profile on the cgroup's service tag (the systemd unit) so each
+		// unit gets its own profile, matching the granularity of the V1 host activity dumps.
+		return cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", workloadTags), "*")
+	}
+	imageName := utils.GetTagValue("image_name", workloadTags)
 	return cgroupModel.NewWorkloadSelector(imageName, "*")
 }
 
@@ -1001,8 +1053,13 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 		return nil, errors.New("workload excluded")
 	}
 
-	// Try to load from local storage first
-	secprof, loaded := m.loadProfileFromStorage(selector, event)
+	// Try to load from local storage first. In host-dump mode this is skipped on purpose: a
+	// capture window must only contain activity recorded during the window, and loading a
+	// previously persisted profile from disk would resurrect a stale tree into it.
+	var loaded bool
+	if !m.config.RuntimeSecurity.SecurityProfileV2HostDumpEnabled {
+		secprof, loaded = m.loadProfileFromStorage(selector, event)
+	}
 	if !loaded {
 		// Create a new profile if not found in storage
 		var err error
@@ -1469,22 +1526,154 @@ func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {}
 // NO-OP in V2: V2 doesn't manage kernel-space traced cgroups maps.
 func (m *ManagerV2) SyncTracedCgroups() {}
 
-// ListActivityDumps lists the activity dumps.
-// NO-OP in V2: V2 doesn't expose individual activity dumps through this API.
+// flushSampleDedupMaps empties the kernel dedup sample maps. Those maps are global LRUs keyed by
+// (process, target): the first open/bind/connect for a key is delivered and every later one is
+// discarded in kernel space. They know nothing about capture windows, so without this a file or
+// destination already touched before the window would stay invisible for its whole duration.
+// Flushing them makes the window self-contained. Returns the number of entries removed.
+func (m *ManagerV2) flushSampleDedupMaps() int {
+	var flushed int
+
+	for _, sampleMap := range m.sampleDedupMaps {
+		// collect first, delete after: removing entries while iterating a hash map can make the
+		// iterator skip over other entries
+		keys := make([][]byte, 0, 128)
+		key := make([]byte, sampleMap.KeySize())
+		value := make([]byte, sampleMap.ValueSize())
+
+		iterator := sampleMap.Iterate()
+		for iterator.Next(&key, &value) {
+			keys = append(keys, bytes.Clone(key))
+		}
+		if err := iterator.Err(); err != nil {
+			seclog.Warnf("host dump: couldn't iterate a dedup sample map: %v", err)
+		}
+
+		for _, k := range keys {
+			if err := sampleMap.Delete(k); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+				seclog.Debugf("host dump: couldn't delete a dedup sample entry: %v", err)
+				continue
+			}
+			flushed++
+		}
+	}
+
+	return flushed
+}
+
+// hostCaptureReset discards everything recorded so far so that a new capture window only
+// contains activity that happens from now on. V2 has no dump lifecycle, so the window is
+// expressed as a reset of the in-memory profile state: profiles are dropped (they are recreated
+// lazily on the next event), the tag-resolution queues are emptied and the sample cookie LRU is
+// purged since its entries point into the trees being discarded. The kernel dedup sample maps are
+// flushed as well, so activity that was already deduplicated before the window is delivered again
+// and the window is a self-contained record. Returns the number of profiles that were discarded
+// and the number of kernel dedup entries that were flushed.
+func (m *ManagerV2) hostCaptureReset() (int, int) {
+	// each lock is taken and released independently to stay clear of the
+	// profilePendingEventsLock -> profilesLock ordering used by the ingestion path
+	m.profilePendingEventsLock.Lock()
+	clear(m.profilePendingEvents)
+	m.queueSize.Store(0)
+	m.pendingProfiles.Store(0)
+	m.profilePendingEventsLock.Unlock()
+
+	m.pendingProfileRemovalsLock.Lock()
+	clear(m.pendingProfileRemovals)
+	m.pendingProfileRemovalsLock.Unlock()
+
+	m.profilesLock.Lock()
+	discarded := len(m.profiles)
+	clear(m.profiles)
+	m.profilesLock.Unlock()
+
+	// the cookies reference process/event nodes of the trees that were just dropped
+	m.sampleCookieMap.Purge()
+
+	// let the kernel deliver activity it had already deduplicated, so the window is complete
+	flushed := m.flushSampleDedupMaps()
+
+	m.sampleRefreshReceived.Store(0)
+	m.sampleRefreshHits.Store(0)
+	m.sampleRefreshMisses.Store(0)
+
+	return discarded, flushed
+}
+
+// hostCaptureFlush persists every profile recorded during the capture window and returns a
+// message per profile. The profile set is snapshotted under the lock and the encoding and disk
+// writes happen after releasing it, so a slow disk cannot stall event ingestion (which needs
+// profilesLock to look up or create profiles).
+func (m *ManagerV2) hostCaptureFlush() []*api.ActivityDumpMessage {
+	m.profilesLock.Lock()
+	snapshot := make([]*profile.Profile, 0, len(m.profiles))
+	for _, p := range m.profiles {
+		snapshot = append(snapshot, p)
+	}
+	m.profilesLock.Unlock()
+
+	msgs := make([]*api.ActivityDumpMessage, 0, len(snapshot))
+	for _, p := range snapshot {
+		p.Metadata.End = time.Now()
+		m.persistProfile(p)
+		msgs = append(msgs, p.ToSecurityActivityDumpMessage(0, m.configuredStorageRequests))
+	}
+	return msgs
+}
+
+// ListActivityDumps lists the profiles currently being recorded. In V2 there is no activity dump
+// lifecycle, so this reports the in-memory profiles instead.
 func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	return nil, nil
+	m.profilesLock.Lock()
+	snapshot := make([]*profile.Profile, 0, len(m.profiles))
+	for _, p := range m.profiles {
+		snapshot = append(snapshot, p)
+	}
+	m.profilesLock.Unlock()
+
+	msgs := make([]*api.ActivityDumpMessage, 0, len(snapshot))
+	for _, p := range snapshot {
+		msgs = append(msgs, p.ToSecurityActivityDumpMessage(0, m.configuredStorageRequests))
+	}
+	return &api.ActivityDumpListMessage{Dumps: msgs}, nil
 }
 
 // StopActivityDump stops an active activity dump.
-// NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
-func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	return nil, nil
+// In V2 only the host-wide form (All=true) is supported: it closes the capture window by
+// persisting every recorded profile to local storage.
+func (m *ManagerV2) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	if !params.GetAll() {
+		return nil, nil
+	}
+
+	if !m.config.RuntimeSecurity.SecurityProfileV2HostDumpEnabled {
+		return &api.ActivityDumpStopMessage{Error: ErrHostDumpDisabled.Error()}, ErrHostDumpDisabled
+	}
+
+	dumps := m.hostCaptureFlush()
+	seclog.Infof("host-wide capture window stopped, %d profiles persisted", len(dumps))
+	return &api.ActivityDumpStopMessage{Dumps: dumps}, nil
 }
 
 // DumpActivity dumps the activity.
-// NO-OP in V2: V2 doesn't support on-demand activity dumping through this API.
-func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	return nil, nil
+// In V2 only the host-wide form (Host=true) is supported: it opens a capture window by discarding
+// everything recorded so far, so that the window contains only activity from this point on.
+func (m *ManagerV2) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	if !params.GetHost() {
+		return nil, nil
+	}
+
+	if !m.config.RuntimeSecurity.SecurityProfileV2HostDumpEnabled {
+		return &api.ActivityDumpMessage{Error: ErrHostDumpDisabled.Error()}, ErrHostDumpDisabled
+	}
+
+	discarded, flushed := m.hostCaptureReset()
+	seclog.Infof("host-wide capture window started, %d previously recorded profiles discarded, %d kernel dedup entries flushed", discarded, flushed)
+	return &api.ActivityDumpMessage{
+		Metadata: &api.MetadataMessage{
+			Name: fmt.Sprintf("host-wide capture window started (%d profiles discarded, %d kernel dedup entries flushed)", discarded, flushed),
+		},
+	}, nil
 }
 
 // GenerateTranscoding generates a transcoding request for the given activity dump.
