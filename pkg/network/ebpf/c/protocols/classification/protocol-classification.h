@@ -100,6 +100,12 @@ static __always_inline protocol_t classify_applayer_protocols(const char *buf, _
 // Checks if a given buffer is redis, mongo, postgres, or mysql.
 static __always_inline protocol_t classify_db_protocols(conn_tuple_t *tup, const char *buf, __u32 size) {
     if (is_redis(buf, size)) {
+        // TLS-misclassification diagnostics: the third of three is_redis() call sites, counted
+        // unconditionally so all three are directly comparable. See
+        // protocols/classification/tls-misclassification-counters.h.
+        if (is_tls_diag_enabled()) {
+            tls_diag_count(TLS_DIAG_CTR_SOCKET_FILTER_REDIS);
+        }
         return PROTOCOL_REDIS;
     }
 

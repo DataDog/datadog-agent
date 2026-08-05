@@ -852,7 +852,14 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.Cli
 		log.Warnf("couldn't get %q map: %s", probes.ConnectionProtocolMap, err)
 	}
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap, statsd)
+	// TLS-misclassification diagnostics: usm.c holds two of the three is_redis() call sites, so
+	// share the counter map with USM to make their increments visible to the tracer's telemetry.
+	tlsDiagUSMCounters, err := tracer.GetMap(probes.TLSDiagUSMCountersMap)
+	if err != nil {
+		log.Warnf("couldn't get %q map: %s", probes.TLSDiagUSMCountersMap, err)
+	}
+
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap, tlsDiagUSMCounters, statsd)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil
