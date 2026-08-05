@@ -19,7 +19,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -611,44 +610,6 @@ func (tm *testModule) sendStats() {
 	tm.eventMonitor.SendStats()
 }
 
-// phaseProfiling mirrors seclog's DD_CWS_PHASE_PROFILING switch for the test-side timers
-var phaseProfiling = os.Getenv("DD_CWS_PHASE_PROFILING") != ""
-
-// testPhase times a named phase of newTestModule and reports it through t.Logf, which lands in
-// the test2json output (and therefore in the testjson KMT artifact) even for passing tests.
-func testPhase(t testing.TB, name string) func() {
-	if !phaseProfiling {
-		return func() {}
-	}
-
-	start := time.Now()
-	return func() {
-		t.Logf("[phase] newTestModule/%s took %s", name, time.Since(start))
-	}
-}
-
-// logCPUPressure reports the current CPU contention of the micro-VM. KMT packs many micro-VMs on
-// a single metal instance, so teardown timings have to be read against how starved the VM is.
-func logCPUPressure(t testing.TB, when string) {
-	if !phaseProfiling {
-		return
-	}
-
-	loadavg, err := os.ReadFile("/proc/loadavg")
-	if err != nil {
-		loadavg = []byte("unavailable")
-	}
-
-	// PSI, absent on kernels built without CONFIG_PSI
-	pressure, err := os.ReadFile("/proc/pressure/cpu")
-	if err != nil {
-		pressure = []byte("unavailable")
-	}
-
-	t.Logf("[phase] cpu %s: loadavg=%q pressure=%q ncpu=%d",
-		when, strings.TrimSpace(string(loadavg)), strings.TrimSpace(string(pressure)), runtime.NumCPU())
-}
-
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
 		if err != nil && testMod != nil {
@@ -710,21 +671,15 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		})
 	}
 
-	stop := testPhase(t, "newSimpleTest")
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
-	stop()
 	if err != nil {
 		return nil, err
 	}
 
-	stop = testPhase(t, "setTestPolicy")
-	err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs)
-	stop()
-	if err != nil {
+	if err := setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
-	stop = testPhase(t, "cmdWrapper")
 	var cmdWrapper cmdWrapper
 	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
@@ -737,7 +692,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			cmdWrapper = newStdCmdWrapper()
 		}
 	}
-	stop()
 
 	if testMod != nil && ebpfLessEnabled {
 		testMod.st = st
@@ -786,16 +740,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 		return testMod, nil
 	} else if testMod != nil {
-		logCPUPressure(t, "before teardown")
-		stop = testPhase(t, "testMod.cleanup")
 		testMod.cleanup()
-		stop()
-		logCPUPressure(t, "after teardown")
 	}
 
-	stop = testPhase(t, "genTestConfigs")
 	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
-	stop()
 	if err != nil {
 		return nil, err
 	}
@@ -890,10 +838,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	testMod.probe.AddDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
-	stop = testPhase(t, "eventMonitor.Init")
-	err = testMod.eventMonitor.Init()
-	stop()
-	if err != nil {
+	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
 	}
 
@@ -916,10 +861,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		})
 	}
 
-	stop = testPhase(t, "eventMonitor.Start")
-	err = testMod.eventMonitor.Start()
-	stop()
-	if err != nil {
+	if err := testMod.eventMonitor.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
 

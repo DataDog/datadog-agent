@@ -164,29 +164,7 @@ func getPIDCGroup(pid uint32) (string, error) {
 	return cgroups[0].Path, nil
 }
 
-// applyRCUExpedited switches the kernel to expedited RCU grace periods when
-// DD_CWS_RCU_EXPEDITED is set. Detaching kprobes goes through synchronize_rcu_tasks(), so this is
-// the A/B knob for the hypothesis that probe teardown is dominated by RCU grace periods.
-func applyRCUExpedited() {
-	if os.Getenv("DD_CWS_RCU_EXPEDITED") == "" {
-		return
-	}
-
-	for path, value := range map[string]string{
-		"/sys/kernel/rcu_expedited": "1",
-		"/sys/kernel/rcu_normal":    "0",
-	} {
-		if err := os.WriteFile(path, []byte(value), 0644); err != nil {
-			fmt.Printf("failed to set %s=%s: %s\n", path, value, err)
-			continue
-		}
-		fmt.Printf("set %s=%s\n", path, value)
-	}
-}
-
 func preTestsHook() {
-	applyRCUExpedited()
-
 	if trace {
 		args := make([]string, len(os.Args))
 		copy(args, os.Args)
