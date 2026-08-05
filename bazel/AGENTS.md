@@ -873,8 +873,8 @@ and Bazel's Windows test wrapper (`tools/test/windows/tw.cc`) does not. It `chdi
 `<target>_/<target>.exe.runfiles` before launching the test, so an over-long target name fails at test time with
 `Could not chdir` / `Failed to load runfiles` (error 206, `ERROR_FILENAME_EXCED_RANGE`) rather than at build time.
 The target name is spent twice in that path, so keep target names, tag-set suffixes, and package depth short.
-`dd_agent_go_test` enforces the budget at analysis time via `test_tag_set_check_name()` in
-`//bazel/test_tags:defs.bzl`.
+`dd_agent_go_test` enforces the budget at analysis time via `_test_tag_set_check_name()` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
 
 **CI lane split.** Windows is the only platform whose Bazel tests run in two jobs, partitioned by the complementary
 `--config=no-dd-agent-go-tests` / `--config=dd-agent-go-tests-only` filters in `bazel/configs/go_tests.bazelrc`. The

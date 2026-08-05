@@ -16,8 +16,10 @@ import (
 	"bufio"
 	"go/build"
 	"go/build/constraint"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -333,16 +335,7 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 }
 
 func parseCanonicalTagSet(value string) []string {
-	seen := make(map[string]bool)
-	var tags []string
-	for _, tag := range strings.Fields(value) {
-		if tag == "" || seen[tag] {
-			continue
-		}
-		seen[tag] = true
-		tags = append(tags, tag)
-	}
-	return normalizeTagSet(tags)
+	return normalizeTagSet(strings.Fields(value))
 }
 
 func mergeTagSets(groups ...[][]string) [][]string {
@@ -369,22 +362,18 @@ func mergeTagSets(groups ...[][]string) [][]string {
 }
 
 func normalizeTagSet(tags []string) []string {
-	seen := make(map[string]bool)
-	var out []string
+	set := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
 		tag = strings.TrimSpace(tag)
-		if tag == "" || seen[tag] {
-			continue
+		if tag != "" {
+			set[tag] = struct{}{}
 		}
-		seen[tag] = true
-		out = append(out, tag)
 	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(set))
 }
 
 func tagSetKey(tags []string) string {
-	return strings.Join(normalizeTagSet(tags), "+")
+	return strings.Join(tags, "+")
 }
 
 func setGotagsSetsAttr(r *rule.Rule, tagSets [][]string) {
@@ -448,6 +437,7 @@ func sourceTagSets(srcs []string, pkgDir string, configuredTagSets [][]string, d
 	includeDefault := false
 	var tagSets [][]string
 	var expressions []constraint.Expr
+	parsedAny := false
 	for _, s := range srcs {
 		path := s
 		if !filepath.IsAbs(path) {
@@ -455,9 +445,9 @@ func sourceTagSets(srcs []string, pkgDir string, configuredTagSets [][]string, d
 		}
 		e, hasConstraint, err := readBuildConstraint(path)
 		if err != nil {
-			includeDefault = true
 			continue
 		}
+		parsedAny = true
 		if !hasConstraint {
 			includeDefault = true
 			continue
@@ -472,6 +462,9 @@ func sourceTagSets(srcs []string, pkgDir string, configuredTagSets [][]string, d
 		} else if !baseSatisfied {
 			tagSets = append(tagSets, tagSetsForExpression(e, baseTags, configuredTagSets, false)...)
 		}
+	}
+	if !parsedAny && len(srcs) > 0 {
+		includeDefault = true
 	}
 	tagSets = pruneRedundantTagSets(mergeTagSets(tagSets), expressions, baseTags)
 	return includeDefault, coalesceRelatedTagSets(tagSets, expressions, baseTags)
@@ -490,7 +483,10 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 			matches = append(matches, normalizeTagSet(tagSet))
 		}
 	}
-	if len(matches) > 0 || referencesAnyTag(expr, configuredTags) || !deriveTagSets {
+	if len(matches) > 0 {
+		return mergeTagSets(matches)
+	}
+	if referencesAnyTag(expr, configuredTags) || !deriveTagSets {
 		return mergeTagSets(matches)
 	}
 	return minimalTagSets(expr, baseTags)
@@ -511,6 +507,8 @@ func referencesAnyTag(expr constraint.Expr, tags map[string]bool) bool {
 	}
 }
 
+// minimalTagSets returns every tag set that satisfies this expression and does not
+// contain a smaller tag set that also satisfies this same expression.
 func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
 	var referenced []string
 	collectAutoTestTags(expr, make(map[string]bool), &referenced)

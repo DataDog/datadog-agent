@@ -822,7 +822,6 @@ func TestApplicableTagSets(t *testing.T) {
 		{
 			name:        "unreadable source does not hide later variants",
 			srcs:        []string{"missing_test.go", linuxBpf},
-			wantDefault: true,
 			wantTagSets: [][]string{tagsList("linux_bpf")},
 		},
 		{
