@@ -93,7 +93,20 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 	b := buf[0]
 	switch {
 	case b >= '1' && b <= '9':
-		return m.findOctetCounted(buf, seen)
+		// A leading digit alone does not mean octet counting: plenty of log
+		// lines simply start with a number followed by a space (a Cisco NX-OS
+		// year-first header "2024 Apr 04 ...", an epoch prefix, "54 [main] INFO
+		// ..."). Require the full MSG-LEN SP PRI signature before committing,
+		// otherwise the digits would be consumed as a length and the declared
+		// body would swallow every following frame.
+		switch classifyOctetPrefix(buf) {
+		case octetPrefixYes:
+			return m.findOctetCounted(buf, seen)
+		case octetPrefixNo:
+			return m.scanMalformed(buf, seen, false /* continuation */)
+		default: // octetPrefixNeedMore
+			return nil, 0, false
+		}
 
 	case b == '<':
 		return m.findNonTransparent(buf, seen)
@@ -214,6 +227,65 @@ func isSyslogFrameStart(buf []byte, i int) bool {
 	return false
 }
 
+// maxOctetLenDigits caps how many digits a MSG-LEN may have. A longer run is
+// not a plausible length, so the leading bytes are not an octet-counting header.
+const maxOctetLenDigits = 10
+
+// octetPrefixVerdict is the result of testing whether buf begins an RFC 6587
+// octet-counted frame. It is three-way rather than boolean: a TCP read can split
+// anywhere, so when the signature is still incomplete at the end of buf neither
+// answer is safe and the caller must wait for more bytes. Treating an incomplete
+// signature as "no" would misclassify a valid frame whose length prefix straddles
+// a read boundary (e.g. "93" arriving before "7 <134>...").
+type octetPrefixVerdict int
+
+const (
+	octetPrefixNeedMore octetPrefixVerdict = iota
+	octetPrefixYes
+	octetPrefixNo
+)
+
+// classifyOctetPrefix reports whether buf starts an octet-counted frame:
+// MSG-LEN SP SYSLOG-MSG, where SYSLOG-MSG begins with a PRI ("<" digit) because
+// RFC 6587 §3.4.1 carries RFC 5424 messages. buf[0] is known to be '1'-'9'.
+//
+// This is the same signature isSyslogFrameStart requires when resynchronizing,
+// so frame detection now agrees on entry and on resync. Without the full
+// signature a line that merely starts with digits and a space would have its
+// digits consumed as a length, and the declared body would then swallow every
+// following frame (MSG-LEN being the authoritative boundary, the body is never
+// re-scanned for frame starts).
+func classifyOctetPrefix(buf []byte) octetPrefixVerdict {
+	i := 0
+	for i < len(buf) && buf[i] >= '0' && buf[i] <= '9' {
+		i++
+		if i > maxOctetLenDigits {
+			return octetPrefixNo
+		}
+	}
+	if i == len(buf) {
+		// The digit run may continue in the next read.
+		return octetPrefixNeedMore
+	}
+	if buf[i] != ' ' {
+		return octetPrefixNo
+	}
+	// The two bytes after the SP must be "<" followed by a digit.
+	if i+1 >= len(buf) {
+		return octetPrefixNeedMore
+	}
+	if buf[i+1] != '<' {
+		return octetPrefixNo
+	}
+	if i+2 >= len(buf) {
+		return octetPrefixNeedMore
+	}
+	if buf[i+2] < '0' || buf[i+2] > '9' {
+		return octetPrefixNo
+	}
+	return octetPrefixYes
+}
+
 // findOctetCounted parses MSG-LEN SP SYSLOG-MSG from the beginning of buf.
 // Returns nil if the buffer does not yet contain enough data.
 //
@@ -246,7 +318,7 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte, seen int) ([]byte, int
 			return m.scanMalformed(buf, seen, false /* continuation */)
 		}
 		i++
-		if i > 10 {
+		if i > maxOctetLenDigits {
 			return m.scanMalformed(buf, seen, false /* continuation */)
 		}
 		msgLen = msgLen*10 + int(b-'0')
