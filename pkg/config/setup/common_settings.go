@@ -483,6 +483,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 	// GPU device UUIDs to exclude from metric collection. UUID matching is case-insensitive.
+	// MIG devices can only be excluded by their own UUID, not by the parent device UUID.
 	config.BindEnvAndSetDefault("gpu.excluded_devices", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
 	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
