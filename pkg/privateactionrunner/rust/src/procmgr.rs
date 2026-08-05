@@ -25,6 +25,12 @@ pub struct ProcmgrLifecycle {
     process_name: String,
 }
 
+impl Default for ProcmgrLifecycle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProcmgrLifecycle {
     pub fn new() -> Self {
         Self {
