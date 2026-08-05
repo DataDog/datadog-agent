@@ -428,11 +428,16 @@ fn legacy_enabled_mode_from_file(
 }
 
 fn legacy_enabled_env_mode() -> Option<ProcessEnabledMode> {
-    env_vars_for_key(LEGACY_PROCESS_ENABLED_KEY)
-        .iter()
-        .filter_map(|name| std::env::var(name).ok())
-        .map(|value| legacy_enabled_mode_from_string(&value))
-        .next()
+    for name in env_vars_for_key(LEGACY_PROCESS_ENABLED_KEY) {
+        let Ok(value) = std::env::var(name) else {
+            continue;
+        };
+        if value.is_empty() {
+            continue;
+        }
+        return Some(legacy_enabled_mode_from_string(&value));
+    }
+    None
 }
 
 fn legacy_enabled_mode(value: &serde_yaml::Value) -> Option<ProcessEnabledMode> {
@@ -844,6 +849,39 @@ process_config:
             assert!(env_configured_for_key(
                 "process_config.process_discovery.enabled"
             ));
+        });
+    }
+
+    #[test]
+    fn legacy_enabled_env_ignores_empty_values() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _empty = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: disabled\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_enabled_env_falls_through_empty_to_next_bound_var() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _empty = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "");
+            let _agent = EnvGuard::set("DD_PROCESS_AGENT_ENABLED", "disabled");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
 
