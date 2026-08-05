@@ -180,6 +180,9 @@ type mockDetector struct {
 }
 
 func (d *mockDetector) Name() string { return d.name }
+func (*mockDetector) BaselineSpec() observerdef.BaselineSpec {
+	return observerdef.BaselineSpec{}
+}
 func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }

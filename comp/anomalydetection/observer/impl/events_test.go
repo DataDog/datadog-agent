@@ -109,6 +109,9 @@ type anomalyDetector struct {
 }
 
 func (d *anomalyDetector) Name() string { return d.name }
+func (*anomalyDetector) BaselineSpec() observerdef.BaselineSpec {
+	return observerdef.BaselineSpec{}
+}
 func (d *anomalyDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: d.anomalies,
@@ -136,6 +139,9 @@ type resettableDetector struct {
 }
 
 func (d *resettableDetector) Name() string { return d.name }
+func (*resettableDetector) BaselineSpec() observerdef.BaselineSpec {
+	return observerdef.BaselineSpec{}
+}
 func (d *resettableDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
@@ -160,6 +166,9 @@ type emitOnSeriesDetector struct {
 }
 
 func (d *emitOnSeriesDetector) Name() string { return d.name }
+func (*emitOnSeriesDetector) BaselineSpec() observerdef.BaselineSpec {
+	return observerdef.BaselineSpec{}
+}
 
 func (d *emitOnSeriesDetector) Detect(series observerdef.Series) observerdef.DetectionResult {
 	if len(series.Points) == 0 {

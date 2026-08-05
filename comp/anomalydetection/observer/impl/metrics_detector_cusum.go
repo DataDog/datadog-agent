@@ -83,8 +83,8 @@ func (c *CUSUMDetector) Name() string {
 	return "cusum"
 }
 
-func (c *CUSUMDetector) BaselineSpec() detectorBaselineSpec {
-	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(c.config.MinPoints) * baselineReferenceInterval}
+func (c *CUSUMDetector) BaselineSpec() observer.BaselineSpec {
+	return observer.BaselineSpec{WarmupDuration: time.Duration(c.config.MinPoints) * baselineReferenceInterval}
 }
 
 // Detect runs CUSUM on the series and returns an anomaly if a shift is detected.

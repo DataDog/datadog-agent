@@ -31,19 +31,8 @@ func DefaultBaselineConfig() BaselineConfig {
 // about the cadence of every incoming series.
 const baselineReferenceInterval = 15 * time.Second
 
-// detectorBaselineSpecProvider is intentionally private: baseline policy is
-// engine orchestration, not part of the public detector API.
-type detectorBaselineSpecProvider interface {
-	BaselineSpec() detectorBaselineSpec
-}
-
-type detectorBaselineSpec struct {
-	Participate    bool
-	WarmupDuration time.Duration
-}
-
 type detectorBaselineState struct {
-	spec               detectorBaselineSpec
+	spec               observerdef.BaselineSpec
 	warmupEndSec       int64
 	baselineEndSec     int64
 	completed          bool
@@ -72,6 +61,14 @@ type BaselineDebugStatus struct {
 
 // baselineController coordinates independent detector windows. All methods
 // run on the engine goroutine.
+//
+//	data time ──►  [ warmup ] [ qualification ] [ detection ]
+//	normal detector  model       suppress + mute    forward
+//	RRCF             model       suppress           forward
+//
+// Each detector owns its first two windows. A normal detector's qualifying
+// anomalies can mute their source series globally; RRCF has no source series
+// and therefore only uses the windows to suppress its own reports.
 type baselineController struct {
 	config    BaselineConfig
 	startSec  int64
@@ -87,9 +84,6 @@ type baselineController struct {
 func newBaselineController(cfg BaselineConfig, detectors []detectorBaselineSpecEntry) *baselineController {
 	b := &baselineController{config: cfg, detectors: make(map[string]*detectorBaselineState), mutedHashes: make(map[uint64]struct{})}
 	for _, d := range detectors {
-		if !d.spec.Participate {
-			continue
-		}
 		b.detectors[d.name] = &detectorBaselineState{spec: d.spec, pendingHashes: make(map[uint64]struct{})}
 	}
 	return b
@@ -97,17 +91,13 @@ func newBaselineController(cfg BaselineConfig, detectors []detectorBaselineSpecE
 
 type detectorBaselineSpecEntry struct {
 	name string
-	spec detectorBaselineSpec
+	spec observerdef.BaselineSpec
 }
 
 func baselineSpecs(detectors []observerdef.Detector) []detectorBaselineSpecEntry {
 	entries := make([]detectorBaselineSpecEntry, 0, len(detectors))
 	for _, detector := range detectors {
-		spec := detectorBaselineSpec{Participate: true}
-		if provider, ok := detector.(detectorBaselineSpecProvider); ok {
-			spec = provider.BaselineSpec()
-		}
-		entries = append(entries, detectorBaselineSpecEntry{name: detector.Name(), spec: spec})
+		entries = append(entries, detectorBaselineSpecEntry{name: detector.Name(), spec: detector.BaselineSpec()})
 	}
 	return entries
 }

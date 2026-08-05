@@ -24,6 +24,9 @@ type alwaysFiringDetector struct {
 }
 
 func (d *alwaysFiringDetector) Name() string { return "always_firing" }
+func (*alwaysFiringDetector) BaselineSpec() observerdef.BaselineSpec {
+	return observerdef.BaselineSpec{}
+}
 func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{{
@@ -73,8 +76,8 @@ func makeBaselineEngine(cfg BaselineConfig, correlator observerdef.Correlator) (
 
 func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
-		{name: "fast", spec: detectorBaselineSpec{Participate: true}},
-		{name: "slow", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 5 * time.Minute}},
+		{name: "fast", spec: observerdef.BaselineSpec{}},
+		{name: "slow", spec: observerdef.BaselineSpec{WarmupDuration: 5 * time.Minute}},
 	})
 	b.start(1000)
 	assert.True(t, b.isAnalyzingAt("fast", 1000))
@@ -98,8 +101,8 @@ func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 
 func TestBaselineController_CompletionPublishesImmutableUnionAndReleasesPendingHashes(t *testing.T) {
 	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
-		{name: "first", spec: detectorBaselineSpec{Participate: true}},
-		{name: "second", spec: detectorBaselineSpec{Participate: true}},
+		{name: "first", spec: observerdef.BaselineSpec{}},
+		{name: "second", spec: observerdef.BaselineSpec{}},
 	})
 	b.start(1000)
 	b.mark("first", 1)
@@ -128,8 +131,8 @@ func TestBaselineController_CompletionPublishesImmutableUnionAndReleasesPendingH
 
 func TestBaselineController_DuplicateCompletionDoesNotReplaceUnionSnapshot(t *testing.T) {
 	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
-		{name: "first", spec: detectorBaselineSpec{Participate: true}},
-		{name: "second", spec: detectorBaselineSpec{Participate: true}},
+		{name: "first", spec: observerdef.BaselineSpec{}},
+		{name: "second", spec: observerdef.BaselineSpec{}},
 	})
 	b.start(1000)
 	b.mark("first", 1)
@@ -155,9 +158,9 @@ func TestBaselineController_VerboseNamesAreLazyAndReleased(t *testing.T) {
 
 func TestBaselineController_WarmupOverrideAppliesToEveryParticipatingDetector(t *testing.T) {
 	b := newBaselineController(BaselineConfig{DurationSec: 600, WarmupDurationOverrideSec: 450}, []detectorBaselineSpecEntry{
-		{name: "first", spec: detectorBaselineSpec{Participate: true, WarmupDuration: time.Minute}},
-		{name: "second", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 10 * time.Minute}},
-		{name: "rrcf", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 20 * time.Minute}},
+		{name: "first", spec: observerdef.BaselineSpec{WarmupDuration: time.Minute}},
+		{name: "second", spec: observerdef.BaselineSpec{WarmupDuration: 10 * time.Minute}},
+		{name: "rrcf", spec: observerdef.BaselineSpec{WarmupDuration: 20 * time.Minute}},
 	})
 	b.start(100)
 	assert.Equal(t, int64(550), b.detectors["first"].warmupEndSec)
@@ -169,7 +172,6 @@ func TestRRCFBaselineSpec_UsesAlignedReadiness(t *testing.T) {
 	rrcf := NewRRCFDetector(RRCFConfig{NumTrees: 1, TreeSize: 64, ShingleSize: 4})
 	spec := rrcf.BaselineSpec()
 
-	assert.True(t, spec.Participate)
 	assert.Equal(t, 78*baselineReferenceInterval, spec.WarmupDuration)
 }
 
@@ -286,6 +288,9 @@ func TestBaseline_MuteNoisyMetricsFalseDoesNotDropMetrics(t *testing.T) {
 type storageAwareDetector struct{}
 
 func (d *storageAwareDetector) Name() string { return "storage_aware" }
+func (*storageAwareDetector) BaselineSpec() observerdef.BaselineSpec {
+	return observerdef.BaselineSpec{}
+}
 func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	metas := sr.ListSeries(observerdef.SeriesFilter{})
 	anomalies := make([]observerdef.Anomaly, 0, len(metas))

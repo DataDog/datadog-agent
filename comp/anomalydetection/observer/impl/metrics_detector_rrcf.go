@@ -178,9 +178,9 @@ func (r *RRCFDetector) Name() string {
 // post-warmup scores are needed before the next score has a dynamic threshold.
 // RRCF participates in suppression during this interval and qualification, but
 // its synthetic anomalies have no SourceRef and therefore never mute a series.
-func (r *RRCFDetector) BaselineSpec() detectorBaselineSpec {
+func (r *RRCFDetector) BaselineSpec() observer.BaselineSpec {
 	alignedPoints := r.config.TreeSize + r.config.ShingleSize + rrcfMinScoresForThreshold
-	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(alignedPoints) * baselineReferenceInterval}
+	return observer.BaselineSpec{WarmupDuration: time.Duration(alignedPoints) * baselineReferenceInterval}
 }
 
 // SetObserverTelemetry wires direct observer telemetry emission.

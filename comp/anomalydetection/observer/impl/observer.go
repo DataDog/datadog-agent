@@ -565,11 +565,8 @@ func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
-func (a *seriesDetectorAdapter) BaselineSpec() detectorBaselineSpec {
-	if provider, ok := a.detector.(detectorBaselineSpecProvider); ok {
-		return provider.BaselineSpec()
-	}
-	return detectorBaselineSpec{Participate: true}
+func (a *seriesDetectorAdapter) BaselineSpec() observerdef.BaselineSpec {
+	return a.detector.BaselineSpec()
 }
 
 // Reset clears adapter-local caches and resets the wrapped detector when supported.

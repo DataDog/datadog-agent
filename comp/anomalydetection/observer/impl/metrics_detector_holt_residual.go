@@ -204,10 +204,10 @@ func NewHoltResidualDetectorWithConfig(cfg HoltResidualConfig) *HoltResidualDete
 // Name implements observer.Detector.
 func (d *HoltResidualDetector) Name() string { return "holt_residual" }
 
-func (d *HoltResidualDetector) BaselineSpec() detectorBaselineSpec {
+func (d *HoltResidualDetector) BaselineSpec() observer.BaselineSpec {
 	d.ensureDefaults()
 	points := d.WarmupPoints + d.ResidualWindow + d.ConfirmM
-	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(points) * baselineReferenceInterval}
+	return observer.BaselineSpec{WarmupDuration: time.Duration(points) * baselineReferenceInterval}
 }
 
 // Reset clears all per-series state for replay/reanalysis.

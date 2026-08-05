@@ -158,9 +158,9 @@ func NewTukeyBiweightDetectorWithConfig(cfg TukeyBiweightConfig) *TukeyBiweightD
 // Name returns the detector name as registered in the catalog.
 func (d *TukeyBiweightDetector) Name() string { return "tukey_biweight" }
 
-func (d *TukeyBiweightDetector) BaselineSpec() detectorBaselineSpec {
+func (d *TukeyBiweightDetector) BaselineSpec() observer.BaselineSpec {
 	d.ensureDefaults()
-	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
+	return observer.BaselineSpec{WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
 }
 
 // Reset clears all per-series state for replay/reanalysis.

@@ -100,9 +100,9 @@ func (d *ScanMWDetector) Name() string {
 	return "scanmw"
 }
 
-func (d *ScanMWDetector) BaselineSpec() detectorBaselineSpec {
+func (d *ScanMWDetector) BaselineSpec() observer.BaselineSpec {
 	d.ensureDefaults()
-	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
+	return observer.BaselineSpec{WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
 }
 
 // Reset clears all per-series state for replay/reanalysis.

@@ -94,9 +94,9 @@ func (d *ScanWelchDetector) Name() string {
 	return "scanwelch"
 }
 
-func (d *ScanWelchDetector) BaselineSpec() detectorBaselineSpec {
+func (d *ScanWelchDetector) BaselineSpec() observer.BaselineSpec {
 	d.ensureDefaults()
-	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
+	return observer.BaselineSpec{WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
 }
 
 // Reset clears all per-series state for replay/reanalysis.

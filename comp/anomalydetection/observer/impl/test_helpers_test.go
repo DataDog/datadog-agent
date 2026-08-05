@@ -52,6 +52,9 @@ type dynamicAnomalyDetector struct {
 }
 
 func (d *dynamicAnomalyDetector) Name() string { return "dynamic_anomaly_detector" }
+func (*dynamicAnomalyDetector) BaselineSpec() observerdef.BaselineSpec {
+	return observerdef.BaselineSpec{}
+}
 func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{

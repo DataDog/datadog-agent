@@ -182,8 +182,8 @@ func (b *BOCPDDetector) Name() string {
 	return "bocpd"
 }
 
-func (b *BOCPDDetector) BaselineSpec() detectorBaselineSpec {
-	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(b.config.WarmupPoints) * baselineReferenceInterval}
+func (b *BOCPDDetector) BaselineSpec() observer.BaselineSpec {
+	return observer.BaselineSpec{WarmupDuration: time.Duration(b.config.WarmupPoints) * baselineReferenceInterval}
 }
 
 // Detect implements Detector. It discovers series, reads only newly visible
