@@ -81,11 +81,11 @@ type baselineController struct {
 	// mutating it, so the same map can safely be published to concurrent ingest
 	// handlers and retained by synchronous event consumers.
 	mutedHashes map[uint64]struct{}
-	mutedNames  map[string]struct{} // retained for the final verbose summary
+	mutedNames  map[string]struct{} // allocated only for the final verbose summary
 }
 
 func newBaselineController(cfg BaselineConfig, detectors []detectorBaselineSpecEntry) *baselineController {
-	b := &baselineController{config: cfg, detectors: make(map[string]*detectorBaselineState), mutedHashes: make(map[uint64]struct{}), mutedNames: make(map[string]struct{})}
+	b := &baselineController{config: cfg, detectors: make(map[string]*detectorBaselineState), mutedHashes: make(map[uint64]struct{})}
 	for _, d := range detectors {
 		if !d.spec.Participate {
 			continue
@@ -222,16 +222,25 @@ func (b *baselineController) debugStatus() BaselineDebugStatus {
 }
 
 func (b *baselineController) recordMutedNames(names []string) {
+	if len(names) == 0 {
+		return
+	}
+	if b.mutedNames == nil {
+		b.mutedNames = make(map[string]struct{}, len(names))
+	}
 	for _, name := range names {
 		b.mutedNames[name] = struct{}{}
 	}
 }
 
-func (b *baselineController) mutedDisplayNames() []string {
+// takeMutedDisplayNames returns the final verbose summary and releases the
+// retained series-name strings immediately afterwards.
+func (b *baselineController) takeMutedDisplayNames() []string {
 	names := make([]string, 0, len(b.mutedNames))
 	for name := range b.mutedNames {
 		names = append(names, name)
 	}
+	b.mutedNames = nil
 	sort.Strings(names)
 	return names
 }

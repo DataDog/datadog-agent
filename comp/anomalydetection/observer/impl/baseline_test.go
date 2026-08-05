@@ -143,6 +143,16 @@ func TestBaselineController_DuplicateCompletionDoesNotReplaceUnionSnapshot(t *te
 	assert.Equal(t, map[uint64]struct{}{1: {}}, b.mutedHashes)
 }
 
+func TestBaselineController_VerboseNamesAreLazyAndReleased(t *testing.T) {
+	b := newBaselineController(BaselineConfig{}, nil)
+	assert.Nil(t, b.mutedNames)
+
+	b.recordMutedNames([]string{"ns/cpu", "ns/memory", "ns/cpu"})
+	assert.Equal(t, map[string]struct{}{"ns/cpu": {}, "ns/memory": {}}, b.mutedNames)
+	assert.Equal(t, []string{"ns/cpu", "ns/memory"}, b.takeMutedDisplayNames())
+	assert.Nil(t, b.mutedNames)
+}
+
 func TestBaselineController_WarmupOverrideAppliesToEveryParticipatingDetector(t *testing.T) {
 	b := newBaselineController(BaselineConfig{DurationSec: 600, WarmupDurationOverrideSec: 450}, []detectorBaselineSpecEntry{
 		{name: "first", spec: detectorBaselineSpec{Participate: true, WarmupDuration: time.Minute}},

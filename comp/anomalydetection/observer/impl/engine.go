@@ -883,7 +883,7 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 		pkglog.Infof("[observer] all baseline windows ended: %d/%d series muted from anomaly detection", len(e.baseline.mutedHashes), totalSeries)
 	}
 	if allComplete && e.baseline.config.Verbose {
-		for _, name := range e.baseline.mutedDisplayNames() {
+		for _, name := range e.baseline.takeMutedDisplayNames() {
 			pkglog.Infof("[observer] baseline muted: %s", name)
 		}
 	}
