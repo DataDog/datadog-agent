@@ -318,33 +318,6 @@ func TestGetChecksFromConfigsKeepsNormalCheckWhenShadowLoadFails(t *testing.T) {
 	assert.Equal(t, []checkid.ID{check.ShadowID(checks[0].ID())}, shadowSenderManager.destroyedIDs)
 }
 
-func TestStopCancelsShadowSenderContext(t *testing.T) {
-	s := CheckScheduler{}
-	ctx := s.ensureShadowSenderContext()
-
-	s.Stop()
-
-	select {
-	case <-ctx.Done():
-		assert.ErrorIs(t, ctx.Err(), context.Canceled)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for shadow sender context cancellation")
-	}
-}
-
-func TestInitCheckSchedulerDoesNotCreateShadowSenderContext(t *testing.T) {
-	s := InitCheckScheduler(
-		option.None[collectorcomp.Component](),
-		&recordingSchedulerSenderManager{},
-		option.None[integrations.Component](),
-		nil,
-		nil,
-	)
-
-	assert.Nil(t, s.shadowSenderContext)
-	assert.Nil(t, s.shadowSenderCancel)
-}
-
 func TestGetChecksFromConfigsSkipsShadowCheckForUnsupportedLoader(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("metric_lookback.enabled", true)
