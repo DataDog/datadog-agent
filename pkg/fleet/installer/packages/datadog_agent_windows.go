@@ -206,9 +206,6 @@ type procmgrConfig struct {
 	remove func(installRoot string) error
 }
 
-// procmgrConfigs are written whenever the process manager is enabled. The PAR
-// control plane is included unconditionally: par-control itself exits cleanly
-// unless private_action_runner.split_enabled is set.
 var procmgrConfigs = []procmgrConfig{
 	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
 	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},

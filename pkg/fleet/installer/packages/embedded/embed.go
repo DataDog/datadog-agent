@@ -74,7 +74,7 @@ var PARWindowsProcmgrConfig string
 var PARExecutorWindowsProcmgrConfig string
 
 // PARControlWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
-// control plane on Windows (see embedded/tmpl/main.go). Install time replaces __PAR_*__
+// control plane on Windows (see embedded/tmpl/main.go). Installer replaces __PAR_*__
 // placeholders.
 //
 //go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
