@@ -409,6 +409,7 @@
 /comp/core/configstream @DataDog/fleet-automation
 /comp/core/configstreamconsumer @DataDog/fleet-automation
 /comp/core/configsync @DataDog/fleet-automation
+/comp/core/delegatedauth @DataDog/core-authn
 /comp/core/diagnose @DataDog/fleet-remediation
 /comp/core/flare @DataDog/fleet-remediation
 /comp/core/gui @DataDog/fleet-remediation
