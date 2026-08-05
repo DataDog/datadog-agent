@@ -4,6 +4,7 @@ go_test(
     name = "agent-telemetry_test",
     srcs = [
         "errortracking_cluster_agent_test.go",
+        "errortracking_otel_agent_test.go",
         "errortracking_test.go",
     ],
     data = [
@@ -23,6 +24,7 @@ go_test(
         "testdata/errortracking-enabled.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/errortracking-otel-agent-collector-config.yaml",
     ],
     gotags = ["test"],
     deps = [
@@ -37,6 +39,7 @@ go_test(
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
