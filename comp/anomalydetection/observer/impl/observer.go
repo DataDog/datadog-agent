@@ -828,8 +828,8 @@ func (s *baselineEventSink) onEngineEvent(evt engineEvent) {
 	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
 		return
 	}
-	if len(evt.baselineCompleted.mutedHashes) > 0 {
-		s.filter.setMuted(evt.baselineCompleted.mutedHashes)
+	if evt.baselineCompleted.snapshotChanged {
+		s.filter.publishMutedSnapshot(evt.baselineCompleted.mutedHashes)
 	}
 }
 
@@ -856,6 +856,11 @@ func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(endSec int6
 // DebugBaselineStatus returns the per-detector baseline state for the
 // testbench. It is deliberately outside DebugView's production contract.
 func (o *observerImpl) DebugBaselineStatus() BaselineDebugStatus {
+	// This method is testbench-only. Serializing it with direct replay and the
+	// dispatch loop avoids reading the controller's maps concurrently without
+	// adding synchronization or allocations to the live agent's ingest path.
+	o.replayMu.Lock()
+	defer o.replayMu.Unlock()
 	if o.engine.baseline == nil {
 		return BaselineDebugStatus{}
 	}

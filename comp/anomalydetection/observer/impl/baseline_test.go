@@ -86,13 +86,73 @@ func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 
 	b.mark("fast", 1)
 	b.mark("fast", 1)
-	newHashes, count, allComplete := b.complete("fast")
+	newHashes, changed, count, allComplete := b.complete("fast")
+	assert.True(t, changed)
 	assert.Equal(t, 2, count)
 	assert.Len(t, newHashes, 1)
 	assert.False(t, allComplete)
 	assert.Equal(t, []string{"slow"}, b.due(1900))
-	_, _, allComplete = b.complete("slow")
+	_, _, _, allComplete = b.complete("slow")
 	assert.True(t, allComplete)
+}
+
+func TestBaselineController_CompletionPublishesImmutableUnionAndReleasesPendingHashes(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
+		{name: "first", spec: detectorBaselineSpec{Participate: true}},
+		{name: "second", spec: detectorBaselineSpec{Participate: true}},
+	})
+	b.start(1000)
+	b.mark("first", 1)
+	b.mark("second", 1)
+	b.mark("second", 2)
+
+	firstDelta, changed, _, _ := b.complete("first")
+	require.True(t, changed)
+	assert.Equal(t, map[uint64]struct{}{1: {}}, firstDelta)
+	firstSnapshot := b.mutedHashes
+	assert.Nil(t, b.detectors["first"].pendingHashes)
+	assert.Equal(t, 1, b.detectors["first"].mutedCount)
+
+	secondDelta, changed, _, _ := b.complete("second")
+	require.True(t, changed)
+	assert.Equal(t, map[uint64]struct{}{2: {}}, secondDelta)
+	assert.Equal(t, map[uint64]struct{}{1: {}}, firstSnapshot)
+	assert.Equal(t, map[uint64]struct{}{1: {}, 2: {}}, b.mutedHashes)
+	assert.Nil(t, b.detectors["second"].pendingHashes)
+	assert.Equal(t, 2, b.detectors["second"].mutedCount)
+
+	status := b.debugStatus()
+	assert.Equal(t, 1, status.Detectors[0].MutedCount)
+	assert.Equal(t, 2, status.Detectors[1].MutedCount)
+}
+
+func TestBaselineController_DuplicateCompletionDoesNotReplaceUnionSnapshot(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
+		{name: "first", spec: detectorBaselineSpec{Participate: true}},
+		{name: "second", spec: detectorBaselineSpec{Participate: true}},
+	})
+	b.start(1000)
+	b.mark("first", 1)
+	b.mark("second", 1)
+
+	_, changed, _, _ := b.complete("first")
+	require.True(t, changed)
+	newHashes, changed, _, _ := b.complete("second")
+	assert.Empty(t, newHashes)
+	assert.False(t, changed)
+	assert.Equal(t, map[uint64]struct{}{1: {}}, b.mutedHashes)
+}
+
+func TestBaselineController_WarmupOverrideAppliesToEveryParticipatingDetector(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600, WarmupDurationOverrideSec: 450}, []detectorBaselineSpecEntry{
+		{name: "first", spec: detectorBaselineSpec{Participate: true, WarmupDuration: time.Minute}},
+		{name: "second", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 10 * time.Minute}},
+		{name: "rrcf", spec: detectorBaselineSpec{Participate: false}},
+	})
+	b.start(100)
+	assert.Equal(t, int64(550), b.detectors["first"].warmupEndSec)
+	assert.Equal(t, int64(550), b.detectors["second"].warmupEndSec)
+	assert.NotContains(t, b.detectors, "rrcf")
 }
 
 // ---- engine integration tests ----

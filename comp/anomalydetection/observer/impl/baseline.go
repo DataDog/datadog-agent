@@ -49,6 +49,7 @@ type detectorBaselineState struct {
 	completed          bool
 	windowAnomalyCount int
 	pendingHashes      map[uint64]struct{}
+	mutedCount         int
 }
 
 // BaselineDetectorDebugStatus is a testbench-facing snapshot of one detector.
@@ -72,11 +73,14 @@ type BaselineDebugStatus struct {
 // baselineController coordinates independent detector windows. All methods
 // run on the engine goroutine.
 type baselineController struct {
-	config      BaselineConfig
-	startSec    int64
-	started     bool
-	detectors   map[string]*detectorBaselineState
-	mutedHashes map[uint64]struct{} // immutable snapshot is published at each completion
+	config    BaselineConfig
+	startSec  int64
+	started   bool
+	detectors map[string]*detectorBaselineState
+	// mutedHashes is an immutable snapshot. complete replaces it rather than
+	// mutating it, so the same map can safely be published to concurrent ingest
+	// handlers and retained by synchronous event consumers.
+	mutedHashes map[uint64]struct{}
 	mutedNames  map[string]struct{} // retained for the final verbose summary
 }
 
@@ -158,20 +162,36 @@ func (b *baselineController) due(dataSec int64) []string {
 	return names
 }
 
-func (b *baselineController) complete(name string) (newHashes map[uint64]struct{}, anomalyCount int, allComplete bool) {
+func (b *baselineController) complete(name string) (newHashes map[uint64]struct{}, snapshotChanged bool, anomalyCount int, allComplete bool) {
 	state := b.detectors[name]
 	if state == nil || state.completed {
-		return nil, 0, b.allComplete()
+		return nil, false, 0, b.allComplete()
 	}
 	state.completed = true
-	newHashes = make(map[uint64]struct{})
-	for h := range state.pendingHashes {
-		if _, exists := b.mutedHashes[h]; !exists {
-			b.mutedHashes[h] = struct{}{}
-			newHashes[h] = struct{}{}
+	state.mutedCount = len(state.pendingHashes)
+	newHashes = state.pendingHashes
+	state.pendingHashes = nil // release the per-detector set after its window ends
+
+	// Reuse the detached pending set as the delta. The old union is immutable,
+	// so discard duplicates from the private delta before building one new union.
+	for h := range newHashes {
+		if _, exists := b.mutedHashes[h]; exists {
+			delete(newHashes, h)
 		}
 	}
-	return newHashes, state.windowAnomalyCount, b.allComplete()
+	if len(newHashes) == 0 {
+		return newHashes, false, state.windowAnomalyCount, b.allComplete()
+	}
+
+	next := make(map[uint64]struct{}, len(b.mutedHashes)+len(newHashes))
+	for h := range b.mutedHashes {
+		next[h] = struct{}{}
+	}
+	for h := range newHashes {
+		next[h] = struct{}{}
+	}
+	b.mutedHashes = next
+	return newHashes, true, state.windowAnomalyCount, b.allComplete()
 }
 
 func (b *baselineController) allComplete() bool {
@@ -191,7 +211,11 @@ func (b *baselineController) completedCount() int {
 func (b *baselineController) debugStatus() BaselineDebugStatus {
 	status := BaselineDebugStatus{Started: b.started, StartSec: b.startSec, AllComplete: b.allComplete(), MutedCount: len(b.mutedHashes)}
 	for name, state := range b.detectors {
-		status.Detectors = append(status.Detectors, BaselineDetectorDebugStatus{Name: name, WarmupEndSec: state.warmupEndSec, BaselineEndSec: state.baselineEndSec, Completed: state.completed, MutedCount: len(state.pendingHashes)})
+		mutedCount := len(state.pendingHashes)
+		if state.completed {
+			mutedCount = state.mutedCount
+		}
+		status.Detectors = append(status.Detectors, BaselineDetectorDebugStatus{Name: name, WarmupEndSec: state.warmupEndSec, BaselineEndSec: state.baselineEndSec, Completed: state.completed, MutedCount: mutedCount})
 	}
 	sort.Slice(status.Detectors, func(i, j int) bool { return status.Detectors[i].Name < status.Detectors[j].Name })
 	return status
@@ -210,12 +234,4 @@ func (b *baselineController) mutedDisplayNames() []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-func cloneMutedHashes(in map[uint64]struct{}) map[uint64]struct{} {
-	out := make(map[uint64]struct{}, len(in))
-	for h := range in {
-		out[h] = struct{}{}
-	}
-	return out
 }
