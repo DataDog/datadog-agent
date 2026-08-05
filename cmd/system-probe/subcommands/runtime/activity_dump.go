@@ -58,6 +58,7 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(listCommands(globalParams)...)
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
 	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
+	activityDumpCmd.AddCommand(hostCommands(globalParams)...)
 	return []*cobra.Command{activityDumpCmd}
 }
 
@@ -116,6 +117,122 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"a cgroup ID can be used to filter the activity dump.",
 	)
 	return []*cobra.Command{activityDumpStopCmd}
+}
+
+func hostCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	hostCmd := &cobra.Command{
+		Use:   "host",
+		Short: "host-wide activity capture commands",
+		Long: "open/close a host-wide capture window on top of the V2 security profile manager. " +
+			"Requires runtime_security_config.security_profile.v2.host_dump.enabled, which also " +
+			"enables the V2 manager and host (systemd) cgroup profiling. Intended to be driven " +
+			"from a CI job's pre/post steps to capture the whole host for the duration of a job.",
+	}
+
+	hostCmd.AddCommand(hostStartCommands(globalParams)...)
+	hostCmd.AddCommand(hostStopCommands(globalParams)...)
+	return []*cobra.Command{hostCmd}
+}
+
+func hostStartCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpCliParams{
+		GlobalParams: globalParams,
+	}
+
+	hostStartCmd := &cobra.Command{
+		Use:   "start",
+		Short: "open the host-wide capture window",
+		Long: "discards everything recorded so far so that the capture window only contains " +
+			"activity from this point on. Call this at the start of a CI job so the capture " +
+			"lines up with the job rather than agent/VM boot.",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(hostStartActivityDump,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	return []*cobra.Command{hostStartCmd}
+}
+
+func hostStopCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpCliParams{
+		GlobalParams: globalParams,
+	}
+
+	hostStopCmd := &cobra.Command{
+		Use:   "stop",
+		Short: "close the host-wide capture window and persist every profile",
+		Long: "persists every profile recorded during the window to the configured local " +
+			"storage. Call this at the end of a CI job, then collect the output directory.",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(hostStopActivityDump,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	return []*cobra.Command{hostStopCmd}
+}
+
+func hostStartActivityDump(_ log.Component, _ config.Component, _ secrets.Component, _ *activityDumpCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer client.Close()
+
+	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
+		Host: true,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("host activity capture start request failed: %s", output.Error)
+	}
+
+	// the server reports the outcome (including how much state was discarded) in the metadata name
+	if md := output.GetMetadata(); md != nil && len(md.GetName()) > 0 {
+		fmt.Println(md.GetName())
+	} else {
+		fmt.Println("host-wide capture window started")
+	}
+	return nil
+}
+
+func hostStopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, _ *activityDumpCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer client.Close()
+
+	output, err := client.StopActivityDump(&api.ActivityDumpStopParams{All: true})
+	if err != nil {
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("host activity capture stop request failed: %s", output.Error)
+	}
+
+	if len(output.Dumps) > 0 {
+		fmt.Printf("host-wide capture stopped, %d profiles persisted:\n", len(output.Dumps))
+		for _, d := range output.Dumps {
+			printSecurityActivityDumpMessage("\t", d)
+		}
+	} else {
+		fmt.Println("host-wide capture stopped: no profiles were recorded")
+	}
+	return nil
 }
 
 func generateCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -616,7 +733,11 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.cgroupID)
+	output, err := client.StopActivityDump(&api.ActivityDumpStopParams{
+		Name:        activityDumpArgs.name,
+		ContainerID: activityDumpArgs.containerID,
+		CGroupID:    activityDumpArgs.cgroupID,
+	})
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}

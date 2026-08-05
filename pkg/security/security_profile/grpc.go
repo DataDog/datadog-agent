@@ -57,6 +57,11 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 		}, ErrActivityDumpManagerDisabled
 	}
 
+	// the host-wide capture window is implemented on the V2 profile manager
+	if params.GetHost() {
+		return &api.ActivityDumpMessage{Error: ErrHostDumpV1Unsupported.Error()}, ErrHostDumpV1Unsupported
+	}
+
 	if params.GetContainerID() == "" && params.GetCGroupID() == "" {
 		err := errors.New("you must specify one selector between containerID and cgroupID")
 		return &api.ActivityDumpMessage{Error: err.Error()}, err
@@ -126,6 +131,11 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 
 	m.m.Lock()
 	defer m.m.Unlock()
+
+	// the host-wide capture window is implemented on the V2 profile manager
+	if params.GetAll() {
+		return &api.ActivityDumpStopMessage{Error: ErrHostDumpV1Unsupported.Error()}, ErrHostDumpV1Unsupported
+	}
 
 	if params.GetName() == "" && params.GetContainerID() == "" && params.GetCGroupID() == "" {
 		err := errors.New("you must specify one selector between name, containerID and cgroupID")

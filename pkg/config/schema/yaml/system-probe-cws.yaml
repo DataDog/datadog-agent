@@ -717,6 +717,14 @@ properties:
             default: []
             items:
               type: string
+          host_dump:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
           max_dump_size:
             node_type: setting
             type: integer

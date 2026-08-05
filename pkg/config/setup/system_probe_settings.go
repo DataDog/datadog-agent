@@ -455,6 +455,7 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.sample_refresh_period", "30s")
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.max_dump_size", 5120)
+	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.host_dump.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.event_types", []string{"exec", "dns"})
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.event_types", []string{"exec"})
