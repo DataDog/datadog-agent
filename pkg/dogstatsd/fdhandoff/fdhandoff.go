@@ -29,6 +29,15 @@ import (
 // over a unix socket.
 var ErrUnsupported = errors.New("dogstatsd socket handoff is only implemented on Linux hosts")
 
+// ErrHolderUnavailable reports that nothing is listening on the handoff socket,
+// so no holder owns the DogStatsD socket and a caller may safely bind it itself.
+//
+// It is deliberately distinct from a handoff that failed while a holder *was*
+// answering: in that case another process still owns the socket, and rebinding
+// it would orphan the inode its clients are connected to and lose their
+// datagrams silently.
+var ErrHolderUnavailable = errors.New("no socket holder is listening on the handoff socket")
+
 // ReceivePacketConn connects to the handoff socket at handoffPath, receives the
 // DogStatsD datagram socket file descriptor from the holder and wraps it in a
 // *net.UnixConn ready to be read from.

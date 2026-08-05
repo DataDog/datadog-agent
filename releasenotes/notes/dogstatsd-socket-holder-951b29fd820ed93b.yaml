@@ -16,3 +16,10 @@ features:
     no longer lose datagrams while the Agent restarts. Leaving
     ``dogstatsd_socket_fd_from`` empty, which is the default, keeps the previous
     behavior.
+
+    If no holder is listening on the handoff socket, the Agent waits briefly and
+    then binds the DogStatsD socket itself rather than starting with no UDS
+    listener at all. Set ``dogstatsd_socket_fd_from_fallback`` to ``false`` to
+    make a missing holder a hard failure instead. The Agent never falls back when
+    a holder answered but the handoff failed, because that holder still owns the
+    socket and rebinding it would silently drop its clients' datagrams.

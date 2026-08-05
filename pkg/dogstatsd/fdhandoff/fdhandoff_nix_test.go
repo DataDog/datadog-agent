@@ -273,6 +273,25 @@ func TestReceiveFileNoHolder(t *testing.T) {
 	_, err := ReceivePacketConn(socketPath(t, "nothing.sock"))
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), 5*time.Second)
+
+	// The Agent falls back to binding the socket itself on this error, so it has
+	// to be distinguishable from every other handoff failure.
+	assert.ErrorIs(t, err, ErrHolderUnavailable)
+}
+
+// TestReceiveFileHolderPresentButFailingIsNotUnavailable pins the distinction
+// the fallback depends on: when a holder answers but the handoff fails, it still
+// owns the DogStatsD socket. Reporting ErrHolderUnavailable there would make the
+// Agent rebind the socket, orphaning the inode the holder's clients are
+// connected to and losing their datagrams silently.
+func TestReceiveFileHolderPresentButFailingIsNotUnavailable(t *testing.T) {
+	// A holder that accepts the connection and then hangs up without sending a
+	// descriptor.
+	handoffPath := serveOnce(t, func(conn *net.UnixConn) { conn.Close() })
+
+	_, err := ReceivePacketConn(handoffPath)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrHolderUnavailable)
 }
 
 // serveOnce accepts a single connection on a handoff socket and lets fn send

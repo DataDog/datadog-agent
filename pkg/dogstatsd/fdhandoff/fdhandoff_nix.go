@@ -390,8 +390,13 @@ func dialHandoff(handoffPath string) (*net.UnixConn, error) {
 			return unixConn, nil
 		}
 
-		if !holderNotUp(err) || !time.Now().Add(waitInterval).Before(deadline) {
+		if !holderNotUp(err) {
 			return nil, fmt.Errorf("can't connect to the handoff socket %s: %w", handoffPath, err)
+		}
+		if !time.Now().Add(waitInterval).Before(deadline) {
+			// The holder never showed up. Report it distinctly so the caller can
+			// tell "nobody owns the socket" from "the handoff itself failed".
+			return nil, fmt.Errorf("%w: %s: %w", ErrHolderUnavailable, handoffPath, err)
 		}
 		time.Sleep(waitInterval)
 	}

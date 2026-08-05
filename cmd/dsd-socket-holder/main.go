@@ -46,7 +46,6 @@ func main() {
 	socketPath := flag.String("socket", defaultSocketPath, "path of the DogStatsD datagram socket to bind and hold")
 	handoffPath := flag.String("handoff", defaultHandoffPath, "path of the unix stream socket the file descriptor is handed off on")
 	handoffMode := flag.String("handoff-mode", defaultHandoffMode, "permissions of the handoff socket, as an octal value")
-	rcvbuf := flag.Int("so-rcvbuf", 0, "size of the DogStatsD socket receive buffer in bytes, 0 to leave the system default")
 	flag.Parse()
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
@@ -64,11 +63,14 @@ func main() {
 	// The socket is deliberately never closed nor unlinked: it must outlive every
 	// Agent restart.
 
-	if *rcvbuf != 0 {
-		if err := socket.SetReadBuffer(*rcvbuf); err != nil {
-			log.Printf("could not set socket rcvbuf: %v", err)
-		}
-	}
+	// Deliberately no receive-buffer option here. For AF_UNIX datagrams the
+	// sender allocates the skb from its own send buffer, so how much survives an
+	// Agent restart is bounded by the *client's* SO_SNDBUF, not by anything the
+	// holder can set. Measured on Linux 6.8 with 100-byte datagrams: raising the
+	// holder's SO_RCVBUF to 64 MB left the queue at 278 datagrams, while raising
+	// the client's SO_SNDBUF took it to 555. Both are then clamped by
+	// net.core.{r,w}mem_max, which is not network-namespaced and so cannot be set
+	// from a pod. A knob here would only look like it tuned something.
 
 	server, err := fdhandoff.NewServer(*handoffPath, mode, socket)
 	if err != nil {

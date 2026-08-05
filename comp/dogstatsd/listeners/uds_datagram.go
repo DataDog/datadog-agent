@@ -7,6 +7,7 @@ package listeners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"syscall"
@@ -39,6 +40,16 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 	var err error
 	if handoffPath := cfg.GetString("dogstatsd_socket_fd_from"); handoffPath != "" {
 		conn, originDetection, err = adoptUDSDatagramConn(handoffPath, socketPath, originDetection)
+		// A holder that never came up must not take DogStatsD down with it: the
+		// caller only logs this error and drops the listener, so failing here
+		// silently disables UDS intake entirely, which is worse than the restart
+		// loss the holder exists to avoid. Only fall back when nothing is
+		// listening on the handoff socket, because then no other process owns
+		// the DogStatsD socket and binding it cannot orphan anyone's inode.
+		if err != nil && errors.Is(err, fdhandoff.ErrHolderUnavailable) && cfg.GetBool("dogstatsd_socket_fd_from_fallback") {
+			log.Warnf("dogstatsd-uds: %v; binding %s directly instead. Datagrams will be lost while the Agent restarts until a socket holder is running.", err, socketPath)
+			conn, originDetection, err = listenUDSDatagram(socketPath, transport, originDetection)
+		}
 	} else {
 		conn, originDetection, err = listenUDSDatagram(socketPath, transport, originDetection)
 	}

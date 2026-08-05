@@ -12987,6 +12987,10 @@ properties:
     node_type: setting
     type: string
     default: ''
+  dogstatsd_socket_fd_from_fallback:
+    node_type: setting
+    type: bool
+    default: true
   dogstatsd_stream_socket:
     node_type: setting
     type: string

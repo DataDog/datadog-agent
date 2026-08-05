@@ -1689,6 +1689,9 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	// Path of the handoff socket of a dogstatsd socket holder process: when set, the Agent adopts
 	// the dogstatsd_socket file descriptor from it instead of binding the socket itself.
 	config.BindEnvAndSetDefault("dogstatsd_socket_fd_from", "") // Experimental || Notice: empty means feature disabled
+	// Availability over restart-continuity: if no holder is listening, bind the
+	// socket directly rather than leaving the Agent with no UDS intake at all.
+	config.BindEnvAndSetDefault("dogstatsd_socket_fd_from_fallback", true)
 	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
