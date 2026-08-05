@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Network Config Management (NCM) local configuration store is now bounded by the
+    network_devices.config_management.store.min_configs_per_device,
+    network_devices.config_management.store.max_configs_per_device, and
+    network_devices.config_management.store.max_raw_config_store_bytes configurations. Once these
+    limits are exceeded, the least-recently-used configs are evicted. min_configs_per_device is floored at 2.
+    Default values are as follows: min_configs_per_device = 3, max_configs_per_device = 50, max_raw_config_store_bytes = 2000000000.
+    Updates to store configurations becone active upon agent restart.
