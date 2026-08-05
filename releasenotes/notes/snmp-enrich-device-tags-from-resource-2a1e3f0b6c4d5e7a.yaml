@@ -1,10 +1,16 @@
 ---
 features:
   - |
-    Added the ``enrich_device_tags_from_resource`` option to the SNMP check
-    (and ``network_devices.autodiscovery.enrich_device_tags_from_resource``
-    for SNMP autodiscovery), enabled by default. When device metadata
-    collection is enabled, device tags are attached to metrics by the backend
-    from the metadata payload instead of being sent with every metric. Setting
-    this option to ``false`` restores the previous behavior where the Agent
-    attaches the device tags to every metric it submits.
+    Added the ``enrich_device_tags_from_resource`` option to the SNMP check,
+    enabled by default. When device metadata collection is enabled, device tags
+    are attached to metrics by the backend from the metadata payload instead of
+    being sent with every metric. Setting this option to ``false`` restores the
+    previous behavior where the Agent attaches the device tags to every metric
+    it submits. For SNMP autodiscovery, set it under the same top-level key
+    already used for the rest of the listener configuration, either
+    ``network_devices.autodiscovery.enrich_device_tags_from_resource`` or
+    ``snmp_listener.enrich_device_tags_from_resource``. Setting it under
+    ``network_devices.autodiscovery`` while the rest of the configuration lives
+    under ``snmp_listener`` causes the whole ``snmp_listener`` section to be
+    ignored, because ``network_devices.autodiscovery`` takes precedence as soon
+    as any of its settings is configured.

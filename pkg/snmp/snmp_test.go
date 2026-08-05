@@ -1050,3 +1050,60 @@ network_devices:
 
 	assert.False(t, conf.Deduplicate)
 }
+
+func Test_EnrichDeviceTagsFromResource(t *testing.T) {
+	// legacy snmp_listener key: enabled by default
+	configmock.NewFromYAML(t, `
+snmp_listener:
+  configs:
+   - network: 127.0.0.1/30
+`)
+
+	conf, err := snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.True(t, conf.EnrichDeviceTagsFromResource)
+	assert.True(t, conf.Configs[0].EnrichDeviceTagsFromResource)
+
+	// legacy snmp_listener key: opted out
+	configmock.NewFromYAML(t, `
+snmp_listener:
+  enrich_device_tags_from_resource: false
+  configs:
+   - network: 127.0.0.1/30
+`)
+
+	conf, err = snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.False(t, conf.EnrichDeviceTagsFromResource)
+	assert.False(t, conf.Configs[0].EnrichDeviceTagsFromResource)
+
+	// network_devices.autodiscovery key: enabled by default
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.0.0.1/30
+`)
+
+	conf, err = snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.True(t, conf.EnrichDeviceTagsFromResource)
+	assert.True(t, conf.Configs[0].EnrichDeviceTagsFromResource)
+
+	// network_devices.autodiscovery key: opted out, with a per-config override
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    enrich_device_tags_from_resource: false
+    configs:
+     - network: 127.0.0.1/30
+     - network: 127.0.0.2/30
+       enrich_device_tags_from_resource: true
+`)
+
+	conf, err = snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.False(t, conf.EnrichDeviceTagsFromResource)
+	assert.False(t, conf.Configs[0].EnrichDeviceTagsFromResource)
+	assert.True(t, conf.Configs[1].EnrichDeviceTagsFromResource)
+}
