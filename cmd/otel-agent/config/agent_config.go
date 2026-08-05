@@ -80,6 +80,7 @@ var otelAgentEnvVars = []string{
 	"DD_SYNC_DELAY",
 	"DD_SYNC_TO",
 	"DD_CORE_CONFIG",
+	"DD_OTEL_FEATURE_GATES",
 }
 
 // NewConfigComponent creates a new config component from the given URIs
