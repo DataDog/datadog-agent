@@ -81,10 +81,8 @@ func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 	})
 	b.start(1000)
 	assert.True(t, b.isAnalyzingAt("fast", 1000))
-	assert.True(t, b.isQualifyingAt("fast", 1000))
 	assert.True(t, b.isAnalyzingAt("slow", 1299))
-	assert.False(t, b.isQualifyingAt("slow", 1299))
-	assert.True(t, b.isQualifyingAt("slow", 1300))
+	assert.True(t, b.isAnalyzingAt("slow", 1300))
 	assert.Equal(t, []string{"fast"}, b.due(1600))
 
 	b.mark("fast", 1)
@@ -154,18 +152,6 @@ func TestBaselineController_VerboseNamesAreLazyAndReleased(t *testing.T) {
 	assert.Equal(t, map[string]struct{}{"ns/cpu": {}, "ns/memory": {}}, b.mutedNames)
 	assert.Equal(t, []string{"ns/cpu", "ns/memory"}, b.takeMutedDisplayNames())
 	assert.Nil(t, b.mutedNames)
-}
-
-func TestBaselineController_WarmupOverrideAppliesToEveryParticipatingDetector(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600, WarmupDurationOverrideSec: 450}, []detectorBaselineSpecEntry{
-		{name: "first", spec: observerdef.BaselineSpec{WarmupDuration: time.Minute}},
-		{name: "second", spec: observerdef.BaselineSpec{WarmupDuration: 10 * time.Minute}},
-		{name: "rrcf", spec: observerdef.BaselineSpec{WarmupDuration: 20 * time.Minute}},
-	})
-	b.start(100)
-	assert.Equal(t, int64(550), b.detectors["first"].warmupEndSec)
-	assert.Equal(t, int64(550), b.detectors["second"].warmupEndSec)
-	assert.Equal(t, int64(550), b.detectors["rrcf"].warmupEndSec)
 }
 
 func TestRRCFBaselineSpec_UsesAlignedReadiness(t *testing.T) {

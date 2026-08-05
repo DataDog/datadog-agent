@@ -66,9 +66,10 @@ type BaselineDebugStatus struct {
 //	normal detector  model       suppress + mute    forward
 //	RRCF             model       suppress           forward
 //
-// Each detector owns its first two windows. A normal detector's qualifying
-// anomalies can mute their source series globally; RRCF has no source series
-// and therefore only uses the windows to suppress its own reports.
+// Each detector owns its first two windows and must not emit anomalies during
+// warmup. A normal detector's anomalies observed while analysing can mute their
+// source series globally; RRCF has no source series and therefore only uses the
+// windows to suppress its own reports.
 type baselineController struct {
 	config    BaselineConfig
 	startSec  int64
@@ -123,14 +124,6 @@ func (b *baselineController) isAnalyzingAt(name string, dataSec int64) bool {
 		return false
 	}
 	return dataSec < state.baselineEndSec
-}
-
-// isQualifyingAt reports whether anomalies should contribute to this
-// detector's muted-series decision. The earlier warmup interval is analysis
-// only: anomalies are suppressed but never qualify a series for muting.
-func (b *baselineController) isQualifyingAt(name string, dataSec int64) bool {
-	state := b.detectors[name]
-	return state != nil && !state.completed && dataSec >= state.warmupEndSec && dataSec < state.baselineEndSec
 }
 
 func (b *baselineController) mark(name string, h uint64) {

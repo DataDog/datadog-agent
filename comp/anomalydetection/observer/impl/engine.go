@@ -588,7 +588,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			// so captureRawAnomaly would return false (duplicate) before we could mark it.
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
-				if e.baseline.isQualifyingAt(detector.Name(), upTo) && anomaly.SourceRef != nil {
+				if anomaly.SourceRef != nil {
 					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
 				}
 				continue

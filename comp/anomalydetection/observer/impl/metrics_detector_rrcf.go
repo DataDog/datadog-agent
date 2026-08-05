@@ -176,8 +176,8 @@ func (r *RRCFDetector) Name() string {
 // BaselineSpec estimates RRCF readiness from aligned input points. A shingle
 // needs ShingleSize points, TreeSize shingles fill the forest, and ten prior
 // post-warmup scores are needed before the next score has a dynamic threshold.
-// RRCF participates in suppression during this interval and qualification, but
-// its synthetic anomalies have no SourceRef and therefore never mute a series.
+// RRCF participates in suppression during warmup and qualification, but its
+// synthetic anomalies have no SourceRef and therefore never mute a series.
 func (r *RRCFDetector) BaselineSpec() observer.BaselineSpec {
 	alignedPoints := r.config.TreeSize + r.config.ShingleSize + rrcfMinScoresForThreshold
 	return observer.BaselineSpec{WarmupDuration: time.Duration(alignedPoints) * baselineReferenceInterval}
