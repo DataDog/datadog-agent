@@ -237,9 +237,9 @@
 #
 #     enabled: true
 
-##################################################
-## Experimental Noisy Neighbor PMU collection  ##
-##################################################
+#################################################
+## Experimental Noisy Neighbor PMU collection ##
+#################################################
 
 ## @param noisy_neighbor - custom object - optional
 ## Experimental Linux-only scheduling and per-container PMU collection.
@@ -261,12 +261,40 @@
 #   # Each event is disabled by default. Hardware events open one perf FD per online CPU.
 #
 #   pmu_metrics:
+
+#     # @param cycles - boolean - optional - default: false
+#     # Collect CPU cycle counts.
+#
 #     cycles: false
+
+#     # @param instructions - boolean - optional - default: false
+#     # Collect retired instruction counts.
+#
 #     instructions: false
+
+#     # @param cache_misses - boolean - optional - default: false
+#     # Collect cache miss counts.
+#
 #     cache_misses: false
+
+#     # @param cache_references - boolean - optional - default: false
+#     # Collect cache reference counts.
+#
 #     cache_references: false
+
+#     # @param itlb_misses - boolean - optional - default: false
+#     # Collect instruction TLB miss counts.
+#
 #     itlb_misses: false
+
+#     # @param branch_misses - boolean - optional - default: false
+#     # Collect branch miss counts.
+#
 #     branch_misses: false
+
+#     # @param cpu_migrations - boolean - optional - default: false
+#     # Collect exact scheduler CPU migration counts.
+#
 #     cpu_migrations: false
 
 ########################################

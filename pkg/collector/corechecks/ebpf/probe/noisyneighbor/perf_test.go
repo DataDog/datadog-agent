@@ -87,10 +87,17 @@ func TestScaleCounter(t *testing.T) {
 	}
 }
 
-func TestAddCounterRejectsOverflowWithoutMutation(t *testing.T) {
-	destination := ebpfPmuCounter{Value: math.MaxUint64 - 1, Enabled: 10, Running: 5}
+func TestScaleAndAddCounterUsesPerCPURatios(t *testing.T) {
+	var destination uint64
+	require.True(t, scaleAndAddCounter(&destination, ebpfPmuCounter{Value: 100, Enabled: 20, Running: 10}))
+	require.True(t, scaleAndAddCounter(&destination, ebpfPmuCounter{Value: 100, Enabled: 20, Running: 20}))
+	require.EqualValues(t, 300, destination)
+}
+
+func TestScaleAndAddCounterRejectsOverflowWithoutMutation(t *testing.T) {
+	destination := uint64(math.MaxUint64 - 1)
 	original := destination
-	require.False(t, addCounter(&destination, ebpfPmuCounter{Value: 2, Enabled: 1, Running: 1}))
+	require.False(t, scaleAndAddCounter(&destination, ebpfPmuCounter{Value: 2, Enabled: 1, Running: 1}))
 	require.Equal(t, original, destination)
 }
 

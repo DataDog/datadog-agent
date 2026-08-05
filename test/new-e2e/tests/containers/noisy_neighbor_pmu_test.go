@@ -36,7 +36,7 @@ func TestNoisyNeighborPMUSuite(t *testing.T) {
 	t.Parallel()
 
 	registry, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
-	image := "busybox:1.37.0"
+	image := "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0"
 	if registry != "" {
 		image = strings.SplitN(registry, ",", 2)[0] + "/dockerhub/library/busybox:1.37.0"
 	}

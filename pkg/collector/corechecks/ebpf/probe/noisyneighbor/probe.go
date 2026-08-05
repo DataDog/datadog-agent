@@ -200,7 +200,7 @@ func (p *Probe) writePMUConfig(active bool) error {
 		activeValue = 1
 	}
 	key := uint32(0)
-	value := ebpfPmuConfig{Active: activeValue, Generation: p.generation, Effective_event_mask: p.stats.EffectiveEventMask}
+	value := ebpfPmuConfig{Active: activeValue, Generation: p.generation, Event_mask: p.stats.EffectiveEventMask}
 	return configMap.Update(&key, &value, ebpf.UpdateAny)
 }
 
@@ -373,12 +373,12 @@ func (p *Probe) readPMUErrors() {
 		return
 	}
 	for i := range perCPU {
-		if math.MaxUint64-p.stats.ReadErrors < perCPU[i].Read_errors {
+		if math.MaxUint64-p.stats.ReadErrors < perCPU[i].Errors {
 			p.stats.ReadErrors = math.MaxUint64
 		} else {
-			p.stats.ReadErrors += perCPU[i].Read_errors
+			p.stats.ReadErrors += perCPU[i].Errors
 		}
-		perCPU[i].Read_errors = 0
+		perCPU[i].Errors = 0
 	}
 	if err := errorMap.Update(&key, perCPU, ebpf.UpdateAny); err != nil {
 		p.stats.ReadErrors++
@@ -441,7 +441,7 @@ func (p *Probe) readPMUStats(byCgroup map[uint64]*model.NoisyNeighborStats) {
 			stat = &model.NoisyNeighborStats{CgroupID: cgroupID}
 			byCgroup[cgroupID] = stat
 		}
-		var counters [6]ebpfPmuCounter
+		var counters [6]uint64
 		var migrations uint64
 		var sampledMask uint64
 		var invalidMask uint64
@@ -452,7 +452,7 @@ func (p *Probe) readPMUStats(byCgroup map[uint64]*model.NoisyNeighborStats) {
 					continue
 				}
 				sampledMask |= bit
-				if !addCounter(&counters[i], cpuStats.Counters[i]) {
+				if !scaleAndAddCounter(&counters[i], cpuStats.Counters[i]) {
 					invalidMask |= bit
 					p.stats.ScalingErrors++
 				}
@@ -474,12 +474,7 @@ func (p *Probe) readPMUStats(byCgroup map[uint64]*model.NoisyNeighborStats) {
 			if validMask&bit == 0 {
 				continue
 			}
-			value, ok := scaleCounter(counters[i].Value, counters[i].Enabled, counters[i].Running)
-			if !ok {
-				p.stats.ScalingErrors++
-				continue
-			}
-			*values[i] = value
+			*values[i] = counters[i]
 			stat.SampledEventMask |= bit
 		}
 		if validMask&model.EventCPUMigrations != 0 {
@@ -498,13 +493,12 @@ func (p *Probe) readPMUStats(byCgroup map[uint64]*model.NoisyNeighborStats) {
 	}
 }
 
-func addCounter(dst *ebpfPmuCounter, src ebpfPmuCounter) bool {
-	if math.MaxUint64-dst.Value < src.Value || math.MaxUint64-dst.Enabled < src.Enabled || math.MaxUint64-dst.Running < src.Running {
+func scaleAndAddCounter(dst *uint64, src ebpfPmuCounter) bool {
+	value, ok := scaleCounter(src.Value, src.Enabled, src.Running)
+	if !ok || math.MaxUint64-*dst < value {
 		return false
 	}
-	dst.Value += src.Value
-	dst.Enabled += src.Enabled
-	dst.Running += src.Running
+	*dst += value
 	return true
 }
 
