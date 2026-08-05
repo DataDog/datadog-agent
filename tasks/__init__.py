@@ -75,6 +75,7 @@ from tasks import (
     release,
     renovate,
     rtloader,
+    sandbox,
     sbomgen,
     schema,
     secret_generic_connector,
@@ -201,6 +202,7 @@ ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(bazel)
 ns.add_collection(agent)
+ns.add_collection(sandbox)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(ai_sandbox)

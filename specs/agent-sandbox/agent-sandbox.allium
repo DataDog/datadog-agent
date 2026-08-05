@@ -1,0 +1,329 @@
+-- allium: 3
+-- agent-sandbox.allium
+
+-- Scope: Observable behaviour of the Datadog Agent Sandbox CLI and
+-- its disposable local environments.
+-- Includes: host Agent sandbox lifecycle, Kubernetes Agent sandbox
+-- lifecycle, artifact selection, configuration application, managed
+-- command execution, kubeconfig export, status, logs and destruction.
+-- Excludes:
+--   - Implementation internals of Apple Virtualization.framework
+--   - Agent package repository mechanics and image registry internals
+--   - Agent process internals after commands reach the guest
+--   - Cloud, Podman, QEMU/libvirt, multi-node Kubernetes and local
+--     build replacement workflows
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum SandboxMode { host_agent | kubernetes_agent }
+
+enum SandboxState { absent | created | running | stopped | error }
+
+enum ArtifactKind { host_package | container_image }
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value AgentArtifact {
+    kind: ArtifactKind
+    reference: String
+    published: Boolean
+}
+
+value HostConfigOverride {
+    source: String
+}
+
+value KubernetesDeploymentConfig {
+    source: String
+}
+
+value CommandResult {
+    exit_code: Integer
+    stdout: String
+    stderr: String
+}
+
+value StatusReport {
+    sandbox_name: String
+    mode: SandboxMode
+    state: SandboxState
+    host_architecture: String
+    base_image_cached: Boolean
+    artifact_reference: String
+    config_source: String?
+}
+
+------------------------------------------------------------
+-- Host Environment Value Types
+------------------------------------------------------------
+
+value MacHost {
+    supports_apple_native_virtualization: Boolean
+    architecture: String
+}
+
+value BaseImageCache {
+    has_ubuntu_image: Boolean
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity Sandbox {
+    name: String
+    mode: SandboxMode
+    state: SandboxState
+    host: MacHost
+    base_image_cache: BaseImageCache
+    artifact: AgentArtifact?
+    host_config: HostConfigOverride?
+    kubernetes_config: KubernetesDeploymentConfig?
+    ssh_metadata_present: Boolean
+    mutable_guest_state_present: Boolean
+    kubeconfig_present: Boolean
+
+    transitions state {
+        absent -> created
+        absent -> error
+        created -> running
+        created -> error
+        running -> stopped
+        running -> error
+        stopped -> running
+        stopped -> error
+        error -> running
+        terminal: absent
+    }
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract AppleNativeVirtualization {
+    can_run_guest: (host: MacHost) -> Boolean
+
+    @invariant LocalMacOnly
+        -- Guest compute for a sandbox is provided by the macOS host's
+        -- Apple-native virtualization capability. Podman, Docker as
+        -- host substrate, cloud infrastructure, QEMU and libvirt are
+        -- not substitute substrates for this sandbox.
+}
+
+contract PublishedAgentArtifact {
+    is_published: (artifact: AgentArtifact) -> Boolean
+
+    @invariant PublishedOnly
+        -- Host Agent sandboxes use published host package artifacts.
+        -- Kubernetes Agent sandboxes use published container image
+        -- references. Local source checkout overlays, local package
+        -- installation and local image builds are outside this model.
+}
+
+contract ManagedGuestConnection {
+    execute: (sandbox: Sandbox, command: String) -> CommandResult
+    open_ssh_session: (sandbox: Sandbox) -> CommandResult
+
+    @invariant UserDoesNotProvideSSHDetails
+        -- Supported commands and direct SSH access resolve guest
+        -- address, user and key material from sandbox metadata rather
+        -- than from user-supplied SSH connection parameters.
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+rule RejectUnsupportedHost {
+    when: CreateSandboxRequested(name, mode, host)
+    requires: not host.supports_apple_native_virtualization
+    ensures: ScopeRejected(reason: "apple_native_virtualization_required")
+}
+
+rule CreateHostAgentSandbox {
+    when: CreateHostSandboxRequested(name, host, cache, artifact, config)
+    requires: host.supports_apple_native_virtualization
+    requires: artifact.kind = host_package
+    requires: artifact.published
+    ensures: Sandbox.created(
+        name: name,
+        mode: host_agent,
+        state: created,
+        host: host,
+        base_image_cache: cache,
+        artifact: artifact,
+        host_config: config,
+        ssh_metadata_present: true,
+        mutable_guest_state_present: true,
+        kubeconfig_present: false
+    )
+    ensures: BaseImageCacheObserved(has_image: cache.has_ubuntu_image)
+    @guidance
+        -- If cache.has_ubuntu_image is true, creation uses the cached
+        -- immutable Ubuntu base material. Either path creates fresh
+        -- mutable guest state for the sandbox instance.
+}
+
+rule CreateKubernetesAgentSandbox {
+    when: CreateKubernetesSandboxRequested(name, host, cache, artifact, config)
+    requires: host.supports_apple_native_virtualization
+    requires: artifact.kind = container_image
+    requires: artifact.published
+    ensures: Sandbox.created(
+        name: name,
+        mode: kubernetes_agent,
+        state: created,
+        host: host,
+        base_image_cache: cache,
+        artifact: artifact,
+        kubernetes_config: config,
+        ssh_metadata_present: true,
+        mutable_guest_state_present: true,
+        kubeconfig_present: false
+    )
+    ensures: BaseImageCacheObserved(has_image: cache.has_ubuntu_image)
+    @guidance
+        -- The Kubernetes cluster is single-node and lives inside the
+        -- sandbox VM's mutable state.
+}
+
+rule StartSandbox {
+    when: StartRequested(sandbox)
+    requires: sandbox.state = created or sandbox.state = stopped or sandbox.state = error
+    ensures: sandbox.state = running
+}
+
+rule StopSandbox {
+    when: StopRequested(sandbox)
+    requires: sandbox.state = running
+    ensures: sandbox.state = stopped
+}
+
+rule ApplyHostConfig {
+    when: HostConfigApplyRequested(sandbox, config)
+    requires: sandbox.mode = host_agent
+    requires: sandbox.state = running
+    ensures: sandbox.host_config = config
+    ensures: AgentRuntimeStateObservable(sandbox: sandbox)
+}
+
+rule ApplyKubernetesConfig {
+    when: KubernetesConfigApplyRequested(sandbox, config)
+    requires: sandbox.mode = kubernetes_agent
+    requires: sandbox.state = running
+    ensures: sandbox.kubernetes_config = config
+    ensures: KubernetesAgentDeploymentObservable(sandbox: sandbox)
+}
+
+rule RunManagedAgentCommand {
+    when: AgentCommandRequested(sandbox, command)
+    requires: sandbox.mode = host_agent
+    requires: sandbox.state = running
+    requires: sandbox.ssh_metadata_present
+    ensures: CommandResultDelivered(result: execute(sandbox, command))
+}
+
+rule OpenManagedSSHSession {
+    when: SSHSessionRequested(sandbox)
+    requires: sandbox.state = running
+    requires: sandbox.ssh_metadata_present
+    ensures: CommandResultDelivered(result: open_ssh_session(sandbox))
+}
+
+rule ReportStatus {
+    when: StatusRequested(sandbox)
+    requires: sandbox.state != absent
+    ensures: StatusReportDelivered(report: StatusReport(
+        sandbox_name: sandbox.name,
+        mode: sandbox.mode,
+        state: sandbox.state,
+        host_architecture: sandbox.host.architecture,
+        base_image_cached: sandbox.base_image_cache.has_ubuntu_image,
+        artifact_reference: sandbox.artifact.reference,
+        config_source: if sandbox.mode = host_agent: sandbox.host_config.source else: sandbox.kubernetes_config.source
+    ))
+}
+
+rule ExportKubeconfig {
+    when: KubeconfigRequested(sandbox)
+    requires: sandbox.mode = kubernetes_agent
+    requires: sandbox.state = running
+    ensures: sandbox.kubeconfig_present = true
+    ensures: HostKubeconfigDelivered(sandbox: sandbox)
+}
+
+rule DestroySandbox {
+    when: DestroyRequested(sandbox)
+    requires: sandbox.state != absent
+    ensures: sandbox.state = absent
+    ensures: sandbox.mutable_guest_state_present = false
+    ensures: sandbox.ssh_metadata_present = false
+    ensures: sandbox.kubeconfig_present = false
+    @guidance
+        -- Destroy removes instance-specific mutable state and
+        -- connection metadata. Reusable base image cache entries are
+        -- not part of the Sandbox entity and are not removed here.
+}
+
+rule RejectOutOfScopeCapability {
+    when: CapabilityRequested(capability)
+    requires: capability in {"podman", "docker_host_substrate", "cloud_install", "qemu", "libvirt", "multi_vm_cluster", "source_checkout_overlay", "local_package_install", "local_image_build", "kubernetes_distribution_matrix", "cni_runtime_matrix", "agent_operator"}
+    ensures: ScopeRejected(reason: capability)
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface SandboxCLI {
+    provides:
+        CreateSandboxRequested(name, mode, host)
+        CreateHostSandboxRequested(name, host, cache, artifact, config)
+        CreateKubernetesSandboxRequested(name, host, cache, artifact, config)
+        StartRequested(sandbox)
+        StopRequested(sandbox)
+        StatusRequested(sandbox)
+        HostConfigApplyRequested(sandbox, config)
+        KubernetesConfigApplyRequested(sandbox, config)
+        AgentCommandRequested(sandbox, command)
+        SSHSessionRequested(sandbox)
+        KubeconfigRequested(sandbox)
+        DestroyRequested(sandbox)
+        CapabilityRequested(capability)
+
+    exposes:
+        ScopeRejected(reason)
+        BaseImageCacheObserved(has_image)
+        StatusReportDelivered(report: StatusReport)
+        CommandResultDelivered(result: CommandResult)
+        HostKubeconfigDelivered(sandbox)
+        AgentRuntimeStateObservable(sandbox)
+        KubernetesAgentDeploymentObservable(sandbox)
+
+    contracts:
+        demands AppleNativeVirtualization
+        demands PublishedAgentArtifact
+        demands ManagedGuestConnection
+
+    @guarantee ModeIsObservable
+        -- Every status report identifies whether the sandbox is a
+        -- host Agent sandbox or Kubernetes Agent sandbox.
+
+    @guarantee InstanceStateIsDisposable
+        -- Destroying a sandbox removes mutable guest state, managed
+        -- connection metadata and exported kubeconfig for that
+        -- sandbox instance without removing reusable base image cache.
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "DefaultPublishedArtifactPolicy: requirements call for documented defaults when Agent version or image reference is omitted. Which published version and image tag policy should reviewers approve before implementation?"
+
+open question "AppleSiliconOnlyOrUniversalMac: Stage A is Apple Silicon first. Should Intel macOS hosts be explicitly unsupported, supported through a separate image path, or accepted only when Apple-native virtualization can run the requested Ubuntu guest?"
