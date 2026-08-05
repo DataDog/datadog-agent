@@ -131,9 +131,11 @@ func resolveDialTarget(endpointURI string, tlsConfig *tls.Config) (string, []grp
 		dialer := func(_ context.Context, _ string) (net.Conn, error) {
 			return vsock.Dial(cid, port, &vsock.Config{})
 		}
-		// The target is otherwise unused since dialing is fully delegated to the context dialer;
-		// "passthrough" bypasses gRPC's default DNS-based name resolution.
-		return "passthrough:///vsock", []grpc.DialOption{
+		// The target's host is otherwise unused for dialing (fully delegated to the context
+		// dialer above), but it still drives the gRPC :authority and thus the TLS ServerName;
+		// keep it "localhost" to match the SANs on the Agent IPC cert (mirrors the existing
+		// vsock dial in pkg/util/grpc/agent_client.go).
+		return net.JoinHostPort("localhost", strconv.Itoa(int(port))), []grpc.DialOption{
 			grpc.WithTransportCredentials(tlsCreds),
 			grpc.WithContextDialer(dialer),
 		}, nil

@@ -275,9 +275,9 @@ func TestResolveDialTarget(t *testing.T) {
 			wantNumOpts: 1,
 		},
 		{
-			name:        "vsock:// uses a context dialer over a passthrough target",
+			name:        "vsock:// uses a context dialer but keeps a localhost TLS authority",
 			endpointURI: "vsock://3:50051",
-			wantTarget:  "passthrough:///vsock",
+			wantTarget:  "localhost:50051",
 			wantNumOpts: 2,
 		},
 		{
