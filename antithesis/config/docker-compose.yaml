@@ -181,7 +181,22 @@ services:
     healthcheck:
       # AlwaysAllow force-disables anonymous auth, so /healthz needs the static
       # bearer token like any other authenticated request.
-      test: ["CMD", "sh", "-c", "wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz | grep -q ok"]
+      #
+      # CMD-SHELL (not ["CMD", "sh", "-c", ...]) on purpose: five consecutive
+      # real Antithesis runs showed this exact wget|grep command reliably
+      # returning healthy from ~t=16s onward (proven via a background loop
+      # inside kube-apiserver's own process printing the same command's
+      # result to stdout), yet compose's own orchestration log never once
+      # observed the container as Healthy — it stayed "Waiting" forever, so
+      # dca-1/dca-2/workload never started and setup-complete never fired.
+      # etcd's healthcheck, a plain ["CMD", "etcdctl", ...] array with no
+      # shell wrapper, DOES transition to Healthy correctly every run. The
+      # ["CMD", "sh", "-c", ...] form is functionally equivalent to CMD-SHELL
+      # under real Docker, but Antithesis's compose backend is podman-compose
+      # (named explicitly in the setup log) — switching to the idiomatic
+      # CMD-SHELL form in case its healthcheck-state parsing only recognizes
+      # that form correctly for shell/pipeline commands.
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz | grep -q ok"]
       interval: 3s
       timeout: 5s
       retries: 100
