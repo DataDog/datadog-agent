@@ -22,7 +22,7 @@ import (
 type detectingAggregator struct {
 	collected             []AggregatedMessageWithTokens
 	previousMsg           *message.Message
-	previousMsgTokens     []Token
+	previousMsgTokens     BorrowedTokens
 	previousWasStartGroup bool
 	multiLineMatchInfo    *status.CountInfo
 	shouldTruncate        bool
@@ -51,7 +51,7 @@ func NewDetectingAggregator(tailerInfo *status.InfoRegistry, maxContentSize int,
 }
 
 // Process processes a message with a label and returns any emitted messages.
-func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens {
+func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens BorrowedTokens) []AggregatedMessageWithTokens {
 	d.collected = d.collected[:0]
 
 	if d.isDefaultPath {
@@ -67,13 +67,13 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 			// Track that we detected and tagged a multiline log
 			metrics.TlmAutoMultilineAggregatorFlush.Inc("false", "auto_multi_line_detected")
 			d.previousMsg = nil
-			d.previousMsgTokens = nil
+			d.previousMsgTokens = BorrowedTokens{}
 			d.previousWasStartGroup = false
 		} else if d.previousMsg != nil {
 			// Previous message wasn't a startGroup, so just output it without tags
 			d.emit(d.previousMsg, d.previousMsgTokens)
 			d.previousMsg = nil
-			d.previousMsgTokens = nil
+			d.previousMsgTokens = BorrowedTokens{}
 			d.previousWasStartGroup = false
 		}
 		// Output the current aggregate message immediately
@@ -88,7 +88,7 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 		if d.previousMsg != nil {
 			d.emit(d.previousMsg, d.previousMsgTokens)
 			d.previousMsg = nil
-			d.previousMsgTokens = nil
+			d.previousMsgTokens = BorrowedTokens{}
 			d.previousWasStartGroup = false
 		}
 		d.emit(msg, tokens)
@@ -103,7 +103,8 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 		}
 		d.multiLineMatchInfo.Add(1)
 		d.previousMsg = msg
-		d.previousMsgTokens = tokens
+		// Buffered until the next line decides the group; must own the tokens.
+		d.previousMsgTokens = tokens.retained()
 		d.previousWasStartGroup = true
 		d.processSimulatedStartGroup(msg)
 		return d.collected
@@ -118,7 +119,7 @@ func (d *detectingAggregator) Flush() []AggregatedMessageWithTokens {
 	if d.previousMsg != nil {
 		d.emit(d.previousMsg, d.previousMsgTokens)
 		d.previousMsg = nil
-		d.previousMsgTokens = nil
+		d.previousMsgTokens = BorrowedTokens{}
 		d.previousWasStartGroup = false
 	}
 	d.finalizeSimulatedGroup()
@@ -192,7 +193,7 @@ func (d *detectingAggregator) resetSimulatedGroup() {
 	d.linesInCurrentGroup = 0
 }
 
-func (d *detectingAggregator) emit(msg *message.Message, tokens []Token) {
+func (d *detectingAggregator) emit(msg *message.Message, tokens BorrowedTokens) {
 	lastWasTruncated := d.shouldTruncate
 	content := msg.GetContent()
 	d.shouldTruncate = len(content) > d.maxContentSize || msg.ParsingExtra.IsTruncated
