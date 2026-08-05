@@ -192,6 +192,36 @@ With both fixes applied, run `c0ff9806864e6266dc0cf1349b85db2a-58-11` (2026-08-0
 10 min, webhook `basic_test`) **completed successfully** — no failure at the
 setup phase, all 6 containers came up, `setup_complete` fired.
 
+## Triage: first real finding from fault injection
+
+Triage of `c0ff9806864e6266dc0cf1349b85db2a-58-11`
+(report: https://datadog.antithesis.com/report/GG_tu-9m_w8y8S3Bkr9ETQO0/2pH0GfQLyfv7QjhZAnpvvW8eJBbtYhy9B3vLRCsVUvg.html)
+confirmed the bootstrap assertion (`cluster-agent start() entered`) fired
+3,555 times — the SDK is genuinely linked and reporting — and surfaced a real,
+unexpected finding, not a harness bug:
+
+- **`dca-1`/`dca-2` exit with code 255 on transient apiserver/etcd
+  unavailability, instead of retrying.** `container: cluster-agent-dca-1,
+  exit code: 255` (147 occurrences) and the `dca-2` equivalent (92
+  occurrences) both fail the platform's "No unexpected container exits"
+  group. At vtime 51.88s, a real injected network fault caused `dca-1`'s
+  lease-update RPC to time out
+  (`leaderelection.go:188`: `Could not initialize the Leader Election
+  process: rpc error: code = Unavailable ... read: connection timed out`).
+  The very next log line reads `Error: temporary failure in leaderElection,
+  will retry later` — but the container exits immediately after, rather than
+  actually retrying. `dca-2` hits the identical pattern at vtime 30.95s. Since
+  neither service has a `restart:` policy, a replica that dies this way never
+  comes back for the rest of the run. Worth checking whether
+  `pkg/util/kubernetes/apiserver/leaderelection/leaderelection.go` around
+  lines 105/188 treats an init-time RPC error as fatal despite the log
+  message implying it should be retried.
+- Other failing properties (`Software was instrumented`, `Symbols were
+  uploaded`, `Thread pausing was enabled`, `Customer output volume`) are
+  expected/known limitations of the current setup (instrumentor skipped by
+  design, no symbolization yet, thread-pause faults not requested from the
+  tenant), not new findings.
+
 ## What's not done yet
 
 - `workload` is still a no-op placeholder (now backed by
