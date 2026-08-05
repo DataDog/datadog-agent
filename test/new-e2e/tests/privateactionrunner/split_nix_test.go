@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	parControlProcess  = "datadog-agent-action-control"
+	parControlProcess  = "datadog-agent-par-control"
 	parExecutorProcess = "datadog-agent-action-executor"
 	procmgrCLI         = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	procmgrSocket      = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
