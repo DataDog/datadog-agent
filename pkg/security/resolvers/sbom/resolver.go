@@ -864,14 +864,20 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 
 	// check if this sbom has been scanned before
 	r.dataCacheLock.Lock()
-	defer r.dataCacheLock.Unlock()
+	data, cached := r.dataCache.Get(sbom.workloadKey)
+	r.dataCacheLock.Unlock()
 
-	if data, ok := r.dataCache.Get(sbom.workloadKey); ok {
+	if cached {
 		sbom.data = data
 
 		sbom.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
+
+		// file accesses are queued from the moment a container ID resolves, which
+		// happens before the workload selector that got us here.
+		r.processPendingFileEvents(sbom)
+
 		return
 	}
 	r.sbomsCacheMiss.Inc()

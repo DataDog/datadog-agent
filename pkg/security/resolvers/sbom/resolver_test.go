@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
@@ -184,5 +185,45 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 	}
 	if sbom.forwarder != nil {
 		t.Errorf("a forwarding debouncer was started for a stopped workload")
+	}
+}
+
+// TestQueueWorkloadAppliesQueuedAccessesOnCacheHit checks that a workload admitted
+// with data already in the cache applies the accesses queued for it. They are queued
+// from the moment its container ID resolves, which precedes the workload selector
+// that admits it, so a workload going idle right after would otherwise never have
+// them applied.
+func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		dataCache:         dataCache,
+		scanChan:          make(chan *SBOM, 1),
+		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
+	}
+
+	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}}, false))
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+
+	r.queueWorkload(sbom)
+
+	if !sbom.IsComputed() {
+		t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
+	}
+	if len(r.pendingFileEvents) != 0 {
+		t.Errorf("queued file accesses were not applied")
+	}
+	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
 	}
 }

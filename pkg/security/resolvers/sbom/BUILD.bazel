@@ -75,6 +75,7 @@ dd_agent_go_test(
             "//pkg/security/secl/containerutils",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/config",
@@ -82,6 +83,7 @@ dd_agent_go_test(
             "//pkg/security/secl/containerutils",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@org_uber_go_atomic//:atomic",
         ],
         "//conditions:default": [],
     }),
