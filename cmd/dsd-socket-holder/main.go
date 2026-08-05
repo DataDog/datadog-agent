@@ -17,6 +17,10 @@
 // The holder is expected to be supervised (systemd, an init container, ...) and
 // to run for the lifetime of the host. Set dogstatsd_socket_fd_from in the Agent
 // configuration to the value of --handoff to make the Agent adopt the socket.
+//
+// The holder refuses to start while another process is bound to --socket, so an
+// Agent that binds the socket itself has to be stopped, or reconfigured with
+// dogstatsd_socket_fd_from, before the holder takes over.
 package main
 
 import (
@@ -24,7 +28,6 @@ import (
 	"flag"
 	"log"
 	"net"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/fdhandoff"
 )
@@ -36,18 +39,23 @@ const (
 	// which allows reading everything clients send to it. It is therefore
 	// restricted to the user running the holder by default: widen it with
 	// --handoff-mode when the Agent runs as another user.
-	defaultHandoffMode = 0700
+	defaultHandoffMode = "0700"
 )
 
 func main() {
 	socketPath := flag.String("socket", defaultSocketPath, "path of the DogStatsD datagram socket to bind and hold")
 	handoffPath := flag.String("handoff", defaultHandoffPath, "path of the unix stream socket the file descriptor is handed off on")
-	handoffMode := flag.Int("handoff-mode", defaultHandoffMode, "permissions of the handoff socket, as an octal value")
+	handoffMode := flag.String("handoff-mode", defaultHandoffMode, "permissions of the handoff socket, as an octal value")
 	rcvbuf := flag.Int("so-rcvbuf", 0, "size of the DogStatsD socket receive buffer in bytes, 0 to leave the system default")
 	flag.Parse()
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 	log.SetPrefix("dogstatsd-socket-holder: ")
+
+	mode, err := fdhandoff.ParseMode(*handoffMode)
+	if err != nil {
+		log.Fatalf("invalid --handoff-mode: %v", err)
+	}
 
 	socket, err := fdhandoff.BindDatagramSocket(*socketPath)
 	if err != nil {
@@ -62,7 +70,7 @@ func main() {
 		}
 	}
 
-	server, err := fdhandoff.NewServer(*handoffPath, os.FileMode(*handoffMode), socket)
+	server, err := fdhandoff.NewServer(*handoffPath, mode, socket)
 	if err != nil {
 		log.Fatalf("failed to listen on %s: %v", *handoffPath, err)
 	}

@@ -38,7 +38,7 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 	var conn *net.UnixConn
 	var err error
 	if handoffPath := cfg.GetString("dogstatsd_socket_fd_from"); handoffPath != "" {
-		conn, originDetection, err = adoptUDSDatagramConn(handoffPath, originDetection)
+		conn, originDetection, err = adoptUDSDatagramConn(handoffPath, socketPath, originDetection)
 	} else {
 		conn, originDetection, err = listenUDSDatagram(socketPath, transport, originDetection)
 	}
@@ -98,10 +98,17 @@ func listenUDSDatagram(socketPath string, transport string, originDetection bool
 // holder process, by receiving its file descriptor over the handoff socket. The
 // socket is neither unlinked nor rebound, so clients keep talking to the same
 // socket inode across Agent restarts.
-func adoptUDSDatagramConn(handoffPath string, originDetection bool) (*net.UnixConn, bool, error) {
+func adoptUDSDatagramConn(handoffPath string, socketPath string, originDetection bool) (*net.UnixConn, bool, error) {
 	conn, err := fdhandoff.ReceivePacketConn(handoffPath)
 	if err != nil {
 		return nil, originDetection, fmt.Errorf("can't adopt the dogstatsd socket: %s", err)
+	}
+
+	// Clients send to dogstatsd_socket, so a holder bound to another path means
+	// the Agent listens on a socket nobody writes to and reports no error.
+	if adopted := conn.LocalAddr().String(); adopted != socketPath {
+		log.Warnf("dogstatsd-uds: %s handed off %s, which is not the configured dogstatsd_socket %s: clients writing to %s will not be read",
+			handoffPath, adopted, socketPath, socketPath)
 	}
 
 	if originDetection {
