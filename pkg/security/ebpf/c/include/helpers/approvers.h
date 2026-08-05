@@ -91,9 +91,11 @@ static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8
         if (ring_buffer_size > 0) {
             u8 pressure_pct = (u8)(usage * 100 / ring_buffer_size);
 
+            // per-cpu map, so a plain store is enough. An atomic cmpxchg here would
+            // emit a BPF_ATOMIC instruction that kernels older than 5.12 reject.
             struct event_sample_stats_t *stats = get_active_event_sample_stats(0);
             if (stats != NULL && (u64)pressure_pct > stats->max_pressure) {
-                __sync_val_compare_and_swap(&stats->max_pressure, stats->max_pressure, (u64)pressure_pct);
+                stats->max_pressure = (u64)pressure_pct;
             }
 
             if (pressure_pct > SAMPLING_PRESSURE_CRITICAL) {
