@@ -4512,7 +4512,7 @@ properties:
                       # @param authProtocol - string - optional
                       # The authentication protocol to use when connecting to your SNMP devices.
                       # Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-                      # Defaults to MD5 when `authentication_key` is specified.
+                      # Defaults to MD5 when `authentication_key` is specified, or SHA256 in FIPS mode.
                       # SNMPv3 only.
 
                       authProtocol: <AUTHENTICATION_PROTOCOL>
@@ -4526,7 +4526,7 @@ properties:
                       # @param privProtocol - string - optional
                       # The privacy protocol to use when connecting to your SNMP devices.
                       # Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-                      # Defaults to DES when `privacy_key` is specified.
+                      # Defaults to DES when `privacy_key` is specified, or AES in FIPS mode.
                       # SNMPv3 only.
 
                       privProtocol: <PRIVACY_PROTOCOL>
@@ -6472,6 +6472,8 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+    tags:
+    - full-agent-only:true
   appsec:
     node_type: section
     type: object
@@ -9711,6 +9713,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+    tags:
+    - full-agent-only:true
   remote_policies:
     node_type: setting
     type: boolean
@@ -10364,6 +10368,7 @@ properties:
     - runtime
     items:
       type: string
+    comment: this is a list of the statsd prefixes used by the agent and its components
   telemetry:
     node_type: section
     type: object
