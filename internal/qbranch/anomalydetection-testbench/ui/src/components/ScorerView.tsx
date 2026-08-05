@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { AnomalyScoreTimeline } from './AnomalyScoreTimeline';
+import { BaselineTimelineWidget } from './BaselineView';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { ScoreState, SeverityEvent, Anomaly, LogAnomaly } from '../api/client';
@@ -368,6 +369,10 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
               </div>
             </div>
           )}
+
+          <div className="px-4 pb-6">
+            <BaselineTimelineWidget status={state.status} />
+          </div>
         </div>
       </main>
     </div>

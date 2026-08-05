@@ -53,10 +53,23 @@ export interface StatusResponse {
     enabled: boolean;
     durationSec: number;
     muteNoisyMetrics: boolean;
+    started: boolean;
+    startSec?: number;
+    allComplete: boolean;
+    mutedCount: number;
     active: boolean;
     windowEndSec?: number;
     mutedSeries?: string[];
+    detectors?: BaselineDetectorStatus[];
   };
+}
+
+export interface BaselineDetectorStatus {
+  name: string;
+  warmupEndSec: number;
+  baselineEndSec: number;
+  completed: boolean;
+  mutedCount: number;
 }
 
 export interface ScenarioInfo {

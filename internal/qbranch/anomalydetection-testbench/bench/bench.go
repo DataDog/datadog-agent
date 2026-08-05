@@ -128,6 +128,10 @@ type BaselineInfo struct {
 	Enabled          bool                                       `json:"enabled"`
 	DurationSec      int64                                      `json:"durationSec"`
 	MuteNoisyMetrics bool                                       `json:"muteNoisyMetrics"`
+	Started          bool                                       `json:"started"`
+	StartSec         int64                                      `json:"startSec"`
+	AllComplete      bool                                       `json:"allComplete"`
+	MutedCount       int                                        `json:"mutedCount"`
 	Active           bool                                       `json:"active"`
 	WindowEndSec     int64                                      `json:"windowEndSec,omitempty"`
 	MutedSeries      []string                                   `json:"mutedSeries,omitempty"`
@@ -754,6 +758,10 @@ func (tb *Bench) GetStatus() StatusResponse {
 			Enabled:          true,
 			DurationSec:      tb.settings.Baseline.DurationSec,
 			MuteNoisyMetrics: tb.settings.Baseline.MuteNoisyMetrics,
+			Started:          status.Started,
+			StartSec:         status.StartSec,
+			AllComplete:      status.AllComplete,
+			MutedCount:       status.MutedCount,
 			Active:           status.Started && !status.AllComplete && !frozen,
 			WindowEndSec:     windowEndSec,
 			MutedSeries:      mutedSeries,
