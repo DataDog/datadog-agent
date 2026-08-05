@@ -65,9 +65,7 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 
 	exists, err := s.Env().RemoteHost.FileExists(s.parControlBinary())
 	s.Require().NoError(err)
-	if !exists {
-		s.T().Skipf("par-control.exe is not installed at %s; skipping split lifecycle test", s.parControlBinary())
-	}
+	s.Require().True(exists, "par-control.exe should be installed at %s", s.parControlBinary())
 }
 
 // TestControlStartsExecutor proves the MSI ships both process definitions and that

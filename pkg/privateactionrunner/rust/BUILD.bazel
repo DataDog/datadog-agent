@@ -22,10 +22,13 @@ cc_library(
 
 rust_library(
     name = "par-control-lib",
-    srcs = glob(
-        ["src/**/*.rs"],
-        exclude = ["src/bins/**"],
-    ),
+    srcs = [
+        "src/config.rs",
+        "src/lib.rs",
+        "src/procmgr.rs",
+        "src/proto.rs",
+        "src/transport.rs",
+    ],
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
