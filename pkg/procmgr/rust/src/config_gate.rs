@@ -812,6 +812,42 @@ process_config:
     }
 
     #[test]
+    fn env_bool_and_configured_ignore_empty_values() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _empty =
+                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
+
+            assert_eq!(
+                env_bool_for_config_key("process_config.process_discovery.enabled"),
+                None
+            );
+            assert!(!env_configured_for_key(
+                "process_config.process_discovery.enabled"
+            ));
+        });
+    }
+
+    #[test]
+    fn env_bool_falls_through_empty_to_next_bound_var() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _empty =
+                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
+            let _legacy =
+                EnvGuard::set("DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "true");
+
+            assert_eq!(
+                env_bool_for_config_key("process_config.process_discovery.enabled"),
+                Some(true)
+            );
+            assert!(env_configured_for_key(
+                "process_config.process_discovery.enabled"
+            ));
+        });
+    }
+
+    #[test]
     fn fleet_policy_disables_default_enabled_keys() {
         with_env_lock(|| {
             clear_gated_env_vars();
