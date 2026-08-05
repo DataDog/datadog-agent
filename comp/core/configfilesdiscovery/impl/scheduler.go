@@ -79,6 +79,8 @@ const (
 	configSent
 )
 
+// configCollectionEvent tells the state machine what happened to a watched
+// config so it can choose the next configCollectionState.
 type configCollectionEvent uint8
 
 const (
