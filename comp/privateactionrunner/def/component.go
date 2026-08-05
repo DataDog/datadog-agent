@@ -8,21 +8,11 @@ package privateactionrunner
 
 import "errors"
 
-// team: action-platform
+type Component any
 
-// Component is the component type.
-type Component interface {
-}
-
-// ErrNotEnabled is returned when the private action runner is not enabled
 var ErrNotEnabled = errors.New("private action runner is not enabled")
-
-// ErrSplitDeployment is returned when par-control owns polling, so the monolithic runner exits.
 var ErrSplitDeployment = errors.New("private action runner is running in split deployment mode")
 
-// Configuration keys for the private action runner.
-// Duplicated from pkg/config/setup/privateactionrunner.go because comp/
-// packages cannot import pkg/config/setup (depguard rule).
 const (
 	PAREnabled                = "private_action_runner.enabled"
 	PARSelfEnroll             = "private_action_runner.self_enroll"

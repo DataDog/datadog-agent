@@ -60,8 +60,6 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
-// splitDeploymentEnabled reports whether par-control owns polling on this platform.
-// Only Linux and Windows package par-control and its dd-procmgrd process definition.
 func splitDeploymentEnabled(cfg config.Component, goos string) bool {
 	switch goos {
 	case "linux", "windows":
@@ -130,7 +128,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 	if splitDeploymentEnabled(reqs.Config, runtime.GOOS) {
-		reqs.Log.Info("Split deployment is enabled; the monolithic runner is standing down")
+		reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrSplitDeployment
 	}
