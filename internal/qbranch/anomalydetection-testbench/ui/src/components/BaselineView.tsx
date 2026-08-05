@@ -7,6 +7,14 @@ function formatTime(timestamp: number): string {
   return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(timestamp * 1000));
 }
 
+function formatDuration(seconds: number): string {
+  const rounded = Math.max(0, Math.round(seconds));
+  if (rounded < 60) return `${rounded}s`;
+  const minutes = Math.floor(rounded / 60);
+  const remainder = rounded % 60;
+  return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
+}
+
 function percent(timestamp: number, start: number, end: number): number {
   return Math.max(0, Math.min(100, ((timestamp - start) / Math.max(1, end - start)) * 100));
 }
@@ -49,7 +57,7 @@ function DetectorLane({ detector, analysisStart, start, end }: { detector: Basel
   const warmup = percent(detector.warmupEndSec, start, end) - before;
   const baseline = percent(detector.baselineEndSec, start, end) - before - warmup;
   const detection = 100 - before - warmup - baseline;
-  return <div className="grid grid-cols-[9rem_minmax(28rem,1fr)] items-stretch gap-4"><div className="py-2"><div className="text-sm font-medium text-slate-200">{detector.name}</div><div className="mt-1 text-xs text-slate-500">{detector.completed ? `${detector.mutedCount} muted` : 'baseline active'}</div></div><div className="flex min-w-0 gap-1" aria-label={`${detector.name} baseline timeline`}><PhaseBox className="border-slate-600 bg-slate-700/50" width={before} title="Waiting" detail="before analysis" /><PhaseBox className="border-blue-400 bg-blue-500/20" width={warmup} title="Warmup" detail={`until ${formatTime(detector.warmupEndSec)}`} /><PhaseBox className="border-emerald-400 bg-emerald-500/20" width={baseline} title="Baseline" detail={`until ${formatTime(detector.baselineEndSec)}`} /><PhaseBox className="border-purple-400 bg-purple-500/20" width={detection} title="Detection" detail={detector.completed ? 'enabled' : 'pending'} /></div></div>;
+  return <div className="grid grid-cols-[9rem_minmax(28rem,1fr)] items-stretch gap-4"><div className="py-2"><div className="text-sm font-medium text-slate-200">{detector.name}</div><div className="mt-1 text-xs text-slate-500">{detector.completed ? `${detector.mutedCount} muted` : 'baseline active'}</div></div><div className="flex min-w-0 gap-1" aria-label={`${detector.name} baseline timeline`}><PhaseBox className="border-slate-600 bg-slate-700/50" width={before} title="Waiting" detail={formatDuration(analysisStart - start)} /><PhaseBox className="border-blue-400 bg-blue-500/20" width={warmup} title="Warmup" detail={formatDuration(detector.warmupEndSec - analysisStart)} /><PhaseBox className="border-emerald-400 bg-emerald-500/20" width={baseline} title="Baseline" detail={formatDuration(detector.baselineEndSec - detector.warmupEndSec)} /><PhaseBox className="border-purple-400 bg-purple-500/20" width={detection} title="Detection" detail={formatDuration(end - detector.baselineEndSec)} /></div></div>;
 }
 
 function PhaseBox({ className, width, title, detail }: { className: string; width: number; title: string; detail: string }) { return <div className={`min-w-0 rounded border px-3 py-2 ${className}`} style={{ width: `${Math.max(0, width)}%` }}><div className="truncate text-xs font-medium text-slate-100">{title}</div><div className="truncate mt-0.5 text-[11px] text-slate-300">{detail}</div></div>; }
