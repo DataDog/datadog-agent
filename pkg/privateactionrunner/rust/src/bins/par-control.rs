@@ -46,8 +46,7 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
-    let lifecycle =
-        ProcmgrLifecycle::new(&config.procmgr_socket, config.executor_process_name.clone());
+    let lifecycle = ProcmgrLifecycle::new();
     lifecycle.ensure_started().await?;
 
     tokio::select! {
