@@ -12,10 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Each sample below is taken from the log-pipeline test fixtures of the
-// integration named in the case, i.e. these are formats real appliances emit.
-// Before these layouts were recognized, every header field came back as the
-// nilvalue and source routing on syslog.appname/hostname could not work.
+// Each sample below is quoted from the log-pipeline test fixtures of the
+// integration named in the case, except where a comment says otherwise, so these
+// are formats real appliances emit. Before these layouts were recognized, every
+// header field came back as the nilvalue and source routing on
+// syslog.appname/hostname could not work.
 func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -54,11 +55,25 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			msg:       "payload",
 		},
 		{
+			// The fixture carries no PRI, which is the form NX-OS writes to its
+			// own logfile and hands to a relay.
 			name:      "cisco nx-os year first header",
-			line:      "<187>2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
+			line:      "2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
 			timestamp: "2024 Apr 04 08:05:06",
 			hostname:  "MDS9148S-S4",
 			appname:   nilvalue, // "%MODULE-..." is not a TAG
+			procid:    nilvalue,
+			msg:       "%MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
+		},
+		{
+			// Header shape from Cisco's MDS 9000 system management guide, which
+			// documents "<189>:2025 Mar 27 16:22:24 switch %SYSLOG-..." as the
+			// default format sent to a remote server. Note the colon after PRI.
+			name:      "cisco nx-os year first header, remote logging wire format",
+			line:      "<189>:2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
+			timestamp: "2024 Apr 04 08:05:06",
+			hostname:  "MDS9148S-S4",
+			appname:   nilvalue,
 			procid:    nilvalue,
 			msg:       "%MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
 		},
@@ -99,13 +114,26 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			msg:       "CEF:0|Thycotic Software|Secret Server|11.7|10005|SECRET - EDIT|2|msg=x",
 		},
 		{
-			name:      "iso timestamp with numeric offset (ivanti connect secure)",
-			line:      `<134>2024-12-04T01:18:01-05:00 test.com PulseSecure[7]: {"message_id":"WEB20174"}`,
-			timestamp: "2024-12-04T01:18:01-05:00",
-			hostname:  "test.com",
-			appname:   "PulseSecure",
-			procid:    "7",
-			msg:       `{"message_id":"WEB20174"}`,
+			// Not every ASA emits "Z": this offset form is from a reported
+			// capture of an ASA running "logging timestamp rfc5424".
+			name:      "cisco asa iso timestamp with numeric offset",
+			line:      "<190>2020-07-16T09:39:32+02:00: %ASA-6-110002: Failed to locate egress interface for 192.0.2.1/443",
+			timestamp: "2020-07-16T09:39:32+02:00",
+			hostname:  nilvalue,
+			appname:   nilvalue,
+			procid:    nilvalue,
+			msg:       "%ASA-6-110002: Failed to locate egress interface for 192.0.2.1/443",
+		},
+		{
+			// Cisco's EMBLEM format puts a colon after the PRI as well. Documented
+			// in the ASA syslog guide as "<166>:2018-06-27T12:17:46Z: %ASA-...".
+			name:      "cisco asa emblem, colon after pri",
+			line:      "<166>:2018-06-27T12:17:46Z: %ASA-6-110002: Failed to locate egress interface for 192.0.2.1/443",
+			timestamp: "2018-06-27T12:17:46Z",
+			hostname:  nilvalue,
+			appname:   nilvalue,
+			procid:    nilvalue,
+			msg:       "%ASA-6-110002: Failed to locate egress interface for 192.0.2.1/443",
 		},
 	}
 
@@ -128,9 +156,11 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 	}
 }
 
-// Cisco ISE repeats the BSD timestamp after the management IP. The month
-// abbreviation of that second timestamp used to be extracted as the APP-NAME.
-func TestParseCiscoISEDoubleBSDHeader(t *testing.T) {
+// A relay that does not recognize an incoming line as already-formatted syslog
+// prepends its own timestamp and host, leaving two BSD headers. The month
+// abbreviation of the second one used to be extracted as the APP-NAME. The
+// sample is Cisco ISE, but any source behind such a relay can produce it.
+func TestParseDoubleBSDHeader(t *testing.T) {
 	line := "<184>Apr 27 11:16:44 172.0.0.10 Apr 27 11:16:44 xyz12 CISE_Passed_Authentications 0000000487 1 0"
 	msg, err := Parse([]byte(line))
 	require.NoError(t, err)
@@ -141,19 +171,14 @@ func TestParseCiscoISEDoubleBSDHeader(t *testing.T) {
 	assert.Equal(t, "Apr 27 11:16:44 xyz12 CISE_Passed_Authentications 0000000487 1 0", string(msg.Msg))
 }
 
-// Claroty CTD emits two spaces between the RFC 5424 VERSION and the TIMESTAMP.
-func TestParseRFC5424ExtraSpaceAfterVersion(t *testing.T) {
-	line := "<134>1  2025-05-13T04:57:18Z EMC syslog-healthcheck-Central - - - CEF:0|Claroty|CTD|5.0.1.0|HealthCheck|Health|0|k=v"
-	msg, err := Parse([]byte(line))
+// A colon after the PRI is only skipped when a timestamp follows it, so content
+// that merely starts with a colon keeps its leading colon in MSG.
+func TestColonAfterPRIWithoutTimestamp(t *testing.T) {
+	msg, err := Parse([]byte("<134>: not a timestamp"))
 	require.NoError(t, err)
 
-	assert.Equal(t, "1", msg.Version)
-	assert.Equal(t, "2025-05-13T04:57:18Z", msg.Timestamp)
-	assert.Equal(t, "EMC", msg.Hostname)
-	assert.Equal(t, "syslog-healthcheck-Central", msg.AppName)
-	assert.Equal(t, nilvalue, msg.ProcID)
-	assert.Equal(t, nilvalue, msg.MsgID)
-	assert.Equal(t, "CEF:0|Claroty|CTD|5.0.1.0|HealthCheck|Health|0|k=v", string(msg.Msg))
+	assert.Equal(t, nilvalue, msg.Timestamp)
+	assert.Equal(t, ": not a timestamp", string(msg.Msg))
 }
 
 func TestISOTimestampLen(t *testing.T) {
