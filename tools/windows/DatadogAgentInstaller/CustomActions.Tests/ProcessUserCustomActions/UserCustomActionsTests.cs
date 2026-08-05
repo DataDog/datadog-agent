@@ -401,6 +401,36 @@ namespace CustomActions.Tests.ProcessUserCustomActions
         }
 
         [Fact]
+        public void ProcessDdAgentUserCredentials_Reads_Scm_Password_When_Session_Installed_Metadata_Missing_But_Registry_Has_Account()
+        {
+            const string ddAgentUserName = "ddagentuser";
+            const string domain = "EXAMPLE";
+
+            var (agentPasswordKey, scmPasswordKey) = SetupUpgradePasswordFetch(
+                requestedAccountName: $"{domain}\\{ddAgentUserName}",
+                configureDomainClient: () =>
+                {
+                    Test.WithDomainClient(domain).WithDomainUser(ddAgentUserName);
+                    Test.WithPreviousAgentUser(domain, ddAgentUserName);
+                },
+                lsaFetchError: new Exception("not found"));
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && kvp.Value == "scm-password");
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(scmPasswordKey),
+                Times.Once);
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(agentPasswordKey),
+                Times.Once);
+        }
+
+        [Fact]
         public void ProcessDdAgentUserCredentials_Reads_Scm_Password_When_Registry_Metadata_And_Account_Name_Missing()
         {
             const string ddAgentUserName = "ddagentuser";

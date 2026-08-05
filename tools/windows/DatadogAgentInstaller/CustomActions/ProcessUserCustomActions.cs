@@ -412,21 +412,67 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
+        /// Returns the installed agent account stored from a previous install.
+        /// </summary>
+        /// <remarks>
+        /// Prefer session properties set by <c>ReadInstallState</c>, but reload from registry when
+        /// they are absent. Private session properties are not persisted from InstallUISequence to
+        /// InstallExecuteSequence, so UI upgrades must read the registry here.
+        /// </remarks>
+        private void GetInstalledAgentAccount(out string installedDomain, out string installedUser)
+        {
+            installedDomain = _session.Property("DDAGENT_installedDomain");
+            installedUser = _session.Property("DDAGENT_installedUser");
+
+            if (!string.IsNullOrEmpty(installedDomain) && !string.IsNullOrEmpty(installedUser))
+            {
+                return;
+            }
+
+            try
+            {
+                using var subkey = _registryServices.OpenRegistryKey(
+                    Registries.LocalMachine,
+                    Constants.DatadogAgentRegistryKey);
+                if (subkey == null)
+                {
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(installedDomain))
+                {
+                    installedDomain = subkey.GetValue("installedDomain")?.ToString();
+                }
+
+                if (string.IsNullOrEmpty(installedUser))
+                {
+                    installedUser = subkey.GetValue("installedUser")?.ToString();
+                }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to read installed agent account from registry: {e}");
+            }
+        }
+
+        /// <summary>
         /// Returns true when the upgrade explicitly requests a different Agent account than the one
         /// stored from the previous install.
         /// </summary>
         /// <remarks>
-        /// When registry metadata is missing and DDAGENTUSER_NAME is set, returns true so SCM
-        /// migration is skipped because the requested account cannot be verified as unchanged.
-        /// When both registry metadata and DDAGENTUSER_NAME are empty, returns false so SCM
-        /// migration can still run on upgrades that predate stored installedDomain/installedUser.
+        /// When installed-account metadata is missing from both the session and registry and
+        /// DDAGENTUSER_NAME is set, returns true so SCM migration is skipped because the
+        /// requested account cannot be verified as unchanged.
+        /// When both installed-account metadata and DDAGENTUSER_NAME are empty, returns false so
+        /// SCM migration can still run on upgrades that predate stored installedDomain/installedUser.
+        /// Session metadata may be absent during InstallExecuteSequence after a UI upgrade because
+        /// DDAGENT_installedDomain/User are private properties; registry is consulted as a fallback.
         /// When both accounts resolve via LookupAccountName, compares SIDs so alternate AD name
         /// forms (for example DNS vs NetBIOS domain) still count as the same account.
         /// </remarks>
         private bool IsChangingAgentAccountOnUpgrade()
         {
-            var installedDomain = _session.Property("DDAGENT_installedDomain");
-            var installedUser = _session.Property("DDAGENT_installedUser");
+            GetInstalledAgentAccount(out var installedDomain, out var installedUser);
             var requestedName = _session.Property("DDAGENTUSER_NAME");
 
             if (string.IsNullOrEmpty(installedDomain) || string.IsNullOrEmpty(installedUser))
