@@ -12,7 +12,6 @@
 //   - rpc.system is superseded by rpc.system.name (OTel semconv v1.39.0); add rpc.system.name
 //     as a fallback or promote it to canonical. Note: this affects getOTelOperationNameV2,
 //     so a release note is required.
-//   - db.system is deprecated in favor of db.system.name; add db.system.name to mappings.
 package semantics
 
 // Provider indicates the source of a semantic attribute definition.
@@ -162,4 +161,10 @@ type Registry interface {
 
 	// Version returns the semantic registry version string.
 	Version() string
+
+	// ContentHash returns the content-bound hash of the registry's concept mappings.
+	ContentHash() string
+
+	// Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).
+	Source() string
 }

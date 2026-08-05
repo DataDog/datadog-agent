@@ -10,6 +10,7 @@ package collectorimpl
 import (
 	"context"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,12 +42,18 @@ type TestCheck struct {
 	uniqueID checkid.ID
 	name     string
 	stop     chan bool
+	started  chan struct{}
+	start    sync.Once
 }
 
 func (c *TestCheck) Stop()                   { c.stop <- true }
 func (c *TestCheck) Cancel()                 { c.Called() }
 func (c *TestCheck) Interval() time.Duration { return 1 * time.Minute }
-func (c *TestCheck) Run() error              { <-c.stop; return nil }
+func (c *TestCheck) Run() error {
+	c.start.Do(func() { close(c.started) })
+	<-c.stop
+	return nil
+}
 func (c *TestCheck) ID() checkid.ID {
 	if c.uniqueID != "" {
 		return c.uniqueID
@@ -63,7 +70,8 @@ func (c *TestCheck) String() string {
 
 func NewCheck() *TestCheck {
 	c := &TestCheck{
-		stop: make(chan bool),
+		stop:    make(chan bool),
+		started: make(chan struct{}),
 	}
 	c.On("Cancel").Maybe()
 	return c
@@ -78,11 +86,18 @@ func NewCheckUnique(id checkid.ID, name string) *TestCheck {
 
 func NewCheckSlowCancel(after time.Duration) *TestCheck {
 	c := &TestCheck{
-		stop: make(chan bool),
+		stop:    make(chan bool),
+		started: make(chan struct{}),
 	}
 	c.On("Cancel").After(after)
 	return c
 }
+
+type oneTimeTestCheck struct {
+	*TestCheck
+}
+
+func (c *oneTimeTestCheck) Interval() time.Duration { return 0 }
 
 // ChecksList is a sort.Interface so we can use the Sort function
 type ChecksList []checkid.ID
@@ -144,6 +159,67 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	_, err = suite.c.RunCheck(ch)
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), "a check with ID TestCheck is already running", err.Error())
+}
+
+func (suite *CollectorTestSuite) TestRunShadowCheckDoesNotIncrementNormalCheckInstances() {
+	source := NewCheckUnique("TestCheck:abc123", "TestCheck")
+	shadow := check.NewShadowCheck(source, time.Minute)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NotNil(suite.T(), id)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(0), suite.c.checkInstances)
+
+	normal := NewCheckUnique("TestCheck:def456", "TestCheck")
+	id, err = suite.c.RunCheck(normal)
+	assert.NotNil(suite.T(), id)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(1), suite.c.checkInstances)
+}
+
+func (suite *CollectorTestSuite) TestRunShadowCheckUsesSchedulerShadowRoute() {
+	ch := NewCheckUnique("lookback-source", "TestCheck")
+	shadowSenderManager := aggregator.NewNoOpSenderManager()
+	shadow := check.NewShadowCheckWithSenderManagerOverride(ch, time.Second, shadowSenderManager)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), checkid.ID("lookback-source:shadow"), id)
+	assert.Equal(suite.T(), 1, len(suite.c.checks))
+	assert.True(suite.T(), check.IsShadow(suite.c.checks[id]))
+	assert.True(suite.T(), suite.c.scheduler.IsCheckScheduled(id))
+	assert.Equal(suite.T(), int64(0), suite.c.checkInstances)
+}
+
+func (suite *CollectorTestSuite) TestRunOneTimeShadowCheckStartsShadowWorker() {
+	ch := &oneTimeTestCheck{TestCheck: NewCheckUnique("lookback-source", "TestCheck")}
+	shadow := check.NewShadowCheck(ch, 0)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), checkid.ID("lookback-source:shadow"), id)
+	select {
+	case <-ch.started:
+	case <-time.After(time.Second):
+		suite.T().Fatal("timed out waiting for shadow check to start")
+	}
+
+	err = suite.c.StopCheck(id)
+	assert.NoError(suite.T(), err)
+}
+
+func (suite *CollectorTestSuite) TestStopShadowCheckUsesShadowRoute() {
+	ch := NewCheckUnique("lookback-source", "TestCheck")
+	shadow := check.NewShadowCheck(ch, time.Second)
+
+	id, err := suite.c.RunCheck(shadow)
+	assert.NoError(suite.T(), err)
+
+	err = suite.c.StopCheck(id)
+	assert.NoError(suite.T(), err)
+	assert.Zero(suite.T(), len(suite.c.checks))
+	assert.False(suite.T(), suite.c.scheduler.IsCheckScheduled(id))
+	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
 }
 
 func (suite *CollectorTestSuite) TestStopCheck() {

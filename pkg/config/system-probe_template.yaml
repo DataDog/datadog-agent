@@ -41,11 +41,11 @@
 #
 #   health_port: 0
 
-## @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
-## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
+## @param log_file - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
+## @env DD_LOG_FILE - string - optional - default: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
 ## The full path to the file where system-probe logs are written.
 #
-# log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
+# log_file: {{ if (or (eq .OS "linux") (eq .OS "aix")) }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
 
 ########################################
 ## System Probe Network Configuration ##
@@ -242,8 +242,8 @@
 ########################################
 
 ## @param gpu_monitoring - custom object - optional
-## Configuration for the GPU Monitoring module, which uses eBPF probes to collect
-## per-process GPU metrics on Linux hosts (kernel 5.8+).
+## Configuration for the GPU Monitoring module, which collects GPU
+## metrics that require privileged access. Only for Linux hosts.
 ## Required for GPU monitoring on non-containerized Linux hosts alongside
 ## gpu.enabled: true in datadog.yaml.
 #
@@ -251,11 +251,18 @@
 
 #   # @param enabled - boolean - optional - default: false
 #   # @env DD_GPU_MONITORING_ENABLED - boolean - optional - default: false
-#   # Set to true to enable the GPU Monitoring module. This loads the eBPF programs
-#   # that collect per-process GPU utilization, memory, and performance metrics.
+#   # Set to true to enable the GPU Monitoring module, enabling collection of privileged metrics.
 #   # Must be used together with gpu.enabled: true in datadog.yaml.
 #
 #   enabled: false
+
+#   # @param enable_ebpf_probes - boolean - optional - default: false
+#   # @env DD_GPU_MONITORING_ENABLE_EBPF_PROBES - boolean - optional - default: false
+#   # Set to true to additionally load the GPU Monitoring eBPF probes, which collect
+#   # the gpu.process.core.usage metric. Requires Linux kernel 5.8 or later.
+#   # These probes are deprecated and are disabled by default.
+#
+#   enable_ebpf_probes: false
 
 {{- if (eq .OS "windows") }}
 

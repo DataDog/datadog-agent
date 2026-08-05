@@ -24,11 +24,10 @@ const kwokRepo = "kubernetes-sigs/kwok"
 // from the latest upstream release.
 //
 // The manifests are referenced through GitHub's "/releases/latest/download/"
-// redirect (resolved server-side when the Kubernetes provider fetches them) rather
-// than resolving the release tag via the GitHub API. This drops the API
-// rate-limit/availability dependency that the release lookup added to every
-// up/preview/destroy, and keeps the Pulumi File inputs static and deterministic so
-// a new upstream release no longer mutates the URL and forces resource replacement.
+// redirect, resolved server-side when the Kubernetes provider fetches them. This
+// keeps the Pulumi File inputs static, so a new upstream release does not mutate
+// the URL and force resource replacement. The trade-off is that the deployed KWOK
+// version follows upstream silently.
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
 

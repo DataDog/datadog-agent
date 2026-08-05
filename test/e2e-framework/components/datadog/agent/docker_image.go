@@ -28,10 +28,23 @@ const (
 	linuxOnlySuffix                  = "-linux"
 )
 
+// DockerAgentFullImagePath resolves the node-agent image using the standard
+// environment settings (fullImagePath → pipeline+SHA → version → latest).
+func DockerAgentFullImagePath(e config.Env) string {
+	return dockerAgentFullImagePath(e, "", "", false, false, false, false)
+}
+
+// DockerClusterAgentFullImagePath resolves the cluster-agent image using the
+// standard environment settings (fullImagePath → pipeline+SHA → version → latest).
+func DockerClusterAgentFullImagePath(e config.Env) string {
+	return dockerClusterAgentFullImagePath(e, "", "", false)
+}
+
+// dockerAgentFullImagePath resolves the node-agent image. Precedence:
+// an explicit imageTag > the environment-level full image path > pipeline+SHA >
+// the environment-level version > latest. That is, a caller asking for a specific
+// tag outranks anything derived from the environment.
 func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool, windowsImage bool) string {
-	// return agent image path if defined, unless an explicit image tag is requested
-	// (an explicit per-install tag takes precedence over the environment-level full
-	// image path)
 	if e.AgentFullImagePath() != "" && imageTag == "" {
 		return e.AgentFullImagePath()
 	}
@@ -117,10 +130,10 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 	return utils.BuildDockerImagePath(repositoryPath, imageTag)
 }
 
+// dockerClusterAgentFullImagePath resolves the cluster-agent image, with the same
+// precedence as [dockerAgentFullImagePath]: an explicit imageTag > the
+// environment-level full image path > pipeline+SHA > the environment-level version.
 func dockerClusterAgentFullImagePath(e config.Env, repositoryPath, imageTag string, fips bool) string {
-	// return cluster agent image path if defined, unless an explicit image tag is
-	// requested (an explicit per-install tag takes precedence over the
-	// environment-level full image path)
 	if e.ClusterAgentFullImagePath() != "" && imageTag == "" {
 		return e.ClusterAgentFullImagePath()
 	}

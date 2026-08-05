@@ -42,6 +42,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -556,6 +557,21 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal(t, 28125, cfg.StatsdPort)
 }
 
+// TestReceiverHostKubernetesDefaultOverridesBindHost reproduces the case where bind_host is set
+// explicitly but apm_non_local_traffic comes only from the Kubernetes binary default (applied at
+// SourceDefault, so IsConfigured is false). The trace receiver must still listen on 0.0.0.0,
+// matching the historical datadog-kubernetes.yaml behavior, while statsd keeps honoring bind_host.
+func TestReceiverHostKubernetesDefaultOverridesBindHost(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.Set("bind_host", "127.0.0.1", configmodel.SourceFile)
+	coreConfig.Set("apm_config.apm_non_local_traffic", true, configmodel.SourceDefault)
+
+	cfg := buildComponent(t, true, coreConfig).Object()
+	require.NotNil(t, cfg)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.Equal(t, "127.0.0.1", cfg.StatsdHost)
+}
+
 func TestDisableLoggingConfig(t *testing.T) {
 	config := buildConfigComponentFromYAML(t, true, "./testdata/disable_file_logging.yaml")
 	cfg := config.Object()
@@ -566,6 +582,16 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestFullYamlConfig(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
@@ -2650,6 +2676,26 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			name:     "logs_disabled_no_override",
 			settings: map[string]interface{}{"logs_enabled": false},
 			expected: false,
+		},
+		{
+			name:     "logs_unset_defaults_enabled",
+			settings: map[string]interface{}{},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_disables",
+			settings: map[string]interface{}{"log_enabled": false},
+			expected: false,
+		},
+		{
+			name:     "stale_deprecated_log_enabled_does_not_disable",
+			settings: map[string]interface{}{"logs_enabled": true, "log_enabled": false},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_still_enables",
+			settings: map[string]interface{}{"logs_enabled": false, "log_enabled": true},
+			expected: true,
 		},
 	}
 	for _, tt := range tests {

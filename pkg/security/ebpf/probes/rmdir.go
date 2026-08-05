@@ -30,6 +30,18 @@ func getRmdirProbe(fentry bool) []*manager.Probe {
 				EBPFFuncName: "rethook_do_rmdir",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_filename_rmdir",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_filename_rmdir",
+			},
+		},
 	}
 
 	rmdirProbes = append(rmdirProbes, ExpandSyscallProbes(&manager.Probe{

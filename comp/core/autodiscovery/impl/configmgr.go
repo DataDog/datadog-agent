@@ -6,6 +6,7 @@
 package autodiscoveryimpl
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"sync"
@@ -18,8 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	actelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -127,6 +129,7 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
+	telemetryStore *actelemetry.Store
 
 	discoveryState //nolint:unused
 }
@@ -134,7 +137,7 @@ type reconcilingConfigManager struct {
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer, telStore *actelemetry.Store) configManager {
 	cm := &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -145,6 +148,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		staticConfigIndex:  staticConfigIndex,
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
+		telemetryStore:     telStore,
 	}
 	initDiscoveryWorker(cm, disco)
 	return cm
@@ -372,6 +376,44 @@ func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Ser
 	return res
 }
 
+// expectedFilteredTemplatesLocked returns the templates currently expected to
+// be resolved for svcID: every active template digest indexed under one of
+// the service's AD identifiers, after running the service's FilterTemplates
+// over them. Returns an empty map if the service is not currently active.
+//
+// This is the exact computation reconcileService uses to decide what should
+// be scheduled. It's also used to re-validate a configuration-discovery
+// template against live filtering state immediately before applying an
+// asynchronous probe result (see applyDiscoveredConfigsLocked in
+// configmgr_discovery.go): a probe can take multiple retry cycles to
+// complete, and its result is applied directly from the worker callback,
+// bypassing reconcileService entirely — so without this re-check, a
+// conflicting sibling/static/generic-integration config that appears after
+// the probe was enqueued would have no effect on an already in-flight probe.
+//
+// This method must be called with cm.m locked.
+func (cm *reconcilingConfigManager) expectedFilteredTemplatesLocked(svcID string) map[string]integration.Config {
+	// note that this method can be called in a case where svcID is not in the
+	// activeServices: this occurs when the service is removed.
+	svcAndADIDs := cm.activeServices[svcID]
+
+	templates := map[string]integration.Config{}
+	for _, adID := range svcAndADIDs.adIDs {
+		for _, digest := range cm.templatesByADID.get(adID) {
+			templates[digest] = cm.activeConfigs[digest]
+		}
+	}
+
+	// allow the service to filter those templates, unless we are removing
+	// the service, in which case no resolutions are expected.
+	if svcAndADIDs.svc != nil {
+		// Warning: this must be called with the configs stored in cm.activeConfigs
+		// which contain the compiled matchingPrograms for the config template.
+		svcAndADIDs.svc.FilterTemplates(templates)
+	}
+	return templates
+}
+
 // reconcileService calculates the current set of resolved templates for the
 // given service and calculates the difference from what is currently recorded
 // in cm.serviceResolutions.  It updates cm.serviceResolutions and returns the
@@ -383,9 +425,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 
 	// note that this method can be called in a case where svcID is not in the
 	// activeServices: this occurs when the service is removed.
-	serviceAndADIDs := cm.activeServices[svcID]
-	adIDs := serviceAndADIDs.adIDs // nil slice if service is not defined
-	svc := serviceAndADIDs.svc     // nil if the service is not defined
+	svc := cm.activeServices[svcID].svc // nil if the service is not defined
 
 	// get the existing resolutions for this service
 	existingResolutions, found := cm.serviceResolutions[svcID]
@@ -393,24 +433,9 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 		existingResolutions = map[string]string{}
 	}
 
-	// determine the matching templates by template digest.  If the service
-	// has been removed, then this slice is empty.
-	expectedResolutions := map[string]integration.Config{}
-	for _, adID := range adIDs {
-		digests := cm.templatesByADID.get(adID)
-		for _, digest := range digests {
-			tpl := cm.activeConfigs[digest]
-			expectedResolutions[digest] = tpl
-		}
-	}
-
-	// allow the service to filter those templates, unless we are removing
-	// the service, in which case no resolutions are expected.
-	if svc != nil {
-		// Warning: this must be called with the configs stored in cm.activeConfigs
-		// which contain the compiled matchingPrograms for the config template.
-		svc.FilterTemplates(expectedResolutions)
-	}
+	// determine the matching, filtered templates.  If the service has been
+	// removed, this is empty.
+	expectedResolutions := cm.expectedFilteredTemplatesLocked(svcID)
 
 	// compare existing to expected, generating changes and modifying
 	// existingResolutions in-place
@@ -462,6 +487,10 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
+		if errors.Is(err, configresolver.ErrServiceNotReady) {
+			log.Debugf("autodiscovery: config for %s not resolved yet, service %s not ready", tpl.Name, svc.GetServiceID())
+			return tpl, false
+		}
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		log.Errorf("autodiscovery: skipping config - %s", msg)
 		errorStats.setResolveWarning(tpl.Name, msg)
@@ -484,19 +513,20 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	issueID := admisconfig.TemplateIssueID + ":" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
 	context := map[string]string{
 		"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
 		"errorMessage": err.Error(),
 		"errorSource":  string(types.TemplateResolutionSource),
 	}
-	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
+	issue, buildErr := admisconfig.NewADTemplateIssue().BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
-			IssueName: healthplatformdef.ADMisconfigurationIssueName,
+			IssueName: admisconfig.TemplateIssueName,
+			IssueType: admisconfig.TemplateIssueType,
 			Title:     "Autodiscovery Misconfiguration on '" + tpl.Name + " (" + svc.GetServiceID() + ")'",
-			Source:    healthplatformdef.ADMisconfigurationSource,
+			Source:    admisconfig.Source,
 		}
 	} else {
 		issue.Id = issueID
@@ -511,7 +541,7 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integrati
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	issueID := admisconfig.TemplateIssueID + ":" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
 	cm.healthPlatform.ResolveIssue(issueID)
 }
 
@@ -521,7 +551,7 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	if cm.healthPlatform == nil {
 		return
 	}
-	issueID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
+	issueID := admisconfig.TemplateIssueID + ":" + tplName + ":" + svcID + ":" + tplDigest
 	cm.healthPlatform.ResolveIssue(issueID)
 }
 

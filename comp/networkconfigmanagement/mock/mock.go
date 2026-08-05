@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 type mockNetworkConfigManagement struct {
@@ -36,15 +37,7 @@ func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFun
 }
 
 // ReportConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) ReportConfig(deviceID string) error {
-	if _, ok := m.devices[deviceID]; ok {
-		return nil
-	}
-	return fmt.Errorf("unrecognized device %s", deviceID)
-}
-
-// ReportConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) ReportConfigWithSender(deviceID string, _ sender.Sender) error {
+func (m *mockNetworkConfigManagement) ReportConfig(_ context.Context, deviceID string, _ sender.Sender) error {
 	if _, ok := m.devices[deviceID]; ok {
 		return nil
 	}
@@ -58,8 +51,8 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 }
 
 // RollbackConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) error {
-	return errors.New("TODO unimplemented")
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
+	return nil, types.InternalError(errors.New("unimplemented"))
 }
 
 // SetMaxReportInterval implements [networkconfigmanagement.Component].

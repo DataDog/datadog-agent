@@ -16,9 +16,7 @@
   - !reference [.upload_sbom_artifacts]
 
 .agent_build_common:
-  extends:
-    - .bazel:defs:cache:omnibus-transition
-    - .rust_internal_registry  # TODO(agent-build): bazelify
+  extends: [ .bazel:defs:cache:omnibus-transition ]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

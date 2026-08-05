@@ -20,6 +20,6 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/trivy",
-        "@com_github_containerd_containerd//:containerd",
+        "@com_github_containerd_containerd_v2//client",
     ],
 )

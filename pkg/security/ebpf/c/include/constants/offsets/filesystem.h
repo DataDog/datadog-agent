@@ -26,6 +26,18 @@ static __attribute__((always_inline)) struct inode* get_dentry_inode(struct dent
     return inode;
 }
 
+static void __attribute__((always_inline)) read_dentry_parent(struct dentry *dentry, struct dentry **parent) {
+    u64 dentry_d_parent_offset;
+    LOAD_CONSTANT("dentry_d_parent_offset", dentry_d_parent_offset);
+    bpf_probe_read(parent, sizeof(*parent), (void *)dentry + dentry_d_parent_offset);
+}
+
+static struct dentry *__attribute__((always_inline)) get_dentry_parent(struct dentry *dentry) {
+    struct dentry *parent;
+    read_dentry_parent(dentry, &parent);
+    return parent;
+}
+
 static dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
     u64 sb_dev_offset;
     LOAD_CONSTANT("sb_dev_offset", sb_dev_offset);
@@ -255,6 +267,29 @@ static unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry
     return get_inode_ino(get_dentry_inode(dentry));
 }
 
+// Callers that resolve names in an unrolled loop must compute the inode/ino offsets once
+// and pass it to get_inode_ino_at/get_dentry_ino_at, otherwise the repeated constant loads inflate
+// the program past the instruction limit enforced on older kernels (< 5.2).
+
+static struct inode *__attribute__((always_inline)) get_dentry_inode_at(struct dentry *dentry, u64 d_inode_offset) {
+    struct inode *inode;
+    bpf_probe_read(&inode, sizeof(inode), (void *)dentry + d_inode_offset);
+    return inode;
+}
+
+static unsigned long __attribute__((always_inline)) get_inode_ino_at(struct inode *inode, u64 inode_ino_offset) {
+    unsigned long ino;
+    bpf_probe_read(&ino, sizeof(ino), (void *)inode + inode_ino_offset);
+    return ino;
+}
+
+static unsigned long __attribute__((always_inline)) get_dentry_ino_at(struct dentry *dentry, u64 d_inode_offset, u64 inode_ino_offset) {
+    if (!dentry) {
+        return 0;
+    }
+    return get_inode_ino_at(get_dentry_inode_at(dentry, d_inode_offset), inode_ino_offset);
+}
+
 static struct dentry *__attribute__((always_inline)) get_path_dentry(struct path *path) {
     u64 offset;
     LOAD_CONSTANT("path_dentry_offset", offset);
@@ -287,13 +322,32 @@ static unsigned long __attribute__((always_inline)) get_path_ino(struct path *pa
     return get_dentry_ino(dentry);
 }
 
-static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
-	u64 dentry_d_name_offset;
-	LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+static u64 __attribute__((always_inline)) get_dentry_name_offset(void) {
+    u64 dentry_d_name_offset;
+    LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+    u64 qstr_name_offset;
+    LOAD_CONSTANT("qstr_name_offset", qstr_name_offset);
+    return dentry_d_name_offset + qstr_name_offset;
+}
 
-    struct qstr qstr;
-    bpf_probe_read(&qstr, sizeof(qstr), (void *)dentry + dentry_d_name_offset);
-    bpf_probe_read_str(buffer, n, (void *)qstr.name);
+// Callers that resolve names in an unrolled loop must compute get_dentry_name_offset once
+// and pass it to get_dentry_name_ptr_at(), otherwise the repeated constant loads inflate
+// the program past the instruction limit enforced on older kernels (< 5.2).
+static const char *__attribute__((always_inline)) get_dentry_name_ptr_at(struct dentry *dentry, u64 name_offset) {
+    // read the qstr.name pointer directly using the load-time offset, so we don't
+    // rely on the compile-time layout of struct qstr from the kernel headers
+    const char *name;
+    bpf_probe_read(&name, sizeof(name), (void *)dentry + name_offset);
+    return name;
+}
+
+static const char *__attribute__((always_inline)) get_dentry_name_ptr(struct dentry *dentry) {
+    return get_dentry_name_ptr_at(dentry, get_dentry_name_offset());
+}
+
+static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
+    const char *name = get_dentry_name_ptr(dentry);
+    bpf_probe_read_str(buffer, n, (void *)name);
 }
 
 static int __attribute__((always_inline)) get_sizeof_inode() {
@@ -578,6 +632,12 @@ static __attribute__((always_inline)) u64 get_iokiocb_ctx_offset() {
     u64 iokiocb_ctx_offset;
     LOAD_CONSTANT("iokiocb_ctx_offset", iokiocb_ctx_offset);
     return iokiocb_ctx_offset;
+}
+
+static __attribute__((always_inline)) u64 get_iokiocb_opcode_offset() {
+    u64 iokiocb_opcode_offset;
+    LOAD_CONSTANT("iokiocb_opcode_offset", iokiocb_opcode_offset);
+    return iokiocb_opcode_offset;
 }
 
 static __attribute__((always_inline)) u64 get_getattr2() {

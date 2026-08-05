@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -27,6 +28,69 @@ func addCleanupForSubnets(t *testing.T) {
 func mockGetVPCSubnetsForHostImpl(t *testing.T, mock func(context.Context) ([]string, error)) {
 	t.Cleanup(func() { getVPCSubnetsForHost = getVPCSubnetsForHostImpl })
 	getVPCSubnetsForHost = mock
+}
+
+func TestGetNetworkIDProviderGating(t *testing.T) {
+	gceErr := errors.New("gce error")
+	ec2Err := errors.New("ec2 error")
+
+	tests := []struct {
+		name           string
+		providers      []string
+		gceCallCount   int
+		ec2CallCount   int
+		wantErrContain string
+	}{
+		{
+			name:           "both providers enabled, both fail",
+			providers:      []string{"gcp", "aws"},
+			gceCallCount:   1,
+			ec2CallCount:   1,
+			wantErrContain: "could not detect network ID",
+		},
+		{
+			name:           "only gcp enabled",
+			providers:      []string{"gcp"},
+			gceCallCount:   1,
+			ec2CallCount:   0,
+			wantErrContain: "could not detect network ID",
+		},
+		{
+			name:           "only aws enabled",
+			providers:      []string{"aws"},
+			gceCallCount:   0,
+			ec2CallCount:   1,
+			wantErrContain: "could not detect network ID",
+		},
+		{
+			name:           "no providers enabled",
+			providers:      []string{},
+			gceCallCount:   0,
+			ec2CallCount:   0,
+			wantErrContain: "cloud provider metadata is disabled by configuration",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() { cache.Cache.Delete(networkIDCacheKey) })
+
+			cfg := configmock.New(t)
+			cfg.SetInTest("cloud_provider_metadata", tc.providers)
+
+			gceCalls, ec2Calls := 0, 0
+			origGCE, origEC2 := getGCENetworkID, getEC2NetworkID
+			t.Cleanup(func() { getGCENetworkID = origGCE })
+			t.Cleanup(func() { getEC2NetworkID = origEC2 })
+			getGCENetworkID = func(_ context.Context) (string, error) { gceCalls++; return "", gceErr }
+			getEC2NetworkID = func(_ context.Context) (string, error) { ec2Calls++; return "", ec2Err }
+
+			_, err := GetNetworkID(context.Background())
+			require.ErrorContains(t, err, tc.wantErrContain)
+			require.Equal(t, tc.gceCallCount, gceCalls)
+			require.Equal(t, tc.ec2CallCount, ec2Calls)
+		})
+	}
 }
 
 func TestGetVPCSubnetsForHost(t *testing.T) {

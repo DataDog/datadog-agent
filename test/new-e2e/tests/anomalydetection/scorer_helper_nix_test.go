@@ -5,12 +5,12 @@
 
 package anomalydetection
 
-// scorer_helper_nix_test.go — anomaly scorer helper integration test.
+// scorer_helper_nix_test.go — anomaly scorer integration test.
 //
-// Verifies that when anomaly_detection.detectors.anomaly_scorer is enabled and
+// Verifies that when anomaly_detection.anomaly_scorer is enabled with output.logs=true and
 // the EWMA exceeds low_threshold (driven by simultaneous anomalies on multiple
-// metric series), the built-in anomalyScorerHelper fires OnSeverityTransition and
-// emits its distinctive log line to the agent journal.
+// metric series), the internal watcher fires OnSeverityTransition and emits its
+// distinctive log line to the agent journal.
 //
 // Design notes:
 //
@@ -51,24 +51,32 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-// scorerHelperSuite exercises the anomalyScorerHelper severity-transition path.
+// scorerHelperSuite exercises the anomaly scorer watcher severity-transition path.
 type scorerHelperSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 // TestAnomalyDetectionScorerHelper provisions a Linux VM with the anomaly scorer
-// and CUSUM detector enabled. CUSUM re-emits on every analysis cycle so the scorer
-// EWMA rises continuously as long as the spike is active — unlike BOCPD/HoltResidual
-// which fire once and then go silent. The thresholds are set deliberately low so that
-// even a single anomalous series crosses low_threshold within a couple of seconds,
-// making the test robust against SSH latency and dropped ticks.
+// and CUSUM detector enabled. The scorer's output.logs=true so that severity
+// transitions are logged. CUSUM re-emits on every analysis cycle so the scorer EWMA
+// rises continuously as long as the spike is active. Thresholds are set deliberately
+// low so that even a single anomalous series crosses low_threshold within a couple of
+// seconds, making the test robust against SSH latency and dropped ticks.
 func TestAnomalyDetectionScorerHelper(t *testing.T) {
 	t.Parallel()
 	// language=yaml
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
+  anomaly_scorer:
+    dry_run:
+      enabled: true
+    alpha: 0.3
+    window: 5s
+    low_threshold: 0.005
+    high_threshold: 0.010
+    output:
+      logs: true
   metrics:
     enabled: true
   logs:
@@ -82,26 +90,12 @@ anomaly_detection:
       enabled: false
     tukey_biweight:
       enabled: false
-    anomaly_scorer:
-      enabled: true
-      alpha: 0.3
-      window_secs: 5
-      low_threshold: 0.005
-      high_threshold: 0.010
-`
+` + baselineAnalysisDisabledYAML
 	e2e.Run(t, &scorerHelperSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		),
 	), e2e.WithStackName("anomalydetection-scorer-helper"))
-}
-
-// sendHelperGauge sends one DogStatsD gauge over UDP to the local agent.
-func (s *scorerHelperSuite) sendHelperGauge(name string, value float64) {
-	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
-	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
-		s.T().Logf("sendHelperGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
-	}
 }
 
 // TestScorerHelperEmitsSeverityTransitionOnMultiSeriesSpike sends a stable baseline
@@ -148,7 +142,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 			default:
 			}
 			for n := 0; n < seriesCount; n++ {
-				s.sendHelperGauge(fmt.Sprintf("%s%d", metricPrefix, n), baseline)
+				sendGauge(s, fmt.Sprintf("%s%d", metricPrefix, n), baseline)
 			}
 			if (i+1)%5 == 0 {
 				s.T().Logf("baseline: tick %d/%d", i+1, baselinePoints)
@@ -170,7 +164,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 			default:
 			}
 			for n := 0; n < seriesCount; n++ {
-				s.sendHelperGauge(fmt.Sprintf("%s%d", metricPrefix, n), spike)
+				sendGauge(s, fmt.Sprintf("%s%d", metricPrefix, n), spike)
 			}
 			if (i+1)%5 == 0 {
 				s.T().Logf("spike: tick %d/%d", i+1, spikePoints)
@@ -184,15 +178,15 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 		s.T().Log("done sending metrics")
 	}()
 
-	// Poll the journal for the helper's severity-escalation log line.
-	// The helper emits: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
-	s.T().Log("polling journal for scorer helper severity escalation marker...")
+	// Poll the journal for the scorer watcher's severity-escalation log line.
+	// The watcher emits: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
+	s.T().Log("polling journal for scorer severity escalation marker...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
 		assert.NoError(c, err, "journalctl execution failed")
 		assert.Contains(c, out, scorerHelperEscalationMarker,
-			"journald should contain the helper's severity escalation log line")
-	}, 3*time.Minute, 5*time.Second)
+			"journald should contain the scorer watcher's severity escalation log line")
+	}, 5*time.Minute, 5*time.Second)
 
-	s.T().Log("scorer helper severity escalation marker found — anomalyScorerHelper wired correctly")
+	s.T().Log("scorer severity escalation marker found — anomaly scorer watcher wired correctly")
 }

@@ -293,10 +293,10 @@ func (t *Tailer) tail(since string) error {
 	err := t.setupReader()
 	if err != nil {
 		// could not start the tailer
-		t.Source.Status.Error(err)
+		t.Source.Status().Error(err)
 		return err
 	}
-	t.Source.Status.Success()
+	t.Source.Status().Success()
 	t.Source.AddInput(t.ContainerID)
 
 	// Start (in reverse order) the three actor components of this tailer, each
@@ -377,19 +377,19 @@ func (t *Tailer) readForever() {
 					// * when the container has not started to output logs yet.
 					// * during a file rotation.
 					// restart the reader (restartReader() include 1second wait)
-					t.Source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart, container: %v", t.ContainerID))
+					t.Source.Status().Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart, container: %v", t.ContainerID))
 					if err := t.tryRestartReader("log decoder returns an EOF error that will trigger a Reader restart"); err != nil {
 						return
 					}
 					continue
 				default:
-					t.Source.Status.Error(err)
+					t.Source.Status().Error(err)
 					log.Errorf("Could not tail logs for container %v: %v", t.ContainerID, err)
 					t.erroredContainerID <- t.ContainerID
 					return
 				}
 			}
-			t.Source.Status.Success()
+			t.Source.Status().Success()
 			if n == 0 {
 				// wait for new data to come
 				t.wait()

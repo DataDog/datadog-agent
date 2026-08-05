@@ -96,8 +96,7 @@ type telemetryMetrics struct {
 type IssueState = healthplatform.IssueState
 
 const (
-	IssueStateNew      = healthplatform.IssueState_ISSUE_STATE_NEW
-	IssueStateOngoing  = healthplatform.IssueState_ISSUE_STATE_ONGOING
+	IssueStateActive   = healthplatform.IssueState_ISSUE_STATE_ACTIVE
 	IssueStateResolved = healthplatform.IssueState_ISSUE_STATE_RESOLVED
 
 	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.
@@ -109,18 +108,15 @@ const (
 )
 
 var issueStateToString = map[IssueState]string{
-	IssueStateNew:      "new",
-	IssueStateOngoing:  "ongoing",
+	IssueStateActive:   "active",
 	IssueStateResolved: "resolved",
 }
 
 func issueStateFromString(s string) IssueState {
-	for k, v := range issueStateToString {
-		if v == s {
-			return k
-		}
+	if s == "resolved" {
+		return IssueStateResolved
 	}
-	return 0
+	return IssueStateActive
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
@@ -128,13 +124,19 @@ func issueStateFromString(s string) IssueState {
 // intentionally omitted because IssueIDs are deterministic — when the agent
 // restarts, health checks re-run and call ReportIssue with the same ID, at which
 // point storeIssue picks up the existing firstSeen/state from this struct.
+//
+// IssueType (this struct) is a legacy name for the issue's IssueName, kept as-is
+// for on-disk compatibility — it is not the proto Issue.IssueType field. ProtoIssueType
+// carries that proto field so resolved tombstones (ResolveIssue, ResolveAllIssues,
+// loadFromDisk) can forward it same as they already do for IssueName.
 type PersistedIssue struct {
-	IssueID    string     `json:"issue_id"`
-	IssueType  string     `json:"issue_type"`
-	State      IssueState `json:"state"`
-	FirstSeen  string     `json:"first_seen"`
-	LastSeen   string     `json:"last_seen"`
-	ResolvedAt string     `json:"resolved_at,omitempty"`
+	IssueID        string     `json:"issue_id"`
+	IssueType      string     `json:"issue_type"`
+	ProtoIssueType string     `json:"proto_issue_type,omitempty"`
+	State          IssueState `json:"state"`
+	FirstSeen      string     `json:"first_seen"`
+	LastSeen       string     `json:"last_seen"`
+	ResolvedAt     string     `json:"resolved_at,omitempty"`
 }
 
 // MarshalJSON serialises State as a human-readable string.
@@ -357,8 +359,8 @@ func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 
 // ReportIssue records a new or ongoing issue keyed by issue.Id. The caller is
 // responsible for building the complete proto Issue (template lookup, field
-// population). issue.IssueName is used as the issue-type key for telemetry and
-// persistence.
+// population), including issue.IssueType. issue.IssueName is used as the
+// issue-type key for telemetry and persistence.
 func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue == nil {
 		return errors.New("issue cannot be nil")
@@ -465,6 +467,7 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 		resolved = &healthplatform.Issue{
 			Id:             issueID,
 			IssueName:      persisted.IssueType,
+			IssueType:      persisted.ProtoIssueType,
 			PersistedIssue: persistedIssueToProto(persisted),
 		}
 	}
@@ -496,6 +499,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 			resolved = append(resolved, &healthplatform.Issue{
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
+				IssueType:      persisted.ProtoIssueType,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 		}
@@ -570,29 +574,29 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		h.persistedIssues[issueID] = &PersistedIssue{
 			IssueID:   issueID,
 			IssueType: issueType,
-			State:     IssueStateNew,
+			State:     IssueStateActive,
 			FirstSeen: now,
 			LastSeen:  now,
 		}
 	} else if existing.State == IssueStateResolved {
 		existing.IssueID = issueID
 		existing.IssueType = issueType
-		existing.State = IssueStateNew
+		existing.State = IssueStateActive
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else if existing.IssueType != issueType {
-		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting to new", issueID, existing.IssueType, issueType)
+		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting", issueID, existing.IssueType, issueType)
 		existing.IssueID = issueID
 		existing.IssueType = issueType
-		existing.State = IssueStateNew
+		existing.State = IssueStateActive
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else {
-		existing.State = IssueStateOngoing
 		existing.LastSeen = now
 	}
+	h.persistedIssues[issueID].ProtoIssueType = issue.IssueType
 
 	// Clone before storing to avoid external mutations (reporters may reuse the same *Issue).
 	// Serialize Extra/Remediation to raw JSON and strip from the lean clone so that
@@ -671,6 +675,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 			resolvedIssues = append(resolvedIssues, &healthplatform.Issue{
 				Id:             issueID,
 				IssueName:      persisted.IssueType,
+				IssueType:      persisted.ProtoIssueType,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 			continue

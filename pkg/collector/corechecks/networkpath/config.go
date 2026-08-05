@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -30,15 +31,19 @@ type Number interface {
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	MinCollectionInterval int64 `yaml:"min_collection_interval"`
-	TimeoutMs             int64 `yaml:"timeout"`
-	MaxTTL                uint8 `yaml:"max_ttl"`
-	TracerouteQueries     int   `yaml:"traceroute_queries"`
-	E2eQueries            int   `yaml:"e2e_queries"`
+	MinCollectionInterval           int64 `yaml:"min_collection_interval"`
+	TimeoutMs                       int64 `yaml:"timeout"`
+	MaxTTL                          uint8 `yaml:"max_ttl"`
+	TracerouteQueries               int   `yaml:"traceroute_queries"`
+	E2eQueries                      int   `yaml:"e2e_queries"`
+	DisableSourcePublicIPCollection bool  `yaml:"disable_source_public_ip_collection"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
+	// TestConfigID identifies the scheduled Network Path test config that produced this instance.
+	TestConfigID string `yaml:"test_config_id"`
+
 	DestHostname string `yaml:"hostname"`
 
 	DestPort uint16 `yaml:"port"`
@@ -49,6 +54,8 @@ type InstanceConfig struct {
 	TCPSynParisTracerouteMode bool `yaml:"tcp_syn_paris_traceroute_mode"`
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
 	DisableWindowsDriver bool `yaml:"disable_windows_driver"`
+	// DisableSourcePublicIPCollection disables collection of the source public IP address
+	DisableSourcePublicIPCollection bool `yaml:"disable_source_public_ip_collection"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
@@ -68,6 +75,7 @@ type InstanceConfig struct {
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
+	TestConfigID       string
 	DestHostname       string
 	DestPort           uint16
 	SourceService      string
@@ -78,13 +86,15 @@ type CheckConfig struct {
 	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
 	TCPSynParisTracerouteMode bool
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
-	DisableWindowsDriver  bool
-	Timeout               time.Duration
-	MinCollectionInterval time.Duration
-	TracerouteQueries     int
-	E2eQueries            int
-	Tags                  []string
-	Namespace             string
+	DisableWindowsDriver bool
+	// DisableSourcePublicIPCollection disables collection of the source public IP address
+	DisableSourcePublicIPCollection bool
+	Timeout                         time.Duration
+	MinCollectionInterval           time.Duration
+	TracerouteQueries               int
+	E2eQueries                      int
+	Tags                            []string
+	Namespace                       string
 }
 
 // NewCheckConfig builds a new check config
@@ -109,6 +119,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c := &CheckConfig{}
 
+	c.TestConfigID = instance.TestConfigID
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
 	c.SourceService = instance.SourceService
@@ -117,6 +128,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.TCPMethod = payload.MakeTCPMethod(instance.TCPMethod)
 	c.TCPSynParisTracerouteMode = instance.TCPSynParisTracerouteMode
 	c.DisableWindowsDriver = instance.DisableWindowsDriver
+	c.DisableSourcePublicIPCollection = initConfig.DisableSourcePublicIPCollection || instance.DisableSourcePublicIPCollection
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
@@ -130,7 +142,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Timeout = firstNonZero(
 		time.Duration(instance.TimeoutMs)*time.Millisecond,
 		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
-		setup.DefaultNetworkPathTimeout*time.Millisecond,
+		constants.DefaultNetworkPathTimeout*time.Millisecond,
 	)
 	if c.Timeout <= 0 {
 		return nil, errors.New("timeout must be > 0")
@@ -139,19 +151,19 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.MaxTTL = firstNonZero(
 		instance.MaxTTL,
 		initConfig.MaxTTL,
-		setup.DefaultNetworkPathMaxTTL,
+		constants.DefaultNetworkPathMaxTTL,
 	)
 
 	c.TracerouteQueries = firstNonZero(
 		instance.TracerouteQueries,
 		initConfig.TracerouteQueries,
-		setup.DefaultNetworkPathStaticPathTracerouteQueries,
+		constants.DefaultNetworkPathStaticPathTracerouteQueries,
 	)
 
 	c.E2eQueries = firstNonZero(
 		instance.E2eQueries,
 		initConfig.E2eQueries,
-		setup.DefaultNetworkPathStaticPathE2eQueries,
+		constants.DefaultNetworkPathStaticPathE2eQueries,
 	)
 
 	c.Tags = instance.Tags

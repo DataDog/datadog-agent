@@ -12,13 +12,11 @@ import (
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/mohae/deepcopy"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -29,22 +27,6 @@ const (
 	runCheckFailureTag = "fail"
 	runCheckSuccessTag = "ok"
 )
-
-// formatUint64 formats a uint64 as a decimal string without importing strconv
-// to reduce binary size. This is a minimal implementation for the common case.
-func formatUint64(n uint64) string {
-	if n == 0 {
-		return "0"
-	}
-	var buf [20]byte // max uint64 is 20 digits
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[i:])
-}
 
 // EventPlatformNameTranslations contains human readable translations for event platform event types
 var EventPlatformNameTranslations = map[string]string{
@@ -75,6 +57,8 @@ var (
 		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "execution_time",
 		[]string{"check_name", "check_loader"}, "Check execution time")
+	tlmFirstExecutionTime = telemetryimpl.GetCompatComponent().NewGauge("checks", "first_execution_time",
+		[]string{"check_name", "check_loader"}, "Check first execution time")
 	tlmCheckDelay = telemetryimpl.GetCompatComponent().NewGauge("checks",
 		"delay",
 		[]string{"check_name"},
@@ -116,8 +100,8 @@ func (s SenderStats) Copy() (result SenderStats) {
 	return result
 }
 
-// Stats holds basic runtime statistics about check instances
-type Stats struct {
+// stats holds Stats' fields, split out to ease deep-copy without touching the mutex
+type stats struct {
 	CheckName         string
 	CheckVersion      string
 	CheckConfigSource string
@@ -142,6 +126,7 @@ type Stats struct {
 	EventPlatformEvents      map[string]int64
 	TotalEventPlatformEvents map[string]int64
 	ExecutionTimes           [32]int64     // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	FirstExecutionTime       int64         // duration of the first run in milliseconds
 	AverageExecutionTime     int64         // average run duration
 	LastExecutionTime        time.Duration // most recent run duration, provided for convenience
 	LastSuccessDate          int64         // most recent successful execution date, unix timestamp in seconds
@@ -149,10 +134,14 @@ type Stats struct {
 	LastDelay                float64       // most recent check start time delay relative to the previous check run, in seconds
 	LastWarnings             []string      // warnings that occurred in the last run, if any
 	UpdateTimestamp          time.Time     // latest update to this instance, unix timestamp in seconds
-	m                        sync.Mutex
-	Telemetry                bool // do we want telemetry on this Check
+	Telemetry                bool          // do we want telemetry on this Check
 	HASupported              bool
-	healthPlatform           healthplatformdef.Component // health platform component for reporting issues
+}
+
+// Stats holds basic runtime statistics about check instances
+type Stats struct {
+	stats
+	m sync.Mutex
 }
 
 //nolint:revive
@@ -174,29 +163,30 @@ type StatsCheck interface {
 }
 
 // NewStats returns a new check stats instance
-func NewStats(c StatsCheck, healthPlatform healthplatformdef.Component) *Stats {
-	stats := Stats{
-		CheckID:                  c.ID(),
-		CheckName:                c.String(),
-		CheckLoader:              c.Loader(),
-		CheckVersion:             c.Version(),
-		CheckConfigSource:        c.ConfigSource(),
-		Interval:                 c.Interval(),
-		Telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
-		EventPlatformEvents:      make(map[string]int64),
-		TotalEventPlatformEvents: make(map[string]int64),
-		HASupported:              c.IsHASupported(),
-		healthPlatform:           healthPlatform,
+func NewStats(c StatsCheck) *Stats {
+	cs := &Stats{
+		stats: stats{
+			CheckID:                  c.ID(),
+			CheckName:                c.String(),
+			CheckLoader:              c.Loader(),
+			CheckVersion:             c.Version(),
+			CheckConfigSource:        c.ConfigSource(),
+			Interval:                 c.Interval(),
+			Telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
+			EventPlatformEvents:      make(map[string]int64),
+			TotalEventPlatformEvents: make(map[string]int64),
+			HASupported:              c.IsHASupported(),
+		},
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
 	// initialize them here explicitly
-	if stats.Telemetry && utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()) {
-		tlmRuns.InitializeToZero(stats.CheckName, runCheckFailureTag)
-		tlmRuns.InitializeToZero(stats.CheckName, runCheckSuccessTag)
+	if cs.Telemetry && utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()) {
+		tlmRuns.InitializeToZero(cs.CheckName, runCheckFailureTag)
+		tlmRuns.InitializeToZero(cs.CheckName, runCheckSuccessTag)
 	}
 
-	return &stats
+	return cs
 }
 
 // Add tracks a new execution time
@@ -215,7 +205,12 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.LastExecutionTime = t
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
-	if cs.Telemetry {
+	if cs.TotalRuns == 1 {
+		cs.FirstExecutionTime = tms
+		if cs.Telemetry {
+			tlmFirstExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
+		}
+	} else if cs.Telemetry {
 		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 	}
 	var totalExecutionTime int64
@@ -230,18 +225,12 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 			tlmRuns.Inc(cs.CheckName, runCheckFailureTag)
 		}
 		cs.LastError = err.Error()
-
-		// Report error to health platform
-		cs.reportToHealthPlatform(err)
 	} else {
 		if cs.Telemetry {
 			tlmRuns.Inc(cs.CheckName, runCheckSuccessTag)
 		}
 		cs.LastError = ""
 		cs.LastSuccessDate = time.Now().Unix()
-
-		// Clear any previously reported issues when check succeeds
-		cs.clearHealthPlatformIssue()
 	}
 	cs.LastWarnings = []string{}
 	if len(warnings) != 0 {
@@ -303,50 +292,12 @@ func (cs *Stats) SetStateCancelling() {
 	cs.Cancelling = true
 }
 
-// reportToHealthPlatform reports check failures to the health platform
-func (cs *Stats) reportToHealthPlatform(err error) {
-	if cs.healthPlatform == nil {
-		return
-	}
+// Clone returns a copy of the check stats, safe to read after the lock is released.
+func (cs *Stats) Clone() *Stats {
+	cs.m.Lock()
+	defer cs.m.Unlock()
 
-	totalErrorsStr := formatUint64(cs.TotalErrors)
-	context := map[string]string{
-		"checkName":    cs.CheckName,
-		"errorMessage": err.Error(),
-		"totalErrors":  totalErrorsStr,
-		"configSource": cs.CheckConfigSource,
-		"checkVersion": cs.CheckVersion,
-	}
-
-	issueID := "check-execution-failure:" + string(cs.CheckID)
-	issue, buildErr := checkfailure.NewCheckFailureIssue().BuildIssue(context)
-	if buildErr != nil {
-		issue = &healthplatformpayload.Issue{
-			Id:        issueID,
-			IssueName: checkfailure.IssueName,
-			Title:     "Check Execution Failure",
-			Source:    cs.CheckName,
-		}
-	} else {
-		issue.Id = issueID
-		issue.Tags = append(issue.Tags, cs.CheckName, cs.CheckLoader)
-	}
-
-	if reportErr := cs.healthPlatform.ReportIssue(issue); reportErr != nil {
-		log.Warnf("Failed to report check failure to health platform for check %s: %v", cs.CheckName, reportErr)
-	} else {
-		log.Debugf("Reported check failure to health platform for check %s", cs.CheckName)
-	}
-}
-
-// clearHealthPlatformIssue clears any previously reported issue when check succeeds
-func (cs *Stats) clearHealthPlatformIssue() {
-	if cs.healthPlatform == nil {
-		return
-	}
-
-	cs.healthPlatform.ResolveIssue("check-execution-failure:" + string(cs.CheckID))
-	log.Debugf("Cleared health platform issue for %s", cs.CheckName)
+	return &Stats{stats: deepcopy.Copy(cs.stats).(stats)}
 }
 
 type aggStats struct {

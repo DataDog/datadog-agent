@@ -30,8 +30,14 @@ type testTransaction struct {
 	pointCount   int
 	kind         transaction.Kind
 	destination  transaction.Destination
-	shouldBlock  bool
-	Name         string
+	// shouldBlock causes Process to block on the worker's context, simulating
+	// a request that aborts when its context is cancelled.
+	shouldBlock bool
+	// release, if non-nil, causes Process to block until the channel is
+	// closed (or receives a value). Used to simulate an in-flight HTTP
+	// request that hasn't yet returned.
+	release chan struct{}
+	Name    string
 }
 
 func newTestTransaction() *testTransaction {
@@ -74,6 +80,10 @@ func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log
 
 	if t.shouldBlock {
 		<-ctx.Done()
+	}
+
+	if t.release != nil {
+		<-t.release
 	}
 
 	// Mirror HTTPTransaction.internalProcess: a nil-error outcome counts the

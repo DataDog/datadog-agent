@@ -83,6 +83,9 @@ func Run(ctx *pulumi.Context) error {
 			nbNode:  1,
 		},
 	} {
+		// The dependency on the cluster component makes the node groups wait for the
+		// CNI custom-networking setup (ENIConfig + aws-node patch) before joining: a
+		// dependsOn on a component resource extends to all of its children.
 		if _, err := eks.NewManagedNodeGroup(ctx, "ng-"+ng.agent+"-"+ng.variant, &eks.ManagedNodeGroupArgs{
 			Cluster:             cluster.Cluster.Core,
 			InstanceTypes:       pulumi.ToStringArray([]string{awsEnv.DefaultInstanceType()}),
@@ -114,8 +117,6 @@ func Run(ctx *pulumi.Context) error {
 				Ec2SshKey:              pulumi.StringPtr(awsEnv.DefaultKeyPairName()),
 				SourceSecurityGroupIds: pulumi.ToStringArray(awsEnv.EKSAllowedInboundSecurityGroups()),
 			},
-			// Depend on the cluster component so the node groups wait for the CNI
-			// custom-networking setup (ENIConfig + aws-node patch) before joining.
 		}, awsEnv.WithProviders(config.ProviderAWS, config.ProviderEKS), utils.PulumiDependsOn(cluster)); err != nil {
 			return err
 		}
@@ -255,22 +256,17 @@ func Run(ctx *pulumi.Context) error {
 						"effect":   "NoSchedule",
 					}, param.variant),
 				},
-				"operator": map[string]any{
-					"datadogCRDs": map[string]any{
-						"crds": map[string]any{
-							"datadogAgents":           param.deployCRDs,
-							"datadogMonitors":         param.deployCRDs,
-							"datadogSLOs":             param.deployCRDs,
-							"datadogDashboards":       param.deployCRDs,
-							"datadogGenericResources": param.deployCRDs,
-						},
-					},
-				},
+				// The datadog-crds subchart renders cluster-scoped CRDs with Helm
+				// ownership annotations, so only one of the two releases may own them.
+				// This list must cover every CRD the subchart enables by default (see
+				// charts/datadog/values.yaml in DataDog/helm-charts), otherwise the
+				// second release fails with a "meta.helm.sh/release-name" error.
 				"datadog-crds": map[string]any{
 					"crds": map[string]any{
 						"datadogMetrics":                      param.deployCRDs,
 						"datadogPodAutoscalers":               param.deployCRDs,
 						"datadogPodAutoscalerClusterProfiles": param.deployCRDs,
+						"datadogInstrumentations":             param.deployCRDs,
 					},
 				},
 			})),

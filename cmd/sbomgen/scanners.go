@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
-	"github.com/containerd/containerd"
+	containerd "github.com/containerd/containerd/v2/client"
 )
 
 func runScanFS(path string, analyzers []string, fast bool) error {

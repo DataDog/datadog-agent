@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -187,6 +186,8 @@ type EBPFProbe struct {
 
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
+	dropActionRuleIDs      map[uint32]string
+	dropActionRuleIDsLock  sync.RWMutex
 
 	// remediation tracking
 	activeRemediations     map[string]*Remediation
@@ -783,9 +784,24 @@ func (p *EBPFProbe) setupRawPacketFiltersOnNewRuleset(rs *rules.RuleSet) error {
 func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 	// TODO check cgroupv2
 
+	// if we add a new filter, we must reset the stats since the filter order can change
+	// if the apply is from a ruleset, we already have reset the stats
+	if !applyFromRuleset {
+		if err := p.resetRawPacketDropStats(); err != nil {
+			seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+		}
+	}
+	// then we can rebuild the map between rule IDs and filter indexes
+	// the monitor will use this map to map rule IDs to filter indexes
+	p.rebuildDropActionRuleIDs()
+
 	opts := rawpacket.DefaultProgOpts()
 	opts.WithProgPrefix("raw_packet_drop_action_")
 	opts.WithGetCurrentCgroupID(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
+
+	if droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets"); err == nil {
+		opts.WithDropStatsMapFd(droppedPacketsMap.FD())
+	}
 
 	// adapt max instruction limits depending of the kernel version
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
@@ -831,6 +847,55 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	return p.applyRawPacketActionFilters(false)
 }
 
+func (p *EBPFProbe) rebuildDropActionRuleIDs() {
+	ruleIDs := make(map[uint32]string, len(p.rawPacketActionFilters))
+	for i, filter := range p.rawPacketActionFilters {
+		if i >= rawpacket.MaxDropActionFilters {
+			seclog.Errorf("too many drop action filters, stop adding them is ruleID mapping, max is %d", rawpacket.MaxDropActionFilters)
+			break
+		}
+		ruleIDs[uint32(i)] = string(filter.RuleID)
+	}
+
+	p.dropActionRuleIDsLock.Lock()
+	p.dropActionRuleIDs = ruleIDs
+	p.dropActionRuleIDsLock.Unlock()
+}
+
+// function to get the drop action rule IDs up to date for the monitor
+func (p *EBPFProbe) getDropActionRuleIDs() map[uint32]string {
+	p.dropActionRuleIDsLock.RLock()
+	defer p.dropActionRuleIDsLock.RUnlock()
+
+	out := make(map[uint32]string, len(p.dropActionRuleIDs))
+	for index, ruleID := range p.dropActionRuleIDs {
+		out[index] = ruleID
+	}
+	return out
+}
+
+func (p *EBPFProbe) clearDroppedPacketsMap(droppedPacketsMap *lib.Map) {
+	zero := make([]uint32, p.numCPU)
+	for i := uint32(0); i < rawpacket.MaxDropActionFilters; i++ {
+		_ = droppedPacketsMap.Put(i, zero)
+	}
+}
+
+func (p *EBPFProbe) resetRawPacketDropStats() error {
+	if err := p.monitors.FlushRawPacketDropStats(); err != nil {
+		return err
+	}
+
+	droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets")
+	if err != nil {
+		return err
+	}
+
+	p.clearDroppedPacketsMap(droppedPacketsMap)
+	p.monitors.ResetRawPacketDropCounters()
+	return nil
+}
+
 // Start the probe
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the already stored data before starting the event stream to avoid concurrency issues
@@ -858,10 +923,19 @@ func (p *EBPFProbe) ReplayEvents() {
 	}
 }
 
+// replayEntry is a process event to replay, along with the memory-mapped files
+// to replay right after it. The open events are built during the dispatch loop
+// rather than upfront: materializing them all would hold one pooled event per
+// (process, mmaped file) pair, which the pool never gets to recycle.
+type replayEntry struct {
+	event       *model.Event
+	mmapedFiles []procfs.MmapedFile
+}
+
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 
-	var events []*model.Event
+	var entries []replayEntry
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		event := p.newEBPFPooledEventFromPCE(entry)
@@ -873,38 +947,30 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		event.AddToFlags(model.EventFlagsFromReplay)
 
-		events = append(events, event)
+		var mmapedFiles []procfs.MmapedFile
 
 		// Replay mmaped files (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
-			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
-			if err != nil {
-				return
-			}
-
-			mmapedFiles, err := procfs.GetMmapedFiles(proc)
-			if err != nil {
+			var err error
+			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
-				return
-			}
-
-			for _, f := range mmapedFiles {
-				openEvent := p.newOpenEventFromReplay(entry, f)
-				openEvent.Source = model.EventSourceReplay
-				events = append(events, openEvent)
 			}
 		}
+
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
 	}
 
 	p.Walk(entryToEvent)
 
 	// replay synthetic load_module events for every entry in /proc/modules.
-	events = append(events, p.snapshotLoadedModules()...)
+	for _, event := range p.snapshotLoadedModules() {
+		entries = append(entries, replayEntry{event: event})
+	}
 
 	// order events so that they're dispatched in creation time order
-	sort.Slice(events, func(i, j int) bool {
-		eventA := events[i]
-		eventB := events[j]
+	sort.Slice(entries, func(i, j int) bool {
+		eventA := entries[i].event
+		eventB := entries[j].event
 
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
@@ -915,9 +981,17 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		return tsA.Before(tsB)
 	})
 
-	for _, event := range events {
-		p.DispatchEvent(event, notifyConsumers)
-		p.putBackPoolEvent(event)
+	for _, re := range entries {
+		p.DispatchEvent(re.event, notifyConsumers)
+
+		for _, file := range re.mmapedFiles {
+			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
+			openEvent.Source = model.EventSourceReplay
+			p.DispatchEvent(openEvent, notifyConsumers)
+			p.putBackPoolEvent(openEvent)
+		}
+
+		p.putBackPoolEvent(re.event)
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
@@ -1223,7 +1297,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
-				entry.SID = event.PIDContext.SID
+				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
 			}
 
 			if _, err := entry.HasValidLineage(); err != nil {
@@ -1902,6 +1976,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.SampleRefreshEventType:
+		var ev model.SampleRefreshEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.profileManager.HandleSampleRefresh(ev.Cookie)
+		}
+		return false
 	case model.NopEventType:
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
@@ -2268,12 +2348,19 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	// Network interface and socket tracking probes are required independently of the current ruleset or
+	// network filter actions as these are used to track resources that are needed if we later
+	// dynamically load network rules or network filter actions.
+	if p.config.Probe.NetworkEnabled {
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+	}
+
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HaveIOURing()) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -2704,6 +2791,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 
 		// reset action filter
 		if p.config.RuntimeSecurity.EnforcementEnabled {
+			// we reset before the new packets filters are loaded in the kernel
+			if err := p.resetRawPacketDropStats(); err != nil {
+				seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+			}
 			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
 			if err := p.applyRawPacketActionFilters(true); err != nil {
 				seclog.Errorf("unable to load raw packet action programs: %v", err)
@@ -2804,8 +2895,16 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getDoDentryOpenWithoutInode(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "exit_itimers_takes_task_struct",
+			Value: getExitItimersTakesTaskStruct(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "has_usernamespace_first_arg",
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "do_truncate_has_idmap_arg",
+			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
@@ -2954,6 +3053,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "sample_refresh_period_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
@@ -3177,6 +3280,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
+		dropActionRuleIDs:    make(map[uint32]string),
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {
@@ -3354,6 +3458,41 @@ func getDoDentryOpenWithoutInode(kernelversion *kernel.Version) uint64 {
 	return 0
 }
 
+// getDoTruncateHasIdmapArg reports whether do_truncate takes an idmap/user_namespace first argument,
+// which shifts the filp argument from the 4th to the 5th position. This is do_truncate-specific: the
+// idmapped-mounts series added it in 5.12, independently of when other hooks gained an idmap argument.
+func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
+	// do_truncate is an exported symbol, so prefer its actual BTF prototype: the legacy signature has
+	// 4 arguments (dentry, length, time_attrs, filp) while the idmapped one has 5
+	if count, err := constantfetch.GetBTFFunctionArgCount("do_truncate"); err == nil {
+		if count >= 5 {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_12 {
+		return 1
+	}
+	return 0
+}
+
+func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
+	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
+	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
+	if val, err := constantfetch.GetExitItimersTakesTaskStructWithBtf(); err == nil {
+		if val {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
+		return 1
+	}
+	return 0
+}
+
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
 		if val {
@@ -3467,12 +3606,22 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
+	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructSignal, "struct task_struct", "signal")
+	// since kernel 6.13, override_creds/revert_creds are inlined; we detect credential overrides by
+	// comparing task_struct->cred and task_struct->real_cred in the capabilities hooks
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructCred, "struct task_struct", "cred")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructFilename, "struct linux_binprm", "filename")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructInterp, "struct linux_binprm", "interp")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMStart, "struct vm_area_struct", "vm_start")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMEnd, "struct vm_area_struct", "vm_end")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFinode, "struct file", "f_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
@@ -3481,10 +3630,16 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountParent, "struct mount", "mnt_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMountpoint, "struct mount", "mnt_mp")
 
+	// setsockopt offsets
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketType, "struct socket", "type")
+
 	if kv.Code >= kernel.Kernel3_19 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
 	}
+
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3564,6 +3719,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockStructSKProtocol, "struct sock", "sk_protocol")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
 		constantfetch.OffsetNameFlowI4StructProto,
 		constantfetch.TypeFieldPair{
@@ -3592,6 +3748,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	if !kv.IsRH7Kernel() {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructTuplehash, "struct nf_conn", "tuplehash")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
@@ -3603,6 +3760,14 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructOpcode, "struct io_kiocb", "opcode")
+	}
+
+	// IORING_OP_SOCKET (struct io_socket) was added in 5.19
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_19) {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructDomain, "struct io_socket", "domain")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructType, "struct io_socket", "type")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructProtocol, "struct io_socket", "protocol")
 	}
 
 	// inode
@@ -3634,11 +3799,19 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		},
 	)
 
+	// module
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+
+	// cgroup
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")
+
 	// fs
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
@@ -3647,7 +3820,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 }
 
 // HandleActions handles the rule actions
@@ -3808,7 +3980,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 	event.LoadModule.File.SetPathnameStr(modulePath)
 	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
 
-	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	// Best-effort file metadata.
 	var fileStats unix.Statx_t
 	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
 		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
@@ -3828,7 +4000,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 }
 
 // newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
-func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile procfs.MmapedFile) *model.Event {
 	event := p.getPoolEvent()
 	event.Timestamp = time.Now()
 	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
@@ -3842,24 +4014,7 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	event.Open.File.IsPathnameStrResolved = true
 	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
 	event.Open.File.IsBasenameStrResolved = true
-
-	// Try to stat the file to get basic metadata (best effort)
-	// This helps with file resolution and enrichment
-	var fileStats unix.Statx_t
-	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
-	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
-		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
-		event.Open.File.FileFields.Inode = fileStats.Ino
-		event.Open.File.FileFields.UID = fileStats.Uid
-		event.Open.File.FileFields.GID = fileStats.Gid
-		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
-		event.Open.File.Mode = fileStats.Mode
-		event.Open.File.Inode = fileStats.Ino
-		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
-		event.Open.File.NLink = fileStats.Nlink
-		event.Open.File.MountID = uint32(fileStats.Mnt_id)
-	}
+	event.Open.File.FileFields = snapshottedFile.FileFields
 
 	return event
 }

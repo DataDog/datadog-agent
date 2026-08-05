@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -240,7 +240,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 		suite.config.SetInTest("logs_config.batch_wait", batchWait)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
-		suite.Equal(endpoints.BatchWait, pkgconfigsetup.DefaultBatchWait*time.Second)
+		suite.Equal(endpoints.BatchWait, time.Duration(constants.DefaultBatchWait)*time.Second)
 	}
 }
 
@@ -555,11 +555,11 @@ func (suite *EndpointsTestSuite) TestLogCompressionKind() {
 	suite.Equal(logsConfig.compressionKind(), "zstd")
 
 	suite.config.SetInTest("logs_config.compression_kind", "")
-	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+	suite.Equal(logsConfig.compressionKind(), constants.DefaultLogCompressionKind)
 
 	// Invalid compression should fall back to the default log agent compression kind
 	suite.config.SetInTest("logs_config.compression_kind", "notgzip")
-	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+	suite.Equal(logsConfig.compressionKind(), constants.DefaultLogCompressionKind)
 }
 
 func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {

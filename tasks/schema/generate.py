@@ -4,22 +4,32 @@ Schema generation tasks
 
 import json
 import os
+import shutil
+import sys
 import tempfile
 
 import yaml
-from invoke import task
+from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel
+from tasks.libs.common.color import color_message
 from tasks.schema.add_comments import add_comments
+from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
 from tasks.schema.fixes import fix_schema
+from tasks.schema.merge_schema import resolve_schema
+from tasks.schema.produce_byproduct import produce_byproduct
 from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
 from tasks.schema.template_parser import parse_template
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 COMPRESS_DIR = os.path.join("pkg", "config", "schema")
+SETUP_INIT_DIR = os.path.join("pkg", "config", "setup")
 CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
 SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
+CORE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "core_schema.yaml")
+SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.yaml")
+
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
@@ -52,6 +62,11 @@ CORE_SPLIT_SECTIONS = [
     "runtime_security_config",
 ]
 
+SYSPROBE_SPLIT_SECTIONS = [
+    ["runtime_security_config", "system-probe-cws"],
+    ["service_monitoring_config", "system-probe-usm"],
+]
+
 
 def str_presenter(dumper, data):
     if "\n" in data:
@@ -64,7 +79,48 @@ yaml.add_representer(str, str_presenter)
 
 @task
 def compress(ctx, output_dir=COMPRESS_DIR):
+    """
+    Compress the schema files for embedding into the Go binary.
+
+    Uses bazel, except on AIX build hosts, which don't have bazel: there,
+    transparently falls back to `_compress_no_bazel`.
+    """
+    if sys.platform == "aix":
+        _compress_no_bazel(ctx, output_dir)
+        return
     bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+
+
+# Must match the ZSTD_ARGS in pkg/config/schema/BUILD.bazel: --no-check to
+# match DataDog/zstd Go library behavior (no XXH64 frame checksum), -5 to
+# match DataDog/zstd's DefaultCompression.
+_ZSTD_ARGS = "--no-check -5"
+
+
+def _compress_no_bazel(ctx, output_dir=COMPRESS_DIR):
+    """
+    Compress the schema files without bazel.
+
+    Reimplements the pipeline in pkg/config/schema/BUILD.bazel (inline $refs,
+    strip build-time-only keys, zstd-compress) by calling the same helpers
+    bazel wraps as py_binary tools, plus a system `zstd` binary. Used on
+    build hosts that cannot run bazel (e.g. AIX).
+    """
+    compressed_dir = os.path.join(output_dir, "compressed")
+    os.makedirs(compressed_dir, exist_ok=True)
+
+    for name, top_schema in (
+        ("core_schema", CORE_SCHEMA_MAIN_FILE),
+        ("system-probe_schema", SYSTEM_PROBE_SCHEMA_MAIN_FILE),
+    ):
+        embedded_fd, embedded_path = tempfile.mkstemp(suffix=".yaml")
+        os.close(embedded_fd)
+        try:
+            produce_byproduct("embedded", top_schema, embedded_path)
+            out_path = os.path.join(compressed_dir, f"{name}.yaml.zstd")
+            ctx.run(f"zstd --force {_ZSTD_ARGS} {embedded_path} -o {out_path}")
+        finally:
+            os.remove(embedded_path)
 
 
 _SUBSCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
@@ -93,12 +149,15 @@ def split_and_write_schema(schema, output_dir, sections, name):
     ``<output_dir>/<name>.yaml``.
 
     If *sections* is falsy (None or empty), no splitting happens — the schema
-    is written as-is (used for system-probe). Otherwise, for each section
-    name in *sections* that exists at ``schema["properties"][<section>]``,
-    the section's content is written to ``<output_dir>/<section>.yaml`` and
-    the entry in the in-memory schema is replaced with
-    ``{"$ref": "<section>.yaml"}``. Sections not present in the schema are
-    silently skipped.
+    is written as-is. Otherwise, for each section name in *sections* that
+    exists at ``schema["properties"][<section_name>]``, the section's content
+    is written to ``<output_dir>/<section_file>.yaml`` and the entry in the
+    in-memory schema is replaced with ``{"$ref": "<section_file>.yaml"}``.
+    Sections not present in the schema are silently skipped.
+
+    The values of each element in ``sections`` can be either a string or list.
+    If the item is a string it is used for the section name and file. If it is
+    a list, then item[0] is the section name and the item[1] is the file name.
 
     Each sub-file is written with a JSON-schema header (``$schema``, ``$id``)
     so it is a self-contained, navigable schema document. The companion
@@ -107,17 +166,20 @@ def split_and_write_schema(schema, output_dir, sections, name):
     """
     if sections:
         properties = schema.get("properties") or {}
-        for section in sections:
-            if section not in properties:
+        for section_row in sections:
+            section_name, section_file = (section_row, section_row)
+            if isinstance(section_row, list):
+                section_name, section_file = (section_row[0], section_row[1])
+            if section_name not in properties:
                 continue
-            sub_path = os.path.join(output_dir, f"{section}.yaml")
+            sub_path = os.path.join(output_dir, f"{section_file}.yaml")
             body = _prepend_header(
-                properties[section],
-                schema_id=f"{_SUBSCHEMA_ID_PREFIX}{section}.yaml.schema.json",
+                properties[section_name],
+                schema_id=f"{_SUBSCHEMA_ID_PREFIX}{section_file}.yaml.schema.json",
             )
             with open(sub_path, "w") as f:
                 yaml.dump(body, f, sort_keys=False)
-            properties[section] = {"$ref": f"{section}.yaml"}
+            properties[section_name] = {"$ref": f"{section_file}.yaml"}
 
     top_path = os.path.join(output_dir, f"{name}.yaml")
     with open(top_path, "w") as f:
@@ -149,10 +211,10 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     agent_bin_abs = os.path.abspath(agent_bin)
     with ctx.cd(output_dir):
         core_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide=True
+            f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide="out"
         ).stdout
         sysprobe_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target system-probe", env={"DD_CREATE_SCHEMA": "true"}, hide=True
+            f"{agent_bin_abs} createschema --target system-probe", env={"DD_CREATE_SCHEMA": "true"}, hide="out"
         ).stdout
 
     core_schema = yaml.safe_load(core_schema)
@@ -189,9 +251,32 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     # transparently merge these back at load time. system-probe is written
     # as a single file (no splitting).
     split_and_write_schema(core_schema, output_dir, CORE_SPLIT_SECTIONS, "core_schema")
-    split_and_write_schema(sysprobe_schema, output_dir, None, "system-probe_schema")
+    split_and_write_schema(sysprobe_schema, output_dir, SYSPROBE_SPLIT_SECTIONS, "system-probe_schema")
 
     print("Schema generation complete.")
+
+
+@task
+def produce_embedded(ctx, input_path, output_path):
+    """
+    Produce the "embedded" schema byproduct from a (merged) schema.
+
+    Trims build-time-only data (documentation strings, ...) so the artifact that
+    gets compressed and embedded into the Go binary stays small. Output is YAML.
+    """
+    produce_byproduct("embedded", input_path, output_path)
+
+
+@task
+def produce_jsonschema(ctx, input_path, output_path):
+    """
+    Produce the pure JSON Schema byproduct from a (merged) schema.
+
+    Strips every Agent-specific extension so the result is 100% compatible with
+    https://json-schema.org/ and validates with any conforming library. Output
+    is JSON, for external consumers (e.g. SchemaStore).
+    """
+    produce_byproduct("json_schema", input_path, output_path)
 
 
 @task
@@ -218,3 +303,76 @@ def extract_comments(ctx):
             comment_assoc_map[setting_name] = comment
 
     return comment_assoc_map
+
+
+def filter(expect, filename):
+    def comparator(othername):
+        actual = filename == othername
+        return actual == expect
+
+    return comparator
+
+
+def generated_files(tmpdir):
+    """
+    Yield a (generated file, destination file) pair for every file produced by the codegen.
+
+    The codegen lays its output out as a mirror of SETUP_INIT_DIR, so a file generated at
+    `<tmpdir>/constants/generated.go` belongs to `pkg/config/setup/constants/generated.go`.
+    """
+    for dirpath, _, filenames in os.walk(tmpdir):
+        relative_dir = os.path.relpath(dirpath, tmpdir)
+        for filename in sorted(filenames):
+            source = os.path.join(dirpath, filename)
+            destination = os.path.normpath(os.path.join(SETUP_INIT_DIR, relative_dir, filename))
+            yield source, destination
+
+
+@task
+def codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=False):
+    """
+    Code generator for config schema
+
+    keep_orig_order: If true, extract order from *_settings.go files, keep it the same
+    check:           If true, validate whether codegen matches SETUP_INIT_DIR
+    fix:             If true, copy the codegen files into SETUP_INIT_DIR
+    keeptmp:         If true, don't delete the temporary folder
+    """
+
+    core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
+    system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
+    hints = extract_imperative_code_hints() if keep_orig_order else None
+
+    tmpdir = tempfile.mkdtemp()
+    run_codegen(core_schema, filter(False, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
+    run_codegen(system_probe_schema, filter(True, "system_probe_settings.go"), hints, keep_orig_order, tmpdir)
+    run_constant_codegen(core_schema, system_probe_schema, tmpdir)
+
+    display = not check and not fix
+
+    if display:
+        print("Codegen complete. Output dir: %s" % tmpdir)
+
+    if check:
+        # Compare each generated file against its counterpart in SETUP_INIT_DIR, fail if different
+        try:
+            for source, destination in generated_files(tmpdir):
+                ctx.run(f"diff {source} {destination}")
+        except Failure as e:
+            print(
+                color_message(
+                    "Codegen for configuration differs, fix this by running `dda inv schema.codegen --fix`", "yellow"
+                )
+            )
+            raise Exit(code=1) from e
+
+    if fix:
+        # Fix any differences by copying each generated file over its counterpart in SETUP_INIT_DIR
+        for source, destination in generated_files(tmpdir):
+            destination_dir = os.path.dirname(destination)
+            if not os.path.isdir(destination_dir):
+                raise Exit(f"Cannot copy generated file {source}: {destination_dir} does not exist", code=1)
+            ctx.run(f"cp {source} {destination}")
+
+    if not keeptmp and not display:
+        shutil.rmtree(tmpdir)

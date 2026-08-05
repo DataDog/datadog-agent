@@ -9,16 +9,5 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-const (
-	// defaultGuiPort is the default GUI port on Darwin
-	defaultGuiPort = 5002
-)
-
-// called by init in config.go, to ensure any os-specific config is done
-// in time
-func osinit() {
-}
-
 // FleetConfigOverride is a no-op on Darwin
-func FleetConfigOverride(_ pkgconfigmodel.Config) {
-}
+func FleetConfigOverride(_ pkgconfigmodel.Config) {}

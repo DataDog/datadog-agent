@@ -1,0 +1,77 @@
+---
+# Reminds PR authors changing the COAT (Cross-Org Agent Telemetry) default metric profiles
+# how to spin up a dev VM built from the current pipeline to validate the change.
+# See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Report-a-telemetry-metric
+#
+# Posts a placeholder comment immediately (agenttelemetry_metric_vm_reminder_pending), then
+# overwrites it in place (same pr-commenter title, so it edits rather than duplicates) once
+# the Linux e2e testing package deploy job succeeds (agenttelemetry_metric_vm_reminder_linux).
+# Gated on deploy_deb_testing-a7_x64 specifically because it's unconditionally included for
+# every dev branch pipeline (unlike deploy_windows_testing-a7, whose entire include file is
+# skipped for a PR that doesn't touch Windows/bazel-related paths — gating on it with
+# needs:optional would silently degrade to needs:[] and fire before any build exists, see
+# https://github.com/DataDog/datadog-agent/pull/53565#discussion_r3569124204). No optional:
+# true on the need — deploy_deb_testing-a7_x64 is absent from the pipeline only on
+# mergequeue, which .on_dev_branches already excludes, so this job never runs while that
+# need would be missing.
+
+.agenttelemetry_metric_vm_notify_rules:
+  - !reference [.on_dev_branches]
+  - changes:
+      paths:
+        - comp/core/agenttelemetry/impl/defaultProfiles.yaml
+      compare_to: $COMPARE_TO_BRANCH
+
+# Shared so the pending and ready jobs below can never drift apart on the title —
+# pr_commenter dedups/updates a comment purely by matching this exact string.
+.agenttelemetry_metric_vm_comment_title:
+  variables:
+    AGENTTELEMETRY_VM_COMMENT_TITLE: "COAT metric validation VM"
+
+agenttelemetry_metric_vm_reminder_pending:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends:
+    - .dd_octo_sts
+    - .agenttelemetry_metric_vm_comment_title
+  needs: []
+  rules:
+    - !reference [.agenttelemetry_metric_vm_notify_rules]
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - dda inv -- -e github.pr-commenter --title="$AGENTTELEMETRY_VM_COMMENT_TITLE" --body="This PR changes a COAT metric profile. This pipeline is currently building the agent package — once it's ready, this comment will update with the command to create a VM with that package installed, so you can validate the metric."
+
+agenttelemetry_metric_vm_reminder_linux:
+  stage: e2e_deploy
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends:
+    - .dd_octo_sts
+    - .agenttelemetry_metric_vm_comment_title
+  needs:
+    - job: deploy_deb_testing-a7_x64
+  rules:
+    - !reference [.agenttelemetry_metric_vm_notify_rules]
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - |
+      cat > coat-metric-vm-reminder.md <<'EOF'
+      The agent package for this pipeline is ready. Create a VM with that package installed using:
+
+      ```
+      dda inv aws.create-vm --pipeline-id=__PIPELINE_ID__
+      ```
+
+      Need Windows instead? Add `--os-family=windows` — but note Windows packages are only
+      built for this pipeline if it touched a Windows-related path, ran with
+      `RUN_E2E_TESTS`/`DEPLOY_AGENT`, or is on `main`/a release branch. If yours doesn't
+      qualify, no Windows build will ever exist for this pipeline id — push an unrelated
+      Windows-path change, or open a fresh pipeline with `RUN_E2E_TESTS=on`.
+
+      See [Observing telemetry](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Observing-telemetry) for how to find the metric once the agent is running.
+      EOF
+    - sed -i "s/__PIPELINE_ID__/${CI_PIPELINE_ID}/" coat-metric-vm-reminder.md
+    - dda inv -- -e github.pr-commenter --title="$AGENTTELEMETRY_VM_COMMENT_TITLE" --body-file=coat-metric-vm-reminder.md

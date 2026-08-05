@@ -28,18 +28,20 @@ import (
 )
 
 const (
-	HelmVersion = "3.219.0"
+	HelmVersion = "3.225.1"
 
-	// defaultBaseName is the base name used to derive the Helm release and Pulumi
-	// resource names when none is provided.
-	defaultBaseName = "dda"
+	// legacyBaseName is the base name every single-Agent installation used before
+	// per-installation resource names existed. Child resources keep their historical
+	// names for it, so pre-existing stacks do not churn their URNs.
+	legacyBaseName = "dda"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
 type HelmInstallationArgs struct {
 	// BaseName is the base name used to derive the Helm release and Pulumi resource
-	// names. When empty, it defaults to "dda". Set it to a unique value to install
-	// multiple Agents in the same cluster without resource name collisions.
+	// names. It is required. Set it to a unique value per installation to install
+	// multiple Agents in the same cluster without resource name collisions;
+	// kubernetesagentparams defaults it to "dda", which keeps the historical names.
 	BaseName string
 	// KubeProvider is the Kubernetes provider to use
 	KubeProvider *kubernetes.Provider
@@ -90,6 +92,8 @@ type HelmInstallationArgs struct {
 	// HelmChartVersion overrides the default HelmVersion for this installation.
 	// When empty, HelmVersion is used.
 	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type HelmComponent struct {
@@ -108,19 +112,16 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	apiKey := e.AgentAPIKey()
 	appKey := e.AgentAPPKey()
 	baseName := args.BaseName
-	if baseName == "" {
-		baseName = defaultBaseName
-	}
 	opts = append(opts, pulumi.Providers(args.KubeProvider), e.WithProviders(config.ProviderRandom), pulumi.DeletedWith(args.KubeProvider))
 
 	// Pulumi builds a resource's URN from its parent *type* chain plus its own name
 	// (the parent component's name is not part of the URN), so per-installation child
 	// resources must carry unique names for several Agents to coexist in one cluster.
-	// For the default base name we keep the historical names to avoid churning the
+	// For the legacy base name we keep the historical names to avoid churning the
 	// URNs of existing single-Agent stacks.
 	tokenResourceName := "datadog-cluster-agent-token"
 	credentialsResourceName := "datadog-credentials"
-	if baseName != defaultBaseName {
+	if baseName != legacyBaseName {
 		tokenResourceName = baseName + "-" + tokenResourceName
 		credentialsResourceName = baseName + "-" + credentialsResourceName
 	}
@@ -145,9 +146,10 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 
 	helmComponent.ClusterAgentToken = randomClusterAgentToken.Result
 
-	// Create namespace if necessary
-	ns, err := corev1.NewNamespace(e.Ctx(), args.Namespace, &corev1.NamespaceArgs{
-		Metadata: metav1.ObjectMetaArgs{
+	// Create namespace if necessary, with patching to reconcile ownership
+	// since https://github.com/pulumi/pulumi-kubernetes/releases/tag/v4.29.0
+	ns, err := corev1.NewNamespacePatch(e.Ctx(), args.Namespace, &corev1.NamespacePatchArgs{
+		Metadata: &metav1.ObjectMetaPatchArgs{
 			Name: pulumi.String(args.Namespace),
 		},
 	}, opts...)
@@ -155,6 +157,32 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		return nil, err
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	if args.OpenShiftControlPlaneMonitoring {
+		etcdMetricClientSecret, err := corev1.GetSecret(
+			e.Ctx(),
+			"openshift-etcd-metric-client-source",
+			pulumi.ID("openshift-etcd-operator/etcd-metric-client"),
+			nil,
+			opts...,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		copiedSecret, err := corev1.NewSecret(e.Ctx(), "openshift-etcd-metric-client", &corev1.SecretArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Namespace: ns.Metadata.Name(),
+				Name:      pulumi.String("etcd-metric-client"),
+			},
+			Data: etcdMetricClientSecret.Data,
+			Type: etcdMetricClientSecret.Type,
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, utils.PulumiDependsOn(copiedSecret))
+	}
 
 	// Create secret if necessary
 	secret, err := corev1.NewSecret(e.Ctx(), credentialsResourceName, &corev1.SecretArgs{
@@ -702,6 +730,12 @@ func buildLinuxHelmValuesAutopilot(baseName, agentImagePath, agentImageTag, clus
 		"datadog": pulumi.Map{
 			"apiKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
 			"appKeyExistingSecret": pulumi.String(baseName + "-datadog-credentials"),
+			"processAgent": pulumi.Map{
+				"processCollection": pulumi.Bool(true),
+			},
+			"kubelet": pulumi.Map{
+				"useApiServer": pulumi.Bool(true),
+			},
 		},
 		"clusterAgent": pulumi.Map{
 			"enabled": pulumi.Bool(true),
@@ -758,8 +792,11 @@ func BuildOpenShiftHelmValues() HelmValues {
 				"tlsVerify": pulumi.Bool(false),
 			},
 			// https://docs.datadoghq.com/containers/troubleshooting/admission-controller/?tab=helm#openshift
+			// socketEnabled must be false to prevent the admission controller from injecting
+			// a UDS socket volume that conflicts with OpenShift SCCs.
 			"apm": pulumi.Map{
-				"portEnabled": pulumi.Bool(true),
+				"portEnabled":   pulumi.Bool(true),
+				"socketEnabled": pulumi.Bool(false),
 			},
 			"sbom": pulumi.Map{
 				"containerImage": pulumi.Map{
@@ -1017,6 +1054,14 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 				"value": pulumi.String("true"),
 			},
 			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_ADDITIONAL_ENDPOINTS"),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_USE_HTTP"),
+				"value": pulumi.String("true"),
+			},
+			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
 				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fi.Host, useSSL),
 			},
@@ -1045,6 +1090,10 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
+				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_AGENT_TELEMETRY_LOGS_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{

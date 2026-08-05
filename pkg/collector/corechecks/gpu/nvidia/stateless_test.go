@@ -11,6 +11,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -853,6 +854,139 @@ func TestPCIELinkMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClockThrottleReasonMetrics(t *testing.T) {
+	tests := map[string]struct {
+		reasons                      uint64
+		expectedReason               string
+		expectedThrottledWhileActive float64
+	}{
+		"none": {
+			reasons:                      nvml.ClocksEventReasonNone,
+			expectedReason:               "none",
+			expectedThrottledWhileActive: 0,
+		},
+		"gpu idle": {
+			reasons:                      nvml.ClocksEventReasonGpuIdle,
+			expectedReason:               "gpu_idle",
+			expectedThrottledWhileActive: 0,
+		},
+		"applications clocks setting": {
+			reasons:                      nvml.ClocksEventReasonApplicationsClocksSetting,
+			expectedReason:               "applications_clocks_setting",
+			expectedThrottledWhileActive: 1,
+		},
+		"sw power cap": {
+			reasons:                      nvml.ClocksEventReasonSwPowerCap,
+			expectedReason:               "sw_power_cap",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwSlowdown,
+			expectedReason:               "hw_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"sync boost": {
+			reasons:                      nvml.ClocksEventReasonSyncBoost,
+			expectedReason:               "sync_boost",
+			expectedThrottledWhileActive: 1,
+		},
+		"sw thermal slowdown": {
+			reasons:                      nvml.ClocksEventReasonSwThermalSlowdown,
+			expectedReason:               "sw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw thermal slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwThermalSlowdown,
+			expectedReason:               "hw_thermal_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"hw power brake slowdown": {
+			reasons:                      nvml.ClocksThrottleReasonHwPowerBrakeSlowdown,
+			expectedReason:               "hw_power_brake_slowdown",
+			expectedThrottledWhileActive: 1,
+		},
+		"display clock setting": {
+			reasons:                      nvml.ClocksEventReasonDisplayClockSetting,
+			expectedReason:               "display_clock_setting",
+			expectedThrottledWhileActive: 1,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			metricsOut := clockThrottleReasonMetrics(test.reasons)
+
+			for _, metric := range metricsOut {
+				if strings.HasPrefix(metric.Name, "clock.throttle_reasons.") {
+					metricReason := strings.TrimPrefix(metric.Name, "clock.throttle_reasons.")
+
+					if metricReason == test.expectedReason {
+						require.Equal(t, 1.0, metric.Value, "expected metric %s to be 1.0", metric.Name)
+					} else {
+						require.Equal(t, 0.0, metric.Value, "expected metric %s to be 0.0", metric.Name)
+					}
+
+				} else if metric.Name == "clock.throttled_while_active" {
+					require.Equal(t, test.expectedThrottledWhileActive, metric.Value, "expected metric %s to be %f", metric.Name, test.expectedThrottledWhileActive)
+
+					expectedTag := throttleReasonTag + ":" + notThrottledReason
+					if test.expectedThrottledWhileActive > 0 {
+						expectedTag = throttleReasonTag + ":" + test.expectedReason
+					}
+
+					require.Len(t, metric.Tags, 1)
+					require.Equal(t, expectedTag, metric.Tags[0], "expected metric %s to have tag %s", metric.Name, expectedTag)
+				} else {
+					require.Failf(t, "unexpected metric", "received unknown metric %s", metric.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestNeedsRecoverySample(t *testing.T) {
+	tests := []struct {
+		name          string
+		action        nvml.DeviceGpuRecoveryAction
+		expectedValue float64
+		expectedTag   string
+	}{
+		{name: "none", action: nvml.GPU_RECOVERY_ACTION_NONE, expectedValue: 0, expectedTag: "recovery_action:none"},
+		{name: "reset", action: nvml.GPU_RECOVERY_ACTION_GPU_RESET, expectedValue: 1, expectedTag: "recovery_action:reset"},
+		{name: "reboot", action: nvml.GPU_RECOVERY_ACTION_NODE_REBOOT, expectedValue: 1, expectedTag: "recovery_action:reboot"},
+		{name: "drain", action: nvml.GPU_RECOVERY_ACTION_DRAIN_P2P, expectedValue: 1, expectedTag: "recovery_action:drain"},
+		{name: "drain_and_reset", action: nvml.GPU_RECOVERY_ACTION_DRAIN_AND_RESET, expectedValue: 1, expectedTag: "recovery_action:drain_and_reset"},
+		{name: "unknown_future_action", action: nvml.DeviceGpuRecoveryAction(99), expectedValue: 1, expectedTag: "recovery_action:unknown_99"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithFieldValuesPartialOverride(map[uint32]testutil.MockFieldValue{
+				nvml.FI_DEV_GET_GPU_RECOVERY_ACTION: testutil.NewFieldValue(uint64(tt.action)),
+			}))
+
+			metricsOut, _, err := needsRecoverySample(device)
+			require.NoError(t, err)
+			require.Len(t, metricsOut, 1)
+
+			metric := metricsOut[0]
+			require.Equal(t, "device.needs_recovery", metric.Name)
+			require.Equal(t, metrics.GaugeType, metric.Type)
+			require.Equal(t, tt.expectedValue, metric.Value)
+			require.Equal(t, []string{tt.expectedTag}, metric.Tags)
+
+		})
+	}
+}
+
+func TestNeedsRecoverySampleUnsupported(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
+
+	_, _, err := needsRecoverySample(device)
+	require.Error(t, err)
+	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
 }
 
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {

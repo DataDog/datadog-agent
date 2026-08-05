@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add a Data Security provider that schedules one-off database scan checks
+    triggered through Remote Configuration. It is enabled when both
+    ``data_security.enabled`` and ``shared_library_check.enabled`` are set, and
+    currently targets PostgreSQL databases already monitored by the Agent (via the
+    ``postgres`` check).

@@ -18,6 +18,24 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
+// baselineAnalysisDisabledYAML must be included in the agent config of any E2E
+// test that waits for anomaly output (reports, severity escalations, etc.).
+//
+// The default 10-minute baseline window (anomaly_detection.baseline_analysis.enabled=true)
+// silently drops all detector anomalies while it is active — tests will always time out
+// unless this snippet is embedded under the anomaly_detection: block.
+//
+// Usage:
+//
+//	agentConfig := `
+//	anomaly_detection:
+//	  enabled: true
+//	  ...
+//	` + baselineAnalysisDisabledYAML
+const baselineAnalysisDisabledYAML = `  baseline_analysis:
+    enabled: false
+`
+
 // Canonical observer telemetry names.
 const (
 	telemetrySeriesCount    = "observer.series.count"
@@ -26,16 +44,16 @@ const (
 	telemetryReportsEmitted = "observer.reports.emitted"
 	telemetryReportsOngoing = "observer.reports.ongoing"
 
-	// scorerHelperEscalationMarker is emitted by anomalyScorerHelper.OnSeverityTransition
-	// when the EWMA rises above low_threshold (an escalation event). It is logged at info
-	// level, captured by journald, and serves as the assertion target for scorer helper tests.
+	// scorerHelperEscalationMarker is emitted by anomalyScorer.OnSeverityTransition
+	// when output.logs=true and the EWMA rises above low_threshold (an escalation event).
+	// Logged at info level, captured by journald, and serves as the assertion target.
 	// Full example: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
 	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
 
 	// scorerHelperRegisteredMarker is logged once at agent startup when the
-	// anomalyScorerHelper is successfully wired to the scorer. Waiting for it
-	// before sending metrics ensures the subscription is in place.
-	scorerHelperRegisteredMarker = "[observer] anomaly_scorer_helper registered for scorer"
+	// anomaly scorer is successfully wired with telemetry. Waiting for it
+	// before sending metrics ensures the scorer is active.
+	scorerHelperRegisteredMarker = "[observer] anomaly_scorer registered"
 )
 
 // observerTestSuite is a minimal interface satisfied by all suite types in this
@@ -143,6 +161,17 @@ func waitForScorerHelperReady(s observerTestSuite) {
 			"journal should contain the scorer helper registration log line")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("anomaly scorer helper registered")
+}
+
+// sendGauge sends one DogStatsD gauge over UDP to the local agent.
+// Uses Execute rather than MustExecute: a transient SSH error in a background
+// goroutine would otherwise propagate as an unrecovered panic, terminating the
+// test process and tearing down the DEV_MODE stack before assertions complete.
+func sendGauge(s observerTestSuite, name string, value float64) {
+	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
+	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
+		s.T().Logf("sendGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
+	}
 }
 
 func waitForReportsTelemetry(s observerTestSuite) {

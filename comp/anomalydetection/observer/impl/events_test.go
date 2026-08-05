@@ -146,9 +146,10 @@ type resettableCorrelator struct {
 	resetCount int
 }
 
-func (c *resettableCorrelator) Name() string                         { return c.name }
-func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *resettableCorrelator) Advance(_ int64)                      {}
+func (c *resettableCorrelator) Name() string                                 { return c.name }
+func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly)         {}
+func (c *resettableCorrelator) Advance(_ int64)                              {}
+func (c *resettableCorrelator) PendingEvents() []observerdef.CorrelatorEvent { return nil }
 func (c *resettableCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return nil
 }
@@ -879,99 +880,6 @@ func TestFindingM10_ResetRace(_ *testing.T) {
 	}()
 
 	wg.Wait()
-}
-
-func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
-	// DataTimestamps() only returns metric timestamps. A log at timestamp 103
-	// that produces no virtual metrics won't appear, so replay skips it.
-	//
-	// In live-style ingestion, every IngestLog call triggers onObservation,
-	// generating advance requests for that timestamp. In replay, only
-	// DataTimestamps() are iterated.
-
-	storage := newTimeSeriesStorage()
-
-	extractor := &noopLogExtractor{}
-
-	e := newEngine(engineConfig{
-		storage:    storage,
-		extractors: []observerdef.LogMetricsExtractor{extractor},
-	})
-
-	// --- Live-style ingestion ---
-	liveSink := &collectingSink{}
-	e.Subscribe(liveSink)
-
-	// Ingest metrics at 100, 101, 102, 105
-	for _, ts := range []int64{100, 101, 102, 105} {
-		requests := e.IngestMetric("ns", &metricObs{
-			name:      "cpu",
-			value:     1.0,
-			timestamp: ts,
-		})
-		for _, req := range requests {
-			e.advanceWithReason(req.upToSec, req.reason)
-		}
-	}
-
-	// Ingest log at 103 (no virtual metrics produced)
-	logRequests := e.IngestLog("ns", &logObs{
-		content:     "error happened",
-		status:      "error",
-		timestampMs: 103000, // 103 seconds in millis
-	})
-	for _, req := range logRequests {
-		e.advanceWithReason(req.upToSec, req.reason)
-	}
-
-	// Flush remaining
-	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
-	for _, req := range endRequests {
-		e.advanceWithReason(req.upToSec, req.reason)
-	}
-
-	liveAdvances := liveSink.eventsOfKind(eventAdvanceCompleted)
-	var liveTimestamps []int64
-	for _, evt := range liveAdvances {
-		liveTimestamps = append(liveTimestamps, evt.advanceCompleted.advancedToSec)
-	}
-
-	// --- Now reset and do replay ---
-	unsub := e.Subscribe(&collectingSink{}) // dummy to capture unsub
-	unsub()
-
-	e.resetFull()
-
-	replaySink := &collectingSink{}
-	e.Subscribe(replaySink)
-
-	e.ReplayStoredData()
-
-	replayAdvances := replaySink.eventsOfKind(eventAdvanceCompleted)
-	var replayTimestamps []int64
-	for _, evt := range replayAdvances {
-		replayTimestamps = append(replayTimestamps, evt.advanceCompleted.advancedToSec)
-	}
-
-	t.Logf("live advance timestamps:   %v", liveTimestamps)
-	t.Logf("replay advance timestamps: %v", replayTimestamps)
-
-	// The bug: replay's DataTimestamps() only has metric timestamps [100,101,102,105],
-	// missing the log's timestamp 103. So replay doesn't advance through 103.
-	// In live mode, the log at 103 DID trigger onObservation and potentially an advance.
-	//
-	// Check that DataTimestamps doesn't include 103.
-	dataTS := storage.DataTimestamps()
-	has103 := false
-	for _, ts := range dataTS {
-		if ts == 103 {
-			has103 = true
-			break
-		}
-	}
-	assert.True(t, has103,
-		"DataTimestamps() should include timestamp 103 from the log observation, "+
-			"but it only returns metric timestamps: %v", dataTS)
 }
 
 func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {

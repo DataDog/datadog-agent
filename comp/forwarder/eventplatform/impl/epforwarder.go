@@ -16,7 +16,7 @@ import (
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -79,6 +80,8 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getDataStreamsPipelines,
 		getDataObservabilityPipelines,
 		getSoftwareInventoryPipelines,
+		getAgentDiscoveryPipelines,
+		getDataSecurityPipelines,
 	}
 	var descs []passthroughPipelineDesc
 	for _, get := range getters {
@@ -118,6 +121,13 @@ func Diagnose() []diagnose.Diagnosis {
 	cfg := pkgconfigsetup.Datadog()
 
 	for _, desc := range getPassthroughPipelines() {
+		if desc.eventType == eventplatform.EventTypeAgentDiscovery && !cfg.GetBool("config_files_discovery.enabled") {
+			continue
+		}
+		// TODO(dsec-182): could we diagnose the SDS result pipeline?
+		if desc.eventType == eventplatform.EventTypeSDSResult && !cfg.GetBool("data_security.enabled") {
+			continue
+		}
 		//nolint:misspell
 		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
 		if desc.eventType == eventplatform.EventTypeEventManagement {
@@ -330,13 +340,13 @@ func newHTTPPassthroughPipeline(
 	if endpoints.BatchMaxConcurrentSend <= 0 {
 		endpoints.BatchMaxConcurrentSend = desc.defaultBatchMaxConcurrentSend
 	}
-	if endpoints.BatchMaxContentSize <= pkgconfigsetup.DefaultBatchMaxContentSize {
+	if endpoints.BatchMaxContentSize <= constants.DefaultBatchMaxContentSize {
 		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
 	}
-	if endpoints.BatchMaxSize <= pkgconfigsetup.DefaultBatchMaxSize {
+	if endpoints.BatchMaxSize <= constants.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	if endpoints.InputChanSize <= pkgconfigsetup.DefaultInputChanSize {
+	if endpoints.InputChanSize <= constants.DefaultInputChanSize {
 		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
 
@@ -454,6 +464,10 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
+		// TODO(dsec-182): This could be removed if we want to enable the SDS result pipeline by default.
+		if desc.eventType == eventplatform.EventTypeSDSResult && !config.GetBool("data_security.enabled") {
+			continue
+		}
 		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())

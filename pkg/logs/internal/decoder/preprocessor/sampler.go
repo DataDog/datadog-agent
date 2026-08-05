@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -112,6 +113,34 @@ type AdaptiveSamplerConfig struct {
 	// Exclude makes matching messages bypass adaptive sampling. Exclude takes
 	// precedence over Include.
 	Exclude []AdaptiveSamplerFilter
+	// IsSourceDisabled is called per-message to check whether the current source
+	// is in the disabled_sources list. When it returns true the sampler passes the
+	// message through without rate-limiting. Using a closure lets the check track
+	// ReplaceableSource swaps and future Remote Config updates.
+	IsSourceDisabled func() bool
+	// PassThrough temporarily disables adaptive sampling for matched messages.
+	// When it turns back off, the sampler resumes from the current profile's
+	// BurstSize after existing entries are reseeded.
+	PassThrough bool
+	// SmartSeverityProfilesEnabled switches RateLimit/BurstSize based on the level
+	// read from SeverityProvider (see Profiles). Profiles[SeverityLow] must match
+	// RateLimit/BurstSize above.
+	SmartSeverityProfilesEnabled bool
+	// Profiles holds the RateLimit/BurstSize pair per SeverityLevel.
+	// Only consulted when SmartSeverityProfilesEnabled is true.
+	Profiles [severityeventsdef.NumSeverityLevels]SamplerProfile
+	// SeverityProvider returns the current anomaly-detection severity level, or false
+	// when no reader is registered yet. Only consulted when SmartSeverityProfilesEnabled
+	// is true. Left nil in tests that don't exercise smart severity profiles.
+	SeverityProvider func() (severityeventsdef.SeverityLevel, bool)
+}
+
+// SamplerProfile is a RateLimit/BurstSize pair for one SeverityLevel.
+type SamplerProfile struct {
+	RateLimit float64
+	BurstSize float64
+	// PassThrough skips adaptive-sampler drops while this profile is active.
+	PassThrough bool
 }
 
 // AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
@@ -143,6 +172,13 @@ type AdaptiveSampler struct {
 	source            string // used as a telemetry tag
 	now               func() time.Time
 	baseBytesEstimate int
+
+	// appliedLevel tracks the last severity profile applied by
+	// applyProfileIfChanged. appliedLevelInitialized stays false until a real
+	// reader is registered, so the sampler does not treat the no-reader case as
+	// an implicit Low profile.
+	appliedLevel            severityeventsdef.SeverityLevel
+	appliedLevelInitialized bool
 }
 
 // NewAdaptiveSampler creates a new AdaptiveSampler.
@@ -214,9 +250,61 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 	}
 }
 
+// applyProfileIfChanged switches RateLimit/BurstSize to the currently published
+// level, when SmartSeverityProfilesEnabled is set. Escalation grants every
+// pattern a fresh burst immediately. The first available Medium/High level is
+// also treated as an escalation from the base Low profile. De-escalation leaves
+// credits untouched, letting the refill-time clamp in processMatchedEntry
+// shrink them naturally.
+func (s *AdaptiveSampler) applyProfileIfChanged() {
+	if s.config.SeverityProvider == nil {
+		return
+	}
+	level, ok := s.config.SeverityProvider()
+	if !ok {
+		return
+	}
+	if s.appliedLevelInitialized && level == s.appliedLevel {
+		return
+	}
+
+	wasInitialized := s.appliedLevelInitialized
+	previousLevel := s.appliedLevel
+	profile := s.config.Profiles[level]
+	escalation := (wasInitialized && level > previousLevel) ||
+		(!wasInitialized && level > severityeventsdef.SeverityLow)
+	leavingPassThrough := wasInitialized && s.config.PassThrough && !profile.PassThrough
+	s.config.RateLimit = profile.RateLimit
+	s.config.BurstSize = profile.BurstSize
+	s.config.PassThrough = profile.PassThrough
+
+	if escalation || leavingPassThrough {
+		for i := range s.entries {
+			s.entries[i].credits = s.config.BurstSize
+			if leavingPassThrough {
+				s.entries[i].sampled = 0
+			}
+		}
+	}
+
+	s.appliedLevel = level
+	s.appliedLevelInitialized = true
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+	// tailers skip no-content messages via HasContent() before the processor, don't use
+	// space in the pattern table for them.
+	if !msg.HasContent() {
+		return msg
+	}
+	if s.config.SmartSeverityProfilesEnabled {
+		s.applyProfileIfChanged()
+	}
+	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
+		return msg
+	}
 	if !s.shouldSample(msg, tokens) {
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		return msg
@@ -228,10 +316,11 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 	now := s.now()
 	detectionOnly := s.config.DetectionOnly
+	passThrough := s.config.PassThrough
 
 	for i := range s.entries {
 		if IsMatch(s.entries[i].tokens, tokens, s.config.MatchThreshold) {
-			return s.processMatchedEntry(i, msg, now, detectionOnly)
+			return s.processMatchedEntry(i, msg, now, detectionOnly, passThrough)
 		}
 	}
 	return s.trackNewPattern(msg, tokens, now)
@@ -240,7 +329,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 // processMatchedEntry handles a log that matched the pattern at index i: it refills
 // and spends credits, updates tags and counters, re-sorts the pattern table, and
 // returns the message when emitted or nil when dropped.
-func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly bool) *message.Message {
+func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly, passThrough bool) *message.Message {
 	e := &s.entries[i]
 	matchedTokens := e.tokens
 
@@ -253,8 +342,8 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 	e.lastSeen = now
 	e.matchCount++
 
-	allow := e.credits >= 1.0
-	if allow {
+	allow := passThrough || e.credits >= 1.0
+	if allow && !passThrough {
 		e.credits--
 	}
 

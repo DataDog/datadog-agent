@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

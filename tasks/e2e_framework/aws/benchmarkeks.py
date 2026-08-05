@@ -114,6 +114,11 @@ def create_benchmarkeks(
         app_key_required=True,
         stack_name=stack_name,
         install_agent=install_agent,
+        # The benchmark workload is driven by the churn orchestrator, not by the
+        # shared testing workload. Leaving the latter enabled would add an etcd
+        # config provider pointing at an etcd this scenario never deploys, making
+        # both Agents log connection errors for the whole benchmark run.
+        install_workload=False,
         agent_version=agent_version,
         extra_flags=extra_flags,
         full_image_path=full_image_path,
