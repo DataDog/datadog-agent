@@ -4319,11 +4319,10 @@ properties:
             default: true
             visibility: public
             description: |-
-              When device metadata collection is enabled, device tags are attached to metrics by
-              the backend from the metadata payload instead of being sent with every metric.
+              When device metadata collection is enabled, device tags are attached to metrics by the
+              backend from the metadata payload instead of being sent with every metric.
               Set to `false` to have the Agent attach the device tags to every metric it submits.
               This has no effect when `collect_device_metadata` is disabled.
-            example: 'true'
           ping:
             node_type: section
             type: object
