@@ -222,6 +222,7 @@ installer_suse_rpm-arm64:
   rules:
     - when: on_success
   script:
+    - export PACKAGE_VERSION=$(dda inv agent.version --url-safe)
     - bazel build --config=cache --//packages/agent:flavor=iot ${BAZEL_EXTRA_FLAGS} //packages/iot:rpm
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - cp "$(bazel info execution_root)/$(bazel cquery --config=cache --//packages/agent:flavor=iot ${BAZEL_EXTRA_FLAGS} //packages/iot:rpm --output=files)" $OMNIBUS_PACKAGE_DIR/
