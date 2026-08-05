@@ -39,6 +39,7 @@ go_library(
         "//pkg/api/security",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/config/utils",
         "//pkg/orchestrator/model",
         "//pkg/status/health",
