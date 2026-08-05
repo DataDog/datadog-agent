@@ -258,6 +258,10 @@ const (
 	// investigation: per-connection detail about suspected protocol misclassifications.
 	// See pkg/network/ebpf/c/protocols/classification/tls-misclassification-diag.h
 	TLSDiagEventsMap BPFMapName = "tls_diag_events"
+	// TLSDiagUSMCountersMap counts is_redis() matches at the two call sites that live in usm.c
+	// (the protocol dispatcher and the decrypted-TLS path), which the socket-filter counters do
+	// not cover. Shared into the USM manager so both objects increment the same map.
+	TLSDiagUSMCountersMap BPFMapName = "tls_diag_usm_counters"
 	// ClassificationProgsMap is the map storing the programs to run on classification events
 	ClassificationProgsMap BPFMapName = "classification_progs"
 )
