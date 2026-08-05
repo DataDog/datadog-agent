@@ -517,12 +517,11 @@ fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
 
 /// Mirrors Go `GetBool` / `strconv.ParseBool` for env and YAML bool strings.
 pub(super) fn parse_agent_bool_string(text: &str) -> Option<bool> {
-    let s = text.trim();
-    match s {
+    match text {
         "1" | "t" | "T" => Some(true),
         "0" | "f" | "F" => Some(false),
-        _ if s.eq_ignore_ascii_case("true") => Some(true),
-        _ if s.eq_ignore_ascii_case("false") => Some(false),
+        _ if text.eq_ignore_ascii_case("true") => Some(true),
+        _ if text.eq_ignore_ascii_case("false") => Some(false),
         _ => None,
     }
 }
@@ -1354,9 +1353,25 @@ process_config:
             ("yes", None),
             ("on", None),
             ("disabled", None),
+            (" true ", None),
+            (" false ", None),
+            (" 1 ", None),
         ] {
             assert_eq!(parse_agent_bool_string(input), expected, "input={input:?}");
         }
+    }
+
+    #[test]
+    fn env_whitespace_padded_bool_does_not_enable_process_gates() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _discovery =
+                EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", " true ");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
     }
 
     #[test]
