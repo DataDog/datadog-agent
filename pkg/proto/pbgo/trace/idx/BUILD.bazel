@@ -2,16 +2,6 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
-write_pb_go(
-    name = "write_pb_go",
-    srcs = {
-        "//pkg/proto/datadog/trace/idx:idx_go_proto": [
-            "span.pb.go",
-            "tracer_payload.pb.go",
-        ],
-    },
-)
-
 go_library(
     name = "idx",
     srcs = [
@@ -49,4 +39,14 @@ dd_agent_go_test(
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@org_golang_google_protobuf//reflect/protoreflect",
     ],
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace/idx:idx_go_proto": [
+            "span.pb.go",
+            "tracer_payload.pb.go",
+        ],
+    },
 )

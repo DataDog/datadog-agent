@@ -47,6 +47,17 @@ type Endpoint struct {
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
+// TelemetryDefaultMaxInflightBytes is the maximum number of bytes the telemetry forwarder
+// buffers before dropping payloads. Set to 5 MB so the currently-accumulating batch always
+// has room to reach TelemetryDefaultBatchSizeThreshold even when all 4 forwarder goroutines
+// (see maxConcurrentRequests in pkg/trace/api/telemetry.go) are each holding a full-size
+// batch in flight: (4 in-flight batches + 1 accumulating batch) * 1 MB = 5 MB.
+const TelemetryDefaultMaxInflightBytes = 5_000_000
+
+// TelemetryDefaultBatchSizeThreshold is the cumulative body size in bytes that triggers
+// an immediate batch flush in the telemetry forwarder. Set to 1 MB.
+const TelemetryDefaultBatchSizeThreshold = 1_000_000
+
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
@@ -219,8 +230,10 @@ type Enablable struct {
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
 type TelemetryConfig struct {
-	Enabled   bool `mapstructure:"enabled"`
-	Endpoints []*Endpoint
+	Enabled                 bool `mapstructure:"enabled"`
+	Endpoints               []*Endpoint
+	BatchSizeThresholdBytes int `mapstructure:"batch_size_threshold_bytes"`
+	MaxInflightMemoryBytes  int `mapstructure:"max_inflight_memory"`
 }
 
 // ReplaceRule specifies a replace rule.
@@ -729,7 +742,9 @@ func New() *AgentConfig {
 		HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
 
 		TelemetryConfig: &TelemetryConfig{
-			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
+			Endpoints:               []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
+			BatchSizeThresholdBytes: TelemetryDefaultBatchSizeThreshold,
+			MaxInflightMemoryBytes:  TelemetryDefaultMaxInflightBytes,
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,

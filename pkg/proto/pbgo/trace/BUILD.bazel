@@ -20,6 +20,15 @@ go_msgp(
 )
 
 go_msgp(
+    name = "agent_telemetry_gen",
+    src = ":trace_go_proto_tagged_srcs",
+    out = "agent_telemetry_gen.go",
+    directives = ["limit arrays:500000 maps:500000"],
+    out_test = "agent_telemetry_gen_test.go",
+    src_file = "agent_telemetry.pb.go",
+)
+
+go_msgp(
     name = "span_gen",
     src = ":trace_go_proto_tagged_srcs",
     out = "span_gen.go",
@@ -56,22 +65,6 @@ go_msgp(
     src_file = "tracer_payload.pb.go",
 )
 
-write_pb_go(
-    name = "write_pb_go",
-    srcs = {
-        "//pkg/proto/datadog/trace:trace_go_proto_tagged": [
-            "agent_payload.pb.go",
-            "agent_payload_vtproto.pb.go",
-            "span.pb.go",
-            "span_vtproto.pb.go",
-            "stats.pb.go",
-            "stats_vtproto.pb.go",
-            "tracer_payload.pb.go",
-            "tracer_payload_vtproto.pb.go",
-        ],
-    },
-)
-
 go_library(
     name = "trace",
     srcs = [
@@ -79,6 +72,9 @@ go_library(
         "agent_payload_gen.go",
         "agent_payload_marshal.go",
         "agent_payload_vtproto.pb.go",
+        "agent_telemetry.pb.go",
+        "agent_telemetry_gen.go",
+        "agent_telemetry_vtproto.pb.go",
         "decoder_bytes.go",
         "decoder_v05.go",
         "span.pb.go",
@@ -112,6 +108,7 @@ dd_agent_go_test(
     srcs = [
         "agent_payload_gen_test.go",
         "agent_payload_marshal_test.go",
+        "agent_telemetry_gen_test.go",
         "convert_test.go",
         "decoder_bytes_test.go",
         "decoder_v05_test.go",
@@ -135,4 +132,22 @@ dd_agent_go_test(
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@org_golang_google_protobuf//proto",
     ],
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace:trace_go_proto_tagged": [
+            "agent_payload.pb.go",
+            "agent_payload_vtproto.pb.go",
+            "agent_telemetry.pb.go",
+            "agent_telemetry_vtproto.pb.go",
+            "span.pb.go",
+            "span_vtproto.pb.go",
+            "stats.pb.go",
+            "stats_vtproto.pb.go",
+            "tracer_payload.pb.go",
+            "tracer_payload_vtproto.pb.go",
+        ],
+    },
 )

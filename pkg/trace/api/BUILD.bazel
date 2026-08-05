@@ -39,6 +39,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
+        "//comp/trace/compression/def",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
@@ -164,6 +165,7 @@ dd_agent_go_test(
     embed = [":api"],
     deps = [
         "//comp/core/tagger/origindetection",
+        "//comp/trace/compression/impl-zstd",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
