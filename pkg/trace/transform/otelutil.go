@@ -292,9 +292,12 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
 		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
-			// use the HTTP method + route (if available)
 			resName = m
-			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
+			if span.Kind() == ptrace.SpanKindClient {
+				if template := GetOTelAttrValInResAndSpanAttrs(span, res, false, "url.template"); template != "" {
+					resName = resName + " " + template
+				}
+			} else if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
 		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
@@ -339,13 +342,17 @@ func getOTelResourceV2[A semantics.Accessor](span ptrace.Span, accessor A) (resN
 		return
 	}
 
-	// HTTP: use method + route (if available)
+	// HTTP: use method + URL template for clients or route for servers.
 	if m := lookupString(accessor, semantics.ConceptHTTPMethod, false); m != "" {
 		if m == "_OTHER" {
 			m = "HTTP"
 		}
 		resName = m
-		if span.Kind() == ptrace.SpanKindServer {
+		if span.Kind() == ptrace.SpanKindClient {
+			if template := accessor.GetString("url.template"); template != "" {
+				resName = resName + " " + template
+			}
+		} else if span.Kind() == ptrace.SpanKindServer {
 			if route := lookupString(accessor, semantics.ConceptHTTPRoute, false); route != "" {
 				resName = resName + " " + route
 			}
