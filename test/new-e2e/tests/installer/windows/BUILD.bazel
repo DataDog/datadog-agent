@@ -25,7 +25,6 @@ go_library(
         "fixtures/sample_config_enabled",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows",
-    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/version",
