@@ -200,7 +200,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
         {
             const string ddAgentUserName = "ddagentuser";
             const string domain = "EXAMPLE";
-            var agentPasswordKey = ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
+            var agentPasswordKey = Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
             var scmPasswordKey = $"_SC_{Constants.AgentServiceName}";
 
             Test.WithDomainClient(domain)
