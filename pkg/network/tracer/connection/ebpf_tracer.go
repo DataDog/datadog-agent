@@ -73,6 +73,9 @@ type EbpfTracerTelemetryData struct {
 	// TLS/Redis misclassification diagnostics (see jmw/tls-misclassification)
 	tlsRejectRecordExceedsPacket *prometheus.Desc
 	tlsRejectHandshakeInvalid    *prometheus.Desc
+	usmDispatcherRedisMatch      *prometheus.Desc
+	usmTLSRedisMatch             *prometheus.Desc
+	socketFilterRedisMatch       *prometheus.Desc
 	applayerMatchOnTLSPayload    *prometheus.Desc
 	redisMatchOnNonstandardPort  *prometheus.Desc
 	tlsLockedOutByApplayer       *prometheus.Desc
@@ -123,6 +126,9 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tls_reject_record_exceeds_packet", "Counter measuring plausible TLS record headers rejected by is_tls() solely because the record ran past the end of the packet", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tls_reject_handshake_invalid", "Counter measuring TLS handshake records that fit within the packet but were still rejected by is_valid_tls_handshake (non-Hello handshake type, coalesced messages, or a fragmented message)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__usm_dispatcher_redis_match", "Counter measuring is_redis() matches in the USM protocol dispatcher, a call site the socket-filter counters do not cover", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__usm_tls_redis_match", "Counter measuring is_redis() matches on decrypted TLS payloads in USM", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__socket_filter_redis_match", "Counter measuring is_redis() matches in the socket-filter db classifier, counted unconditionally so it is comparable with the two USM call-site counters", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__applayer_match_on_tls_payload", "Counter measuring db-layer protocol classifications on a buffer that begins with a plausible TLS record header (suspected false positive on ciphertext)", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__redis_match_on_nonstandard_port", "Counter measuring Redis classifications on ports Redis does not serve (false positive by definition)", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tls_locked_out_by_applayer", "Counter measuring plausible TLS record headers seen on connections whose application layer was already recorded, preventing is_tls() from ever running again", nil, nil),
@@ -175,7 +181,10 @@ type ebpfTracer struct {
 	// tlsDiagEventsMap is the diagnostic side channel for the TLS-reported-as-plaintext
 	// investigation. See jmw/tls-misclassification.
 	tlsDiagEventsMap *maps.GenericMap[netebpf.ConnTuple, netebpf.TLSDiagEvent]
-	config           *config.Config
+	// tlsDiagUSMCountersMap is shared into the USM manager so the two is_redis() call sites in
+	// usm.c increment the same map the tracer reads. Index is a tls_diag_counter_t.
+	tlsDiagUSMCountersMap *maps.GenericMap[uint32, uint64]
+	config                *config.Config
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
@@ -398,6 +407,10 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			tr.tlsDiagEventsMap, err = maps.GetMap[netebpf.ConnTuple, netebpf.TLSDiagEvent](m.Manager, probes.TLSDiagEventsMap)
 			if err != nil {
 				log.Warnf("error retrieving TLS diagnostic events map: %s", err)
+			}
+			tr.tlsDiagUSMCountersMap, err = maps.GetMap[uint32, uint64](m.Manager, probes.TLSDiagUSMCountersMap)
+			if err != nil {
+				log.Warnf("error retrieving TLS diagnostic USM counters map: %s", err)
 			}
 		}
 	}
@@ -897,6 +910,9 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpSynRetransmit
 	ch <- EbpfTracerTelemetry.tlsRejectRecordExceedsPacket
 	ch <- EbpfTracerTelemetry.tlsRejectHandshakeInvalid
+	ch <- EbpfTracerTelemetry.usmDispatcherRedisMatch
+	ch <- EbpfTracerTelemetry.usmTLSRedisMatch
+	ch <- EbpfTracerTelemetry.socketFilterRedisMatch
 	ch <- EbpfTracerTelemetry.applayerMatchOnTLSPayload
 	ch <- EbpfTracerTelemetry.redisMatchOnNonstandardPort
 	ch <- EbpfTracerTelemetry.tlsLockedOutByApplayer
@@ -979,6 +995,25 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Tls_locked_out_by_applayer) - EbpfTracerTelemetry.lastTLSLockedOutByApplayer
 	EbpfTracerTelemetry.lastTLSLockedOutByApplayer = int64(ebpfTelemetry.Tls_locked_out_by_applayer)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tlsLockedOutByApplayer, prometheus.CounterValue, float64(delta))
+
+	// The USM-side counters are absolute totals living in a shared array map, not per-scrape
+	// deltas like the telemetry_t counters above, so they are emitted as-is.
+	if t.tlsDiagUSMCountersMap != nil {
+		for _, c := range []struct {
+			idx  uint32
+			desc *prometheus.Desc
+		}{
+			{0, EbpfTracerTelemetry.usmDispatcherRedisMatch},
+			{1, EbpfTracerTelemetry.usmTLSRedisMatch},
+			{2, EbpfTracerTelemetry.socketFilterRedisMatch},
+		} {
+			var v uint64
+			if err := t.tlsDiagUSMCountersMap.Lookup(&c.idx, &v); err != nil {
+				continue
+			}
+			ch <- prometheus.MustNewConstMetric(c.desc, prometheus.CounterValue, float64(v))
+		}
+	}
 
 	// Drain the per-connection diagnostic detail and log it. Rate limited: at most
 	// tlsDiagMaxLogsPerCollect lines per scrape, and each entry is logged only once.

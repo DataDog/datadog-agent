@@ -73,6 +73,7 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: probes.TelemetryMap},
 		{Name: probes.ConnectionProtocolMap},
 		{Name: probes.TLSDiagEventsMap},
+		{Name: probes.TLSDiagUSMCountersMap},
 		{Name: probes.TCPSendMsgArgsMap},
 		{Name: probes.TCPSendPageArgsMap},
 		{Name: probes.UDPSendPageArgsMap},

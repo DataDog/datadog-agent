@@ -1,6 +1,7 @@
 #ifndef __PROTOCOL_DISPATCHER_HELPERS_H
 #define __PROTOCOL_DISPATCHER_HELPERS_H
 
+#include "protocols/classification/tls-misclassification-counters.h"
 #include "ktypes.h"
 
 #include "ip.h"
@@ -107,6 +108,13 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         *protocol = PROTOCOL_POSTGRES;
     } else if (is_redis_enabled() && is_redis(buf, size)) {
         *protocol = PROTOCOL_REDIS;
+        // TLS-misclassification diagnostics (jmw/tls-misclassification). This is one of the two
+        // is_redis() call sites in usm.c that the socket-filter counters do not cover, and it
+        // writes PROTOCOL_REDIS into the *shared* connection_protocol stack below — which is
+        // enough to trip the app-layer gate on is_tls() and lock TLS out permanently.
+        if (is_tls_diag_enabled()) {
+            tls_diag_count(TLS_DIAG_CTR_USM_DISPATCHER_REDIS);
+        }
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

@@ -29,6 +29,7 @@ func initManager(mgr *ddebpf.Manager) {
 		{Name: probes.TelemetryMap},
 		{Name: probes.ConnectionProtocolMap},
 		{Name: probes.TLSDiagEventsMap},
+		{Name: probes.TLSDiagUSMCountersMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.EnhancedTLSTagsMap},
 		{Name: probes.ConnectionTupleToSocketSKBConnMap},
