@@ -169,6 +169,7 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.configureAptFailFast()
+	s.configureAptMirrorList()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()
@@ -182,6 +183,20 @@ func (s *packageBaseSuite) configureAptFailFast() {
 		return
 	}
 	s.Env().RemoteHost.MustExecute(`printf 'Acquire::Retries "2";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
+}
+
+func (s *packageBaseSuite) configureAptMirrorList() {
+	// Ubuntu EC2 hosts use a single regional mirror (e.g. us-east-1.ec2.archive.ubuntu.com).
+	// When it is unavailable apt has no fallback and the job hangs until the 2h timeout
+	// (see incident 58780). Mirror the approach used in Dockerfiles/agent/Dockerfile:
+	// rewrite the apt sources to a "mirror+file" list so apt fails over to the global
+	// archive.ubuntu.com/ports.ubuntu.com mirrors when the regional one is down.
+	if s.os.Flavor != e2eos.Ubuntu {
+		return
+	}
+	s.Env().RemoteHost.MustExecute(`printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
+	s.Env().RemoteHost.MustExecute(`printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
+	s.Env().RemoteHost.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#http://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#http://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
 func (s *packageBaseSuite) updatePythonOnSuse() {
