@@ -17,6 +17,7 @@ go_library(
         "//comp/def",
         "//comp/dogstatsd/statsd/def",
         "//comp/forwarder/eventplatform/def",
+        "//comp/kubeactions/helmactions/def",
         "//comp/networkpath/traceroute/def",
         "//comp/privateactionrunner/def",
         "//comp/remote-config/rcclient/def",
