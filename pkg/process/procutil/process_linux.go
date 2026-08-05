@@ -37,7 +37,8 @@ const (
 	// C.sysconf(C._SC_CLK_TCK)
 	DefaultClockTicks = float64(100)
 	// More than 5760 to work around https://golang.org/issue/24015.
-	blockSize = 8192
+	blockSize                 = 8192
+	emptyCmdlinePIDSampleSize = 5
 )
 
 var (
@@ -243,6 +244,10 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 	}
 
 	procsByPID := make(map[int32]*Process, len(pids))
+	debugLoggingEnabled := log.ShouldLog(log.DebugLvl)
+	traceLoggingEnabled := log.ShouldLog(log.TraceLvl)
+	emptyCmdlineCount := 0
+	emptyCmdlinePIDs := make([]int32, 0, emptyCmdlinePIDSampleSize)
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
 		if !filesystem.FileExists(pathForPID) {
@@ -265,7 +270,15 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			} else if p.ignoreZombieProcesses {
 				continue
 			}
-			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
+			if traceLoggingEnabled {
+				log.Tracef("process with empty cmdline not skipped pid:%d", pid)
+			}
+			if debugLoggingEnabled {
+				emptyCmdlineCount++
+				if len(emptyCmdlinePIDs) < emptyCmdlinePIDSampleSize {
+					emptyCmdlinePIDs = append(emptyCmdlinePIDs, pid)
+				}
+			}
 		}
 
 		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
@@ -312,6 +325,9 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			} // use -1 values to represent "no permission"
 		}
 		procsByPID[pid] = proc
+	}
+	if emptyCmdlineCount > 0 {
+		log.Debugf("Found %d processes with empty command lines that were not skipped; sample_pids=%v", emptyCmdlineCount, emptyCmdlinePIDs)
 	}
 
 	return procsByPID, nil
