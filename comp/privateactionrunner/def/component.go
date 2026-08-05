@@ -8,6 +8,8 @@ package privateactionrunner
 
 import "errors"
 
+// team: action-platform
+
 type Component any
 
 var ErrNotEnabled = errors.New("private action runner is not enabled")
