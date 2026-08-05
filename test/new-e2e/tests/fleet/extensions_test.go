@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
+	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
@@ -189,26 +190,27 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
 	s.Require().NoError(err)
 	verifyDDOTRunning(s.T(), s.Agent)
-	s.assertDDOTManagedByProcmgrOnLinux()
+	s.assertDDOTManagedByProcmgrOnLinux(fleethost.LinuxExperimentInstallDir)
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 	verifyDDOTRunning(s.T(), s.Agent)
-	s.assertDDOTManagedByProcmgrOnLinux()
+	s.assertDDOTManagedByProcmgrOnLinux(fleethost.LinuxStableInstallDir)
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
 }
 
 // assertDDOTManagedByProcmgrOnLinux verifies DDOT stays under dd-procmgrd (not
 // datadog-agent-ddot.service) once the pipeline build, which ships dd-procmgr, is running.
+// installDir is the OCI install tree (stable or experiment) that currently holds the dd-procmgr CLI.
 // Windows is intentionally not covered here: pipeline-build procmgr wiring for DDOT on Windows is
 // exercised separately (e.g. TestDDOTAutoInstalledWithEnvVar), not as part of this experiment flow.
-func (s *extensionsSuite) assertDDOTManagedByProcmgrOnLinux() {
+func (s *extensionsSuite) assertDDOTManagedByProcmgrOnLinux(installDir string) {
 	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
 		return
 	}
 	s.Host.AssertSystemdUnitNotActive(s.T(), ddotSystemdUnit, ddotSystemdUnitExp)
-	s.Host.AssertProcessRunning(s.T(), ddotProcessName)
+	s.Host.AssertProcessRunning(s.T(), ddotProcessName, installDir)
 	s.Host.AssertProcmgrTelemetry(s.T(), ddotServiceID, ddotProcessName)
 }
 
@@ -263,7 +265,7 @@ func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
 	default:
 		s.T().Skipf("DDOT procmgr post-install checks are not defined for OS family %v", s.Env().RemoteHost.OSFamily)
 	}
-	s.Host.AssertProcessRunning(s.T(), ddotProcessName)
+	s.Host.AssertProcessRunning(s.T(), ddotProcessName, fleethost.LinuxStableInstallDir)
 
 	verifyDDOTRunning(s.T(), s.Agent)
 }
@@ -409,5 +411,5 @@ func (s *extensionsSuite) verifyDDOTServiceRemoved() {
 			s.T().Fatalf("DDOT service should be removed")
 		}
 	}
-	s.Host.AssertProcessNotLoaded(s.T(), ddotProcessName)
+	s.Host.AssertProcessNotLoaded(s.T(), ddotProcessName, fleethost.LinuxStableInstallDir)
 }

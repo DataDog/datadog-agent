@@ -24,8 +24,10 @@ import (
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
-// linuxStableInstallDir is the OCI install root for the stable datadog-agent package on Linux.
-const linuxStableInstallDir = "/opt/datadog-packages/datadog-agent/stable"
+const (
+	LinuxStableInstallDir     = "/opt/datadog-packages/datadog-agent/stable"
+	LinuxExperimentInstallDir = "/opt/datadog-packages/datadog-agent/experiment"
+)
 
 // Host wraps an environments.Host with helper methods for fleet tests.
 type Host struct {
@@ -86,10 +88,10 @@ func (h *Host) DirExists(path string) (bool, error) {
 }
 
 // procmgrCLI returns the path to the dd-procmgr executable for the current host's OS.
-func (h *Host) procmgrCLI() (string, error) {
+func (h *Host) procmgrCLI(installDir string) (string, error) {
 	switch h.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		return filepath.Join(linuxStableInstallDir, "embedded/bin/dd-procmgr"), nil
+		return filepath.Join(installDir, "embedded/bin/dd-procmgr"), nil
 	case e2eos.WindowsFamily:
 		installRoot, err := windowsagent.GetInstallPathFromRegistry(h.RemoteHost)
 		if err != nil {
@@ -120,8 +122,8 @@ func (h *Host) procmgrExec(cli, args string) (string, error) {
 // whether the dd-procmgr CLI is present under the current datadog-agent install. This is a
 // presence check, not an opt-out check: hosts running an agent version or install method that
 // predates procmgr correctly report false here.
-func (h *Host) ProcmgrEnabled() bool {
-	cli, err := h.procmgrCLI()
+func (h *Host) ProcmgrEnabled(installDir string) bool {
+	cli, err := h.procmgrCLI(installDir)
 	if err != nil {
 		return false
 	}
@@ -152,8 +154,8 @@ type ProcmgrProcess struct {
 
 // DescribeProcess returns the dd-procmgrd-reported state of a supervised process. ok is false if
 // the process is not registered with dd-procmgrd (including when dd-procmgr itself isn't present).
-func (h *Host) DescribeProcess(name string) (info ProcmgrProcess, ok bool, err error) {
-	cli, err := h.procmgrCLI()
+func (h *Host) DescribeProcess(name, installDir string) (info ProcmgrProcess, ok bool, err error) {
+	cli, err := h.procmgrCLI(installDir)
 	if err != nil {
 		return ProcmgrProcess{}, false, nil
 	}
@@ -187,12 +189,12 @@ func (h *Host) DescribeProcess(name string) (info ProcmgrProcess, ok bool, err e
 }
 
 // AssertProcessRunning fails the test unless dd-procmgrd reports name as stably Running.
-func (h *Host) AssertProcessRunning(t *testing.T, name string) {
+func (h *Host) AssertProcessRunning(t *testing.T, name, installDir string) {
 	t.Helper()
 	var runningSince time.Time
 	const minRunningDuration = 5 * time.Second
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		info, ok, err := h.DescribeProcess(name)
+		info, ok, err := h.DescribeProcess(name, installDir)
 		require.NoError(c, err)
 		if !assert.True(c, ok, "process %s is not loaded by dd-procmgrd", name) {
 			runningSince = time.Time{}
@@ -214,10 +216,10 @@ func (h *Host) AssertProcessRunning(t *testing.T, name string) {
 }
 
 // AssertProcessNotLoaded fails the test unless dd-procmgrd no longer has name registered.
-func (h *Host) AssertProcessNotLoaded(t *testing.T, name string) {
+func (h *Host) AssertProcessNotLoaded(t *testing.T, name, installDir string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		_, ok, err := h.DescribeProcess(name)
+		_, ok, err := h.DescribeProcess(name, installDir)
 		require.NoError(c, err)
 		assert.False(c, ok, "process %s is still loaded by dd-procmgrd", name)
 	}, 2*time.Minute, 5*time.Second)
