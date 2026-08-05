@@ -35,12 +35,12 @@ func RemovePARProcmgrConfig(installRootResolved string) error {
 var parControlInstallRootProcmgrSpec = installRootProcmgrSpec{
 	logLabel:          "PAR control plane",
 	binaryRelPath:     "bin/agent/par-control.exe",
-	configFileName:    "datadog-agent-action-control.yaml",
+	configFileName:    "datadog-agent-par-control.yaml",
 	embeddedConfig:    embedded.PARControlWindowsProcmgrConfig,
 	placeholderPrefix: "PAR",
 }
 
-// WritePARControlProcmgrConfig writes datadog-agent-action-control.yaml under
+// WritePARControlProcmgrConfig writes datadog-agent-par-control.yaml under
 // installRootResolved\processes.d.
 func WritePARControlProcmgrConfig(installRootResolved string) error {
 	return writeInstallRootProcmgrConfig(installRootResolved, parControlInstallRootProcmgrSpec)

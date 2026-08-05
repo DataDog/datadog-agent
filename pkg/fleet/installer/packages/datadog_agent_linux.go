@@ -104,7 +104,7 @@ var (
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
-		"processes.d/datadog-agent-action-control.yaml",
+		"processes.d/datadog-agent-par-control.yaml",
 		"processes.d/datadog-agent-action-executor.yaml",
 		"run",
 		".pre_python_installed_packages.txt",
@@ -274,7 +274,7 @@ func retireLegacyProcmgrUnits(ctx HookContext) error {
 }
 
 const (
-	parControlProcmgrConfigName  = "datadog-agent-action-control.yaml"
+	parControlProcmgrConfigName  = "datadog-agent-par-control.yaml"
 	parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
 )
 
