@@ -14,6 +14,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/serverless-init/exitcode",
+        "//cmd/serverless-init/log",
+        "//cmd/serverless-init/mode",
         "//cmd/serverless-init/trace",
         "//pkg/config/setup",
         "//pkg/metrics",

@@ -16,6 +16,9 @@ const (
 	// AzureAppServicesEnvVar is set to "1" when running in Datadog Azure App
 	// Services extension
 	AzureAppServicesEnvVar = "DD_AZURE_APP_SERVICES"
+
+	// MicroVMImageARNEnvVar is injected by the AWS Lambda MicroVM platform at runtime.
+	MicroVMImageARNEnvVar = "AWS_LAMBDA_MICROVM_IMAGE_ARN"
 )
 
 // IsAzureAppServicesExtension returns true if running in Datadog Azure App
