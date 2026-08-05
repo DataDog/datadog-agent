@@ -121,28 +121,23 @@ func (b *baselineController) start(dataSec int64) {
 	}
 }
 
-func (b *baselineController) phase(name string, dataSec int64) baselinePhase {
+// isAnalyzingAt reports whether the detector's baseline decision is still in
+// progress. During analysis, anomalies are suppressed.
+func (b *baselineController) isAnalyzingAt(name string, dataSec int64) bool {
 	state := b.detectors[name]
 	if state == nil || state.completed {
-		return baselineActive
+		return false
 	}
-	if dataSec < state.warmupEndSec {
-		return baselineWarming
-	}
-	if dataSec < state.baselineEndSec {
-		return baselineQualifying
-	}
-	return baselineComplete
+	return dataSec < state.baselineEndSec
 }
 
-type baselinePhase uint8
-
-const (
-	baselineActive baselinePhase = iota
-	baselineWarming
-	baselineQualifying
-	baselineComplete
-)
+// isQualifyingAt reports whether anomalies should contribute to this
+// detector's muted-series decision. The earlier warmup interval is analysis
+// only: anomalies are suppressed but never qualify a series for muting.
+func (b *baselineController) isQualifyingAt(name string, dataSec int64) bool {
+	state := b.detectors[name]
+	return state != nil && !state.completed && dataSec >= state.warmupEndSec && dataSec < state.baselineEndSec
+}
 
 func (b *baselineController) mark(name string, h uint64) {
 	state := b.detectors[name]

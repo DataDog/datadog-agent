@@ -587,18 +587,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
 			// so captureRawAnomaly would return false (duplicate) before we could mark it.
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
-			if e.baseline != nil {
-				switch e.baseline.phase(detector.Name(), upTo) {
-				case baselineWarming:
-					// Warmup lets the detector establish its own model but never
-					// qualifies a series for global muting.
-					continue
-				case baselineQualifying:
-					if anomaly.SourceRef != nil {
-						e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
-					}
-					continue
+			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
+				if e.baseline.isQualifyingAt(detector.Name(), upTo) && anomaly.SourceRef != nil {
+					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
 				}
+				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)

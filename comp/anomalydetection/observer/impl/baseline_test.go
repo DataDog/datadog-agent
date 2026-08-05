@@ -77,9 +77,11 @@ func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 		{name: "slow", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 5 * time.Minute}},
 	})
 	b.start(1000)
-	assert.Equal(t, baselineQualifying, b.phase("fast", 1000))
-	assert.Equal(t, baselineWarming, b.phase("slow", 1299))
-	assert.Equal(t, baselineQualifying, b.phase("slow", 1300))
+	assert.True(t, b.isAnalyzingAt("fast", 1000))
+	assert.True(t, b.isQualifyingAt("fast", 1000))
+	assert.True(t, b.isAnalyzingAt("slow", 1299))
+	assert.False(t, b.isQualifyingAt("slow", 1299))
+	assert.True(t, b.isQualifyingAt("slow", 1300))
 	assert.Equal(t, []string{"fast"}, b.due(1600))
 
 	b.mark("fast", 1)
