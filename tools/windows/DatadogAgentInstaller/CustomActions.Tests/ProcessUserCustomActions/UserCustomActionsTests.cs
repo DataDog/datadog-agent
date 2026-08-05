@@ -336,11 +336,63 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 Times.Once);
         }
 
+        [Fact]
+        public void ProcessDdAgentUserCredentials_Skips_Scm_Password_When_Registry_Metadata_Missing_And_Account_Requested()
+        {
+            const string ddAgentUserName = "ddagentuser";
+            const string domain = "EXAMPLE";
+
+            var (agentPasswordKey, scmPasswordKey) = SetupUpgradePasswordFetch(
+                requestedAccountName: $"{domain}\\{ddAgentUserName}",
+                configureDomainClient: () => Test.WithDomainClient(domain).WithDomainUser(ddAgentUserName),
+                lsaFetchError: new Exception("not found"));
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && string.IsNullOrEmpty(kvp.Value));
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(scmPasswordKey),
+                Times.Never);
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(agentPasswordKey),
+                Times.Once);
+        }
+
+        [Fact]
+        public void ProcessDdAgentUserCredentials_Reads_Scm_Password_When_Registry_Metadata_And_Account_Name_Missing()
+        {
+            const string ddAgentUserName = "ddagentuser";
+            var machineDomain = Environment.MachineName;
+
+            var (agentPasswordKey, scmPasswordKey) = SetupUpgradePasswordFetch(
+                requestedAccountName: null,
+                configureDomainClient: () => Test.WithLocalUser(machineDomain, ddAgentUserName),
+                lsaFetchError: new Exception("not found"));
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && kvp.Value == "scm-password");
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(scmPasswordKey),
+                Times.Once);
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(agentPasswordKey),
+                Times.Once);
+        }
+
         private (string agentPasswordKey, string scmPasswordKey) SetupUpgradePasswordFetch(
             string requestedAccountName,
-            string installedDomain,
-            string installedUser,
             Action configureDomainClient,
+            string installedDomain = null,
+            string installedUser = null,
             string lsaPassword = null,
             Exception lsaFetchError = null,
             bool agentServiceExists = true,
@@ -355,12 +407,23 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 Test.WithDatadogAgentService();
             }
 
-            Test.Session
-                .Setup(session => session["DDAGENTUSER_NAME"]).Returns(requestedAccountName);
-            Test.Session
-                .Setup(session => session["DDAGENT_installedDomain"]).Returns(installedDomain);
-            Test.Session
-                .Setup(session => session["DDAGENT_installedUser"]).Returns(installedUser);
+            if (requestedAccountName != null)
+            {
+                Test.Session
+                    .Setup(session => session["DDAGENTUSER_NAME"]).Returns(requestedAccountName);
+            }
+
+            if (installedDomain != null)
+            {
+                Test.Session
+                    .Setup(session => session["DDAGENT_installedDomain"]).Returns(installedDomain);
+            }
+
+            if (installedUser != null)
+            {
+                Test.Session
+                    .Setup(session => session["DDAGENT_installedUser"]).Returns(installedUser);
+            }
 
             var lsaSetup = Test.NativeMethods
                 .Setup(nativeMethods => nativeMethods.FetchSecret(agentPasswordKey));

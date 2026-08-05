@@ -416,19 +416,22 @@ namespace Datadog.CustomActions
         /// stored from the previous install.
         /// </summary>
         /// <remarks>
-        /// Returns false when registry metadata is missing, so SCM migration is still attempted on
-        /// upgrades that predate stored installedDomain/installedUser values.
+        /// When registry metadata is missing and DDAGENTUSER_NAME is set, returns true so SCM
+        /// migration is skipped because the requested account cannot be verified as unchanged.
+        /// When both registry metadata and DDAGENTUSER_NAME are empty, returns false so SCM
+        /// migration can still run on upgrades that predate stored installedDomain/installedUser.
         /// </remarks>
         private bool IsChangingAgentAccountOnUpgrade()
         {
             var installedDomain = _session.Property("DDAGENT_installedDomain");
             var installedUser = _session.Property("DDAGENT_installedUser");
+            var requestedName = _session.Property("DDAGENTUSER_NAME");
+
             if (string.IsNullOrEmpty(installedDomain) || string.IsNullOrEmpty(installedUser))
             {
-                return false;
+                return !string.IsNullOrEmpty(requestedName);
             }
 
-            var requestedName = _session.Property("DDAGENTUSER_NAME");
             if (string.IsNullOrEmpty(requestedName))
             {
                 return false;
