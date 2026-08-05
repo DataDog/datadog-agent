@@ -75,8 +75,11 @@ pub(super) fn spawn_as_primary_token(
         )?)
     };
 
-    let env_block =
-        env_block_from_baseline_plus_overrides(primary_token_guard.raw(), &request.env)?;
+    let env_block = env_block_from_baseline_plus_overrides(
+        process_name,
+        primary_token_guard.raw(),
+        &request.env,
+    )?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
@@ -225,12 +228,14 @@ fn windows_command_line_arg(s: &str) -> String {
 }
 
 fn env_block_from_baseline_plus_overrides(
+    process_name: &str,
     token: HANDLE,
     overrides: &[(String, String)],
 ) -> Result<Vec<u16>> {
-    let mut vars = super::super::baseline_env_vars_from_token(token)
+    let baseline = super::super::baseline_env_vars_from_token(token)
         .context("build child environment from spawn token")?;
-    super::super::merge_env_overrides(&mut vars, overrides);
+    let vars =
+        super::super::legacy_scm_env::build_child_env_vars(process_name, baseline, overrides);
     Ok(env_vars_to_wide_block(&vars))
 }
 
