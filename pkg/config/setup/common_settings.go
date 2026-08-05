@@ -152,6 +152,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 
+	config.BindEnvAndSetDefault("patch_prometheus_client", true)
+
 	// Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)
 	// Enables Service Endpoints checks in the prometheus config provider
