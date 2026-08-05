@@ -76,8 +76,14 @@ dd_agent_go_test(
         "statefulset_test.go",
     ],
     embed = [":customresources"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/util/kubernetes/apiserver",
         "@com_github_stretchr_testify//assert",

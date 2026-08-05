@@ -23,8 +23,8 @@ dd_agent_go_test(
     srcs = ["test_progs_test.go"],
     data = glob(["testdata/**"]),
     embed = [":testprogs"],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/ir",

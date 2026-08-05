@@ -49,8 +49,14 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":envoygateway"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",

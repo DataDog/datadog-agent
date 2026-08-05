@@ -30,7 +30,10 @@ dd_agent_go_test(
     name = "ecs_test",
     srcs = ["ecs_test.go"],
     embed = [":ecs"],
+    gotags_sets = [[
+        "docker",
+        "kubelet",
+    ]],
     include_default = False,
-    tag_sets = ["docker+kubelet"],
     deps = ["@com_github_stretchr_testify//require"],
 )

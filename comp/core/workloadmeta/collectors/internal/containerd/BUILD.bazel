@@ -67,8 +67,8 @@ dd_agent_go_test(
         "image_test.go",
     ],
     embed = [":containerd"],
+    gotags_sets = [["containerd"]],
     include_default = False,
-    tag_sets = ["containerd"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core/config",

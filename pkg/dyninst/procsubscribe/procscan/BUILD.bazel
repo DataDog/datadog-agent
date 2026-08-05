@@ -50,8 +50,8 @@ dd_agent_go_test(
         "testdata/stat/special_chars.txt",
         "testdata/stat/with_spaces.txt",
     ],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/discovery/tracermetadata/model",

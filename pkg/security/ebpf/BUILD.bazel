@@ -39,8 +39,8 @@ dd_agent_go_test(
     name = "ebpf_test",
     srcs = ["compile_test.go"],
     embed = [":ebpf"],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [

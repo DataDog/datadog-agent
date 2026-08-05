@@ -40,8 +40,8 @@ dd_agent_go_test(
         "loader_test.go",
     ],
     embed = [":sharedlibraryimpl"],
+    gotags_sets = [["sharedlibrarycheck"]],
     include_default = False,
-    tag_sets = ["sharedlibrarycheck"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/impl-noop",

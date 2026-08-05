@@ -34,8 +34,8 @@ dd_agent_go_test(
     name = "jetson_test",
     srcs = ["jetson_test.go"],
     embed = [":jetson"],
+    gotags_sets = [["jetson"]],
     include_default = False,
-    tag_sets = ["jetson"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/aggregator/mocksender",

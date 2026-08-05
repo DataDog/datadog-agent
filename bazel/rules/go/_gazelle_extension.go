@@ -31,7 +31,7 @@ import (
 )
 
 const extName = "dd_agent_go_test"
-const tagSetsDirective = "go_test_tag_sets"
+const canonicalTagSetDirective = "go_canonical_test_tag_set"
 const manualTag = "manual"
 
 // Stopping at 12 tags avoids combinatorial explosion and maintains readability.
@@ -39,7 +39,7 @@ const maxEnumeratedAutoTestTags = 12
 
 type ddAgentGoTestConfig struct {
 	enabled bool
-	tagSets []string
+	tagSets [][]string
 }
 
 type lang struct {
@@ -63,7 +63,7 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 			"gotags":          true,
 			"include_default": true,
 			"srcs":            true,
-			"tag_sets":        true,
+			"gotags_sets":     true,
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	}
@@ -87,7 +87,7 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 
 // KnownDirectives registers this extension's directives alongside Go's.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName, tagSetsDirective)
+	return append(l.Language.KnownDirectives(), extName, canonicalTagSetDirective)
 }
 
 // Configure reads the inheritable test conversion and canonical tag-set directives.
@@ -104,8 +104,10 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 			switch d.Key {
 			case extName:
 				cfg.enabled = d.Value != "off"
-			case tagSetsDirective:
-				cfg.tagSets = parseTagSets(d.Value)
+			case canonicalTagSetDirective:
+				if tags := parseCanonicalTagSet(d.Value); len(tags) > 0 {
+					cfg.tagSets = mergeTagSets(cfg.tagSets, [][]string{tags})
+				}
 			}
 		}
 	}
@@ -151,7 +153,7 @@ func shouldReplace(c *config.Config) bool {
 	return true
 }
 
-func configuredTagSets(c *config.Config) []string {
+func configuredTagSets(c *config.Config) [][]string {
 	cfg, ok := c.Exts[extName].(ddAgentGoTestConfig)
 	if !ok {
 		return nil
@@ -168,7 +170,7 @@ func configuredTagSets(c *config.Config) []string {
 // go_test MergeableAttrs are regenerated from source analysis, and attrs in
 // dd_agent_go_test's MergeableAttrs are owned by the macro. Everything else is hand-maintained and
 // must be carried over.
-func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, pkgDir string, configuredTagSets []string) language.GenerateResult {
+func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, pkgDir string, configuredTagSets [][]string) language.GenerateResult {
 	managed := make(map[string]bool)
 	for attr := range l.Language.Kinds()["go_test"].MergeableAttrs {
 		managed[attr] = true
@@ -244,7 +246,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 				nr.SetAttr("include_default", false)
 			}
 			if len(tagSets) > 0 {
-				nr.SetAttr("tag_sets", tagSets)
+				setGotagsSetsAttr(nr, tagSets)
 			}
 		}
 		empty = append(empty, rule.NewRule("go_test", r.Name()))
@@ -280,7 +282,7 @@ func (l *lang) revertDdAgentGoTests(result language.GenerateResult, file *rule.F
 			continue
 		}
 		r.DelAttr("include_default")
-		r.DelAttr("tag_sets")
+		r.DelAttr("gotags_sets")
 		r.SetKind("go_test")
 		addStringToListIfMissing(r, "gotags", "test")
 	}
@@ -330,40 +332,67 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 	return nil, false
 }
 
-func parseTagSets(value string) []string {
-	return mergeTagSets(strings.Split(value, ","))
-}
-
-func mergeTagSets(groups ...[]string) []string {
-	seen := make(map[string]bool)
-	var out []string
-	for _, group := range groups {
-		for _, tagSet := range group {
-			tagSet = normalizeTagSet(tagSet)
-			if tagSet == "" || seen[tagSet] {
-				continue
-			}
-			seen[tagSet] = true
-			out = append(out, tagSet)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-func normalizeTagSet(tagSet string) string {
+func parseCanonicalTagSet(value string) []string {
 	seen := make(map[string]bool)
 	var tags []string
-	for _, tag := range strings.Split(tagSet, "+") {
-		tag = strings.TrimSpace(tag)
+	for _, tag := range strings.Fields(value) {
 		if tag == "" || seen[tag] {
 			continue
 		}
 		seen[tag] = true
 		tags = append(tags, tag)
 	}
-	sort.Strings(tags)
-	return strings.Join(tags, "+")
+	return normalizeTagSet(tags)
+}
+
+func mergeTagSets(groups ...[][]string) [][]string {
+	seen := make(map[string]bool)
+	var out [][]string
+	for _, group := range groups {
+		for _, tags := range group {
+			tags = normalizeTagSet(tags)
+			if len(tags) == 0 {
+				continue
+			}
+			key := tagSetKey(tags)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, tags)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return tagSetKey(out[i]) < tagSetKey(out[j])
+	})
+	return out
+}
+
+func normalizeTagSet(tags []string) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		out = append(out, tag)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func tagSetKey(tags []string) string {
+	return strings.Join(normalizeTagSet(tags), "+")
+}
+
+func setGotagsSetsAttr(r *rule.Rule, tagSets [][]string) {
+	outer := make([]interface{}, len(tagSets))
+	for i, tags := range tagSets {
+		outer[i] = tags
+	}
+	r.SetAttr("gotags_sets", outer)
 }
 
 // platformTokens are GOOS/GOARCH/toolchain identifiers that //go:build expressions
@@ -404,20 +433,20 @@ var goReleaseTags = func() map[string]bool {
 
 // applicableTagSets reports whether the default test has sources and returns
 // tag combinations that enable additional test or embedded library sources.
-func applicableTagSets(testSrcs, librarySrcs []string, pkgDir string, configuredTagSets []string) (bool, []string) {
+func applicableTagSets(testSrcs, librarySrcs []string, pkgDir string, configuredTagSets [][]string) (bool, [][]string) {
 	includeDefault, testTagSets := sourceTagSets(testSrcs, pkgDir, configuredTagSets, true)
 	_, libraryTagSets := sourceTagSets(librarySrcs, pkgDir, configuredTagSets, false)
 	return includeDefault, mergeTagSets(testTagSets, libraryTagSets)
 }
 
-func sourceTagSets(srcs []string, pkgDir string, configuredTagSets []string, deriveTagSets bool) (bool, []string) {
+func sourceTagSets(srcs []string, pkgDir string, configuredTagSets [][]string, deriveTagSets bool) (bool, [][]string) {
 	baseTags := make(map[string]bool, len(BaseTestTags))
 	for _, tag := range BaseTestTags {
 		baseTags[tag] = true
 	}
 
 	includeDefault := false
-	var tagSets []string
+	var tagSets [][]string
 	var expressions []constraint.Expr
 	for _, s := range srcs {
 		path := s
@@ -448,18 +477,17 @@ func sourceTagSets(srcs []string, pkgDir string, configuredTagSets []string, der
 	return includeDefault, coalesceRelatedTagSets(tagSets, expressions, baseTags)
 }
 
-func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, configuredTagSets []string, deriveTagSets bool) []string {
-	var matches []string
+func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, configuredTagSets [][]string, deriveTagSets bool) [][]string {
+	var matches [][]string
 	configuredTags := make(map[string]bool)
 	for _, tagSet := range configuredTagSets {
-		tags := strings.Split(tagSet, "+")
-		tagSetTags := make(map[string]bool, len(tags))
-		for _, tag := range tags {
+		tagSetTags := make(map[string]bool, len(tagSet))
+		for _, tag := range tagSet {
 			configuredTags[tag] = true
 			tagSetTags[tag] = true
 		}
-		if referencesAnyTag(expr, tagSetTags) && canSatisfy(expr, activeTagSet(baseTags, tags)) {
-			matches = append(matches, tagSet)
+		if referencesAnyTag(expr, tagSetTags) && canSatisfy(expr, activeTagSet(baseTags, tagSet)) {
+			matches = append(matches, normalizeTagSet(tagSet))
 		}
 	}
 	if len(matches) > 0 || referencesAnyTag(expr, configuredTags) || !deriveTagSets {
@@ -483,7 +511,7 @@ func referencesAnyTag(expr constraint.Expr, tags map[string]bool) bool {
 	}
 }
 
-func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) []string {
+func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
 	var referenced []string
 	collectAutoTestTags(expr, make(map[string]bool), &referenced)
 	sort.Strings(referenced)
@@ -494,10 +522,10 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) []string {
 		sort.Strings(positive)
 		active := activeTagSet(baseTags, positive)
 		if canSatisfy(expr, active) {
-			return []string{strings.Join(positive, "+")}
+			return [][]string{normalizeTagSet(positive)}
 		}
 		if canSatisfy(expr, activeTagSet(baseTags, referenced)) {
-			return []string{strings.Join(referenced, "+")}
+			return [][]string{normalizeTagSet(referenced)}
 		}
 		return nil
 	}
@@ -516,11 +544,11 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) []string {
 			}
 		}
 		if canSatisfy(expr, active) {
-			candidates = append(candidates, selected)
+			candidates = append(candidates, normalizeTagSet(selected))
 		}
 	}
 
-	var out []string
+	var out [][]string
 	for i, candidate := range candidates {
 		minimal := true
 		for j, other := range candidates {
@@ -530,7 +558,7 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) []string {
 			}
 		}
 		if minimal {
-			out = append(out, strings.Join(candidate, "+"))
+			out = append(out, candidate)
 		}
 	}
 	return mergeTagSets(out)
@@ -585,21 +613,19 @@ func stringSetContains(superset, subset []string) bool {
 	return true
 }
 
-func pruneRedundantTagSets(tagSets []string, expressions []constraint.Expr, baseTags map[string]bool) []string {
-	var out []string
+func pruneRedundantTagSets(tagSets [][]string, expressions []constraint.Expr, baseTags map[string]bool) [][]string {
+	var out [][]string
 	for i, candidate := range tagSets {
-		candidateTags := strings.Split(candidate, "+")
-		candidateActive := activeTagSet(baseTags, candidateTags)
+		candidateActive := activeTagSet(baseTags, candidate)
 		redundant := false
 		for j, other := range tagSets {
 			if i == j {
 				continue
 			}
-			otherTags := strings.Split(other, "+")
-			if len(otherTags) <= len(candidateTags) || !stringSetContains(otherTags, candidateTags) {
+			if len(other) <= len(candidate) || !stringSetContains(other, candidate) {
 				continue
 			}
-			otherActive := activeTagSet(baseTags, otherTags)
+			otherActive := activeTagSet(baseTags, other)
 			coversSameSources := true
 			for _, expr := range expressions {
 				if canSatisfy(expr, candidateActive) && !canSatisfy(expr, otherActive) {
@@ -630,19 +656,19 @@ func activeTagSet(baseTags map[string]bool, tags []string) map[string]bool {
 	return active
 }
 
-func coalesceRelatedTagSets(tagSets []string, expressions []constraint.Expr, baseTags map[string]bool) []string {
-	tagSets = append([]string(nil), tagSets...)
+func coalesceRelatedTagSets(tagSets [][]string, expressions []constraint.Expr, baseTags map[string]bool) [][]string {
+	tagSets = append([][]string(nil), tagSets...)
 	for {
 		merged := false
 		for i := 0; i < len(tagSets) && !merged; i++ {
-			left := strings.Split(tagSets[i], "+")
+			left := tagSets[i]
 			for j := i + 1; j < len(tagSets); j++ {
-				right := strings.Split(tagSets[j], "+")
+				right := tagSets[j]
 				if !stringSetsIntersect(left, right) {
 					continue
 				}
-				union := normalizeTagSet(tagSets[i] + "+" + tagSets[j])
-				unionActive := activeTagSet(baseTags, strings.Split(union, "+"))
+				union := normalizeTagSet(append(append([]string(nil), left...), right...))
+				unionActive := activeTagSet(baseTags, union)
 				leftActive := activeTagSet(baseTags, left)
 				rightActive := activeTagSet(baseTags, right)
 				preservesCoverage := true

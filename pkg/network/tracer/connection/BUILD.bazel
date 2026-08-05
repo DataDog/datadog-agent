@@ -90,8 +90,8 @@ dd_agent_go_test(
         "tcp_close_consumer_test.go",
     ],
     embed = [":connection"],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     # keep: the linux_bpf variant needs a privileged host with a live kernel;
     # it runs in the system-probe lane, not under wildcard builds.
     tags = ["manual"],

@@ -72,8 +72,14 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":autoinstrumentation"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//cmd/cluster-agent/admission",
         "//comp/core/config",

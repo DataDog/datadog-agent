@@ -110,7 +110,13 @@ dd_agent_go_test(
         "time_sampler_test.go",
     ],
     embed = [":aggregator"],
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/severityevents/def",

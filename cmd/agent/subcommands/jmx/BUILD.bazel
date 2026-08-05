@@ -53,8 +53,8 @@ dd_agent_go_test(
     name = "jmx_test",
     srcs = ["command_test.go"],
     embed = [":jmx"],
+    gotags_sets = [["jmx"]],
     include_default = False,
-    tag_sets = ["jmx"],
     deps = [
         "//cmd/agent/command",
         "//comp/core",

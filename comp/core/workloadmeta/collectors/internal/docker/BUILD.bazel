@@ -44,8 +44,11 @@ dd_agent_go_test(
     name = "docker_test",
     srcs = ["docker_test.go"],
     embed = [":docker"],
+    gotags_sets = [[
+        "docker",
+        "kubelet",
+    ]],
     include_default = False,
-    tag_sets = ["docker+kubelet"],
     deps = [
         "//comp/core/workloadmeta/def",
         "@com_github_moby_moby_api//types/image",

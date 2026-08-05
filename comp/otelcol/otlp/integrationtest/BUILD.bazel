@@ -13,8 +13,8 @@ dd_agent_go_test(
     srcs = ["integration_test.go"],
     data = glob(["testdata/**"]),
     embed = [":integrationtest"],
+    gotags_sets = [["otlp"]],
     include_default = False,
-    tag_sets = ["otlp"],
     deps = [
         "//cmd/otel-agent/config",
         "//cmd/otel-agent/subcommands",

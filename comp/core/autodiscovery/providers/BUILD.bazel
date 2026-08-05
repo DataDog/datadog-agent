@@ -151,13 +151,29 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":providers"],
-    tag_sets = [
-        "consul",
-        "etcd",
-        "zk",
-        "cel+clusterchecks+kubeapiserver+kubelet+orchestrator",
-        "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator",
-        "docker+kubelet",
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "docker",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        ["consul"],
+        [
+            "docker",
+            "kubelet",
+        ],
+        ["etcd"],
+        ["zk"],
     ],
     deps = [
         "//comp/core/autodiscovery/common/types",

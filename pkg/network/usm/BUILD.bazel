@@ -97,11 +97,11 @@ dd_agent_go_test(
         "usm_http_monitor_test.go",
     ],
     embed = [":usm"],
-    include_default = False,
-    tag_sets = [
-        "linux_bpf",
-        "npm",
+    gotags_sets = [
+        ["linux_bpf"],
+        ["npm"],
     ],
+    include_default = False,
     # keep: the linux_bpf variant needs a privileged host with a live kernel;
     # it runs in the system-probe lane, not under wildcard builds.
     tags = ["manual"],

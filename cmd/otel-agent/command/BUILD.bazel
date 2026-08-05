@@ -24,8 +24,8 @@ dd_agent_go_test(
     name = "command_test",
     srcs = ["command_test.go"],
     embed = [":command"],
+    gotags_sets = [["otlp"]],
     include_default = False,
-    tag_sets = ["otlp"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

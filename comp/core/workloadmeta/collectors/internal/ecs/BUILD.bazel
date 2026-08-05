@@ -50,8 +50,11 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":ecs"],
+    gotags_sets = [[
+        "docker",
+        "kubelet",
+    ]],
     include_default = False,
-    tag_sets = ["docker+kubelet"],
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/def",

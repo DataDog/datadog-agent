@@ -25,8 +25,15 @@ dd_agent_go_test(
     name = "kubelet_test",
     srcs = ["hostname_test.go"],
     embed = [":kubelet"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",

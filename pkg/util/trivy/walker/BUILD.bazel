@@ -22,8 +22,8 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":walker"],
+    gotags_sets = [["trivy"]],
     include_default = False,
-    tag_sets = ["trivy"],
     deps = [
         "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
         "@com_github_aquasecurity_trivy//pkg/fanal/walker",

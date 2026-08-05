@@ -34,8 +34,15 @@ dd_agent_go_test(
     ],
     data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
     embed = [":pod"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

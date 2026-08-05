@@ -14,8 +14,8 @@ dd_agent_go_test(
     name = "symdbprinter_test",
     srcs = ["symdbprinter_test.go"],
     embed = [":symdbprinter"],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/symdb",

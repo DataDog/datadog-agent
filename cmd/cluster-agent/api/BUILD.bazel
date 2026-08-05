@@ -47,7 +47,13 @@ dd_agent_go_test(
     name = "api_test",
     srcs = ["server_test.go"],
     embed = [":api"],
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "//comp/core/ipc/mock",
         "//pkg/api/util",

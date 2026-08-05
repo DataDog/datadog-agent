@@ -31,7 +31,7 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":ebpf"],
-    tag_sets = ["linux_bpf"],
+    gotags_sets = [["linux_bpf"]],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/config",

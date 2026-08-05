@@ -26,8 +26,8 @@ dd_agent_go_test(
     name = "podman_test",
     srcs = ["podman_test.go"],
     embed = [":podman"],
+    gotags_sets = [["podman"]],
     include_default = False,
-    tag_sets = ["podman"],
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/util/log",

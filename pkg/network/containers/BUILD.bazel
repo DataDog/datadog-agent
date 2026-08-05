@@ -54,8 +54,8 @@ dd_agent_go_test(
         "container_store_linux_test.go",
     ],
     embed = [":containers"],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [

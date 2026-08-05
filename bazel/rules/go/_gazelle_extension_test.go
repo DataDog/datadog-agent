@@ -31,6 +31,60 @@ func newLang() *lang {
 	return NewLanguage().(*lang)
 }
 
+func attrGotagsSets(r *rule.Rule) [][]string {
+	attr := r.Attr("gotags_sets")
+	if attr == nil {
+		return nil
+	}
+	list, ok := attr.(*bzl.ListExpr)
+	if !ok {
+		return nil
+	}
+	var out [][]string
+	for _, item := range list.List {
+		inner, ok := item.(*bzl.ListExpr)
+		if !ok {
+			continue
+		}
+		var tags []string
+		for _, tagExpr := range inner.List {
+			lit, ok := tagExpr.(*bzl.StringExpr)
+			if !ok {
+				continue
+			}
+			tags = append(tags, lit.Value)
+		}
+		out = append(out, tags)
+	}
+	return out
+}
+
+func tagSetsEqual(a, b [][]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	keysA := make([]string, len(a))
+	for i, ts := range a {
+		keysA[i] = tagSetKey(ts)
+	}
+	keysB := make([]string, len(b))
+	for i, ts := range b {
+		keysB[i] = tagSetKey(ts)
+	}
+	sort.Strings(keysA)
+	sort.Strings(keysB)
+	for i := range keysA {
+		if keysA[i] != keysB[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func tagsList(tags ...string) []string {
+	return normalizeTagSet(tags)
+}
+
 func TestReplaceGoTests_NonGoTestPassesThrough(t *testing.T) {
 	lib := rule.NewRule("go_library", "lib")
 	result := newLang().replaceGoTests(makeGoTestResult(lib), nil, "", nil)
@@ -80,12 +134,12 @@ func TestReplaceGoTests_ConfiguredTagSets(t *testing.T) {
 
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("srcs", []string{"pkg_test.go"})
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, []string{"zstd+zlib"})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("zstd", "zlib")})
 
-	got := result.Gen[0].AttrStrings("tag_sets")
-	want := []string{"zlib+zstd"}
-	if !stringSlicesEqual(got, want) {
-		t.Errorf("tag_sets = %v, want %v", got, want)
+	got := attrGotagsSets(result.Gen[0])
+	want := [][]string{tagsList("zlib", "zstd")}
+	if !tagSetsEqual(got, want) {
+		t.Errorf("gotags_sets = %v, want %v", got, want)
 	}
 }
 
@@ -121,13 +175,13 @@ func TestReplaceGoTests_LinuxBPFStillUsesMacro(t *testing.T) {
 
 	orig := rule.NewRule("go_test", "pkg_test")
 	orig.SetAttr("srcs", []string{"pkg_test.go"})
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, []string{"linux_bpf"})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("linux_bpf")})
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "dd_agent_go_test" {
 		t.Fatalf("expected one dd_agent_go_test, got %v", result.Gen)
 	}
-	if got := result.Gen[0].AttrStrings("tag_sets"); !stringSlicesEqual(got, []string{"linux_bpf"}) {
-		t.Errorf("tag_sets = %v, want [linux_bpf]", got)
+	if got := attrGotagsSets(result.Gen[0]); !tagSetsEqual(got, [][]string{tagsList("linux_bpf")}) {
+		t.Errorf("gotags_sets = %v, want [[linux_bpf]]", got)
 	}
 	if len(result.Empty) != 1 || result.Empty[0].Kind() != "go_test" {
 		t.Errorf("expected replaced go_test in empty rules, got %v", result.Empty)
@@ -468,8 +522,8 @@ func TestKnownDirectives(t *testing.T) {
 	if !found[extName] {
 		t.Errorf("%q not in KnownDirectives: %v", extName, dirs)
 	}
-	if !found[tagSetsDirective] {
-		t.Errorf("%q not in KnownDirectives: %v", tagSetsDirective, dirs)
+	if !found[canonicalTagSetDirective] {
+		t.Errorf("%q not in KnownDirectives: %v", canonicalTagSetDirective, dirs)
 	}
 	if len(dirs) <= 1 {
 		t.Errorf("expected Go extension directives to be preserved, got %v", dirs)
@@ -503,14 +557,17 @@ func TestConfigure_DirectiveOn(t *testing.T) {
 
 func TestConfigure_TagSets(t *testing.T) {
 	f := &rule.File{}
-	f.Directives = []rule.Directive{{Key: tagSetsDirective, Value: "zstd+zlib, kubeapiserver"}}
+	f.Directives = []rule.Directive{
+		{Key: canonicalTagSetDirective, Value: "zstd zlib"},
+		{Key: canonicalTagSetDirective, Value: "kubeapiserver"},
+	}
 
 	c := &config.Config{Exts: map[string]interface{}{}}
 	NewLanguage().(*lang).Configure(c, "some/pkg", f)
 
 	got := c.Exts[extName].(ddAgentGoTestConfig).tagSets
-	want := []string{"kubeapiserver", "zlib+zstd"}
-	if !stringSlicesEqual(got, want) {
+	want := [][]string{tagsList("kubeapiserver"), tagsList("zlib", "zstd")}
+	if !tagSetsEqual(got, want) {
 		t.Errorf("tagSets = %v, want %v", got, want)
 	}
 }
@@ -659,7 +716,7 @@ func TestApplicableTagSets(t *testing.T) {
 	linuxBpfLibrary := write("bpf.go", "//go:build linux_bpf")
 	orchestrator := write("orchestrator_test.go", "//go:build orchestrator")
 	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
-	kubernetesTagSet := "cel+clusterchecks+kubeapiserver+kubelet+orchestrator"
+	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet", "orchestrator")
 	var manyTagNames []string
 	for tag := range AutoTestTags {
 		manyTagNames = append(manyTagNames, tag)
@@ -669,9 +726,9 @@ func TestApplicableTagSets(t *testing.T) {
 		t.Fatalf("need more than %d auto test tags", maxEnumeratedAutoTestTags)
 	}
 	manyTagNames = manyTagNames[:maxEnumeratedAutoTestTags+1]
-	manyTagSet := strings.Join(manyTagNames, "+")
+	manyTagSet := tagsList(manyTagNames...)
 	manyTags := write("many_tags_test.go", "//go:build "+strings.Join(manyTagNames, " && "))
-	manyPositiveTagSet := strings.Join(manyTagNames[:maxEnumeratedAutoTestTags], "+")
+	manyPositiveTagSet := tagsList(manyTagNames[:maxEnumeratedAutoTestTags]...)
 	manyTagsWithNegative := write(
 		"many_tags_negative_test.go",
 		"//go:build "+strings.Join(manyTagNames[:maxEnumeratedAutoTestTags], " && ")+" && !"+manyTagNames[maxEnumeratedAutoTestTags],
@@ -681,9 +738,9 @@ func TestApplicableTagSets(t *testing.T) {
 		name              string
 		srcs              []string
 		librarySrcs       []string
-		configuredTagSets []string
+		configuredTagSets [][]string
 		wantDefault       bool
-		wantTagSets       []string
+		wantTagSets       [][]string
 	}{
 		{
 			name:        "unconstrained file uses default only",
@@ -693,12 +750,12 @@ func TestApplicableTagSets(t *testing.T) {
 		{
 			name:        "linux_bpf gets focused variant",
 			srcs:        []string{linuxBpf},
-			wantTagSets: []string{"linux_bpf"},
+			wantTagSets: [][]string{tagsList("linux_bpf")},
 		},
 		{
 			name:        "requirefips gets focused variant",
 			srcs:        []string{requireFips},
-			wantTagSets: []string{"requirefips"},
+			wantTagSets: [][]string{tagsList("requirefips")},
 		},
 		{
 			name:        "windows-only uses default",
@@ -709,7 +766,7 @@ func TestApplicableTagSets(t *testing.T) {
 			name:        "feature alternative to platform needs both targets",
 			srcs:        []string{platformAlternative},
 			wantDefault: true,
-			wantTagSets: []string{"trivy"},
+			wantTagSets: [][]string{tagsList("trivy")},
 		},
 		{
 			name:        "negative feature uses default",
@@ -724,59 +781,59 @@ func TestApplicableTagSets(t *testing.T) {
 		{
 			name:        "feature and platform",
 			srcs:        []string{tagCombined},
-			wantTagSets: []string{"kubeapiserver"},
+			wantTagSets: [][]string{tagsList("kubeapiserver")},
 		},
 		{
 			name:        "unconstrained and tagged files need both targets",
 			srcs:        []string{linuxBpf, noConstraint},
 			wantDefault: true,
-			wantTagSets: []string{"linux_bpf"},
+			wantTagSets: [][]string{tagsList("linux_bpf")},
 		},
 		{
 			name:        "independent tagged files get independent variants",
 			srcs:        []string{linuxBpf, requireFips},
-			wantTagSets: []string{"linux_bpf", "requirefips"},
+			wantTagSets: [][]string{tagsList("linux_bpf"), tagsList("requirefips")},
 		},
 		{
 			name:        "and expression gets combined variant",
 			srcs:        []string{twoTags},
-			wantTagSets: []string{"containerd+trivy"},
+			wantTagSets: [][]string{tagsList("containerd", "trivy")},
 		},
 		{
 			name:        "superset covering same sources removes subset",
 			srcs:        []string{oneTag, twoTags},
-			wantTagSets: []string{"containerd+trivy"},
+			wantTagSets: [][]string{tagsList("containerd", "trivy")},
 		},
 		{
 			name:        "related combinations coalesce",
 			srcs:        []string{twoTags, relatedTags},
-			wantTagSets: []string{"containerd+docker+trivy"},
+			wantTagSets: [][]string{tagsList("containerd", "docker", "trivy")},
 		},
 		{
 			name:        "superset does not remove negative-tag mode",
 			srcs:        []string{negativeTag, compression},
-			wantTagSets: []string{"zlib", "zlib+zstd"},
+			wantTagSets: [][]string{tagsList("zlib"), tagsList("zlib", "zstd")},
 		},
 		{
 			name:        "or expression gets minimal alternatives",
 			srcs:        []string{alternatives},
-			wantTagSets: []string{"containerd", "docker"},
+			wantTagSets: [][]string{tagsList("containerd"), tagsList("docker")},
 		},
 		{
 			name:        "unreadable source does not hide later variants",
 			srcs:        []string{"missing_test.go", linuxBpf},
 			wantDefault: true,
-			wantTagSets: []string{"linux_bpf"},
+			wantTagSets: [][]string{tagsList("linux_bpf")},
 		},
 		{
 			name:        "large expression uses bounded combined variant",
 			srcs:        []string{manyTags},
-			wantTagSets: []string{manyTagSet},
+			wantTagSets: [][]string{manyTagSet},
 		},
 		{
 			name:        "large expression preserves negative tags",
 			srcs:        []string{manyTagsWithNegative},
-			wantTagSets: []string{manyPositiveTagSet},
+			wantTagSets: [][]string{manyPositiveTagSet},
 		},
 		{
 			name: "dependency-only tag does not create unit test",
@@ -791,35 +848,35 @@ func TestApplicableTagSets(t *testing.T) {
 		{
 			name:              "configured set is canonical for related tags",
 			srcs:              []string{orchestrator},
-			configuredTagSets: []string{kubernetesTagSet},
-			wantTagSets:       []string{kubernetesTagSet},
+			configuredTagSets: [][]string{kubernetesTagSet},
+			wantTagSets:       [][]string{kubernetesTagSet},
 		},
 		{
 			name:              "configured set suppresses incompatible partial mode",
 			srcs:              []string{kubeAPIServerWithoutKubelet},
-			configuredTagSets: []string{kubernetesTagSet},
+			configuredTagSets: [][]string{kubernetesTagSet},
 		},
 		{
 			name:              "unrelated tags still derive focused variants",
 			srcs:              []string{linuxBpf},
-			configuredTagSets: []string{kubernetesTagSet},
-			wantTagSets:       []string{"linux_bpf"},
+			configuredTagSets: [][]string{kubernetesTagSet},
+			wantTagSets:       [][]string{tagsList("linux_bpf")},
 		},
 		{
 			name:              "embedded library selects configured set",
 			srcs:              []string{noConstraint},
 			librarySrcs:       []string{taggedLibrary},
-			configuredTagSets: []string{kubernetesTagSet},
+			configuredTagSets: [][]string{kubernetesTagSet},
 			wantDefault:       true,
-			wantTagSets:       []string{kubernetesTagSet},
+			wantTagSets:       [][]string{kubernetesTagSet},
 		},
 		{
 			name:              "untagged test embedding linux_bpf library selects configured set",
 			srcs:              []string{noConstraint},
 			librarySrcs:       []string{linuxBpfLibrary},
-			configuredTagSets: []string{"linux_bpf"},
+			configuredTagSets: [][]string{tagsList("linux_bpf")},
 			wantDefault:       true,
-			wantTagSets:       []string{"linux_bpf"},
+			wantTagSets:       [][]string{tagsList("linux_bpf")},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -827,7 +884,7 @@ func TestApplicableTagSets(t *testing.T) {
 			if gotDefault != tc.wantDefault {
 				t.Errorf("includeDefault = %v, want %v", gotDefault, tc.wantDefault)
 			}
-			if !stringSlicesEqual(gotTagSets, tc.wantTagSets) {
+			if !tagSetsEqual(gotTagSets, tc.wantTagSets) {
 				t.Errorf("tagSets = %v, want %v", gotTagSets, tc.wantTagSets)
 			}
 		})
@@ -852,7 +909,7 @@ func TestKinds(t *testing.T) {
 	if !info.MergeableAttrs["srcs"] {
 		t.Error("expected srcs in MergeableAttrs")
 	}
-	if !info.MergeableAttrs["tag_sets"] || !info.MergeableAttrs["include_default"] {
+	if !info.MergeableAttrs["gotags_sets"] || !info.MergeableAttrs["include_default"] {
 		t.Error("expected flavorless attrs in MergeableAttrs")
 	}
 	if !info.ResolveAttrs["deps"] {

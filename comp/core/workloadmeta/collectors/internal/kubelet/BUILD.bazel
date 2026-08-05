@@ -26,8 +26,15 @@ dd_agent_go_test(
     name = "kubelet_test",
     srcs = ["kubelet_test.go"],
     embed = [":kubelet"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/workloadmeta/collectors/util",

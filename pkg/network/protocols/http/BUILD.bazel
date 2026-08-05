@@ -146,9 +146,9 @@ dd_agent_go_test(
         "types_linux_test.go",
     ],
     embed = [":http"],
-    tag_sets = [
-        "linux_bpf",
-        "npm",
+    gotags_sets = [
+        ["linux_bpf"],
+        ["npm"],
     ],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [

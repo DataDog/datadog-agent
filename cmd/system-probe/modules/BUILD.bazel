@@ -261,7 +261,7 @@ dd_agent_go_test(
         "traceroute_test.go",
     ],
     embed = [":modules"],
-    tag_sets = ["linux_bpf"],
+    gotags_sets = [["linux_bpf"]],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({

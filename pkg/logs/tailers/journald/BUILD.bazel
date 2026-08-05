@@ -41,8 +41,8 @@ dd_agent_go_test(
         "tailer_test.go",
     ],
     embed = [":journald"],
+    gotags_sets = [["systemd"]],
     include_default = False,
-    tag_sets = ["systemd"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/logs/agent/config",

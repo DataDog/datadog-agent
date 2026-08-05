@@ -28,8 +28,8 @@ dd_agent_go_test(
         "uploader_test.go",
     ],
     embed = [":uploader"],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/object",

@@ -12,8 +12,8 @@ go_library(
 dd_agent_go_test(
     name = "htlhash_test",
     srcs = ["htlhash_test.go"],
+    gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tag_sets = ["linux_bpf"],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [

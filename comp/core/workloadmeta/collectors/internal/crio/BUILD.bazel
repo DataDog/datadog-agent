@@ -41,8 +41,8 @@ dd_agent_go_test(
         "image_test.go",
     ],
     embed = [":crio"],
+    gotags_sets = [["crio"]],
     include_default = False,
-    tag_sets = ["crio"],
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core/workloadmeta/def",

@@ -34,8 +34,8 @@ dd_agent_go_test(
     name = "journald_test",
     srcs = ["launcher_test.go"],
     embed = [":journald"],
+    gotags_sets = [["systemd"]],
     include_default = False,
-    tag_sets = ["systemd"],
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/logs-library/pipeline",

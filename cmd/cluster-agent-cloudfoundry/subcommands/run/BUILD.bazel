@@ -1065,8 +1065,14 @@ dd_agent_go_test(
     name = "run_test",
     srcs = ["command_test.go"],
     embed = [":run"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/cluster-agent-cloudfoundry/command",

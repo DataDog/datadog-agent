@@ -24,8 +24,14 @@ dd_agent_go_test(
     name = "common_test",
     srcs = ["lib_config_test.go"],
     embed = [":common"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//require",

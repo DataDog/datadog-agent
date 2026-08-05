@@ -33,8 +33,8 @@ dd_agent_go_test(
         "rds_test.go",
     ],
     embed = [":aws"],
+    gotags_sets = [["ec2"]],
     include_default = False,
-    tag_sets = ["ec2"],
     deps = [
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_service_rds//:rds",

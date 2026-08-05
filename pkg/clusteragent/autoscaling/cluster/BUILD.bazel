@@ -46,8 +46,14 @@ dd_agent_go_test(
     name = "cluster_test",
     srcs = ["controller_test.go"],
     embed = [":cluster"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//pkg/clusteragent/autoscaling",
         "//pkg/clusteragent/autoscaling/cluster/model",

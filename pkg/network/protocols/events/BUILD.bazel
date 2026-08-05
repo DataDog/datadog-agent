@@ -65,7 +65,7 @@ dd_agent_go_test(
         "types_linux_test.go",
     ],
     embed = [":events"],
-    tag_sets = ["linux_bpf"],
+    gotags_sets = [["linux_bpf"]],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [

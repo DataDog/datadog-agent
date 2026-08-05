@@ -133,8 +133,14 @@ dd_agent_go_test(
         "verticalpodautoscaler_test.go",
     ],
     embed = [":k8s"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",

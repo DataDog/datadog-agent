@@ -9,20 +9,20 @@ load(
 
 def dd_agent_go_test(
         name,
-        tag_sets = None,
+        gotags_sets = None,
         include_default = True,
         tags = None,
         target_compatible_with = None,
         **kwargs):
-    """Wraps go_test with a default target and relevant tag-set variants.
+    """Wraps go_test with a default target and relevant gotags-set variants.
 
     Args:
-        name: Default target name and prefix for tag-set variants.
-        tag_sets: Encoded tag combinations, such as "zlib+zstd".
+        name: Default target name and prefix for gotags-set variants.
+        gotags_sets: Lists of Go build tags, such as [["zlib", "zstd"]].
         include_default: Whether to emit the minimally tagged default test.
         tags: Optional user-supplied Bazel tags.
         target_compatible_with: Optional user-supplied target_compatible_with;
-              merged with tag-set platform restrictions.
+              merged with gotags-set platform restrictions.
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     user_tags = tags or []
@@ -38,13 +38,13 @@ def dd_agent_go_test(
             **kwargs
         )
 
-    for tag_set in tag_sets or []:
-        suffix = test_tag_set_suffix(tag_set)
-        test_tag_set_check_name(name + "_" + suffix, tag_set)
+    for gotags in gotags_sets or []:
+        suffix = test_tag_set_suffix(gotags)
+        test_tag_set_check_name(name + "_" + suffix, gotags)
         go_test(
             name = name + "_" + suffix,
-            gotags = test_tag_set_tags(tag_set),
+            gotags = test_tag_set_tags(gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
-            target_compatible_with = user_tcw + test_tag_set_target_compatible_with(tag_set),
+            target_compatible_with = user_tcw + test_tag_set_target_compatible_with(gotags),
             **kwargs
         )

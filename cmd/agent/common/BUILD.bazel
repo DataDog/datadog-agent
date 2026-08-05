@@ -65,7 +65,10 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":common"],
-    tag_sets = ["docker+kubelet"],
+    gotags_sets = [[
+        "docker",
+        "kubelet",
+    ]],
     deps = [
         "//pkg/config/legacy",
         "//pkg/config/mock",

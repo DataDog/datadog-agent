@@ -25,8 +25,8 @@ dd_agent_go_test(
     name = "networkconfigmanagement_test",
     srcs = ["networkconfigmanagement_test.go"],
     embed = [":networkconfigmanagement"],
+    gotags_sets = [["ncm"]],
     include_default = False,
-    tag_sets = ["ncm"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",

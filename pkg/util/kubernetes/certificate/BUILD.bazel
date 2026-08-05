@@ -13,6 +13,12 @@ dd_agent_go_test(
     name = "certificate_test",
     srcs = ["certificate_test.go"],
     embed = [":certificate"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     include_default = False,
-    tag_sets = ["cel+clusterchecks+kubeapiserver+kubelet+orchestrator"],
 )
