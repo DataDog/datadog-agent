@@ -297,6 +297,11 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileEnabled bool
 	// SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
 	SecurityProfileV2Enabled bool
+	// SecurityProfileV2HostDumpEnabled enables the host-wide capture window commands
+	// (`activity-dump host start`/`host stop`) on top of the V2 security profile manager. When
+	// enabled, V2 also profiles host (non-container) workloads and persists profiles to local
+	// storage only, never to the remote backend. Intended for local/CI use and off by default.
+	SecurityProfileV2HostDumpEnabled bool
 	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
 	SecurityProfileMaxImageTags int
 	// SecurityProfileDir defines the directory in which Security Profiles are stored
@@ -639,6 +644,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
 		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
+		SecurityProfileV2HostDumpEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.host_dump.enabled"),
 		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
 		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
@@ -719,6 +725,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
+	applyHostDumpPrerequisites(rsConfig)
+
 	if rsConfig.SecurityProfileV2Enabled {
 		rsConfig.EventSamplingOpenEnabled = true
 		rsConfig.EventSamplingConnectEnabled = true
@@ -731,6 +739,42 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	return rsConfig, nil
+}
+
+// applyHostDumpPrerequisites enables what the host-wide capture window needs. The window is
+// implemented on the V2 profile manager, so enabling host_dump turns on the V2 manager and the
+// security profile manager. Changes are upward-only (an operator's explicit enable is never
+// undone) and logged, so the coupling stays visible. Without this, the host_dump commands would
+// be rejected by the V1 manager or capture nothing.
+func applyHostDumpPrerequisites(c *RuntimeSecurityConfig) {
+	if !c.SecurityProfileV2HostDumpEnabled {
+		return
+	}
+
+	// Runtime security as a whole has to be on: when it is off, UpdateEventMonitorOpts calls
+	// DisableRuntimeSecurity, which turns the security profile manager back off and prevents the
+	// CWS command server (and therefore the host capture commands) from ever starting.
+	if !c.RuntimeEnabled {
+		seclog.Infof("security_profile.v2.host_dump.enabled=true: enabling runtime_security_config.enabled")
+		c.RuntimeEnabled = true
+	}
+	if !c.SecurityProfileEnabled {
+		seclog.Infof("security_profile.v2.host_dump.enabled=true: enabling security_profile.enabled")
+		c.SecurityProfileEnabled = true
+	}
+	if !c.SecurityProfileV2Enabled {
+		seclog.Infof("security_profile.v2.host_dump.enabled=true: enabling security_profile.v2.enabled")
+		c.SecurityProfileV2Enabled = true
+	}
+
+	// Captured profiles are written to the activity dump local storage directory, but enabling
+	// security profiles brings in the constraint that both directories must match. Align them so
+	// that pointing host_dump at a custom output directory does not make the runtime security
+	// module fail to start.
+	if c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
+		seclog.Infof("security_profile.v2.host_dump.enabled=true: aligning security_profile.dir with activity_dump.local_storage.output_directory (%s)", c.ActivityDumpLocalStorageDirectory)
+		c.SecurityProfileDir = c.ActivityDumpLocalStorageDirectory
+	}
 }
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too

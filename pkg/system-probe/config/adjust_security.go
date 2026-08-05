@@ -29,6 +29,17 @@ func adjustSecurity(cfg model.Config) {
 		},
 	)
 
+	// The host-wide capture window is built on CWS and the V2 security profile manager, so the
+	// single host_dump switch has to bring both up. This has to happen here, on the raw
+	// configuration and before the checks below: module enablement (event_monitor) reads
+	// runtime_security_config.enabled directly, and the branch below would otherwise force
+	// security_profile.enabled back off.
+	if cfg.GetBool(secNS("security_profile.v2.host_dump.enabled")) {
+		cfg.Set(secNS("enabled"), true, model.SourceAgentRuntime)
+		cfg.Set(secNS("security_profile.enabled"), true, model.SourceAgentRuntime)
+		cfg.Set(secNS("security_profile.v2.enabled"), true, model.SourceAgentRuntime)
+	}
+
 	if cfg.GetBool(secNS("enabled")) {
 		// if runtime is enabled then we enable fim as well (except if force disabled)
 		if runtime.GOOS != "windows" || !cfg.IsConfigured(secNS("fim_enabled")) {

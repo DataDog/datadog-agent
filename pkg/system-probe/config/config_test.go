@@ -155,3 +155,24 @@ func TestEnableDiscovery(t *testing.T) {
 		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 }
+
+// The host-wide capture window is advertised as a single switch: enabling it must be enough to
+// bring up the event monitor module (and therefore the CWS command server), without the operator
+// also having to set runtime_security_config.enabled. The other event monitor sources are
+// explicitly turned off so that this asserts the host_dump path specifically.
+func TestHostDumpEnablesEventMonitor(t *testing.T) {
+	mock.NewSystemProbe(t)
+	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", "false")
+	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED", "false")
+	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", "false")
+	t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false")
+	t.Setenv("DD_GPU_MONITORING_ENABLED", "false")
+	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "false")
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "false")
+	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_SECURITY_PROFILE_V2_HOST_DUMP_ENABLED", "true")
+
+	cfg, err := New("/doesnotexist", "")
+	require.NoError(t, err)
+
+	assert.True(t, cfg.ModuleIsEnabled(EventMonitorModule), "event monitor module should be enabled by host_dump alone")
+}
