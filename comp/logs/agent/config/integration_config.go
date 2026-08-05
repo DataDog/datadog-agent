@@ -245,9 +245,13 @@ type AutoMultilineSample struct {
 // deserialized directly from YAML/JSON. String fields are validated and
 // converted to typed values when building the TLS configuration.
 type TLSListenerConfig struct {
-	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
-	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
-	CAFile        string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	CertFile string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
+	KeyFile  string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
+	CAFile   string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	// CRLFile points at one or more PEM or DER certificate revocation lists.
+	// Clients whose certificate chain contains a revoked certificate are
+	// rejected. Only meaningful when client_auth is optional or required.
+	CRLFile       string `mapstructure:"crl_file" json:"crl_file" yaml:"crl_file"`
 	ClientAuth    string `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
 	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
 }
@@ -267,6 +271,7 @@ func (t *TLSListenerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, er
 		CertFile:   t.CertFile,
 		KeyFile:    t.KeyFile,
 		CAFile:     t.CAFile,
+		CRLFile:    t.CRLFile,
 		ClientAuth: clientAuth,
 		MinVersion: minVer,
 	}
@@ -350,8 +355,8 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
 		if c.TLS != nil {
-			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
-				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
+			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, CRLFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
+				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.CRLFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
 		}
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
@@ -592,6 +597,9 @@ func (c *LogsConfig) validateTLS() error {
 	}
 	if tlsutil.ClientAuthRequiresVerification(auth) && c.TLS.CAFile == "" {
 		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
+	}
+	if c.TLS.CRLFile != "" && !tlsutil.ClientAuthRequiresVerification(auth) {
+		return fmt.Errorf("tls crl_file requires client_auth to be optional or required, got %q", c.TLS.ClientAuth)
 	}
 	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
 	return nil

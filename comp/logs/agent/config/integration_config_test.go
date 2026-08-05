@@ -453,6 +453,33 @@ func TestValidateTLSConfig(t *testing.T) {
 			assert.Contains(t, err.Error(), "unrecognized min_tls_version")
 		}
 	})
+
+	t.Run("crl_file with client verification is valid", func(t *testing.T) {
+		for _, auth := range []string{"optional", "required"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", CRLFile: "/crl", ClientAuth: auth},
+			}
+			assert.Nil(t, cfg.validateTLS(), "crl_file with client_auth %q should be valid", auth)
+		}
+	})
+
+	// A CRL only has an effect when client certificates are verified. Accepting
+	// the setting without verification would leave the operator believing
+	// revoked clients are being turned away.
+	t.Run("crl_file without client verification is rejected", func(t *testing.T) {
+		for _, auth := range []string{"", "none"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CRLFile: "/crl", ClientAuth: auth},
+			}
+			err := cfg.validateTLS()
+			assert.NotNil(t, err, "crl_file with client_auth %q should be rejected", auth)
+			assert.Contains(t, err.Error(), "crl_file requires client_auth")
+		}
+	})
 }
 
 func TestParseTLSVersion(t *testing.T) {
