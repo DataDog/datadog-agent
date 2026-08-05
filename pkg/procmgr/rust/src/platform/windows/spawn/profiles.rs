@@ -27,7 +27,7 @@ pub(super) fn spawn_agent_profile(
         .with_context(|| format!("[{process_name}] resolve agent service account for spawn"))?;
 
     if account.inherits_supervisor_token() {
-        let (command, mut cmd) = build_command(request)?;
+        let (command, mut cmd) = build_command(process_name, request)?;
         return spawn_as_local_system(process_name, &command, &mut cmd)
             .with_context(|| format!("[{process_name}] spawn as LocalSystem (supervisor token)"));
     }
@@ -51,7 +51,7 @@ pub(super) fn spawn_privileged_profile(
             warn!(
                 "[{process_name}] primary-token LocalSystem spawn failed (trying inherited supervisor token): {e:#}"
             );
-            let (command, mut cmd) = build_command(&request)?;
+            let (command, mut cmd) = build_command(process_name, &request)?;
             spawn_as_local_system(process_name, &command, &mut cmd).with_context(|| {
                 format!("[{process_name}] privileged spawn failed: could not run as LocalSystem")
             })

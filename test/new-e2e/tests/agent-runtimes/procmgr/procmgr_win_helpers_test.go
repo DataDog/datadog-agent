@@ -80,6 +80,34 @@ func psLegacySCMServiceMustNotBeRunning(serviceName string) string {
 	)
 }
 
+func psClearServiceEnvironment(serviceName string) string {
+	return psRemote(
+		`Remove-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\%s' -Name 'Environment' -ErrorAction SilentlyContinue`,
+		serviceName,
+	)
+}
+
+func psSetServiceEnvironment(serviceName string, env map[string]string) string {
+	elems := make([]string, 0, len(env))
+	for k, v := range env {
+		elems = append(elems, fmt.Sprintf("%s=%s", k, v))
+	}
+	pslist := fmt.Sprintf("@('%s')", strings.Join(elems, "','"))
+	return psRemote(
+		`Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\%s' -Name 'Environment' -Value %s -Type MultiString`,
+		serviceName,
+		pslist,
+	)
+}
+
+func psProcmgrLogContains(logPath, pattern string) string {
+	return psRemote(
+		`$m = Select-String -Path '%s' -Pattern '%s' -SimpleMatch -ErrorAction SilentlyContinue | Select-Object -Last 1; if ($null -eq $m) { exit 1 }; $m.Line`,
+		logPath,
+		pattern,
+	)
+}
+
 func psProcessExistsByName(name string) string {
 	return psRemote(
 		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'"; if ($null -eq $p) { exit 1 } else { exit 0 }`,

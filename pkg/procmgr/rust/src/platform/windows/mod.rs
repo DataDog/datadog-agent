@@ -6,6 +6,7 @@
 mod account_name;
 mod agent_credentials;
 mod agent_service_sid;
+mod legacy_scm_env;
 mod local_account;
 mod managed_service_account;
 mod pipe_caller;

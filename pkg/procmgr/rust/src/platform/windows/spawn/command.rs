@@ -11,10 +11,13 @@ use crate::platform;
 use crate::spawn::SpawnRequest;
 use crate::spawn_context;
 
-use super::super::{child_baseline_env_vars, merge_env_overrides, setup_process_group};
+use super::super::{child_baseline_env_vars, legacy_scm_env, setup_process_group};
 use super::stdio;
 
-pub(super) fn build_command(request: &SpawnRequest) -> Result<(String, Command)> {
+pub(super) fn build_command(
+    process_name: &str,
+    request: &SpawnRequest,
+) -> Result<(String, Command)> {
     let SpawnRequest {
         command,
         args,
@@ -31,8 +34,8 @@ pub(super) fn build_command(request: &SpawnRequest) -> Result<(String, Command)>
     cmd.args(args);
     // Ensure children don't see fleet installer environment.
     cmd.env_clear();
-    let mut env_vars = child_baseline_env_vars();
-    merge_env_overrides(&mut env_vars, env);
+    let baseline = child_baseline_env_vars();
+    let env_vars = legacy_scm_env::build_child_env_vars(process_name, baseline, env);
     for (k, v) in env_vars {
         cmd.env(k, v);
     }

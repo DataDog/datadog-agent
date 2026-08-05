@@ -101,6 +101,47 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 	require.NoError(s.T(), err, "%s Windows service must not be Running when process-agent is managed by dd-procmgr", processAgentLegacySCMServiceName)
 }
 
+func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEnvironment() {
+	host := s.Env().RemoteHost
+	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
+	require.NoError(s.T(), err)
+	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
+	require.NoError(s.T(), err)
+
+	const legacyEnvKey = "DD_E2E_PROCMGR_LEGACY_SCM"
+	const legacyEnvVal = "merged-from-scm"
+
+	_, err = host.Execute(psSetServiceEnvironment(processAgentLegacySCMServiceName, map[string]string{
+		legacyEnvKey:            legacyEnvVal,
+		"DD_FLEET_POLICIES_DIR": `C:\stale\fleet\path`,
+	}))
+	require.NoError(s.T(), err)
+
+	restoreEnv := func() {
+		_, _ = host.Execute(psClearServiceEnvironment(processAgentLegacySCMServiceName))
+		_ = windowscommon.RestartService(host, "datadogagent")
+	}
+	defer restoreEnv()
+
+	require.NoError(s.T(), windowscommon.RestartService(host, "datadogagent"))
+
+	cli := joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processAgentProcessName))
+		assert.NoError(ct, err)
+		assert.Contains(ct, out, "Running")
+	}, 120*time.Second, 3*time.Second)
+
+	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := host.Execute(psProcmgrLogContains(logPath, "legacy SCM environment variable"))
+		assert.NoError(ct, err)
+		assert.Contains(ct, out, legacyEnvKey)
+		assert.Contains(ct, out, processAgentLegacySCMServiceName)
+		assert.NotContains(ct, out, "DD_FLEET_POLICIES_DIR")
+	}, 120*time.Second, 3*time.Second)
+}
+
 func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnCatalogEnforcedAgainstYamlMutation() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
