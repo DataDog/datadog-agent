@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "clusterchecks",
     srcs = [
@@ -48,6 +46,7 @@ go_library(
         "//pkg/collector/check/defaults",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/status/health",
         "//pkg/util/cache",
         "//pkg/util/clusteragent",
@@ -88,7 +87,7 @@ dd_agent_go_test(
         "//pkg/collector/check/id",
         "//pkg/config/env",
         "//pkg/config/mock",
-        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/testutil",

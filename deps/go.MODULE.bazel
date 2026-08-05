@@ -12,7 +12,6 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 inject_repo(
     go_deps,
     protobuf = "protobuf",
-    rules_proto = "rules_proto",
 )
 
 # TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
@@ -174,6 +173,7 @@ use_repo(
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
     "com_github_datadog_datadog_traceroute",
+    "com_github_datadog_dd_policy_engine_go",
     "com_github_datadog_dd_trace_go_v2",
     "com_github_datadog_ddtrivy",
     "com_github_datadog_ebpf_manager",
@@ -450,6 +450,7 @@ use_repo(
     "io_opentelemetry_go_collector_component",
     "io_opentelemetry_go_collector_component_componentstatus",
     "io_opentelemetry_go_collector_component_componenttest",
+    "io_opentelemetry_go_collector_config_configauth",
     "io_opentelemetry_go_collector_config_confighttp",
     "io_opentelemetry_go_collector_config_confignet",
     "io_opentelemetry_go_collector_config_configopaque",
@@ -569,14 +570,12 @@ go_deps.module_override(
 # the remote cache. -DNDEBUG drops the asserts (also a perf win), yielding a stable,
 # path-independent object. Both the modern fork and the older github.com/DataDog/zstd_0
 # (a separate module pulled in by the OTel collector components) need the same treatment.
-go_deps.module_override(
-    patch_strip = 1,
-    patches = ["//bazel/rules/go_zstd:zstd-ndebug.patch"],
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -DNDEBUG"],
     path = "github.com/DataDog/zstd",
 )
-go_deps.module_override(
-    patch_strip = 1,
-    patches = ["//bazel/rules/go_zstd:zstd_0-ndebug.patch"],
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -DNDEBUG"],
     path = "github.com/DataDog/zstd_0",
 )
 

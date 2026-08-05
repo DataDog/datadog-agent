@@ -458,6 +458,9 @@ func buildConfigMapData(otelConfig string, fakeIntake *fakeintake.Fakeintake) (p
 					"metrics": map[string]any{"endpoint": url},
 					"traces":  map[string]any{"endpoint": url},
 					"logs":    map[string]any{"endpoint": url},
+					// The orchestrator path POSTs manifests to the raw endpoint
+					// (no path appended), so include the intake route here.
+					"orchestrator_explorer": map[string]any{"endpoint": url + "/api/v2/orchmanif"},
 				},
 			},
 		}

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,7 +40,7 @@ func buildStoreKey(key ...string) string {
 }
 
 // GetPollInterval computes the poll interval from the config
-func GetPollInterval(cp pkgconfigsetup.ConfigurationProviders) time.Duration {
+func GetPollInterval(cp constants.ConfigurationProviders) time.Duration {
 	if cp.PollInterval != "" {
 		customInterval, err := time.ParseDuration(cp.PollInterval)
 		if err == nil {

@@ -9,7 +9,7 @@ use dd_sds::{
 };
 use serde_json::Value;
 
-use crate::payload::Match;
+use crate::proto::TableMatch as Match;
 
 mod rule;
 pub use rule::ScanningRule;
@@ -42,8 +42,8 @@ impl Scanner {
     }
 
     /// Scans `{ column: [values] }` and returns one `Match` per (column, rule).
-    pub fn scan(&self, data: &Value) -> Result<Vec<Match>> {
-        let mut event = data.clone();
+    pub fn scan(&self, data: Value) -> Result<Vec<Match>> {
+        let mut event = data;
         let hits = self
             .scanner
             .scan(&mut event)
@@ -53,19 +53,24 @@ impl Scanner {
     }
 }
 
-/// Groups hits into `(column, rule)` pairs and counts matched rows.
+/// Groups hits into `(column, rule)` pairs and counts matched rows and total
+/// matches.
 fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Match>> {
-    let mut rows: HashMap<(&str, usize), HashSet<&Path>> = HashMap::new();
-    // Bucket each hit by (column, rule), collecting its distinct row paths.
+    // For each (column, rule): the distinct matched row paths and the total
+    // number of matches (a single row may contain several matches).
+    let mut buckets: HashMap<(&str, usize), (HashSet<&Path>, i64)> = HashMap::new();
     for hit in hits {
-        rows.entry((column_name_from_path(&hit.path), hit.rule_index))
-            .or_default()
-            .insert(&hit.path);
+        let (paths, count_matches) = buckets
+            .entry((column_name_from_path(&hit.path), hit.rule_index))
+            .or_default();
+        paths.insert(&hit.path);
+        *count_matches += 1;
     }
 
     // Convert to matches.
-    rows.into_iter()
-        .map(|((column, rule_index), paths)| {
+    buckets
+        .into_iter()
+        .map(|((column, rule_index), (paths, count_matches))| {
             // return an error if the rule index is unknown.
             let rule_id = rule_ids
                 .get(rule_index)
@@ -75,6 +80,8 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Matc
                 rule_id,
                 column_name: column.to_string(),
                 count_matched_rows: paths.len() as i64,
+                count_matches,
+                ..Default::default()
             })
         })
         .collect()
