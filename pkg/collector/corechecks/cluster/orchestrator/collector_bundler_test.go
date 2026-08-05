@@ -410,6 +410,7 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		"datadoghq.com/v1alpha1/datadogagentprofiles",
 		"datadoghq.com/v1alpha1/datadogmonitors",
 		"datadoghq.com/v1alpha1/datadogmetrics",
+		"datadoghq.com/v1alpha1/datadoginstrumentations",
 
 		// Argo
 		"argoproj.io/v1alpha1/rollouts",
