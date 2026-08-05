@@ -61,7 +61,6 @@ state:
   current_time: 100
   candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 1, executables_analyzed: 1, non_go_executables: 1}
 ---
 command: !advance-time {to: 110}
 ---
@@ -70,7 +69,6 @@ state:
   current_time: 110
   candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 2, executables_analyzed: 1, non_go_executables: 2}
 ---
 command: !advance-time {to: 130}
 ---
@@ -79,7 +77,6 @@ state:
   current_time: 130
   candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 3, next_attempt: 150}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 3, executables_analyzed: 1, non_go_executables: 3}
 ---
 command: !advance-time {to: 150}
 ---
@@ -88,7 +85,6 @@ state:
   current_time: 150
   candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 4, next_attempt: 170}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 4, executables_analyzed: 1, non_go_executables: 4}
 ---
 command: !exec-process
   pid: 1001
@@ -102,7 +98,6 @@ state:
   current_time: 170
   candidates: [{pid: 1001, start_time: 50, exe_ino: 9, attempts: 1, next_attempt: 180}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 5, executables_analyzed: 2, non_go_executables: 4, executables_changed: 1, metadata_not_published: 1}
 ---
 command: !advance-time {to: 180}
 ---
@@ -111,7 +106,6 @@ state:
   current_time: 180
   candidates: [{pid: 1001, start_time: 50, exe_ino: 9, attempts: 2, next_attempt: 200}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 6, executables_analyzed: 2, non_go_executables: 4, executables_changed: 1, metadata_not_published: 2}
 ---
 command: !advance-time {to: 200}
 ---
@@ -121,4 +115,3 @@ state:
   current_time: 200
   live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 7, executables_analyzed: 2, non_go_executables: 4, executables_changed: 1, discovered: 1, metadata_not_published: 2}

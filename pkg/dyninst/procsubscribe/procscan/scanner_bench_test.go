@@ -190,9 +190,10 @@ func TestSyntheticProcfsScanWork(t *testing.T) {
 			tree := makeSyntheticProcfs(t, numProcs, 8)
 			s := NewScanner(tree.root)
 
-			var startTimeReads, resolutions, metadataReads int
+			var startTimeReads, resolutions, analyses, metadataReads int
 			readStartTime := s.readStartTime
 			resolveExecutable := s.resolveExecutable
+			checkGoExecutable := s.checkGoExecutable
 			readMetadata := s.tracerMetadataReader
 			s.readStartTime = func(pid int32) (ticks, error) {
 				startTimeReads++
@@ -201,6 +202,10 @@ func TestSyntheticProcfsScanWork(t *testing.T) {
 			s.resolveExecutable = func(pid int32) (process.Executable, error) {
 				resolutions++
 				return resolveExecutable(pid)
+			}
+			s.checkGoExecutable = func(path string) (bool, error) {
+				analyses++
+				return checkGoExecutable(path)
 			}
 			s.tracerMetadataReader = func(pid int32) (model.TracerMetadata, error) {
 				metadataReads++
@@ -218,10 +223,11 @@ func TestSyntheticProcfsScanWork(t *testing.T) {
 			require.Equal(t, tree.goProcs, metadataReads,
 				"only the processes running a Go binary are searched for "+
 					"tracer metadata")
-			analyzed := s.metrics.executablesAnalyzed.Load()
-			require.NotZero(t, analyzed, "first scan parses the binaries")
+			require.Equal(t, tree.distinctExes, analyses,
+				"the first scan parses each distinct binary once, not once "+
+					"per process running it")
 
-			startTimeReads, resolutions, metadataReads = 0, 0, 0
+			startTimeReads, resolutions, analyses, metadataReads = 0, 0, 0, 0
 			discovered, removed, err = s.Scan()
 			require.NoError(t, err)
 			require.Empty(t, discovered)
@@ -233,8 +239,8 @@ func TestSyntheticProcfsScanWork(t *testing.T) {
 					"backing off after the first")
 			require.Zero(t, metadataReads,
 				"the failed reads of the first scan are still backing off")
-			require.Equal(t, analyzed, s.metrics.executablesAnalyzed.Load(),
-				"each distinct binary is parsed once")
+			require.Zero(t, analyses,
+				"a later scan parses nothing, having resolved nothing")
 		})
 	}
 }
@@ -250,6 +256,9 @@ type syntheticProcfs struct {
 	// goProcs is how many of the processes run a Go binary, and therefore how
 	// many of them a scan looks for tracer metadata in.
 	goProcs int
+	// distinctExes is how many different binaries the processes run, and
+	// therefore how many analyses a scan of all of them should cost.
+	distinctExes int
 }
 
 // makeSyntheticProcfs builds a tree of numProcs processes with fdsPerProc open
@@ -280,6 +289,7 @@ func makeSyntheticProcfs(
 		startTimes: make([]ticks, 0, numProcs),
 		fdsPerProc: fdsPerProc,
 	}
+	exes := make(map[string]struct{})
 	const firstPID = 1000
 	for i := range numProcs {
 		pid := uint32(firstPID + i)
@@ -307,6 +317,10 @@ func makeSyntheticProcfs(
 		if i%20 == 0 {
 			exe = selfExe
 			tree.goProcs++
+		}
+		if _, seen := exes[exe]; !seen {
+			exes[exe] = struct{}{}
+			tree.distinctExes++
 		}
 		require.NoError(tb, os.Symlink(exe, filepath.Join(procDir, "exe")))
 	}

@@ -802,8 +802,6 @@ func (s *stubScanner) Scan() ([]procscan.DiscoveredProcess, []procscan.ProcessID
 
 func (s *stubScanner) LiveProcesses() []procscan.ProcessID { return nil }
 
-func (s *stubScanner) Stats() map[string]any { return nil }
-
 type fakeAgentSecureServer struct {
 	pbgo.UnimplementedAgentSecureServer
 	streams chan<- configSubscription

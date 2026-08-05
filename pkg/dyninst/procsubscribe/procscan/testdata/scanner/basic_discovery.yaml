@@ -35,7 +35,6 @@ command: !advance-time {to: 30}
 command: !scan {}
 state:
   current_time: 30
-  metrics: {}
 ---
 command: !create-process
   pid: 1001
@@ -52,7 +51,6 @@ command: !scan {}
 state:
   current_time: 55
   processes_in_procfs: [1001]
-  metrics: {}
 ---
 command: !advance-time {to: 60}
 ---
@@ -62,7 +60,6 @@ state:
   current_time: 60
   live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}
 ---
 command: !advance-time {to: 70}
 ---
@@ -71,4 +68,3 @@ state:
   current_time: 70
   live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}

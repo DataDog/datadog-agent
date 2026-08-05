@@ -48,4 +48,3 @@ state:
   current_time: 200
   live: [{pid: 1001, start_time: 50}, {pid: 1002, start_time: 60}, {pid: 1003, start_time: 70}]
   processes_in_procfs: [1001, 1002, 1003]
-  metrics: {candidates_evaluated: 3, executables_analyzed: 3, discovered: 3}

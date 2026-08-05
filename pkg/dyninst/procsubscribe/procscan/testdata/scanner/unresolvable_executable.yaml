@@ -46,7 +46,6 @@ state:
   current_time: 100
   candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 1, executables_unresolved: 1}
 ---
 command: !advance-time {to: 105}
 ---
@@ -55,7 +54,6 @@ state:
   current_time: 105
   candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 1, executables_unresolved: 1}
 ---
 command: !advance-time {to: 110}
 ---
@@ -64,7 +62,6 @@ state:
   current_time: 110
   candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 2, executables_unresolved: 2}
 ---
 command: !advance-time {to: 130}
 ---
@@ -73,7 +70,6 @@ state:
   current_time: 130
   candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 3, executables_unresolved: 3}
 ---
 command: !remove-process {pid: 1001}
 ---
@@ -82,4 +78,3 @@ command: !advance-time {to: 140}
 command: !scan {}
 state:
   current_time: 140
-  metrics: {candidates_evaluated: 3, executables_unresolved: 3}

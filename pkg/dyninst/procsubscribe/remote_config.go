@@ -125,8 +125,6 @@ type processScanner interface {
 	)
 	// LiveProcesses returns the processes alive as of the last Scan.
 	LiveProcesses() []procscan.ProcessID
-	// Stats returns a snapshot of the scanner's counters.
-	Stats() map[string]any
 }
 
 // Option configures a RemoteConfigProcessSubscriber.
@@ -267,7 +265,6 @@ func (s *Subscriber) Stats() map[string]any {
 		"scans":                s.stats.scans.Load(),
 		"scan_interval_millis": s.stats.scanIntervalMillis.Load(),
 		"scan_duration_millis": s.stats.scanDurationMillis.Load(),
-		"scanner":              s.scanner.Stats(),
 	}
 }
 
