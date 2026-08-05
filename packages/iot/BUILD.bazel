@@ -51,12 +51,17 @@ pkg_filegroup(
     ],
 )
 
+# Only a source for the debian package, which requires a single tar as input.
 pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [":whole_distro"],
+    name = "whole_distro_deb_tar",
+    srcs = [
+        ":whole_distro",
+        "//packages/agent/iot/debian:all_files",
+    ],
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
+    visibility = ["//visibility:private"],
 )
 
 _DESCRIPTION = """Datadog IoT Agent
@@ -72,7 +77,7 @@ See http://www.datadoghq.com/ for more information
 pkg_deb(
     name = "debian",
     conflicts = ["datadog-agent"],
-    data = ":whole_distro_tar",
+    data = ":whole_distro_deb_tar",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
@@ -95,7 +100,10 @@ pkg_deb(
 pkg_rpm(
     name = "rpm",
     package_name = "datadog-iot-agent",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/agent/iot/redhat:all_files",
+    ],
     conflicts = ["datadog-agent"],
     description = _DESCRIPTION,
     epoch = "1",
