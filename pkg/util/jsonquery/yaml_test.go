@@ -6,6 +6,7 @@
 package jsonquery
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func TestYAMLExistQuery(t *testing.T) {
 	assert.False(t, exist)
 
 	exist, err = YAMLCheckExist(data("{\"ip_address\": \"127.0.0.50\"}"), ".ip_address")
-	assert.EqualError(t, err, `filter query must return a boolean, got "\"127.0.0.50\""`)
+	assert.EqualError(t, err, "filter query must return a boolean: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `127.0.0.50` into bool")
 	assert.False(t, exist)
 
 	exist, err = YAMLCheckExist(data("{}"), ".ip_address == \"127.0.0.99\"")
@@ -91,14 +92,30 @@ func TestYAMLExistQueryErrors(t *testing.T) {
 
 	t.Run("non-boolean output", func(t *testing.T) {
 		exist, err := YAMLCheckExist(data("key: 42"), ".key")
-		assert.EqualError(t, err, `filter query must return a boolean, got "42"`)
+		assert.ErrorContains(t, err, "filter query must return a boolean")
 		assert.False(t, exist)
 	})
 
-	t.Run("no output", func(t *testing.T) {
+	t.Run("no output matches nothing", func(t *testing.T) {
 		exist, err := YAMLCheckExist(data("key: value"), "empty")
-		assert.EqualError(t, err, `filter query must return a boolean, got ""`)
+		assert.NoError(t, err)
 		assert.False(t, exist)
+	})
+
+	t.Run("null output matches nothing", func(t *testing.T) {
+		exist, err := YAMLCheckExist(data("key: value"), ".absent")
+		assert.NoError(t, err)
+		assert.False(t, exist)
+	})
+
+	t.Run("YAML-style boolean strings are still accepted", func(t *testing.T) {
+		// Historical leniency: the filter output is parsed the way YAML would parse it,
+		// so a string that YAML reads as a boolean matches.
+		for _, value := range []string{"true", "True", "TRUE", "false", "False"} {
+			exist, err := YAMLCheckExist(data("enabled: \""+value+"\""), ".enabled")
+			assert.NoError(t, err, "value %q", value)
+			assert.Equal(t, strings.EqualFold(value, "true"), exist, "value %q", value)
+		}
 	})
 
 	t.Run("empty document", func(t *testing.T) {

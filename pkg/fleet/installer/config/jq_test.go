@@ -191,6 +191,88 @@ func TestJQTransformOutputCounts(t *testing.T) {
 	})
 }
 
+// TestJQTransformRuntimeErrorRedactsArguments covers the other half of the secret story:
+// argument values reach the engine as input data, and jq names the offending value in most
+// runtime errors, so those errors must not carry the value out to the logs.
+func TestJQTransformRuntimeErrorRedactsArguments(t *testing.T) {
+	const secret = "super-secret-api-key"
+
+	tests := []struct {
+		name      string
+		transform string
+	}{
+		{name: "type error in arithmetic", transform: `.foo = ($api_key + 1)`},
+		{name: "tonumber", transform: `$api_key | tonumber`},
+		{name: "index array with string", transform: `.list = [1,2,3] | .list[$api_key]`},
+		{name: "explicit error", transform: `error($api_key)`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			arguments, err := json.Marshal(map[string]string{"api_key": secret})
+			require.NoError(t, err)
+
+			transform, err := newJQTransform(tt.transform, arguments)
+			require.NoError(t, err)
+
+			_, err = transform.run(map[string]any{})
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), secret)
+			assert.Contains(t, err.Error(), "<redacted>")
+		})
+	}
+}
+
+// TestJQTransformRedactsNestedArguments checks that a secret nested inside an object or
+// array argument is redacted too, not just a top-level string.
+func TestJQTransformRedactsNestedArguments(t *testing.T) {
+	const secret = "nested-secret-value"
+
+	arguments, err := json.Marshal(map[string]any{
+		"apm": map[string]any{"credentials": []any{"public", secret}},
+	})
+	require.NoError(t, err)
+
+	transform, err := newJQTransform(`.out = ($apm.credentials[1] + 1)`, arguments)
+	require.NoError(t, err)
+
+	_, err = transform.run(map[string]any{})
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), secret)
+}
+
+// TestJQTransformShortArgumentsAreNotRedacted checks that redaction leaves ordinary short
+// values alone, so errors stay readable.
+func TestJQTransformShortArgumentsAreNotRedacted(t *testing.T) {
+	transform, err := newJQTransform(`.out = ($mode + 1)`, json.RawMessage(`{"mode": "fast"}`))
+	require.NoError(t, err)
+
+	_, err = transform.run(map[string]any{})
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "<redacted>")
+}
+
+// TestJQTransformOutputCap bounds a runaway generator. fastjq cannot be cancelled, so the
+// cap is the only protection against a remotely authored transform that never stops.
+func TestJQTransformOutputCap(t *testing.T) {
+	transform, err := newJQTransform(`range(100000) | {value: .}`, nil)
+	require.NoError(t, err)
+
+	_, err = transform.run(map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "more than 1024 output documents")
+}
+
+// TestJQTransformAtOutputCap checks the cap admits a transform that sits exactly on it.
+func TestJQTransformAtOutputCap(t *testing.T) {
+	transform, err := newJQTransform(`range(1024) | {value: .}`, nil)
+	require.NoError(t, err)
+
+	outputs, err := transform.run(map[string]any{})
+	require.NoError(t, err)
+	assert.Len(t, outputs, maxJQOutputs)
+}
+
 func TestJQTransformRuntimeError(t *testing.T) {
 	transform, err := newJQTransform(`.foo.bar`, nil)
 	require.NoError(t, err)

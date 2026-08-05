@@ -185,6 +185,58 @@ func TestRunSingleOutputScalars(t *testing.T) {
 	}
 }
 
+// TestRunSingleOutputMultipleSources covers queries whose outputs come from more than one
+// source expression. The engine walks every output eagerly and ignores a request to stop,
+// so the first output has to be isolated by the caller — getting this wrong concatenated
+// the outputs into a single corrupted value.
+func TestRunSingleOutputMultipleSources(t *testing.T) {
+	object := map[string]interface{}{
+		"a":   []interface{}{1, 2, 3},
+		"s":   "str",
+		"o":   map[string]interface{}{"x": 4},
+		"bad": "z",
+	}
+
+	tests := []struct {
+		name     string
+		query    string
+		expected string
+	}{
+		{name: "two iterators", query: ".a[], .o[]", expected: "1"},
+		{name: "iterator then scalar", query: "(.a[], .s)", expected: "1"},
+		{name: "optional iterator then scalar", query: ".a[]?, .s", expected: "1"},
+		{name: "scalar then iterator", query: ".s, .a[]", expected: "str"},
+		{name: "three sources", query: ".s, .bad, .a[]", expected: "str"},
+		{name: "duplicated identity", query: ".s, .s", expected: "str"},
+		// A later output erroring must not discard an already-produced first output:
+		// the lazy iterator this replaces never evaluated it at all.
+		{name: "later source errors", query: ".a[], .bad.x", expected: "1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, hasValue, err := RunSingleOutput(tt.query, object)
+			require.NoError(t, err)
+			assert.True(t, hasValue)
+			assert.Equal(t, tt.expected, value)
+		})
+	}
+}
+
+// TestYAMLCheckExistMultipleSources is the same hazard reached through the autodiscovery
+// entry point: concatenated outputs made a valid filter look non-boolean.
+func TestYAMLCheckExistMultipleSources(t *testing.T) {
+	instance := []byte("a: 1\nb: 2\n")
+
+	exist, err := YAMLCheckExist(instance, ".a == 1, .b == 2")
+	assert.NoError(t, err)
+	assert.True(t, exist)
+
+	exist, err = YAMLCheckExist(instance, ".a == 9, .b == 2")
+	assert.NoError(t, err)
+	assert.False(t, exist)
+}
+
 // TestRunSingleOutputComposite pins the representation of non-scalar outputs. gojq
 // rendered these through fmt.Sprint, which produced Go's map/slice syntax; fastjq
 // returns them as JSON.

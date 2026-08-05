@@ -7,6 +7,7 @@ package jsonquery
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -72,13 +73,30 @@ func YAMLCheckExist(yamlData []byte, query string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if found {
-		switch {
-		case bytes.Equal(output, []byte("true")):
-			return true, nil
-		case bytes.Equal(output, []byte("false")):
-			return false, nil
-		}
+	switch {
+	case bytes.Equal(output, []byte("true")):
+		return true, nil
+	case bytes.Equal(output, []byte("false")):
+		return false, nil
+	case !found || bytes.Equal(output, []byte("null")):
+		// A filter that selects nothing matches nothing.
+		return false, nil
 	}
-	return false, fmt.Errorf("filter query must return a boolean, got %q", output)
+
+	// A jq predicate yields a real boolean, so the common cases are already handled
+	// above. Anything else is still parsed the way YAML would parse it, which is how
+	// this function has always behaved: a filter selecting the string "true" matches.
+	scalar := output
+	if output[0] == '"' {
+		var value string
+		if err := json.Unmarshal(output, &value); err != nil {
+			return false, fmt.Errorf("cannot decode filter query output: %w", err)
+		}
+		scalar = []byte(value)
+	}
+	var exist bool
+	if err := yaml.Unmarshal(scalar, &exist); err != nil {
+		return false, fmt.Errorf("filter query must return a boolean: %s", err)
+	}
+	return exist, nil
 }

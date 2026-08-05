@@ -60,14 +60,24 @@ func marshalJSON(object interface{}) ([]byte, error) {
 
 // runFirstOutput runs a compiled program against JSON bytes and returns its first
 // output. found is false when the program yields no output at all (e.g. `empty`).
+//
+// gojq exposed a lazy iterator, so taking the first output meant later ones were never
+// evaluated. fastjq only offers an eager walk, and it deliberately swallows plain errors
+// returned by the callback, so errStopIteration cannot be relied on to end the walk: the
+// callback must ignore every output after the first itself. For the same reason an error
+// raised by a *later* output is discarded once a first output exists, which is what the
+// lazy iterator did implicitly.
 func runFirstOutput(program *fastjq.Program, jsonData []byte) (output []byte, found bool, err error) {
 	err = program.RunFunc(jsonData, func(result []byte) error {
+		if found {
+			return nil
+		}
 		// result is only valid for the duration of the callback, so copy it out.
-		output = append(output, result...)
+		output = append(output[:0], result...)
 		found = true
 		return errStopIteration
 	})
-	if err != nil && !errors.Is(err, errStopIteration) {
+	if err != nil && !errors.Is(err, errStopIteration) && !found {
 		return nil, false, err
 	}
 	return output, found, nil

@@ -8,6 +8,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -31,6 +32,15 @@ const (
 	jqArgumentsKey = "arguments"
 )
 
+// maxJQOutputs bounds how many YAML documents a single transform may produce. Real
+// transforms emit one; the cap only exists to stop a runaway generator.
+const maxJQOutputs = 1024
+
+// minRedactedArgumentLength is the shortest argument value worth redacting out of an error
+// message. Redacting very short values would garble errors without protecting anything —
+// a secret is never one or two characters.
+const minRedactedArgumentLength = 6
+
 // jqTransform is a compiled jq transform together with the arguments bound to it.
 type jqTransform struct {
 	program   *fastjq.Program
@@ -45,8 +55,11 @@ type jqTransform struct {
 // as a prelude in the query itself. The prelude destructures the arguments out of the
 // *input document* rather than out of a literal spliced into the query text. That keeps
 // argument values — which may hold secrets, see ReplaceSecrets — out of the compiled
-// query, and therefore out of any parse error it might produce. Only the argument names
+// query, and therefore out of the compile errors it can produce. Only the argument names
 // reach the query, and they are validated to be plain jq identifiers first.
+//
+// Runtime errors are a separate matter: jq reports the offending value, and arguments are
+// ordinary input values, so run redacts them out of the error it returns.
 func newJQTransform(transform string, rawArguments json.RawMessage) (*jqTransform, error) {
 	arguments := make(map[string]any)
 	if len(rawArguments) > 0 {
@@ -95,20 +108,74 @@ func (t *jqTransform) run(config any) ([]any, error) {
 		return nil, fmt.Errorf("failed to encode config for the jq transform: %w", err)
 	}
 
-	results, err := t.program.RunAll(inputBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run jq transform: %w", err)
-	}
-
-	outputs := make([]any, 0, len(results))
-	for _, result := range results {
+	// Streamed rather than collected with RunAll: a transform is remotely authored, and a
+	// generator such as `range(100000000)` would otherwise materialise every output
+	// before this function could reject it. There is no way to cancel a running fastjq
+	// program, so the cap is the only bound available.
+	//
+	// The cap does not cover unbounded *recursion*: a transform such as `def f: f; f`
+	// overflows the goroutine stack, which is a fatal runtime error that recover cannot
+	// catch, so it takes the process down. That needs a depth limit inside the engine;
+	// there is nothing to be done about it from here.
+	var outputs []any
+	err = t.program.RunFunc(inputBytes, func(result []byte) error {
+		if len(outputs) >= maxJQOutputs {
+			return fmt.Errorf("transform produced more than %d output documents", maxJQOutputs)
+		}
 		output, err := decodeJQOutput(result)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode jq transform output: %w", err)
+			return fmt.Errorf("cannot decode output: %w", err)
 		}
 		outputs = append(outputs, output)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to run jq transform: %w", t.redactArguments(err))
 	}
 	return outputs, nil
+}
+
+// redactArguments rewrites err so that no argument value appears in its text. jq names the
+// offending value in most runtime errors ("cannot add ... and ..."), and arguments hold
+// secrets substituted by ReplaceSecrets, so the raw error must not be logged as-is.
+func (t *jqTransform) redactArguments(err error) error {
+	if len(t.arguments) == 0 {
+		return err
+	}
+	message := err.Error()
+	for _, value := range collectArgumentStrings(t.arguments, nil) {
+		message = strings.ReplaceAll(message, value, "<redacted>")
+	}
+	if message == err.Error() {
+		return err
+	}
+	return errors.New(message)
+}
+
+// collectArgumentStrings gathers every string leaf in v that is long enough to be worth
+// redacting, including those nested inside object and array arguments.
+func collectArgumentStrings(v any, into []string) []string {
+	switch x := v.(type) {
+	case map[string]any:
+		// Sorted so that redaction is deterministic when values overlap.
+		keys := make([]string, 0, len(x))
+		for key := range x {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			into = collectArgumentStrings(x[key], into)
+		}
+	case []any:
+		for _, value := range x {
+			into = collectArgumentStrings(value, into)
+		}
+	case string:
+		if len(x) >= minRedactedArgumentLength {
+			into = append(into, x)
+		}
+	}
+	return into
 }
 
 // decodeJQOutput decodes a jq output document into YAML-encodable Go values. Numbers are
