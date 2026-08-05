@@ -6,6 +6,11 @@
 package privateactionrunner
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"testing"
 	"time"
@@ -14,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -34,7 +38,16 @@ const (
 
 	executorListeningLogLine = "Private action runner executor listening on"
 	executorReadyLogLine     = "Private action runner executor ready to accept actions"
+
+	// pkg/remoteconfig/state.ProductActionPlatformRunnerKeys
+	runnerKeysRCProduct = "AP_RUNNER_KEYS"
 )
+
+// mirrors pkg/privateactionrunner/types.RawKey's JSON shape
+type rawRCKey struct {
+	KeyType string `json:"keyType"`
+	Key     []byte `json:"key"`
+}
 
 type linuxPrivateActionRunnerExecutorSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -43,31 +56,35 @@ type linuxPrivateActionRunnerExecutorSuite struct {
 func TestLinuxPrivateActionRunnerExecutorSuite(t *testing.T) {
 	t.Parallel()
 
-	// Fake remote-config TUF roots. Without a fakeintake this environment has no
-	// RC backend, so the remote config service would otherwise start against the
-	// production roots and fail; the deterministic fake roots let it initialize
-	// cleanly so the executor starts up properly.
-	rcRoot, err := fakeintake.RCRootJSON()
-	require.NoError(t, err, "failed to build fake RC root")
-
-	// PAR enabled with a valid identity; idle self-shutdown disabled so the
-	// executor stays up for the whole test (it would otherwise self-exit after
-	// being idle with no in-flight actions).
-	config := GenerateTestPrivateActionRunnerConfig(t) + fmt.Sprintf(`  executor:
+	config := GenerateTestPrivateActionRunnerConfig(t) + `  executor:
     idle_shutdown_timeout_seconds: 0
-remote_configuration:
-  config_root: '%s'
-  director_root: '%s'
-`, rcRoot, rcRoot)
+`
 
 	e2e.Run(t, &linuxPrivateActionRunnerExecutorSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoFakeIntake(
+		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithoutFakeIntake(),
 				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
 			),
 		),
 	))
+}
+
+func (s *linuxPrivateActionRunnerExecutorSuite) pushFakeRunnerKeysConfig() {
+	t := s.T()
+
+	_, pub, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err, "failed to generate fake runner key")
+
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err, "failed to marshal fake runner public key")
+
+	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})
+
+	payload, err := json.Marshal(rawRCKey{KeyType: "ED25519", Key: pubPEM})
+	require.NoError(t, err, "failed to marshal fake runner key config payload")
+
+	err = s.Env().FakeIntake.Client().RCAddConfig("", runnerKeysRCProduct, "fake-runner-key", "fake-runner-key", payload)
+	require.NoError(t, err, "failed to push fake runner key config to fakeintake")
 }
 
 // TestExecutorStartsAndListens launches the on-demand executor subcommand and
@@ -75,6 +92,8 @@ remote_configuration:
 // the log reports the server listening and ready.
 func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 	host := s.Env().RemoteHost
+
+	s.pushFakeRunnerKeysConfig()
 
 	// run-executor is a foreground subcommand, not the packaged systemd service.
 	// Launch it detached as dd-agent so it can bind its socket under
