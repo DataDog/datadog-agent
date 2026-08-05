@@ -160,7 +160,8 @@ services:
           --service-cluster-ip-range=10.96.0.0/16 \
           --authorization-mode=AlwaysAllow \
           --token-auth-file=/certs/token-auth.csv \
-          --allow-privileged=true
+          --allow-privileged=true \
+          --v=3
     healthcheck:
       # AlwaysAllow force-disables anonymous auth, so /healthz needs the static
       # bearer token like any other authenticated request.
