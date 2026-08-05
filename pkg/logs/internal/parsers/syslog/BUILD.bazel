@@ -36,6 +36,7 @@ dd_agent_go_test(
         "structured_content_test.go",
         "syslog_fuzz_test.go",
         "syslog_test.go",
+        "timestamp_variants_test.go",
     ],
     embed = [":syslog"],
     deps = [
