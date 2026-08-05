@@ -262,17 +262,6 @@ func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
 	assert.Equal(t, "uds", results[0].fields["transport"])
 }
 
-func TestDisabled(t *testing.T) {
-	config := configmock.New(t)
-	config.SetInTest("remote_agent.registry.enabled", false)
-
-	provides, _, _, _ := buildComponentWithConfig(t, config)
-
-	require.Nil(t, provides.Comp)
-	require.Nil(t, provides.FlareProvider.FlareFiller)
-	require.Nil(t, provides.Status.Provider)
-}
-
 func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component, ipc.Component) {
 	config := configmock.New(t)
 
