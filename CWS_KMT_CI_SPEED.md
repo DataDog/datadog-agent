@@ -2,6 +2,8 @@
 
 Investigation notes, 2026-08-04. Branch `daniel.mercier/faster-ci`.
 
+The follow-up implementation plan for test grouping is in `CWS_TEST_GROUPING_PLAN.md`.
+
 Reference job: <https://gitlab.ddbuild.io/datadog/datadog-agent/-/jobs/1916277389>
 (`kmt_run_secagent_tests_x64: [amazon_6.12, cws_host]`, pipeline `128540308`, commit
 `809fc228c854`). Job wall clock **57.3 min**, ended in a `-test.timeout` panic.
@@ -508,3 +510,184 @@ Key derivations from `out.json`:
 
 Raw data for this run is preserved in `.ci-speed-data/` (git-excluded via
 `.git/info/exclude`).
+
+## 12. RESULTS — `rcu_expedited` on the whole KMT fleet (pipeline 129082991, 2026-08-05)
+
+Commit `158488b79dba` moves the knob into `micro-vm-init.sh`, so **every** KMT microVM gets it —
+secagent and sysprobe alike — and turns `DD_CWS_PHASE_PROFILING=1` on for `cws_host` so the
+per-teardown cost is readable on all 43 kernels rather than the 2 of §10.
+
+Baseline is pipeline `128540308` (`809fc228c854`), the reference run of §1. **The two pipelines
+have identical job topology** — 210 `kmt_run_*` jobs, same names, no extra teardown jobs — so VM
+count and contention are the same and the comparison is apples to apples.
+`Setting /sys/kernel/rcu_expedited to 1` is confirmed present in every job trace checked.
+
+### The headline
+
+| group | jobs | baseline | with `rcu_expedited` | saved |
+|---|---|---|---|---|
+| `cws_host` (secagent) | 43 | 26.9 job-h | 21.9 job-h | **-18.6 %** |
+| other secagent (`cws_peds`/`docker`/`ad`/…) | 89 | 20.1 job-h | 16.3 job-h | **-19.1 %** |
+| **sysprobe** | 78 | 43.6 job-h | 36.1 job-h | **-17.2 %** |
+| **total KMT** | 210 | **90.6 job-h** | **74.3 job-h** | **-16.3 job-h / -18.0 %** |
+
+One `cws_host` job (arm64 `ubuntu_26.04`) was still running at 42.7 min when this was compiled;
+it can only move the total by a few tenths of an hour.
+
+The **sysprobe row is the cleanest arm**: no code in this branch touches system-probe and it gets
+no phase profiling, so its 17.2 % is pure `rcu_expedited`. Biggest single movers there:
+`amazon_2023 no_usm` 42.0 -> 19.0 min, `fedora_37 no_usm` (arm) 41.6 -> 21.1, `amazon_6.12 no_usm`
+59.2 -> 42.4. Conversely the `cws_host` numbers are *understated*, because those jobs pay the
+profiling logging overhead that the baseline did not.
+
+Wall clock on the critical path:
+
+| job | baseline | now |
+|---|---|---|
+| `x64 [ubuntu_26.04, cws_host]` | 61.1 min | **47.9 min** |
+| `x64 [amazon_6.12, cws_host]` | 57.3 min (timeout panic) | **44.0 min, green** |
+| `arm64 [ubuntu_26.04, cws_host]` | 48.1 min | ~42.7 min |
+| `arm64 [amazon_6.12, cws_host]` | 48.0 min | 37.1 min |
+| longest `cws_host` anywhere | 61.1 min | **47.9 min** |
+
+**The timeout cliff of §1 is gone.** `amazon_6.12` was the one job that actually blew
+`-test.timeout=55m` and threw away its rerun budget; it now finishes the suite in 44 min and
+passes. Angle 5 (timeout headroom) drops from "safety net, do now" to ordinary hygiene.
+
+### Validation — the delta is 10x the main-to-main noise floor
+
+The table above uses one baseline pipeline, so it could in principle be a slow-day artifact. It is
+not. Note first that `128540308` has **`ref=main`**, so it was already a pipeline of pure main code
+(`809fc228c854` is an ancestor of main) — not a branch run. Adding three more full-matrix main
+pipelines from the same 24 hours:
+
+| KMT group | `128540308` | `129100089` | `129077517` | `129024665` | main median | **branch** | delta |
+|---|---|---|---|---|---|---|---|
+| `cws_host` (43) | 26.87 | 26.98 | 26.90 | 26.02 | 26.89 | **21.86** | **-18.7 %** |
+| other secagent (89) | 20.08 | 19.61 | 19.78 | 19.14 | 19.69 | **16.26** | **-17.5 %** |
+| sysprobe (78) | 43.62 | 43.39 | 43.54 | 43.60 | 43.57 | **36.13** | **-17.1 %** |
+| **all 210** | **90.57** | **89.97** | **90.22** | **88.75** | **90.10** | **74.25** | **-17.6 %** |
+
+Four independent main pipelines span **88.75-90.57 job-hours — a 2.0 % band**. The branch sits
+15.8 job-hours below the median, roughly **10x the entire main-to-main spread**. Per job the median
+main-to-main spread is 1.3 min.
+
+Per-job wall clock against the main median:
+
+| job | main min/med/max | branch | vs med |
+|---|---|---|---|
+| `sysprobe_x64 [amazon_2023, no_usm]` | 40.2 / 41.6 / 42.0 | **19.0** | -54 % |
+| `sysprobe_arm64 [fedora_37, no_usm]` | 40.9 / 41.3 / 42.2 | **21.1** | -49 % |
+| `secagent_x64 [amazon_2023, cws_host]` | 43.6 / 43.8 / 44.3 | **25.2** | -43 % |
+| `sysprobe_x64 [amazon_6.12, no_usm]` | 59.1 / 59.2 / 61.8 | **42.4** | -28 % |
+| `secagent_x64 [amazon_6.12, cws_host]` | 57.2 / 57.4 / 58.1 | **44.0** | -23 % |
+| `secagent_x64 [ubuntu_26.04, cws_host]` | 53.3 / 60.6 / 61.1 | **47.9** | -21 % |
+| `secagent_x64 [debian_12, cws_host]` | 36.9 / 38.6 / 38.9 | **32.1** | -17 % |
+| `secagent_x64 [ubuntu_22.04, cws_host]` | 38.6 / 41.4 / 42.2 | **34.6** | -16 % |
+| `secagent_x64 [centos_7.9, cws_host]` | 24.0 / 24.8 / 26.4 | 24.4 | -2 % |
+
+Distribution over all 210 jobs: median **-15 %**, Q1 -8 %, Q3 -21 %, best -55 %. Every branch value
+above is below the main *minimum*, not just the median, except `centos_7.9` — which is exactly the
+prediction of Finding 5, since 3.10 barely had the problem.
+
+Five jobs came out slower, and all five are noise rather than regression: four are 3-minute
+`cws_peds` jobs (+1.4 to +3.0 min, on jobs whose own main range is 2.6-7.0 min) and one is
+`sysprobe_x64 [rocky_9.4, only_usm]` at +0.5 min on a 34-minute job.
+
+### Finding 5 — the residual is a kernel-*config* difference, not a version cliff
+
+§10 left the 7s -> 34s cliff unlocalized and assumed it was a kernel-version effect somewhere
+between 5.15 and 6.12. With `Manager.Stop` now measured on 12 x86 kernels, that assumption is
+**wrong**. Median `EBPFProbe.Close/Manager.Stop` per teardown, `rcu_expedited` on:
+
+| kernel | tag | n | median | sum | share of job |
+|---|---|---|---|---|---|
+| 3.10 | centos_7.9 | 41 | 0.75s | 33s | 2 % |
+| 6.1 (amzn) | amazon_2023 | 52 | 0.78s | 43s | 3 % |
+| 5.10 | amazon_5.10 | 54 | 0.79s | 45s | 2 % |
+| 6.2 | fedora_38 | 53 | 0.79s | 43s | 3 % |
+| 5.15 | ubuntu_22.04 | 53 | 0.94s | 52s | 2 % |
+| 4.14 | amazon_4.14 | 49 | 0.98s | 48s | 3 % |
+| 5.4 | amazon_5.4 | 52 | 0.98s | 54s | 3 % |
+| 4.18 | ubuntu_18.04 | 50 | 0.99s | 54s | 3 % |
+| 6.8 | ubuntu_24.04 | 54 | 1.10s | 62s | 4 % |
+| **6.17** | ubuntu_25.10 | 64 | **7.29s** | 489s | **21 %** |
+| **6.1 (deb)** | debian_12 | 53 | **7.74s** | 434s | **22 %** |
+| **6.12** | amazon_6.12 | 53 | **19.83s** | 1111s | **42 %** |
+
+Two facts kill the version hypothesis:
+
+- **6.1 lands on both sides.** `amazon_2023` (6.1.119-amzn2023) is 0.78s; `debian_12`
+  (6.1.0-39-amd64) is 7.74s. Same upstream minor, 10x apart.
+- **6.8 is cheap** (1.10s) while 6.12 and 6.17 are not.
+
+So the expensive set is 3 of 12 kernels and membership tracks how the *distro* configured RCU, not
+the version. Candidate knobs (**untested**): preemption model / `CONFIG_PREEMPT_RCU`,
+`CONFIG_TASKS_TRACE_RCU` lazy variants, `rcu_nocbs`/`nohz_full`. Comparing
+`/boot/config-*` between `amazon_2023` and `debian_12` is the cheapest next step and needs no
+pipeline. This also means the §10 fleet projection was pessimistic: **9 of 12 x86 kernels are
+fully fixed by the sysfs knob alone**, and only 3 need the boot-param work.
+
+### Finding 6 — the §10 per-teardown numbers reproduce across pipelines
+
+Implied baseline per teardown, from wall-clock delta / teardown count, against §10's direct A/B:
+
+| platform | implied from wall clock | directly measured (§10) |
+|---|---|---|
+| amazon_6.12 | 35.0s | 34.28s |
+| ubuntu_22.04 | 8.8s | 7.11s |
+
+And the post-fix medians match too (`amazon_6.12` 19.83s here vs 20.02s in §10; `ubuntu_22.04`
+0.94s vs 0.69s). Two independent pipelines, two measurement methods, same answer.
+
+### Test outcomes — 2 recoveries, 1 new failure
+
+Only four jobs changed status out of 210:
+
+| job | baseline | now |
+|---|---|---|
+| `x64 [amazon_6.12, cws_host]` | failed (timeout) | **success** |
+| `x64_ad [ubuntu_22.04, cws_ad]` | failed | **success** |
+| `arm64 [ubuntu_22.04, cws_host]` | success | **failed** |
+| `arm64 [ubuntu_26.04, cws_host]` | failed | still running |
+
+The pre-existing breakage is unchanged, which is the important negative result:
+`x64 [ubuntu_26.04]` fails 62 tests now vs 63 before with the **same failing test set**
+(`TestFlowPid*`, `TestNetDevice`, `TestTCFilters`, `TestMountEvent`, `TestMultipleProtocols*`,
+`TestDNSResponse`, `TestProcessContext`), and `arm64 [ubuntu_25.10]` fails 13 with an identical
+set. `rcu_expedited` did not perturb them.
+
+The one regression is `arm64 [ubuntu_22.04, cws_host]`:
+`TestFilterOpenLeafDiscarderActivityDump` fails 3/3 attempts with
+`ContainerID ... not found on activity dump list ([])`, where the baseline job was completely
+clean. That same test already fails on `arm64 [ubuntu_25.10]` and `x64 [ubuntu_26.04]` in **both**
+pipelines, so it is a fragile activity-dump test rather than something new — but it went from
+green to red on this platform and it is not in `flakes.yaml`. **A repeat pipeline is needed to
+tell a flake from a timing regression**; expediting RCU does change teardown timing, and an
+activity-dump test that races a dump period is exactly the shape that could notice.
+
+### Correction to §10
+
+§10 said `ubuntu_26.04` and `amazon_6.12` "are the only two that blew the timeout". Only
+`amazon_6.12` did. `ubuntu_26.04`'s 61 min came from 63 genuine test failures and their reruns
+(the suite itself finished in 1904s), which is why its wall clock improved 61.1 -> 47.9 min but it
+is still red.
+
+### Revised priority after this run
+
+1. **Diff `/boot/config-*` between `amazon_2023` (0.78s) and `debian_12` (7.74s)** — same 6.1,
+   10x apart. Free, no pipeline, and it names the boot parameter for item 2.
+2. **The residual on the 3 expensive kernels** (`amazon_6.12` 19.8s, `debian_12` 7.7s,
+   `ubuntu_25.10` 7.3s). Now scoped to 3 of 12 x86 kernels instead of "everything past 6.11".
+   `amazon_6.12` is still 42 % teardown.
+3. **Repeat the pipeline** to settle `TestFilterOpenLeafDiscarderActivityDump` on arm64
+   `ubuntu_22.04`, and land `rcu_expedited` if it is a flake.
+4. **Angle 3** (group tests by static config, 43 switches -> 20) — unchanged in value on the 3
+   expensive kernels, now nearly worthless on the other 9.
+5. **Angle 2d** (`testOpts.Equal` over func fields) — cheap, still valid.
+6. **Angle 1** (oversubscription) and **Angle 5** (timeout headroom) — both demoted further.
+
+### Artifacts
+
+Pipeline `129082991`. Phase data pulled from the 12 x64 `cws_host` jobs
+`1924166812/814/815/816/818/819/820/821/822/824/828/829` with `.ci-speed-data/analyze_phases.py`.
