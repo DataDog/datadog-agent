@@ -146,7 +146,7 @@ services:
     entrypoint: ["sh", "-c"]
     command:
       - |
-        exec /usr/local/bin/kube-apiserver \
+        /usr/local/bin/kube-apiserver \
           --advertise-address="$$(hostname -i)" \
           --etcd-servers=http://etcd:2379 \
           --bind-address=0.0.0.0 \
@@ -161,21 +161,27 @@ services:
           --authorization-mode=AlwaysAllow \
           --token-auth-file=/certs/token-auth.csv \
           --allow-privileged=true \
-          --v=3
+          --v=3 &
+        APISERVER_PID=$$!
+        # Diagnostic: probe our own /healthz on a loop and print straight to
+        # this container's own stdout. Docker's HEALTHCHECK exec output isn't
+        # captured on the real Antithesis platform (confirmed empirically —
+        # even a `> /proc/1/fd/1` redirect inside the healthcheck test never
+        # showed up, though the check itself was still running on schedule
+        # per container health_status events), so probe from inside the same
+        # process tree instead, where stdout is the normal, always-captured
+        # container log stream.
+        ( while true; do
+            OUT=$$(wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz 2>&1)
+            RC=$$?
+            echo "[healthcheck-loop] rc=$$RC out=$$OUT"
+            sleep 3
+          done ) &
+        wait $$APISERVER_PID
     healthcheck:
       # AlwaysAllow force-disables anonymous auth, so /healthz needs the static
       # bearer token like any other authenticated request.
-      #
-      # Three consecutive real runs failed at ~132s regardless of the retry
-      # budget (60 vs 100 retries made no difference), and --v=3 request
-      # logging showed zero /healthz requests EVER reached kube-apiserver on
-      # real hardware (only its own internal bootstrap calls appear) — so the
-      # wget call itself is failing before completing an HTTP request, not
-      # timing out waiting for readiness. Docker healthcheck exec output isn't
-      # normally captured, so tee wget's actual exit code/output into
-      # kube-apiserver's own stdout (PID 1 in this container) via
-      # /proc/1/fd/1 to see what's actually failing.
-      test: ["CMD", "sh", "-c", "OUT=$$(wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz 2>&1); RC=$$?; echo \"[healthcheck] rc=$$RC out=$$OUT\" > /proc/1/fd/1; echo \"$$OUT\" | grep -q ok"]
+      test: ["CMD", "sh", "-c", "wget -qO- --no-check-certificate --header='Authorization: Bearer antithesis-static-token' https://127.0.0.1:6443/healthz | grep -q ok"]
       interval: 3s
       timeout: 5s
       retries: 100
