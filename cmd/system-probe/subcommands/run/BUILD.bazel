@@ -1,5 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "run",
@@ -94,7 +93,7 @@ go_library(
     }),
 )
 
-dd_agent_go_test(
+go_test(
     name = "run_test",
     srcs = [
         "command_test.go",
@@ -102,6 +101,7 @@ dd_agent_go_test(
         "splite_test.go",
     ],
     embed = [":run"],
+    gotags = ["test"],
     deps = [
         "//cmd/system-probe/command",
         "//pkg/util/fxutil",
