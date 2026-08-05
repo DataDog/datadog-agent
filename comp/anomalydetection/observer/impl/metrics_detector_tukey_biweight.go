@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -156,6 +157,11 @@ func NewTukeyBiweightDetectorWithConfig(cfg TukeyBiweightConfig) *TukeyBiweightD
 
 // Name returns the detector name as registered in the catalog.
 func (d *TukeyBiweightDetector) Name() string { return "tukey_biweight" }
+
+func (d *TukeyBiweightDetector) BaselineSpec() detectorBaselineSpec {
+	d.ensureDefaults()
+	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
+}
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *TukeyBiweightDetector) Reset() {

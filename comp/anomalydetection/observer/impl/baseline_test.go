@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,74 +71,26 @@ func makeBaselineEngine(cfg BaselineConfig, correlator observerdef.Correlator) (
 
 // ---- baselineController unit tests ----
 
-func TestBaselineController_WindowSeededOnFirstActiveAt(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	assert.Equal(t, int64(0), b.startSec)
+func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
+		{name: "fast", spec: detectorBaselineSpec{Participate: true}},
+		{name: "slow", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 5 * time.Minute}},
+	})
+	b.start(1000)
+	assert.Equal(t, baselineQualifying, b.phase("fast", 1000))
+	assert.Equal(t, baselineWarming, b.phase("slow", 1299))
+	assert.Equal(t, baselineQualifying, b.phase("slow", 1300))
+	assert.Equal(t, []string{"fast"}, b.due(1600))
 
-	assert.True(t, b.activeAt(1000))
-	assert.Equal(t, int64(1000), b.startSec)
-
-	assert.True(t, b.activeAt(1599))
-	assert.False(t, b.activeAt(1600))
-}
-
-func TestBaselineController_MarkAccumulatesAndDeduplicates(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(0)
-
-	b.mark(1)
-	b.mark(2)
-	b.mark(1) // duplicate hash
-
-	assert.Equal(t, 3, b.windowAnomalyCount) // count includes re-fires
-	assert.Len(t, b.mutedHashes, 2)          // set deduplicates
-}
-
-func TestBaselineController_MarkNoOpWhenFrozen(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(0)
-
-	b.frozen = true
-	b.mark(1)
-	assert.Empty(t, b.mutedHashes)
-}
-
-func TestBaselineController_ShouldFreeze(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-
-	assert.False(t, b.shouldFreeze(1000)) // no startSec yet
-
-	b.activeAt(1000) // seed startSec=1000
-	assert.False(t, b.shouldFreeze(1599))
-	assert.True(t, b.shouldFreeze(1600))
-}
-
-func TestBaselineController_FreezeReturnsCount(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(1000)
-	b.mark(100)
-	b.mark(200)
-
-	count := b.freeze()
-
+	b.mark("fast", 1)
+	b.mark("fast", 1)
+	newHashes, count, allComplete := b.complete("fast")
 	assert.Equal(t, 2, count)
-	assert.Len(t, b.mutedHashes, 2)
-	assert.True(t, b.frozen)
-}
-
-func TestBaselineController_Reset(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(1000)
-	b.mark(100)
-	b.freeze()
-	require.True(t, b.frozen)
-
-	b.reset()
-
-	assert.Equal(t, int64(0), b.startSec)
-	assert.Empty(t, b.mutedHashes)
-	assert.Equal(t, 0, b.windowAnomalyCount)
-	assert.False(t, b.frozen)
+	assert.Len(t, newHashes, 1)
+	assert.False(t, allComplete)
+	assert.Equal(t, []string{"slow"}, b.due(1900))
+	_, _, allComplete = b.complete("slow")
+	assert.True(t, allComplete)
 }
 
 // ---- engine integration tests ----
@@ -172,11 +125,11 @@ func TestBaseline_ExactFreezeTimeBoundary(t *testing.T) {
 	e.Advance(start)           // seeds window, anomaly held back and marked
 	e.Advance(start + dur - 1) // t=699: still in window, anomaly held back
 	assert.Empty(t, correlator.received)
-	assert.False(t, e.baseline.frozen)
+	assert.False(t, e.baseline.allComplete())
 
 	e.Advance(start + dur) // t=700: exact freeze point — freeze fires, muted anomaly blocked
 	assert.Empty(t, correlator.received)
-	assert.True(t, e.baseline.frozen)
+	assert.True(t, e.baseline.allComplete())
 }
 
 func TestBaseline_FreezeAdvanceAnomalyNotForwardedToCorrelator(t *testing.T) {
@@ -245,7 +198,7 @@ func TestBaseline_MuteNoisyMetricsFalseDoesNotDropMetrics(t *testing.T) {
 	e.Advance(700) // freeze
 
 	assert.True(t, filter.isAllowed("cpu", "ns", nil))
-	assert.False(t, e.baseline.frozen && e.baseline.config.MuteNoisyMetrics)
+	assert.False(t, e.baseline.config.MuteNoisyMetrics)
 }
 
 // storageAwareDetector fires one anomaly per series found in storage.

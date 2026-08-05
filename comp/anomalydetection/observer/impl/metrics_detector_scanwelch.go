@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -91,6 +92,11 @@ func NewScanWelchDetector() *ScanWelchDetector {
 // Name returns the detector name.
 func (d *ScanWelchDetector) Name() string {
 	return "scanwelch"
+}
+
+func (d *ScanWelchDetector) BaselineSpec() detectorBaselineSpec {
+	d.ensureDefaults()
+	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
 }
 
 // Reset clears all per-series state for replay/reanalysis.

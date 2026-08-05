@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -179,6 +180,10 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 // Name returns the detector name.
 func (b *BOCPDDetector) Name() string {
 	return "bocpd"
+}
+
+func (b *BOCPDDetector) BaselineSpec() detectorBaselineSpec {
+	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(b.config.WarmupPoints) * baselineReferenceInterval}
 }
 
 // Detect implements Detector. It discovers series, reads only newly visible

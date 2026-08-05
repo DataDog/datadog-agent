@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -97,6 +98,11 @@ func NewScanMWDetector() *ScanMWDetector {
 // Name returns the detector name.
 func (d *ScanMWDetector) Name() string {
 	return "scanmw"
+}
+
+func (d *ScanMWDetector) BaselineSpec() detectorBaselineSpec {
+	d.ensureDefaults()
+	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
 }
 
 // Reset clears all per-series state for replay/reanalysis.

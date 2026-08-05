@@ -168,6 +168,12 @@ func (r *RRCFDetector) Name() string {
 	return "rrcf"
 }
 
+// BaselineSpec opts out because RRCF's aligned-vector model has its own
+// readiness and cannot attribute its synthetic anomalies to one source series.
+func (r *RRCFDetector) BaselineSpec() detectorBaselineSpec {
+	return detectorBaselineSpec{Participate: false}
+}
+
 // SetObserverTelemetry wires direct observer telemetry emission.
 func (r *RRCFDetector) SetObserverTelemetry(t *observerTelemetry) {
 	r.telemetry = t

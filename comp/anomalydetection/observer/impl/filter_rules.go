@@ -196,10 +196,15 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 	return true
 }
 
-// setMuted publishes the baseline mute set atomically. Called once at freeze
-// from the engine run goroutine; all handle goroutines observe it on next ingest.
+// setMuted publishes an immutable snapshot of the baseline mute union. The
+// engine calls it as each detector completes; handle goroutines observe the
+// new union on their next ingest.
 func (f *metricsFilterRules) setMuted(m map[uint64]struct{}) {
-	f.muted.Store(&m)
+	snapshot := make(map[uint64]struct{}, len(m))
+	for h := range m {
+		snapshot[h] = struct{}{}
+	}
+	f.muted.Store(&snapshot)
 }
 
 // matches reports whether the rule applies to the given metric.

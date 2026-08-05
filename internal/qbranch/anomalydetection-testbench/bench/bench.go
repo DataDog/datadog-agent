@@ -120,16 +120,18 @@ type ComponentInfo struct {
 type testbenchView interface {
 	observerimpl.DebugView
 	DebugSubscribeBaselineCompleted(func(endSec int64, mutedGroups []string))
+	DebugBaselineStatus() observerimpl.BaselineDebugStatus
 }
 
 // BaselineInfo is the baseline analysis window state exposed to the testbench UI.
 type BaselineInfo struct {
-	Enabled          bool     `json:"enabled"`
-	DurationSec      int64    `json:"durationSec"`
-	MuteNoisyMetrics bool     `json:"muteNoisyMetrics"`
-	Active           bool     `json:"active"`
-	WindowEndSec     int64    `json:"windowEndSec,omitempty"`
-	MutedSeries      []string `json:"mutedSeries,omitempty"`
+	Enabled          bool                                       `json:"enabled"`
+	DurationSec      int64                                      `json:"durationSec"`
+	MuteNoisyMetrics bool                                       `json:"muteNoisyMetrics"`
+	Active           bool                                       `json:"active"`
+	WindowEndSec     int64                                      `json:"windowEndSec,omitempty"`
+	MutedSeries      []string                                   `json:"mutedSeries,omitempty"`
+	Detectors        []observerimpl.BaselineDetectorDebugStatus `json:"detectors,omitempty"`
 }
 
 // StatusResponse is the response for /api/status.
@@ -737,6 +739,12 @@ func (tb *Bench) GetStatus() StatusResponse {
 
 	var baselineInfo *BaselineInfo
 	if tb.settings.Baseline.Enabled {
+		status := observerimpl.BaselineDebugStatus{}
+		if debugBaseline, ok := tb.obs.(interface {
+			DebugBaselineStatus() observerimpl.BaselineDebugStatus
+		}); ok {
+			status = debugBaseline.DebugBaselineStatus()
+		}
 		tb.baselineMu.Lock()
 		frozen := tb.baselineFrozen
 		windowEndSec := tb.baselineWindowEndSec
@@ -746,9 +754,10 @@ func (tb *Bench) GetStatus() StatusResponse {
 			Enabled:          true,
 			DurationSec:      tb.settings.Baseline.DurationSec,
 			MuteNoisyMetrics: tb.settings.Baseline.MuteNoisyMetrics,
-			Active:           !frozen,
+			Active:           status.Started && !status.AllComplete && !frozen,
 			WindowEndSec:     windowEndSec,
 			MutedSeries:      mutedSeries,
+			Detectors:        status.Detectors,
 		}
 	}
 

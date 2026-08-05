@@ -36,8 +36,10 @@ type engineEvent struct {
 
 // baselineCompletedEvent carries the muted hash set produced at window end.
 type baselineCompletedEvent struct {
-	mutedHashes map[uint64]struct{}
-	mutedRefs   []observerdef.SeriesRef
+	detectorName string
+	mutedHashes  map[uint64]struct{}
+	mutedRefs    []observerdef.SeriesRef
+	allComplete  bool
 }
 
 // advanceCompletedEvent is emitted after the engine finishes an Advance call.

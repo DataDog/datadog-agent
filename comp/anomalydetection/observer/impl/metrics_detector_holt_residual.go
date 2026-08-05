@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -202,6 +203,12 @@ func NewHoltResidualDetectorWithConfig(cfg HoltResidualConfig) *HoltResidualDete
 
 // Name implements observer.Detector.
 func (d *HoltResidualDetector) Name() string { return "holt_residual" }
+
+func (d *HoltResidualDetector) BaselineSpec() detectorBaselineSpec {
+	d.ensureDefaults()
+	points := d.WarmupPoints + d.ResidualWindow + d.ConfirmM
+	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(points) * baselineReferenceInterval}
+}
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HoltResidualDetector) Reset() {

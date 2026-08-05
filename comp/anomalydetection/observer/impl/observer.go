@@ -565,6 +565,13 @@ func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
+func (a *seriesDetectorAdapter) BaselineSpec() detectorBaselineSpec {
+	if provider, ok := a.detector.(detectorBaselineSpecProvider); ok {
+		return provider.BaselineSpec()
+	}
+	return detectorBaselineSpec{Participate: true}
+}
+
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
@@ -846,13 +853,22 @@ func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(endSec int6
 	})
 }
 
+// DebugBaselineStatus returns the per-detector baseline state for the
+// testbench. It is deliberately outside DebugView's production contract.
+func (o *observerImpl) DebugBaselineStatus() BaselineDebugStatus {
+	if o.engine.baseline == nil {
+		return BaselineDebugStatus{}
+	}
+	return o.engine.baseline.debugStatus()
+}
+
 type baselineCompletedCallbackSink struct {
 	engine   *engine
 	callback func(int64, []string)
 }
 
 func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
-	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
+	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil || !evt.baselineCompleted.allComplete {
 		return
 	}
 	seen := make(map[string]struct{}, len(evt.baselineCompleted.mutedRefs))
