@@ -182,9 +182,19 @@ func Parse(line []byte) (SyslogMessage, error) {
 		// Only dispatch to the RFC 5424 parser when the bytes actually form a
 		// VERSION token (1-3 digits) followed by SP; otherwise treat the
 		// remainder as MSG CONTENT per RFC 3164 §4.3.2.
-		if isRFC5424Header(line, pos) {
+		switch {
+		case isValidBSDTimestampYearFirst(line[pos:]):
+			// Cisco NX-OS: "<PRI>YYYY Mmm DD HH:MM:SS host %FAC-SEV-MNEMONIC:".
+			// The leading year also matches the RFC 5424 VERSION-SP shape, so
+			// this must be tested first or the year is read as a VERSION.
+			msg, err = parseBSD(line, pri, pos)
+		case isoTimestampLen(line[pos:]) > 0:
+			// Cisco ASA/FTD and Picus put an ISO 8601 timestamp straight after
+			// the PRI, with no RFC 5424 VERSION.
+			msg, err = parseBSD(line, pri, pos)
+		case isRFC5424Header(line, pos):
 			msg, err = parseRFC5424(line, pri, pos)
-		} else {
+		default:
 			msg = parseBSDNoTimestamp(line, pri, pos)
 		}
 	case (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z'):
@@ -282,9 +292,19 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// RFC 5424 HEADER fields are single tokens (no embedded spaces), but it
 	// will mis-parse non-conformant TIMESTAMP values that contain extra spaces.
 	// This is an intentional performance trade-off vs. regex or field-by-field parsing.
+	//
+	// Some appliances (e.g. Claroty CTD) emit more than one SP between VERSION
+	// and TIMESTAMP. RFC 5424 allows exactly one, but skipping the extra spaces
+	// costs nothing and avoids yielding an empty TIMESTAMP and shifting every
+	// later field by one position.
+	tsStart := sp + 1
+	for tsStart < len(line) && line[tsStart] == ' ' {
+		tsStart++
+	}
+
 	var spPos [5]int
 	found := 0
-	for i := sp + 1; i < len(line); i++ {
+	for i := tsStart; i < len(line); i++ {
 		if line[i] == ' ' {
 			spPos[found] = i
 			found++
@@ -309,13 +329,13 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 
 	if found < 1 {
 		// Only VERSION; remainder is MSG.
-		if sp+1 < len(line) {
-			msg.Msg = line[sp+1:]
+		if tsStart < len(line) {
+			msg.Msg = line[tsStart:]
 		}
 		msg.Partial = true
 		return msg, errHeaderTooShort
 	}
-	msg.Timestamp = toHeaderString(line[sp+1 : spPos[0]])
+	msg.Timestamp = toHeaderString(line[tsStart:spPos[0]])
 
 	if found < 2 {
 		if spPos[0]+1 < len(line) {
@@ -416,14 +436,17 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	}
 
 	// --- TIMESTAMP ---
-	// Try standard 15-byte BSD format first: "Mmm dd hh:mm:ss"
-	// Then try 20-byte variant with year: "Mmm DD YYYY HH:MM:SS"
-	// (used by some network appliances that deviate from RFC 3164).
-	tsLen := 0
-	if pos+15 <= len(line) && isValidBSDTimestamp(line[pos:pos+15]) {
-		tsLen = 15
-	} else if pos+20 <= len(line) && isValidBSDTimestampWithYear(line[pos:pos+20]) {
-		tsLen = 20
+	// Accepted layouts, in order: the RFC 3164 15-byte form "Mmm dd hh:mm:ss",
+	// the 14-byte non-padded-day and 20-byte with-year and year-first variants
+	// emitted by various appliances, and finally an ISO 8601 timestamp, which
+	// Cisco ASA/FTD, Delinea, and Picus use in place of the BSD form.
+	tsLen := bsdTimestampLen(line[pos:])
+	isISOTimestamp := false
+	if tsLen == 0 {
+		if n := isoTimestampLen(line[pos:]); n > 0 {
+			tsLen = n
+			isISOTimestamp = true
+		}
 	}
 
 	if tsLen == 0 {
@@ -440,6 +463,20 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	}
 	msg.Timestamp = string(line[pos : pos+tsLen])
 	pos += tsLen
+
+	// Cisco ASA/FTD terminate the timestamp with a colon and omit both HOSTNAME
+	// and TAG: "<PRI>2025-11-25T07:19:40Z: %ASA-4-733100: ...". There is no
+	// hostname to read, so the remainder after the colon is CONTENT.
+	if isISOTimestamp && pos < len(line) && line[pos] == ':' {
+		pos++
+		if pos < len(line) && line[pos] == ' ' {
+			pos++
+		}
+		if pos < len(line) {
+			msg.Msg = line[pos:]
+		}
+		return msg, nil
+	}
 
 	// --- SP + HOSTNAME ---
 	if pos >= len(line) || line[pos] != ' ' {
@@ -470,10 +507,13 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// --- TAG + CONTENT ---
 	rest := line[pos:]
 
-	// Detect "double-header" formats where an ISO 8601 timestamp appears in
-	// the TAG position (e.g. Cisco FTD: "YYYY-MM-DDThh:mm:ssZ hostname ...").
-	// No real TAG is present; treat the entire remainder as MSG.
-	if looksLikeISOTimestamp(rest) {
+	// Detect "double-header" formats where a second timestamp appears in the TAG
+	// position — an ISO 8601 one (e.g. Cisco FTD: "YYYY-MM-DDThh:mm:ssZ hostname
+	// ...") or a repeated BSD one (e.g. Cisco ISE: "<PRI>Mmm dd hh:mm:ss MGMT_IP
+	// Mmm dd hh:mm:ss hostname CISE_... "). No real TAG is present; treat the
+	// entire remainder as MSG. Without the BSD case the month abbreviation of the
+	// second timestamp is extracted as the APP-NAME.
+	if looksLikeISOTimestamp(rest) || bsdTimestampLen(rest) > 0 {
 		msg.Msg = rest
 		return msg, nil
 	}
@@ -661,6 +701,135 @@ func isValidBSDTimestampWithYear(b []byte) bool {
 		}
 	}
 	return isValidMonthAbbrev(b)
+}
+
+// isValidBSDTimestampSingleSpaceDay checks the 14-byte variant "Mmm d hh:mm:ss",
+// where a single-digit day is written with one space instead of the space-padded
+// "Mmm  d" that RFC 3164 requires:
+//
+//	RFC 3164:      "Jan  9 03:47:40" (15 bytes, day space-padded)
+//	Non-padded:    "Jan 9 03:47:40"  (14 bytes)
+//
+// Several appliances emit the non-padded form (BeyondTrust Privileged Remote
+// Access, Cisco ISE, Infoblox DDI). Structural checks: valid month at [0:3],
+// space at [3], a digit day at [4], space at [5], colons at [8] and [11].
+func isValidBSDTimestampSingleSpaceDay(b []byte) bool {
+	if len(b) < 14 {
+		return false
+	}
+	if b[3] != ' ' || b[5] != ' ' || b[8] != ':' || b[11] != ':' {
+		return false
+	}
+	if !isDigit(b[4]) {
+		return false
+	}
+	return isValidMonthAbbrev(b)
+}
+
+// isValidBSDTimestampYearFirst checks the 20-byte variant "YYYY Mmm DD HH:MM:SS"
+// emitted by Cisco NX-OS platforms, which place the year before the month
+// instead of after the day:
+//
+//	RFC 3164:    "Apr  4 08:05:06"      (15 bytes)
+//	With year:   "Apr 04 2024 08:05:06" (20 bytes)
+//	Year first:  "2024 Apr 04 08:05:06" (20 bytes)
+//
+// Structural checks: four digits at [0:4], space at [4], valid month at [5:8],
+// space at [8], a two-character day at [9:11], space at [11], and colons at
+// [14] and [17].
+func isValidBSDTimestampYearFirst(b []byte) bool {
+	if len(b) < 20 {
+		return false
+	}
+	if b[4] != ' ' || b[8] != ' ' || b[11] != ' ' || b[14] != ':' || b[17] != ':' {
+		return false
+	}
+	for _, i := range []int{0, 1, 2, 3} {
+		if !isDigit(b[i]) {
+			return false
+		}
+	}
+	// The day may be space-padded ("Apr  4") or zero-padded ("Apr 04").
+	if !(isDigit(b[9]) || b[9] == ' ') || !isDigit(b[10]) {
+		return false
+	}
+	return isValidMonthAbbrev(b[5:])
+}
+
+// bsdTimestampLen returns the length of a BSD-style timestamp at the start of b,
+// trying every accepted layout, or 0 if b does not start with one. The 15-byte
+// RFC 3164 form is tested before the 14-byte non-padded form so a conformant
+// timestamp is never matched by the looser pattern.
+func bsdTimestampLen(b []byte) int {
+	switch {
+	case isValidBSDTimestamp(b):
+		return 15
+	case isValidBSDTimestampSingleSpaceDay(b):
+		return 14
+	case isValidBSDTimestampWithYear(b):
+		return 20
+	case isValidBSDTimestampYearFirst(b):
+		return 20
+	}
+	return 0
+}
+
+// isoTimestampLen returns the length of an ISO 8601 / RFC 3339 timestamp at the
+// start of b, or 0 if b does not start with one. The recognized shape is
+//
+//	YYYY-MM-DDThh:mm:ss[.frac][Z|(+|-)hh:mm|(+|-)hhmm]
+//
+// Only 'T' is accepted as the date/time separator: a space separator cannot be
+// told apart from a date followed by an unrelated field, and accepting it would
+// let the parser consume a neighbouring token.
+func isoTimestampLen(b []byte) int {
+	const base = 19 // YYYY-MM-DDThh:mm:ss
+	if len(b) < base {
+		return 0
+	}
+	if b[4] != '-' || b[7] != '-' || b[10] != 'T' || b[13] != ':' || b[16] != ':' {
+		return 0
+	}
+	for _, i := range []int{0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18} {
+		if !isDigit(b[i]) {
+			return 0
+		}
+	}
+	n := base
+
+	// Optional fractional seconds: '.' followed by at least one digit.
+	if n < len(b) && b[n] == '.' {
+		f := n + 1
+		for f < len(b) && isDigit(b[f]) {
+			f++
+		}
+		if f > n+1 {
+			n = f
+		}
+	}
+
+	// Optional zone: 'Z', "+hh:mm"/"-hh:mm", or "+hhmm"/"-hhmm".
+	if n < len(b) {
+		switch b[n] {
+		case 'Z', 'z':
+			n++
+		case '+', '-':
+			switch {
+			case n+6 <= len(b) && isDigit(b[n+1]) && isDigit(b[n+2]) &&
+				b[n+3] == ':' && isDigit(b[n+4]) && isDigit(b[n+5]):
+				n += 6
+			case n+5 <= len(b) && isDigit(b[n+1]) && isDigit(b[n+2]) &&
+				isDigit(b[n+3]) && isDigit(b[n+4]):
+				n += 5
+			}
+		}
+	}
+	return n
+}
+
+// isDigit reports whether b is an ASCII decimal digit.
+func isDigit(b byte) bool {
+	return b >= '0' && b <= '9'
 }
 
 // isValidMonthAbbrev returns true if b[0:3] is a valid three-letter English
