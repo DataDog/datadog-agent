@@ -7,7 +7,9 @@ lifecycle only:
 - `dd-procmgrd` starts `par-control` from
   `processes.d/datadog-agent-par-control.yaml`.
 - `par-control` exits 0 (and is not restarted) unless both
-  `private_action_runner.enabled` and `.split_enabled` are true.
+  `private_action_runner.enabled` and `.split_enabled` are true. It resolves
+  those settings from the local YAML, environment variables, and the Fleet
+  Automation policy using the Agent's startup precedence.
 - In split mode it asks `dd-procmgrd` to start the existing
   `privateactionrunner run-executor` process. It does not connect to the
   executor or dispatch actions yet.
