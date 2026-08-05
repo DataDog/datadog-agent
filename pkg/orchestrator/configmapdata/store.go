@@ -17,18 +17,38 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// maxEntries bounds how many ConfigMaps a single remote config update can opt in. Every allowed
+// maxEntries bounds how many ConfigMaps a single remote config update can carry. Every allowed
 // ConfigMap uploads its full body on every resource version change, so the list is capped rather
-// than trusted.
+// than trusted. Opted-out entries count against the cap too: they are kept rather than deleted, see
+// Entry.
 const maxEntries = 200
 
-// Entry identifies one opted-in ConfigMap. Remote config payloads are org-scoped and
+// Entry holds the collection decision for one ConfigMap. Remote config payloads are org-scoped and
 // kube-system/coredns exists in every cluster of an org, so the cluster has to be part of the
 // identity. ClusterID is the orch_cluster_id, the UID of the kube-system namespace.
+//
+// Opting out is an entry with DataCollected false, not a removed entry. The reported resource
+// version is derived from Timestamp, and the backend deduplicates writes on the manifest hash and
+// the resource version together, so an entry that disappeared would report the untagged version
+// again and make the opt-out write byte-identical to one the backend already accepted minutes
+// earlier. It would be dropped and the data would stay visible. Keeping the entry with a new
+// timestamp is what makes every flip reach storage.
 type Entry struct {
-	ClusterID string `json:"cluster_id"`
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
+	ClusterID     string `json:"cluster_id"`
+	Namespace     string `json:"namespace"`
+	Name          string `json:"name"`
+	Timestamp     int64  `json:"timestamp"`
+	DataCollected bool   `json:"data_collected"`
+}
+
+// entryKey identifies a ConfigMap across clusters, for collapsing entries that describe the same
+// ConfigMap. Entry itself cannot be used: Timestamp and DataCollected differ between an opt-in and
+// the opt-out that supersedes it, so comparing whole entries would keep both and leave the winner
+// to the order they happen to appear in the configs.
+type entryKey struct {
+	clusterID string
+	namespace string
+	name      string
 }
 
 // payload is the shape of a single DEBUG product config.
@@ -48,12 +68,20 @@ type key struct {
 // tick so that every read within a tick agrees: the resource version and the strip decision are
 // read at three different points of the tick, and an update landing between two of them would
 // otherwise emit a manifest whose cache token disagrees with its content.
-type AllowSet map[key]struct{}
+type AllowSet map[key]Entry
 
-// IsAllowed reports whether the named ConfigMap is opted into full data collection.
+// IsAllowed reports whether the named ConfigMap is opted into full data collection. A ConfigMap with
+// no entry and one that opted back out both report false, which is the right answer for the strip
+// decision. Anything deriving a resource version needs Lookup instead, because those two cases have
+// to report different versions.
 func (a AllowSet) IsAllowed(namespace, name string) bool {
-	_, ok := a[key{namespace: namespace, name: name}]
-	return ok
+	return a[key{namespace: namespace, name: name}].DataCollected
+}
+
+// Lookup returns the entry for the named ConfigMap and whether the allow-list mentions it at all.
+func (a AllowSet) Lookup(namespace, name string) (Entry, bool) {
+	e, ok := a[key{namespace: namespace, name: name}]
+	return e, ok
 }
 
 // Store holds the current allow-list as delivered by remote config.
@@ -74,7 +102,8 @@ func Get() *Store {
 }
 
 // Replace swaps the whole allow-list. Remote config always sends complete configs, so there is no
-// incremental update path: a removed entry has to stop being allowed, which is the opt-out.
+// incremental update path: an opt-out arrives as an entry whose DataCollected is false, and an entry
+// that disappeared altogether means the ConfigMap goes back to being one nobody ever asked about.
 func (s *Store) Replace(entries []Entry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,7 +124,7 @@ func (s *Store) Snapshot(clusterID string) AllowSet {
 		if e.ClusterID != clusterID {
 			continue
 		}
-		set[key{namespace: e.Namespace, name: e.Name}] = struct{}{}
+		set[key{namespace: e.Namespace, name: e.Name}] = e
 	}
 	return set
 }
@@ -120,6 +149,9 @@ func Subscribe(subscribe SubscribeFunc) {
 
 // onUpdate rebuilds the allow-list from the full set of configs remote config currently holds. An
 // empty update means every ConfigMap reverts to metadata-only.
+//
+// Remote config only calls this when a config actually changed, so a dropped write is never retried
+// from here. Propagation instead rides the collection tick, which re-reads the allow-list every run.
 func onUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	paths := make([]string, 0, len(update))
 	for path := range update {
@@ -129,7 +161,9 @@ func onUpdate(update map[string]state.RawConfig, applyStateCallback func(string,
 
 	var (
 		entries []Entry
-		seen    = make(map[Entry]struct{})
+		// Maps a ConfigMap to its index in entries, so that a later config describing the same
+		// ConfigMap updates the decision in place instead of appending a second, conflicting one.
+		seen = make(map[entryKey]int)
 	)
 
 	for _, path := range paths {
@@ -148,14 +182,27 @@ func onUpdate(update map[string]state.RawConfig, applyStateCallback func(string,
 				log.Warnf("Ignoring incomplete ConfigMap data allow-list entry from remote config %s: %+v", path, e)
 				continue
 			}
-			if _, dup := seen[e]; dup {
+			// A ConfigMap whose entry resolves to the same reported resource version whatever its
+			// state cannot propagate a change, so an entry without a timestamp is worse than no
+			// entry at all.
+			if e.Timestamp <= 0 {
+				log.Warnf("Ignoring ConfigMap data allow-list entry without a timestamp from remote config %s: %+v", path, e)
+				continue
+			}
+			k := entryKey{clusterID: e.ClusterID, namespace: e.Namespace, name: e.Name}
+			if i, dup := seen[k]; dup {
+				// The newest timestamp is the current intent. Configs are walked in sorted path
+				// order, which says nothing about which decision came last.
+				if e.Timestamp > entries[i].Timestamp {
+					entries[i] = e
+				}
 				continue
 			}
 			if len(entries) >= maxEntries {
 				log.Warnf("ConfigMap data allow-list capped at %d entries, ignoring the rest", maxEntries)
 				break
 			}
-			seen[e] = struct{}{}
+			seen[k] = len(entries)
 			entries = append(entries, e)
 		}
 

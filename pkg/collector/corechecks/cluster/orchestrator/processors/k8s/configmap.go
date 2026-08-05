@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"hash/fnv"
 	"regexp"
 	"strconv"
 	"strings"
@@ -77,23 +78,42 @@ func isDataCollected(ctx processors.ProcessorContext, cm *corev1.ConfigMap) bool
 	return pctx.ConfigMapAllowSet.IsAllowed(cm.Namespace, cm.Name)
 }
 
-// resolveResourceVersion returns the resource version to report for a ConfigMap, with the high bit
-// set when the ConfigMap is opted into full data collection. Both the agent-side resource cache and
-// the backend last-seen caches compare this value for equality only, so tagging it makes an
-// allow-list flip look like a change even though the object itself did not change. etcd revisions
-// are nowhere near 2^63, so the tag can never collide with a real resource version, and masking it
-// off recovers the original. The value has to stay a base-10 uint64 string because the backend
-// parses it as one. A resource version is opaque per the Kubernetes API contract, so a non-numeric
-// one is passed through unchanged.
-func resolveResourceVersion(resourceVersion string, dataCollected bool) string {
-	if !dataCollected {
+// configMapEntry returns the allow-list entry for this ConfigMap, according to the allow-list
+// snapshotted at the start of the run, and whether the allow-list mentions it at all.
+func configMapEntry(ctx processors.ProcessorContext, cm *corev1.ConfigMap) (configmapdata.Entry, bool) {
+	pctx, ok := ctx.(*processors.K8sProcessorContext)
+	if !ok {
+		return configmapdata.Entry{}, false
+	}
+	return pctx.ConfigMapAllowSet.Lookup(cm.Namespace, cm.Name)
+}
+
+// resolveResourceVersion returns the resource version to report for a ConfigMap. A ConfigMap the
+// allow-list does not mention reports the etcd version untouched. One it does mention reports a hash
+// of that version and the timestamp of the decision instead, whether the decision was to collect or
+// to stop collecting.
+//
+// Both the agent-side resource cache and the backend last-seen caches compare this value for
+// equality only, so mixing the timestamp in makes an allow-list flip look like a change even though
+// the object itself did not change. The backend also deduplicates writes on the manifest hash and
+// the resource version together, which is why an opt-out has to report something new rather than
+// reverting to the etcd version: reverting reproduces a pair the backend already accepted, and the
+// write that would have removed the data is dropped.
+//
+// Uniqueness is what matters here, not ordering: nothing compares two resource versions for
+// recency, so hashing away the monotonicity of the timestamp costs nothing. The value has to stay a
+// base-10 uint64 string because the backend parses it as one.
+func resolveResourceVersion(resourceVersion string, entry configmapdata.Entry, mentioned bool) string {
+	if !mentioned {
 		return resourceVersion
 	}
-	n, err := strconv.ParseUint(resourceVersion, 10, 64)
-	if err != nil {
-		return resourceVersion
-	}
-	return strconv.FormatUint(n|(1<<63), 10)
+	// A resource version is opaque per the Kubernetes API contract, so it is mixed in as bytes
+	// rather than parsed. The separator keeps ("1", "23") from colliding with ("12", "3").
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(resourceVersion))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(strconv.FormatInt(entry.Timestamp, 10)))
+	return strconv.FormatUint(h.Sum64(), 10)
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -157,7 +177,7 @@ func (h *ConfigMapHandlers) CloneResource(resource interface{}) interface{} {
 }
 
 // ResourceVersionFromRaw returns the resource version without requiring model extraction.
-// The version is tagged when the ConfigMap is opted into full data collection, so that the flip
+// The version is derived from the allow-list decision when the ConfigMap has one, so that a flip
 // invalidates the agent cache. This must return the same value as ResourceVersion for a given
 // ConfigMap in a given run: the value returned here is what lands in the agent cache, while the one
 // returned by ResourceVersion is what goes on the wire, and the two have to agree.
@@ -165,7 +185,8 @@ func (h *ConfigMapHandlers) CloneResource(resource interface{}) interface{} {
 //nolint:revive
 func (h *ConfigMapHandlers) ResourceVersionFromRaw(ctx processors.ProcessorContext, resource interface{}) string {
 	r := resource.(*corev1.ConfigMap)
-	return resolveResourceVersion(r.ResourceVersion, isDataCollected(ctx, r))
+	entry, mentioned := configMapEntry(ctx, r)
+	return resolveResourceVersion(r.ResourceVersion, entry, mentioned)
 }
 
 // ResourceUID returns the UID of the ConfigMap.
@@ -175,15 +196,16 @@ func (h *ConfigMapHandlers) ResourceUID(_ processors.ProcessorContext, resource 
 	return resource.(*corev1.ConfigMap).UID
 }
 
-// ResourceVersion returns the resource version of the ConfigMap, tagged when the ConfigMap is
-// opted into full data collection. This is the value carried by the payload, and every backend
-// last-seen cache compares it for equality, so the tag is what makes an opt-in or an opt-out
-// propagate on the next tick instead of being deduped away.
+// ResourceVersion returns the resource version of the ConfigMap, derived from the allow-list
+// decision when the ConfigMap has one. This is the value carried by the payload, and every backend
+// cache compares it for equality, so deriving it is what makes an opt-in or an opt-out propagate on
+// the next tick instead of being deduped away.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, _ interface{}) string {
 	r := resource.(*corev1.ConfigMap)
-	return resolveResourceVersion(r.ResourceVersion, isDataCollected(ctx, r))
+	entry, mentioned := configMapEntry(ctx, r)
+	return resolveResourceVersion(r.ResourceVersion, entry, mentioned)
 }
 
 // ScrubBeforeExtraction redacts sensitive annotation and label keys before the resource is processed.

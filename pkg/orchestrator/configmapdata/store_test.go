@@ -38,8 +38,8 @@ func (r *applyRecorder) callback(path string, status state.ApplyStatus) {
 func TestStoreSnapshotFiltersByCluster(t *testing.T) {
 	s := &Store{}
 	s.Replace([]Entry{
-		{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1"},
-		{ClusterID: "cluster-b", Namespace: "default", Name: "cm-1"},
+		{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 1, DataCollected: true},
+		{ClusterID: "cluster-b", Namespace: "default", Name: "cm-1", Timestamp: 1, DataCollected: true},
 	})
 
 	a := s.Snapshot("cluster-a")
@@ -54,7 +54,7 @@ func TestStoreSnapshotFiltersByCluster(t *testing.T) {
 
 func TestStoreSnapshotIsStable(t *testing.T) {
 	s := &Store{}
-	s.Replace([]Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1"}})
+	s.Replace([]Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 1, DataCollected: true}})
 
 	snapshot := s.Snapshot("cluster-a")
 	s.Replace(nil)
@@ -63,6 +63,25 @@ func TestStoreSnapshotIsStable(t *testing.T) {
 	// the resource version and the strip decision agree within a tick.
 	assert.True(t, snapshot.IsAllowed("default", "cm-1"))
 	assert.False(t, s.Snapshot("cluster-a").IsAllowed("default", "cm-1"))
+}
+
+func TestSnapshotLookupSeparatesOptedOutFromUnknown(t *testing.T) {
+	s := &Store{}
+	s.Replace([]Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 200}})
+
+	snapshot := s.Snapshot("cluster-a")
+
+	// Both are stripped, but only one of them has a decision behind it, and the two have to report
+	// different resource versions for the opt-out to reach storage.
+	assert.False(t, snapshot.IsAllowed("default", "cm-1"))
+	assert.False(t, snapshot.IsAllowed("default", "cm-unknown"))
+
+	optedOut, mentioned := snapshot.Lookup("default", "cm-1")
+	assert.True(t, mentioned)
+	assert.Equal(t, int64(200), optedOut.Timestamp)
+
+	_, mentioned = snapshot.Lookup("default", "cm-unknown")
+	assert.False(t, mentioned)
 }
 
 func TestStoreEmptySnapshot(t *testing.T) {
@@ -81,20 +100,30 @@ func TestOnUpdate(t *testing.T) {
 		{
 			name: "single config",
 			update: map[string]state.RawConfig{
-				"datadog/2/DEBUG/cm/config": rawConfig(`{"version":1,"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1"}]}`),
+				"datadog/2/DEBUG/cm/config": rawConfig(`{"version":1,"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1","timestamp":100,"data_collected":true}]}`),
 			},
-			expected:      []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1"}},
+			expected:      []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 100, DataCollected: true}},
+			expectedState: map[string]state.ApplyState{"datadog/2/DEBUG/cm/config": state.ApplyStateAcknowledged},
+		},
+		{
+			// An opt-out is an entry, not a removal, so that the reported resource version keeps
+			// moving and the write that strips the data is not deduped away by the backend.
+			name: "an opt-out is kept as an entry",
+			update: map[string]state.RawConfig{
+				"datadog/2/DEBUG/cm/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1","timestamp":200,"data_collected":false}]}`),
+			},
+			expected:      []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 200}},
 			expectedState: map[string]state.ApplyState{"datadog/2/DEBUG/cm/config": state.ApplyStateAcknowledged},
 		},
 		{
 			name: "union across configs, duplicates collapsed",
 			update: map[string]state.RawConfig{
-				"datadog/2/DEBUG/cm-a/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1"}]}`),
-				"datadog/2/DEBUG/cm-b/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1"},{"cluster_id":"cluster-a","namespace":"kube-system","name":"cm-2"}]}`),
+				"datadog/2/DEBUG/cm-a/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1","timestamp":100,"data_collected":true}]}`),
+				"datadog/2/DEBUG/cm-b/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1","timestamp":100,"data_collected":true},{"cluster_id":"cluster-a","namespace":"kube-system","name":"cm-2","timestamp":100,"data_collected":true}]}`),
 			},
 			expected: []Entry{
-				{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1"},
-				{ClusterID: "cluster-a", Namespace: "kube-system", Name: "cm-2"},
+				{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 100, DataCollected: true},
+				{ClusterID: "cluster-a", Namespace: "kube-system", Name: "cm-2", Timestamp: 100, DataCollected: true},
 			},
 			expectedState: map[string]state.ApplyState{
 				"datadog/2/DEBUG/cm-a/config": state.ApplyStateAcknowledged,
@@ -102,11 +131,28 @@ func TestOnUpdate(t *testing.T) {
 			},
 		},
 		{
+			// Two decisions for the same ConfigMap resolve to the newest one. Configs are walked in
+			// sorted path order, so without this the winner would be whichever config happened to
+			// come last, and a stale opt-in could undo an opt-out.
+			name: "conflicting decisions resolve to the newest timestamp",
+			update: map[string]state.RawConfig{
+				"datadog/2/DEBUG/cm-a/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1","timestamp":300,"data_collected":false}]}`),
+				"datadog/2/DEBUG/cm-b/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1","timestamp":100,"data_collected":true}]}`),
+			},
+			expected: []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 300}},
+			expectedState: map[string]state.ApplyState{
+				"datadog/2/DEBUG/cm-a/config": state.ApplyStateAcknowledged,
+				"datadog/2/DEBUG/cm-b/config": state.ApplyStateAcknowledged,
+			},
+		},
+		{
+			// An entry without a timestamp would report the same resource version whatever its state,
+			// so it could never propagate a change.
 			name: "incomplete entries are ignored",
 			update: map[string]state.RawConfig{
-				"datadog/2/DEBUG/cm/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default"},{"namespace":"default","name":"cm-1"},{"cluster_id":"cluster-a","namespace":"default","name":"cm-2"}]}`),
+				"datadog/2/DEBUG/cm/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","timestamp":100},{"namespace":"default","name":"cm-1","timestamp":100},{"cluster_id":"cluster-a","namespace":"default","name":"cm-3","data_collected":true},{"cluster_id":"cluster-a","namespace":"default","name":"cm-2","timestamp":100,"data_collected":true}]}`),
 			},
-			expected:      []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-2"}},
+			expected:      []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-2", Timestamp: 100, DataCollected: true}},
 			expectedState: map[string]state.ApplyState{"datadog/2/DEBUG/cm/config": state.ApplyStateAcknowledged},
 		},
 		{
@@ -121,9 +167,9 @@ func TestOnUpdate(t *testing.T) {
 			name: "a malformed config does not discard a valid one",
 			update: map[string]state.RawConfig{
 				"datadog/2/DEBUG/cm-a/config": rawConfig(`not json`),
-				"datadog/2/DEBUG/cm-b/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1"}]}`),
+				"datadog/2/DEBUG/cm-b/config": rawConfig(`{"configmaps":[{"cluster_id":"cluster-a","namespace":"default","name":"cm-1","timestamp":100,"data_collected":true}]}`),
 			},
-			expected: []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1"}},
+			expected: []Entry{{ClusterID: "cluster-a", Namespace: "default", Name: "cm-1", Timestamp: 100, DataCollected: true}},
 			expectedState: map[string]state.ApplyState{
 				"datadog/2/DEBUG/cm-a/config": state.ApplyStateError,
 				"datadog/2/DEBUG/cm-b/config": state.ApplyStateAcknowledged,
@@ -141,7 +187,7 @@ func TestOnUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			Get().Replace([]Entry{{ClusterID: "stale", Namespace: "stale", Name: "stale"}})
+			Get().Replace([]Entry{{ClusterID: "stale", Namespace: "stale", Name: "stale", Timestamp: 1}})
 			t.Cleanup(func() { Get().Replace(nil) })
 
 			recorder := newApplyRecorder()
@@ -162,7 +208,7 @@ func TestOnUpdateCapsEntries(t *testing.T) {
 
 	entries := make([]string, 0, maxEntries+50)
 	for i := range maxEntries + 50 {
-		entries = append(entries, fmt.Sprintf(`{"cluster_id":"cluster-a","namespace":"default","name":"cm-%d"}`, i))
+		entries = append(entries, fmt.Sprintf(`{"cluster_id":"cluster-a","namespace":"default","name":"cm-%d","timestamp":100,"data_collected":true}`, i))
 	}
 
 	recorder := newApplyRecorder()
@@ -181,7 +227,7 @@ func TestStoreConcurrentAccess(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			s.Replace([]Entry{{ClusterID: "cluster-a", Namespace: "default", Name: fmt.Sprintf("cm-%d", i)}})
+			s.Replace([]Entry{{ClusterID: "cluster-a", Namespace: "default", Name: fmt.Sprintf("cm-%d", i), Timestamp: 1, DataCollected: true}})
 		}()
 		go func() {
 			defer wg.Done()
