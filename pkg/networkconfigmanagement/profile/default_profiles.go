@@ -70,6 +70,17 @@ func WithSetup(cmds ...string) CmdOption {
 	}
 }
 
+// Interactive marks a command to be run over an interactive PTY shell session
+// instead of a one-shot exec, waiting for the given prompt regex between the
+// login banner, each setup command, and the command itself.
+func Interactive(prompt string) CmdOption {
+	re := regexp.MustCompile(prompt)
+	return func(pc *PlainCommand) {
+		pc.Interactive = true
+		pc.Prompt = re
+	}
+}
+
 // Names of the built-in NCM device profiles in DefaultProfiles.
 const (
 	ProfileAOSCX    ProfileName = "aoscx"
@@ -84,6 +95,12 @@ const (
 	ProfilePanOS    ProfileName = "pan-os"
 	ProfileTMOS     ProfileName = "tmos"
 )
+
+// panOSPrompt matches the PAN-OS interactive CLI prompt, e.g. "cwadmin@PRDC-IF01>"
+// (operational mode) or "cwadmin@PRDC-IF01#" (config mode), including the
+// optional HA state suffix like "(active)". It is anchored on the "user@host"
+// shape so it does not match config content (XML lines end in ">" too).
+const panOSPrompt = `(?m)^[\w.\-]+@[\w.\-]+(?:\([\w\-]+\))?\s*[>#]\s?$`
 
 // DefaultProfiles is the built-in set of NCM device profiles, keyed by profile name.
 var DefaultProfiles = Map{
@@ -399,10 +416,18 @@ var DefaultProfiles = Map{
 		Name: ProfilePanOS,
 		Commands: CommandSet{
 			Verify:     MkCommand("show system info", Expect(`model: *PA-`)),
+			// PAN-OS only emits command output over an interactive TTY; a
+			// non-interactive exec returns just the login banner. Run the command
+			// through an interactive shell with the pager disabled.
+			//
 			// Depending on PAN-OS version, `show config running` returns either
 			// angle-bracket XML (`<config>...</config>`) or curly-brace
 			// hierarchical output (`config { ... }`); accept both.
-			GetRunning: MkCommand("show config running", Expect(`(?s)(<config.*</config>|config\s*\{)`)),
+			GetRunning: MkCommand("show config running",
+				Expect(`(?s)(<config.*</config>|config\s*\{)`),
+				WithSetup("set cli pager off"),
+				Interactive(panOSPrompt),
+			),
 			GetVersion: MkCommand("show system info"),
 		},
 		Redactions: []RedactionRule{
