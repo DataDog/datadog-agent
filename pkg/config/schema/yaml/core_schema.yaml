@@ -6759,6 +6759,95 @@ properties:
     - golang_type:duration
     comment: If not zero, the agent will log a warning if a check is running for longer
       than this timeout
+  checks:
+    node_type: section
+    type: object
+    properties:
+      sdc_compression_all:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          A plain string-slice env var binding does not comma-split its value
+          (it falls back to whitespace-splitting only), so
+          DD_CHECKS_SDC_COMPRESSION_CHECKS=foo,bar would otherwise become a
+          single-element ["foo,bar"] instead of ["foo","bar"].
+          When true, every check gets SDC-compressed metrics, regardless of
+          checks.sdc_compression_checks.
+      sdc_compression_alpha:
+        node_type: setting
+        type: number
+        default: 0.3
+        tags:
+        - golang_type:float64
+      sdc_compression_checks:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: comma_separated
+        items:
+          type: string
+        comment: |-
+          Check names that should have their metrics streaming-compressed via
+          Swinging Door Trending/Compression (SDC). Experimental; see
+          pkg/aggregator/sender/sdcsender. Ignored when checks.sdc_compression_all
+          is true.
+      sdc_compression_dry_run:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: "When true, SDC-compressed checks still run every sample through\
+          \ the\ncompressor for measurement (see the sdcsender_samples_total /\nsdcsender_breakpoints_total\
+          \ telemetry), but ship their original,\nuncompressed data \u2014 nothing\
+          \ the compressor produces is actually sent."
+      sdc_compression_epsilon:
+        node_type: setting
+        type: number
+        default: 0.02
+        tags:
+        - golang_type:float64
+        comment: |-
+          SDC compressor tuning (see pkg/aggregator/internal/sdc.Config): the
+          shipped tolerance is max(sdc_compression_epsilon*scale,
+          sdc_compression_floor), where scale is an EWMA (smoothing factor
+          sdc_compression_alpha) of the signal's magnitude. sdc_compression_warmup
+          leading samples per context ship verbatim and seed the scale estimate
+          before compression engages. Defaults match sdcsender's previous
+          hardcoded values.
+      sdc_compression_floor:
+        node_type: setting
+        type: number
+        default: 0.001
+        tags:
+        - golang_type:float64
+        comment: "Setting this to 0 disables the floor entirely: tolerance becomes\
+          \ purely\nsdc_compression_epsilon*scale, however small that gets for a\n\
+          near-zero-scale signal \u2014 see sdcsender_floor_bound_samples_total for\n\
+          visibility into how often the floor binds with a non-zero value."
+      sdc_compression_interval_override:
+        node_type: setting
+        type: integer
+        default: 0
+        comment: "When set to a positive number of seconds, overrides the scheduling\n\
+          cadence of every SDC-compressed check (per\nchecks.sdc_compression_all/checks.sdc_compression_checks),\
+          \ taking\nprecedence over each check's own min_collection_interval \u2014\
+          \ mirrors\ngpu.collection_interval_override, generalized to any SDC-compressed\n\
+          check instead of just the gpu check."
+      sdc_compression_warmup:
+        node_type: setting
+        type: integer
+        default: 2
+      sdc_compression_window_duration:
+        node_type: setting
+        type: integer
+        default: 15
+        comment: "How often (in seconds) a compressed context force-closes and ships\
+          \ a\npoint even if nothing has changed. Defaults to 15s, matching the real\n\
+          aggregator's own flush cadence \u2014 accumulated Gauge/Count/Rate/\nMonotonicCount\
+          \ samples never actually leave the process before that\ntick fires anyway,\
+          \ so shipping a compressed breakpoint any more often\nthan that is pointless\
+          \ by default. A shorter window trades\ncompression ratio for fresher-looking\
+          \ graphs, and vice versa."
   clc_runner_enabled:
     node_type: setting
     type: boolean
