@@ -188,6 +188,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("snmp_listener.ping.interval", 10)
 	config.BindEnvAndSetDefault("snmp_listener.ping.timeout", 3000)
 	config.BindEnvAndSetDefault("snmp_listener.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("snmp_listener.enrich_device_tags_from_resource", true)
 	config.BindEnvAndSetDefault("snmp_listener.oid_batch_size", 5)
 	config.BindEnvAndSetDefault("snmp_listener.timeout", 5)
 	config.BindEnvAndSetDefault("snmp_listener.retries", 3)
