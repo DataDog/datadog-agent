@@ -157,12 +157,20 @@ func TestBaselineController_WarmupOverrideAppliesToEveryParticipatingDetector(t 
 	b := newBaselineController(BaselineConfig{DurationSec: 600, WarmupDurationOverrideSec: 450}, []detectorBaselineSpecEntry{
 		{name: "first", spec: detectorBaselineSpec{Participate: true, WarmupDuration: time.Minute}},
 		{name: "second", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 10 * time.Minute}},
-		{name: "rrcf", spec: detectorBaselineSpec{Participate: false}},
+		{name: "rrcf", spec: detectorBaselineSpec{Participate: true, WarmupDuration: 20 * time.Minute}},
 	})
 	b.start(100)
 	assert.Equal(t, int64(550), b.detectors["first"].warmupEndSec)
 	assert.Equal(t, int64(550), b.detectors["second"].warmupEndSec)
-	assert.NotContains(t, b.detectors, "rrcf")
+	assert.Equal(t, int64(550), b.detectors["rrcf"].warmupEndSec)
+}
+
+func TestRRCFBaselineSpec_UsesAlignedReadiness(t *testing.T) {
+	rrcf := NewRRCFDetector(RRCFConfig{NumTrees: 1, TreeSize: 64, ShingleSize: 4})
+	spec := rrcf.BaselineSpec()
+
+	assert.True(t, spec.Participate)
+	assert.Equal(t, 78*baselineReferenceInterval, spec.WarmupDuration)
 }
 
 // ---- engine integration tests ----

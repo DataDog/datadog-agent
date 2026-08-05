@@ -11,6 +11,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -73,6 +74,10 @@ type RRCFConfig struct {
 	// Metrics defines which series to include. If nil, uses DefaultRRCFMetrics().
 	Metrics []RRCFMetricDef `json:"-"`
 }
+
+// rrcfMinScoresForThreshold is the minimum score history required before
+// dynamicThreshold can evaluate a new score.
+const rrcfMinScoresForThreshold = 10
 
 // DefaultRRCFConfig returns sensible defaults for RRCF.
 func DefaultRRCFConfig() RRCFConfig {
@@ -168,10 +173,14 @@ func (r *RRCFDetector) Name() string {
 	return "rrcf"
 }
 
-// BaselineSpec opts out because RRCF's aligned-vector model has its own
-// readiness and cannot attribute its synthetic anomalies to one source series.
+// BaselineSpec estimates RRCF readiness from aligned input points. A shingle
+// needs ShingleSize points, TreeSize shingles fill the forest, and ten prior
+// post-warmup scores are needed before the next score has a dynamic threshold.
+// RRCF participates in suppression during this interval and qualification, but
+// its synthetic anomalies have no SourceRef and therefore never mute a series.
 func (r *RRCFDetector) BaselineSpec() detectorBaselineSpec {
-	return detectorBaselineSpec{Participate: false}
+	alignedPoints := r.config.TreeSize + r.config.ShingleSize + rrcfMinScoresForThreshold
+	return detectorBaselineSpec{Participate: true, WarmupDuration: time.Duration(alignedPoints) * baselineReferenceInterval}
 }
 
 // SetObserverTelemetry wires direct observer telemetry emission.
@@ -492,7 +501,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 // dynamicThreshold returns mean + ThresholdSigma*stddev of the recent score window.
 func (r *RRCFDetector) dynamicThreshold() float64 {
-	if len(r.recentScores) < 10 {
+	if len(r.recentScores) < rrcfMinScoresForThreshold {
 		return 0 // not enough data yet
 	}
 	return r.rollingMean() + r.config.ThresholdSigma*r.rollingStddev()
