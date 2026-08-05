@@ -92,12 +92,12 @@ func psSetServiceEnvironment(serviceName string, env map[string]string) string {
 	for k, v := range env {
 		elems = append(elems, fmt.Sprintf("%s=%s", k, v))
 	}
+	// pslist is raw PowerShell array syntax; do not pass it through psRemote escaping.
 	pslist := fmt.Sprintf("@('%s')", strings.Join(elems, "','"))
 	return psRemote(
-		`Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\%s' -Name 'Environment' -Value %s -Type MultiString`,
+		`Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\%s' -Name 'Environment' -Value `,
 		serviceName,
-		pslist,
-	)
+	) + pslist + ` -Type MultiString`
 }
 
 func psProcmgrLogContains(logPath, pattern string) string {
