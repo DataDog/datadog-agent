@@ -23,15 +23,20 @@ go_library(
         "//comp/snmpscan/def",
         "//pkg/logs/message",
         "//pkg/networkdevice/metadata",
+        "//pkg/snmp/batchsize",
         "//pkg/snmp/gosnmplib",
         "//pkg/snmp/snmpparse",
+        "//pkg/util/log",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["snmpscan_test.go"],
+    srcs = [
+        "devicescan_test.go",
+        "snmpscan_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core",
@@ -40,9 +45,11 @@ dd_agent_go_test(
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatform/mock",
         "//comp/serializer/logscompression/fx-mock",
+        "//pkg/snmp/gosnmplib",
         "//pkg/util/fxutil",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )
