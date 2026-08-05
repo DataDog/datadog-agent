@@ -268,7 +268,7 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 	}
 
 	if nodeName, ok := attrs.Get(string(conventions.K8SNodeNameKey)); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, "/nodes//"+nodeName.AsString()))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesNode, nodeName.AsString()))
 	}
 	if podUID, ok := attrs.Get(string(conventions.K8SPodUIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesPodUID, podUID.AsString()))

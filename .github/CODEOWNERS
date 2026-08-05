@@ -272,6 +272,7 @@
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/  @DataDog/network-path
+/cmd/agent/dist/conf.d/network_config_management.d/  @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/orchestrator_ecs.d/  @DataDog/ecs-experiences
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring-core
@@ -478,6 +479,7 @@
 /comp/forwarder/eventplatform/impl/pipelines_eventmanagement.go        @DataDog/windows-products
 /comp/forwarder/eventplatform/impl/pipelines_datastreams.go            @DataDog/data-streams-monitoring
 /comp/forwarder/eventplatform/impl/pipelines_dataobservability.go      @DataDog/data-observability
+/comp/forwarder/eventplatform/impl/pipelines_datasecurity.go           @DataDog/sensitive-data-scanner
 /comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go      @DataDog/windows-products
 
 /comp/core/agenttelemetry               @DataDog/fleet-remediation
@@ -520,6 +522,7 @@
 /pkg/jmxfetch/                          @DataDog/agent-metric-pipelines
 /pkg/metrics/                           @DataDog/agent-metric-pipelines
 /pkg/metrics/metricsource.go            @DataDog/agent-metric-pipelines @DataDog/agent-integrations
+/pkg/notableevents/                     @DataDog/windows-products
 /pkg/serializer/                        @DataDog/agent-metric-pipelines
 /pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-metric-pipelines @DataDog/agent-integrations
 /pkg/serverless/                        @DataDog/serverless-azure-gcp
@@ -667,6 +670,7 @@
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
 /pkg/proto/datadog/process              @DataDog/container-experiences
+/pkg/proto/datadog/sds                  @DataDog/sensitive-data-scanner
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
@@ -944,6 +948,7 @@
 /test/new-e2e/tests/agent-subcommands/run*           @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/flare*          @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-subcommands/status*         @DataDog/fleet-remediation
+/test/new-e2e/tests/agent-telemetry           @DataDog/fleet-remediation
 /test/new-e2e/tests/autoscaling               @DataDog/container-autoscaling
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/fleet-automation
