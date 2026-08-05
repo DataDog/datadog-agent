@@ -31,8 +31,11 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 			device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
 				return nvml.EccSramErrorStatus{
 					AggregateCor:            11,
+					VolatileCor:             12,
 					AggregateUncParity:      13,
+					VolatileUncParity:       14,
 					AggregateUncSecDed:      17,
+					VolatileUncSecDed:       18,
 					AggregateUncBucketL2:    19,
 					AggregateUncBucketSm:    23,
 					AggregateUncBucketPcie:  29,
@@ -46,7 +49,7 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 
 	metricsOut, _, err := sramEccErrorStatusSample(mockDevice)
 	require.NoError(t, err)
-	require.Len(t, metricsOut, 9)
+	require.Len(t, metricsOut, 12)
 
 	assertMetric := func(name string, value float64, tags ...string) {
 		t.Helper()
@@ -61,8 +64,11 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 	}
 
 	assertMetric("errors.ecc.corrected.total", 11, "memory_location:sram")
+	assertMetric("errors.ecc.corrected.volatile", 12, "memory_location:sram")
 	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 13, "memory_location:sram", "error_subtype:parity")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.volatile", 14, "memory_location:sram", "error_subtype:parity")
 	assertMetric("errors.ecc.sram.uncorrected_by_subtype.total", 17, "memory_location:sram", "error_subtype:secded")
+	assertMetric("errors.ecc.sram.uncorrected_by_subtype.volatile", 18, "memory_location:sram", "error_subtype:secded")
 	assertMetric("errors.ecc.uncorrected.total", 19, "memory_location:l2_cache")
 	assertMetric("errors.ecc.uncorrected.total", 23, "memory_location:sm")
 	assertMetric("errors.ecc.uncorrected.total", 29, "memory_location:pcie")
@@ -83,16 +89,20 @@ func TestSramEccErrorStatusSampleArchitectureSupport(t *testing.T) {
 func TestLegacyEccMetricOverlapRules(t *testing.T) {
 	ampereDevice := setupMockDevice(t, testutil.WithArchitecture("ampere"))
 
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
-	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
-	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_DEVICE_MEMORY, nvml.AGGREGATE_ECC))
+	require.True(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.VOLATILE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(ampereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
 
 	preAmpereDevice := setupMockDevice(t, testutil.WithArchitecture("turing"))
 
-	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM))
-	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE))
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.MEMORY_LOCATION_SRAM, nvml.AGGREGATE_ECC))
+	require.False(t, shouldSkipLegacyEccMetric(preAmpereDevice, nvml.MEMORY_ERROR_TYPE_UNCORRECTED, nvml.MEMORY_LOCATION_L2_CACHE, nvml.VOLATILE_ECC))
 }
 
 func TestECCMetricsEmitAggregateAndVolatileCounters(t *testing.T) {
@@ -114,7 +124,7 @@ func TestECCMetricsEmitAggregateAndVolatileCounters(t *testing.T) {
 	}))
 
 	apis := createStatelessAPIs(&CollectorDependencies{})
-	api := findAPICallByName(t, apis, "ecc_errors.corrected.device_memory")
+	api := findAPICallByName(t, apis, "ecc_errors.corrected.device_memory.total")
 
 	metricsOut, _, err := api.Handler(device, 0)
 	require.NoError(t, err)
@@ -125,6 +135,12 @@ func TestECCMetricsEmitAggregateAndVolatileCounters(t *testing.T) {
 			Type:  metrics.GaugeType,
 			Tags:  []string{"memory_location:device_memory"},
 		},
+	}, metricsOut)
+
+	api = findAPICallByName(t, apis, "ecc_errors.corrected.device_memory.volatile")
+	metricsOut, _, err = api.Handler(device, 0)
+	require.NoError(t, err)
+	require.Equal(t, []Metric{
 		{
 			Name:  "errors.ecc.corrected.volatile",
 			Value: 3,
