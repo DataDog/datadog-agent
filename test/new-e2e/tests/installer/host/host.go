@@ -80,6 +80,27 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+// ConfigureAptMirrors hardens apt against package-mirror outages on apt-based hosts.
+// It bounds apt's per-request timeout and retries so an unreachable mirror fails within
+// minutes instead of hanging until the CI job's 2h timeout, and on Ubuntu rewrites the apt
+// sources to a "mirror+file" list so apt fails over to the global archive.ubuntu.com /
+// ports.ubuntu.com mirrors when the regional EC2 mirror is down. This mirrors the pattern
+// used in Dockerfiles/agent/Dockerfile. See incident 58780.
+func (h *Host) ConfigureAptMirrors() {
+	if h.pkgManager != "apt" {
+		return
+	}
+	// Fail fast when a mirror is unreachable instead of retrying with long default TCP timeouts.
+	h.remote.MustExecute(`printf 'Acquire::Retries "2";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
+	// Ubuntu EC2 AMIs point at a single regional mirror with no fallback; add global mirrors.
+	if h.os.Flavor != e2eos.Ubuntu {
+		return
+	}
+	h.remote.MustExecute(`printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
+	h.remote.MustExecute(`printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
+	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#http://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#http://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
+}
+
 // dockerImage returns the ECR pull-through URL for ecrPath when a registry is configured,
 // or publicFallback otherwise.
 func (h *Host) dockerImage(ecrPath, publicFallback string) string {
