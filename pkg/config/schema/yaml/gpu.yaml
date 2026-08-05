@@ -78,8 +78,7 @@ properties:
     default: []
     items:
       type: string
-    description: |-
-      GPU device UUIDs to exclude from metric collection. UUID matching is
+    comment: GPU device UUIDs to exclude from metric collection. UUID matching is
       case-insensitive.
   integrate_with_workloadmeta_processes:
     node_type: setting
