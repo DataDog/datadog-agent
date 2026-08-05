@@ -153,18 +153,50 @@ workload/test-template are still placeholders, `antithesis-workload`'s job.)
   through `buildx` instead, which correctly honors `--platform`:
   `printf 'FROM <image>\n' | docker buildx build --platform linux/amd64 --load -t <tag> -f - .`
   Full details and the exact commands: `~/sandbox/antithesis-cluster-agent-run-2026-08-04/NOTES.md`.
+- **`kube-apiserver`'s healthcheck never registered as "Healthy" on the real
+  Antithesis platform**, even though the exact same command reliably passed
+  from ~16s onward (verified with a diagnostic loop probing `/healthz` from
+  inside the container's own process tree and logging straight to stdout —
+  Docker `HEALTHCHECK` exec output isn't captured by default, and a
+  `> /proc/1/fd/1` redirect trick to work around that produced nothing either,
+  even though the check was still demonstrably running on schedule). Six
+  consecutive real runs stalled at "Waiting for setup completion" and timed
+  out at ~130s every time — widening the healthcheck's `interval`/`retries`
+  budget from ~120s to ~300s made no difference, since the check was never
+  passing at all from compose's point of view, not just running out of
+  retries. `etcd`'s healthcheck (a plain `["CMD", "etcdctl", ...]` array, no
+  shell) transitioned to `Healthy` correctly on every single run. The only
+  structural difference: kube-apiserver's used `["CMD", "sh", "-c", "..."]`
+  instead of the idiomatic `["CMD-SHELL", "..."]` form. Antithesis's compose
+  backend is podman-compose (named explicitly in the setup logs as an
+  "external compose provider"), and switching to `CMD-SHELL` fixed it —
+  `kube-apiserver`, `dca-1`, `dca-2`, and `workload` all started successfully
+  on the very next run. **Prefer `CMD-SHELL` over `["CMD", "sh", "-c", ...]`
+  for any shell/pipeline healthcheck in this harness.**
+- **`workload`'s `setup-complete.sh` bind mount resolved to an empty directory
+  on the real platform**: `/antithesis/setup-complete.sh: Is a directory`.
+  The compose file bind-mounted `../setup-complete.sh` and `../test` from
+  *outside* `antithesis/config/` — that works locally because those paths
+  exist on the host, but `snouty` only packages `antithesis/config/`'s own
+  contents into the config image it ships to Antithesis's real environment,
+  so the bind-mount source didn't exist there and Docker's default behavior
+  (silently creating an empty directory for a missing bind-mount source)
+  kicked in. Fixed by baking `setup-complete.sh` into a real
+  `antithesis/workload.Dockerfile` build instead of bind-mounting it at
+  runtime, matching how every other container in this harness already gets
+  its content. **Only reference files that live inside `antithesis/config/`
+  (or are baked into an image) from `docker-compose.yaml` — anything outside
+  it doesn't exist on the real platform.**
+
+With both fixes applied, run `c0ff9806864e6266dc0cf1349b85db2a-58-11` (2026-08-05,
+10 min, webhook `basic_test`) **completed successfully** — no failure at the
+setup phase, all 6 containers came up, `setup_complete` fired.
 
 ## What's not done yet
 
-- **`snouty launch` accepted a second run** (`c46848efc4156ead5a6ff7a8a7b3d10a-58-11`,
-  10 min, webhook `basic_test`) after fixing the two image-mirroring bugs above.
-  The first attempt (`725488c3bbf9b06ad02e8bca4d197a16-58-11`) was also
-  *accepted* (202) but then failed Antithesis's own internal setup validation
-  once provisioned — `snouty launch` returning 202 only means the request was
-  queued, not that the run will actually come up. Still need to check this
-  second run's outcome via `snouty runs --json show <run_id>` once it
-  provisions.
-- `workload` is still a no-op placeholder — `antithesis-workload`'s job.
+- `workload` is still a no-op placeholder (now backed by
+  `antithesis/workload.Dockerfile`, but still doesn't run any real test
+  commands) — `antithesis-workload`'s job.
 - The "Deferred decisions" list in `scratchbook/deployment-topology.md` (webhook
   Service selector, StatefulSet vs Deployment, whether to request clock-skew/
   node-termination faults from the tenant, etc.) is still open.
