@@ -168,9 +168,20 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.pipelineAgentVersion = PipelineAgentVersion(s.T())
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
+	s.configureAptFailFast()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()
+}
+
+func (s *packageBaseSuite) configureAptFailFast() {
+	// Bound apt's per-request timeout and retries on apt-based distributions so that
+	// unreachable package mirrors fail within minutes instead of retrying with long
+	// default TCP timeouts until the CI job's 2h timeout (see incident 58780).
+	if _, err := s.Env().RemoteHost.Execute("which apt-get"); err != nil {
+		return
+	}
+	s.Env().RemoteHost.MustExecute(`printf 'Acquire::Retries "2";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
 }
 
 func (s *packageBaseSuite) updatePythonOnSuse() {
