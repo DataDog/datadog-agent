@@ -71,6 +71,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/flare",
         "//pkg/remoteconfig/state",
+        "//pkg/util/defaultpaths",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
