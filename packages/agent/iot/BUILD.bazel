@@ -133,3 +133,10 @@ pkg_install(
         "//cmd/agent/dist/conf.d:all_files",
     ],
 )
+
+# System directories required by the iot-agent but outside the install prefix.
+pkg_mkdirs(
+    name = "system_dirs",
+    attributes = pkg_attributes(mode = "0775"),
+    dirs = ["var/log/datadog"],
+)
