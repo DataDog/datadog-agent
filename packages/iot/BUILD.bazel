@@ -66,6 +66,13 @@ pkg_tar(
     visibility = ["//visibility:private"],
 )
 
+# Packages needed during the rpm's %pre scriptlet (from iot-agent.rb
+# runtime_script_dependency), common to RHEL and SUSE.
+_RPM_PRE_DEPS_COMMON = [
+    "coreutils",
+    "grep",
+]
+
 _DESCRIPTION = """Datadog IoT Agent
 The Datadog IoT Agent is a lightweight process that monitors system
 processes and services, and sends information back to your Datadog account.
@@ -107,8 +114,10 @@ pkg_rpm(
         "//cmd/agent/dist/conf.d:all_files",
         "//packages/agent/iot:example_config",
         "//packages/agent/iot:system_dirs",
-        "//packages/agent/iot/redhat:all_files",
-    ],
+    ] + select({
+        "//packages/rules:suse": ["//packages/agent/iot/redhat:systemd_gen"],
+        "//conditions:default": ["//packages/agent/iot/redhat:all_files"],
+    }),
     conflicts = ["datadog-agent"],
     description = _DESCRIPTION,
     epoch = "1",
@@ -123,18 +132,18 @@ pkg_rpm(
     preun_scriptlet_file = "//omnibus:package-scripts/iot-agent-rpm/prerm",
     # TODO: Stamp in pipeline: 7.77.0~devel.git.394.fe0d0bb.pipeline.95313893
     release = "1",
-    # Packages needed during %pre scriptlet execution (from iot-agent.rb runtime_script_dependency).
-    # coreutils and grep are common to RHEL and SUSE.
-    # glibc-common and shadow-utils are RHEL-specific; SUSE uses glibc and shadow.
-    # TODO: use select() when a RHEL vs SUSE constraint is defined.
-    requires_contextual = {
-        "pre": [
-            "coreutils",
+    # requires_contextual can't select() a single dict value, so the whole dict
+    # is select()ed, with _RPM_PRE_DEPS_COMMON factored out of each branch.
+    requires_contextual = select({
+        "//packages/rules:suse": {"pre": _RPM_PRE_DEPS_COMMON + [
+            "glibc",
+            "shadow",
+        ]},
+        "//conditions:default": {"pre": _RPM_PRE_DEPS_COMMON + [
             "glibc-common",
-            "grep",
             "shadow-utils",
-        ],
-    },
+        ]},
+    }),
     summary = "Datadog IoT Agent",
     url = "http://www.datadoghq.com",
     version = "7",
