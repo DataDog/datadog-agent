@@ -6,13 +6,7 @@
 //! The datadog.yaml settings the lifecycle scaffold needs.
 
 use anyhow::{Context, Result, bail};
-use std::path::{Path, PathBuf};
-
-#[cfg(not(windows))]
-const DEFAULT_PROCMGR_SOCKET: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
-#[cfg(windows)]
-const DEFAULT_PROCMGR_SOCKET: &str = r"\\.\pipe\datadog-procmgrd";
-const DEFAULT_EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
+use std::path::Path;
 
 /// Lookup of `DD_*` environment overrides, injected so it can be faked in tests.
 type EnvLookup<'a> = &'a dyn Fn(&str) -> Option<String>;
@@ -22,8 +16,6 @@ pub struct Config {
     /// True when both `private_action_runner.enabled` and `.split_enabled` are set.
     pub split_mode: bool,
     pub log_level: log::Level,
-    pub procmgr_socket: PathBuf,
-    pub executor_process_name: String,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -36,8 +28,6 @@ struct RawConfig {
 struct RawPar {
     enabled: Option<bool>,
     split_enabled: Option<bool>,
-    procmgr_socket_path: Option<String>,
-    executor_process_name: Option<String>,
 }
 
 impl Config {
@@ -61,18 +51,6 @@ impl Config {
             log_level: env_string(env, "DD_LOG_LEVEL", raw.log_level)
                 .as_deref()
                 .map_or(log::Level::Info, parse_log_level),
-            procmgr_socket: env_string(
-                env,
-                "DD_PRIVATE_ACTION_RUNNER_PROCMGR_SOCKET_PATH",
-                par.procmgr_socket_path,
-            )
-            .map_or_else(|| PathBuf::from(DEFAULT_PROCMGR_SOCKET), PathBuf::from),
-            executor_process_name: env_string(
-                env,
-                "DD_PRIVATE_ACTION_RUNNER_EXECUTOR_PROCESS_NAME",
-                par.executor_process_name,
-            )
-            .unwrap_or_else(|| DEFAULT_EXECUTOR_PROCESS_NAME.to_string()),
         })
     }
 }
@@ -136,17 +114,15 @@ mod tests {
     #[test]
     fn environment_overrides_yaml() {
         let config = parse(
-            "log_level: debug\nprivate_action_runner:\n  enabled: false\n  split_enabled: false\n  executor_process_name: from-yaml\n",
+            "log_level: debug\nprivate_action_runner:\n  enabled: false\n  split_enabled: false\n",
             &[
                 ("DD_PRIVATE_ACTION_RUNNER_ENABLED", "true"),
                 ("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true"),
-                ("DD_PRIVATE_ACTION_RUNNER_EXECUTOR_PROCESS_NAME", "from-env"),
                 ("DD_LOG_LEVEL", "trace"),
             ],
         )
         .unwrap();
         assert!(config.split_mode);
-        assert_eq!(config.executor_process_name, "from-env");
         assert_eq!(config.log_level, log::Level::Trace);
     }
 
@@ -155,8 +131,6 @@ mod tests {
         let config = parse("", &[]).unwrap();
         assert!(!config.split_mode);
         assert_eq!(config.log_level, log::Level::Info);
-        assert_eq!(config.procmgr_socket, Path::new(DEFAULT_PROCMGR_SOCKET));
-        assert_eq!(config.executor_process_name, DEFAULT_EXECUTOR_PROCESS_NAME);
     }
 
     #[test]

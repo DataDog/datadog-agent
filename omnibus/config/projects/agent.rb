@@ -340,8 +340,8 @@ if windows_target?
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
 
-  unless fips_mode?
-    # par-control ships alongside privateactionrunner.exe, which is not in FIPS builds.
+  if not fips_mode?
+    # TODO(ACTP-XXX): PAR is not enabled in Gov yet
     windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
   end
 

@@ -13,6 +13,11 @@ use std::path::Path;
 use std::time::Duration;
 use tonic::transport::Channel;
 
+#[cfg(not(windows))]
+const PROCMGR_SOCKET: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
+#[cfg(windows)]
+const PROCMGR_SOCKET: &str = r"\\.\pipe\datadog-procmgrd";
+const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct ProcmgrLifecycle {
@@ -21,10 +26,10 @@ pub struct ProcmgrLifecycle {
 }
 
 impl ProcmgrLifecycle {
-    pub fn new(socket: &Path, process_name: String) -> Self {
+    pub fn new() -> Self {
         Self {
-            client: ProcessManagerClient::new(transport::connect_lazy(socket)),
-            process_name,
+            client: ProcessManagerClient::new(transport::connect_lazy(Path::new(PROCMGR_SOCKET))),
+            process_name: EXECUTOR_PROCESS_NAME.to_string(),
         }
     }
 

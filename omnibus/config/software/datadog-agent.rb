@@ -193,8 +193,6 @@ build do
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
 
-    # par-control, the Rust control plane. The pkg_install target picks the
-    # destination: embedded/bin on Linux, bin/agent on Windows.
     if linux_target? || windows_target?
       command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     end
