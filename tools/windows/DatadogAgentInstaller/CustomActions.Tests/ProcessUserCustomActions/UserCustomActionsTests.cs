@@ -311,6 +311,41 @@ namespace CustomActions.Tests.ProcessUserCustomActions
         }
 
         [Fact]
+        public void ProcessDdAgentUserCredentials_Reads_Scm_Password_When_Requested_Account_Alias_Matches_Installed_Sid()
+        {
+            const string ddAgentUserName = "ddagentuser";
+            const string netBiosDomain = "EXAMPLE";
+            const string dnsDomain = "example.com";
+            var userSid = new SecurityIdentifier("S-1-5-21-0000000000-0000000000-0000000000-1001");
+
+            var (agentPasswordKey, scmPasswordKey) = SetupUpgradePasswordFetch(
+                requestedAccountName: $"{dnsDomain}\\{ddAgentUserName}",
+                installedDomain: netBiosDomain,
+                installedUser: ddAgentUserName,
+                configureDomainClient: () =>
+                {
+                    Test.WithDomainClient(netBiosDomain);
+                    Test.WithLookupAccountName($"{dnsDomain}\\{ddAgentUserName}", ddAgentUserName, dnsDomain, userSid);
+                    Test.WithLookupAccountName($"{netBiosDomain}\\{ddAgentUserName}", ddAgentUserName, netBiosDomain, userSid);
+                },
+                lsaFetchError: new Exception("not found"));
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && kvp.Value == "scm-password");
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(scmPasswordKey),
+                Times.Once);
+            Test.NativeMethods.Verify(
+                nativeMethods => nativeMethods.FetchSecret(agentPasswordKey),
+                Times.Once);
+        }
+
+        [Fact]
         public void ProcessDdAgentUserCredentials_Skips_Scm_Password_When_Installed_Account_Differs()
         {
             const string ddAgentUserName = "newuser";

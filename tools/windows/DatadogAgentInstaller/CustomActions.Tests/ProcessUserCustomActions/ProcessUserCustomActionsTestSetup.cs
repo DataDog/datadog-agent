@@ -186,6 +186,40 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             return this;
         }
 
+        public ProcessUserCustomActionsTestSetup WithLookupAccountName(
+            string accountName,
+            string resolvedUser,
+            string resolvedDomain,
+            SecurityIdentifier sid,
+            SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
+        {
+            NativeMethods.Setup(n => n.IsServiceAccount(sid)).Returns(false);
+            NativeMethods.Setup(n => n.IsDomainAccount(sid)).Returns(true);
+            NativeMethods.Setup(n => n.LookupAccountName(
+                    accountName,
+                    out It.Ref<string>.IsAny,
+                    out It.Ref<string>.IsAny,
+                    out It.Ref<SecurityIdentifier>.IsAny,
+                    out It.Ref<SID_NAME_USE>.IsAny))
+                .Callback(new LookupAccountNameDelegate(
+                    (
+                        string _,
+                        out string user,
+                        out string domain,
+                        out SecurityIdentifier resolvedSid,
+                        out SID_NAME_USE nameUse
+                    ) =>
+                    {
+                        user = resolvedUser;
+                        domain = resolvedDomain;
+                        resolvedSid = sid;
+                        nameUse = userType;
+                    }))
+                .Returns(true);
+
+            return this;
+        }
+
         public ProcessUserCustomActionsTestSetup WithManagedServiceAccount(
             string userName,
             SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)

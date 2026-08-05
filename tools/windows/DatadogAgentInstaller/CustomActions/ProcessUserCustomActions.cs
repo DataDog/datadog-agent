@@ -420,6 +420,8 @@ namespace Datadog.CustomActions
         /// migration is skipped because the requested account cannot be verified as unchanged.
         /// When both registry metadata and DDAGENTUSER_NAME are empty, returns false so SCM
         /// migration can still run on upgrades that predate stored installedDomain/installedUser.
+        /// When both accounts resolve via LookupAccountName, compares SIDs so alternate AD name
+        /// forms (for example DNS vs NetBIOS domain) still count as the same account.
         /// </remarks>
         private bool IsChangingAgentAccountOnUpgrade()
         {
@@ -437,14 +439,46 @@ namespace Datadog.CustomActions
                 return false;
             }
 
+            return !AgentAccountsMatch(requestedName, installedDomain, installedUser);
+        }
+
+        /// <summary>
+        /// Returns true when <paramref name="requestedName"/> resolves to the same account as the
+        /// registry-stored <paramref name="installedDomain"/>/<paramref name="installedUser"/>.
+        /// </summary>
+        /// <remarks>
+        /// Compares SIDs via <see cref="LookupAccountWithExtendedDomainSyntax"/> when both accounts
+        /// resolve; falls back to parsed domain/user string comparison otherwise.
+        /// </remarks>
+        private bool AgentAccountsMatch(string requestedName, string installedDomain, string installedUser)
+        {
+            if (LookupAccountWithExtendedDomainSyntax(
+                    requestedName,
+                    out _,
+                    out _,
+                    out var requestedSid,
+                    out _))
+            {
+                var installedAccount = $"{installedDomain}\\{installedUser}";
+                if (_nativeMethods.LookupAccountName(
+                        installedAccount,
+                        out _,
+                        out _,
+                        out var installedSid,
+                        out _))
+                {
+                    return requestedSid.Equals(installedSid);
+                }
+            }
+
             ParseUserName(requestedName, out var user, out var domain);
             if (string.IsNullOrEmpty(domain))
             {
                 domain = GetDefaultDomainPart();
             }
 
-            return !string.Equals(user, installedUser, StringComparison.OrdinalIgnoreCase) ||
-                   !string.Equals(domain, installedDomain, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(user, installedUser, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(domain, installedDomain, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
