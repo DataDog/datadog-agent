@@ -112,7 +112,7 @@ func (h *Host) procmgrExec(cli, args string) (string, error) {
 		return h.RemoteHost.Execute("sudo -u dd-agent " + cli + " " + args)
 	case e2eos.WindowsFamily:
 		escaped := strings.ReplaceAll(cli, "'", "''")
-		return h.RemoteHost.Execute(fmt.Sprintf(`powershell -NoProfile -Command "$ErrorActionPreference='Stop'; & '%s' %s"`, escaped, args))
+		return h.RemoteHost.Execute(fmt.Sprintf(`& '%s' %s`, escaped, args))
 	default:
 		return "", fmt.Errorf("unsupported OS family: %v", h.RemoteHost.OSFamily)
 	}
@@ -132,7 +132,7 @@ func (h *Host) ProcmgrEnabled(installDir string) bool {
 		_, err = h.RemoteHost.Execute("test -x " + cli)
 	case e2eos.WindowsFamily:
 		escaped := strings.ReplaceAll(cli, "'", "''")
-		_, err = h.RemoteHost.Execute(fmt.Sprintf(`powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath '%s')) { exit 1 }"`, escaped))
+		_, err = h.RemoteHost.Execute(fmt.Sprintf(`if (-not (Test-Path -LiteralPath '%s')) { exit 1 }`, escaped))
 	default:
 		return false
 	}
@@ -257,7 +257,7 @@ func (h *Host) AssertSystemdUnitNotActive(t *testing.T, units ...string) {
 func (h *Host) AssertWindowsServiceNotRunning(t *testing.T, serviceName string) {
 	t.Helper()
 	_, err := h.RemoteHost.Execute(
-		`powershell -NoProfile -Command "$s = Get-Service -Name '` + serviceName + `' -ErrorAction SilentlyContinue; if ($null -eq $s) { exit 0 }; if ($s.Status -eq 'Running') { exit 1 }; exit 0"`)
+		`$s = Get-Service -Name '` + serviceName + `' -ErrorAction SilentlyContinue; if ($null -eq $s) { exit 0 }; if ($s.Status -eq 'Running') { exit 1 }; exit 0`)
 	require.NoError(t, err, "%s Windows service must not be Running", serviceName)
 }
 
