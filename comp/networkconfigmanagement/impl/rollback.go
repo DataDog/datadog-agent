@@ -22,7 +22,7 @@ import (
 // even if this func returns an error, the config may still have been
 // successfully rolled back, or partially rolled back - check the returned
 // PushResult to see what commands were actually run on the device.
-func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (result *types.PushResult, rberr types.RollbackError) {
+func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (result *types.PushResult, rberr types.TypedError) {
 	if n.store == nil {
 		return nil, types.RollbackDisabled
 	}
@@ -31,13 +31,13 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 	ctx = WithLogger(ctx, log)
 	dc, err := n.devices.GetAndLock(ctx, deviceID)
 	if err != nil {
-		return nil, types.AsRollbackError(err)
+		return nil, types.AsTypedError(err)
 	}
 	defer dc.UnlockOrLog(log)
 
 	rawConfig, metadata, err := n.store.GetConfig(configVersion)
 	if err != nil {
-		return nil, types.AsRollbackError(err)
+		return nil, types.AsTypedError(err)
 	}
 	if metadata.DeviceID != deviceID {
 		return nil, types.WrapErrorf(types.ErrWrongDeviceID, "input mismatch: config %q is not for device %q", configVersion, deviceID)
@@ -56,7 +56,7 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 
 	result, err = conn.PushConfig(ctx, rawConfig)
 	if err != nil {
-		return result, types.AsRollbackError(err)
+		return result, types.AsTypedError(err)
 	}
 
 	if err := n.reportConfig(ctx, dc, n.sender); err != nil {
