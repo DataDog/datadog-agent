@@ -132,8 +132,10 @@ installer_deb-arm64:
     - when: on_success
   stage: packaging
   script:
-    - !reference [.cache_omnibus_ruby_deps, setup]
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
+    - export PACKAGE_VERSION=$(dda inv agent.version --url-safe)
+    - bazel build --config=cache --//packages/agent:flavor=iot ${BAZEL_EXTRA_FLAGS} //packages/iot:debian
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - cp "$(bazel info execution_root)/$(bazel cquery --config=cache --//packages/agent:flavor=iot ${BAZEL_EXTRA_FLAGS} //packages/iot:debian --output=files)" $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
   after_script:
     - !reference [.static_quality_gate_package]
@@ -146,19 +148,16 @@ installer_deb-arm64:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
-    OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
     DD_PROJECT: iot-agent
 
 iot_agent_deb-x64:
   extends: [.package_iot_deb_common, .package_deb_x86]
-  needs: ["iot-agent-x64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_amd64"
 
 iot_agent_deb-arm64:
   extends: [.package_iot_deb_common, .package_deb_arm64]
-  needs: ["iot-agent-arm64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_arm64"
 
@@ -166,16 +165,10 @@ iot_agent_deb-armhf:
   extends: .package_iot_deb_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
-  needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf
-    FORCED_PACKAGE_COMPRESSION_LEVEL: 5
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_armhf"
-  script:
-    - !reference [.cache_omnibus_ruby_deps, setup]
-    # Use custom built dpkg for armhf packaging since we're on armv8/arm64
-    - PATH="/opt/dpkg-armhf/bin:$PATH" dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
-    - !reference [.create_signature_and_lint_linux_packages]
+    BAZEL_EXTRA_FLAGS: "--platforms=//bazel/platforms:linux_armv7"
 
 dogstatsd_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]
