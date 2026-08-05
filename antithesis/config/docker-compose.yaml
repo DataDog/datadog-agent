@@ -241,8 +241,10 @@ services:
     hostname: cluster-agent-workload
     platform: linux/amd64
     init: true
-    # Locally re-tagged, same reason as etcd above — see that comment.
-    image: cluster-agent-workload-base:antithesis
+    build:
+      context: ../..
+      dockerfile: antithesis/workload.Dockerfile
+    image: cluster-agent-workload:antithesis
     environment:
       NO_COLOR: "1"
     depends_on:
@@ -250,9 +252,6 @@ services:
         condition: service_started
       dca-2:
         condition: service_started
-    volumes:
-      - ../test:/opt/antithesis/test/v1
-      - ../setup-complete.sh:/antithesis/setup-complete.sh:ro
     # Placeholder: antithesis-workload replaces this with the real workload
     # image/entrypoint (impersonates node agents, manages the DCA Service +
     # EndpointSlice, seeds cluster-check configs, emits assertions). For now it
