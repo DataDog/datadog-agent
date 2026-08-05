@@ -10,7 +10,9 @@ import "errors"
 
 // team: action-platform
 
-type Component any
+// Component is the component type.
+type Component interface {
+}
 
 var ErrNotEnabled = errors.New("private action runner is not enabled")
 var ErrSplitDeployment = errors.New("private action runner is running in split deployment mode")
