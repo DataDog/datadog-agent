@@ -173,6 +173,8 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
 	require.NoError(s.T(), err)
 
 	markerPath := `C:\ProgramData\Datadog\procmgr-e2e-userprofile.txt`
+	// Use forward slashes inside the YAML double-quoted arg: backslashes are escape sequences in YAML.
+	markerPathForYAML := `C:/ProgramData/Datadog/procmgr-e2e-userprofile.txt`
 	yamlPath := joinWindowsPath(winConfigDir, "test-userprofile-env.yaml")
 	yamlContent := fmt.Sprintf(`command: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
 args:
@@ -180,26 +182,30 @@ args:
   - "-NonInteractive"
   - "-Command"
   - "$env:USERPROFILE | Set-Content -LiteralPath '%s'"
+env:
+  SystemRoot: C:\Windows
+  PATH: C:\Windows\System32;C:\Windows
 auto_start: true
 restart: always
 description: E2E userprofile env check
-`, markerPath)
+`, markerPathForYAML)
 
-	host.MustExecute(psRemote(
-		`$ErrorActionPreference='Stop'; Set-Content -LiteralPath '%s' -Value @'
-%s
-'@ -Encoding utf8`,
-		yamlPath, yamlContent,
-	))
+	host.MustExecute(writeProcessesDYamlContent(yamlPath, yamlContent))
 	defer func() {
 		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, yamlPath))
 	}()
 
-	_, err = host.Execute(s.platform.cliCmd("reload"))
+	reloadOut, err := host.Execute(s.platform.cliCmd("reload"))
 	require.NoError(s.T(), err)
+	assert.Contains(s.T(), reloadOut, "test-userprofile-env", "reload output: %s", reloadOut)
 	defer func() {
 		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, markerPath))
 	}()
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-userprofile-env"))
+		assertField(ct, desc, "State", "Running")
+	}, 60*time.Second, 2*time.Second)
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))

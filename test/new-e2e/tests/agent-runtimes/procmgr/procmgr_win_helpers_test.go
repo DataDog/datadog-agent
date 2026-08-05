@@ -6,6 +6,7 @@
 package procmgr
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -119,6 +120,16 @@ func psProcessAbsentByName(name string) string {
 	return psRemote(
 		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'"; if ($null -eq $p) { exit 0 } else { exit 1 }`,
 		name,
+	)
+}
+
+// writeProcessesDYamlContent writes a processes.d YAML file as UTF-8 without a BOM.
+// Set-Content -Encoding utf8 adds a BOM on Windows PowerShell 5.1, which breaks dd-procmgr parsing.
+func writeProcessesDYamlContent(yamlPath, content string) string {
+	b64 := base64.StdEncoding.EncodeToString([]byte(content))
+	return psRemote(
+		`$ErrorActionPreference='Stop'; $p='%s'; $b = [Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes($p, $b)`,
+		yamlPath, b64,
 	)
 }
 
