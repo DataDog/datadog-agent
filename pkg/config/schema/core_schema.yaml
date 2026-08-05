@@ -12991,6 +12991,10 @@ properties:
     node_type: setting
     type: bool
     default: true
+  dogstatsd_socket_fd_from_timeout:
+    node_type: setting
+    type: duration
+    default: 0s
   dogstatsd_stream_socket:
     node_type: setting
     type: string

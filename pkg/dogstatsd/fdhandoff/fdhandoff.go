@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 )
 
 // ErrUnsupported is returned on platforms that cannot pass file descriptors
@@ -46,7 +47,15 @@ var ErrHolderUnavailable = errors.New("no socket holder is listening on the hand
 // returned connection does not affect the holder's copy and does not unlink the
 // socket path.
 func ReceivePacketConn(handoffPath string) (*net.UnixConn, error) {
-	f, err := receiveFile(handoffPath)
+	return ReceivePacketConnWithin(handoffPath, DefaultWaitTimeout())
+}
+
+// ReceivePacketConnWithin behaves like ReceivePacketConn but bounds the total
+// time spent waiting for a holder to show up. The holder and the Agent start
+// independently, so some waiting is expected; waiting forever is not, because
+// the Agent would never finish starting its DogStatsD listeners.
+func ReceivePacketConnWithin(handoffPath string, waitFor time.Duration) (*net.UnixConn, error) {
+	f, err := receiveFileWithin(handoffPath, waitFor)
 	if err != nil {
 		return nil, err
 	}

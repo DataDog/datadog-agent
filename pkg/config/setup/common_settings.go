@@ -1692,6 +1692,10 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	// Availability over restart-continuity: if no holder is listening, bind the
 	// socket directly rather than leaving the Agent with no UDS intake at all.
 	config.BindEnvAndSetDefault("dogstatsd_socket_fd_from_fallback", true)
+	// How long to wait for a socket holder to show up before giving up on the
+	// handoff. The holder and the Agent start independently, so some waiting is
+	// expected; 0 keeps the built-in default.
+	config.BindEnvAndSetDefault("dogstatsd_socket_fd_from_timeout", time.Duration(0))
 	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)

@@ -158,3 +158,56 @@ func TestUDSDatagramNoHandoffBindsSocket(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
 }
+
+// TestUDSDatagramFallsBackWhenNoHolder pins the availability behaviour: the
+// DogStatsD server only logs a listener error and drops the listener, so a
+// handoff failure that is not recovered here disables UDS intake entirely.
+//
+// Regression test for wrapping the handoff error with %s, which flattened the
+// error chain so errors.Is never matched ErrHolderUnavailable and the fallback
+// was dead code. It reproduced live as an Agent that came up healthy while every
+// client datagram was refused.
+func TestUDSDatagramFallsBackWhenNoHolder(t *testing.T) {
+	socketPath := testSocketPath(t)
+
+	mockConfig := map[string]interface{}{}
+	mockConfig["dogstatsd_socket"] = socketPath
+	// Nothing is listening on this path, and nothing ever will be.
+	mockConfig["dogstatsd_socket_fd_from"] = testSocketPath(t)
+	mockConfig["dogstatsd_socket_fd_from_timeout"] = 200 * time.Millisecond
+	mockConfig["dogstatsd_origin_detection"] = false
+
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := udsDatagramListenerFactory(make(chan packets.Packets), newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
+	require.NoError(t, err, "a missing holder must not leave the Agent with no UDS listener")
+	require.NotNil(t, s)
+	defer s.Stop()
+
+	// The Agent bound the socket itself, so clients can actually reach it.
+	assert.Equal(t, socketPath, s.(*UDSDatagramListener).conn.LocalAddr().String())
+	conn, err := net.Dial("unixgram", socketPath)
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = conn.Write([]byte("daemon.up:1|c"))
+	assert.NoError(t, err)
+}
+
+// TestUDSDatagramNoFallbackWhenDisabled makes sure the escape hatch works for
+// deployments that would rather fail hard than lose the holder guarantee.
+func TestUDSDatagramNoFallbackWhenDisabled(t *testing.T) {
+	mockConfig := map[string]interface{}{}
+	mockConfig["dogstatsd_socket"] = testSocketPath(t)
+	mockConfig["dogstatsd_socket_fd_from"] = testSocketPath(t)
+	mockConfig["dogstatsd_socket_fd_from_timeout"] = 200 * time.Millisecond
+	mockConfig["dogstatsd_socket_fd_from_fallback"] = false
+	mockConfig["dogstatsd_origin_detection"] = false
+
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	_, err := udsDatagramListenerFactory(make(chan packets.Packets), newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, fdhandoff.ErrHolderUnavailable)
+}

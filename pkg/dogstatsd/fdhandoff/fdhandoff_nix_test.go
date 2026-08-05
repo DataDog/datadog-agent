@@ -346,7 +346,7 @@ func TestReceiveFileClosesExtraFDs(t *testing.T) {
 			})
 
 			before := openFileDescriptors(t)
-			f, err := receiveFile(handoffPath)
+			f, err := receiveFileWithin(handoffPath, waitTimeout)
 			require.NoError(t, err)
 			require.NoError(t, f.Close())
 			assert.Equal(t, before, openFileDescriptors(t))
@@ -363,7 +363,7 @@ func TestReceiveFileRejectsTruncatedControl(t *testing.T) {
 		_, _, _ = conn.WriteMsgUnix([]byte(handoffMessage), unix.UnixRights(fds...), nil)
 	})
 
-	_, err := receiveFile(handoffPath)
+	_, err := receiveFileWithin(handoffPath, waitTimeout)
 	require.Error(t, err)
 }
 
@@ -374,7 +374,7 @@ func TestReceiveFileNoFD(t *testing.T) {
 		_, _ = conn.Write([]byte(handoffMessage))
 	})
 
-	_, err := receiveFile(handoffPath)
+	_, err := receiveFileWithin(handoffPath, waitTimeout)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no file descriptor received")
 }

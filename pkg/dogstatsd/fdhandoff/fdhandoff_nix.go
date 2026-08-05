@@ -56,6 +56,9 @@ const (
 // we retry for a while instead. It is a variable so that tests can shorten it.
 var waitTimeout = 10 * time.Second
 
+// DefaultWaitTimeout is how long the Agent waits for a holder by default.
+func DefaultWaitTimeout() time.Duration { return waitTimeout }
+
 // DatagramSocket is a bound DogStatsD datagram socket, held open by the
 // socket-holder process for the lifetime of the host.
 type DatagramSocket struct {
@@ -304,8 +307,8 @@ func (s *Server) send(conn *net.UnixConn) error {
 
 // receiveFile connects to the handoff socket and reads a single file descriptor
 // out of the ancillary data sent by the holder.
-func receiveFile(handoffPath string) (*os.File, error) {
-	conn, err := dialHandoff(handoffPath)
+func receiveFileWithin(handoffPath string, waitFor time.Duration) (*os.File, error) {
+	conn, err := dialHandoff(handoffPath, waitFor)
 	if err != nil {
 		return nil, err
 	}
@@ -377,8 +380,8 @@ func parseUnixRights(oob []byte) ([]int, error) {
 // elapsed while the holder is not listening yet. The holder and the Agent are
 // started independently, and failing here leaves the Agent with no DogStatsD
 // UDS listener at all until it is restarted.
-func dialHandoff(handoffPath string) (*net.UnixConn, error) {
-	deadline := time.Now().Add(waitTimeout)
+func dialHandoff(handoffPath string, waitFor time.Duration) (*net.UnixConn, error) {
+	deadline := time.Now().Add(waitFor)
 	for {
 		conn, err := net.DialTimeout(handoffTransport, handoffPath, dialTimeout)
 		if err == nil {

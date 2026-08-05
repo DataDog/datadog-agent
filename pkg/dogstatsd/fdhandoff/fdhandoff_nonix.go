@@ -7,9 +7,16 @@
 
 package fdhandoff
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
-// receiveFile returns a "not implemented" error on platforms without SCM_RIGHTS.
-func receiveFile(_ string) (*os.File, error) {
+// DefaultWaitTimeout is unused on platforms without SCM_RIGHTS, where the
+// handoff is never attempted, but keeps the package API platform-independent.
+func DefaultWaitTimeout() time.Duration { return 10 * time.Second }
+
+// receiveFileWithin returns a "not implemented" error on platforms without SCM_RIGHTS.
+func receiveFileWithin(_ string, _ time.Duration) (*os.File, error) {
 	return nil, ErrUnsupported
 }

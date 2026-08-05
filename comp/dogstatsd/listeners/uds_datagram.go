@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -39,7 +40,11 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 	var conn *net.UnixConn
 	var err error
 	if handoffPath := cfg.GetString("dogstatsd_socket_fd_from"); handoffPath != "" {
-		conn, originDetection, err = adoptUDSDatagramConn(handoffPath, socketPath, originDetection)
+		waitFor := fdhandoff.DefaultWaitTimeout()
+		if d := cfg.GetDuration("dogstatsd_socket_fd_from_timeout"); d > 0 {
+			waitFor = d
+		}
+		conn, originDetection, err = adoptUDSDatagramConn(handoffPath, socketPath, waitFor, originDetection)
 		// A holder that never came up must not take DogStatsD down with it: the
 		// caller only logs this error and drops the listener, so failing here
 		// silently disables UDS intake entirely, which is worse than the restart
@@ -109,10 +114,12 @@ func listenUDSDatagram(socketPath string, transport string, originDetection bool
 // holder process, by receiving its file descriptor over the handoff socket. The
 // socket is neither unlinked nor rebound, so clients keep talking to the same
 // socket inode across Agent restarts.
-func adoptUDSDatagramConn(handoffPath string, socketPath string, originDetection bool) (*net.UnixConn, bool, error) {
-	conn, err := fdhandoff.ReceivePacketConn(handoffPath)
+func adoptUDSDatagramConn(handoffPath string, socketPath string, waitFor time.Duration, originDetection bool) (*net.UnixConn, bool, error) {
+	conn, err := fdhandoff.ReceivePacketConnWithin(handoffPath, waitFor)
 	if err != nil {
-		return nil, originDetection, fmt.Errorf("can't adopt the dogstatsd socket: %s", err)
+		// %w, not %s: the caller distinguishes ErrHolderUnavailable from other
+		// handoff failures with errors.Is, and %s flattens the chain.
+		return nil, originDetection, fmt.Errorf("can't adopt the dogstatsd socket: %w", err)
 	}
 
 	// Clients send to dogstatsd_socket, so a holder bound to another path means
