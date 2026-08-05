@@ -131,6 +131,14 @@ instances:
     #
     collect_vpn: "%%extra_collect_vpn%%"
 
+    ## @param enrich_device_tags_from_resource - boolean - optional - default: true
+    ## When device metadata collection is enabled, device tags are attached to metrics by the
+    ## backend from the metadata payload instead of being sent with every metric.
+    ## Set to `false` to have the Agent attach the device tags to every metric it submits.
+    ## This has no effect when `collect_device_metadata` is disabled.
+    #
+    enrich_device_tags_from_resource: "%%extra_enrich_device_tags_from_resource%%"
+
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.
     ## Changing namespace will cause devices being recreated in NDM app.

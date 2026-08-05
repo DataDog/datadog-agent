@@ -4433,6 +4433,15 @@ api_key:
 #
 #     collect_vpn: true
 
+#     # @param enrich_device_tags_from_resource - boolean - optional - default: true
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_ENRICH_DEVICE_TAGS_FROM_RESOURCE - boolean - optional - default: true
+#     # When device metadata collection is enabled, device tags are attached to metrics by the
+#     # backend from the metadata payload instead of being sent with every metric.
+#     # Set to `false` to have the Agent attach the device tags to every metric it submits.
+#     # This has no effect when `collect_device_metadata` is disabled.
+#
+#     enrich_device_tags_from_resource: true
+
 #     # @param ping - custom object - optional
 #     # Configure ICMP pings for all hosts in SNMP autodiscovery
 #     # Devices will be pinged with these settings each time the SNMP
