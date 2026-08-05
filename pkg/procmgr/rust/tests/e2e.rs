@@ -10,26 +10,6 @@ use helpers::{CliRunner, TestEnv, kill_pid_force, pid_is_alive, wait_for_pid_gon
 use std::path::Path;
 use std::time::Duration;
 
-#[cfg(unix)]
-fn current_runtime_user() -> String {
-    nix::unistd::User::from_uid(nix::unistd::geteuid())
-        .ok()
-        .flatten()
-        .map(|u| u.name)
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
-#[cfg(windows)]
-fn current_runtime_user() -> String {
-    let user = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".to_string());
-    let domain = std::env::var("USERDOMAIN").unwrap_or_default();
-    if domain.is_empty() {
-        format!(r".\{user}")
-    } else {
-        format!(r"{domain}\{user}")
-    }
-}
-
 #[test]
 fn test_cli_daemon_starts_ok() {
     let env = TestEnv::new().start();
@@ -523,7 +503,6 @@ fn test_cli_describe_shows_all_fields() {
         .assert_field("State", "Running")
         .assert_field("Profile", "agent")
         .assert_field("User", &test_helpers::expected_spawn_user("full"))
-        .assert_field("Runtime User", &current_runtime_user())
         .assert_field("Command", test_helpers::sleep_cmd(300).0)
         .assert_field("Args", &test_helpers::sleep_args_display())
         .assert_field("Description", "a test process")
@@ -536,6 +515,10 @@ fn test_cli_describe_shows_all_fields() {
 
     let pid = out.pid_from_field("PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
+    out.assert_field(
+        "Runtime User",
+        &test_helpers::expected_runtime_user_for_pid(pid),
+    );
 }
 
 #[test]
@@ -603,12 +586,15 @@ fn test_cli_describe_json() {
     assert_eq!(json["state"], "Running");
     assert_eq!(json["profile"], "agent");
     assert_eq!(json["user"], test_helpers::expected_spawn_user("sleeper"));
-    assert_eq!(json["runtime_user"], current_runtime_user());
     assert_eq!(json["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(json["args"], test_helpers::sleep_args_json());
     assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
 
     let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
+    assert_eq!(
+        json["runtime_user"],
+        test_helpers::expected_runtime_user_for_pid(pid)
+    );
     assert!(pid > 0);
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }
