@@ -6,7 +6,6 @@ go_library(
     srcs = [
         "executable_filter.go",
         "list_pids.go",
-        "metrics.go",
         "proc_stat_reader.go",
         "scanner.go",
         "time_utils.go",

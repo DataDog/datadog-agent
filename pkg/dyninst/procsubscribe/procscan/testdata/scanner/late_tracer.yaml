@@ -48,7 +48,6 @@ state:
   current_time: 100
   candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 1, executables_analyzed: 1, metadata_not_published: 1}
 ---
 command: !advance-time {to: 110}
 ---
@@ -57,7 +56,6 @@ state:
   current_time: 110
   candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 2, executables_analyzed: 1, metadata_not_published: 2}
 ---
 command: !advance-time {to: 130}
 ---
@@ -66,7 +64,6 @@ state:
   current_time: 130
   candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 3, next_attempt: 170}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 3, executables_analyzed: 1, metadata_not_published: 3}
 ---
 command: !advance-time {to: 170}
 ---
@@ -75,7 +72,6 @@ state:
   current_time: 170
   candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 4, next_attempt: 250}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 4, executables_analyzed: 1, metadata_not_published: 4}
 ---
 command: !advance-time {to: 250}
 ---
@@ -84,7 +80,6 @@ state:
   current_time: 250
   candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 5, next_attempt: 350}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 5, executables_analyzed: 1, metadata_not_published: 5}
 ---
 command: !advance-time {to: 350}
 ---
@@ -94,7 +89,6 @@ state:
   current_time: 350
   live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 6, executables_analyzed: 1, discovered: 1, metadata_not_published: 5}
 ---
 command: !advance-time {to: 360}
 ---
@@ -103,4 +97,3 @@ state:
   current_time: 360
   live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 6, executables_analyzed: 1, discovered: 1, metadata_not_published: 5}

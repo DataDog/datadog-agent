@@ -39,9 +39,6 @@ func (f ProcessScannerFunc) Scan() ([]procscan.DiscoveredProcess, []procscan.Pro
 // LiveProcesses implements the ProcessScanner interface.
 func (f ProcessScannerFunc) LiveProcesses() []procscan.ProcessID { return nil }
 
-// Stats implements the ProcessScanner interface.
-func (f ProcessScannerFunc) Stats() map[string]any { return nil }
-
 // WithClock overrides the clock used for scheduling scans.
 func WithClock(clk clock.Clock) Option {
 	return optionFunc(func(c *config) { c.clk = clk })

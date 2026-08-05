@@ -485,25 +485,11 @@ type candidateSnapshot struct {
 	NextAttempt uint64 `yaml:"next_attempt"`
 }
 
-type metricsSnapshot struct {
-	CandidatesEvaluated   uint64 `yaml:"candidates_evaluated,omitempty"`
-	ExecutablesAnalyzed   uint64 `yaml:"executables_analyzed,omitempty"`
-	NonGoExecutables      uint64 `yaml:"non_go_executables,omitempty"`
-	ExecutablesUnresolved uint64 `yaml:"executables_unresolved,omitempty"`
-	NonGoTracers          uint64 `yaml:"non_go_tracers,omitempty"`
-	ExecutablesChanged    uint64 `yaml:"executables_changed,omitempty"`
-	Discovered            uint64 `yaml:"discovered,omitempty"`
-	MetadataNotPublished  uint64 `yaml:"metadata_not_published,omitempty"`
-	MetadataUnreadable    uint64 `yaml:"metadata_unreadable,omitempty"`
-	CandidatesEvicted     uint64 `yaml:"candidates_evicted,omitempty"`
-}
-
 type scannerStateSnapshot struct {
 	CurrentTime       uint64              `yaml:"current_time"`
 	Live              []procSnapshot      `yaml:"live,omitempty,flow"`
 	Candidates        []candidateSnapshot `yaml:"candidates,omitempty,flow"`
 	ProcessesInProcfs []int32             `yaml:"processes_in_procfs,omitempty,flow"`
-	Metrics           metricsSnapshot     `yaml:"metrics,flow"`
 }
 
 // Output structures for test commands.
@@ -554,24 +540,11 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 	}
 	slices.Sort(pids)
 
-	m := &s.metrics
 	return &scannerStateSnapshot{
 		CurrentTime:       uint64(ts.currentTime),
 		Live:              live,
 		Candidates:        candidates,
 		ProcessesInProcfs: pids,
-		Metrics: metricsSnapshot{
-			CandidatesEvaluated:   m.candidatesEvaluated.Load(),
-			ExecutablesAnalyzed:   m.executablesAnalyzed.Load(),
-			NonGoExecutables:      m.nonGoExecutables.Load(),
-			ExecutablesUnresolved: m.executablesUnresolved.Load(),
-			NonGoTracers:          m.nonGoTracers.Load(),
-			ExecutablesChanged:    m.executablesChanged.Load(),
-			Discovered:            m.discovered.Load(),
-			MetadataNotPublished:  m.metadataNotPublished.Load(),
-			MetadataUnreadable:    m.metadataUnreadable.Load(),
-			CandidatesEvicted:     m.candidatesEvicted.Load(),
-		},
 	}
 }
 

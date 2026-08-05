@@ -148,8 +148,6 @@ type Scanner struct {
 	// candidates holds the retry state of processes whose tracer metadata is
 	// not readable yet, keyed by pid.
 	candidates *lru.Cache[uint32, *candidate]
-
-	metrics Metrics
 }
 
 type scannerConfig struct {
@@ -291,9 +289,6 @@ type DiscoveredProcess struct {
 // avoid log spam from common transient errors like ENOENT and ESRCH.
 var scannerLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
-// Stats returns a snapshot of the scanner's counters.
-func (p *Scanner) Stats() map[string]any { return p.metrics.asStats() }
-
 // Scan discovers new Go processes and detects removed processes since the last
 // Scan call.
 //
@@ -372,7 +367,6 @@ func (p *Scanner) Scan() (
 		if c != nil && now < c.nextAttempt {
 			continue
 		}
-		p.metrics.candidatesEvaluated.Add(1)
 
 		// Failing to identify the executable backs the process off like any
 		// other verdict. Every kernel thread fails here on every scan, and
@@ -381,7 +375,6 @@ func (p *Scanner) Scan() (
 		// see it and will forget it.
 		executable, err := p.resolveExecutable(int32(pid))
 		if err != nil {
-			p.metrics.executablesUnresolved.Add(1)
 			maybeLogErr("resolve executable", err)
 			p.scheduleRetry(key, c, process.FileKey{}, now, p.backoffCap)
 			continue
@@ -390,7 +383,6 @@ func (p *Scanner) Scan() (
 			// The process exec'd, so whatever its previous executable earned
 			// does not apply to this one. Start the schedule over instead of
 			// making the new binary wait out the old one's backoff.
-			p.metrics.executablesChanged.Add(1)
 			c.attempts = 0
 		}
 
@@ -404,7 +396,6 @@ func (p *Scanner) Scan() (
 			continue
 		}
 		if !isGo {
-			p.metrics.nonGoExecutables.Add(1)
 			// The verdict is remembered per executable, but reaching it costs a
 			// readlink, an open and a stat to identify the executable at all.
 			// Back off so that cost is not paid every scan, under the shorter
@@ -416,7 +407,7 @@ func (p *Scanner) Scan() (
 
 		tracerMetadata, err := p.tracerMetadataReader(int32(pid))
 		if err != nil {
-			p.recordMetadataReadFailure(pid, err)
+			logMetadataReadFailure(pid, err)
 			p.scheduleRetry(key, c, executable.Key, now, p.backoffCap)
 			continue
 		}
@@ -424,7 +415,6 @@ func (p *Scanner) Scan() (
 			// A Go binary reporting some other tracer language is not something
 			// we can instrument, but back off rather than giving up so that the
 			// only terminal state remains "the process exited".
-			p.metrics.nonGoTracers.Add(1)
 			log.Tracef(
 				"scanner: pid %d reports tracer language %q",
 				pid, tracerMetadata.TracerLanguage,
@@ -434,7 +424,6 @@ func (p *Scanner) Scan() (
 		}
 
 		p.candidates.Remove(pid)
-		p.metrics.discovered.Add(1)
 		ret = append(ret, DiscoveredProcess{
 			PID:            pid,
 			StartTimeTicks: uint64(startTime),
@@ -498,7 +487,6 @@ func (p *Scanner) scheduleRetry(
 	// Adding refreshes the entry's position, so the candidate evicted when the
 	// set is full is the one that has gone longest without a retry.
 	if evicted := p.candidates.Add(key.pid, c); evicted {
-		p.metrics.candidatesEvicted.Add(1)
 	}
 }
 
@@ -530,7 +518,6 @@ func (p *Scanner) isGoExecutable(exe process.Executable) (bool, error) {
 	if isGo, ok := p.goExecutables.Get(exe.Key); ok {
 		return isGo, nil
 	}
-	p.metrics.executablesAnalyzed.Add(1)
 	isGo, err := p.checkGoExecutable(exe.Path)
 	if err != nil {
 		return false, err
@@ -539,20 +526,19 @@ func (p *Scanner) isGoExecutable(exe process.Executable) (bool, error) {
 	return isGo, nil
 }
 
-// recordMetadataReadFailure counts a failed tracer metadata read, separating
-// the case where the tracer has not published anything yet, which resolves
-// itself, from the case where we cannot read what it published, which does not.
-func (p *Scanner) recordMetadataReadFailure(pid uint32, err error) {
+// logMetadataReadFailure logs a failed tracer metadata read. A tracer that has
+// not published yet usually will, and every process on the host takes this path
+// until it does, so it is not worth a warning. Being unable to read what a
+// tracer did publish does not resolve itself and is.
+func logMetadataReadFailure(pid uint32, err error) {
 	if errors.Is(err, errTracerMemfdNotFound) ||
 		errors.Is(err, fs.ErrNotExist) ||
 		errors.Is(err, syscall.ESRCH) {
-		p.metrics.metadataNotPublished.Add(1)
 		log.Tracef(
 			"scanner: pid %d has not published tracer metadata: %v", pid, err,
 		)
 		return
 	}
-	p.metrics.metadataUnreadable.Add(1)
 	if scannerLogLimiter.Allow() {
 		log.Warnf("scanner: cannot read tracer metadata for pid %d: %v", pid, err)
 	} else {

@@ -38,7 +38,6 @@ state:
   current_time: 200
   live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
-  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}
 ---
 command: !remove-process {pid: 1001}
 ---
@@ -48,4 +47,3 @@ command: !scan {}
 removed: [1001]
 state:
   current_time: 300
-  metrics: {candidates_evaluated: 1, executables_analyzed: 1, discovered: 1}

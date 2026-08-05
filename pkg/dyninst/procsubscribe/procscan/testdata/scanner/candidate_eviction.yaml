@@ -1,6 +1,5 @@
-# The candidate set is bounded, and going over the bound is counted rather than
-# passed over in silence. An evicted candidate loses its retry schedule, not its
-# eligibility: it is evaluated again on the next scan.
+# The candidate set is bounded. An evicted candidate loses its retry schedule,
+# not its eligibility: it is evaluated again on the next scan.
 #
 # With room for a single candidate, two silent processes take turns evicting each
 # other, which is why the bound is set far above the number of Go processes on a
@@ -49,7 +48,6 @@ state:
   current_time: 100
   candidates: [{pid: 1002, start_time: 50, exe_ino: 1002, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001, 1002]
-  metrics: {candidates_evaluated: 2, executables_analyzed: 2, metadata_not_published: 2, candidates_evicted: 1}
 ---
 command: !advance-time {to: 110}
 ---
@@ -58,4 +56,3 @@ state:
   current_time: 110
   candidates: [{pid: 1002, start_time: 50, exe_ino: 1002, attempts: 1, next_attempt: 120}]
   processes_in_procfs: [1001, 1002]
-  metrics: {candidates_evaluated: 4, executables_analyzed: 2, metadata_not_published: 4, candidates_evicted: 3}
