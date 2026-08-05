@@ -45,6 +45,7 @@ go_library(
         "//pkg/network/protocols/postgres",
         "//pkg/network/protocols/redis",
         "//pkg/network/protocols/telemetry",
+        "//pkg/network/tracer/connection/util",
         "//pkg/network/tracer/offsetguess",
         "//pkg/network/usm/buildmode",
         "//pkg/network/usm/config",
