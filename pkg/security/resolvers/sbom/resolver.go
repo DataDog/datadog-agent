@@ -657,9 +657,9 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	r.dataCacheLock.RLock()
+	r.dataCacheLock.Lock()
 	if data, exists := r.dataCache.Get(sb.workloadKey); exists {
-		r.dataCacheLock.RUnlock()
+		r.dataCacheLock.Unlock()
 		sb.data = data
 
 		sb.state.Store(computedState)
@@ -669,7 +669,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 		return nil
 	}
-	r.dataCacheLock.RUnlock()
+	r.dataCacheLock.Unlock()
 
 	report, scanErr := r.doScan(sb)
 	if scanErr != nil {
