@@ -23,7 +23,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -41,10 +40,7 @@ func TestNodeHandlers_BeforeCacheCheck(t *testing.T) {
 	}
 
 	ctx := processorstest.NewProcessorContextBeforeCacheCheck("", "nodes")
-	entityID := taggertypes.NewEntityID(
-		taggertypes.KubernetesMetadata,
-		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
-	)
+	entityID := taggertypes.NewEntityID(taggertypes.KubernetesNode, resource.Name)
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewNodeHandlers(tagger)
 

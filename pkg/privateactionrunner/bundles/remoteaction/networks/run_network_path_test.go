@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -162,12 +162,12 @@ func TestRunNetworkPathHandlerRunDefaults(t *testing.T) {
 	expectedCfg := tracerouteconfig.Config{
 		DestHostname:      "example.com",
 		DestPort:          443,
-		MaxTTL:            pkgconfigsetup.DefaultNetworkPathMaxTTL,
-		Timeout:           pkgconfigsetup.DefaultNetworkPathTimeout * time.Millisecond,
+		MaxTTL:            constants.DefaultNetworkPathMaxTTL,
+		Timeout:           constants.DefaultNetworkPathTimeout * time.Millisecond,
 		Protocol:          payload.ProtocolUDP,
 		ReverseDNS:        true,
-		TracerouteQueries: pkgconfigsetup.DefaultNetworkPathStaticPathTracerouteQueries,
-		E2eQueries:        pkgconfigsetup.DefaultNetworkPathStaticPathE2eQueries,
+		TracerouteQueries: constants.DefaultNetworkPathStaticPathTracerouteQueries,
+		E2eQueries:        constants.DefaultNetworkPathStaticPathE2eQueries,
 	}
 	require.Equal(t, expectedCfg, tracerouteStub.cfg)
 }
