@@ -191,6 +191,7 @@ message ActivityDumpParams {
     StorageRequestParams Storage = 3;
     string ContainerID = 4;
     string CGroupID = 5;
+    bool Host = 6;
 }
 
 message MetadataMessage {
@@ -243,10 +244,12 @@ message ActivityDumpStopParams {
     string Name = 1;
     string ContainerID = 2;
     string CGroupID = 3;
+    bool All = 4;
 }
 
 message ActivityDumpStopMessage {
     string Error = 1;
+    repeated ActivityDumpMessage Dumps = 2;
 }
 
 message TranscodingRequestParams {
