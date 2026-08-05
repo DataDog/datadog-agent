@@ -1399,6 +1399,29 @@ properties:
         visibility: public
         description: Enables the system probe module which supports the Windows crash
           detection check.
+  numa_monitoring:
+    node_type: section
+    title: System Probe NUMA Monitoring
+    type: object
+    visibility: public
+    description: |-
+      [Experimental] Capability-driven NUMA placement and resctrl monitoring on Linux.
+      Metric names and behavior may change while this feature is experimental.
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enables experimental scheduler runtime and resident-memory distribution
+          monitoring.
+      max_resctrl_groups:
+        node_type: setting
+        type: integer
+        default: 16
+        visibility: public
+        description: Maximum number of top container cgroups monitored through resctrl.
   auto_exit:
     node_type: section
     type: object

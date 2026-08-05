@@ -44,6 +44,7 @@ const (
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
+	NUMAMonitoringModule         types.ModuleName = "numa_monitoring"
 	LogonDurationModule          types.ModuleName = "logon_duration"
 )
 
@@ -191,6 +192,9 @@ func load() (*types.Config, error) {
 	}
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
 		c.EnabledModules[NoisyNeighborModule] = struct{}{}
+	}
+	if cfg.GetBool(NSkey("numa_monitoring", "enabled")) {
+		c.EnabledModules[NUMAMonitoringModule] = struct{}{}
 	}
 	if runtime.GOOS == "darwin" && cfg.GetBool(logonDurationNS("enabled")) {
 		c.EnabledModules[LogonDurationModule] = struct{}{}

@@ -280,4 +280,26 @@
 #   # Enables the system probe module which supports the Windows crash detection check.
 #
 #   enabled: false
-{{ end -}}
+{{- end }}
+
+##################################
+## System Probe NUMA Monitoring ##
+##################################
+
+## @param numa_monitoring - custom object - optional
+## [Experimental] Capability-driven NUMA placement and resctrl monitoring on Linux.
+## Metric names and behavior may change while this feature is experimental.
+#
+# numa_monitoring:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_NUMA_MONITORING_ENABLED - boolean - optional - default: false
+#   # Enables experimental scheduler runtime and resident-memory distribution monitoring.
+#
+#   enabled: false
+
+#   # @param max_resctrl_groups - integer - optional - default: 16
+#   # @env DD_NUMA_MONITORING_MAX_RESCTRL_GROUPS - integer - optional - default: 16
+#   # Maximum number of top container cgroups monitored through resctrl.
+#
+#   max_resctrl_groups: 16

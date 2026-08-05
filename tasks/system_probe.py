@@ -951,6 +951,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
     "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
     "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:numa-monitoring",
+    "//pkg/collector/corechecks/ebpf/c/runtime:numa-monitoring-debug",
     "//pkg/gpu/ebpf/c/runtime:gpu",
     "//pkg/gpu/ebpf/c/runtime:gpu-debug",
     "//pkg/dyninst/ebpf:dyninst_event",

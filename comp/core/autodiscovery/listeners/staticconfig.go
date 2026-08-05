@@ -75,6 +75,9 @@ func (l *StaticConfigListener) createServices() {
 			l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}
 		}
 	}
+	if enabled := pkgconfigsetup.SystemProbe().GetBool("numa_monitoring.enabled"); enabled {
+		l.newService <- &StaticConfigService{adIdentifier: "_numa_monitoring"}
+	}
 
 	// Infrastructure mode: emit a single service for the mode
 	// All checks with ad_identifiers: [_<mode>] will be scheduled

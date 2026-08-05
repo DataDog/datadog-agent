@@ -2,6 +2,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
 exports_files([
+    "numa-monitoring-kern.c",
     "oom-kill-kern.c",
     "tcp-queue-length-kern.c",
 ])
@@ -57,6 +58,17 @@ ebpf_program_suite(
 ebpf_program_suite(
     name = "noisy-neighbor",
     src = "noisy-neighbor-kern.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":corecheck_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)
+
+ebpf_program_suite(
+    name = "numa-monitoring",
+    src = "numa-monitoring-kern.c",
     core = True,
     visibility = ["//visibility:public"],
     deps = [

@@ -42,6 +42,7 @@ AGENT_CORECHECKS = [
     "network_config_management",
     "battery",
     "cloud_hostinfo",
+    "numa_monitoring",
 ]
 
 AIX_CORECHECKS = [
