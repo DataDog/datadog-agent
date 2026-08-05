@@ -9,6 +9,7 @@ package metrics
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1092,6 +1093,324 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}
 				assert.True(t, scaledFound, "status.vertical.scaled_replicas metric not found")
 				assert.True(t, evictedFound, "status.vertical.evicted_replicas metric not found")
+			},
+		},
+		{
+			name: "objective pod resource cpu utilization",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+								PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+									Name: corev1.ResourceCPU,
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+										Utilization: pointer.Ptr(int32(70)),
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 14, // objective.target + baseline(13)
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var found bool
+				for _, m := range metrics {
+					if m.Name == metricPrefix+".objective.target" {
+						found = true
+						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
+						assert.Equal(t, 70.0, m.Value)
+						assert.Contains(t, m.Tags, "objective_type:pod_resource")
+						assert.Contains(t, m.Tags, "value_type:utilization")
+						assert.Contains(t, m.Tags, "resource_name:cpu")
+						for _, tag := range m.Tags {
+							assert.False(t, strings.HasPrefix(tag, "kube_container_name:"),
+								"pod resource objective should not carry a container tag")
+						}
+					}
+				}
+				assert.True(t, found, "objective.target metric not found")
+			},
+		},
+		{
+			name: "objective container resource cpu utilization",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+								ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
+									Name:      corev1.ResourceCPU,
+									Container: "webserver",
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+										Utilization: pointer.Ptr(int32(63)),
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 14, // objective.target + baseline(13)
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var found bool
+				for _, m := range metrics {
+					if m.Name == metricPrefix+".objective.target" {
+						found = true
+						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
+						assert.Equal(t, 63.0, m.Value)
+						assert.Contains(t, m.Tags, "objective_type:container_resource")
+						assert.Contains(t, m.Tags, "value_type:utilization")
+						assert.Contains(t, m.Tags, "resource_name:cpu")
+						assert.Contains(t, m.Tags, "kube_container_name:webserver")
+					}
+				}
+				assert.True(t, found, "objective.target metric not found")
+			},
+		},
+		{
+			name: "objective custom query absolute value",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				q := resource.MustParse("500M")
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+								CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:          datadoghqcommon.DatadogPodAutoscalerAbsoluteValueObjectiveValueType,
+										AbsoluteValue: &q,
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 14, // objective.target + baseline(13)
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var found bool
+				for _, m := range metrics {
+					if m.Name == metricPrefix+".objective.target" {
+						found = true
+						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
+						assert.InDelta(t, 5e8, m.Value, 1.0, "500M should be ~5e8 in query-native units")
+						assert.Contains(t, m.Tags, "objective_type:custom_query")
+						assert.Contains(t, m.Tags, "value_type:absolute_value")
+						for _, tag := range m.Tags {
+							assert.False(t, strings.HasPrefix(tag, "resource_name:"),
+								"custom query objective should not carry a resource tag")
+							assert.False(t, strings.HasPrefix(tag, "kube_container_name:"),
+								"custom query objective should not carry a container tag")
+						}
+					}
+				}
+				assert.True(t, found, "objective.target metric not found")
+			},
+		},
+		{
+			name: "objective container resource cpu absolute value",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				q := resource.MustParse("500m")
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+								ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
+									Name:      corev1.ResourceCPU,
+									Container: "app",
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:          datadoghqcommon.DatadogPodAutoscalerAbsoluteValueObjectiveValueType,
+										AbsoluteValue: &q,
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 14, // objective.target + baseline(13)
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var found bool
+				for _, m := range metrics {
+					if m.Name == metricPrefix+".objective.target" {
+						found = true
+						assert.Equal(t, 500.0, m.Value, "cpu absolute 500m should be 500 millicores")
+						assert.Contains(t, m.Tags, "objective_type:container_resource")
+						assert.Contains(t, m.Tags, "value_type:absolute_value")
+						assert.Contains(t, m.Tags, "resource_name:cpu")
+						assert.Contains(t, m.Tags, "kube_container_name:app")
+					}
+				}
+				assert.True(t, found, "objective.target metric not found")
+			},
+		},
+		{
+			name: "objective pod resource memory absolute value",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				q := resource.MustParse("256Mi")
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+								PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+									Name: corev1.ResourceMemory,
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:          datadoghqcommon.DatadogPodAutoscalerAbsoluteValueObjectiveValueType,
+										AbsoluteValue: &q,
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 14, // objective.target + baseline(13)
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var found bool
+				for _, m := range metrics {
+					if m.Name == metricPrefix+".objective.target" {
+						found = true
+						assert.Equal(t, float64(256*1024*1024), m.Value, "memory absolute 256Mi should be in bytes")
+						assert.Contains(t, m.Tags, "objective_type:pod_resource")
+						assert.Contains(t, m.Tags, "value_type:absolute_value")
+						assert.Contains(t, m.Tags, "resource_name:memory")
+					}
+				}
+				assert.True(t, found, "objective.target metric not found")
+			},
+		},
+		{
+			name: "multiple objectives",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+								PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+									Name: corev1.ResourceCPU,
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+										Utilization: pointer.Ptr(int32(80)),
+									},
+								},
+							},
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+								ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
+									Name:      corev1.ResourceMemory,
+									Container: "sidecar",
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+										Utilization: pointer.Ptr(int32(55)),
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 15, // 2 objective.target + baseline(13)
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var podFound, containerFound bool
+				for _, m := range metrics {
+					if m.Name != metricPrefix+".objective.target" {
+						continue
+					}
+					if slices.Contains(m.Tags, "objective_type:pod_resource") {
+						podFound = true
+						assert.Equal(t, 80.0, m.Value)
+						assert.Contains(t, m.Tags, "resource_name:cpu")
+						assert.Contains(t, m.Tags, "value_type:utilization")
+					}
+					if slices.Contains(m.Tags, "objective_type:container_resource") {
+						containerFound = true
+						assert.Equal(t, 55.0, m.Value)
+						assert.Contains(t, m.Tags, "resource_name:memory")
+						assert.Contains(t, m.Tags, "kube_container_name:sidecar")
+					}
+				}
+				assert.True(t, podFound, "pod_resource objective.target not found")
+				assert.True(t, containerFound, "container_resource objective.target not found")
+			},
+		},
+		{
+			name: "objective with nil value is not emitted",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+								PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+									Name: corev1.ResourceCPU,
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										// Declared Utilization type but pointer left nil.
+										Type: datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 13, // baseline only; objective.target not emitted for nil value
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				for _, m := range metrics {
+					assert.NotEqual(t, metricPrefix+".objective.target", m.Name,
+						"objective.target should not be emitted when the value pointer is nil")
+				}
 			},
 		},
 	}

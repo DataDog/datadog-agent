@@ -66,6 +66,46 @@ func conditionTags(baseTags []string, conditionType string) []string {
 	return append(baseTags, "type:"+conditionType)
 }
 
+// objectiveTags generates tags for autoscaler objective (target) metrics.
+// resourceName and containerName are omitted from the tag set when empty
+// (e.g. custom query objectives have no resource, pod resource objectives have no container).
+func objectiveTags(baseTags []string, objectiveType, valueType, resourceName, containerName string) []string {
+	tags := append(baseTags, "objective_type:"+objectiveType, "value_type:"+valueType)
+	if resourceName != "" {
+		tags = append(tags, "resource_name:"+resourceName)
+	}
+	if containerName != "" {
+		tags = append(tags, "kube_container_name:"+containerName)
+	}
+	return tags
+}
+
+// objectiveValue extracts the numeric value and the corresponding value_type tag from an
+// objective value. Utilization is returned as a raw percentage (0-100). AbsoluteValue is
+// converted to the unit native to the resource: millicores for CPU, bytes for memory, and an
+// approximate float otherwise (e.g. for custom query objectives that have no resource).
+// Returns ok=false when the value pointer for the declared type is nil.
+func objectiveValue(v datadoghqcommon.DatadogPodAutoscalerObjectiveValue, resourceName corev1.ResourceName) (value float64, valueType string, ok bool) {
+	switch v.Type {
+	case datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType:
+		if v.Utilization != nil {
+			return float64(*v.Utilization), "utilization", true
+		}
+	case datadoghqcommon.DatadogPodAutoscalerAbsoluteValueObjectiveValueType:
+		if v.AbsoluteValue != nil {
+			switch resourceName {
+			case corev1.ResourceCPU:
+				return float64(v.AbsoluteValue.MilliValue()), "absolute_value", true
+			case corev1.ResourceMemory:
+				return float64(v.AbsoluteValue.Value()), "absolute_value", true
+			default:
+				return v.AbsoluteValue.AsApproximateFloat64(), "absolute_value", true
+			}
+		}
+	}
+	return 0, "", false
+}
+
 // GeneratePodAutoscalerMetrics generates structured metrics from a PodAutoscaler object
 func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metricsstore.StructuredMetrics {
 	if internal == nil {
@@ -371,9 +411,53 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		}
 	}
 
-	// 12. Status metrics and autoscaler conditions (from upstream CR)
+	// 13. Autoscaling objectives (target values from spec)
+	if spec := internal.Spec(); spec != nil {
+		for _, objective := range spec.Objectives {
+			switch objective.Type {
+			case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType:
+				if objective.PodResource == nil {
+					continue
+				}
+				if value, valueType, ok := objectiveValue(objective.PodResource.Value, objective.PodResource.Name); ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".objective.target",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: value,
+						Tags:  objectiveTags(baseTags, "pod_resource", valueType, strings.ToLower(objective.PodResource.Name.String()), ""),
+					})
+				}
+			case datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType:
+				if objective.ContainerResource == nil {
+					continue
+				}
+				if value, valueType, ok := objectiveValue(objective.ContainerResource.Value, objective.ContainerResource.Name); ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".objective.target",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: value,
+						Tags:  objectiveTags(baseTags, "container_resource", valueType, strings.ToLower(objective.ContainerResource.Name.String()), objective.ContainerResource.Container),
+					})
+				}
+			case datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType:
+				if objective.CustomQuery == nil {
+					continue
+				}
+				if value, valueType, ok := objectiveValue(objective.CustomQuery.Value, ""); ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".objective.target",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: value,
+						Tags:  objectiveTags(baseTags, "custom_query", valueType, "", ""),
+					})
+				}
+			}
+		}
+	}
+
+	// 14. Status metrics and autoscaler conditions (from upstream CR)
 	if podAutoscaler := internal.UpstreamCR(); podAutoscaler != nil {
-		// 12a. Horizontal desired replicas from status
+		// 14a. Horizontal desired replicas from status
 		if horizontal := podAutoscaler.Status.Horizontal; horizontal != nil && horizontal.Target != nil {
 			metrics = append(metrics, metricsstore.StructuredMetric{
 				Name:  metricPrefix + ".status.desired.replicas",
@@ -383,7 +467,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			})
 		}
 
-		// 12b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
+		// 14b. Vertical desired resources from status (per container, CPU in millicores, memory in bytes)
 		if vertical := podAutoscaler.Status.Vertical; vertical != nil && vertical.Target != nil {
 			for _, container := range vertical.Target.DesiredResources {
 				containerTags := append(baseTags, "kube_container_name:"+container.Name)
@@ -422,7 +506,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 			}
 		}
 
-		// 12c. Autoscaler conditions
+		// 14c. Autoscaler conditions
 		for _, condition := range podAutoscaler.Status.Conditions {
 			value := 0.0
 			if condition.Status == corev1.ConditionTrue {

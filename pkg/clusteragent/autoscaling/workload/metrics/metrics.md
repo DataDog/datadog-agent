@@ -180,6 +180,39 @@ memory values are in **bytes**.
 
 ---
 
+### Autoscaling objectives (target values)
+
+One metric point is emitted per objective configured in `spec.objectives[*]` that has a value
+set. The objective's kind and value semantics are differentiated entirely by tags — see the
+value-unit table below.
+
+#### `datadog.cluster_agent.autoscaling.workload.objective.target`
+- **Type:** Gauge
+- **Tags:** base tags + `objective_type` + `value_type` + `resource_name` *(only for resource
+  objectives)* + `kube_container_name` *(only for container-resource objectives)*
+- **Description:** Target value the autoscaler aims to reach and maintain for the workload, as
+  configured in `spec.objectives`. One point is emitted per objective. Objectives whose value
+  pointer is unset are skipped.
+
+| Tag | Values | Meaning |
+|-----|--------|---------|
+| `objective_type` | `pod_resource`, `container_resource`, `custom_query` | The objective kind (from `spec.objectives[*].type`). |
+| `value_type` | `utilization`, `absolute_value` | How the target is expressed (from `spec.objectives[*].*.value.type`). |
+| `resource_name` | `cpu`, `memory` | The resource being targeted. Present for `pod_resource` and `container_resource` objectives; **omitted** for `custom_query`. |
+| `kube_container_name` | container name | The targeted container. Present **only** for `container_resource` objectives. |
+
+**Value units** (the metric value is unitless in the timeseries, so the meaning depends on the
+tags — filter by `value_type` before graphing so utilization and absolute values are not mixed):
+
+| `value_type` | `resource_name` | Value unit |
+|--------------|-----------------|------------|
+| `utilization` | `cpu` / `memory` | Percentage, `0`–`100` (e.g. `70` for a 70% target). |
+| `absolute_value` | `cpu` | Millicores (e.g. `500m` → `500`). |
+| `absolute_value` | `memory` | Bytes (e.g. `256Mi` → `268435456`). |
+| `absolute_value` | *(none — `custom_query`)* | The query's native unit as a floating-point number (e.g. `500M` → `5e8`); no CPU/memory conversion is applied. |
+
+---
+
 ### Status — desired resources
 
 These metrics reflect the **desired state** stored in the DPA `.status` subresource — i.e.
