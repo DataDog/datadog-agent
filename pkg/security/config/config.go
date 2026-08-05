@@ -239,6 +239,10 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpTracedCgroupsCount int
 	// ActivityDumpTraceSystemdCgroups defines if you want to trace systemd cgroups
 	ActivityDumpTraceSystemdCgroups bool
+	// ActivityDumpHostDumpEnabled enables the host-wide activity dump start/stop commands. When enabled, the
+	// `activity-dump host start`/`host stop` CLI can capture every traced cgroup at once and persist the dumps
+	// to local storage only (never to the remote backend). Intended for local/CI use and off by default.
+	ActivityDumpHostDumpEnabled bool
 
 	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
@@ -576,6 +580,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// activity dump
 		ActivityDumpEnabled:                   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpTraceSystemdCgroups:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.trace_systemd_cgroups"),
+		ActivityDumpHostDumpEnabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.host_dump.enabled"),
 		ActivityDumpCleanupPeriod:             pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cleanup_period"),
 		ActivityDumpTagsResolutionPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
 		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
@@ -836,6 +841,25 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 
 	if c.ActivityDumpTracedCgroupsCount > model.MaxTracedCgroupsCount {
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
+	}
+
+	// Host-wide activity dumps require tracing every cgroup on the host, so pull the
+	// prerequisites up (upward-only, never lowering an operator's explicit choice) when
+	// host_dump is enabled. Without this the host_dump start/stop commands succeed but
+	// silently capture almost nothing. Changes are logged so the coupling is visible.
+	if c.ActivityDumpHostDumpEnabled {
+		if !c.ActivityDumpEnabled {
+			seclog.Infof("activity_dump.host_dump.enabled=true: enabling activity_dump.enabled")
+			c.ActivityDumpEnabled = true
+		}
+		if !c.ActivityDumpTraceSystemdCgroups {
+			seclog.Infof("activity_dump.host_dump.enabled=true: enabling activity_dump.trace_systemd_cgroups to capture host (systemd) cgroups")
+			c.ActivityDumpTraceSystemdCgroups = true
+		}
+		if c.ActivityDumpTracedCgroupsCount < model.MaxTracedCgroupsCount {
+			seclog.Infof("activity_dump.host_dump.enabled=true: raising activity_dump.traced_cgroups_count from %d to %d", c.ActivityDumpTracedCgroupsCount, model.MaxTracedCgroupsCount)
+			c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
+		}
 	}
 
 	if c.SecurityProfileEnabled && c.ActivityDumpEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {

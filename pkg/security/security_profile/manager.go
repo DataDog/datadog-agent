@@ -108,6 +108,9 @@ type Manager struct {
 	localStorage              *storage.Directory
 	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
+	// localStorageRequests is the local-storage-only subset of the configured requests. It is used by the
+	// host-wide dump path so those dumps are persisted to disk only and never forwarded to the remote backend.
+	localStorageRequests map[config.StorageFormat][]config.StorageRequest
 
 	activeDumps      []*dump.ActivityDump
 	snapshotQueue    chan *dump.ActivityDump
@@ -239,14 +242,22 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		))
 	}
 
+	// keep a local-storage-only copy for the host-wide dump path (never forwarded to the backend)
+	localStorageRequests := slices.Clone(configuredStorageRequests)
+
 	// add remote storage requests
-	// the actual fields are not really used, but this allows to report the correct request
-	configuredStorageRequests = append(configuredStorageRequests, config.NewStorageRequest(
-		config.RemoteStorage,
-		config.Protobuf,
-		true, // force remote compression
-		"",
-	))
+	// the actual fields are not really used, but this allows to report the correct request.
+	// host_dump is a local-only mode: when it is enabled, the whole activity-dump subsystem
+	// (host stop, timeout cleanup, load-controller split, ...) persists to local storage only
+	// and nothing is ever forwarded to the remote backend.
+	if !cfg.RuntimeSecurity.ActivityDumpHostDumpEnabled {
+		configuredStorageRequests = append(configuredStorageRequests, config.NewStorageRequest(
+			config.RemoteStorage,
+			config.Protobuf,
+			true, // force remote compression
+			"",
+		))
+	}
 
 	contextTags := []string{"host:" + hostname}
 	// merge tags from config
@@ -307,6 +318,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		localStorage:              localStorage,
 		remoteStorage:             remoteStorage,
 		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
+		localStorageRequests:      perFormatStorageRequests(localStorageRequests),
 
 		contextTags:      contextTags,
 		containerFilters: containerFilters,
