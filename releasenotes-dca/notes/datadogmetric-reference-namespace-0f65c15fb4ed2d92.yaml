@@ -1,0 +1,30 @@
+---
+upgrade:
+  - |
+    The ``<namespace>`` part of a ``datadogmetric@<namespace>:<name>`` external metric
+    reference is now ignored. The referenced ``DatadogMetric`` is always looked up in the
+    namespace of the ``HorizontalPodAutoscaler`` or ``WatermarkPodAutoscaler`` that holds
+    the reference, so referencing a ``DatadogMetric`` owned by another namespace is no
+    longer supported. Such a reference now resolves to a ``DatadogMetric`` that does not
+    exist, which leaves the autoscaler without a metric value and unable to scale.
+
+    To find out whether you are affected, list every external metric reference that carries
+    an explicit namespace:
+
+    .. code-block:: shell
+
+      kubectl get hpa --all-namespaces -o yaml | grep -E 'datadogmetric@[a-z0-9-]+:'
+      kubectl get wpa --all-namespaces -o yaml | grep -E 'datadogmetric@[a-z0-9-]+:'
+
+    References whose namespace is the namespace of the autoscaler holding them keep working
+    unchanged. For every reference pointing at another namespace, create a ``DatadogMetric``
+    with the same query in the autoscaler's own namespace and point the autoscaler at it.
+    The namespace can now be left out entirely, ``datadogmetric@<name>`` is a valid
+    reference that resolves in the autoscaler's namespace.
+security:
+  - |
+    The Cluster Agent external metrics provider now resolves ``datadogmetric@`` references
+    in the namespace of the requesting object rather than the namespace embedded in the
+    metric name. Previously, a workload could read the value of a ``DatadogMetric`` owned by
+    another namespace, and keep that ``DatadogMetric`` active so that its Datadog queries
+    kept running.

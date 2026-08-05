@@ -11,11 +11,19 @@ package netns
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -24,10 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/vishvananda/netlink"
 )
 
 var (
@@ -36,6 +40,24 @@ var (
 	// flushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
 	flushNamespacesPeriod = 30 * time.Second
 )
+
+// linkListAttempts is the number of times an interface dump is retried. The kernel marks a dump it
+// could not keep consistent - the link table changed while it was being generated - and our netlink
+// fork reports that as EINTR; re-issuing the dump is the only way to recover from it. Beware that a
+// newer netlink reports it as ErrDumpInterrupted instead, which would stop this retry from firing.
+const linkListAttempts = 3
+
+func listLinks(sock *netlink.Handle) ([]netlink.Link, error) {
+	var links []netlink.Link
+	var err error
+
+	for range linkListAttempts {
+		if links, err = sock.LinkList(); !errors.Is(err, unix.EINTR) {
+			break
+		}
+	}
+	return links, err
+}
 
 // Resolver is used to store namespace handles
 type Resolver struct {
@@ -47,6 +69,7 @@ type Resolver struct {
 
 	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
 	tcRequests        chan TcClassifierRequest
+	errorCounters     map[string]*atomic.Int64
 	ctx               context.Context
 	wg                sync.WaitGroup
 }
@@ -60,6 +83,8 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 		tcRequests: make(chan TcClassifierRequest, 16),
 		ctx:        context.Background(),
+
+		errorCounters: newErrorCounters(),
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
@@ -94,7 +119,7 @@ func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NSPath
 	nr.Unlock()
 
 	if isNew && netns != nil {
-		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(netns)
 	}
 
@@ -113,7 +138,7 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 	nr.Unlock()
 
 	if isNew && netns != nil {
-		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(netns)
 	}
 
@@ -193,13 +218,15 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 
 	ntl, err := nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 	if err != nil {
+		nr.countError(errorClassNetlinkSocket)
 		seclog.Errorf("couldn't open netlink socket: %s", err)
 		return 0
 	}
 
-	links, err := ntl.Sock.LinkList()
+	links, err := listLinks(ntl.Sock)
 	if err != nil {
-		seclog.Errorf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
+		nr.countError(errorClassLinkList)
+		seclog.Debugf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
 		return 0
 	}
 
@@ -222,7 +249,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 				attachedDeviceCountNoLazyDeletion++
 			}
 		} else {
-			seclog.Errorf("error setting up new tc classifier on snapshot: %v", err)
+			nr.reportTCClassifierError(err, device)
 		}
 	}
 
@@ -294,7 +321,7 @@ func (nr *Resolver) SyncCache() bool {
 	nr.Unlock()
 
 	for _, entry := range newEntries {
-		entry.netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		entry.netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(entry.netns)
 	}
 
@@ -488,6 +515,8 @@ func (nr *Resolver) SendStats() error {
 	if lonelyNetworkNamespacesCount > 0 {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, lonelyNetworkNamespacesCount, []string{}, 1.0)
 	}
+
+	nr.sendErrorStats()
 	return nil
 }
 
@@ -573,7 +602,7 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 
 			ntl, err = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 			if err == nil {
-				links, err = ntl.Sock.LinkList()
+				links, err = listLinks(ntl.Sock)
 				if err == nil {
 					for _, link := range links {
 						netnsDump.Devices = append(netnsDump.Devices, NetworkDeviceDump{
