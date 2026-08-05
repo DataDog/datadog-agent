@@ -393,6 +393,11 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			expectedMetricSource: metrics.MetricSourcePostgres,
 		},
 		{
+			name:                 "checkid nccl:1 should have MetricSourceGPU",
+			checkID:              "nccl:1",
+			expectedMetricSource: metrics.MetricSourceGPU,
+		},
+		{
 			name:                 "checkid tls:1 should have MetricSourceTLS",
 			checkID:              "tls:1",
 			expectedMetricSource: metrics.MetricSourceTLS,
