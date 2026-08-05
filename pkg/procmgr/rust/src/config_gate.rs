@@ -453,10 +453,15 @@ fn legacy_enabled_mode(value: &serde_yaml::Value) -> Option<ProcessEnabledMode> 
 }
 
 fn legacy_enabled_mode_from_string(text: &str) -> ProcessEnabledMode {
-    match text.trim().to_ascii_lowercase().as_str() {
-        "disabled" => ProcessEnabledMode::Disabled,
-        "true" | "1" | "t" | "yes" | "y" | "on" => ProcessEnabledMode::ProcessesOnly,
-        _ => ProcessEnabledMode::ContainersOnly,
+    // Mirror loadProcessTransforms: ToLower without trim; exact "disabled" match;
+    // ParseBool for the true branch; everything else is containers-only.
+    let lower = text.to_ascii_lowercase();
+    if lower == "disabled" {
+        ProcessEnabledMode::Disabled
+    } else if parse_agent_bool_string(&lower).unwrap_or(false) {
+        ProcessEnabledMode::ProcessesOnly
+    } else {
+        ProcessEnabledMode::ContainersOnly
     }
 }
 
@@ -1177,6 +1182,37 @@ process_config:
                 dir.path(),
                 "datadog.yaml",
                 "process_config:\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_env_whitespace_padded_disabled_enables_container_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", " disabled ");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_yaml_whitespace_padded_disabled_enables_container_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: \" disabled \"\n  process_discovery:\n    enabled: false\n",
             );
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
