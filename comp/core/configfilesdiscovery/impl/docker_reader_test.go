@@ -301,61 +301,65 @@ func TestDockerReaderReadEnvVarsSurfacesGetEnvErrors(t *testing.T) {
 	assert.Equal(t, []string{"container-id"}, client.getEnvCalls)
 }
 
-func TestDockerReaderReadRuntimeCommandlineReturnsTargetCommandline(t *testing.T) {
-	client := &fakeDockerClient{
-		commandPath: "/usr/local/bin/redis-server",
-		commandArgs: []string{
-			"/usr/local/etc/redis/redis.conf",
-			"--loglevel",
-			"warning",
+func TestDockerReaderReadRuntimeCommandline(t *testing.T) {
+	tests := []struct {
+		name        string
+		commandPath string
+		commandArgs []string
+		workingDir  string
+		want        TargetCommandline
+	}{
+		{
+			name:        "command and working directory",
+			commandPath: "/usr/local/bin/redis-server",
+			commandArgs: []string{
+				"/usr/local/etc/redis/redis.conf",
+				"--loglevel",
+				"warning",
+			},
+			workingDir: "/usr/local/etc/redis",
+			want: TargetCommandline{
+				Args: []string{
+					"/usr/local/bin/redis-server",
+					"/usr/local/etc/redis/redis.conf",
+					"--loglevel",
+					"warning",
+				},
+				WorkingDir: "/usr/local/etc/redis",
+			},
 		},
-		workingDir: "/usr/local/etc/redis",
-	}
-	reader := &dockerConfigReader{containerID: "container-id", client: client}
-
-	commandline, err := reader.ReadRuntimeCommandline(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{
-		Args: []string{
-			"/usr/local/bin/redis-server",
-			"/usr/local/etc/redis/redis.conf",
-			"--loglevel",
-			"warning",
+		{
+			name:        "empty command path",
+			commandArgs: []string{"redis-server"},
+			want:        TargetCommandline{Args: []string{"redis-server"}, WorkingDir: "/"},
 		},
-		WorkingDir: "/usr/local/etc/redis",
-	}, commandline)
-	assert.Equal(t, []string{"container-id"}, client.getCommandlineCalls)
-}
-
-func TestDockerReaderReadRuntimeCommandlineAllowsEmptyCommandPath(t *testing.T) {
-	client := &fakeDockerClient{
-		commandArgs: []string{"redis-server"},
-	}
-	reader := &dockerConfigReader{containerID: "container-id", client: client}
-
-	commandline, err := reader.ReadRuntimeCommandline(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{Args: []string{"redis-server"}, WorkingDir: "/"}, commandline)
-}
-
-func TestDockerReaderReadRuntimeCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) {
-	client := &fakeDockerClient{
-		commandPath: "redis-server",
-		commandArgs: []string{
-			"redis.conf",
+		{
+			name:        "empty working directory",
+			commandPath: "redis-server",
+			commandArgs: []string{"redis.conf"},
+			want: TargetCommandline{
+				Args:       []string{"redis-server", "redis.conf"},
+				WorkingDir: "/",
+			},
 		},
 	}
-	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	commandline, err := reader.ReadRuntimeCommandline(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeDockerClient{
+				commandPath: tt.commandPath,
+				commandArgs: tt.commandArgs,
+				workingDir:  tt.workingDir,
+			}
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{
-		Args:       []string{"redis-server", "redis.conf"},
-		WorkingDir: "/",
-	}, commandline)
+			commandline, err := reader.ReadRuntimeCommandline(context.Background())
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, commandline)
+			assert.Equal(t, []string{"container-id"}, client.getCommandlineCalls)
+		})
+	}
 }
 
 func TestDockerReaderReadRuntimeCommandlineSurfacesGetCommandlineErrors(t *testing.T) {

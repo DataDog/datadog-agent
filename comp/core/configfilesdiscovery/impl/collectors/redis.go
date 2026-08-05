@@ -27,12 +27,15 @@ func NewRedis() configfilesdiscoveryimpl.ConfigCollector {
 	return redisConfigCollector{}
 }
 
-// MatchesCommandline returns whether the command line contains an explicit
-// Redis config argument. Path resolution is deferred until collection because
-// workloadmeta process events may not include the working directory.
-func (redisConfigCollector) MatchesCommandline(args []string) bool {
-	_, ok := redisGetConfigArgFromCommandline(args)
-	return ok
+// CanCollectFromProcess returns whether the command line contains an explicit,
+// resolvable Redis config path.
+func (redisConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
+	configArg, ok := redisGetConfigArgFromCommandline(commandline.Args)
+	if !ok {
+		return false
+	}
+	_, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+	return resolved
 }
 
 func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {

@@ -154,26 +154,28 @@ func TestKafkaGetConfigPath(t *testing.T) {
 	}
 }
 
-func TestKafkaCollectorMatchesAndReadsRelativeProcessConfig(t *testing.T) {
+func TestKafkaCollectorResolvesAndReadsRelativeProcessConfig(t *testing.T) {
 	eventArgs := []string{"kafka-server-start.sh", "config/server.properties"}
+	eventCommandline := configfilesdiscoveryimpl.TargetCommandline{
+		Args:       eventArgs,
+		WorkingDir: "/opt/kafka",
+	}
 	reader := &kafkaCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
 		},
-		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
-			Args:       eventArgs,
-			WorkingDir: "/opt/kafka",
-		}},
-		file: configfilesdiscoveryimpl.ConfigFile{Path: "/opt/kafka/config/server.properties"},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{eventCommandline},
+		file:                    configfilesdiscoveryimpl.ConfigFile{Path: "/opt/kafka/config/server.properties"},
 	}
 
-	configArg, matched := kafkaGetConfigArgFromCommandline(eventArgs)
-	require.True(t, matched)
-	_, resolved := resolveConfigPath(configArg, "")
-	assert.False(t, resolved)
-	require.True(t, kafkaConfigCollector{}.MatchesCommandline(eventArgs))
+	collector := kafkaConfigCollector{}
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{Args: eventArgs}))
+	assert.True(t, collector.CanCollectFromProcess(eventCommandline))
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"kafka-server-start.sh", "/etc/kafka/server.properties"},
+	}))
 
-	collected, err := kafkaConfigCollector{}.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/opt/kafka/config/server.properties"}, reader.readFileCalls)

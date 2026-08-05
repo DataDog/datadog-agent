@@ -74,8 +74,8 @@ type configReaderFactory func(target) (ConfigReader, error)
 
 // ConfigCollector reads integration-specific config data through a collector reader.
 type ConfigCollector interface {
-	// MatchesCommandline returns whether a process command line can identify this integration's config file.
-	MatchesCommandline([]string) bool
+	// CanCollectFromProcess returns whether the collector can use the process command line for collection.
+	CanCollectFromProcess(TargetCommandline) bool
 	Collect(context.Context, ConfigReader) (CollectedConfig, error)
 }
 

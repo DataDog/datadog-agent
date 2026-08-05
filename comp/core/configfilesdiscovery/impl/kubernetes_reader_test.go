@@ -248,10 +248,15 @@ func TestKubernetesReaderReadEnvVarsSurfacesSpecErrors(t *testing.T) {
 	assert.Equal(t, []string{"container-id"}, client.specCalls)
 }
 
-func TestKubernetesReaderReadRuntimeCommandlineReturnsTargetCommandline(t *testing.T) {
-	client := &fakeKubernetesClient{
-		spec: &containerdoci.Spec{
-			Process: &specs.Process{
+func TestKubernetesReaderReadRuntimeCommandline(t *testing.T) {
+	tests := []struct {
+		name    string
+		process *specs.Process
+		want    TargetCommandline
+	}{
+		{
+			name: "command and working directory",
+			process: &specs.Process{
 				Args: []string{
 					"/usr/local/bin/redis-server",
 					"/usr/local/etc/redis/redis.conf",
@@ -260,52 +265,44 @@ func TestKubernetesReaderReadRuntimeCommandlineReturnsTargetCommandline(t *testi
 				},
 				Cwd: "/usr/local/etc/redis",
 			},
-		},
-	}
-	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
-
-	commandline, err := reader.ReadRuntimeCommandline(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{
-		Args: []string{
-			"/usr/local/bin/redis-server",
-			"/usr/local/etc/redis/redis.conf",
-			"--loglevel",
-			"warning",
-		},
-		WorkingDir: "/usr/local/etc/redis",
-	}, commandline)
-	assert.Equal(t, []string{"container-id"}, client.specCalls)
-}
-
-func TestKubernetesReaderReadRuntimeCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) {
-	client := &fakeKubernetesClient{
-		spec: &containerdoci.Spec{
-			Process: &specs.Process{
-				Args: []string{"redis-server", "redis.conf"},
+			want: TargetCommandline{
+				Args: []string{
+					"/usr/local/bin/redis-server",
+					"/usr/local/etc/redis/redis.conf",
+					"--loglevel",
+					"warning",
+				},
+				WorkingDir: "/usr/local/etc/redis",
 			},
 		},
+		{
+			name:    "empty working directory",
+			process: &specs.Process{Args: []string{"redis-server", "redis.conf"}},
+			want: TargetCommandline{
+				Args:       []string{"redis-server", "redis.conf"},
+				WorkingDir: "/",
+			},
+		},
+		{
+			name: "missing process",
+			want: TargetCommandline{WorkingDir: "/"},
+		},
 	}
-	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-	commandline, err := reader.ReadRuntimeCommandline(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{
+				spec: &containerdoci.Spec{Process: tt.process},
+			}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{
-		Args:       []string{"redis-server", "redis.conf"},
-		WorkingDir: "/",
-	}, commandline)
-}
+			commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
-func TestKubernetesReaderReadRuntimeCommandlineHandlesMissingProcess(t *testing.T) {
-	client := &fakeKubernetesClient{spec: &containerdoci.Spec{}}
-	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
-
-	commandline, err := reader.ReadRuntimeCommandline(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{WorkingDir: "/"}, commandline)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, commandline)
+			assert.Equal(t, []string{"container-id"}, client.specCalls)
+		})
+	}
 }
 
 func TestKubernetesReaderReadRuntimeCommandlineSurfacesSpecErrors(t *testing.T) {

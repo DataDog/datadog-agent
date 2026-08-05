@@ -26,13 +26,15 @@ func NewKafka() configfilesdiscoveryimpl.ConfigCollector {
 	return kafkaConfigCollector{}
 }
 
-// MatchesCommandline returns whether the command line contains an explicit
-// Kafka broker properties argument. Path resolution is deferred until
-// collection because workloadmeta process events may not include the working
-// directory.
-func (kafkaConfigCollector) MatchesCommandline(args []string) bool {
-	_, ok := kafkaGetConfigArgFromCommandline(args)
-	return ok
+// CanCollectFromProcess returns whether the command line contains an explicit,
+// resolvable Kafka broker properties path.
+func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
+	configArg, ok := kafkaGetConfigArgFromCommandline(commandline.Args)
+	if !ok {
+		return false
+	}
+	_, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+	return resolved
 }
 
 func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
