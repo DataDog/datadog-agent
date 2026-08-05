@@ -41,7 +41,7 @@ go_test(
     name = "installer_test",
     srcs = ["main_test.go"],
     embed = [":installer_lib"],
-    gotags = sorted(["test"] + list(INSTALLER_TAGS)),
+    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/commands",
         "@com_github_spf13_cobra//:cobra",
