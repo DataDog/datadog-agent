@@ -9,7 +9,6 @@ go_library(
         "//comp/kubeactions/kubeactions/def",
         "//comp/kubeactions/kubeactions/impl",
         "//pkg/util/fxutil",
-        "//pkg/util/kubernetes/apiserver",
         "@org_uber_go_fx//:fx",
     ],
 )

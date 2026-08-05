@@ -61,7 +61,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// lookup logged and continued). An empty cluster ID only means EVP events omit
 	// cluster_id; the reporter is otherwise nil-safe.
 	var clusterID string
-	if coreCl, ok := reqs.APIClient.Cl.CoreV1().(*corev1.CoreV1Client); !ok {
+	if reqs.APIClient == nil {
+		// The apiserver client is provided by the shared kubeactions bundle and is
+		// nil when the private action runner is disabled. kubeactions does nothing
+		// useful in that case, so just continue without a cluster ID.
+		reqs.Log.Warnf("kubeactions: apiserver client unavailable (private action runner disabled?), continuing without cluster ID")
+	} else if coreCl, ok := reqs.APIClient.Cl.CoreV1().(*corev1.CoreV1Client); !ok {
 		reqs.Log.Warnf("kubeactions: unexpected CoreV1 client type %T; continuing without cluster ID", reqs.APIClient.Cl.CoreV1())
 	} else if id, cidErr := common.GetOrCreateClusterID(coreCl); cidErr != nil {
 		reqs.Log.Warnf("kubeactions: get cluster ID failed, continuing without it: %v", cidErr)
