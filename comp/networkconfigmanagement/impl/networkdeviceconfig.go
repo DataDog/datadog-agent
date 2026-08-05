@@ -180,7 +180,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	}
 	errTypes := make([]types.ErrorType, 0, len(nonBlockingErrors))
 	for _, nbErr := range nonBlockingErrors {
-		errTypes = append(errTypes, types.AsRollbackError(nbErr).Type())
+		errTypes = append(errTypes, types.AsTypedError(nbErr).Type())
 	}
 	sender.SendNCMCheckFailure(errTypes...)
 	sender.SendNCMCheckMetrics(startTime, dc.lastReportTime, false)
@@ -207,7 +207,7 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 }
 
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
-func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, types.RollbackError) {
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, types.TypedError) {
 	log := LoggerFromContext(ctx)
 	conn, err := n.connect(dc.device)
 	if err != nil {

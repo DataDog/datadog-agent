@@ -184,7 +184,7 @@ func (c *SSHConnector) Connect() (Connection, error) {
 	}, nil
 }
 
-func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*types.PushResult, types.RollbackError) {
+func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*types.PushResult, types.TypedError) {
 
 	if c.prof == nil {
 		return nil, types.WrapErrorf(types.ErrNoProfile, "no device type provided for %q", c.device.IPAddress)

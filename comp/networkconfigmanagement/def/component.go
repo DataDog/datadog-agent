@@ -28,7 +28,7 @@ type Component interface {
 	ReportConfig(ctx context.Context, deviceID string, sender sender.Sender) error
 	// RollbackConfig rolls back a device to a previous configuration that's
 	// saved locally on this agent.
-	RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (*types.PushResult, types.RollbackError)
+	RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (*types.PushResult, types.TypedError)
 	// SetMaxReportInterval sets a maximum time to wait between sending
 	// inventory reports.
 	SetMaxReportInterval(interval time.Duration)
