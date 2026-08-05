@@ -6171,14 +6171,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-          cusum:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           holt_residual:
             node_type: section
             type: object
