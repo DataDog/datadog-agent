@@ -38,10 +38,10 @@ type RegisterRemoteAgentRequest struct {
 	// MUST expose the `RemoteAgent` service, and MUST specify the scheme of the transport.
 	//
 	// Supported schemes:
-	// - "https://host:port" for TCP with TLS (recommended for network endpoints).
-	// - "unix:///absolute/path" for Unix domain socket with TLS.
-	// - "vsock://cid:port" for AF_VSOCK with TLS (used when the remote agent and core agent
-	//   run in separate VMs, e.g. on kata/microVM clusters).
+	//   - "https://host:port" for TCP with TLS (recommended for network endpoints).
+	//   - "unix:///absolute/path" for Unix domain socket with TLS.
+	//   - "vsock://cid:port" for AF_VSOCK with TLS (used when the remote agent and core agent
+	//     run in separate VMs, e.g. on kata/microVM clusters).
 	//
 	// SHOULD present a valid certificate where possible.
 	ApiEndpointUri string `protobuf:"bytes,4,opt,name=api_endpoint_uri,json=apiEndpointUri,proto3" json:"api_endpoint_uri,omitempty"`
