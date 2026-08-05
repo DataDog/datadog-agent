@@ -110,7 +110,7 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushResult, types.RollbackError) {
+func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("not implemented"))
 }
 

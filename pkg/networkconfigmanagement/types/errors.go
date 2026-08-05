@@ -35,62 +35,62 @@ const (
 	ErrReportConfigFailed ErrorType = "report_config_failed" // rollback succeeded but something went wrong trying to fetch the configuration afterwards
 )
 
-// RollbackError is an error that exposes an ErrorType
-type RollbackError interface {
+// TypedError is an error that exposes an ErrorType
+type TypedError interface {
 	error
 	Type() ErrorType
 }
 
-// rollbackWrapper wraps an existing error with an ErrorType
-type rollbackWrapper struct {
+// typedWrapper wraps an existing error with an ErrorType
+type typedWrapper struct {
 	errType ErrorType
 	wrapped error
 }
 
-func (re *rollbackWrapper) Type() ErrorType {
-	return re.errType
+func (tw *typedWrapper) Type() ErrorType {
+	return tw.errType
 }
 
-func (re *rollbackWrapper) Error() string {
-	return re.wrapped.Error()
+func (tw *typedWrapper) Error() string {
+	return tw.wrapped.Error()
 }
 
-func (re *rollbackWrapper) Unwrap() error {
-	return re.wrapped
+func (tw *typedWrapper) Unwrap() error {
+	return tw.wrapped
 }
 
-// WrapError wraps an error in a RollbackError
-func WrapError(etype ErrorType, err error) RollbackError {
-	return &rollbackWrapper{
+// WrapError wraps an error in a TypedError
+func WrapError(etype ErrorType, err error) TypedError {
+	return &typedWrapper{
 		errType: etype,
 		wrapped: err,
 	}
 }
 
 // WrapErrorf is shorthand for WrapError(etype, fmt.Errorf(...))
-func WrapErrorf(etype ErrorType, msg string, args ...any) RollbackError {
+func WrapErrorf(etype ErrorType, msg string, args ...any) TypedError {
 	return WrapError(etype, fmt.Errorf(msg, args...))
 }
 
 var RollbackDisabled = WrapErrorf(ErrDisabled, "rollback is disabled")
 
 // InternalError is a shorthand for wrapping an error with ErrInternal
-func InternalError(err error) RollbackError {
+func InternalError(err error) TypedError {
 	return WrapError(ErrInternal, err)
 }
 
-// AsRollbackError is a no-op if error is nil or already a RollbackError,
+// AsTypedError is a no-op if error is nil or already a TypedError,
 // otherwise it wraps it with ErrInternal.
-func AsRollbackError(err error) RollbackError {
+func AsTypedError(err error) TypedError {
 	// no error -> ok
 	if err == nil {
 		return nil
 	}
-	// already a rollback error -> nothing to do
-	if rberr, ok := errors.AsType[RollbackError](err); ok {
-		return rberr
+	// already a typed error -> nothing to do
+	if terr, ok := errors.AsType[TypedError](err); ok {
+		return terr
 	}
-	// not a RollbackError -> wrap with InternalError
+	// not a TypedError -> wrap with InternalError
 	return InternalError(err)
 
 }

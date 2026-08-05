@@ -51,7 +51,7 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 }
 
 // RollbackConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 
