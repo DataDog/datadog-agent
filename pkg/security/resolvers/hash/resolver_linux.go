@@ -26,6 +26,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -128,6 +129,14 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		return &Resolver{}, nil
 	}
 
+	hashAlgorithms := slices.Clone(c.HashResolverHashAlgorithms)
+	if fips.BuiltForFIPS() {
+		// sha1 is removed from the list because it's not a FIPS-approved hash algorithm
+		hashAlgorithms = slices.DeleteFunc(hashAlgorithms, func(algorithm model.HashAlgorithm) bool {
+			return algorithm == model.SHA1
+		})
+	}
+
 	var cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
 	var ssdeepCache *lru.Cache[SSDeepCacheKey, *SSDeepCacheEntry]
 	if c.HashResolverCacheSize > 0 {
@@ -137,7 +146,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 			return nil, fmt.Errorf("couldn't create hash resolver cache: %w", err)
 		}
 		// Create a separate cache for ssdeep hashes only if ssdeep algorithm is enabled
-		if slices.Contains(c.HashResolverHashAlgorithms, model.SSDEEP) {
+		if slices.Contains(hashAlgorithms, model.SSDEEP) {
 			ssdeepCache, err = lru.New[SSDeepCacheKey, *SSDeepCacheEntry](c.HashResolverCacheSize)
 			if err != nil {
 				return nil, fmt.Errorf("couldn't create ssdeep cache: %w", err)
@@ -158,7 +167,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		opts: ResolverOpts{
 			Enabled:        true,
 			MaxFileSize:    c.HashResolverMaxFileSize,
-			HashAlgorithms: sortAlgorithmsByCost(c.HashResolverHashAlgorithms),
+			HashAlgorithms: sortAlgorithmsByCost(hashAlgorithms),
 			EventTypes:     c.HashResolverEventTypes,
 		},
 		cgroupResolver: cgroupResolver,
