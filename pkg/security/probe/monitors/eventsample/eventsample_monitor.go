@@ -55,6 +55,7 @@ func (m *Monitor) SendStats() error {
 			continue
 		}
 
+		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
 			statsByEventType[eventType].EventsTotal += stat.EventsTotal
 			statsByEventType[eventType].EventsSampled += stat.EventsSampled

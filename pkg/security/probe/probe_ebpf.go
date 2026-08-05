@@ -169,6 +169,7 @@ type EBPFProbe struct {
 	useRingBuffers     bool
 	useMmapableMaps    bool
 	cgroup2MountPath   string
+
 	// On demand1
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter

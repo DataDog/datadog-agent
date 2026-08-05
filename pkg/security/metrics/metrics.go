@@ -599,15 +599,13 @@ var (
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
 
-<<<<<<< HEAD
 	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
 	// Tags: -
 	MetricSamplingPressureLevel = newRuntimeMetric(".event_sample.pressure_level")
-=======
+
 	// MetricRawPacketDropped is the name of the metric used to count packets dropped by network_filter actions
 	// Tags: rule_id
 	MetricRawPacketDropped = newRuntimeMetric(".network.raw_packet.dropped")
->>>>>>> main
 )
 
 var (

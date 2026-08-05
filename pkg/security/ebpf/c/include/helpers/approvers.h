@@ -97,20 +97,16 @@ static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8
             }
 
             if (pressure_pct > SAMPLING_PRESSURE_CRITICAL) {
-                bpf_printk("sampling_admission: REJECT limiter=%u pressure=%u%% > critical", limiter_key, pressure_pct);
                 return 0;
             }
             if (pressure_pct < threshold) {
-                bpf_printk("sampling_admission: BYPASS limiter=%u pressure=%u%% < threshold=%u%%", limiter_key, pressure_pct, threshold);
                 return 1;
             }
         }
     }
 #endif
 
-    u8 allowed = (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
-    bpf_printk("sampling_admission: RATE_LIMIT limiter=%u threshold=%u%% allowed=%u", limiter_key, threshold, allowed);
-    return allowed;
+    return (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bind_connect_sample_key_t *key, u32 *out_cookie, u32 *out_refresh_needed) {
