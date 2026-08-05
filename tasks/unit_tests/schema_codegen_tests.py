@@ -1,5 +1,6 @@
 import filecmp
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -83,7 +84,7 @@ class TestCodegenInitSettings(unittest.TestCase):
                 "describe": "map with split lines",
                 "split_lines": True,
                 "input": "{'a': 'apple', 'b': 'banana'}",
-                "expect": "{\n\"a\": \"apple\",\n \"b\": \"banana\",\n}",
+                "expect": "{\n\t\t\"a\": \"apple\",\n\t\t\"b\": \"banana\",\n\t}",
             },
         ]
         for c in cases:
@@ -135,6 +136,10 @@ class TestGenerateConst(unittest.TestCase):
     def _setting(default, const, type_='string'):
         return {'node_type': 'setting', 'type': type_, 'default': default, 'tags': [f'generate_const:{const}']}
 
+    @staticmethod
+    def _outputs():
+        return {name: [] for name in codegen.constant_outputs}
+
     def test_dedup_agreeing_refs_across_schemas(self):
         # DefaultSite is referenced by two core settings and one system-probe setting, all agreeing.
         core = {
@@ -160,16 +165,19 @@ class TestGenerateConst(unittest.TestCase):
                 }
             }
         }
-        core_out, sysprobe_out = [], []
-        codegen.gen_generate_const(core, sysprobe, core_out, sysprobe_out)
+        outputs = self._outputs()
+        codegen.gen_generate_const(core, sysprobe, outputs)
 
-        src = '\n'.join(core_out)
+        # The constants live in their own package, not in the `setup` ones.
+        src = '\n'.join(outputs['constants'])
+        # Remove white space added by codegen's formatter
+        contents = re.sub(' +', ' ', src)
         # DefaultSite is emitted exactly once despite three references, and the block is valid Go.
-        self.assertEqual(src.count('DefaultSite ='), 1)
-        self.assertIn('DefaultSecurityAgentCmdPort = 5010', src)
-        self.assertIn('DefaultSite = "datadoghq.com"', src)
-        self.assertEqual(sysprobe_out, [])
-        codegen.gofmt('package setup\n' + src)  # must be gofmt-able (valid Go)
+        self.assertEqual(contents.count('DefaultSite ='), 1)
+        self.assertIn('DefaultSecurityAgentCmdPort = 5010', contents)
+        self.assertIn('DefaultSite = "datadoghq.com"', contents)
+        self.assertEqual(outputs['core'], [])
+        self.assertEqual(outputs['system_probe'], [])
 
     def test_conflicting_defaults_raise(self):
         # Same constant tagged on two settings with different defaults must fail codegen.
@@ -180,14 +188,14 @@ class TestGenerateConst(unittest.TestCase):
             }
         }
         with self.assertRaises(RuntimeError) as ctx:
-            codegen.gen_generate_const(core, {'properties': {}}, [], [])
+            codegen.gen_generate_const(core, {'properties': {}}, self._outputs())
         self.assertIn('DefaultAuditorTTL', str(ctx.exception))
 
     def test_no_tags_emits_nothing(self):
         core = {'properties': {'a': {'node_type': 'setting', 'type': 'string', 'default': 'x'}}}
-        core_out = []
-        codegen.gen_generate_const(core, {'properties': {}}, core_out, [])
-        self.assertEqual(core_out, [])
+        outputs = self._outputs()
+        codegen.gen_generate_const(core, {'properties': {}}, outputs)
+        self.assertEqual(outputs, self._outputs())
 
 
 if __name__ == "__main__":
