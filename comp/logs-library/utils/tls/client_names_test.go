@@ -22,14 +22,20 @@ func TestNewClientNameMatcher(t *testing.T) {
 		assert.True(t, newClientNameMatcher([]string{}).empty())
 	})
 
-	// A trailing comma in a comma-separated list produces a blank entry, which
-	// must not become an unmatchable name.
 	t.Run("blank entries are dropped", func(t *testing.T) {
 		assert.True(t, newClientNameMatcher([]string{"", "   "}).empty())
 
 		m := newClientNameMatcher([]string{"relay.example.com", "  "})
 		assert.False(t, m.empty())
 		assert.Equal(t, []string{"relay.example.com"}, m.configured)
+	})
+
+	// Certificates may carry an empty subject alternative name. A blank entry
+	// that survived into the matcher would authorize any such certificate.
+	t.Run("blank entry does not authorize an empty subject alternative name", func(t *testing.T) {
+		m := newClientNameMatcher([]string{"relay.example.com", ""})
+		assert.Error(t, m.verify(&x509.Certificate{DNSNames: []string{""}}))
+		assert.Error(t, m.verify(&x509.Certificate{EmailAddresses: []string{""}}))
 	})
 
 	t.Run("surrounding whitespace is ignored", func(t *testing.T) {
@@ -67,11 +73,33 @@ func TestClientNameMatcherVerify(t *testing.T) {
 		})
 	}
 
-	// DNS names and mail addresses are not case-sensitive, and operators should
-	// not have to match the CA's capitalization exactly.
-	t.Run("matching is case-insensitive", func(t *testing.T) {
+	// DNS names and the common name are compared without regard to case, so
+	// operators need not match the CA's capitalization exactly.
+	t.Run("dns and common name matching is case-insensitive", func(t *testing.T) {
 		assert.NoError(t, newClientNameMatcher([]string{"RELAY.EXAMPLE.COM"}).verify(cert))
 		assert.NoError(t, newClientNameMatcher([]string{"Relay-1"}).verify(cert))
+	})
+
+	// Only the scheme and authority of a URI are case-insensitive. Folding the
+	// path would let one SPIFFE workload identity authorize a different one.
+	t.Run("uri paths are case-sensitive", func(t *testing.T) {
+		assert.Error(t, newClientNameMatcher([]string{"spiffe://example.com/Relay"}).verify(cert))
+		assert.NoError(t, newClientNameMatcher([]string{"spiffe://example.com/relay"}).verify(cert))
+	})
+
+	// RFC 5321 leaves the local part case-sensitive while the domain is not.
+	t.Run("only the mail domain is case-insensitive", func(t *testing.T) {
+		mailOnly := &x509.Certificate{EmailAddresses: []string{"relay@example.com"}}
+		assert.NoError(t, newClientNameMatcher([]string{"relay@EXAMPLE.COM"}).verify(mailOnly))
+		assert.Error(t, newClientNameMatcher([]string{"Relay@example.com"}).verify(mailOnly))
+	})
+
+	// A certificate always presents its canonical form, so an operator writing
+	// an uncompressed address should not be silently locked out.
+	t.Run("ip entries are compared in canonical form", func(t *testing.T) {
+		v6 := &x509.Certificate{IPAddresses: []net.IP{net.ParseIP("fe80::1")}}
+		assert.NoError(t, newClientNameMatcher([]string{"FE80:0:0:0:0:0:0:1"}).verify(v6))
+		assert.Error(t, newClientNameMatcher([]string{"fe80::2"}).verify(v6))
 	})
 
 	t.Run("unlisted identity is rejected", func(t *testing.T) {
