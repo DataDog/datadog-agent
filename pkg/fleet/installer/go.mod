@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/fleet/installer
 
-go 1.25.0
+go 1.25.4
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
@@ -9,13 +9,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2
+	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.19.0
 	github.com/google/go-containerregistry v0.21.7
 	github.com/google/uuid v1.6.0
-	github.com/itchyny/gojq v0.12.19
 	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -38,7 +38,6 @@ require (
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/itchyny/timefmt-go v0.1.8 // indirect
 	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

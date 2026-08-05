@@ -7,12 +7,13 @@ go_library(
         "config.go",
         "config_nix.go",
         "config_windows.go",
+        "jq.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/config",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_datadog_fastjq//:fastjq",
         "@com_github_evanphx_json_patch_v5//:json-patch",
-        "@com_github_itchyny_gojq//:gojq",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
@@ -120,10 +121,12 @@ dd_agent_go_test(
         "config_nix_test.go",
         "config_test.go",
         "config_windows_test.go",
+        "jq_test.go",
     ],
     embed = [":config"],
     deps = [
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
         "@rules_go//go/platform:windows": [

@@ -246,6 +246,7 @@ core,github.com/DataDog/ddtrivy/walker,Apache-2.0,"Copyright 2025-Present Datado
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
+core,github.com/DataDog/fastjq,Apache-2.0,"Copyright 2026-Present Datadog, Inc"
 core,github.com/DataDog/go-acl,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/DataDog/go-acl/api,MIT,Copyright (c) 2015 Nathan Osman
 core,github.com/DataDog/go-libddwaf/v4,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -1481,8 +1482,6 @@ core,github.com/iancoleman/strcase,MIT,"Copyright (c) 2015 Ian Coleman | Copyrig
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve (@inconshreveable)
 core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/ionos-cloud/sdk-go/v6,Apache-2.0,Copyright 2021 IONOS
-core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2026 itchyny
-core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2025 itchyny
 core,github.com/jackc/pgpassfile,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgservicefile,MIT,Copyright (c) 2020 Jack Christensen
 core,github.com/jackc/pgx/v5,MIT,Copyright (c) 2013-2021 Jack Christensen

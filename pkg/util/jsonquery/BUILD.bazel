@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//pkg/util/cache",
         "//pkg/util/log",
-        "@com_github_itchyny_gojq//:gojq",
+        "@com_github_datadog_fastjq//:fastjq",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
@@ -26,8 +26,9 @@ dd_agent_go_test(
     embed = [":jsonquery"],
     deps = [
         "//pkg/util/cache",
-        "@com_github_itchyny_gojq//:gojq",
+        "@com_github_datadog_fastjq//:fastjq",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

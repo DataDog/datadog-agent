@@ -1138,6 +1138,104 @@ func TestOperationApply_JQWithTypedArguments(t *testing.T) {
 	assert.Equal(t, map[any]any{"enabled": false}, updatedMap["apm_config"])
 }
 
+// TestOperationApply_JQPreservesNumbers checks that numbers survive the whole
+// YAML -> JSON -> jq -> JSON -> YAML round-trip: integers stay integers (rather than
+// being rendered as floats) and stay exact past float64's 2^53 limit.
+func TestOperationApply_JQPreservesNumbers(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("existing_big: 9007199254740993\nexisting_float: 1.5\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.from_arg = $big | .small = $small | .fractional = $fractional`,
+		Arguments:         json.RawMessage(`{"big": 9007199254740993, "small": 8, "fractional": 0.25}`),
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, 9007199254740993, updatedMap["existing_big"])
+	assert.Equal(t, 1.5, updatedMap["existing_float"])
+	assert.Equal(t, 9007199254740993, updatedMap["from_arg"])
+	assert.Equal(t, 8, updatedMap["small"])
+	assert.Equal(t, 0.25, updatedMap["fractional"])
+}
+
+// TestOperationApply_JQArgumentWithSpecialCharacters checks that an argument value
+// containing jq-significant characters is written out as the literal value.
+func TestOperationApply_JQArgumentWithSpecialCharacters(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	const value = `p@ss "word" \ | . 日本語`
+	arguments, err := json.Marshal(map[string]string{"api_key": value})
+	assert.NoError(t, err)
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.api_key = $api_key`,
+		Arguments:         arguments,
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.NoError(t, err)
+
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	var updatedMap map[string]any
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+	assert.Equal(t, value, updatedMap["api_key"])
+	assert.Equal(t, "bar", updatedMap["foo"])
+}
+
+// TestOperationApply_JQInvalidArgumentName checks that an argument name that cannot be a
+// jq variable is rejected instead of being silently dropped.
+func TestOperationApply_JQInvalidArgumentName(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	err := os.WriteFile(filePath, []byte("foo: bar\n"), 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationJQ,
+		FilePath:          "/datadog.yaml",
+		Transform:         `.foo = "baz"`,
+		Arguments:         json.RawMessage(`{"env-tag": "env:prod"}`),
+	}
+
+	err = op.apply(context.Background(), root)
+	assert.ErrorContains(t, err, "invalid jq argument name")
+
+	// The file must be left untouched when the transform cannot be compiled.
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+	assert.Equal(t, "foo: bar\n", string(updated))
+}
+
 func TestOperationApply_JQUndeclaredVariable(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")

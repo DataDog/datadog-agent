@@ -24,10 +24,105 @@ func TestYAMLExistQuery(t *testing.T) {
 	assert.False(t, exist)
 
 	exist, err = YAMLCheckExist(data("{\"ip_address\": \"127.0.0.50\"}"), ".ip_address")
-	assert.EqualError(t, err, "filter query must return a boolean: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `127.0.0.50` into bool")
+	assert.EqualError(t, err, `filter query must return a boolean, got "\"127.0.0.50\""`)
 	assert.False(t, exist)
 
 	exist, err = YAMLCheckExist(data("{}"), ".ip_address == \"127.0.0.99\"")
 	assert.NoError(t, err)
 	assert.False(t, exist)
+}
+
+func TestYAMLExistQueryBlockYAML(t *testing.T) {
+	instance := data(`
+host: localhost
+port: 8080
+tags:
+  - env:prod
+  - team:fleet
+tls:
+  verify: true
+`)
+
+	tests := []struct {
+		name   string
+		query  string
+		expect bool
+	}{
+		{name: "string equality", query: `.host == "localhost"`, expect: true},
+		{name: "numeric comparison", query: ".port > 1024", expect: true},
+		{name: "numeric comparison false", query: ".port < 1024", expect: false},
+		{name: "nested boolean", query: ".tls.verify", expect: true},
+		{name: "has on present key", query: `has("tags")`, expect: true},
+		{name: "has on absent key", query: `has("password")`, expect: false},
+		{name: "array membership", query: `.tags | index("env:prod") != null`, expect: true},
+		{name: "array membership absent", query: `.tags | index("env:dev") != null`, expect: false},
+		{name: "any over array", query: `any(.tags[]; startswith("team:"))`, expect: true},
+		{name: "missing key defaults", query: `(.password // "") == ""`, expect: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exist, err := YAMLCheckExist(instance, tt.query)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expect, exist)
+		})
+	}
+}
+
+func TestYAMLExistQueryErrors(t *testing.T) {
+	t.Run("invalid YAML", func(t *testing.T) {
+		exist, err := YAMLCheckExist(data("key: [unterminated"), ".key")
+		assert.Error(t, err)
+		assert.False(t, exist)
+	})
+
+	t.Run("invalid query", func(t *testing.T) {
+		exist, err := YAMLCheckExist(data("key: value"), ".%bad")
+		assert.Error(t, err)
+		assert.False(t, exist)
+	})
+
+	t.Run("runtime error", func(t *testing.T) {
+		// Indexing a string raises a jq runtime error.
+		exist, err := YAMLCheckExist(data("key: value"), ".key.nested")
+		assert.Error(t, err)
+		assert.False(t, exist)
+	})
+
+	t.Run("non-boolean output", func(t *testing.T) {
+		exist, err := YAMLCheckExist(data("key: 42"), ".key")
+		assert.EqualError(t, err, `filter query must return a boolean, got "42"`)
+		assert.False(t, exist)
+	})
+
+	t.Run("no output", func(t *testing.T) {
+		exist, err := YAMLCheckExist(data("key: value"), "empty")
+		assert.EqualError(t, err, `filter query must return a boolean, got ""`)
+		assert.False(t, exist)
+	})
+
+	t.Run("empty document", func(t *testing.T) {
+		// An empty instance normalizes to `null`, which jq indexes without erroring.
+		exist, err := YAMLCheckExist(data(""), `.host == "localhost"`)
+		assert.NoError(t, err)
+		assert.False(t, exist)
+	})
+}
+
+func BenchmarkYAMLCheckExist(b *testing.B) {
+	instance := data(`
+host: localhost
+port: 8080
+tags:
+  - env:prod
+  - team:fleet
+tls:
+  verify: true
+`)
+
+	for b.Loop() {
+		if _, err := YAMLCheckExist(instance, `.host == "localhost"`); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    The jq engine used to evaluate Autodiscovery instance filters and fleet
+    configuration ``jq`` transforms is now `fastjq
+    <https://github.com/DataDog/fastjq>`_ instead of ``gojq``.
+upgrade:
+  - |
+    ``jq`` comments (``# ...``) are no longer accepted in fleet configuration
+    ``jq`` transforms. Transforms that contain a comment are now rejected when
+    they are compiled, and the target configuration file is left unchanged.

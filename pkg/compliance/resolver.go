@@ -368,7 +368,7 @@ func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, par
 				err = yamlv2.Unmarshal(file.data, &content)
 			}
 			if err == nil {
-				content = jsonquery.NormalizeYAMLForGoJQ(content)
+				content = jsonquery.NormalizeYAMLForJQ(content)
 			}
 		case "json":
 			err = json.Unmarshal(file.data, &content)

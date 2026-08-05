@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx
 
-go 1.25.0
+go 1.25.4
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.83.0-devel.0.20260729075015-99ed037f1c29

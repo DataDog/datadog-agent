@@ -6,6 +6,7 @@
 package jsonquery
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
@@ -16,31 +17,32 @@ import (
 // Copyright (c) 2019-2021 itchyny
 // Workaround for https://github.com/go-yaml/yaml/issues/139
 
-// NormalizeYAMLForGoJQ normalizes output from YAML parsing to be gojq compatible
-func NormalizeYAMLForGoJQ(v interface{}) interface{} {
+// NormalizeYAMLForJQ normalizes output from YAML parsing so that it can be encoded as
+// the JSON a jq query runs against.
+func NormalizeYAMLForJQ(v interface{}) interface{} {
 	switch v := v.(type) {
 	case map[interface{}]interface{}:
 		w := make(map[string]interface{}, len(v))
 		for k, v := range v {
-			w[fmt.Sprint(k)] = NormalizeYAMLForGoJQ(v)
+			w[fmt.Sprint(k)] = NormalizeYAMLForJQ(v)
 		}
 		return w
 
 	case map[string]interface{}:
 		w := make(map[string]interface{}, len(v))
 		for k, v := range v {
-			w[k] = NormalizeYAMLForGoJQ(v)
+			w[k] = NormalizeYAMLForJQ(v)
 		}
 		return w
 
 	case []interface{}:
 		for i, w := range v {
-			v[i] = NormalizeYAMLForGoJQ(w)
+			v[i] = NormalizeYAMLForJQ(w)
 		}
 		return v
 
-	// go-yaml unmarshals timestamp string to time.Time but gojq cannot handle it.
-	// It is impossible to keep the original timestamp strings.
+	// go-yaml unmarshals timestamp strings to time.Time, which has no JSON scalar
+	// equivalent. It is impossible to keep the original timestamp strings.
 	case time.Time:
 		return v.Format(time.RFC3339)
 
@@ -55,11 +57,28 @@ func YAMLCheckExist(yamlData []byte, query string) (bool, error) {
 	if err := yaml.Unmarshal(yamlData, &yamlContent); err != nil {
 		return false, err
 	}
-	yamlContent = NormalizeYAMLForGoJQ(yamlContent)
-	output, _, err := RunSingleOutput(query, yamlContent)
-	var exist bool
-	if err := yaml.Unmarshal([]byte(output), &exist); err != nil {
-		return false, fmt.Errorf("filter query must return a boolean: %s", err)
+
+	program, err := Parse(query)
+	if err != nil {
+		return false, err
 	}
-	return exist, err
+
+	jsonData, err := marshalJSON(NormalizeYAMLForJQ(yamlContent))
+	if err != nil {
+		return false, err
+	}
+
+	output, found, err := runFirstOutput(program, jsonData)
+	if err != nil {
+		return false, err
+	}
+	if found {
+		switch {
+		case bytes.Equal(output, []byte("true")):
+			return true, nil
+		case bytes.Equal(output, []byte("false")):
+			return false, nil
+		}
+	}
+	return false, fmt.Errorf("filter query must return a boolean, got %q", output)
 }

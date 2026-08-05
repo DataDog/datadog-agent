@@ -17,12 +17,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
 	patch "github.com/evanphx/json-patch/v5"
-	"github.com/itchyny/gojq"
 	"go.yaml.in/yaml/v2"
 )
 
@@ -230,59 +228,30 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		parsed, err := gojq.Parse(a.Transform)
+		transform, err := newJQTransform(a.Transform, a.Arguments)
 		if err != nil {
-			return fmt.Errorf("failed to parse jq transform: %w", err)
+			return err
 		}
-		// Arguments are exposed to the transform as named jq variables ($name), keeping
-		// the transform a static program with its values supplied separately. gojq matches
-		// variable names to values by position, so iterate the sorted keys for both.
-		arguments := make(map[string]any)
-		if len(a.Arguments) > 0 {
-			if err := json.Unmarshal(a.Arguments, &arguments); err != nil {
-				return fmt.Errorf("failed to parse jq arguments: %w", err)
-			}
-		}
-		argNames := make([]string, 0, len(arguments))
-		for name := range arguments {
-			argNames = append(argNames, name)
-		}
-		sort.Strings(argNames)
-		variables := make([]string, len(argNames))
-		argValues := make([]any, len(argNames))
-		for i, name := range argNames {
-			variables[i] = "$" + name
-			argValues[i] = arguments[name]
-		}
-		code, err := gojq.Compile(parsed, gojq.WithVariables(variables))
+		// Run the transform over the normalized config.
+		outputs, err := transform.run(convertYAML2UnmarshalToJSONMarshallable(previous))
 		if err != nil {
-			return fmt.Errorf("failed to compile jq transform: %w", err)
+			return err
 		}
-		// Run the transform over the normalized config. It may yield any number of
-		// outputs; each one is written as its own YAML document so arbitrary
-		// transformations (including those producing multiple documents) are supported.
+		if len(outputs) == 0 {
+			return fmt.Errorf("jq transform %q produced no output", a.Transform)
+		}
+		// A transform may yield any number of outputs; each one is written as its own
+		// YAML document so arbitrary transformations (including those producing multiple
+		// documents) are supported.
 		var buf bytes.Buffer
 		encoder := yaml.NewEncoder(&buf)
-		iter := code.RunWithContext(ctx, convertYAML2UnmarshalToJSONMarshallable(previous), argValues...)
-		outputs := 0
-		for {
-			v, ok := iter.Next()
-			if !ok {
-				break
-			}
-			if err, ok := v.(error); ok {
-				return fmt.Errorf("failed to run jq transform: %w", err)
-			}
-			if err := encoder.Encode(v); err != nil {
+		for _, output := range outputs {
+			if err := encoder.Encode(output); err != nil {
 				return err
 			}
-			outputs++
 		}
 		if err := encoder.Close(); err != nil {
 			return err
-		}
-		if outputs == 0 {
-			return fmt.Errorf("jq transform %q produced no output", a.Transform)
 		}
 		err = file.Truncate(0)
 		if err != nil {
