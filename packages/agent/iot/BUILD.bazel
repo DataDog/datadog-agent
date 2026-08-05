@@ -35,14 +35,11 @@ pkg_files(
     renames = {"//cmd/iot-agent": "agent"},
 )
 
-# All components for the IoT agent, target state (consumed by //packages/iot).
-# Build with --//packages/agent:flavor=iot to activate the iot-specific selects in
-# //cmd/agent/dist/conf.d:all_files (IOT_AGENT_CORECHECKS instead of AGENT_CORECHECKS).
+# Everything that lands under /opt/datadog-agent (consumed by //packages/iot).
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":dirs",
-        ":example_config",
         ":iot_agent_binary",
     ] + select({
         # When we can build the iot-agent binary with bazel, replace that
