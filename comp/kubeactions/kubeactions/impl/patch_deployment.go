@@ -10,6 +10,7 @@ package kubeactionsimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,10 +76,19 @@ func applyUIDGuard(patchType types.PatchType, patch json.RawMessage, uid string)
 	if err := json.Unmarshal(patch, &obj); err != nil {
 		return nil, fmt.Errorf("invalid patch body: %w", err)
 	}
+	// A JSON null (or scalar) unmarshals without error but leaves obj nil;
+	// assigning into it below would panic ("assignment to entry in nil map").
+	if obj == nil {
+		return nil, errors.New("patch body must be a JSON object")
+	}
 	meta := map[string]json.RawMessage{}
 	if raw, ok := obj["metadata"]; ok {
 		if err := json.Unmarshal(raw, &meta); err != nil {
 			return nil, fmt.Errorf("invalid patch metadata: %w", err)
+		}
+		// "metadata": null unmarshals to a nil map; guard before assigning uid.
+		if meta == nil {
+			return nil, errors.New("patch metadata must be a JSON object")
 		}
 	}
 	uidJSON, err := json.Marshal(uid)

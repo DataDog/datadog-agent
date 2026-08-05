@@ -202,4 +202,16 @@ func TestApplyUIDGuard(t *testing.T) {
 		_, err = applyUIDGuard(k8stypes.JSONPatchType, json.RawMessage("{}"), "uid-abc")
 		assert.Error(t, err)
 	})
+
+	// A JSON null unmarshals cleanly into a nil map; without a guard the uid
+	// injection would panic with "assignment to entry in nil map".
+	t.Run("null patch body is rejected, not a panic", func(t *testing.T) {
+		_, err := applyUIDGuard(k8stypes.StrategicMergePatchType, json.RawMessage("null"), "uid-abc")
+		require.Error(t, err)
+	})
+
+	t.Run("null metadata is rejected, not a panic", func(t *testing.T) {
+		_, err := applyUIDGuard(k8stypes.MergePatchType, json.RawMessage(`{"metadata":null}`), "uid-abc")
+		require.Error(t, err)
+	})
 }
