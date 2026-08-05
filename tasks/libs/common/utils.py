@@ -461,7 +461,7 @@ def get_build_flags(
         if target_platform == "aix":
             # Set the sysroot flag for the cross compiler
             sysroot = "/opt/aix-cross/sysroot"
-            env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" --sysroot={sysroot} -maix64"
+            env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" --sysroot={sysroot} -maix64 -mminimal-toc"
             env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" --sysroot={sysroot} -maix64 -Wl,-brtl -Wl,-bbigtoc"
 
             # Go's DWARF-on-AIX support probes the external linker but fails to parse the output of
