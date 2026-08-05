@@ -10,4 +10,6 @@ enhancements:
   - |
     The Single Step Instrumentation admission webhook is now available on
     demand by default for runtime workload selection. Workloads that do not
-    match an explicit instrumentation rule remain unchanged.
+    match an explicit instrumentation rule remain unchanged. Set
+    ``DD_APM_INSTRUMENTATION_ON_DEMAND=false`` to restore the previous
+    opt-in-only webhook scope.
