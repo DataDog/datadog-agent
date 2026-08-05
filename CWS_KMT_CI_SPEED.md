@@ -416,33 +416,61 @@ separate treatment and the reload floor is platform-specific.
 
 ### What this means for the 55-minute job
 
-For cws_host on amazon_6.12 with its 43 reloads (§1):
+**Rank by absolute seconds saved, not by speedup ratio.** The 10.3x fix applies to the kernels
+that barely have the problem; the 1.71x fix applies to the kernels that do. Per platform class,
+with the 43 teardowns of a real cws_host run (§1):
+
+| class | teardown today | + `rcu_expedited` | saving |
+|---|---|---|---|
+| 5.15-class (10.3x applies) | 43 x 7.11s = 306s (5.1 min) | 43 x 0.69s = 30s | **-4.6 min** |
+| 6.12-class (only 1.71x) | 43 x 34.28s = 1474s (24.6 min) | 43 x 20.02s = 861s | **-10.2 min** |
+
+So `rcu_expedited` is worth *more* on 6.12 than on 5.15 despite the far smaller ratio, and it
+should be applied on **every** platform rather than scoped to old kernels.
+
+Stacking the levers on a 6.12-class job:
 
 | scenario | teardown total | vs today |
 |---|---|---|
-| today | 43 x 34.28s = 1474s (24.6 min) | — |
-| + `rcu_expedited` (Angle 2b) | 43 x 20.02s = 861s | **-10.2 min** |
-| + Angle 3 grouping (20 switches) | 20 x 20.02s = 400s | **-17.9 min** |
-| + 6.12 residual solved too | 20 x ~0.7s = 14s | **-24.3 min** |
+| today | 1474s (24.6 min) | — |
+| + `rcu_expedited` | 861s | -10.2 min |
+| + Angle 3 grouping (43 -> 20 switches) | 20 x 20.02s = 400s | -17.9 min |
+| + RCU-Tasks residual solved | 20 x ~0.7s = 14s | **-24.3 min** |
 
-Two notes. The 1474s projection independently reproduces the 1511s measured from timestamps
-in §1, which is a good consistency check. And the 34s is specific to kernels >= 6.11 — the
-5.15 baseline is only 7.11s, so its cws_host job carries ~5 min of teardown, not 25. That
-matches the platform ranking in §2, where `ubuntu_26.04` (61 min) and `amazon_6.12` (57 min)
-are the two worst and the only two that blew the timeout.
+The 1474s projection independently reproduces the 1511s measured from timestamps in §1 — a good
+consistency check.
 
-Angle 3 is now *more* valuable relative to Angle 2, not less: once teardown is cheap, halving
-the number of reloads is what removes the remaining time.
+**The stage's critical path is entirely the 6.11+ jobs.** `ubuntu_26.04` (61 min) and
+`amazon_6.12` (57 min) set the wall clock and are the only two that blew the timeout.
+`rcu_expedited` alone takes 61 -> ~51 min, still bad; only the RCU-Tasks residual takes it to
+~37 min. The hardest item is the only one that fixes the timeouts.
+
+Angle 3 is *more* valuable relative to Angle 2 than before, not less: once teardown is cheap,
+halving the number of reloads is what removes the remaining time.
+
+### Open gap: the 7s -> 34s cliff is not localized
+
+There are only **two** data points, so we do not know where the cliff sits. It is *not* the
+6.11 fentry cutoff: both platforms already run kprobe mode (Finding 3), so the fentry fallback
+cannot explain a 5x difference. Some other kernel-version effect between 5.15 and 6.12 owns it.
+`amazon_2023` (6.1) could fall on either side, which changes how many of the 25 x86 jobs are in
+the expensive class and therefore the whole fleet-level projection.
+
+Cheap way to close it: extend the `cws_teardown` matrix to `amazon_5.4`, `amazon_2023`,
+`fedora_38`, `ubuntu_25.10` — 2 VMs each, ~7 min per job, one pipeline. That bisects the cliff.
 
 ### Revised priority
 
-1. **Angle 2b for kernels <= 6.10** — `rcu_expedited`, 10x on detach, sysfs-only, no infra change.
-2. **Angle 3** — group tests by static config, 41 switches -> 20. Now the biggest remaining lever.
-3. **The 6.12+ residual** — needs a kernel cmdline experiment (RCU-Tasks knobs are read-only).
-   This is where the timeouts actually live, so it matters most despite being the hardest.
-4. **Angle 2d** — the `reflect.DeepEqual`-over-func-fields bug in `testOpts.Equal`; cheap, still valid.
-5. **Angle 5** — timeout headroom, unchanged.
-6. **Angle 1** — oversubscription. Demoted: real, but not the cause of the dominant cost.
+1. **Bisect the cliff** — extend the teardown matrix. One pipeline, and every projection below
+   depends on the answer.
+2. **The RCU-Tasks residual on 6.11+** — needs a kernel cmdline experiment (the `rcu_tasks_*`
+   knobs are read-only). Hardest, but the only lever that fixes the jobs that actually time out.
+3. **`rcu_expedited` on all platforms** — -10.2 min on 6.12-class, -4.6 min on 5.15-class,
+   sysfs-only, no infra change.
+4. **Angle 3** — group tests by static config, 43 switches -> 20.
+5. **Angle 2d** — the `reflect.DeepEqual`-over-func-fields bug in `testOpts.Equal`; cheap.
+6. **Angle 5** — timeout headroom, unchanged.
+7. **Angle 1** — oversubscription. Demoted: real, but not the cause of the dominant cost.
 
 ### Artifacts
 
