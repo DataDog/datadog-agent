@@ -26,9 +26,13 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["connectivity_test.go"],
+    srcs = [
+        "connectivity_endpoint_test.go",
+        "connectivity_test.go",
+    ],
     embed = [":impl"],
     deps = [
+        "//comp/core/log/mock",
         "//pkg/networkdevices/connectivity",
         "@com_github_stretchr_testify//require",
     ],

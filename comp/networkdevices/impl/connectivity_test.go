@@ -36,6 +36,23 @@ func TestCheckConnectivity(t *testing.T) {
 			},
 			expectedErr: "options are required for SNMP",
 		},
+		{
+			name: "fails when the snmp port is out of range",
+			req: connectivity.Request{
+				Targets:     []string{"10.0.0.1"},
+				Checks:      []string{connectivity.CheckSNMP},
+				SNMPOptions: &connectivity.SNMPOptions{Port: 65536},
+			},
+			expectedErr: "SNMP port 65536 out of range",
+		},
+		{
+			name: "fails when a check is not supported",
+			req: connectivity.Request{
+				Targets: []string{"10.0.0.1"},
+				Checks:  []string{"telnet"},
+			},
+			expectedErr: "unsupported check: 'telnet'",
+		},
 	}
 
 	for _, tc := range cases {

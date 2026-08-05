@@ -58,6 +58,8 @@ func (c *networkDevicesImpl) CheckConnectivity(ctx context.Context, req connecti
 					}
 
 					dr.SNMPResult = res
+				default:
+					return fmt.Errorf("%w: unsupported check: '%s'", connectivity.ErrInvalidRequest, check)
 				}
 			}
 			devices[i] = dr
@@ -73,7 +75,7 @@ func (c *networkDevicesImpl) CheckConnectivity(ctx context.Context, req connecti
 
 func runPing(host string, opts *connectivity.PingOptions) (*connectivity.PingResult, error) {
 	if opts == nil {
-		return nil, errors.New("options are required for ping")
+		return nil, fmt.Errorf("%w: options are required for ping", connectivity.ErrInvalidRequest)
 	}
 
 	p, err := buildPinger(opts)
@@ -127,7 +129,10 @@ func buildPinger(opts *connectivity.PingOptions) (pinger.Pinger, error) {
 
 func runSNMP(ctx context.Context, host string, opts *connectivity.SNMPOptions, creds []connectivity.SNMPCredential) (*connectivity.SNMPResult, error) {
 	if opts == nil {
-		return nil, errors.New("options are required for SNMP")
+		return nil, fmt.Errorf("%w: options are required for SNMP", connectivity.ErrInvalidRequest)
+	}
+	if opts.Port < 1 || opts.Port > 65535 {
+		return nil, fmt.Errorf("%w: SNMP port %d out of range (expected 1-65535)", connectivity.ErrInvalidRequest, opts.Port)
 	}
 
 	var lastResult *connectivity.SNMPResult
@@ -247,7 +252,7 @@ func buildSNMPClient(ctx context.Context, host string, opts *connectivity.SNMPOp
 			PrivacyPassphrase:        cred.PrivKey,
 		}
 	default:
-		return nil, fmt.Errorf("unknown SNMP version '%s' (expected 1, 2c, or 3)", cred.Version)
+		return nil, fmt.Errorf("%w: unknown SNMP version '%s' (expected 1, 2c, or 3)", connectivity.ErrInvalidRequest, cred.Version)
 	}
 
 	return c, nil

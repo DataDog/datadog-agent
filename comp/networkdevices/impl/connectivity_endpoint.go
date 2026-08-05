@@ -7,6 +7,7 @@ package networkdevicesimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -25,7 +26,11 @@ func (c *networkDevicesImpl) ConnectivityCheckEndpointHandler() http.HandlerFunc
 		res, err := c.CheckConnectivity(r.Context(), req)
 		if err != nil {
 			c.logger.Errorf("networkdevices: connectivity check failed: %v", err)
-			httputils.SetJSONError(w, err, http.StatusInternalServerError)
+			status := http.StatusInternalServerError
+			if errors.Is(err, connectivity.ErrInvalidRequest) {
+				status = http.StatusBadRequest
+			}
+			httputils.SetJSONError(w, err, status)
 			return
 		}
 

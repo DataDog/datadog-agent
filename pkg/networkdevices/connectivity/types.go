@@ -6,6 +6,12 @@
 // Package connectivity defines the wire types shared by the connectivityCheck.
 package connectivity
 
+import (
+	"errors"
+)
+
+var ErrInvalidRequest = errors.New("invalid request")
+
 const (
 	CheckPing = "ping"
 	CheckSNMP = "snmp"
