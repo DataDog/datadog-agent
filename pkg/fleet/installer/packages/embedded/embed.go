@@ -46,7 +46,7 @@ var PARExecutorProcessConfig string
 // PARControlProcessConfig is the rendered process manager config for the PAR control plane
 // (par-control) on Linux (deb/rpm layout).
 //
-//go:embed tmpl/gen/debrpm/datadog-agent-action-control.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-par-control.yaml
 var PARControlProcessConfig string
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
@@ -77,7 +77,7 @@ var PARExecutorWindowsProcmgrConfig string
 // control plane on Windows (see embedded/tmpl/main.go). Install time replaces __PAR_*__
 // placeholders.
 //
-//go:embed tmpl/gen/windows/datadog-agent-action-control.yaml
+//go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
 var PARControlWindowsProcmgrConfig string
 
 // SystemdUnitType is the type of systemd unit.

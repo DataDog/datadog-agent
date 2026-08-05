@@ -5,7 +5,7 @@ Action Runner. This slice covers installation, activation, and executor process
 lifecycle only:
 
 - `dd-procmgrd` starts `par-control` from
-  `processes.d/datadog-agent-action-control.yaml`.
+  `processes.d/datadog-agent-par-control.yaml`.
 - `par-control` exits 0 (and is not restarted) unless both
   `private_action_runner.enabled` and `.split_enabled` are true.
 - In split mode it asks `dd-procmgrd` to start the existing
