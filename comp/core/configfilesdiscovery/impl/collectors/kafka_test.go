@@ -209,10 +209,14 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 	assert.Empty(t, collected.EnvVars)
 }
 
-func TestKafkaCollectorSkipsWhenNoDefaultConfigExists(t *testing.T) {
+func TestKafkaCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"kafka-server-start.sh", "--override", "broker.id=1"},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/etc/kafka/server.properties",
+			Content: []byte("broker.id=1\n"),
 		},
 	}
 	collector := NewKafka()
@@ -220,7 +224,7 @@ func TestKafkaCollectorSkipsWhenNoDefaultConfigExists(t *testing.T) {
 	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
-	assert.Equal(t, kafkaDefaultConfigPaths, reader.readFileCalls)
+	assert.Empty(t, reader.readFileCalls)
 	assert.Empty(t, collected.ConfigFiles)
 	assert.Empty(t, collected.EnvVars)
 }

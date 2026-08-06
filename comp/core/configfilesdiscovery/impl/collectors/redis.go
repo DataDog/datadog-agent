@@ -45,7 +45,7 @@ func (redisConfigCollector) CanCollectFromProcess(commandline configfilesdiscove
 }
 
 func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	file, ok, err := readConfigFile(ctx, reader, redisGetConfigArgFromCommandline, redisDefaultConfigPaths)
+	file, ok, err := readConfigFile(ctx, reader, redisGetConfigArgFromCommandline, redisMatchesCommandline, redisDefaultConfigPaths)
 	if err != nil {
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect redis config file: %w", err)
 	}
@@ -71,6 +71,11 @@ func redisGetConfigArgFromCommandline(args []string) (string, bool) {
 		return "", false
 	}
 	return redisGetConfigArg(redisArgs)
+}
+
+func redisMatchesCommandline(args []string) bool {
+	_, ok := redisGetArgs(unwrapShellCommandline(args))
+	return ok
 }
 
 func redisGetArgs(args []string) ([]string, bool) {

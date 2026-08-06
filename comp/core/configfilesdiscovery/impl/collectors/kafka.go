@@ -48,7 +48,7 @@ func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscove
 }
 
 func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaDefaultConfigPaths)
+	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, kafkaDefaultConfigPaths)
 	if err != nil {
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
 	}
@@ -75,6 +75,11 @@ func kafkaGetConfigArgFromCommandline(args []string) (string, bool) {
 		return "", false
 	}
 	return kafkaGetConfigArg(kafkaArgs)
+}
+
+func kafkaMatchesCommandline(args []string) bool {
+	_, ok := kafkaGetArgs(unwrapShellCommandline(args))
+	return ok
 }
 
 func kafkaGetArgs(args []string) ([]string, bool) {

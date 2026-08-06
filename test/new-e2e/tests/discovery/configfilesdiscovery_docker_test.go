@@ -39,6 +39,7 @@ const (
 	configFilesDiscoveryRedisDefaultConfigFileName  = "redis-default.conf"
 	configFilesDiscoveryRedisStartFileName          = "start"
 	configFilesDiscoveryRedisStartScriptName        = "start-redis.sh"
+	configFilesDiscoveryRedisDefaultStartScriptName = "start-default-redis.sh"
 	configFilesDiscoveryRedisExplicitConfigSentinel = "configfilesdiscovery-explicit-e2e-sentinel"
 	configFilesDiscoveryRedisDefaultConfigSentinel  = "configfilesdiscovery-default-e2e-sentinel"
 	configFilesDiscoveryRedisIntegrationName        = "redisdb"
@@ -65,6 +66,16 @@ while [ ! -f /configfilesdiscovery/start ]; do
 done
 
 exec redis-server /configfilesdiscovery/redis-explicit.conf
+`
+
+const configFilesDiscoveryRedisDefaultStartScript = `#!/bin/sh
+set -eu
+
+while [ ! -f /configfilesdiscovery/start ]; do
+  sleep 1
+done
+
+exec redis-server /etc/redis/redis.conf
 `
 
 const configFilesDiscoveryRedisCompose = `version: "3.9"
@@ -94,10 +105,8 @@ services:
     image: ghcr.io/datadog/redis:{APPS_VERSION}
     container_name: redis-configfilesdiscovery-default
     command:
-      - redis-server
-      - --save
-      - "60"
-      - "1"
+      - /bin/sh
+      - /configfilesdiscovery/start-default-redis.sh
     labels:
       com.datadoghq.ad.checks: |
         {
@@ -111,6 +120,7 @@ services:
           }
         }
     volumes:
+      - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}:/configfilesdiscovery:ro
       - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}/redis-default.conf:/etc/redis/redis.conf:ro
 `
 
@@ -179,7 +189,13 @@ func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host
 	if err != nil {
 		return nil, err
 	}
-	return startScript, nil
+
+	defaultStartScriptPath := path.Join(configFilesDiscoveryRedisConfigDir, configFilesDiscoveryRedisDefaultStartScriptName)
+	return fileManager.CopyInlineFile(
+		pulumi.String(configFilesDiscoveryRedisDefaultStartScript),
+		defaultStartScriptPath,
+		utils.PulumiDependsOn(startScript),
+	)
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeartbeatsSentToEventPlatform() {
@@ -216,8 +232,25 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeart
 		}
 		assert.Contains(c, processes, configFilesDiscoveryRedisStartScriptName)
 		assert.NotContains(c, processes, "redis-server")
+		defaultProcesses, defaultProcessErr := host.Execute("sudo docker top " + configFilesDiscoveryRedisDefaultContainerName + " -eo pid,args")
+		if !assert.NoError(c, defaultProcessErr) {
+			return
+		}
+		assert.Contains(c, defaultProcesses, configFilesDiscoveryRedisDefaultStartScriptName)
+		assert.NotContains(c, defaultProcesses, "redis-server")
 		assert.Contains(c, s.Env().Agent.Client.ConfigCheck(), configFilesDiscoveryRedisIntegrationName)
 	}, 2*time.Minute, 2*time.Second, "redis AD config was not scheduled while the wrapper was waiting")
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, payloadErr := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, payloadErr) {
+			return
+		}
+		defaultPayloads := findRedisConfigPayloads(payloads, configFilesDiscoveryRedisDefaultContainerPath)
+		if !assert.NotEmpty(c, defaultPayloads, "default-path config was not collected while the runtime command was opaque") {
+			return
+		}
+		assert.Equal(c, configFilesDiscoveryRedisDefaultConfig, string(defaultPayloads[0].config.Content))
+	}, 2*time.Minute, 2*time.Second, "redis default-path fallback did not run while the wrapper was waiting")
 
 	_, err = host.Execute("sudo touch " + startFilePath)
 	require.NoError(t, err)

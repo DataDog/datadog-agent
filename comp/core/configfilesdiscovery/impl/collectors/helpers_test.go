@@ -71,6 +71,27 @@ func TestReadConfigFile(t *testing.T) {
 			wantProcessCommandCalls: 1,
 		},
 		{
+			name: "recognized command without explicit path does not fall back",
+			commandline: configfilesdiscoveryimpl.TargetCommandline{
+				Args: []string{"service"},
+			},
+			files: map[string]configfilesdiscoveryimpl.ConfigFile{
+				"/default/one.conf": {Path: "/default/one.conf"},
+			},
+			wantProcessCommandCalls: 1,
+		},
+		{
+			name:           "recognized live command without explicit path recovers command line error",
+			commandlineErr: commandlineErr,
+			commandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+				Args: []string{"service"},
+			}},
+			files: map[string]configfilesdiscoveryimpl.ConfigFile{
+				"/default/one.conf": {Path: "/default/one.conf"},
+			},
+			wantProcessCommandCalls: 1,
+		},
+		{
 			name: "live path resolves unresolved runtime path",
 			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"service", "relative.conf"},
@@ -131,6 +152,17 @@ func TestReadConfigFile(t *testing.T) {
 			wantProcessCommandCalls: 1,
 		},
 		{
+			name:           "multiple default paths preserve command line error",
+			commandlineErr: commandlineErr,
+			files: map[string]configfilesdiscoveryimpl.ConfigFile{
+				"/default/one.conf": {Path: "/default/one.conf"},
+				"/default/two.conf": {Path: "/default/two.conf"},
+			},
+			wantErr:                 commandlineErr,
+			wantReadFileCalls:       defaultPaths,
+			wantProcessCommandCalls: 1,
+		},
+		{
 			name:                    "context cancellation stops default probing",
 			cancelContext:           true,
 			wantErr:                 context.Canceled,
@@ -155,7 +187,7 @@ func TestReadConfigFile(t *testing.T) {
 				readErrors:     tt.readErrors,
 			}
 
-			file, ok, err := readConfigFile(ctx, reader, getTestConfigArg, defaultPaths)
+			file, ok, err := readConfigFile(ctx, reader, getTestConfigArg, matchesTestCommandline, defaultPaths)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -175,6 +207,10 @@ func getTestConfigArg(args []string) (string, bool) {
 		return "", false
 	}
 	return args[1], true
+}
+
+func matchesTestCommandline(args []string) bool {
+	return len(args) > 0 && args[0] == "service"
 }
 
 type configFileTestReader struct {

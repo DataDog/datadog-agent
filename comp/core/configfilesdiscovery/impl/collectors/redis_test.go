@@ -8,6 +8,7 @@ package collectors
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
@@ -185,26 +186,34 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	assert.Empty(t, collected.EnvVars)
 }
 
-func TestRedisCollectorSkipsWhenNoDefaultConfigExists(t *testing.T) {
-	reader := &redisCollectorTestReader{
-		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
-			Args: []string{"redis-server", "--save", "60", "1"},
-		},
+func TestRedisCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T) {
+	for _, args := range [][]string{
+		{"redis-server"},
+		{"redis-server", "--save", "60", "1"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			reader := &redisCollectorTestReader{
+				runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: args},
+				file: configfilesdiscoveryimpl.ConfigFile{
+					Path:    "/etc/redis/redis.conf",
+					Content: []byte("port 6379\n"),
+				},
+			}
+
+			collected, err := NewRedis().Collect(context.Background(), reader)
+
+			require.NoError(t, err)
+			assert.Empty(t, reader.readFileCalls)
+			assert.Empty(t, collected.ConfigFiles)
+			assert.Empty(t, collected.EnvVars)
+		})
 	}
-	collector := NewRedis()
-
-	collected, err := collector.Collect(context.Background(), reader)
-
-	require.NoError(t, err)
-	assert.Equal(t, redisDefaultConfigPaths, reader.readFileCalls)
-	assert.Empty(t, collected.ConfigFiles)
-	assert.Empty(t, collected.EnvVars)
 }
 
 func TestRedisCollectorReadsDefaultConfig(t *testing.T) {
 	reader := &redisCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
-			Args: []string{"redis-server", "--save", "60", "1"},
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start-redis.sh"},
 		},
 		file: configfilesdiscoveryimpl.ConfigFile{
 			Path:    "/etc/redis/redis.conf",
@@ -222,6 +231,27 @@ func TestRedisCollectorReadsDefaultConfig(t *testing.T) {
 		Content:       []byte("port 6379\n"),
 		PayloadFormat: redisConfigPayloadFormat,
 	}, collected.ConfigFiles[0])
+}
+
+func TestRedisCollectorSkipsDefaultsWhenLiveProcessHasNoConfigFile(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start-redis.sh"},
+		},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+			Args: []string{"redis-server", "--save", "60", "1"},
+		}},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/etc/redis/redis.conf",
+			Content: []byte("port 6379\n"),
+		},
+	}
+
+	collected, err := NewRedis().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
 }
 
 func TestRedisCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
