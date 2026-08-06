@@ -14,7 +14,13 @@ import (
 )
 
 func TestNormalizeWindowsDeviceName(t *testing.T) {
+	// Drive roots keep their legacy form.
 	assert.Equal(t, "c:", normalizeWindowsDeviceName(`C:\`))
+	assert.Equal(t, "c:", normalizeWindowsDeviceName("C:"))
+
+	// No backslash may survive, wherever it sits in the name, so that the
+	// device: and device_name: tags normalize to the same value at intake.
 	assert.Equal(t, "f:/tlog", normalizeWindowsDeviceName(`F:\Tlog`))
-	assert.Equal(t, `?\volume{123}`, normalizeWindowsDeviceName(`\\?\Volume{123}\`))
+	assert.Equal(t, "?/volume{123}", normalizeWindowsDeviceName(`\\?\Volume{123}\`))
+	assert.Equal(t, "server/share", normalizeWindowsDeviceName(`\\server\share`))
 }
