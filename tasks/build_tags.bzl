@@ -66,7 +66,6 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
-    "wmi",
     "zk",
     "zlib",
     "zstd",
@@ -315,9 +314,6 @@ AIX_EXCLUDED_TAGS = set([
     "systemprobechecks",
     "trivy",
 ])
-
-# List of tags to always add when building on Windows
-WINDOWS_INCLUDED_TAGS = set(["wmi"])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDED_TAGS = set([

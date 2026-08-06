@@ -69,7 +69,6 @@ AGENT_TEST_TAGS = _data.AGENT_TEST_TAGS
 # Exclusion lists
 LINUX_ONLY_TAGS = _data.LINUX_ONLY_TAGS
 AIX_EXCLUDED_TAGS = _data.AIX_EXCLUDED_TAGS
-WINDOWS_INCLUDED_TAGS = _data.WINDOWS_INCLUDED_TAGS
 WINDOWS_EXCLUDED_TAGS = _data.WINDOWS_EXCLUDED_TAGS
 DARWIN_EXCLUDED_TAGS = _data.DARWIN_EXCLUDED_TAGS
 UNIT_TEST_TAGS = _data.UNIT_TEST_TAGS
@@ -166,7 +165,6 @@ def build_tags_codegen_payload() -> dict[str, object]:
         "common_tags": sorted(COMMON_TAGS),
         "unit_test_tags": sorted(UNIT_TEST_TAGS),
         "linux_only_tags": sorted(LINUX_ONLY_TAGS),
-        "windows_included_tags": sorted(WINDOWS_INCLUDED_TAGS),
         "windows_excluded_tags": sorted(WINDOWS_EXCLUDED_TAGS),
         "darwin_excluded_tags": sorted(DARWIN_EXCLUDED_TAGS),
         "flavor_specific_tags": {
@@ -257,7 +255,6 @@ def filter_incompatible_tags(include, platform=None):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
     if target_platform == "win32":
-        include = include.union(WINDOWS_INCLUDED_TAGS)
         exclude = exclude.union(WINDOWS_EXCLUDED_TAGS)
 
     if target_platform == "darwin":

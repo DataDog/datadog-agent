@@ -6,7 +6,6 @@ load(
     "DARWIN_EXCLUDED_TAGS",
     "LINUX_ONLY_TAGS",
     "WINDOWS_EXCLUDED_TAGS",
-    "WINDOWS_INCLUDED_TAGS",
 )
 
 # Short target-name suffixes for gotags sets whose joined form is too long to fit in
@@ -37,8 +36,6 @@ def _excluded_os(gotags):
     excluded = []
     if tags & LINUX_ONLY_TAGS:
         excluded.extend(["macos", "windows"])
-    if tags & WINDOWS_INCLUDED_TAGS:
-        excluded.extend(["linux", "macos"])
     if tags & WINDOWS_EXCLUDED_TAGS:
         excluded.append("windows")
     if tags & DARWIN_EXCLUDED_TAGS:
@@ -49,18 +46,8 @@ def _excluded_os(gotags):
 
 def _test_tag_set_tags(gotags = None):
     if gotags == None:
-        tags = BASE_TEST_TAGS
-    else:
-        tags = sorted(set(BASE_TEST_TAGS) | set(gotags))
-
-    # Windows builds always define WINDOWS_INCLUDED_TAGS, as
-    # filter_incompatible_tags() does in tasks/build_tags.py. Without them,
-    # sources gated on `windows && wmi` drop out while the tests covering them
-    # still compile.
-    return select({
-        "@platforms//os:windows": sorted(set(tags) | WINDOWS_INCLUDED_TAGS),
-        "//conditions:default": tags,
-    })
+        return BASE_TEST_TAGS
+    return sorted(set(BASE_TEST_TAGS) | set(gotags))
 
 def _test_tag_set_suffix(gotags):
     key = _tag_set_key(gotags)
