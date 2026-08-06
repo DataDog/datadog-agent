@@ -166,7 +166,9 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFileDiscoveredAfterProc
 	_, err = host.Execute("sudo docker start " + configFilesDiscoveryRedisContainerName)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		processes, processErr := host.Execute("sudo docker top " + configFilesDiscoveryRedisContainerName + " -eo args")
+		// Docker needs the PID column to map the ps output back to container processes,
+		// even though this assertion only inspects the command arguments.
+		processes, processErr := host.Execute("sudo docker top " + configFilesDiscoveryRedisContainerName + " -eo pid,args")
 		if !assert.NoError(c, processErr) {
 			return
 		}
