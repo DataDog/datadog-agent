@@ -31,10 +31,13 @@ import (
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -513,6 +516,66 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
+}
+
+func TestCheckSenderInfraTagger_OnlyTagsEligibleChecks(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+	cfg.Set("integration.cloud_cost_only.tagged", []string{"my.metric"}, pkgconfigmodel.SourceFile)
+	tagger := infratags.NewTagger(cfg)
+	require.NotNil(t, tagger)
+
+	// eligible check: scheduler sets the tagger on the sender
+	eligible := initSender(checkID1, "")
+	eligible.sender.SetInfraTagger(tagger)
+	eligible.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample := (<-eligible.itemChan).(*senderMetricSample)
+	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	// ineligible check (not in allow-list): scheduler does not set the tagger
+	ineligible := initSender(checkID2, "")
+	ineligible.sender.Gauge("my.other_metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample = (<-ineligible.itemChan).(*senderMetricSample)
+	assert.NotContains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+}
+
+func TestCheckSenderInfraTagger_NilTagger(t *testing.T) {
+	s := initSender(checkID1, "")
+
+	// nil tagger: no infra tags on gauge
+	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample := (<-s.itemChan).(*senderMetricSample)
+	assert.NotContains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	// nil tagger: no infra tags on histogram bucket
+	s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
+	bucket := (<-s.itemChan).(*senderHistogramBucket)
+	assert.NotContains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
+}
+
+func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
+	// empty tagged list means all non-custom checks are eligible
+	cfg := configmock.New(t)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+	tagger := infratags.NewTagger(cfg)
+	require.NotNil(t, tagger)
+
+	s := initSender(checkID1, "")
+	s.sender.SetInfraTagger(tagger)
+
+	// any check metric gets the infra tag
+	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample := (<-s.itemChan).(*senderMetricSample)
+	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	s.sender.Gauge("my.other_metric", 1.0, "my-hostname", []string{"env:prod"})
+	sample = (<-s.itemChan).(*senderMetricSample)
+	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	// histogram buckets also get the infra tag
+	s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
+	bucket := (<-s.itemChan).(*senderHistogramBucket)
+	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
 func TestCheckSenderInterface(t *testing.T) {

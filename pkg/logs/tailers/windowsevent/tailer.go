@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
@@ -176,7 +176,7 @@ func (t *Tailer) forwardMessages() {
 
 func (t *Tailer) logErrorAndSetStatus(err error) {
 	log.Errorf("%v", err)
-	t.source.Status.Error(err)
+	t.source.Status().Error(err)
 }
 
 // tail subscribes to the channel for the windows events
@@ -270,7 +270,7 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 				continue
 			}
 			// subscription started!
-			t.source.Status.Success()
+			t.source.Status().Success()
 		}
 
 		// subscription is running, wait for and get events

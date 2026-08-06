@@ -61,8 +61,19 @@ func (l *StaticConfigListener) createServices() {
 		}
 	}
 
-	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
-		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
+	// System-probe sourced toggles: these live in system-probe.yaml and enable
+	// checks that depend on a system-probe module being active.
+	for _, entry := range []struct {
+		configKey    string
+		adIdentifier string
+	}{
+		{"discovery.enabled", "_discovery"},
+		{"system_probe_config.enable_oom_kill", "_oom_kill"},
+		{"system_probe_config.enable_tcp_queue_length", "_tcp_queue_length"},
+	} {
+		if enabled := pkgconfigsetup.SystemProbe().GetBool(entry.configKey); enabled {
+			l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}
+		}
 	}
 
 	// Infrastructure mode: emit a single service for the mode

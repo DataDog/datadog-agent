@@ -325,6 +325,39 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 	}
 }
 
+// isContainerMemoryLimitSet checks if the memory limit is set on the container level.
+// Returns True if this is the case, False otherwise.
+func isContainerMemoryLimitSet(pod *workloadmeta.KubernetesPod, containerName string) bool {
+	for _, c := range pod.GetAllContainers() {
+		if c.Name == containerName {
+			return c.Resources.MemoryLimit != nil && *c.Resources.MemoryLimit > 0
+		}
+	}
+
+	return false
+}
+
+// shouldSendMemoryLimits checks if the metric should be processed.
+// It checks:
+// - if the container name for that metric has a pod associated with it
+// - if the memory limit is set on the container level
+// Then it returns true if the metric should be processed, false otherwise.
+func (p *Provider) shouldSendMemoryLimits(pod *workloadmeta.KubernetesPod, sample *prom.Sample) bool {
+	// no pod, skip the metric
+	if pod == nil {
+		return false
+	}
+
+	// no container name, skip the metric
+	containerName := p.getContainerName(sample.Metric)
+	if containerName == "" {
+		return false
+	}
+
+	// The memory limit is set on the container level, so we should send the metric.
+	return isContainerMemoryLimitSet(pod, containerName)
+}
+
 func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricFamily, cache map[string]*processCache, pctMetricName string, sender sender.Sender) {
 	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
@@ -340,14 +373,20 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 			// is reported by this provider AND the kubelet provider.
 			// Without this tag it reports as two series;
 			// one with kube_static_cpus:N/A and one with kube_static_cpus:true/false
-			if strings.Contains(metricName, "memory.limits") {
+			// --------------------------------------------------------------
+			// The cAdvisor provider reports the metric when the memory limit is set on the pod level only.
+			// We only want to send the metric if the memory limit is set on the container level.
+			if metricName == "kubernetes.memory.limits" {
 				pod := p.getPodByMetricLabel(sample.Metric)
-				if pod != nil {
+				if p.shouldSendMemoryLimits(pod, sample) {
+					// shouldSendMemoryLimits checks if pod != nil, it's safe to use here.
 					tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
+					sender.Gauge(metricName, sample.Value, "", tags)
 				}
+			} else {
+				sender.Gauge(metricName, sample.Value, "", tags)
 			}
 
-			sender.Gauge(metricName, sample.Value, "", tags)
 		}
 
 		if pctMetricName != "" && sample.Value > 0 {

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "eventbuf",
@@ -9,6 +10,7 @@ go_library(
         "sharedmessage.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/output",
@@ -17,7 +19,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "eventbuf_test",
     srcs = [
         "budget_test.go",
@@ -29,7 +31,9 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":eventbuf"],
-    gotags = ["test"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/output",
         "@com_github_stretchr_testify//assert",

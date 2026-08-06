@@ -12,7 +12,7 @@ import "github.com/NVIDIA/go-nvml/pkg/nvml"
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
 	nvmlDevice nvml.Device
-	lib        symbolLookup
+	lib        nvmlSafety
 }
 
 func (d *safeDeviceImpl) GetArchitecture() (nvml.DeviceArchitecture, error) {
@@ -244,6 +244,14 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	return state, NewNvmlAPIErrorOrNil("GetNvLinkState", ret)
 }
 
+func (d *safeDeviceImpl) GetPciInfo() (nvml.PciInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetPciInfo")); err != nil {
+		return nvml.PciInfo{}, err
+	}
+	pciInfo, ret := d.nvmlDevice.GetPciInfo()
+	return pciInfo, NewNvmlAPIErrorOrNil("GetPciInfo", ret)
+}
+
 func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error) {
 	if err := d.lib.lookup(toNativeName("GetPcieThroughput")); err != nil {
 		return 0, err
@@ -385,6 +393,8 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	if err := d.lib.lookup("nvmlGpmSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmSampleGet(sample)
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
@@ -393,6 +403,8 @@ func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSampl
 	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
 	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
 }

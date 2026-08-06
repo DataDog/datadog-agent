@@ -26,8 +26,7 @@ type Requires struct {
 	T testing.TB
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func NewTrafficCapture(deps Requires) replay.Component {
+func NewTrafficCapture(_ Requires) replay.Component {
 	tc := &mockTrafficCapture{}
 	return tc
 }
@@ -59,18 +58,15 @@ func (tc *mockTrafficCapture) StopCapture() {
 	tc.isRunning = false
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error {
+func (tc *mockTrafficCapture) RegisterSharedPoolManager(_ *packets.PoolManager[packets.Packet]) error {
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error {
+func (tc *mockTrafficCapture) RegisterOOBPoolManager(_ *packets.PoolManager[[]byte]) error {
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
+func (tc *mockTrafficCapture) Enqueue(_ *replay.CaptureBuffer) bool {
 	return true
 }
 

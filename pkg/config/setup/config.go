@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net"
 	"os"
 	"runtime"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,123 +36,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
-// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
-// Using a map ensures each prefix is only registered once.
-// Protected by registeredDelegatedAuthConfigsMu for thread-safe access during concurrent tests.
-var (
-	registeredDelegatedAuthConfigs   = make(map[string]string)
-	registeredDelegatedAuthConfigsMu sync.Mutex
-)
-
 const (
-
-	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
-	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 100000
-
-	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
-	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
-	DefaultLinesOrBytesToSkip = 0
-
-	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
-	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
-	// value based on the configured fingerprint_strategy.
-	DefaultFingerprintingCount = 0
-
-	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
-	// Options are:
-	// - "line_checksum": compute the fingerprint by lines
-	// - "byte_checksum": compute the fingerprint by bytes
-	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "disabled"
-
-	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite = "datadoghq.com"
-
-	// DefaultNumWorkers default number of workers for our check runner
-	DefaultNumWorkers = 4
-	// MaxNumWorkers maximum number of workers for our check runner
-	MaxNumWorkers = 25
-	// DefaultAPIKeyValidationInterval is the default interval of api key validation checks
-	DefaultAPIKeyValidationInterval = 60
-
-	// DefaultForwarderRecoveryInterval is the default recovery interval,
-	// also used if the user-provided value is invalid.
-	DefaultForwarderRecoveryInterval = 2
-
 	megaByte = 1024 * 1024
-
-	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5.0
-
-	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
-
-	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
-
-	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
-
-	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
-	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
-
-	// DefaultAuditorTTL is the default logs auditor TTL in hours
-	DefaultAuditorTTL = 23
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zstd"
-
-	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
-
-	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
-	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
-	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
-
-	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
-	DefaultGzipCompressionLevel = 6
-
-	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
-
-	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
-
-	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
-
-	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
-	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
-	// in the core agent if the process check is disabled.
-	DefaultLocalProcessCollectorInterval = 1 * time.Minute
-
-	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
-	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSizeBytes = 900 * 1000
-
-	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 1000
-
-	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
-	DefaultNetworkPathMaxTTL = 30
-
-	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
-	DefaultNetworkPathStaticPathTracerouteQueries = 3
-
-	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
-	DefaultNetworkPathStaticPathE2eQueries = 50
+	// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
+	Traces string = "traces"
 )
 
 var (
@@ -188,8 +82,6 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 }
 
 func init() {
-	osinit()
-
 	// init default for code that access the config before it initialized
 	InitConfigObjects()
 }
@@ -202,24 +94,6 @@ var (
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
-
-// ConfigurationProviders helps unmarshalling `config_providers` config param
-type ConfigurationProviders struct {
-	Name                    string `mapstructure:"name"`
-	Polling                 bool   `mapstructure:"polling"`
-	PollInterval            string `mapstructure:"poll_interval"`
-	TemplateURL             string `mapstructure:"template_url"`
-	TemplateDir             string `mapstructure:"template_dir"`
-	Username                string `mapstructure:"username"`
-	Password                string `mapstructure:"password"`
-	CAFile                  string `mapstructure:"ca_file"`
-	CAPath                  string `mapstructure:"ca_path"`
-	CertFile                string `mapstructure:"cert_file"`
-	KeyFile                 string `mapstructure:"key_file"`
-	Token                   string `mapstructure:"token"`
-	GraceTimeSeconds        int    `mapstructure:"grace_time_seconds"`
-	DegradedDeadlineMinutes int    `mapstructure:"degraded_deadline_minutes"`
-}
 
 // Listeners helps unmarshalling `listeners` config param
 type Listeners struct {
@@ -297,11 +171,6 @@ func InitConfigObjects() {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
-	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs = make(map[string]string)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// -------------------------------------------------------------
 	// NOTE: Do not add more BindEnvAndSetDefault calls to this file
 	// Add them to common_settings.go instead
@@ -313,6 +182,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	initCoreAgentFull(config)
 	// Settings associated with a feature / product that only appear in the full agent, not in serverless
 	initFullAgentOnlyComponents(config)
+
+	additionalAgentSetup(config)
 }
 
 // settings shared by full agent and serverless
@@ -333,6 +204,12 @@ func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
 	for _, f := range comps {
 		f(config)
 	}
+}
+
+func additionalAgentSetup(_ pkgconfigmodel.Setup) {
+	processesAddOverrideOnce.Do(func() {
+		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+	})
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
@@ -653,7 +530,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	sanitizeAPIKeyConfig(config, "api_key")
 	sanitizeAPIKeyConfig(config, "logs_config.api_key")
-	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
+	SanitizeDataPlaneConfig(config)
 	setNumWorkers(config)
 
 	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
@@ -690,43 +567,21 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			Region: config.GetString("delegated_auth.aws.region"),
 		}
 	case "":
-		// Empty provider means auto-detect; ProviderConfig stays nil
-		// But if aws config is present, we can still use it when auto-detect picks AWS
-		if awsRegion := config.GetString("delegated_auth.aws.region"); awsRegion != "" {
-			providerConfig = &cloudauthconfig.AWSProviderConfig{
-				Region: awsRegion,
-			}
-		}
+		// Empty provider means auto-detect, so ProviderConfig stays nil even when
+		// delegated_auth.aws.region is set: a non-nil ProviderConfig means "explicitly configured"
+		// downstream and would skip provider detection entirely. The component reads the configured
+		// region itself once detection picks AWS.
 	}
 
-	// Copy the registered configs map while holding the lock to avoid races during iteration
-	registeredDelegatedAuthConfigsMu.Lock()
-	configsCopy := maps.Clone(registeredDelegatedAuthConfigs)
-	registeredDelegatedAuthConfigsMu.Unlock()
-
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for prefix, apiKeyConfigKey := range configsCopy {
-		// Build the config key prefix for delegated_auth settings
-		var configPrefix string
-		if prefix == "" {
-			configPrefix = "delegated_auth"
-		} else {
-			configPrefix = prefix + ".delegated_auth"
-		}
-
+	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		// Build description for logging
-		description := "global"
-		if prefix != "" {
-			description = prefix
-		}
-
-		log.Infof("Configuring delegated authentication for '%s'", description)
+		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
 		// Call AddInstance - the component auto-initializes on the first call
 		// Config and ProviderConfig are only used on the first call
@@ -734,11 +589,11 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 			Config:          config,
 			ProviderConfig:  providerConfig,
 			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-			APIKeyConfigKey: apiKeyConfigKey,
+			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey: section.apiKeyPath,
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
 
@@ -773,21 +628,6 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 
 	// Provider-specific configuration (nested under provider name)
 	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
-
-	// Register this prefix for use in configureDelegatedAuth
-	// Build the API key config key
-	var apiKeyConfigKey string
-	if prefix == "" {
-		apiKeyConfigKey = "api_key"
-	} else {
-		apiKeyConfigKey = prefix + ".api_key"
-	}
-
-	// Map automatically handles duplicates - repeated registrations just overwrite with same value
-	// Use mutex to protect concurrent access during tests
-	registeredDelegatedAuthConfigsMu.Lock()
-	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
-	registeredDelegatedAuthConfigsMu.Unlock()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
@@ -902,22 +742,18 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	// The following overwrites should be kept in sync with the documentation for the fips.enabled config
 	// setting in pkg/config/schema/yaml/.
 
-	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
-	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+	config.Set("logs_config.use_http", true, pkgconfigmodel.SourceAgentRuntime)
 
-	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
 	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
-	// Processes
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
-	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
 	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
 	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
@@ -928,20 +764,16 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
-	// Orchestrator Explorer
 	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
-	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
-	// Compliance
 	setupFipsLogsConfig(config, "compliance_config.endpoints.", urlFor(compliance))
 
 	return nil
 }
 
 func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
@@ -1164,12 +996,16 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
-// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms.
-// The Agent Data Plane (ADP) is supported on Linux and macOS. On unsupported
-// platforms this function always installs a SourceAgentRuntime override of
+// sanitizeDataPlaneConfig gates data_plane.enabled to supported platforms and
+// configurations. The Agent Data Plane (ADP) is supported on Linux, macOS, AIX,
+// and Windows. On unsupported platforms, or on Windows when process_manager.enabled
+// is false, this function always installs a SourceAgentRuntime override of
 // false, which beats file and fleet-policy sources and prevents them from
 // re-enabling ADP after this call returns. A warning is emitted only when the
 // value was explicitly set to true at call time.
+//
+// Windows ADP runs only under dd-procmgr (via processes.d); dd-procmgr-service is
+// started by the core Agent only when process_manager.enabled is true.
 //
 // The goos parameter is the target OS string (normally runtime.GOOS). It is
 // exposed as a parameter so that tests can exercise both branches without
@@ -1180,13 +1016,40 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 // When DD_DATA_PLANE_FORCE_ENABLE=true the OS gate is skipped entirely; this
 // is intended for local development on unsupported platforms only.
 func sanitizeDataPlaneConfig(config pkgconfigmodel.Config, goos string, envLookup func(string) string) {
-	if goos == "linux" || goos == "darwin" || envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
+	if envLookup("DD_DATA_PLANE_FORCE_ENABLE") == "true" {
 		return
 	}
-	if config.GetBool(DataPlaneEnabled) {
-		log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+
+	switch {
+	case goos == "linux", goos == "darwin", goos == "aix":
+		return
+	case goos == "windows":
+		if config.GetBool("process_manager.enabled") {
+			// LoadDatadog may have locked data_plane.enabled=false before fleet policies
+			// were merged; SourceAgentRuntime outranks SourceFleetPolicies, so clear the
+			// stale runtime override once process manager is enabled.
+			if config.GetSource(DataPlaneEnabled) == pkgconfigmodel.SourceAgentRuntime {
+				config.UnsetForSource(DataPlaneEnabled, pkgconfigmodel.SourceAgentRuntime)
+			}
+			return
+		}
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s requires process_manager.enabled on Windows and will be ignored", DataPlaneEnabled)
+		}
+	default:
+		if config.GetBool(DataPlaneEnabled) {
+			log.Warnf("%s is not supported on %s and will be ignored", DataPlaneEnabled, goos)
+		}
 	}
+
 	config.Set(DataPlaneEnabled, false, pkgconfigmodel.SourceAgentRuntime)
+}
+
+// SanitizeDataPlaneConfig applies sanitizeDataPlaneConfig for the current host.
+// It is also called after fleet policy merging because fleet policies may set
+// process_manager.enabled or data_plane.enabled after the initial LoadDatadog pass.
+func SanitizeDataPlaneConfig(config pkgconfigmodel.Config) {
+	sanitizeDataPlaneConfig(config, runtime.GOOS, os.Getenv)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1228,218 +1091,6 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	}
 
 	if infraMode == "end_user_device" {
-		defaultNetworkPathCollectorFilters := []map[string]string{
-			// Exclude everything by default
-			{"match_domain": "*", "type": "exclude"},
-
-			// 1. Microsoft 365 (without IP addresses)
-			// https://tinyurl.com/4a3ydsrs
-			{"match_domain": "*.aadrm.com", "type": "include"},
-			{"match_domain": "*.aka.ms", "type": "include"},
-			{"match_domain": "*.amp.azure.net", "type": "include"},
-			{"match_domain": "*.apps.mil", "type": "include"},
-			{"match_domain": "*.aspnetcdn.com", "type": "include"},
-			{"match_domain": "*.azure.com", "type": "include"},
-			{"match_domain": "*.azure.net", "type": "include"},
-			{"match_domain": "*.azure.us", "type": "include"},
-			{"match_domain": "*.azurerms.com", "type": "include"},
-			{"match_domain": "*.bing.com", "type": "include"},
-			{"match_domain": "*.bing.net", "type": "include"},
-			{"match_domain": "*.cloudappsecurity.com", "type": "include"},
-			{"match_domain": "*.cortana.ai", "type": "include"},
-			{"match_domain": "*.digicert.com", "type": "include"},
-			{"match_domain": "*.dps.mil", "type": "include"},
-			{"match_domain": "*.entrust.net", "type": "include"},
-			{"match_domain": "*.geotrust.com", "type": "include"},
-			{"match_domain": "*.globalsign.com", "type": "include"},
-			{"match_domain": "*.globalsign.net", "type": "include"},
-			{"match_domain": "*.identrust.com", "type": "include"},
-			{"match_domain": "*.letsencrypt.org", "type": "include"},
-			{"match_domain": "*.linkedin.com", "type": "include"},
-			{"match_domain": "*.live.com", "type": "include"},
-			{"match_domain": "*.live.net", "type": "include"},
-			{"match_domain": "*.microsoft.us", "type": "include"},
-			{"match_domain": "*.microsoftazure.us", "type": "include"},
-			{"match_domain": "*.microsoftonline.com", "type": "include"},
-			{"match_domain": "*.microsoftonline.us", "type": "include"},
-			{"match_domain": "*.microsoft", "type": "include"},
-			{"match_domain": "*.msecnd.net", "type": "include"},
-			{"match_domain": "*.msauth.net", "type": "include"},
-			{"match_domain": "*.msauthimages.net", "type": "include"},
-			{"match_domain": "*.msedge.net", "type": "include"},
-			{"match_domain": "*.msftauth.net", "type": "include"},
-			{"match_domain": "*.msocdn.com", "type": "include"},
-			{"match_domain": "*.o365weve.com", "type": "include"},
-			{"match_domain": "*.office.com", "type": "include"},
-			{"match_domain": "*.office.net", "type": "include"},
-			{"match_domain": "*.office365.com", "type": "include"},
-			{"match_domain": "*.office365.us", "type": "include"},
-			{"match_domain": "*.onestore.ms", "type": "include"},
-			{"match_domain": "*.onedrive.com", "type": "include"},
-			{"match_domain": "*.onenote.com", "type": "include"},
-			{"match_domain": "*.onmicrosoft.com", "type": "include"},
-			{"match_domain": "*.powerapps.com", "type": "include"},
-			{"match_domain": "*.powerautomate.com", "type": "include"},
-			{"match_domain": "*.powerplatform.com", "type": "include"},
-			{"match_domain": "*.public-trust.com", "type": "include"},
-			{"match_domain": "*.sfx.ms", "type": "include"},
-			{"match_domain": "*.sharepoint.com", "type": "include"},
-			{"match_domain": "*.sharepoint-mil.us", "type": "include"},
-
-			// 2. Google Workspace
-			// https://tinyurl.com/tvdmkrpy
-			{"match_domain": "*.google.com", "type": "include"},
-			{"match_domain": "*.googleapis.com", "type": "include"},
-			{"match_domain": "*.googledrive.com", "type": "include"},
-			{"match_domain": "*.googleusercontent.com", "type": "include"},
-			{"match_domain": "*.gstatic.com", "type": "include"},
-			{"match_domain": "*.youtube.com", "type": "include"},
-
-			// 3. Zoom
-			// https://tinyurl.com/594954h7
-			{"match_domain": "*.zoom.us", "type": "include"},
-			{"match_domain": "*.zoom.com", "type": "include"},
-
-			// 4. Slack
-			// https://docs.slack.dev/faq
-			{"match_domain": "*.slack-core.com", "type": "include"},
-			{"match_domain": "*.slack-edge.com", "type": "include"},
-			{"match_domain": "*.slack-files.com", "type": "include"},
-			{"match_domain": "*.slack-imgs.com", "type": "include"},
-			{"match_domain": "*.slack-msgs.com", "type": "include"},
-			{"match_domain": "*.slack.com", "type": "include"},
-			{"match_domain": "*.slackb.com", "type": "include"},
-
-			// 5. Salesforce
-			// https://tinyurl.com/y5jet7cn
-			{"match_domain": "*.documentforce.com", "type": "include"},
-			{"match_domain": "*.force-user-content.com", "type": "include"},
-			{"match_domain": "*.force.com", "type": "include"},
-			{"match_domain": "*.forceusercontent.com", "type": "include"},
-			{"match_domain": "*.lightning.com", "type": "include"},
-			{"match_domain": "*.salesforce-communities.com", "type": "include"},
-			{"match_domain": "*.salesforce-experience.com", "type": "include"},
-			{"match_domain": "*.salesforce-hub.com", "type": "include"},
-			{"match_domain": "*.salesforce-scrt.com", "type": "include"},
-			{"match_domain": "*.salesforce-setup.com", "type": "include"},
-			{"match_domain": "*.salesforce-sites.com", "type": "include"},
-			{"match_domain": "*.salesforce.com", "type": "include"},
-			{"match_domain": "*.salesforceiq.com", "type": "include"},
-			{"match_domain": "*.salesforceliveagent.com", "type": "include"},
-			{"match_domain": "*.sfdc.sh", "type": "include"},
-			{"match_domain": "*.sfdcfc.net", "type": "include"},
-			{"match_domain": "*.sfdcopens.com", "type": "include"},
-			{"match_domain": "*.site.com", "type": "include"},
-			{"match_domain": "*.trailblazer.me", "type": "include"},
-			{"match_domain": "*.trailhead.com", "type": "include"},
-
-			// 6. ServiceNow
-			{"match_domain": "*.service-now.com", "type": "include"},
-			{"match_domain": "*.servicenow.com", "type": "include"},
-			{"match_domain": "*.servicenowservices.com", "type": "include"},
-			{"match_domain": "*.sncustomer.com", "type": "include"},
-			{"match_domain": "*.sncustomertest.com", "type": "include"},
-			{"match_domain": "*.snhosting.com", "type": "include"},
-
-			// 7. Workday
-			{"match_domain": "*.myworkday.com", "type": "include"},
-			{"match_domain": "*.myworkdaygadgets.com", "type": "include"},
-			{"match_domain": "*.myworkdayjobs.com", "type": "include"},
-			{"match_domain": "*.myworkdaysite.com", "type": "include"},
-			{"match_domain": "*.workday.com", "type": "include"},
-
-			// 8. Atlassian
-			// https://tinyurl.com/2fxexx5h
-			{"match_domain": "*.atl-paas.net", "type": "include"},
-			{"match_domain": "*.atlassian-dev-us-gov-mod.net", "type": "include"},
-			{"match_domain": "*.atlassian-dev.net", "type": "include"},
-			{"match_domain": "*.atlassian-us-gov-mod.com", "type": "include"},
-			{"match_domain": "*.atlassian-us-gov-mod.net", "type": "include"},
-			{"match_domain": "*.atlassian.com", "type": "include"},
-			{"match_domain": "*.atlassian.net", "type": "include"},
-			{"match_domain": "*.bitbucket.org", "type": "include"},
-			{"match_domain": "*.jira.com", "type": "include"},
-			{"match_domain": "*.ss-inf.net", "type": "include"},
-
-			// 9. GitHub
-			{"match_domain": "*.github.com", "type": "include"},
-
-			// 10. Okta
-			// https://tinyurl.com/54rddask
-			{"match_domain": "*.okta.com", "type": "include"},
-			{"match_domain": "*.okta-emea.com", "type": "include"},
-			{"match_domain": "*.okta-gov.com", "type": "include"},
-			{"match_domain": "*.okta.mil", "type": "include"},
-			{"match_domain": "*.okta-preview.com", "type": "include"},
-			{"match_domain": "*.oktapreview.com", "type": "include"},
-			{"match_domain": "*.oktacdn.com", "type": "include"},
-
-			// 11. Cisco WebEx
-			// https://tinyurl.com/ye9bawcc
-			{"match_domain": "*.wbx2.com", "type": "include"},
-			{"match_domain": "*.webex.com", "type": "include"},
-
-			// 12. Box
-			// https://tinyurl.com/2eyv6wr4
-			{"match_domain": "*.box.com", "type": "include"},
-			{"match_domain": "*.box.net", "type": "include"},
-			{"match_domain": "*.boxcdn.net", "type": "include"},
-			{"match_domain": "*.boxcloud.com", "type": "include"},
-
-			// 13. Dropbox
-			// https://tinyurl.com/pmne8a73
-			{"match_domain": "*.addtodropbox.com", "type": "include"},
-			{"match_domain": "*.dash.ai", "type": "include"},
-			{"match_domain": "*.db.tt", "type": "include"},
-			{"match_domain": "*.docsend.com", "type": "include"},
-			{"match_domain": "*.dropbox.com", "type": "include"},
-			{"match_domain": "*.dropbox.tech", "type": "include"},
-			{"match_domain": "*.dropbox.zendesk.com", "type": "include"},
-			{"match_domain": "*.dropboxapi.com", "type": "include"},
-			{"match_domain": "*.dropboxbusiness.com", "type": "include"},
-			{"match_domain": "*.dropboxcaptcha.com", "type": "include"},
-			{"match_domain": "*.dropboxexperiment.com", "type": "include"},
-			{"match_domain": "*.dropboxforum.com", "type": "include"},
-			{"match_domain": "*.dropboxforums.com", "type": "include"},
-			{"match_domain": "*.dropboxinsiders.com", "type": "include"},
-			{"match_domain": "*.dropboxlegal.com", "type": "include"},
-			{"match_domain": "*.dropboxmail.com", "type": "include"},
-			{"match_domain": "*.dropboxpartners.com", "type": "include"},
-			{"match_domain": "*.dropboxstatic.com", "type": "include"},
-			{"match_domain": "*.dropboxteam.com", "type": "include"},
-			{"match_domain": "*.getdropbox.com", "type": "include"},
-			{"match_domain": "*.hellofax.com", "type": "include"},
-			{"match_domain": "*.hellosign.com", "type": "include"},
-
-			// 14. Monday.com
-			{"match_domain": "*.monday.com", "type": "include"},
-
-			// 15. OpenAI/ChatGPT
-			// https://tinyurl.com/3ye2uwfj
-			{"match_domain": "*.openai.com", "type": "include"},
-			{"match_domain": "*.chatgpt.com", "type": "include"},
-
-			// 16. Cursor
-			// https://tinyurl.com/y6f85d6d
-			{"match_domain": "*.cursor.sh", "type": "include"},
-			{"match_domain": "*.cursor-cdn.com", "type": "include"},
-
-			// 17. Anthropic/Claude
-			{"match_domain": "anthropic.com", "type": "include"},
-			{"match_domain": "claude.ai", "type": "include"},
-		}
-
-		// Append user-defined filters after the defaults so they win (last matching filter wins).
-		// On unmarshal error, skip the override entirely: the user's (malformed) config is left
-		// in place so downstream surfaces it, rather than silently replacing it with defaults.
-		var userFilters []map[string]string
-		if err := structure.UnmarshalKey(config, "network_path.collector.filters", &userFilters); err != nil {
-			log.Errorf("Failed to unmarshal network_path.collector.filters, skipping EUDM filter override: %v", err)
-		} else {
-			defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, userFilters...)
-			config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
-		}
-
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
@@ -1499,20 +1150,20 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"dd_url", "")
 	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
-	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
-	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
-	config.BindEnvAndSetDefault(prefix+"compression_level", DefaultGzipCompressionLevel)      // Default level for the gzip algorithm
-	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
+	config.BindEnvAndSetDefault(prefix+"compression_kind", constants.DefaultLogCompressionKind)
+	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", constants.DefaultZstdCompressionLevel) // Default level for the zstd algorithm
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6)                                          // Default level for the gzip algorithm
+	config.BindEnvAndSetDefault(prefix+"batch_wait", constants.DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
-	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
-	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
-	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
-	config.BindEnvAndSetDefault(prefix+"input_chan_size", DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", DefaultLogsSenderBackoffFactor)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", DefaultLogsSenderBackoffBase)
-	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
-	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", constants.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", constants.DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault(prefix+"batch_max_size", constants.DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault(prefix+"input_chan_size", constants.DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", constants.DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", constants.DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", constants.DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", constants.DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
@@ -1540,32 +1191,22 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 }
 
-// IsCLCRunner returns whether the Agent is in cluster check runner mode
-func IsCLCRunner(config pkgconfigmodel.Reader) bool {
-	if !config.GetBool("clc_runner_enabled") {
-		return false
-	}
-
-	var cps []ConfigurationProviders
-	if err := structure.UnmarshalKey(config, "config_providers", &cps); err != nil {
-		return false
-	}
-
-	for _, name := range config.GetStringSlice("extra_config_providers") {
-		cps = append(cps, ConfigurationProviders{Name: name})
-	}
-
-	// A cluster check runner is an Agent configured to run clusterchecks only
-	// We want exactly one ConfigProvider named clusterchecks
-	if len(cps) == 0 {
-		return false
-	}
-
-	for _, cp := range cps {
-		if cp.Name != "clusterchecks" {
-			return false
+func getPlatformDefault(platformValues map[string]interface{}) interface{} {
+	if pkgconfigenv.IsECSFargate() {
+		if val, found := platformValues["fargate"]; found {
+			return val
 		}
 	}
-
-	return true
+	if pkgconfigenv.IsContainerized() {
+		if val, found := platformValues["container"]; found {
+			return val
+		}
+	}
+	if val, found := platformValues[runtime.GOOS]; found {
+		return val
+	}
+	if val, found := platformValues["other"]; found {
+		return val
+	}
+	return nil
 }

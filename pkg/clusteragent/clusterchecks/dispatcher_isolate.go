@@ -46,7 +46,7 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 		}
 	}
 
-	proposedDistribution := newConfigsDistribution(currentDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.experimental_stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.experimental_stickiness_limit"))
+	proposedDistribution := newConfigsDistribution(currentDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
 	for _, digest := range currentDistribution.configsSortedByWorkersNeeded() {
 		if digest == isolateDigest {

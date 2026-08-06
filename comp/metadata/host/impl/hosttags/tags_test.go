@@ -109,7 +109,7 @@ func TestGetWithoutEUDM(t *testing.T) {
 
 	hostTags := Get(ctx, false, mockConfig)
 	for _, tag := range hostTags.System {
-		assert.NotContains(t, tag, "infrastructure_mode:")
+		assert.NotContains(t, tag, "infra_mode:")
 		assert.NotContains(t, tag, "os_name:")
 		assert.NotContains(t, tag, "os_version:")
 		assert.NotContains(t, tag, "cpu_model:")
@@ -135,7 +135,7 @@ func TestGetWithEUDM(t *testing.T) {
 	}
 
 	hostTags := Get(ctx, false, mockConfig)
-	assert.Contains(t, hostTags.System, "infrastructure_mode:end_user_device")
+	assert.Contains(t, hostTags.System, "infra_mode:end_user_device")
 	assert.Contains(t, hostTags.System, "os_name:darwin")
 	assert.Contains(t, hostTags.System, "os_version:23.5.0")
 	assert.Contains(t, hostTags.System, "cpu_model:Apple_M1_Pro")
@@ -145,14 +145,14 @@ func TestGetWithEUDM(t *testing.T) {
 
 func TestEUDMTagsOnUnsupportedOS(t *testing.T) {
 	// collectEUDMHardwareTags should return nil on non-darwin/windows so the
-	// only EUDM tag emitted on Linux is the infrastructure_mode marker.
+	// only EUDM tag emitted on Linux is the infra_mode marker.
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		t.Skip("test asserts behavior on non-darwin/non-windows hosts")
 	}
 	assert.Nil(t, collectEUDMHardwareTags())
 
 	tags := getEUDMTags()
-	assert.Equal(t, []string{"infrastructure_mode:end_user_device"}, tags)
+	assert.Equal(t, []string{"infra_mode:end_user_device"}, tags)
 }
 
 func TestBytesToGB(t *testing.T) {

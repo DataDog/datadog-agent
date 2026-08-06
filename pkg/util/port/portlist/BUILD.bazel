@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "portlist",
@@ -45,7 +46,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "portlist_test",
     srcs = [
         "netstat_test.go",
@@ -57,7 +58,6 @@ go_test(
     # macOS tests need to inherit the parent PATH in order to be able to
     # execute the netstat tool which the tests need
     env_inherit = ["PATH"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_google_go_cmp//cmp",

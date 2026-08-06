@@ -7,6 +7,8 @@
 package sbomtargets
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -45,6 +47,8 @@ type Target struct {
 //	ubi9/python   - RHEL (rpm) + pip (pypi), multi-layer image
 //	python        - Debian (dpkg) + pip (pypi)
 //	ruby          - Debian (dpkg) + gem (rubygems)
+//	ubuntu        - Ubuntu 24.04 LTS (dpkg), usr-merged
+//	alpine        - Alpine (apk, musl), apk-owned setuid ping
 var Targets = []Target{
 	{Name: "sbom-node", Image: "node:26.2.0@sha256:980c5420a7a2ddcb44037726977f2a349e5c7b64217516c7488dce4c74d71583", ShortImage: "node"},
 	{Name: "sbom-golang", Image: "golang:1.26.3-alpine@sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d", ShortImage: "golang"},
@@ -52,6 +56,8 @@ var Targets = []Target{
 	{Name: "sbom-ubi-python", Image: "registry.access.redhat.com/ubi9/python-312:9.8-1779945122@sha256:52d1ffcda3b9552934f947b7d41fb0cb66973bdc0d7e91814facadc126f68663", ShortImage: "python-312"}, // RHEL rpm + pypi, multi-layer
 	{Name: "sbom-python", Image: "python:3.14.5@sha256:250e5c97be05e1eb2272fbdbd810dfd638f9012e1e6f65c99390ad3239943a08", ShortImage: "python"},
 	{Name: "sbom-ruby", Image: "ruby:3.3.4-bookworm@sha256:d4233f4242ea25346f157709bb8417c615e7478468e2699c8e86a4e1f0156de8", ShortImage: "ruby"},
+	{Name: "sbom-ubuntu", Image: "ubuntu:24.04@sha256:786a8b558f7be160c6c8c4a54f9a57274f3b4fb1491cf65146521ae77ff1dc54", ShortImage: "ubuntu"},                              // Ubuntu 24.04 LTS (dpkg), usr-merged
+	{Name: "sbom-alpine", Image: "wbitt/network-multitool:latest@sha256:db2810fe2c8d36db074eab5d98fbf861c8ed55e0786d648d3477b3de9135632e", ShortImage: "network-multitool"}, // Alpine (apk, musl), apk-owned setuid ping
 }
 
 // K8sAppDefinition deploys one Deployment per SBOM target. Each container is kept
@@ -109,7 +115,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 						Containers: corev1.ContainerArray{
 							&corev1.ContainerArgs{
 								Name:    pulumi.String("main"),
-								Image:   pulumi.String(t.Image),
+								Image:   pulumi.String(mirroredImage(e, t.Image)),
 								Command: pulumi.StringArray{pulumi.String("tail"), pulumi.String("-f"), pulumi.String("/dev/null")},
 								Resources: &corev1.ResourceRequirementsArgs{
 									Limits: pulumi.StringMap{
@@ -132,4 +138,29 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 	}
 
 	return k8sComponent, nil
+}
+
+// mirroredImage routes a docker.io image reference through the internal ECR
+// mirror on the datadog-agent-qa account when an image pull registry is
+// configured. Upstream registries (docker.io especially) have been a recurring
+// source of pull flakiness in e2e, so pulling through the mirror is more
+// reliable. References that already carry an explicit registry host (for example
+// the ubi images on registry.access.redhat.com) are left unchanged, as are runs
+// with no configured registry (local, where the mirror is not reachable).
+func mirroredImage(e config.Env, image string) string {
+	reg := strings.SplitN(e.ImagePullRegistry(), ",", 2)[0]
+	if reg == "" {
+		return image
+	}
+	// A component before the first "/" that contains "." or ":" is a registry
+	// host, so the reference is not a docker.io image and must be left alone.
+	if i := strings.IndexByte(image, '/'); i >= 0 && strings.ContainsAny(image[:i], ".:") {
+		return image
+	}
+	// docker.io official images (no namespace) live under library/.
+	repo := image
+	if !strings.Contains(repo, "/") {
+		repo = "library/" + repo
+	}
+	return reg + "/dockerhub/" + repo
 }

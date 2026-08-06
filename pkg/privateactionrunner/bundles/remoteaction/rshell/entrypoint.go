@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build linux || darwin || windows
+
 package com_datadoghq_remoteaction_rshell
 
 import (
@@ -16,18 +18,18 @@ type RshellBundle struct {
 }
 
 // NewRshellBundle creates the rshell bundle with its registered actions.
-// It reads the operator-configured allowlists (paths and commands) from the config.
+// It reads the operator-configured path, command, and system-service allowlists
+// from the config.
 func NewRshellBundle(cfg *config.Config) types.Bundle {
+	commandHandlerConfig := RunCommandHandlerConfig{
+		OperatorAllowedPaths:          cfg.RShellAllowedPaths,
+		OperatorAllowedCommands:       cfg.RShellAllowedCommands,
+		OperatorAllowedSystemServices: cfg.RShellAllowedSystemServices,
+	}
 	return &RshellBundle{
 		actions: map[string]types.Action{
-			"runCommand": NewRunCommandHandler(
-				cfg.RShellAllowedPaths,
-				cfg.RShellAllowedCommands,
-			),
-			"runRemediationCommand": NewRunRemediationCommandHandler(
-				cfg.RShellAllowedPaths,
-				cfg.RShellAllowedCommands,
-			),
+			"runCommand":            NewRunCommandHandler(commandHandlerConfig),
+			"runRemediationCommand": NewRunRemediationCommandHandler(commandHandlerConfig),
 		},
 	}
 }

@@ -17,7 +17,7 @@ import (
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -263,6 +263,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
+		// TODO: (OTEL-3079) Set disable_otel_scope_convention
+		// Agent feature based on feature gate after upgrading to Collector 0.155.0
+
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}
@@ -270,9 +273,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Proxy Setup from config
-	if ddc.ProxyURL != "" {
-		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
-		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+	if ddc.ClientConfig.ProxyURL != "" {
+		pkgconfig.Set("proxy.http", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("proxy.https", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
 	// Always load proxy env vars (DD_PROXY_HTTP, DD_PROXY_HTTPS, DD_PROXY_NO_PROXY,

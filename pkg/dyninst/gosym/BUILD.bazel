@@ -1,20 +1,25 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "gosym",
     srcs = ["symtab.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gosym",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "gosym_test",
     srcs = [
         "symtab_benchmark_test.go",
         "symtab_test.go",
     ],
     data = glob(["testdata/**"]),
-    gotags = ["test"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":gosym",
         "//pkg/dyninst/ir",

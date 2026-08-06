@@ -12,55 +12,53 @@ import (
 )
 
 const (
+	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
+	defaultCommonRoot = "/opt/datadog-agent"
 	// defaultRunPath is the default runtime directory for the agent
 	defaultRunPath = "/opt/datadog-agent/run"
 	// defaultConfPath points to the folder containing datadog.yaml
 	defaultConfPath = "/opt/datadog-agent/etc"
-	// defaultConfdPath points to the folder containing integration configuration files
-	defaultConfdPath = "/opt/datadog-agent/etc/conf.d"
-	// defaultAdditionalChecksPath points to the folder containing custom python integration files
-	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
+	// defaultLogPath points to the log folder that will be used if not configured
+	defaultLogPath = "/opt/datadog-agent/logs"
 	// defaultPyChecksPath points to the folder containing preinstalled integrations with the agent
 	defaultPyChecksPath = "/opt/datadog-agent/checks.d"
-	// defaultBinPath is the installation folder for agent binaries
-	defaultBinPath = "/opt/datadog-agent/bin/agent"
 	// CheckFlareDirectory a flare friendly location for checks to be written
-	defaultCheckFlareDirectory = "/opt/datadog-agent/logs/checks/"
+	defaultCheckFlareDirectory = defaultLogPath + "/checks/"
 	// JMXFlareDirectory a flare friendly location for jmx command logs to be written
-	defaultJMXFlareDirectory = "/opt/datadog-agent/logs/jmxinfo/"
+	defaultJMXFlareDirectory = defaultLogPath + "/jmxinfo/"
 
 	// Log files
 
 	// LogFile points to the log file that will be used if not configured
-	defaultLogFile = "/opt/datadog-agent/logs/agent.log"
+	defaultLogFile = defaultLogPath + "/agent.log"
 	// DCALogFile points to the log file that will be used if not configured
-	defaultDCALogFile = "/opt/datadog-agent/logs/cluster-agent.log"
+	defaultDCALogFile = defaultLogPath + "/cluster-agent.log"
 	// JmxLogFile points to the jmx fetch log file that will be used if not configured
-	defaultJmxLogFile = "/opt/datadog-agent/logs/jmxfetch.log"
+	defaultJmxLogFile = defaultLogPath + "/jmxfetch.log"
 	// defaultDogstatsDServiceLogFile points to the old datadog.conf dogstatsd_log_file location for running dogstatsd in as a standalone service
 	defaultDogstatsDServiceLogFile = "/var/log/datadog/dogstatsd.log"
 	// defaultDogstatsDProtocolLogFile points to the dogstatsd stats log file that will be used if not configured
-	defaultDogstatsDProtocolLogFile = "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log"
+	defaultDogstatsDProtocolLogFile = defaultLogPath + "/dogstatsd_info/dogstatsd-stats.log"
 	// StreamlogsLogFile points to the stream logs log file that will be used if not configured
-	defaultStreamlogsLogFile = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
+	defaultStreamlogsLogFile = defaultLogPath + "/streamlogs_info/streamlogs.log"
 	// defaultUpdaterLogFile is the default log file location for updater
-	defaultUpdaterLogFile = "/opt/datadog-agent/logs/updater.log"
+	defaultUpdaterLogFile = defaultLogPath + "/updater.log"
 	// defaultTraceAgentLogFile is the default log file location for trace agent
-	defaultTraceAgentLogFile = "/opt/datadog-agent/logs/trace-agent.log"
+	defaultTraceAgentLogFile = defaultLogPath + "/trace-agent.log"
 	// defaultSecurityAgentLogFile is the default log file location for security agent
-	defaultSecurityAgentLogFile = "/opt/datadog-agent/logs/security-agent.log"
+	defaultSecurityAgentLogFile = defaultLogPath + "/security-agent.log"
 	// defaultProcessAgentLogFile is the default log file location for process agent
-	defaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
+	defaultProcessAgentLogFile = defaultLogPath + "/process-agent.log"
 	// defaultSystemProbeLogFile is the default log file location for the system probe
-	defaultSystemProbeLogFile = "/opt/datadog-agent/logs/system-probe.log"
+	defaultSystemProbeLogFile = defaultLogPath + "/system-probe.log"
 	// defaultOTelAgentLogFile is the default log file location for the otel agent
-	defaultOTelAgentLogFile = "/opt/datadog-agent/logs/otel-agent.log"
+	defaultOTelAgentLogFile = defaultLogPath + "/otel-agent.log"
 	// defaultHostProfilerLogFile is the default log file location for the host profiler
-	defaultHostProfilerLogFile = "/opt/datadog-agent/logs/host-profiler.log"
+	defaultHostProfilerLogFile = defaultLogPath + "/host-profiler.log"
 	// defaultPrivateActionRunnerLogFile is the default log file location for the private action runner
-	defaultPrivateActionRunnerLogFile = "/opt/datadog-agent/logs/private-action-runner.log"
+	defaultPrivateActionRunnerLogFile = defaultLogPath + "/private-action-runner.log"
 	// defaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
-	defaultDataPlaneLogFile = "/opt/datadog-agent/logs/agent-data-plane.log"
+	defaultDataPlaneLogFile = defaultLogPath + "/agent-data-plane.log"
 
 	// Sockets
 
@@ -110,30 +108,9 @@ func GetDefaultSysProbeConfFile() string {
 	return filepath.Join(GetDefaultConfPath(), "system-probe.yaml")
 }
 
-// GetDefaultConfdPath returns the path to the conf.d directory
-func GetDefaultConfdPath() string {
-	return defaultConfdPath
-}
-
-// GetDefaultAdditionalChecksPath returns the path to the checks.d directory
-func GetDefaultAdditionalChecksPath() string {
-	return defaultAdditionalChecksPath
-}
-
 // GetDefaultPyChecksPath returns the path to the python checks directory
 func GetDefaultPyChecksPath() string {
 	return defaultPyChecksPath
-}
-
-// GetDefaultPidFilePath returns the path to the agent PID file
-func GetDefaultPidFilePath() string {
-	return filepath.Join(GetDefaultRunPath(), "datadog-agent.pid")
-}
-
-// GetBinPath returns the directory containing the agent executable.
-// This is used by code that needs to find files relative to the executable location.
-func GetBinPath() string {
-	return defaultBinPath
 }
 
 // GetDefaultStatsdSocket returns the path to the run directory
@@ -219,6 +196,11 @@ func GetDefaultJmxLogFile() string {
 // GetDefaultDCALogFile returns the path to the cluster-agent log file
 func GetDefaultDCALogFile() string {
 	return defaultDCALogFile
+}
+
+// GetDefaultLogPath returns the path to the agent log directory
+func GetDefaultLogPath() string {
+	return defaultLogPath
 }
 
 // GetDefaultLogFile returns the path to the agent log file

@@ -45,6 +45,7 @@ func otelSpanToDDSpanMinimal(
 	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
+	primaryTagKeys []string,
 	spanAccessor semantics.Accessor,
 ) *pb.Span {
 	spanKind := otelspan.Kind()
@@ -110,6 +111,31 @@ func otelSpanToDDSpanMinimal(
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
+	// Copy span-derived primary tag values into Meta so the APM stats
+	// Concentrator's matchingAdditionalMetricTags (which reads span.Meta[key])
+	// can aggregate on them. The minimal conversion does not copy all
+	// attributes, so these must be pulled in explicitly like peer tags above.
+	for _, primaryTagKey := range primaryTagKeys {
+		if primaryTagVal := GetOTelAttrFromEitherMap(sattr, rattr, false, primaryTagKey); primaryTagVal != "" {
+			ddspan.Meta[primaryTagKey] = primaryTagVal
+		}
+	}
+	// Preserve the raw W3C tracestate so downstream consumers of the minimal
+	// span (e.g. the APM stats Concentrator) can recover head-sampling
+	// probability and weight stats accordingly. The full OtelSpanToDDSpan
+	// conversion already does this; mirror it here.
+	// An explicit _sample_rate attribute set by an upstream tracer takes
+	// precedence over the value decoded from the tracestate below. Apply it first
+	// so SetSampleRateFromTracestate's "gated on absence" guard preserves it.
+	SetSampleRateFromAttribute(ddspan, sattr)
+	if ts := otelspan.TraceState().AsRaw(); ts != "" {
+		ddspan.Meta["w3c.tracestate"] = ts
+		// Decode the head-based sampling probability from the tracestate and set
+		// _sample_rate so the APM stats Concentrator scales stats back up by the
+		// head-sampling weight (1/_sample_rate). Gated on absence to preserve any
+		// explicit upstream value (including the _sample_rate attribute above).
+		SetSampleRateFromTracestate(ddspan, ts)
+	}
 	return ddspan
 }
 
@@ -122,9 +148,10 @@ func OtelSpanToDDSpanMinimal(
 	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
+	primaryTagKeys []string,
 ) *pb.Span {
 	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
-	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, spanAccessor)
+	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, primaryTagKeys, spanAccessor)
 }
 
 func isDatadogAPMConventionKey(k string) bool {
@@ -273,7 +300,9 @@ func OtelSpanToDDSpan(
 	// Create one shared accessor for all span+resource lookups in this function and in the
 	// minimal span conversion below, avoiding repeated allocation of accessor objects.
 	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
-	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, spanAccessor)
+	// primaryTagKeys is nil here: the full conversion below copies all span and
+	// resource attributes into Meta, so span-derived primary tags are already present.
+	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, nil, spanAccessor)
 
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
@@ -305,13 +334,20 @@ func OtelSpanToDDSpan(
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
 
-	if otelspan.TraceState().AsRaw() != "" {
-		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
-	}
+	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
+	scopeConventionGateEnabled := !conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
+		if scopeConventionGateEnabled {
+			ddspan.Meta[string(semconv.OtelScopeNameKey)] = lib.Name()
+		}
+		// otel.library.name is a deprecated alias of otel.scope.name but MUST still be
+		// reported with the same value for backward compatibility.
 		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
 	}
 	if lib.Version() != "" {
+		if scopeConventionGateEnabled {
+			ddspan.Meta[string(semconv.OtelScopeVersionKey)] = lib.Version()
+		}
 		ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
 	}
 	ddspan.Meta[string(semconv.OtelStatusCodeKey)] = otelspan.Status().Code().String()

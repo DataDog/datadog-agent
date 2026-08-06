@@ -140,18 +140,17 @@ type locksConfig struct {
 
 // ConnectionConfig store the database connection information
 type ConnectionConfig struct {
-	Server             string `yaml:"server"`
-	Port               int    `yaml:"port"`
-	ServiceName        string `yaml:"service_name"`
-	Username           string `yaml:"username"`
-	Password           string `yaml:"password"`
-	TnsAlias           string `yaml:"tns_alias"`
-	TnsAdmin           string `yaml:"tns_admin"`
-	Protocol           string `yaml:"protocol"`
-	Wallet             string `yaml:"wallet"`
-	OracleClient       bool   `yaml:"oracle_client"`
-	OracleClientLibDir string `yaml:"oracle_client_lib_dir"`
-	QueryTimeout       int    `yaml:"query_timeout"`
+	Server       string `yaml:"server"`
+	Port         int    `yaml:"port"`
+	ServiceName  string `yaml:"service_name"`
+	Username     string `yaml:"username"`
+	Password     string `yaml:"password"`
+	TnsAlias     string `yaml:"tns_alias"`
+	TnsAdmin     string `yaml:"tns_admin"`
+	Protocol     string `yaml:"protocol"`
+	Wallet       string `yaml:"wallet"`
+	OracleClient bool   `yaml:"oracle_client"`
+	QueryTimeout int    `yaml:"query_timeout"`
 }
 
 func (c ConnectionConfig) QueryTimeoutString() string {

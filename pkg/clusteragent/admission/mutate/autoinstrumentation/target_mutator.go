@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
 const (
@@ -35,9 +36,13 @@ const (
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
 type TargetMutator struct {
-	enabled                       bool
-	core                          *mutatorCore
-	targets                       []targetInternal
+	enabled bool
+	core    *mutatorCore
+	targets []targetInternal
+	// matcher evaluates the policies derived from the configuration targets.
+	// matcher.policies and targets are aligned by index, so a match resolves
+	// directly to its injection config.
+	matcher                       *policyMatcher
 	disabledNamespaces            map[string]bool
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
@@ -63,11 +68,19 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	// If there are no targets, we should fall back to enabledNamespace/libVersions. If those are also not defined, the
 	// expected behavior is to inject all pods into all namespaces.
 	var internalTargets []targetInternal
+	// configPolicies is the policy form of the configuration targets, aligned
+	// by index with internalTargets. Pod matching is delegated to the native
+	// policy engine; an empty set (disabled mutator) naturally matches nothing.
+	var configPolicies []policies.Policy
 	if config.Instrumentation.Enabled {
 		targets := config.Instrumentation.Targets
 		if len(targets) == 0 {
 			targets = append(targets, createDefaultTarget(config.Instrumentation.EnabledNamespaces, config.Instrumentation.LibVersions))
 		}
+
+		// Lower the configuration targets into policies once, at the config
+		// boundary. Everything past this point matches on policies only.
+		configPolicies = policiesFromTargets(targets)
 
 		// Convert the targets to internal format.
 		internalTargets = make([]targetInternal, len(targets))
@@ -146,6 +159,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	m := &TargetMutator{
 		enabled:                       config.Instrumentation.Enabled,
 		targets:                       internalTargets,
+		matcher:                       newPolicyMatcher(configPolicies, wmeta),
 		disabledNamespaces:            disabledNamespacesMap,
 		securityClientLibraryMutator:  config.securityClientLibraryMutator,
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
@@ -181,7 +195,18 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
-	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// The admission can be re-run for the same pod (e.g. webhook reinvocation triggered by another
+	// mutating webhook, as happens on GKE Autopilot). Fast return if we injected the library
+	// already, otherwise we would mutate the pod a second time and, for instance, append the
+	// injector to LD_PRELOAD twice.
+	//
+	// The instrumentation volume is added by every injection mode (init_container, image_volume and
+	// CSI), so checking for it guards all modes. The CSI mode in particular has no init container,
+	// so the per-init-container checks below would miss it.
+	if containsVolume(pod, libraryinjection.InstrumentationVolumeName) {
+		log.Debugf("Instrumentation volume %q already exists in pod %q", libraryinjection.InstrumentationVolumeName, mutatecommon.PodString(pod))
+		return false, nil
+	}
 	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
@@ -285,9 +310,12 @@ func (m *TargetMutator) IsNamespaceEligible(namespace string) bool {
 	for _, target := range m.targets {
 		matches, err := target.matchesNamespaceSelector(namespace)
 		if err != nil {
-			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
-			return false
-
+			// Match the policy evaluator's behavior: a target whose namespace-label
+			// facts are unavailable cannot be evaluated, but it must not prevent a
+			// later namespace-name, pod-only, or catch-all target from making the
+			// namespace eligible.
+			log.Debugf("namespace metadata unavailable for target %q in namespace %q, skipping target: %v", target.name, namespace, err)
+			continue
 		}
 		if matches {
 			log.Debugf("Namespace %q matched target %q", namespace, target.name)
@@ -376,6 +404,11 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 }
 
 // getMatchingTarget filters a pod based on the targets. It returns the target to inject.
+//
+// Matching is delegated to the native policy engine: each target is compiled
+// into an equivalent policy (namespace and pod selectors ANDed together) and
+// the first policy that evaluates to true wins, preserving the previous
+// first-match semantics without relying on CGO or k8s label selectors.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	// If instrumentation is disabled, we don't need to check the targets.
 	if !m.enabled {
@@ -387,32 +420,15 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 		return nil
 	}
 
-	// Check if the pod matches any of the targets. The first match wins.
-	for _, target := range m.targets {
-		// Check the pod namespace against the namespace selector.
-		matches, err := target.matchesNamespaceSelector(pod.Namespace)
-		if err != nil {
-			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
-			return nil
-
-		}
-		if !matches {
-			continue
-		}
-
-		// Check the pod labels against the pod selector.
-		if !target.matchesPodSelector(pod.Labels) {
-			continue
-		}
-
-		log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), target.name)
-
-		// If the namespace and pod selector match, return the libraries to inject.
-		return &target
+	// The matcher and targets are aligned by index, so the first matching
+	// policy resolves directly to its injection config (first match wins).
+	idx := m.matcher.matchIndex(pod)
+	if idx < 0 || idx >= len(m.targets) {
+		return nil
 	}
 
-	// No target matched.
-	return nil
+	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), m.targets[idx].name)
+	return &m.targets[idx]
 }
 
 func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
@@ -435,10 +451,6 @@ func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error)
 	// Check if the pod namespace is in the match names.
 	_, ok := t.enabledNamespaces[namespace]
 	return ok, nil
-}
-
-func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
-	return t.podSelector.Matches(labels.Set(podLabels))
 }
 
 // createDefaultTarget is used when there are no targets. If a user configures enabledNamespaces and libVersions, which
@@ -514,6 +526,16 @@ func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]s
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	for _, container := range pod.Spec.InitContainers {
 		if container.Name == initContainerName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsVolume(pod *corev1.Pod, volumeName string) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Name == volumeName {
 			return true
 		}
 	}

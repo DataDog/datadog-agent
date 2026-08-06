@@ -50,6 +50,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -463,7 +464,7 @@ func cmdDiagnose(cliParams *cliParams,
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
 func printPayload(name payloadName, _ log.Component, config config.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -480,7 +481,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 }
 
 func printHealthPlatformIssues(_ log.Component, config config.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -498,7 +499,7 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 
 func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPClient) (*diagnose.Result, error) {
 	// Get client to Agent's RPC call
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
 	}
@@ -536,7 +537,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPCl
 
 // printAgentFullTelemetry gets the full telemetry payload exposed by the agent
 func printAgentFullTelemetry(config config.Component, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return err
 	}

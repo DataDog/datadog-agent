@@ -8,6 +8,7 @@ package serializerexporter
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -24,9 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"go.uber.org/fx"
@@ -43,8 +47,8 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	// Forwarder
 	config.Set("additional_endpoints", map[string][]string{}, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_timeout", 20, pkgconfigmodel.SourceDefault)
-	config.Set("forwarder_connection_reset_interval", 0, pkgconfigmodel.SourceDefault)                                               // in seconds, 0 means disabled
-	config.Set("forwarder_apikey_validation_interval", pkgconfigsetup.DefaultAPIKeyValidationInterval, pkgconfigmodel.SourceDefault) // in minutes
+	config.Set("forwarder_connection_reset_interval", 0, pkgconfigmodel.SourceDefault)                                          // in seconds, 0 means disabled
+	config.Set("forwarder_apikey_validation_interval", constants.DefaultAPIKeyValidationInterval, pkgconfigmodel.SourceDefault) // in minutes
 
 	config.Set("forwarder_num_workers", 1, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_stop_timeout", 2, pkgconfigmodel.SourceDefault)
@@ -54,7 +58,7 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	config.Set("forwarder_backoff_factor", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_base", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_max", 64, pkgconfigmodel.SourceDefault)
-	config.Set("forwarder_recovery_interval", pkgconfigsetup.DefaultForwarderRecoveryInterval, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_recovery_interval", constants.DefaultForwarderRecoveryInterval, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_recovery_reset", false, pkgconfigmodel.SourceDefault)
 
 	// Forwarder storage on disk
@@ -81,8 +85,8 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("serializer_max_series_points_per_payload", 10000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_payload_size", 512000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_uncompressed_payload_size", 5242880, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_zstd_compressor_level", pkgconfigsetup.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_zstd_compressor_level", constants.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
 	config.Set("use_v2_api.series", true, pkgconfigmodel.SourceDefault)
 
@@ -121,11 +125,33 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
 }
 
-// InitSerializer initializes the serializer and forwarder for sending metrics. Should only be used in OSS Datadog exporter or in tests.
-func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarderimpl.DefaultForwarder, error) {
-	var f defaultforwarder.Component
+// ForwarderLifecycle is the minimum interface needed to manage a forwarder's
+// lifecycle. Returned by InitSerializer so callers do not need to depend on the
+// concrete forwarder type, which varies with the UseSyncForwarder feature gate.
+type ForwarderLifecycle interface {
+	Start() error
+	Stop()
+}
+
+// stoppableForwarder is an internal alias for ForwarderLifecycle.
+type stoppableForwarder = ForwarderLifecycle
+
+// InitSerializer initializes the serializer and the forwarder behind it.
+// Should only be used in the OSS Datadog exporter or in tests.
+func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, ForwarderLifecycle, error) {
+	return initSerializerInternal(logger, cfg, sourceProvider)
+}
+
+// initSerializerInternal builds the serializer and a forwarder.
+// When the UseSyncForwarder feature gate is enabled it creates an OTelSyncForwarder;
+// otherwise it creates a DefaultForwarder. Used only by the OSS Datadog exporter.
+// DDOT injects its forwarder directly through the Fx graph in
+// cmd/otel-agent/subcommands/run/command.go.
+func initSerializerInternal(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, stoppableForwarder, error) {
+	var f defaultforwarder.Forwarder
 	var s *serializer.Serializer
-	app := fx.New(
+
+	opts := []fx.Option{
 		fx.WithLogger(func(log *zap.Logger) fxevent.Logger {
 			return &fxevent.ZapLogger{Logger: log}
 		}),
@@ -156,10 +182,6 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			zp := &datadog.Zaplogger{Logger: log}
 			return zp, nil
 		}),
-		// casts the defaultforwarder.Component to a defaultforwarder.Forwarder
-		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
-			return c, nil
-		}),
 		// this is the hostname argument for serializer.NewSerializer
 		// this should probably be wrapped by a type
 		fx.Provide(func() string {
@@ -176,19 +198,49 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			return c
 		}),
 		fx.Provide(func() secrets.Component { return &secretnooptypes.SecretNoop{} }),
-		defaultforwarderfx.Module(defaultforwarder.NewParams()),
 		delegatedauthnoopfx.Module(),
 		fx.Populate(&f),
 		fx.Populate(&s),
-	)
+	}
+
+	if IsSyncForwarderEnabled() {
+		opts = append(opts,
+			fx.Provide(func(c config.Component, l logdef.Component, sec secrets.Component) (defaultforwarder.Forwarder, error) {
+				eds, err := configutils.GetMultipleEndpoints(c)
+				if err != nil {
+					return nil, err
+				}
+				timeout := cfg.HTTPConfig.Timeout
+				if timeout == 0 {
+					timeout = LegacyForwarderTimeout
+				}
+				httpClient := &http.Client{
+					Timeout:   timeout,
+					Transport: utilhttp.CreateHTTPTransport(c),
+				}
+				return defaultforwarderimpl.NewOTelSyncForwarder(c, l, sec, eds, httpClient)
+			}),
+		)
+	} else {
+		opts = append(opts,
+			// casts the defaultforwarder.Component to a defaultforwarder.Forwarder
+			fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
+				return defaultforwarder.Forwarder(c), nil
+			}),
+			defaultforwarderfx.Module(defaultforwarder.NewParams()),
+		)
+	}
+
+	app := fx.New(opts...)
 	if err := app.Err(); err != nil {
 		return nil, nil, err
 	}
-	fw, ok := f.(*defaultforwarderimpl.DefaultForwarder)
+
+	sf, ok := f.(stoppableForwarder)
 	if !ok {
-		return nil, nil, errors.New("failed to cast forwarder to defaultforwarderimpl.DefaultForwarder")
+		return nil, nil, errors.New("forwarder does not implement Start/Stop lifecycle")
 	}
-	return s, fw, nil
+	return s, sf, nil
 }
 
 type orchestratorinterfaceimpl struct {

@@ -92,3 +92,9 @@ def generate_backend_documentation(input: str, output: str, template: str):
             ),
             file=output_file,
         )
+
+
+if __name__ == "__main__":
+    import sys
+
+    generate_backend_documentation(sys.argv[1], sys.argv[2], sys.argv[3])

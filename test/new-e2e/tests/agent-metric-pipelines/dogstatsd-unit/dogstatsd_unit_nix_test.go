@@ -53,21 +53,32 @@ type dogstatsdUnitSuite struct {
 func testDogstatsdMetricUnit(t *testing.T, adpEnabled, v3Enabled bool) {
 	t.Parallel()
 
-	agentOptions := []agentparams.Option{
-		agentparams.WithAgentConfig(`
+	agentConfig := `
 histogram_aggregates:
   - max
   - avg
   - count
 histogram_percentiles:
   - "0.95"
-`),
+`
+	if v3Enabled {
+		// The test fakeintake URL is not a Datadog intake URL, so explicitly opt in
+		// to V3 instead of relying on the default datadog_only mode.
+		agentConfig += `
+use_v3_api:
+  series:
+    enabled: "true"
+`
+	}
+
+	agentOptions := []agentparams.Option{
+		agentparams.WithAgentConfig(agentConfig),
 	}
 	if adpEnabled {
 		agentOptions = append(agentOptions, common.WithADPEnabled())
 	}
 	if !v3Enabled {
-		// V3 is the default intake; force V2 explicitly to exercise the V2 wire format.
+		// Force V2 explicitly to exercise the V2 wire format.
 		agentOptions = append(agentOptions, agentparams.WithV3MetricsDisabled())
 	}
 
@@ -116,7 +127,7 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 
 // TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing metric in
 // parallel and verifies that only the timing metric carries a unit. The test runs for both V2
-// and V3 (default) intake protocols; in both cases it asserts that payloads were routed
+// and V3 intake protocols; in both cases it asserts that payloads were routed
 // exclusively to the expected endpoint.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 	if s.adpEnabled {

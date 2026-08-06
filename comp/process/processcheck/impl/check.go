@@ -46,8 +46,8 @@ type Provides struct {
 	Component processcheck.Component
 }
 
-// NewCheck creates a new processcheck component.
-func NewCheck(deps dependencies) Provides {
+// NewComponent creates a new processcheck component.
+func NewComponent(deps dependencies) Provides {
 	c := &check{
 		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber, deps.Statsd, deps.IPC.GetTLSServerConfig(), deps.Tagger),
 	}

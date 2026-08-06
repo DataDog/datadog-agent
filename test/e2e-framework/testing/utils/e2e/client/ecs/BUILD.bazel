@@ -18,7 +18,7 @@ go_library(
         "@com_github_aws_session_manager_plugin//src/message",
         "@com_github_aws_session_manager_plugin//src/retry",
         "@com_github_aws_session_manager_plugin//src/sessionmanagerplugin/session",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_google_uuid//:uuid",
     ],
 )

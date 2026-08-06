@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Preserve OTLP attributes on Kubernetes manifests sent by the OTel Datadog exporter in a dedicated manifest attributes field.

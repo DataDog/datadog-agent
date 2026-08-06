@@ -25,6 +25,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/impl"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -70,12 +71,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func requestDogstatsdStats(_ log.Component, _ config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"syscall"
 	"testing"
@@ -344,11 +345,23 @@ func TestDNSOverCustomPort(t *testing.T) {
 //   - traffic to one of the first 8 (sorted ascending) ports IS captured
 //   - traffic to a dropped port (slot index >= 8) is NOT captured
 func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
-	// 9 distinct ports, sorted ascending: 53, 1001, 1002, ..., 1008.
-	// DNSPortsMax = 8, so port 1008 (slot index 8 after sort) is dropped.
+	// OS-assigned ephemeral ports, starting at 32768 on Linux, avoid conflicts
+	// with host services and sort well-after the fixed ports below.
+	var ports [2]uint16
+	for i := range ports {
+		shutdown, port := newTestServer(t, localhost, "udp")
+		defer shutdown()
+		require.Greater(t, port, uint16(1006), "assumption about OS-assigned ports does not hold: got %d", port)
+		ports[i] = port
+	}
+	slices.Sort(ports[:])
+	portKept, portDropped := int(ports[0]), int(ports[1])
+
+	// 9 distinct ports, sorted ascending: 53, 1001, ..., 1006, N >1006, M >N.
+	// DNSPortsMax = 8, so `portDropped` (slot index 8 after sort) is dropped.
 	mock.NewSystemProbe(t).SetInTest(
 		"network_config.dns_monitoring_ports",
-		[]int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008},
+		[]int{53, 1001, 1002, 1003, 1004, 1005, 1006, portKept, portDropped},
 	)
 	cfg := config.New()
 	cfg.CollectDNSStats = true
@@ -363,27 +376,23 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
 
-	// Traffic to port 1007 (the last kept slot, index 7) MUST be captured.
-	shutdownKept, portKept := newTestServerOnPort(t, localhost, "udp", 1007)
-	defer shutdownKept()
-	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(portKept)), "udp")
+	// Traffic to `portKept` (the last kept slot, index 7) MUST be captured.
+	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(portKept), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, repsKept[0])
 	keyKept := getKey(queryIPKept, queryPortKept, localhost, syscall.IPPROTO_UDP)
 	require.Eventually(t, func() bool {
 		return statKeeper.Snapshot()[keyKept] != nil
-	}, 3*time.Second, 10*time.Millisecond, "kept port 1007 (slot 7) should have been captured")
+	}, 3*time.Second, 10*time.Millisecond, "kept port %d (slot 7) should have been captured", portKept)
 
-	// Traffic to port 1008 (the dropped port) MUST NOT be captured.
-	shutdownDropped, portDropped := newTestServerOnPort(t, localhost, "udp", 1008)
-	defer shutdownDropped()
-	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(int(portDropped)), "udp")
+	// Traffic to `portDropped` (the dropped port) MUST NOT be captured.
+	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{"golang.org"}, net.ParseIP(localhost), strconv.Itoa(portDropped), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, repsDropped[0])
 	keyDropped := getKey(queryIPDropped, queryPortDropped, localhost, syscall.IPPROTO_UDP)
 	require.Never(t, func() bool {
 		return statKeeper.Snapshot()[keyDropped] != nil
-	}, 500*time.Millisecond, 10*time.Millisecond, "dropped port 1008 (beyond slot 7) should NOT be captured")
+	}, 500*time.Millisecond, 10*time.Millisecond, "dropped port %d (beyond slot 7) should NOT be captured", portDropped)
 }
 
 // TestDNSDeduplicatesPorts verifies that duplicate entries in
