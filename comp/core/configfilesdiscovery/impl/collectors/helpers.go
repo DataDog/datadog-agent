@@ -53,11 +53,11 @@ func findConfigPath(
 	matchesCommandline func([]string) bool,
 ) (string, bool, error) {
 	commandline, runtimeErr := reader.ReadRuntimeCommandline(ctx)
-	commandMatched := false
+	runtimeCommandMatched := false
 	if runtimeErr == nil {
-		commandMatched = matchesCommandline(commandline.Args)
+		runtimeCommandMatched = matchesCommandline(commandline.Args)
 		if configArg, found := findConfigArg(commandline.Args); found {
-			commandMatched = true
+			runtimeCommandMatched = true
 			if configPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
 				return configPath, true, nil
 			}
@@ -68,14 +68,12 @@ func findConfigPath(
 	liveCommandMatched := false
 	for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
 		if matchesCommandline(commandline.Args) {
-			commandMatched = true
 			liveCommandMatched = true
 		}
 		configArg, found := findConfigArg(commandline.Args)
 		if !found {
 			continue
 		}
-		commandMatched = true
 		resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
 		if !resolved {
 			return "", true, runtimeErr
@@ -91,7 +89,7 @@ func findConfigPath(
 	if liveCommandMatched {
 		return "", true, nil
 	}
-	return "", commandMatched, runtimeErr
+	return "", runtimeCommandMatched, runtimeErr
 }
 
 // readConfigFile discovers and reads an explicit config file, or falls back to
