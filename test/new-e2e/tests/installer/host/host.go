@@ -324,19 +324,6 @@ func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 	}
 }
 
-// WaitForUnitDead waits for a systemd unit to settle into an inactive/dead substate. Useful for a
-// unit that is expected to never successfully start because it is BindsTo= a unit that fails fast
-// (e.g. a missing config file): the failure needs a moment to crash-loop through its restart limit
-// and propagate the BindsTo teardown before the substate can be read reliably.
-func (h *Host) WaitForUnitDead(t *testing.T, units ...string) {
-	for _, unit := range units {
-		assert.Eventually(t, func() bool {
-			out, err := h.remote.Execute("systemctl show -p SubState --value " + unit)
-			return err == nil && strings.TrimSpace(out) == string(Dead)
-		}, time.Second*90, time.Second*2, "unit %s did not settle into a dead state. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
-	}
-}
-
 // WaitForProcessesRunning waits for procmgr-supervised processes to report a Running state.
 // Unlike State.AssertProcessesRunning (a static snapshot check with no retry), this polls
 // dd-procmgrd directly: becoming Running takes a few extra hops after the hosting systemd unit
