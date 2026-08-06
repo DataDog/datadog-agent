@@ -322,7 +322,6 @@ func (c *advanceTimeCommand) execute(
 // All of the durations are in ticks to match the timelines.
 type initializeCommand struct {
 	CurrentTime uint64 `yaml:"current_time"`
-	MinAge      uint64 `yaml:"min_age"`
 	BackoffBase uint64 `yaml:"backoff_base"`
 	BackoffCap  uint64 `yaml:"backoff_cap"`
 }
@@ -334,7 +333,6 @@ func (c *initializeCommand) execute(
 	ts.currentTime = ticks(c.CurrentTime)
 	ts.scanner = newScanner(
 		[]Option{
-			WithMinProcessAge(ticksToDuration(c.MinAge)),
 			WithRetryBackoff(
 				ticksToDuration(c.BackoffBase), ticksToDuration(c.BackoffCap),
 			),

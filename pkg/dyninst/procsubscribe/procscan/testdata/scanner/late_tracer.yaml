@@ -3,7 +3,6 @@
 # started, and the retries keep going until it does.
 - !initialize
   current_time: 100
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 - !create-process
@@ -33,7 +32,6 @@
 ---
 command: !initialize
   current_time: 100
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 ---

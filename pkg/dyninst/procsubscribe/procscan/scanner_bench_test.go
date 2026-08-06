@@ -274,9 +274,8 @@ func makeSyntheticProcfs(
 	now, err := nowTicks()
 	require.NoError(tb, err)
 
-	// Every process must be old enough that no scan can be the first one to
-	// look at it. A younger one would cross the age floor partway through a
-	// benchmark and turn a steady-state tick into a discovery tick.
+	// Start times sit far enough in the past, and far enough apart, to be
+	// stable and distinct for the length of a benchmark run.
 	const minAge = ticks(1010 * clkTck)
 	const ageSpacing = ticks(7)
 	ageSpread := ageSpacing * ticks(numProcs)

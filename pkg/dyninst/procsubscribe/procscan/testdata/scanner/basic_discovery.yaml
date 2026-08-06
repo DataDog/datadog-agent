@@ -1,9 +1,8 @@
-# Basic discovery: a process that is old enough and has published its tracer
-# metadata is discovered on the next scan, and is not looked at again after
+# Basic discovery: a process that has published its tracer metadata is
+# discovered on the first scan that sees it, and is not looked at again after
 # that.
 - !initialize
   current_time: 0
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 - !advance-time {to: 30}
@@ -26,7 +25,6 @@
 ---
 command: !initialize
   current_time: 0
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 ---
@@ -48,14 +46,15 @@ command: !create-process
 command: !advance-time {to: 55}
 ---
 command: !scan {}
+new: [{pid: 1001, start_time: 50}]
 state:
   current_time: 55
+  live: [{pid: 1001, start_time: 50}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 60}
 ---
 command: !scan {}
-new: [{pid: 1001, start_time: 50}]
 state:
   current_time: 60
   live: [{pid: 1001, start_time: 50}]

@@ -2,7 +2,6 @@
 # Discover a process, then remove it, next scan should report it as removed.
 - !initialize
   current_time: 0
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 - !create-process
@@ -19,7 +18,6 @@
 ---
 command: !initialize
   current_time: 0
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 ---
