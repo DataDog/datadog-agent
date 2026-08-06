@@ -18,14 +18,6 @@ import (
 )
 
 func waitAndExec(opts options, stderr io.Writer) error {
-	// Resolve everything we can before publishing Prepared. Once Prepared is
-	// visible, Kubernetes may consider this container healthy through the old
-	// generation's host-network listener and terminate that generation.
-	path, err := exec.LookPath(opts.command[0])
-	if err != nil {
-		return fmt.Errorf("resolve command before declaring Prepared: %w", err)
-	}
-
 	lock, err := os.OpenFile(opts.lockPath, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return fmt.Errorf("open component lock: %w", err)
@@ -65,6 +57,10 @@ func waitAndExec(opts options, stderr io.Writer) error {
 		}
 	}
 
+	path, err := exec.LookPath(opts.command[0])
+	if err != nil {
+		return fmt.Errorf("resolve command after acquiring component lock: %w", err)
+	}
 	fmt.Fprintf(stderr, "agent-rollout-gate: %s acquired component lock; starting %s\n", opts.component, opts.command[0])
 	if err := syscall.Exec(path, opts.command, os.Environ()); err != nil {
 		return fmt.Errorf("exec command after acquiring component lock: %w", err)

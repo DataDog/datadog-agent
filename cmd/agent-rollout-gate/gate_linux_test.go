@@ -81,7 +81,7 @@ func TestWaitForNonEmptyFile(t *testing.T) {
 	}
 }
 
-func TestMissingCommandDoesNotDeclarePrepared(t *testing.T) {
+func TestMissingCommandIsNotCheckedUntilAfterLockAcquisition(t *testing.T) {
 	dir := t.TempDir()
 	opts := options{
 		component:    "agent",
@@ -91,12 +91,34 @@ func TestMissingCommandDoesNotDeclarePrepared(t *testing.T) {
 		command:      []string{dir + "/missing-agent"},
 	}
 
-	err := waitAndExec(opts, os.Stderr)
-	if err == nil || !strings.Contains(err.Error(), "resolve command before declaring Prepared") {
-		t.Fatalf("got %v, want command preflight error", err)
+	oldLock, err := os.OpenFile(opts.lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(opts.preparedPath); !os.IsNotExist(err) {
-		t.Fatalf("Prepared marker exists after failed preflight: %v", err)
+	defer oldLock.Close()
+	if err := syscall.Flock(int(oldLock.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- waitAndExec(opts, io.Discard) }()
+	waitForFileContents(t, opts.preparedPath)
+	select {
+	case err := <-done:
+		t.Fatalf("gate checked the command before acquiring the lock: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	if err := syscall.Flock(int(oldLock.Fd()), syscall.LOCK_UN); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "resolve command after acquiring component lock") {
+			t.Fatalf("got %v, want post-lock command error", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("gate did not check the command after lock acquisition")
 	}
 }
 
