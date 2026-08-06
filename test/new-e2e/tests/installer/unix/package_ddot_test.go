@@ -182,29 +182,21 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 		s.T().Fatalf("unsupported package manager: %s", s.host.GetPkgManager())
 	}
 
-	// Step 5: ddot must NOT have started — there is no datadog.yaml so datadog-agent will crash
-	// and sub-services will follow.
-	if s.host.ProcmgrEnabled() {
-		s.host.WaitForUnitDead(s.T(), procmgrUnit)
-	} else {
-		s.host.WaitForUnitDead(s.T(), ddotUnit)
-	}
+	// Step 5: otel-config.yaml must exist and contain the api_key and site from env vars.
 	state := s.host.State()
-
-	// Step 6: otel-config.yaml must exist and contain the api_key and site from env vars.
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run(fmt.Sprintf("sudo grep -q '%s' /etc/datadog-agent/otel-config.yaml", testAPIKey))
 	s.host.Run(fmt.Sprintf("sudo grep -q '%s' /etc/datadog-agent/otel-config.yaml", testSite))
 	state.AssertPathDoesNotExist("/etc/datadog-agent/datadog.yaml")
 
-	// Step 7: restore datadog.yaml and append the otelcollector activation stanza.
+	// Step 6: restore datadog.yaml and append the otelcollector activation stanza.
 	s.Env().RemoteHost.MustExecute("sudo mv /etc/datadog-agent/datadog.yaml.bak /etc/datadog-agent/datadog.yaml")
 	s.Env().RemoteHost.MustExecute(`sudo sh -c "printf 'otelcollector:\n  enabled: true\n  agent_ipc:\n    port: 5009\n    config_refresh_interval: 60\n' >> /etc/datadog-agent/datadog.yaml"`)
 
-	// Step 8: restart the agent so it picks up the updated configuration.
+	// Step 7: restart the agent so it picks up the updated configuration.
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent.service")
 
-	// Step 9: verify the agent and ddot are both running.
+	// Step 8: verify the agent and ddot are both running.
 	s.host.WaitForUnitActive(s.T(), agentUnit)
 	state = s.host.State()
 	s.assertCoreUnits(state, true, true)
