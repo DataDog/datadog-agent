@@ -42,7 +42,7 @@ variables:
     --comparison-sha ${CI_COMMIT_SHA} \
     --target-config-dir ${CONFIG_DIR} \
     --submission-metadata submission_metadata \
-    --tags ${SMP_TAGS} || {
+    --tags ${SMP_TAGS} ${EXPERIMENT_FILTER_ARG} || {
       exit_code=$?
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
@@ -151,6 +151,49 @@ variables:
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
+    # Experiment subset filter. Only jobs that set READ_SELECTION_COMMENT (the
+    # agent regression_detector) build a filter; the ebpf/metal jobs leave it
+    # unset, so EXPERIMENT_FILTER_ARG stays empty and they run unfiltered.
+    #
+    # quality_gates ALWAYS runs (it is force-included below and is excluded from
+    # the selection comment), so the filter is always non-empty even when the
+    # developer ticks nothing extra -- "no extras ticked" is the common case and
+    # simply means "run only the quality gates". Any suites the developer ticked
+    # in the "SMP Experiment Selection" comment are unioned on. NOTE: never OMIT
+    # --experiment-path-filter (that would run the ENTIRE suite incl. ebpf); we
+    # always pass at least quality_gates.
+    - EXPERIMENT_FILTER_ARG=""
+    - |
+      if [ "${READ_SELECTION_COMMENT:-false}" = "true" ]; then
+        # Best effort: mint a GitHub token, resolve the PR, fetch the selection
+        # comment (the one whose body STARTS WITH the marker -- the CI config-diff
+        # comment only contains the marker inside a code block; this finder MUST
+        # match the smp-experiment-selection-comment writer). Any failure (no PR,
+        # octo-sts down, no comment) just leaves the file empty -> quality_gates.
+        set +e
+        GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr 2>/dev/null)
+        PR_NUMBER=""
+        if [ -n "${GITHUB_TOKEN}" ]; then
+          PR_NUMBER=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/DataDog/datadog-agent/commits/${CI_COMMIT_SHA}/pulls" \
+            | jq -r '.[0].number // empty')
+        fi
+        : > selection_comment.md
+        if [ -n "${PR_NUMBER}" ]; then
+          curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/DataDog/datadog-agent/issues/${PR_NUMBER}/comments?per_page=100" \
+            | jq -r 'map(select(.body | startswith("<!-- smp-experiment-selection -->"))) | last | .body // empty' > selection_comment.md
+        fi
+        set -e
+        # `smp experiments parse-comment` owns the comment format and never errors
+        # on an empty file (emits ""). Force-include quality_gates, then union any
+        # ticked extras.
+        EXTRAS=$(./smp experiments parse-comment --comment selection_comment.md --format path-filter)
+        FILTER="quality_gates"
+        if [ -n "${EXTRAS}" ]; then FILTER="quality_gates,${EXTRAS}"; fi
+        EXPERIMENT_FILTER_ARG="--experiment-path-filter ${FILTER}"
+        echo "Experiment path filter: ${FILTER}"
+      fi
     - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
     - !reference [.smp_config_only_job_submit]
     - else
@@ -295,13 +338,24 @@ single-machine-performance-regression_detector:
       allow_failure: false
     - when: on_success
       allow_failure: true
+  # Child pipelines cannot !reference .dd_octo_sts from .gitlab-ci.yml, so the
+  # octo-sts id_token is declared inline (same aud as .dd_octo_sts). Used to
+  # mint a GitHub token to read the experiment-selection PR comment.
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.27.0
+    SMP_VERSION: dev-pr4640-2299f1770 # dev build with the `smp experiments` command group (SMP PR 4640)
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression
+    # Tells the shared run template to read the PR selection comment and turn the
+    # ticked boxes into --experiment-path-filter values (see the template's
+    # "experiment subset filter" block). Only this job sets it; the ebpf/metal
+    # jobs leave it unset and therefore run unfiltered.
+    READ_SELECTION_COMMENT: "true"
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
