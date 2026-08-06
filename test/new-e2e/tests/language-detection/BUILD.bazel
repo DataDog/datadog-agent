@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "language-detection_test",
     srcs = [
         "language_detection_test.go",
@@ -23,7 +23,6 @@ go_test(
         "etc/process_config.yaml",
         "etc/process_config_no_check.yaml",
     ],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

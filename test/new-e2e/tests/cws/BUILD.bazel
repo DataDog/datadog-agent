@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "cws",
@@ -23,7 +24,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "cws_test",
     srcs = [
         "ec2_test.go",
@@ -33,7 +34,6 @@ go_test(
         "windows_test.go",
     ],
     embed = [":cws"],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/agentparams",

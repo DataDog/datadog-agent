@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "snmp",
@@ -13,7 +14,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "snmp_test",
     srcs = [
         "autodiscovery_test.go",
@@ -107,7 +108,6 @@ go_test(
         "config-vm/cisco-nexus.yaml",
         "config/cisco-nexus.yaml",
     ],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",

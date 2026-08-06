@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "windows",
@@ -49,7 +50,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "windows_test",
     srcs = [
         "agent_config_test.go",
@@ -94,7 +95,6 @@ go_test(
         "resources/dotnet/index.aspx",
         "resources/dotnet/web.config",
     ],
-    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//pkg/util/testutil/flake",

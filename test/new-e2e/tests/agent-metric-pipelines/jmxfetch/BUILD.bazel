@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "jmxfetch",
@@ -7,13 +8,12 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "jmxfetch_test",
     srcs = ["jmxfetch_nix_test.go"],
     data = ["testdata/docker-labels.yaml"],
     embed = [":jmxfetch"],
     embedsrcs = ["testdata/docker-labels.yaml"],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/utils",

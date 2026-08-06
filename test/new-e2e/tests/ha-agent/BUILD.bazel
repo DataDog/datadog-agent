@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "ha-agent_test",
     srcs = [
         "haagent_failover_test.go",
@@ -15,7 +15,6 @@ go_test(
         "fixtures/cisco_aci_conf.yaml",
         "fixtures/snmp_conf.yaml",
     ],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",

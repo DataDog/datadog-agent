@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "k8s-logs_test",
     srcs = [
         "file_tailing_cca_off_test.go",
@@ -9,7 +9,6 @@ go_test(
     ],
     data = ["long_line_log.txt"],
     embedsrcs = ["long_line_log.txt"],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",

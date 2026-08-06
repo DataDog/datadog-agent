@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "gpu",
@@ -50,12 +51,11 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "gpu_test",
     srcs = ["gpu_test.go"],
     data = glob(["testdata/**"]),
     embed = [":gpu"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",

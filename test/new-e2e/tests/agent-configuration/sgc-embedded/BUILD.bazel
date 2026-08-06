@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files([
     "fixtures/secrets.json",
@@ -6,7 +6,7 @@ exports_files([
     "fixtures/secrets_merged.yaml",
 ])
 
-go_test(
+dd_agent_go_test(
     name = "sgc-embedded_test",
     srcs = ["sgc_multi_backend_nix_test.go"],
     data = [
@@ -19,7 +19,6 @@ go_test(
         "fixtures/secrets.yaml",
         "fixtures/secrets_merged.yaml",
     ],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",

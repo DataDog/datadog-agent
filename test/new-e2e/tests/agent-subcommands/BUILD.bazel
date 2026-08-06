@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "agent-subcommands_test",
     srcs = [
         "check_common_test.go",
@@ -38,7 +38,6 @@ go_test(
         "status_nix_test.go",
         "status_win_test.go",
     ],
-    # keep
     data = [
         "check/fixtures/hello.py",
         "check/fixtures/hello.yaml",
@@ -46,19 +45,13 @@ go_test(
         "status/fixtures/custom_check.py",
         "status/fixtures/custom_check.yaml",
     ],
-    # keep
     embedsrcs = [
         "check/fixtures/hello.py",
         "check/fixtures/hello.yaml",
         "dogstatsdreplay/fixtures/metrics_capture.zstd",
         "status/fixtures/custom_check.py",
         "status/fixtures/custom_check.yaml",
-        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/datadog-agent.yaml",
-        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/security-agent.yaml",
-        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/system-probe.yaml",
-        "//test/new-e2e/tests/agent-subcommands/config:fixtures/datadog-agent.yaml",
     ],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",

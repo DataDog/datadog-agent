@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "agent-configuration",
@@ -23,7 +24,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "agent-configuration_test",
     srcs = [
         "api_test.go",
@@ -43,12 +44,7 @@ go_test(
         "sgc_win_test.go",
     ],
     embed = [":agent-configuration"],
-    # keep
-    embedsrcs = [
-        "secret/fixtures/secret_script.py",
-        "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",
-    ],
-    gotags = ["test"],
+    embedsrcs = ["secret/fixtures/secret_script.py"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",

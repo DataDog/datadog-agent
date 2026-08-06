@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "install-test",
@@ -35,7 +36,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "install-test_test",
     srcs = [
         "agent_keep_rights_test.go",
@@ -49,7 +50,6 @@ go_test(
         "upgrade_test.go",
     ],
     embed = [":install-test"],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/runner",

@@ -1,11 +1,10 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "file-tailing_test",
     srcs = ["file_tailing_test.go"],
     data = ["config/config.yaml"],
     embedsrcs = ["config/config.yaml"],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

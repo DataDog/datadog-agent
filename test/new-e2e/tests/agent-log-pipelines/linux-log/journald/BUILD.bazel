@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "journald_test",
     srcs = ["journald_tailing_test.go"],
     data = [
@@ -13,7 +13,6 @@ go_test(
         "log-config/logger-service.sh",
         "log-config/python-script.sh",
     ],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

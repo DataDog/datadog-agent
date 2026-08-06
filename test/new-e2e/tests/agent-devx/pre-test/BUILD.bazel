@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "pre-test_test",
     srcs = [
         "agent_test.go",
@@ -9,7 +9,6 @@ go_test(
         "loadbalancer_test.go",
         "vm_test.go",
     ],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/apps/nginx",

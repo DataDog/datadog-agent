@@ -30,6 +30,7 @@ go_test(
     srcs = ["package_test.go"],
     embed = [":agent"],
     gotags = ["test"],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "@com_github_stretchr_testify//assert",

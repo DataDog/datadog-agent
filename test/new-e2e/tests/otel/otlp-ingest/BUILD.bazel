@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "otlp-ingest_test",
     srcs = [
         "docker_pipelines_test.go",
@@ -12,7 +12,6 @@ go_test(
     ],
     data = ["compose/otlp_ingest_compose.yaml"],
     embedsrcs = ["compose/otlp_ingest_compose.yaml"],
-    gotags = ["test"],
     deps = [
         "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/components/datadog/dockeragentparams",

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ssi",
@@ -37,7 +38,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ssi_test",
     srcs = ["ssi_test.go"],
     data = [
@@ -57,7 +58,6 @@ go_test(
         "testdata/registry_allow_list.yaml",
         "testdata/workload_selection.yaml",
     ],
-    gotags = ["test"],
     deps = [
         "//pkg/ssi/testutils",
         "//pkg/util/testutil/flake",

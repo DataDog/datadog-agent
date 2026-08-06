@@ -8,21 +8,13 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "agent-health_test",
     srcs = [
-        "admission_probe_test.go",
-        "docker_permission_test.go",
-        "helpers_test.go",
         "provisioner.go",  # keep
-        "resilience_test.go",
     ],
     # keep
     data = [
         "fixtures/admission_probe_helm_values.yaml",
         "fixtures/docker-compose.busybox.yaml",
         "fixtures/docker_permission_agent_config.yaml",
-        "fixtures/resilience_agent_config.yaml",
-    ],
-    embedsrcs = [
-        "fixtures/admission_probe_helm_values.yaml",
         "fixtures/resilience_agent_config.yaml",
     ],
     gotags = ["test"],

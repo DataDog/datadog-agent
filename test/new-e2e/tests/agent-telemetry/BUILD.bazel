@@ -1,6 +1,6 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "agent-telemetry_test",
     srcs = [
         "errortracking_cluster_agent_test.go",
@@ -22,11 +22,10 @@ go_test(
         "testdata/errortracking-cluster-agent-enabled.yaml",
         "testdata/errortracking-disabled.yaml",
         "testdata/errortracking-enabled.yaml",
+        "testdata/errortracking-otel-agent-collector-config.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
-        "testdata/errortracking-otel-agent-collector-config.yaml",
     ],
-    gotags = ["test"],
     deps = [
         "//pkg/util/flavor",
         "//test/e2e-framework/components/datadog/agentparams",

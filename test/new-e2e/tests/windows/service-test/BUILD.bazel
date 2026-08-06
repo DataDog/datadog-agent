@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "service-test",
@@ -9,7 +10,7 @@ go_library(
     deps = ["//test/e2e-framework/testing/components"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "service-test_test",
     srcs = ["startstop_test.go"],
     data = [
@@ -37,7 +38,6 @@ go_test(
         "fixtures/system-probe-nofim.yaml",
         "fixtures/system-probe.yaml",
     ],
-    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//pkg/util/testutil/flake",
