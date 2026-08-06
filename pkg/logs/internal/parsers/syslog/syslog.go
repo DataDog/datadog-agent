@@ -512,16 +512,10 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// --- TAG + CONTENT ---
 	rest := line[pos:]
 
-	// Detect "double-header" formats where a second timestamp appears in the TAG
-	// position — an ISO 8601 one (e.g. Cisco FTD: "YYYY-MM-DDThh:mm:ssZ hostname
-	// ...") or a repeated BSD one ("Mmm dd hh:mm:ss MGMT_IP Mmm dd hh:mm:ss
-	// hostname CISE_..."). The repeated BSD form is generally not a device
-	// behavior but a relay artifact: an aggregator that fails to recognize a line
-	// as already-formatted syslog prepends its own TIMESTAMP HOSTNAME to the
-	// whole thing, so any source behind a misconfigured relay can produce it.
-	// No real TAG is present; treat the entire remainder as MSG. Without the BSD
-	// case the month abbreviation of the second timestamp becomes the APP-NAME.
-	if looksLikeISOTimestamp(rest) || bsdTimestampLen(rest) > 0 {
+	// Detect "double-header" formats where an ISO 8601 timestamp appears in
+	// the TAG position (e.g. Cisco FTD: "YYYY-MM-DDThh:mm:ssZ hostname ...").
+	// No real TAG is present; treat the entire remainder as MSG.
+	if looksLikeISOTimestamp(rest) {
 		msg.Msg = rest
 		return msg, nil
 	}

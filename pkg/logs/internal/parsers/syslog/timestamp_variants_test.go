@@ -164,21 +164,6 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 	}
 }
 
-// A relay that does not recognize an incoming line as already-formatted syslog
-// prepends its own timestamp and host, leaving two BSD headers. The month
-// abbreviation of the second one used to be extracted as the APP-NAME. The
-// sample is Cisco ISE, but any source behind such a relay can produce it.
-func TestParseDoubleBSDHeader(t *testing.T) {
-	line := "<184>Apr 27 11:16:44 172.0.0.10 Apr 27 11:16:44 xyz12 CISE_Passed_Authentications 0000000487 1 0"
-	msg, err := Parse([]byte(line))
-	require.NoError(t, err)
-
-	assert.Equal(t, "Apr 27 11:16:44", msg.Timestamp)
-	assert.Equal(t, "172.0.0.10", msg.Hostname)
-	assert.Equal(t, nilvalue, msg.AppName, "the second timestamp must not become the appname")
-	assert.Equal(t, "Apr 27 11:16:44 xyz12 CISE_Passed_Authentications 0000000487 1 0", string(msg.Msg))
-}
-
 // A colon after the PRI is only skipped when a timestamp follows it, so content
 // that merely starts with a colon keeps its leading colon in MSG.
 func TestColonAfterPRIWithoutTimestamp(t *testing.T) {
