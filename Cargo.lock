@@ -1941,19 +1941,10 @@ dependencies = [
  "anyhow",
  "clap",
  "dd-agent-log",
- "hyper-util",
  "log",
- "prost",
  "serde",
  "serde_yaml",
- "tempfile",
  "tokio",
- "tonic",
- "tonic-prost",
- "tonic-prost-build",
- "tower",
- "windows-registry",
- "windows-sys 0.61.2",
 ]
 
 [[package]]

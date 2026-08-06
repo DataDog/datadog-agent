@@ -340,11 +340,6 @@ if windows_target?
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
 
-  if not fips_mode?
-    # TODO(ACTP-XXX): PAR is not enabled in Gov yet
-    windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
-  end
-
   if windows_signing_enabled?
     # Sign additional binaries from here.
     # We can't request signing from the respective components/software definitions
@@ -371,7 +366,7 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
       "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
-    ] + (fips_mode? ? [] : ["#{install_dir}\\bin\\agent\\par-control.exe"])
+    ]
 
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin
