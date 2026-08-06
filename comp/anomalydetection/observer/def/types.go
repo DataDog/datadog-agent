@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
@@ -287,8 +286,9 @@ type DetectionResult struct {
 type SeriesDetector interface {
 	// Name returns the analysis name for debugging.
 	Name() string
-	// BaselineSpec reports how long the detector needs to build a usable model.
-	BaselineSpec() BaselineSpec
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
 	// Detect examines a series and returns any detected anomalies.
 	Detect(series Series) DetectionResult
 }
@@ -573,19 +573,14 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 }
 
-// BaselineSpec describes the detector's model warmup before its qualification
-// baseline begins.
-type BaselineSpec struct {
-	WarmupDuration time.Duration
-}
-
 // Detector is the flexible detection interface where detectors pull data from storage.
 // This supports multivariate detection across multiple series.
 type Detector interface {
 	Name() string
 
-	// BaselineSpec reports how long the detector needs to build a usable model.
-	BaselineSpec() BaselineSpec
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
 
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.

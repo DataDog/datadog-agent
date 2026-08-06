@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"math"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -114,6 +113,7 @@ type holtSeriesState struct {
 // are exported so callers (testbench, tests) may override defaults after
 // construction; NewHoltResidualDetector populates them.
 type HoltResidualDetector struct {
+	ready bool
 	// Alpha is the level smoothing factor (0..1). Higher = more reactive.
 	Alpha float64
 	// Beta is the trend smoothing factor (0..1). Lower = more stable.
@@ -204,17 +204,14 @@ func NewHoltResidualDetectorWithConfig(cfg HoltResidualConfig) *HoltResidualDete
 // Name implements observer.Detector.
 func (d *HoltResidualDetector) Name() string { return "holt_residual" }
 
-func (d *HoltResidualDetector) BaselineSpec() observer.BaselineSpec {
-	d.ensureDefaults()
-	points := d.WarmupPoints + d.ResidualWindow + d.ConfirmM
-	return observer.BaselineSpec{WarmupDuration: time.Duration(points) * baselineReferenceInterval}
-}
+func (d *HoltResidualDetector) Ready() bool { return d.ready }
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
 	d.cachedSeries = nil
 	d.cachedGen = 0
+	d.ready = false
 }
 
 // RemoveSeries drops per-series state for refs that storage has freed. Each
@@ -373,6 +370,9 @@ func (d *HoltResidualDetector) ingestNewPoints(
 		}
 
 		anomaly, hasFire := d.processPoint(state, p, agg)
+		if len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow {
+			d.ready = true
+		}
 
 		if hasFire {
 			fired = append(fired, anomaly)

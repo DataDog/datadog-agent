@@ -18,9 +18,7 @@ type streamAdvanceRecorder struct {
 }
 
 func (d *streamAdvanceRecorder) Name() string { return "stream_advance_recorder" }
-func (*streamAdvanceRecorder) BaselineSpec() observerdef.BaselineSpec {
-	return observerdef.BaselineSpec{}
-}
+func (*streamAdvanceRecorder) Ready() bool    { return true }
 func (d *streamAdvanceRecorder) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	d.times = append(d.times, dataTime)
 	return observerdef.DetectionResult{}

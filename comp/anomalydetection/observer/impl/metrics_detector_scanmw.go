@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -48,6 +47,7 @@ type scanmwSeriesState struct {
 // Implements Detector (streaming) — after finding a changepoint, advances
 // the segment start so subsequent scans only examine post-change data.
 type ScanMWDetector struct {
+	ready bool
 	// MinSegment is the minimum number of points in each segment.
 	// Default: 12
 	MinSegment int
@@ -100,16 +100,14 @@ func (d *ScanMWDetector) Name() string {
 	return "scanmw"
 }
 
-func (d *ScanMWDetector) BaselineSpec() observer.BaselineSpec {
-	d.ensureDefaults()
-	return observer.BaselineSpec{WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
-}
+func (d *ScanMWDetector) Ready() bool { return d.ready }
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
 	d.series = make(map[scanmwStateKey]*scanmwSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
+	d.ready = false
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
@@ -194,6 +192,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
+			d.ready = true
 
 			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg)
 			if found {

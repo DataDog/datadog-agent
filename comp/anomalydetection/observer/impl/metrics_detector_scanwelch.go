@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"math"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -43,6 +42,7 @@ type scanwelchSeriesState struct {
 // Implements Detector (streaming) — after finding a changepoint, advances
 // the segment start so subsequent scans only examine post-change data.
 type ScanWelchDetector struct {
+	ready bool
 	// MinSegment is the minimum number of points in each segment.
 	MinSegment int
 
@@ -94,16 +94,14 @@ func (d *ScanWelchDetector) Name() string {
 	return "scanwelch"
 }
 
-func (d *ScanWelchDetector) BaselineSpec() observer.BaselineSpec {
-	d.ensureDefaults()
-	return observer.BaselineSpec{WarmupDuration: time.Duration(d.MinPoints) * baselineReferenceInterval}
-}
+func (d *ScanWelchDetector) Ready() bool { return d.ready }
 
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanWelchDetector) Reset() {
 	d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
+	d.ready = false
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
@@ -184,6 +182,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
+			d.ready = true
 
 			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg)
 			if found {

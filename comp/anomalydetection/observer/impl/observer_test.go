@@ -143,9 +143,7 @@ type countingSeriesDetector struct {
 }
 
 func (d *countingSeriesDetector) Name() string { return "counting" }
-func (*countingSeriesDetector) BaselineSpec() observerdef.BaselineSpec {
-	return observerdef.BaselineSpec{}
-}
+func (*countingSeriesDetector) Ready() bool    { return true }
 
 func (d *countingSeriesDetector) Detect(_ observerdef.Series) observerdef.DetectionResult {
 	return observerdef.DetectionResult{

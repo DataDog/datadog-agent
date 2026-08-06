@@ -568,9 +568,7 @@ type statelessTestDetector struct {
 }
 
 func (s *statelessTestDetector) Name() string { return s.name }
-func (*statelessTestDetector) BaselineSpec() observerdef.BaselineSpec {
-	return observerdef.BaselineSpec{}
-}
+func (*statelessTestDetector) Ready() bool    { return true }
 func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }

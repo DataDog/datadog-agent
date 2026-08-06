@@ -11,7 +11,6 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -141,6 +140,7 @@ type RRCFDetector struct {
 	// alignedCount and shingleCount track pipeline throughput for diagnostics.
 	alignedCount int
 	shingleCount int
+	ready        bool
 }
 
 // NewRRCFDetector creates an RRCF detector with the given config.
@@ -173,15 +173,8 @@ func (r *RRCFDetector) Name() string {
 	return "rrcf"
 }
 
-// BaselineSpec estimates RRCF readiness from aligned input points. A shingle
-// needs ShingleSize points, TreeSize shingles fill the forest, and ten prior
-// post-warmup scores are needed before the next score has a dynamic threshold.
-// RRCF participates in suppression during warmup and qualification, but its
-// synthetic anomalies have no SourceRef and therefore never mute a series.
-func (r *RRCFDetector) BaselineSpec() observer.BaselineSpec {
-	alignedPoints := r.config.TreeSize + r.config.ShingleSize + rrcfMinScoresForThreshold
-	return observer.BaselineSpec{WarmupDuration: time.Duration(alignedPoints) * baselineReferenceInterval}
-}
+// Ready reports when an aligned model can evaluate a dynamic threshold.
+func (r *RRCFDetector) Ready() bool { return r.ready }
 
 // SetObserverTelemetry wires direct observer telemetry emission.
 func (r *RRCFDetector) SetObserverTelemetry(t *observerTelemetry) {
@@ -466,6 +459,9 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Compute dynamic threshold from recent scores
 		threshold := r.dynamicThreshold()
+		if threshold > 0 {
+			r.ready = true
+		}
 		if threshold > 0 && r.telemetry != nil {
 			r.telemetry.recordRRCFThreshold(r.Name(), threshold)
 		}
@@ -549,6 +545,7 @@ func (r *RRCFDetector) Reset() {
 	r.totalScored = 0
 	r.alignedCount = 0
 	r.shingleCount = 0
+	r.ready = false
 	r.forest.reset()
 }
 

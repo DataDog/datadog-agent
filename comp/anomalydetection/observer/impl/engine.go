@@ -183,7 +183,7 @@ func newEngine(cfg engineConfig) *engine {
 		e.logCounts = newMaterializedLogCountBucketizer(cfg.logCountBuckets)
 	}
 	if cfg.baseline.Enabled {
-		e.baseline = newBaselineController(cfg.baseline, baselineSpecs(cfg.detectors))
+		e.baseline = newBaselineController(cfg.baseline, detectorNames(cfg.detectors))
 	}
 
 	// Cache log observers from detectors.
@@ -558,6 +558,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		result := detector.Detect(storageForDetect, upTo)
+		if e.baseline != nil && detector.Ready() {
+			e.baseline.ready(detector.Name(), upTo)
+		}
 
 		// Emit detect digest (captures raw result BEFORE dedup).
 		if e.onDetectDigest != nil {
@@ -957,7 +960,7 @@ func (e *engine) Reset() {
 	}
 
 	if e.baseline != nil {
-		e.baseline = newBaselineController(e.baseline.config, baselineSpecs(e.detectors))
+		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
 	}
 }
 
@@ -1011,7 +1014,7 @@ func (e *engine) resetAnalysisState() {
 	// log ingestion and is needed by enrichAnomaly during replay.
 
 	if e.baseline != nil {
-		e.baseline = newBaselineController(e.baseline.config, baselineSpecs(e.detectors))
+		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
 	}
 
 	e.resetRawAnomalies()
@@ -1045,7 +1048,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
 	if baselineCfg.Enabled {
-		e.baseline = newBaselineController(baselineCfg, baselineSpecs(detectors))
+		e.baseline = newBaselineController(baselineCfg, detectorNames(detectors))
 	} else {
 		e.baseline = nil
 	}

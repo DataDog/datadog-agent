@@ -565,8 +565,8 @@ func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
-func (a *seriesDetectorAdapter) BaselineSpec() observerdef.BaselineSpec {
-	return a.detector.BaselineSpec()
+func (a *seriesDetectorAdapter) Ready() bool {
+	return a.detector.Ready()
 }
 
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
@@ -861,7 +861,11 @@ func (o *observerImpl) DebugBaselineStatus() BaselineDebugStatus {
 	if o.engine.baseline == nil {
 		return BaselineDebugStatus{}
 	}
-	return o.engine.baseline.debugStatus()
+	status := o.engine.baseline.debugStatus()
+	o.engine.mu.RLock()
+	status.AnalyzedThroughSec = o.engine.lastAnalyzedDataTime
+	o.engine.mu.RUnlock()
+	return status
 }
 
 type baselineCompletedCallbackSink struct {

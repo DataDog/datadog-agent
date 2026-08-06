@@ -55,6 +55,7 @@ export interface StatusResponse {
     muteNoisyMetrics: boolean;
     started: boolean;
     startSec?: number;
+    analyzedThroughSec?: number;
     allComplete: boolean;
     mutedCount: number;
     active: boolean;
@@ -66,8 +67,9 @@ export interface StatusResponse {
 
 export interface BaselineDetectorStatus {
   name: string;
-  warmupEndSec: number;
-  baselineEndSec: number;
+  ready: boolean;
+  warmupEndSec?: number;
+  baselineEndSec?: number;
   completed: boolean;
   mutedCount: number;
 }

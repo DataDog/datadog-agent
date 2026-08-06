@@ -7,13 +7,12 @@ package observerimpl
 
 import (
 	"sort"
-	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // BaselineConfig controls detector-specific baseline qualification windows.
-// DurationSec is the qualification duration after a detector's own warmup.
+// DurationSec is the qualification duration after a detector becomes ready.
 type BaselineConfig struct {
 	Enabled          bool
 	DurationSec      int64
@@ -26,13 +25,8 @@ func DefaultBaselineConfig() BaselineConfig {
 	return BaselineConfig{Enabled: true, DurationSec: 600, MuteNoisyMetrics: true}
 }
 
-// baselineReferenceInterval translates point-count detector requirements into
-// data-time warmups. It is deliberately a scheduling contract, not a claim
-// about the cadence of every incoming series.
-const baselineReferenceInterval = 15 * time.Second
-
 type detectorBaselineState struct {
-	spec               observerdef.BaselineSpec
+	ready              bool
 	warmupEndSec       int64
 	baselineEndSec     int64
 	completed          bool
@@ -44,19 +38,21 @@ type detectorBaselineState struct {
 // BaselineDetectorDebugStatus is a testbench-facing snapshot of one detector.
 type BaselineDetectorDebugStatus struct {
 	Name           string `json:"name"`
-	WarmupEndSec   int64  `json:"warmupEndSec"`
-	BaselineEndSec int64  `json:"baselineEndSec"`
+	Ready          bool   `json:"ready"`
+	WarmupEndSec   int64  `json:"warmupEndSec,omitempty"`
+	BaselineEndSec int64  `json:"baselineEndSec,omitempty"`
 	Completed      bool   `json:"completed"`
 	MutedCount     int    `json:"mutedCount"`
 }
 
 // BaselineDebugStatus is a testbench-facing snapshot of the baseline union.
 type BaselineDebugStatus struct {
-	Started     bool                          `json:"started"`
-	StartSec    int64                         `json:"startSec"`
-	AllComplete bool                          `json:"allComplete"`
-	MutedCount  int                           `json:"mutedCount"`
-	Detectors   []BaselineDetectorDebugStatus `json:"detectors"`
+	Started            bool                          `json:"started"`
+	StartSec           int64                         `json:"startSec"`
+	AnalyzedThroughSec int64                         `json:"analyzedThroughSec,omitempty"`
+	AllComplete        bool                          `json:"allComplete"`
+	MutedCount         int                           `json:"mutedCount"`
+	Detectors          []BaselineDetectorDebugStatus `json:"detectors"`
 }
 
 // baselineController coordinates independent detector windows. All methods
@@ -82,38 +78,43 @@ type baselineController struct {
 	mutedNames  map[string]struct{} // allocated only for the final verbose summary
 }
 
-func newBaselineController(cfg BaselineConfig, detectors []detectorBaselineSpecEntry) *baselineController {
+func newBaselineController(cfg BaselineConfig, detectorNames []string) *baselineController {
 	b := &baselineController{config: cfg, detectors: make(map[string]*detectorBaselineState), mutedHashes: make(map[uint64]struct{})}
-	for _, d := range detectors {
-		b.detectors[d.name] = &detectorBaselineState{spec: d.spec, pendingHashes: make(map[uint64]struct{})}
+	for _, name := range detectorNames {
+		b.detectors[name] = &detectorBaselineState{pendingHashes: make(map[uint64]struct{})}
 	}
 	return b
 }
 
-type detectorBaselineSpecEntry struct {
-	name string
-	spec observerdef.BaselineSpec
-}
-
-func baselineSpecs(detectors []observerdef.Detector) []detectorBaselineSpecEntry {
-	entries := make([]detectorBaselineSpecEntry, 0, len(detectors))
+func detectorNames(detectors []observerdef.Detector) []string {
+	names := make([]string, 0, len(detectors))
 	for _, detector := range detectors {
-		entries = append(entries, detectorBaselineSpecEntry{name: detector.Name(), spec: detector.BaselineSpec()})
+		names = append(names, detector.Name())
 	}
-	return entries
+	return names
 }
 
-// start seeds all detector windows from the first analysis data timestamp.
+// start records the first analysis timestamp. Individual qualification windows
+// begin only when their detector reports that it is ready to score.
 func (b *baselineController) start(dataSec int64) {
 	if b.started {
 		return
 	}
 	b.started = true
 	b.startSec = dataSec
-	for _, state := range b.detectors {
-		state.warmupEndSec = dataSec + int64(state.spec.WarmupDuration/time.Second)
-		state.baselineEndSec = state.warmupEndSec + b.config.DurationSec
+}
+
+// ready records a detector's first usable scoring advance and starts its
+// qualification baseline. It returns true only for that first transition.
+func (b *baselineController) ready(name string, dataSec int64) bool {
+	state := b.detectors[name]
+	if state == nil || state.ready {
+		return false
 	}
+	state.ready = true
+	state.warmupEndSec = dataSec
+	state.baselineEndSec = dataSec + b.config.DurationSec
+	return true
 }
 
 // isAnalyzingAt reports whether the detector's baseline decision is still in
@@ -123,12 +124,15 @@ func (b *baselineController) isAnalyzingAt(name string, dataSec int64) bool {
 	if state == nil || state.completed {
 		return false
 	}
+	if !state.ready {
+		return true
+	}
 	return dataSec < state.baselineEndSec
 }
 
 func (b *baselineController) mark(name string, h uint64) {
 	state := b.detectors[name]
-	if state == nil || state.completed {
+	if state == nil || state.completed || !state.ready {
 		return
 	}
 	state.windowAnomalyCount++
@@ -138,7 +142,7 @@ func (b *baselineController) mark(name string, h uint64) {
 func (b *baselineController) due(dataSec int64) []string {
 	var names []string
 	for name, state := range b.detectors {
-		if !state.completed && dataSec >= state.baselineEndSec {
+		if state.ready && !state.completed && dataSec >= state.baselineEndSec {
 			names = append(names, name)
 		}
 	}
@@ -147,7 +151,7 @@ func (b *baselineController) due(dataSec int64) []string {
 
 func (b *baselineController) complete(name string) (newHashes map[uint64]struct{}, snapshotChanged bool, anomalyCount int, allComplete bool) {
 	state := b.detectors[name]
-	if state == nil || state.completed {
+	if state == nil || !state.ready || state.completed {
 		return nil, false, 0, b.allComplete()
 	}
 	state.completed = true
@@ -198,7 +202,7 @@ func (b *baselineController) debugStatus() BaselineDebugStatus {
 		if state.completed {
 			mutedCount = state.mutedCount
 		}
-		status.Detectors = append(status.Detectors, BaselineDetectorDebugStatus{Name: name, WarmupEndSec: state.warmupEndSec, BaselineEndSec: state.baselineEndSec, Completed: state.completed, MutedCount: mutedCount})
+		status.Detectors = append(status.Detectors, BaselineDetectorDebugStatus{Name: name, Ready: state.ready, WarmupEndSec: state.warmupEndSec, BaselineEndSec: state.baselineEndSec, Completed: state.completed, MutedCount: mutedCount})
 	}
 	sort.Slice(status.Detectors, func(i, j int) bool { return status.Detectors[i].Name < status.Detectors[j].Name })
 	return status

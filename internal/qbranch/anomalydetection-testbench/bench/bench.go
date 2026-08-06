@@ -125,17 +125,18 @@ type testbenchView interface {
 
 // BaselineInfo is the baseline analysis window state exposed to the testbench UI.
 type BaselineInfo struct {
-	Enabled          bool                                       `json:"enabled"`
-	DurationSec      int64                                      `json:"durationSec"`
-	MuteNoisyMetrics bool                                       `json:"muteNoisyMetrics"`
-	Started          bool                                       `json:"started"`
-	StartSec         int64                                      `json:"startSec"`
-	AllComplete      bool                                       `json:"allComplete"`
-	MutedCount       int                                        `json:"mutedCount"`
-	Active           bool                                       `json:"active"`
-	WindowEndSec     int64                                      `json:"windowEndSec,omitempty"`
-	MutedSeries      []string                                   `json:"mutedSeries,omitempty"`
-	Detectors        []observerimpl.BaselineDetectorDebugStatus `json:"detectors,omitempty"`
+	Enabled            bool                                       `json:"enabled"`
+	DurationSec        int64                                      `json:"durationSec"`
+	MuteNoisyMetrics   bool                                       `json:"muteNoisyMetrics"`
+	Started            bool                                       `json:"started"`
+	StartSec           int64                                      `json:"startSec"`
+	AnalyzedThroughSec int64                                      `json:"analyzedThroughSec,omitempty"`
+	AllComplete        bool                                       `json:"allComplete"`
+	MutedCount         int                                        `json:"mutedCount"`
+	Active             bool                                       `json:"active"`
+	WindowEndSec       int64                                      `json:"windowEndSec,omitempty"`
+	MutedSeries        []string                                   `json:"mutedSeries,omitempty"`
+	Detectors          []observerimpl.BaselineDetectorDebugStatus `json:"detectors,omitempty"`
 }
 
 // StatusResponse is the response for /api/status.
@@ -755,17 +756,18 @@ func (tb *Bench) GetStatus() StatusResponse {
 		mutedSeries := tb.baselineMutedSeries
 		tb.baselineMu.Unlock()
 		baselineInfo = &BaselineInfo{
-			Enabled:          true,
-			DurationSec:      tb.settings.Baseline.DurationSec,
-			MuteNoisyMetrics: tb.settings.Baseline.MuteNoisyMetrics,
-			Started:          status.Started,
-			StartSec:         status.StartSec,
-			AllComplete:      status.AllComplete,
-			MutedCount:       status.MutedCount,
-			Active:           status.Started && !status.AllComplete && !frozen,
-			WindowEndSec:     windowEndSec,
-			MutedSeries:      mutedSeries,
-			Detectors:        status.Detectors,
+			Enabled:            true,
+			DurationSec:        tb.settings.Baseline.DurationSec,
+			MuteNoisyMetrics:   tb.settings.Baseline.MuteNoisyMetrics,
+			Started:            status.Started,
+			StartSec:           status.StartSec,
+			AnalyzedThroughSec: status.AnalyzedThroughSec,
+			AllComplete:        status.AllComplete,
+			MutedCount:         status.MutedCount,
+			Active:             status.Started && !status.AllComplete && !frozen,
+			WindowEndSec:       windowEndSec,
+			MutedSeries:        mutedSeries,
+			Detectors:          status.Detectors,
 		}
 	}
 

@@ -371,7 +371,7 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
           )}
 
           <div className="px-4 pb-6">
-            <BaselineTimelineWidget status={state.status} />
+            <BaselineTimelineWidget status={state.status} phaseMarkers={phaseMarkers} />
           </div>
         </div>
       </main>

@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +26,8 @@ type alwaysFiringDetector struct {
 // records series reclamation from another detector's baseline completion.
 type baselineTestDetector struct {
 	name          string
-	spec          observerdef.BaselineSpec
+	readyAtSec    int64
+	ready         bool
 	source        observerdef.SeriesDescriptor
 	ref           observerdef.SeriesRef
 	emitAfterSec  int64
@@ -36,10 +36,11 @@ type baselineTestDetector struct {
 }
 
 func (d *baselineTestDetector) Name() string { return d.name }
-func (d *baselineTestDetector) BaselineSpec() observerdef.BaselineSpec {
-	return d.spec
-}
+func (d *baselineTestDetector) Ready() bool  { return d.ready }
 func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64) observerdef.DetectionResult {
+	if dataSec >= d.readyAtSec {
+		d.ready = true
+	}
 	if dataSec < d.emitAfterSec {
 		return observerdef.DetectionResult{}
 	}
@@ -59,9 +60,7 @@ func (d *baselineTestDetector) RemoveSeries(refs []observerdef.SeriesRef) {
 }
 
 func (d *alwaysFiringDetector) Name() string { return "always_firing" }
-func (*alwaysFiringDetector) BaselineSpec() observerdef.BaselineSpec {
-	return observerdef.BaselineSpec{}
-}
+func (*alwaysFiringDetector) Ready() bool    { return true }
 func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{{
@@ -109,21 +108,20 @@ func makeBaselineEngine(cfg BaselineConfig, correlator observerdef.Correlator) (
 
 // ---- baselineController unit tests ----
 
-func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
-		{name: "fast", spec: observerdef.BaselineSpec{}},
-		{name: "slow", spec: observerdef.BaselineSpec{WarmupDuration: 5 * time.Minute}},
-	})
+func TestBaselineController_DetectorReadinessStartsIndependentWindows(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []string{"fast", "slow"})
 	assert.False(t, b.debugStatus().Started)
 	b.start(1000)
 	status := b.debugStatus()
 	assert.True(t, status.Started)
 	require.Len(t, status.Detectors, 2)
-	assert.Equal(t, BaselineDetectorDebugStatus{Name: "fast", WarmupEndSec: 1000, BaselineEndSec: 1600}, status.Detectors[0])
-	assert.Equal(t, BaselineDetectorDebugStatus{Name: "slow", WarmupEndSec: 1300, BaselineEndSec: 1900}, status.Detectors[1])
+	assert.Equal(t, BaselineDetectorDebugStatus{Name: "fast"}, status.Detectors[0])
+	assert.Equal(t, BaselineDetectorDebugStatus{Name: "slow"}, status.Detectors[1])
 	assert.True(t, b.isAnalyzingAt("fast", 1000))
 	assert.True(t, b.isAnalyzingAt("slow", 1299))
-	assert.True(t, b.isAnalyzingAt("slow", 1300))
+	assert.True(t, b.ready("fast", 1000))
+	assert.False(t, b.ready("fast", 1001))
+	assert.True(t, b.ready("slow", 1300))
 	assert.True(t, b.isAnalyzingAt("slow", 1899))
 	assert.False(t, b.isAnalyzingAt("slow", 1900))
 	assert.False(t, b.isAnalyzingAt("unknown", 1000))
@@ -147,12 +145,26 @@ func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 	assert.True(t, b.debugStatus().AllComplete)
 }
 
+func TestBaselineController_WaitingDetectorSuppressesWithoutMuting(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 60}, []string{"waiting"})
+	b.start(100)
+
+	assert.True(t, b.isAnalyzingAt("waiting", 100))
+	b.mark("waiting", 1) // defensive suppression before Ready must not mute
+	assert.Empty(t, b.detectors["waiting"].pendingHashes)
+	assert.Empty(t, b.due(1_000))
+	assert.False(t, b.allComplete())
+
+	b.ready("waiting", 130)
+	b.mark("waiting", 1)
+	assert.Equal(t, []string{"waiting"}, b.due(190))
+}
+
 func TestBaselineController_CompletionPublishesImmutableUnionAndReleasesPendingHashes(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
-		{name: "first", spec: observerdef.BaselineSpec{}},
-		{name: "second", spec: observerdef.BaselineSpec{}},
-	})
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []string{"first", "second"})
 	b.start(1000)
+	b.ready("first", 1000)
+	b.ready("second", 1000)
 	b.mark("first", 1)
 	b.mark("second", 1)
 	b.mark("second", 2)
@@ -178,11 +190,10 @@ func TestBaselineController_CompletionPublishesImmutableUnionAndReleasesPendingH
 }
 
 func TestBaselineController_DuplicateCompletionDoesNotReplaceUnionSnapshot(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600}, []detectorBaselineSpecEntry{
-		{name: "first", spec: observerdef.BaselineSpec{}},
-		{name: "second", spec: observerdef.BaselineSpec{}},
-	})
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []string{"first", "second"})
 	b.start(1000)
+	b.ready("first", 1000)
+	b.ready("second", 1000)
 	b.mark("first", 1)
 	b.mark("second", 1)
 
@@ -202,13 +213,6 @@ func TestBaselineController_VerboseNamesAreLazyAndReleased(t *testing.T) {
 	assert.Equal(t, map[string]struct{}{"ns/cpu": {}, "ns/memory": {}}, b.mutedNames)
 	assert.Equal(t, []string{"ns/cpu", "ns/memory"}, b.takeMutedDisplayNames())
 	assert.Nil(t, b.mutedNames)
-}
-
-func TestRRCFBaselineSpec_UsesAlignedReadiness(t *testing.T) {
-	rrcf := NewRRCFDetector(RRCFConfig{NumTrees: 1, TreeSize: 64, ShingleSize: 4})
-	spec := rrcf.BaselineSpec()
-
-	assert.Equal(t, 78*baselineReferenceInterval, spec.WarmupDuration)
 }
 
 // ---- engine integration tests ----
@@ -233,6 +237,30 @@ func TestBaseline_AnomaliesForwardedAfterWindow(t *testing.T) {
 	assert.NotEmpty(t, correlator.received)
 }
 
+func TestBaseline_WaitingDetectorDoesNotMuteUntilReady(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
+	detector := &baselineTestDetector{
+		name:          "waiting",
+		readyAtSec:    200,
+		emitAfterSec:  100,
+		includeSource: true,
+		ref:           ref,
+		source:        observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
+	}
+	e := newEngine(engineConfig{storage: storage, detectors: []observerdef.Detector{detector}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
+
+	e.Advance(100) // detector emits before Ready; it is suppressed but cannot mute
+	assert.Empty(t, e.baseline.mutedHashes)
+	assert.False(t, e.baseline.detectors["waiting"].ready)
+
+	e.Advance(200) // readiness transition anomaly is included in qualification
+	assert.True(t, e.baseline.detectors["waiting"].ready)
+	assert.Len(t, e.baseline.detectors["waiting"].pendingHashes, 1)
+	e.Advance(300)
+	assert.Len(t, e.baseline.mutedHashes, 1)
+}
+
 func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
@@ -240,7 +268,7 @@ func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
 	fast := &baselineTestDetector{name: "fast", source: source, ref: ref, includeSource: true}
 	slow := &baselineTestDetector{
 		name:          "slow",
-		spec:          observerdef.BaselineSpec{WarmupDuration: 5 * time.Minute},
+		readyAtSec:    400,
 		source:        source,
 		ref:           ref,
 		includeSource: true,
@@ -272,7 +300,7 @@ func TestBaseline_FastDetectorForwardsWhileSlowerDetectorStillAnalyses(t *testin
 		emitAfterSec:  200,
 		includeSource: true,
 	}
-	slow := &baselineTestDetector{name: "slow", spec: observerdef.BaselineSpec{WarmupDuration: 5 * time.Minute}, emitAfterSec: 1<<62 - 1}
+	slow := &baselineTestDetector{name: "slow", readyAtSec: 400, emitAfterSec: 1<<62 - 1}
 	correlator := &recordingCorrelator{}
 	e := newEngine(engineConfig{
 		storage:     storage,
@@ -382,9 +410,7 @@ func TestBaseline_MuteNoisyMetricsFalseDoesNotDropMetrics(t *testing.T) {
 type storageAwareDetector struct{}
 
 func (d *storageAwareDetector) Name() string { return "storage_aware" }
-func (*storageAwareDetector) BaselineSpec() observerdef.BaselineSpec {
-	return observerdef.BaselineSpec{}
-}
+func (*storageAwareDetector) Ready() bool    { return true }
 func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	metas := sr.ListSeries(observerdef.SeriesFilter{})
 	anomalies := make([]observerdef.Anomaly, 0, len(metas))

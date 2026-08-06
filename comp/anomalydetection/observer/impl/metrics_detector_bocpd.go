@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"math"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -125,6 +124,7 @@ func DefaultBOCPDConfig() BOCPDConfig {
 // posterior state and processes only newly visible points on each advance.
 type BOCPDDetector struct {
 	config BOCPDConfig
+	ready  bool
 
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
@@ -182,9 +182,7 @@ func (b *BOCPDDetector) Name() string {
 	return "bocpd"
 }
 
-func (b *BOCPDDetector) BaselineSpec() observer.BaselineSpec {
-	return observer.BaselineSpec{WarmupDuration: time.Duration(b.config.WarmupPoints) * baselineReferenceInterval}
-}
+func (b *BOCPDDetector) Ready() bool { return b.ready }
 
 // Detect implements Detector. It discovers series, reads only newly visible
 // points, and updates per-series BOCPD posterior state incrementally.
@@ -251,6 +249,7 @@ func (b *BOCPDDetector) Reset() {
 	b.series = make(map[bocpdStateKey]*bocpdSeriesState)
 	b.cachedRefs = nil
 	b.cachedGen = 0
+	b.ready = false
 }
 
 // RemoveSeries drops posterior state for refs that storage has freed.
@@ -315,6 +314,7 @@ func (b *BOCPDDetector) warmupPoint(state *bocpdSeriesState, x float64) *observe
 
 	if state.warmupCount >= b.config.WarmupPoints {
 		b.initializeFromWarmup(state)
+		b.ready = true
 	}
 	return nil
 }
