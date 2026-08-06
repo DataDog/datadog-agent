@@ -447,6 +447,11 @@ func cleanupABottomUp(path string) {
 	}
 }
 
+// The two subtests deliberately build different modules, one per dentry
+// resolution path, so this test cannot share one with anybody.
+var _ = declareUngrouped(TestEventTruncatedParents,
+	"builds one module per dentry resolution path", buildsModules(2))
+
 func TestEventTruncatedParents(t *testing.T) {
 	SkipIfNotAvailable(t)
 

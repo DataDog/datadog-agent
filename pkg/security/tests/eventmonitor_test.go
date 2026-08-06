@@ -20,6 +20,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+var _ = declareUngrouped(TestEventMonitor, reasonCallback)
+
 func TestEventMonitor(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -74,6 +76,8 @@ func TestEventMonitor(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+var _ = declareUngrouped(TestEventMonitorNoEnvs, reasonCallback)
 
 func TestEventMonitorNoEnvs(t *testing.T) {
 	SkipIfNotAvailable(t)

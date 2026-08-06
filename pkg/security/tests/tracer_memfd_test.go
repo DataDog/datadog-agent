@@ -107,6 +107,8 @@ func (c *tracerMemfdConsumer) Copy(ev *model.Event) any {
 	return event
 }
 
+var _ = declareUngrouped(TestTracerMemfd, reasonCallback)
+
 func TestTracerMemfd(t *testing.T) {
 	SkipIfNotAvailable(t)
 

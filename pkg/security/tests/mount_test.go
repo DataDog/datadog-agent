@@ -156,6 +156,10 @@ func TestMount(t *testing.T) {
 	})
 }
 
+// Default config, but the module has to be built after the mount setup below so
+// that its snapshot sees it; withForceReload() at the call site enforces that.
+var _ = declare(TestMountPropagated, testOpts{}, needsFreshModule())
+
 func TestMountPropagated(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -405,11 +409,19 @@ func testMountSnapshot(t *testing.T) {
 	assert.Equal(t, 1|2|4|8, mntResolved)
 }
 
+// These use the default config but build the module after setting up their
+// mounts, so that the module's snapshot picks them up -- they cannot ride a live
+// one. withForceReload() in testMountSnapshot enforces it; the declaration is
+// what lets the scheduler predict the rebuild.
+var _ = declare(TestMountSnapshotListmount, testOpts{}, needsFreshModule())
+
 func TestMountSnapshotListmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "true")
 	testMountSnapshot(t)
 }
+
+var _ = declare(TestMountSnapshotProcfs, testOpts{}, needsFreshModule())
 
 func TestMountSnapshotProcfs(t *testing.T) {
 	SkipIfNotAvailable(t)

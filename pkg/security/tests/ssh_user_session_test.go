@@ -571,6 +571,11 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	})
 }
 
+// Default config, but the module has to be built after the ssh session is
+// established so that its snapshot sees it; withForceReload() at the call site
+// enforces that.
+var _ = declare(TestSSHUserSessionBlocking, testOpts{}, needsFreshModule())
+
 func TestSSHUserSessionBlocking(t *testing.T) {
 	SkipIfNotAvailable(t)
 	if testEnvironment == DockerEnvironment {
@@ -690,6 +695,8 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 	_ = exec.Command("ssh", exitArgs...).Run()
 
 }
+
+var _ = declare(TestSSHUserSessionSnapshot, testOpts{}, needsFreshModule())
 
 func TestSSHUserSessionSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)

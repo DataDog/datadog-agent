@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
+var _ = declareUngrouped(TestSecurityProfile, reasonTempDir)
+
 func TestSecurityProfile(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -206,6 +208,8 @@ func TestSecurityProfile(t *testing.T) {
 			})
 	})
 }
+
+var _ = declareUngrouped(TestAnomalyDetection, reasonTempDir)
 
 func TestAnomalyDetection(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -385,6 +389,8 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 }
 
+var _ = declareUngrouped(TestAnomalyDetectionVariables, reasonTempDir)
+
 func TestAnomalyDetectionVariables(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -502,6 +508,8 @@ func TestAnomalyDetectionVariables(t *testing.T) {
 		}
 	})
 }
+
+var _ = declareUngrouped(TestAnomalyDetectionWarmup, reasonTempDir)
 
 func TestAnomalyDetectionWarmup(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -661,6 +669,8 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
 }
+
+var _ = declareUngrouped(TestSecurityProfileReinsertionPeriod, reasonTempDir)
 
 func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -846,6 +856,8 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 
 }
 
+var _ = declareUngrouped(TestSecurityProfileDifferentiateArgs, reasonTempDir)
+
 func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -954,6 +966,8 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+var _ = declareUngrouped(TestSecurityProfileLifeCycleExecs, reasonTempDir)
 
 func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -1129,6 +1143,8 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	})
 }
 
+var _ = declareUngrouped(TestSecurityProfileLifeCycleDNS, reasonTempDir)
+
 func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1300,6 +1316,8 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
 }
+
+var _ = declareUngrouped(TestSecurityProfileLifeCycleSyscall, reasonTempDir)
 
 func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -1490,6 +1508,8 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	})
 }
 
+var _ = declareUngrouped(TestSecurityProfileLifeCycleEvictionProcess, reasonTempDir)
+
 func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1667,6 +1687,8 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 		}
 	})
 }
+
+var _ = declareUngrouped(TestSecurityProfileLifeCycleEvictionDNS, reasonTempDir)
 
 func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -1846,6 +1868,8 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	})
 }
 
+var _ = declareUngrouped(TestSecurityProfileLifeCycleEvictionProcessUnstable, reasonTempDir)
+
 func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2019,6 +2043,8 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 		}
 	})
 }
+
+var _ = declareUngrouped(TestSecurityProfilePersistence, reasonTempDir)
 
 func TestSecurityProfilePersistence(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -2226,6 +2252,8 @@ func checkExpectedSyscalls(t *testing.T, got []model.Syscall, expectedSyscalls [
 	return testOutput[model.ExecveReason] && testOutput[model.ExitReason] && testOutput[model.SyscallMonitorPeriodReason]
 }
 
+var _ = declareUngrouped(TestSecurityProfileSyscallDrift, reasonTempDir)
+
 func TestSecurityProfileSyscallDrift(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2348,6 +2376,8 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	})
 }
 
+var _ = declareUngrouped(TestSecurityProfileSyscallDriftExecExitInProfile, reasonTempDir)
+
 func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2468,6 +2498,8 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	})
 }
 
+var _ = declareUngrouped(TestSecurityProfileSyscallDriftNoNewSyscall, reasonTempDir)
+
 func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2553,6 +2585,8 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 // TestSecurityProfileSystemd tests the security profile functionality for systemd services.
 // It verifies that security profiles are correctly generated for systemd-managed services,
 // including proper metadata extraction and process tree capture.
+var _ = declareUngrouped(TestSecurityProfileSystemd, reasonTempDir)
+
 func TestSecurityProfileSystemd(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2680,6 +2714,8 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	})
 }
 
+var _ = declareUngrouped(TestAnomalyDetectionSystemd, reasonTempDir)
+
 func TestAnomalyDetectionSystemd(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2798,6 +2834,8 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 // TestSecurityProfileSystemdLifeCycle tests the lifecycle management of security profiles for systemd services.
 // It verifies that profiles transition correctly between learning and stable states, and that
 // multiple versions of the same service are handled properly with appropriate anomaly detection behavior.
+var _ = declareUngrouped(TestSecurityProfileSystemdLifeCycle, reasonTempDir)
+
 func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2949,6 +2987,8 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 }
+
+var _ = declareUngrouped(TestSecurityProfileNodeEviction, reasonTempDir)
 
 func TestSecurityProfileNodeEviction(t *testing.T) {
 	SkipIfNotAvailable(t)
