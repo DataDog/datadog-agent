@@ -264,6 +264,12 @@ func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) 
 	return ExecuteCommand(ctx, c.client, cmd)
 }
 
+// ExecuteCommand runs an arbitrary command on the device and returns its output.
+func (c *SSHConnection) ExecuteCommand(ctx context.Context, command string) (*types.CommandResult, types.TypedError) {
+	result, err := c.execute(ctx, &profile.PlainCommand{Command: command})
+	return result, types.AsTypedError(err)
+}
+
 // Close closes the SSH client connection
 func (c *SSHConnection) Close() error {
 	if c.client != nil {
