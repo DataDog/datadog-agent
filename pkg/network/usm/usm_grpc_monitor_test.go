@@ -386,7 +386,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			// The second and third requests for different endpoints should be captured. (The mismatch in the internal dynamic counter
 			// should not affect subsequent requests due to the mismatch.)
 			runClients: func(t *testing.T, clientsCount int) {
-				flake.MarkOnJobName(t, "ubuntu_25.10")
+				flake.MarkOnJobName(t, "ubuntu_25.10", "ubuntu_26.04")
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
@@ -440,7 +440,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	if s.isTLS {
 		t.Skip("Skipping TestLargeBodiesGRPCScenarios for TLS due to flakiness")
 	}
-	flake.MarkOnJobName(t, "ubuntu_25.10")
+	flake.MarkOnJobName(t, "ubuntu_25.10", "ubuntu_26.04")
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
