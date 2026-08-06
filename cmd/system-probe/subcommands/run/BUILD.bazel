@@ -24,7 +24,7 @@ go_library(
         "//comp/core/configstreamconsumer/fx",
         "//comp/core/configsync/def",
         "//comp/core/configsync/fx",
-        "//comp/core/delegatedauth/fx-noop",
+        "//comp/core/delegatedauth/fx",
         "//comp/core/fxinstrumentation/fx",
         "//comp/core/healthprobe/def",
         "//comp/core/healthprobe/fx",
