@@ -432,7 +432,7 @@ func TestGetOTelResource(t *testing.T) {
 			name:       "HTTP client method and URL template resource",
 			sattrs:     map[string]string{"http.request.method": "GET", "url.template": "/users/{user_id}"},
 			spanKind:   ptrace.SpanKindClient,
-			expectedV1: "GET /users/{user_id}",
+			expectedV1: "GET",
 			expectedV2: "GET /users/{user_id}",
 		},
 		{

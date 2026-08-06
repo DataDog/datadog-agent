@@ -1612,9 +1612,8 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("resourceFromTags", func(t *testing.T) {
 		for _, tt := range []struct {
-			meta     map[string]string
-			spanKind ptrace.SpanKind
-			out      string
+			meta map[string]string
+			out  string
 		}{
 			{
 				meta: nil,
@@ -1627,16 +1626,6 @@ func TestOTLPHelpers(t *testing.T) {
 			{
 				meta: map[string]string{"http.method": "POST", "http.route": "/settings"},
 				out:  "POST /settings",
-			},
-			{
-				meta:     map[string]string{"http.method": "POST", "url.template": "/settings/{section}"},
-				spanKind: ptrace.SpanKindClient,
-				out:      "POST /settings/{section}",
-			},
-			{
-				meta:     map[string]string{"http.method": "POST", "http.route": "/settings"},
-				spanKind: ptrace.SpanKindClient,
-				out:      "POST",
 			},
 			{
 				meta: map[string]string{"http.method": "POST", "grpc.path": "/settings"},
@@ -1679,7 +1668,7 @@ func TestOTLPHelpers(t *testing.T) {
 				out:  "query myQuery",
 			},
 		} {
-			assert.Equal(t, tt.out, resourceFromTags(tt.meta, tt.spanKind))
+			assert.Equal(t, tt.out, resourceFromTags(tt.meta))
 		}
 	})
 

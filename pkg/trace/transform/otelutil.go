@@ -292,12 +292,9 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
 		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
+			// use the HTTP method + route (if available)
 			resName = m
-			if span.Kind() == ptrace.SpanKindClient {
-				if template := GetOTelAttrValInResAndSpanAttrs(span, res, false, "url.template"); template != "" {
-					resName = resName + " " + template
-				}
-			} else if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
+			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
 		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
@@ -349,7 +346,7 @@ func getOTelResourceV2[A semantics.Accessor](span ptrace.Span, accessor A) (resN
 		}
 		resName = m
 		if span.Kind() == ptrace.SpanKindClient {
-			if template := accessor.GetString("url.template"); template != "" {
+			if template := lookupString(accessor, semantics.ConceptURLTemplate, false); template != "" {
 				resName = resName + " " + template
 			}
 		} else if span.Kind() == ptrace.SpanKindServer {

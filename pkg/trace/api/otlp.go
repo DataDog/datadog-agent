@@ -741,7 +741,7 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		if transform.OperationAndResourceNameV2Enabled(o.conf) {
 			span.Resource = transform.GetOTelResourceV2(in, res)
 		} else {
-			if r := resourceFromTags(span.Meta, in.Kind()); r != "" {
+			if r := resourceFromTags(span.Meta); r != "" {
 				span.Resource = r
 			} else {
 				span.Resource = in.Name()
@@ -756,16 +756,11 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 
 // resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
 // If this is not possible, it returns an empty string.
-func resourceFromTags(meta map[string]string, spanKind ptrace.SpanKind) string {
+func resourceFromTags(meta map[string]string) string {
 	// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
 	// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
 	if _, m := transform.GetFirstFromMap(meta, "http.request.method", "http.method"); m != "" {
-		if spanKind == ptrace.SpanKindClient {
-			if template := meta["url.template"]; template != "" {
-				return m + " " + template
-			}
-			return m
-		}
+		// use the HTTP method + route (if available)
 		if _, route := transform.GetFirstFromMap(meta, string(semconv.HTTPRouteKey), "grpc.path"); route != "" {
 			return m + " " + route
 		}
