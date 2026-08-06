@@ -98,7 +98,7 @@ func (h *Host) ConfigureAptMirrors() {
 	}
 	h.remote.MustExecute(`printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
 	h.remote.MustExecute(`printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
-	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#http://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#http://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#http://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
+	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
 // dockerImage returns the ECR pull-through URL for ecrPath when a registry is configured,
