@@ -663,6 +663,10 @@ func (h *Host) getProcessesUnitInfo() map[string]ProcessesUnitInfo {
 	if !h.ProcmgrEnabled() {
 		return processes
 	}
+	// Return early if procmgr is not running
+	if _, err := h.remote.Execute("systemctl is-active --quiet datadog-agent-procmgr.service"); err != nil {
+		return processes
+	}
 
 	const procmgrBin = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
 	listOutput := h.remote.MustExecute("sudo -u dd-agent " + procmgrBin + " list --json")
