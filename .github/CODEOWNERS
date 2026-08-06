@@ -409,7 +409,7 @@
 /comp/core/configstream @DataDog/fleet-automation
 /comp/core/configstreamconsumer @DataDog/fleet-automation
 /comp/core/configsync @DataDog/fleet-automation
-/comp/core/delegatedauth @DataDog/credential-management
+/comp/core/delegatedauth @DataDog/credential-management @DataDog/delegated-auth-login
 /comp/core/diagnose @DataDog/fleet-remediation
 /comp/core/flare @DataDog/fleet-remediation
 /comp/core/gui @DataDog/fleet-remediation
@@ -688,7 +688,7 @@
 /pkg/tagset/                            @DataDog/agent-runtimes
 /pkg/util/                              @DataDog/agent-runtimes
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform
-/pkg/util/aws/creds/                    @DataDog/credential-management
+/pkg/util/aws/creds/                    @DataDog/credential-management @DataDog/delegated-auth-login
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/agent-integrations
 /pkg/util/clusteragent/                 @DataDog/container-platform
 /pkg/util/confmaputils                       @DataDog/opentelemetry-agent @DataDog/profiling-full-host
