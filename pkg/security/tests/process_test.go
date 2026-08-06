@@ -1078,8 +1078,6 @@ func TestProcessContext(t *testing.T) {
 	testProcessContextRule(t, "test_rule_ctx_4", "test-process-ctx-4")
 }
 
-var _ = declare(TestProcessEnvsWithValue, testOpts{envsWithValue: []string{"LD_PRELOAD"}})
-
 func TestProcessEnvsWithValue(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1091,7 +1089,11 @@ func TestProcessEnvsWithValue(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	opts := testOpts{
+		envsWithValue: []string{"LD_PRELOAD"},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}

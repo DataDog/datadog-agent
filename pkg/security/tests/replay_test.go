@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var _ = declareUngrouped(TestReplay, reasonCallback, buildsModules(4))
-
 func TestReplay(t *testing.T) {
 	SkipIfNotAvailable(t)
 

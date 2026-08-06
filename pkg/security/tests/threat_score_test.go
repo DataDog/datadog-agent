@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
-var _ = declareUngrouped(TestActivityDumpsThreatScore, reasonTempDir)
-
 func TestActivityDumpsThreatScore(t *testing.T) {
 	SkipIfNotAvailable(t)
 

@@ -45,10 +45,6 @@ func justBind() *net.UDPConn {
 	return conn
 }
 
-var _ = declare(TestDNSResponse, testOpts{
-	dnsPort: DNSPort,
-})
-
 func TestDNSResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -80,7 +76,9 @@ func TestDNSResponse(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefsRcodeOK)
+	test, err := newTestModule(t, nil, ruleDefsRcodeOK, withStaticOpts(testOpts{
+		dnsPort: DNSPort,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +105,9 @@ func TestDNSResponse(t *testing.T) {
 	})
 	test.Close()
 
-	test, err = newTestModule(t, nil, ruleDefsResponseIPOnly)
+	test, err = newTestModule(t, nil, ruleDefsResponseIPOnly, withStaticOpts(testOpts{
+		dnsPort: DNSPort,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,9 @@ func TestDNSResponse(t *testing.T) {
 	})
 	test.Close()
 
-	test, err = newTestModule(t, nil, ruleDefsRcodeNXDomain)
+	test, err = newTestModule(t, nil, ruleDefsRcodeNXDomain, withStaticOpts(testOpts{
+		dnsPort: DNSPort,
+	}))
 
 	if err != nil {
 		t.Fatal(err)
@@ -154,10 +156,6 @@ func TestDNSResponse(t *testing.T) {
 	test.Close()
 }
 
-var _ = declare(TestDNSResponseDiscarder, testOpts{
-	dnsPort: DNSPort,
-})
-
 func TestDNSResponseDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -174,7 +172,9 @@ func TestDNSResponseDiscarder(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefsRcodeOK)
+	test, err := newTestModule(t, nil, ruleDefsRcodeOK, withStaticOpts(testOpts{
+		dnsPort: DNSPort,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

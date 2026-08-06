@@ -126,24 +126,7 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-// hasRunFilters reports whether the configuration already narrows this package
-// with -test.run / -test.skip. Grouping also uses those flags and the last one
-// wins, so a configured filter takes precedence and disables grouping rather
-// than being silently overridden.
-func hasRunFilters(testConfig *testConfig, pkg string) bool {
-	for _, key := range []string{pkg, matchAllPackages} {
-		if config, ok := testConfig.PackagesRunConfig[key]; ok && (config.RunOnly != nil || config.Skip != nil) {
-			return true
-		}
-	}
-	return false
-}
-
-// buildCommandArgs assembles the gotestsum invocation. groupArgs, when set,
-// restricts the pass to one config group; the -test.timeout it inherits is the
-// whole package's, which makes it a per-pass hang guard rather than a budget
-// shared by every pass.
-func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig, groupArgs []string) []string {
+func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig) []string {
 	verbosity := "testname"
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
@@ -185,8 +168,6 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 	if config, ok := packagesRunConfig[matchAllPackages]; ok && config.Skip != nil {
 		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
 	}
-
-	args = append(args, groupArgs...)
 
 	return args
 }
@@ -301,49 +282,30 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			return fmt.Errorf("could not get relative path for %s: %w", testsuite, err)
 		}
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
+		xmlpath := filepath.Join(xmlDir, junitfilePrefix+".xml")
+		jsonpath := filepath.Join(jsonDir, junitfilePrefix+".json")
 
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
 			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
 
-		// One unfiltered pass is the status quo; a suite that reports config
-		// groups gets one pass per group instead.
-		passes := singlePass()
-		if !hasRunFilters(testConfig, pkg) {
-			if groups := discoverTestGroups(pkg, testsuiteArgs, envVars, filepath.Dir(testsuite)); len(groups) > 0 {
-				passes = passPlans(groups)
-			}
+		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
+		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
+
+		cmd.Env = append(cmd.Environ(), envVars...)
+
+		cmd.Dir = filepath.Dir(testsuite)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			// log but do not return error
+			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
 		}
 
-		for _, pass := range passes {
-			xmlpath := filepath.Join(xmlDir, junitfilePrefix+pass.suffix+".xml")
-			jsonpath := filepath.Join(jsonDir, junitfilePrefix+pass.suffix+".json")
-
-			args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig, pass.args)
-			cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
-
-			cmd.Env = append(cmd.Environ(), envVars...)
-
-			cmd.Dir = filepath.Dir(testsuite)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			if err := cmd.Run(); err != nil {
-				// log but do not return error
-				fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
-			}
-
-			// A pass whose tests were all skipped can leave no report behind.
-			// That is a legitimate outcome, not a runner failure.
-			if _, err := os.Stat(xmlpath); os.IsNotExist(err) {
-				fmt.Fprintf(os.Stderr, "no junit report at %s, skipping properties\n", xmlpath)
-				continue
-			}
-
-			if err := addProperties(xmlpath, props); err != nil {
-				return fmt.Errorf("xml add props: %s", err)
-			}
+		if err := addProperties(xmlpath, props); err != nil {
+			return fmt.Errorf("xml add props: %s", err)
 		}
 	}
 

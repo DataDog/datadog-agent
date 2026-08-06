@@ -116,10 +116,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	for _, opt := range fopts {
 		opt(&opts)
 	}
-	// Windows always builds a fresh module, so the declared config only decides
-	// this test's own config here -- there is no grouping to get wrong. Resolve
-	// it anyway so that declarations behave identically on both platforms.
-	resolveStaticOpts(t, &opts)
 
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")

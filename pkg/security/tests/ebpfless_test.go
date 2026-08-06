@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var _ = declare(TestEBPFLessAttach, testOpts{ebpfLessEnabled: true, dontWaitEBPFLessClient: true})
-
 func TestEBPFLessAttach(t *testing.T) {
 	t.Skip("not stable yet")
 
@@ -44,7 +42,7 @@ func TestEBPFLessAttach(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{ebpfLessEnabled: true, dontWaitEBPFLessClient: true}))
 	if err != nil {
 		t.Fatal(err)
 	}

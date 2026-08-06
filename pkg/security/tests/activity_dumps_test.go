@@ -30,8 +30,6 @@ import (
 
 var testActivityDumpCleanupPeriod = 15 * time.Second
 
-var _ = declareUngrouped(TestActivityDumps, reasonTempDir)
-
 func TestActivityDumps(t *testing.T) {
 	SkipIfNotAvailable(t)
 

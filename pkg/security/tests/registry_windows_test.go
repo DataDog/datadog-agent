@@ -27,8 +27,6 @@ import (
  * individual tests so that the underlying event system is starting fresh each time
  */
 
-var _ = declare(TestBasicRegistryTestPowershell, testOpts{enableFIM: true})
-
 func TestBasicRegistryTestPowershell(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
@@ -39,7 +37,10 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef, createDef})
+	opts := testOpts{
+		enableFIM: true,
+	}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef, createDef}, withStaticOpts(opts))
 
 	if err != nil {
 		t.Fatal(err)
@@ -74,8 +75,6 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 	})
 }
 
-var _ = declare(TestBasicRegistryTestRegExe, testOpts{enableFIM: true})
-
 func TestBasicRegistryTestRegExe(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
@@ -86,7 +85,10 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef, createDef})
+	opts := testOpts{
+		enableFIM: true,
+	}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef, createDef}, withStaticOpts(opts))
 
 	if err != nil {
 		t.Fatal(err)
@@ -122,8 +124,6 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 	})
 }
 
-var _ = declare(TestBasicRegistryTestAPI, testOpts{enableFIM: true})
-
 func TestBasicRegistryTestAPI(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
@@ -134,7 +134,10 @@ func TestBasicRegistryTestAPI(t *testing.T) {
 		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef, createDef})
+	opts := testOpts{
+		enableFIM: true,
+	}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef, createDef}, withStaticOpts(opts))
 
 	if err != nil {
 		t.Fatal(err)

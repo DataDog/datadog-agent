@@ -65,7 +65,7 @@ change the rebuild *count*, which is what this work reduces.
 | No codegen, no generated artifact, no comment DSL | Capability-equivalent to plain Go but needs a generator + checked-in file + CI freshness check. |
 | Func-valued opts will move to `dynamicTestOpts` and **stay inline in the test body** (PR 2) | They are per-invocation hooks. Once they are not part of the static config they never need to be hashable, so there is no need to hoist callbacks into a name table. |
 | `forceReload` becomes a **declared property**, not just a call-site flag | It determines whether a test can share a module, so the scheduler needs it. Call-site form is retained as enforcement. |
-| ~~A fresh-module test must be **first after a rebuild**~~ — **wrong, see "PR 1 as built"** | Go runs the tests a `-test.run` pattern selects in source order and no pattern can change that, so there is no way to put a fresh test first. Rebuilds per config are `1 + k`, not `max(1, k)`. |
+| A fresh-module test must be **first after a rebuild**, not alone in its group | Its module is valid for that config afterwards, so following same-config tests reuse it. Rebuilds per config = `max(1, k)` where `k` = number of declared-fresh tests; literal isolation would cost `k+1`. |
 | Ordering is executed as **one `go test` pass per group** | Go's testing package cannot reorder `m.Run()`. Each pass pays exactly one module build, which is the floor anyway. |
 | **Undeclared means "default config"** — no `declare` needed for the common case | Measured: **173 of 252 test funcs (69%) use the default config**, and ~174 of 258 `newTestModule` call sites need no change at all. So the final pass *is* the default-config group — a legitimate group with a known signature and exactly one module build — not a leftover bucket. Only the 31% with a non-default config get a `declare` line. |
 | **No second entry point.** `newTestModule` consults the registry itself | With undeclared ⇒ default, a default test's existing `newTestModule(t, nil, ruleDefs)` call is already correct and untouched. A declared test drops its `withStaticOpts(...)` and the config comes from the registry. No `requireModule` wrapper needed. |
@@ -75,10 +75,6 @@ change the rebuild *count*, which is what this work reduces.
 Shared, both platforms (`//go:build functionaltests`, no OS tag — safe home for the new API):
 - `pkg/security/tests/testopts.go` — `testOpts`, `dynamicTestOpts`, `optFunc`, `withStaticOpts`,
   `withDynamicOpts`, `withForceReload`, `Equal` (`reflect.DeepEqual`, ~line 112)
-- `pkg/security/tests/testdecl.go` — **added by PR 1**: the declaration registry, `configSignature`,
-  `resolveStaticOpts`
-- `pkg/security/tests/testruns.go` — **added by PR 1**: the partition, `-cws-list-groups` output,
-  the rebuild guardrail
 - `pkg/security/tests/module_tester.go` — `var testMod *testModule`
 
 Linux implementation (the only platform with reuse logic):
@@ -105,21 +101,19 @@ In `testopts.go`:
   silent last-wins would be a trap).
 - `needsFreshModule()` — `declOption` marking a test as requiring a freshly built module. Preferred
   over `forceReload` as a name: it states the requirement, not the mechanism.
-- ~~`variants{"map": testOpts{...}, "erpc": testOpts{...}}`~~ — **not built, see "PR 1 as built"**:
-  under one `-test.run` per pass a subtest-level declaration cannot pay off. Lookup still resolves
-  `TestX/sub` then falls back to `TestX`, so the mechanism is there if a use for it appears.
+- `variants{"map": testOpts{...}, "erpc": testOpts{...}}` — subtest-level declarations for the 8
+  tests that build several modules (e.g. `TestEventTruncatedParents`). Lookup resolves `TestX/sub`
+  then falls back to `TestX`.
 - `configSignature(testOpts) string` — stable equality-class key for grouping.
   **Invariant: `Equal(a, b) == (signature(a) == signature(b))`.** Add a table-driven test asserting
   this; if the two ever disagree, grouping silently stops working. Note that while `Equal` is still
   `reflect.DeepEqual` (until PR 2), any config containing a non-nil func violates the invariant —
   so `declare` must **reject func-bearing configs with a clear panic message** pointing at the
   escape hatch, rather than accepting something it cannot group correctly.
-- `declareRuntimeConfig(fn any)` — **built as `declareUngrouped(fn, reason string, mods ...)`**, see
-  "PR 1 as built". Marks a test that cannot share a module with any other, whether because its config
-  is only known at run time (`enforcementExcludeBinary: which(t, "sleep")`,
-  `activityDumpLocalStorageDirectory: t.TempDir()`), because it holds a callback, or because it
-  deliberately builds several. It keeps using call-site `withStaticOpts`, but the declaration makes it
-  **explicit and reviewable** that the test is scheduled apart from the declared groups. See Step 3.
+- `declareRuntimeConfig(fn any)` — marks a test whose static config genuinely cannot be known until
+  it runs (`enforcementExcludeBinary: which(t, "sleep")`, `activityDumpLocalStorageDirectory:
+  t.TempDir()`). It keeps using call-site `withStaticOpts`, but the declaration makes it **explicit
+  and reviewable** that the test is scheduled apart from the declared groups. See Step 3.
 
 **No `requireModule` wrapper.** `newTestModule` resolves static opts itself:
 
@@ -206,8 +200,8 @@ keeps working unchanged via the default pass described in Step 3.
    `flag.Parse()` and before `m.Run()`: print one line per pass, then `os.Exit(0)`.
    Because every declaration is registered at `init()` time this needs **no test execution** — no
    discovery pass, no skip-and-record, no source parsing.
-   ~~Within each group, order declared-fresh tests first.~~ Not possible: `-test.run` selects tests
-   but never reorders them, so a fresh test costs its group an extra build wherever it lands.
+   Within each group, order declared-fresh tests first (each triggers its own rebuild), then the
+   rest, which ride the last module for free.
 
 2. `test-runner`: in `testPass()`, if the suite advertises the flag, run one gotestsum pass per
    group with that pattern; otherwise fall back to today's single pass. **The fallback must be
@@ -294,15 +288,11 @@ KMT job tag (`kmt.tag-ci-job` already ships tags via `datadog-ci`).
 
 Assert **per pass**, not on the total — that is where a regression hides:
 
-- each declared pass: at most `1 + freshCount(C)` rebuilds;
-- the **default pass: at most `1 + freshCount(default)`**, which is **6**, not 1 — five tests in it
-  genuinely need a freshly built module (`TestMountPropagated`, `TestMountSnapshot{Listmount,Procfs}`,
-  `TestSSHUserSession{Blocking,Snapshot}`). They rebuild today too, so this is not a cost grouping
-  introduces, but it does mean the "default pass = exactly 1" assertion was never achievable.
-
-Assert an **upper** bound, not equality: a skipped test builds nothing, and most of the
-activity-dump tests are gated on `DEDICATED_ACTIVITY_DUMP_NODE`, so the observed count is routinely
-below the expectation. Excess is the regression direction and the only one worth failing on.
+- each declared pass: exactly `max(1, freshCount(C))` rebuilds;
+- the **default pass: exactly 1**. This is the strongest assertion in the design and it holds even
+  mid-migration in spirit — any excess is precisely the count of not-yet-declared non-default tests,
+  which is the same thing the runtime warning counts. Assert an upper bound while that count is
+  non-zero, then tighten to exactly 1.
 
 A PR that adds a config or marks a test fresh changes the expectation automatically — no threshold to
 bump, no baseline to regenerate.
@@ -373,68 +363,6 @@ by the rebuild count dropping 43 -> ~24; treat the wall-clock saving as secondar
 Read results with `.ci-speed-data/analyze_phases.py <job_id>` from that branch, which pulls the
 testjson artifact and aggregates `[phase]` lines. Job wall clock varies 29–61 min across identical
 work, so judge by rebuild count and per-rebuild cost, not by a single job's duration.
-
-## PR 1 as built
-
-Landed. What differs from the plan above, and why.
-
-### Deviations
-
-| plan | as built | why |
-|---|---|---|
-| API in `testopts.go` | `pkg/security/tests/testdecl.go` (registry) and `testruns.go` (partition, guardrail) | ~450 lines; `testopts.go` keeps only the `staticOptsSet` flag that tells "no static opts" from "the default config, explicitly". |
-| `declareRuntimeConfig(fn)` | `declareUngrouped(fn, reason, mods...)` | It has to cover three unrelated reasons a test cannot share a module — runtime-resolved value, callback, several modules on purpose — and the plan's name only describes the first. `reasonTempDir` / `reasonCallback` consts carry the shared ones plus their PR 2 / PR 3 TODOs. |
-| `variants{...}` | not built; `buildsModules(n)` instead | See below. |
-| fresh tests ordered first | `1 + freshCount` per pass | Go cannot reorder within a pass. |
-| grouped execution on by default | opt-in via `CWS_TEST_GROUPING=1` | Risk 1 in this document asks for a grouped-vs-ungrouped diff on the same commit before flipping. The runner ignores the flag unless the env var is set. |
-
-**Why `variants` cannot pay off.** `-test.run` splits its pattern on `/` and applies each element to
-one level of the subtest path. A pass selecting `^(TestA|TestB)$/^map$` would apply `^map$` to
-`TestA`'s and `TestB`'s subtests too, so a variant pattern cannot be joined to a group's alternation —
-it needs a pass of its own, and a one-variant pass costs exactly the one build the variant already
-costs inline. Zero saving for real machinery. Only two tests are genuinely multi-config
-(`TestEventTruncatedParents`, `TestReplay` — not the 8 the plan assumed), so both are
-`declareUngrouped` with `buildsModules(2)` / `buildsModules(4)`, which keeps the guardrail exact.
-
-### Measured partition
-
-From `testsuite -cws-list-groups`, cross-checked against `-test.list '.*'`: 258 tests, **every one in
-exactly one pass**, none dropped, none duplicated.
-
-| | passes | tests | expected rebuilds |
-|---|---|---|---|
-| declared config groups | 16 | 43 | 16 (exactly 1 each) |
-| `ungrouped` | 1 | 29 | 33 |
-| `default` | 1 | 186 | 6 |
-| **total** | **18** | **258** | **55** |
-
-The 16 configs — not the ~20 the plan estimated — are `networkIngressEnabled` (14 tests),
-`networkRawPacketEnabled` (7), the two dentry-resolution configs (4 each), `dnsPort` and
-`disableFilters` (2 each), and 9 single-test configs.
-
-### Revised expectation: ~43 → ~33, not ~24
-
-55 counts every pass; in `cws_host` most of the `ungrouped` run is the activity-dump and
-security-profile tests, which are gated on `DEDICATED_ACTIVITY_DUMP_NODE` and skipped, and a skipped
-test builds nothing. Expect roughly 16 (config groups) + ~11 (the ungrouped tests that do run) + 6
-(default) ≈ **33**, against the 43 baseline — about **10 fewer rebuilds, not 19**.
-
-The plan's ~24 assumed the default pass cost 1 rebuild (it costs 6) and that only 4 tests would stay
-on the escape hatch (29 do). At the post-`rcu_expedited` ~24s per rebuild on `amazon_6.12` that is
-**~4 min on a 44-min job**, and less on every other kernel — before subtracting the cost of 17 extra
-test-binary startups, which is new and unmeasured. Measure it before assuming the trade is positive
-on the fast kernels; consider restricting grouping to the slow ones if it is not.
-
-### Guardrail
-
-`-cws-group <name>` makes the suite count the modules it builds and exit non-zero if it exceeds that
-group's prediction. The runner passes it automatically on every grouped pass, so a PR that puts a test
-in a group whose config it does not use fails the job instead of silently losing the saving. The
-check only fires upward: building fewer is normal.
-
-`resolveStaticOpts` also warns, with a count and the test names, when a test passes `withStaticOpts`
-without any declaration — the "forgot to declare" case. That is 0 today and should be promoted to a
-hard failure once nothing legitimately needs the escape hatch (i.e. after PR 2 and PR 3).
 
 ## PR 2 — config comparability cleanup (deferred)
 

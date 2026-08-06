@@ -30,8 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
-var _ = declare(TestSBOM, testOpts{enableSBOM: true, enableHostSBOM: true})
-
 func TestSBOM(t *testing.T) {
 	t.Skip("this test is currently flaky, needs to be stabilized before re-enabling")
 
@@ -66,7 +64,7 @@ func TestSBOM(t *testing.T) {
 				`&& process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
