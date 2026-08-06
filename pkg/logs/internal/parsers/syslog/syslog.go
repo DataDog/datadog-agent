@@ -442,7 +442,9 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// Accepted layouts, in order: the RFC 3164 15-byte form "Mmm dd hh:mm:ss",
 	// the 14-byte non-padded-day and 20-byte with-year and year-first variants
 	// emitted by various appliances, and finally an ISO 8601 timestamp, which
-	// Cisco ASA/FTD, Delinea, and Picus use in place of the BSD form.
+	// Cisco ASA/FTD and Picus send in place of the BSD form. The ISO layout also
+	// turns up in tailed files regardless of sender, because rsyslog's default
+	// file template renders the timestamp as RFC 3339 and drops the PRI.
 	tsLen := bsdTimestampLen(line[pos:])
 	isISOTimestamp := false
 	if tsLen == 0 {

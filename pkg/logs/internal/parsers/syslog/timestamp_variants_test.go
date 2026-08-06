@@ -17,6 +17,11 @@ import (
 // are formats real appliances emit. Before these layouts were recognized, every
 // header field came back as the nilvalue and source routing on
 // syslog.appname/hostname could not work.
+//
+// A sample carrying a PRI was captured off the wire and goes through Parse; one
+// without a PRI is a file rendering and goes through ParseBSDLine. That says
+// nothing about the sender: a PRI is mandatory on the wire, but the default file
+// templates of both rsyslog and syslog-ng omit it.
 func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -55,9 +60,9 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			msg:       "payload",
 		},
 		{
-			// The fixture carries no PRI, which is the form NX-OS writes to its
-			// own logfile and hands to a relay.
-			name:      "cisco nx-os year first header",
+			// Cisco documents this PRI-less form as what NX-OS writes to its own
+			// logfile and console, separately from the wire format below.
+			name:      "cisco nx-os year first header, logfile form",
 			line:      "2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
 			timestamp: "2024 Apr 04 08:05:06",
 			hostname:  "MDS9148S-S4",
@@ -105,7 +110,10 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			msg:       `{"common":{"unique_id":"609249cb"}}`,
 		},
 		{
-			name:      "iso timestamp with fractional seconds and host (delinea secret server)",
+			// Delinea documents the ISO timestamp and the CEF payload but not the
+			// framing; the fixture has no PRI, which is what rsyslog's file
+			// template produces, so read this as the tailed-file form.
+			name:      "iso timestamp with fractional seconds, no pri (delinea secret server)",
 			line:      "2025-02-26T06:47:27.458Z DSS-01 CEF:0|Thycotic Software|Secret Server|11.7|10005|SECRET - EDIT|2|msg=x",
 			timestamp: "2025-02-26T06:47:27.458Z",
 			hostname:  "DSS-01",

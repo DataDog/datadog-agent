@@ -27,8 +27,9 @@ func TestSyslogDigitPrefixIsNotAlwaysOctetCount(t *testing.T) {
 		line string
 	}{
 		{
-			// Cisco NX-OS year-first header; "2024 " would be read as MSG-LEN=2024.
-			name: "cisco nx-os year first",
+			// Cisco NX-OS year-first header as rendered without a PRI, the form a
+			// file template produces; "2024 " would be read as MSG-LEN=2024.
+			name: "cisco nx-os year first, no pri",
 			line: "2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
 		},
 		{
