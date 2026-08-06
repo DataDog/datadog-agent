@@ -333,24 +333,20 @@ UNIT_TEST_TAGS = set(["test"])
 # List of tags to always remove when running unit tests
 UNIT_TEST_EXCLUDED_TAGS = set(["datadog.no_waf", "pcap"])
 
-### Per-flavor unit-test tag sets
+# Tags that only change source selection in external dependencies. They are
+# useful for shipped binaries, but ordinary unit tests should not create a
+# separate configured dependency graph for them.
+DEP_ONLY_TAGS = COMMON_TAGS | set([
+    "datadog.no_waf",
+    "no_gogo",
+    "remove_all_sd",
+])
 
-def _unit_test_tags(flavor_tags):
-    return sorted(((flavor_tags | UNIT_TEST_TAGS) - UNIT_TEST_EXCLUDED_TAGS) | COMMON_TAGS)
+# Minimal tags applied to every Bazel Go unit test.
+BASE_TEST_TAGS = sorted(UNIT_TEST_TAGS)
 
-# FLAVOR_UNIT_TEST_TAGS maps each AgentFlavor name to the build tags used when
-# running its unit tests. It mirrors the build_tags[flavor]["unit-tests"] entries
-# in tasks/build_tags.py: the flavor's build set unioned with UNIT_TEST_TAGS,
-# minus UNIT_TEST_EXCLUDED_TAGS, then unioned with COMMON_TAGS (as
-# get_default_build_tags() does). LINUX_ONLY tags are kept here; per-platform
-# filtering is applied by flavor_gotags() in //bazel/flavors:defs.bzl. Consumed
-# by that macro (Starlark load) and, via tasks/build_tags.py, by the
-# dd_agent_go_test Gazelle extension's generated tags.go. Kept in sync with
-# build_tags.py by tasks/unit_tests/build_tags_tests.py.
-FLAVOR_UNIT_TEST_TAGS = {
-    "base": _unit_test_tags(AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS),
-    "fips": _unit_test_tags(AGENT_TAGS | FIPS_TAGS),
-    "heroku": _unit_test_tags(AGENT_HEROKU_TAGS),
-    "iot": _unit_test_tags(IOT_AGENT_TAGS),
-    "dogstatsd": _unit_test_tags(DOGSTATSD_TAGS),
-}
+# Feature tags covered by the existing unit-test configurations.
+TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | SYSTEM_PROBE_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
+
+# Supported feature tags that a test source may opt into through //go:build.
+AUTO_TEST_TAGS = sorted(TEST_FEATURE_TAGS - DEP_ONLY_TAGS - UNIT_TEST_TAGS - UNIT_TEST_EXCLUDED_TAGS)

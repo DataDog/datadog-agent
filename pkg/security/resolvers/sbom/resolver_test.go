@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // TestRefreshScanResetsStateForRescan checks that refreshing a workload clears
@@ -48,5 +50,59 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 		}
 	default:
 		t.Errorf("workload was not re-queued for a scan")
+	}
+}
+
+func newPendingFileEventsResolver() *Resolver {
+	return &Resolver{
+		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+	}
+}
+
+// TestDeleteReleasesPendingFileEventsWithoutSBOM checks that a container leaving
+// before an SBOM entry was created for it still releases its queued file accesses.
+// Accesses are queued from the moment a container ID resolves, which is well before
+// the workload selector that creates the entry.
+func TestDeleteReleasesPendingFileEventsWithoutSBOM(t *testing.T) {
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](2, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := newPendingFileEventsResolver()
+	r.sboms = sboms
+
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.Delete("container-id")
+
+	if len(r.pendingFileEvents) != 0 {
+		t.Errorf("queued file accesses were not released")
+	}
+}
+
+// TestEvictedSBOMReleasesPendingFileEvents checks that the file accesses queued for
+// a workload are released when its SBOM leaves the cache, whether it is removed
+// explicitly or evicted to make room.
+func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
+	r := newPendingFileEventsResolver()
+	sboms, err := simplelru.NewLRU(1, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+
+	sboms.Add("evicted-container-id", NewSBOM("evicted-container-id", nil, "image:tag"))
+	r.queuePendingFileEvent("evicted-container-id", "/usr/bin/su", 04755, 0)
+
+	sboms.Add("container-id", NewSBOM("container-id", nil, "image:tag"))
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+
+	if _, ok := r.pendingFileEvents["evicted-container-id"]; ok {
+		t.Errorf("queued file accesses of the evicted SBOM were not released")
+	}
+
+	r.Delete("container-id")
+
+	if len(r.pendingFileEvents) != 0 {
+		t.Errorf("queued file accesses of the removed SBOM were not released")
 	}
 }
