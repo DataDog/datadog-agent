@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -99,6 +101,9 @@ type Destination struct {
 	// Secrets
 	secrets secrets.Component
 
+	// DelegatedAuth
+	delegatedAuth delegatedauth.Component
+
 	// Telemetry
 	expVars         *expvar.Map
 	destMeta        *client.DestinationMetadata
@@ -111,6 +116,8 @@ type Destination struct {
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
 // secretsComp is used to trigger an API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
+// delegatedAuthComp is used to nudge a delegated-auth (WIF) refresh on 403 responses for a
+// pending endpoint; pass a DelegatedAuthNoop when WIF isn't in use.
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -121,7 +128,8 @@ func NewDestination(endpoint config.Endpoint,
 	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
-	secretsComp secrets.Component) *Destination {
+	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -134,7 +142,8 @@ func NewDestination(endpoint config.Endpoint,
 		maxConcurrency,
 		pipelineMonitor,
 		instanceID,
-		secretsComp)
+		secretsComp,
+		delegatedAuthComp)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -148,7 +157,8 @@ func newDestination(endpoint config.Endpoint,
 	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
-	secretsComp secrets.Component) *Destination {
+	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component) *Destination {
 
 	policy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -186,6 +196,7 @@ func newDestination(endpoint config.Endpoint,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		secrets:             secretsComp,
+		delegatedAuth:       delegatedAuthComp,
 		expVars:             expVars,
 		destMeta:            destMeta,
 		isMRF:               endpoint.IsMRF,
@@ -410,8 +421,8 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
 	if resp.StatusCode == http.StatusForbidden &&
-		d.secrets.IsValueFromSecret(d.endpoint.GetAPIKey()) &&
-		d.secrets.Refresh() {
+		((d.secrets.IsValueFromSecret(d.endpoint.GetAPIKey()) && d.secrets.Refresh()) ||
+			(d.endpoint.HasPendingDelegatedAuth() && d.refreshDelegatedAuth())) {
 		return client.NewRetryableError(errServer)
 	} else if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
@@ -424,6 +435,11 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
 	return nil
+}
+
+// refreshDelegatedAuth nudges delegated auth to retry sooner, guarding against a nil component.
+func (d *Destination) refreshDelegatedAuth() bool {
+	return d.delegatedAuth != nil && d.delegatedAuth.Refresh()
 }
 
 func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
@@ -519,7 +535,7 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
-	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", secretsnoopimpl.NewComponent().Comp)
+	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", secretsnoopimpl.NewComponent().Comp, delegatedauthnoopimpl.NewComponent().Comp)
 
 	return ctx, destination
 }

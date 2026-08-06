@@ -242,7 +242,7 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	suite.T().Logf("RESTARTING AGENT")
 
 	// Build HTTP endpoints for restart
-	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config)
+	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config, agent.delegatedAuth)
 	suite.NoError(err, "Should build HTTP endpoints")
 
 	// restart agent with HTTP endpoints
@@ -309,7 +309,7 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 	}
 
 	// Build HTTP endpoints for restart
-	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config)
+	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config, agent.delegatedAuth)
 	suite.NoError(err, "Should build HTTP endpoints")
 
 	// Execute restart
@@ -534,7 +534,7 @@ func (suite *RestartTestSuite) TestRestart_SerializesConcurrentCalls() {
 	})
 
 	// Build HTTP endpoints for restart
-	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config)
+	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config, agent.delegatedAuth)
 	suite.NoError(err, "Should build HTTP endpoints")
 
 	var wg sync.WaitGroup

@@ -10,6 +10,7 @@ package status
 import (
 	"go.uber.org/atomic"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -21,6 +22,6 @@ import (
 func InitStatus(coreConfig model.Reader, sources *sources.LogSources) {
 	var isRunning = atomic.NewUint32(StatusRunning)
 	tracker := tailers.NewTailerTracker()
-	endpoints, _ := config.BuildEndpoints(coreConfig, config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, _ := config.BuildEndpoints(coreConfig, config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars, metrics.NewNoopPipelineMonitor(""))
 }

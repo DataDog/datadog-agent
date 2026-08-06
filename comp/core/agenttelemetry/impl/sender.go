@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
@@ -206,7 +207,7 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 	// Will be eliminated in the future after switching to EP Forwarder.
 	configKeys := logconfig.NewLogsConfigKeys(telemetryConfigPrefix, cfgComp)
 	return logconfig.BuildHTTPEndpointsWithConfig(cfgComp, configKeys,
-		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
+		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin, delegatedauthnoopimpl.NewComponent().Comp)
 }
 
 func newSenderImpl(

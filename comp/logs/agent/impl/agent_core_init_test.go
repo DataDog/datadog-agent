@@ -11,13 +11,14 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildEndpoints(t *testing.T) {
 	config := config.NewMock(t)
 
-	endpoints, err := buildEndpoints(config)
+	endpoints, err := buildEndpoints(config, delegatedauthnoopimpl.NewComponent().Comp)
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 }
