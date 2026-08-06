@@ -55,6 +55,11 @@ func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ 
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 
+// RunCommand implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _, _ string) (*types.CommandResult, types.TypedError) {
+	return nil, types.InternalError(errors.New("unimplemented"))
+}
+
 // SetMaxReportInterval implements [networkconfigmanagement.Component].
 func (m *mockNetworkConfigManagement) SetMaxReportInterval(_ time.Duration) {}
 
