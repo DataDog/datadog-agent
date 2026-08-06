@@ -398,22 +398,25 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	}
 	files, err := s.fileProvider.CollectFiles(source)
 	if err != nil {
-		source.Status.Error(err)
+		source.Status().Error(err)
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
 
+	// Reuse a single resolver so the /var/log/containers scan happens at most once
+	// across all files for this source rather than once per file.
+	symlinkResolver := fileprovider.NewContainerLogSymlinkResolver()
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
 		}
 
-		if fileprovider.ShouldIgnore(s.validatePodContainerID, file) {
+		if fileprovider.ShouldIgnore(s.validatePodContainerID, file, symlinkResolver) {
 			continue
 		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
 			// new source inherits the old source's status
-			source.Status = tailer.Source().Status
+			source.SetStatus(tailer.Source().Status())
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
 			tailer.ReplaceSource(source)
@@ -465,7 +468,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, s.fileOpener)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -534,7 +537,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, s.fileOpener)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}

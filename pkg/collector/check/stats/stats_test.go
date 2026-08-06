@@ -16,7 +16,6 @@ import (
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -79,7 +78,7 @@ func getTelemetryData() (string, error) {
 }
 
 func TestNewStats(t *testing.T) {
-	stats := NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	stats := NewStats(newMockCheck())
 
 	assert.Equal(t, stats.CheckID, checkid.ID("checkID"))
 	assert.Equal(t, stats.CheckName, "checkString")
@@ -95,7 +94,7 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("telemetry.checks", "*")
 
-	NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	NewStats(newMockCheck())
 
 	tlmData, err := getTelemetryData()
 	require.NoError(t, err)
@@ -116,7 +115,7 @@ func TestFirstExecutionTimeMetric(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("telemetry.checks", "*")
 
-	stats := NewStats(newMockCheck(), healthplatformmock.Mock(t))
+	stats := NewStats(newMockCheck())
 	haagent := haagentmock.NewMockHaAgent()
 
 	stats.Add(100*time.Millisecond, nil, []error{}, SenderStats{}, haagent)
@@ -181,4 +180,25 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, assert.ObjectsAreEqual(expected, result))
 	assert.EqualValues(t, expected, result)
+}
+
+// TestStatsCloneConcurrent reproduces the scenario that raced in production: something
+// reading a *Stats (e.g. via GetCheckStats()) while Add()/SetStateCancelling() run
+// concurrently on the same instance. Run with -race.
+func TestStatsCloneConcurrent(_ *testing.T) {
+	stats := NewStats(newMockCheck())
+	haagent := haagentmock.NewMockHaAgent()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 1000 {
+			stats.Add(time.Millisecond, nil, []error{}, SenderStats{}, haagent)
+			stats.SetStateCancelling()
+		}
+	}()
+	for range 1000 {
+		stats.Clone()
+	}
+	<-done
 }

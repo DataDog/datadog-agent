@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-
-# gazelle:dd_linux_bpf on
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "dyninst",
@@ -10,7 +9,7 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "dyninst_test",
     srcs = [
         "circuit_breaker_test.go",
@@ -57,6 +56,9 @@ go_test(
         "testdata/decoded/sample/testBigStruct_geq_go1.26rc1.json",
         "testdata/decoded/sample/testBoolArray.json",
         "testdata/decoded/sample/testByteArray.json",
+        "testdata/decoded/sample/testByteSliceInvalidUtf8.json",
+        "testdata/decoded/sample/testByteSliceMultibyteUtf8.json",
+        "testdata/decoded/sample/testCaptureContextImpl.json",
         "testdata/decoded/sample/testCaptureExprGetmember.json",
         "testdata/decoded/sample/testCaptureExprGetmember_geq_go1.26rc1.json",
         "testdata/decoded/sample/testCaptureExprLine.json",
@@ -122,6 +124,7 @@ go_test(
         "testdata/decoded/sample/testInt8Array.json",
         "testdata/decoded/sample/testIntArray.json",
         "testdata/decoded/sample/testInterface.json",
+        "testdata/decoded/sample/testInvalidUtf8Strings.json",
         "testdata/decoded/sample/testLargeArgAndReturn.json",
         "testdata/decoded/sample/testLinkedList.json",
         "testdata/decoded/sample/testLongFunctionWithChangingStateLineA.json",
@@ -155,6 +158,8 @@ go_test(
         "testdata/decoded/sample/testMassiveString.json",
         "testdata/decoded/sample/testMassiveStringWithSizeLimit.json",
         "testdata/decoded/sample/testMixedArgsStackReturn.json",
+        "testdata/decoded/sample/testMultibyteUtf8String.json",
+        "testdata/decoded/sample/testMultibyteUtf8StringWithSizeLimit.json",
         "testdata/decoded/sample/testMultipleArrayArgs.json",
         "testdata/decoded/sample/testMultipleLargeArgs.json",
         "testdata/decoded/sample/testMultipleNamedReturn.json",
@@ -558,11 +563,9 @@ go_test(
         "testdata/e2e/rc_tester.json",
         "testdata/e2e/rc_tester_v1.json",
     ],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    tags = ["manual"],  # keep
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/config/remote/data",

@@ -26,13 +26,7 @@ const (
 )
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
-	t.Helper()
-	urn, privateKeyB64 := generateTestRunnerIdentity(t)
-	return fmt.Sprintf(`private_action_runner:
-  enabled: true
-  private_key: %s
-  urn: %s
-`, privateKeyB64, urn)
+	return GenerateTestPrivateActionRunnerConfig(t)
 }
 
 type linuxPrivateActionRunnerEnabledSuite struct {

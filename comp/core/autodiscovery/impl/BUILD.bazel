@@ -46,6 +46,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/flare",
         "//pkg/status/health",
         "//pkg/util/http",
@@ -53,7 +54,7 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/retry",
         "//pkg/util/slices",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_mohae_deepcopy//:deepcopy",
     ],
@@ -73,6 +74,16 @@ dd_agent_go_test(
         "store_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        ["python"],
+    ],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

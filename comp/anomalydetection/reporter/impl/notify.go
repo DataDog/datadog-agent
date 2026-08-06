@@ -105,7 +105,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 	if a.SourceRef == nil || storage == nil {
 		return 0, false
 	}
-	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateCount)
+	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateSum)
 	return total / logPatternRateWindowSec, true
 }
 
@@ -114,7 +114,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 func logPatternPrevRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
 	if a.SourceRef != nil && storage != nil {
 		start := a.Timestamp - logPatternPrevRateWindowSec - logPatternRateWindowSec
-		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateCount)
+		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateSum)
 		if total == 0 {
 			return 0, false
 		}
@@ -175,11 +175,11 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	var title, direction string
 	switch evt.Kind {
 	case observerdef.CorrelatorEventEpisodeStarted:
-		title = fmt.Sprintf("Anomaly scorer: high severity started (%s → %s)",
+		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
 			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
 		direction = "started"
 	case observerdef.CorrelatorEventEpisodeEnded:
-		title = fmt.Sprintf("Anomaly scorer: high severity ended (%s → %s)",
+		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
 			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
 		direction = "ended"
 	default:
@@ -188,7 +188,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
-	msg := fmt.Sprintf("Anomaly scorer %q high-severity episode %s at t=%d\nPattern: %s",
+	msg := fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
 		evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
 
 	var host string

@@ -27,7 +27,12 @@ type bucket struct {
 	shouldTruncate bool
 }
 
-func (b *bucket) add(msg *message.Message, tokens []Token) {
+// add appends msg and its first-line tokens to the bucket. The caller chooses
+// the token lifetime: pass the borrowed tokens as-is when the line is flushed
+// within the current Process call, or tokens.retained() when the line stays
+// buffered for a later call (the tokenizer's scratch buffer is reused between
+// lines, so a buffered line must own a copy).
+func (b *bucket) add(msg *message.Message, tokens BorrowedTokens) {
 	if b.originalDataLen > 0 {
 		b.contentLen += len(message.EscapedLineFeed)
 	}
@@ -127,7 +132,7 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 	return AggregatedMessageWithTokens{Msg: msg, Tokens: b.lines[0].Tokens}
 }
 
-func (b *bucket) emitSingle(msg *message.Message, tokens []Token) AggregatedMessageWithTokens {
+func (b *bucket) emitSingle(msg *message.Message, tokens BorrowedTokens) AggregatedMessageWithTokens {
 	content := bytes.TrimSpace(msg.GetContent())
 
 	// Once a bucket is exploded, each emitted event follows the normal single-line
@@ -199,7 +204,7 @@ func (a *combiningAggregator) flushToCollected() {
 	a.collected = append(a.collected, a.bucket.flush())
 }
 
-func (a *combiningAggregator) emitSingleToCollected(msg *message.Message, tokens []Token) {
+func (a *combiningAggregator) emitSingleToCollected(msg *message.Message, tokens BorrowedTokens) {
 	a.collected = append(a.collected, a.bucket.emitSingle(msg, tokens))
 }
 
@@ -212,21 +217,21 @@ func (a *combiningAggregator) explodeBucketToCollected() {
 }
 
 // Process processes a multiline log using a label and returns any completed messages.
-func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens {
+func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens BorrowedTokens) []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.flushToCollected()
 		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
-		a.bucket.add(msg, tokens)
+		a.bucket.add(msg, tokens)       // flushed immediately below; tokens stay borrowed
 		a.flushToCollected()
 		return a.collected
 	}
 
 	// If `aggregate` and the bucket is empty - flush the next message.
 	if label == aggregate && a.bucket.isEmpty() {
-		a.bucket.add(msg, tokens)
+		a.bucket.add(msg, tokens) // flushed immediately below; tokens stay borrowed
 		a.flushToCollected()
 		return a.collected
 	}
@@ -235,12 +240,17 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 	if label == startGroup {
 		a.flushToCollected()
 		a.multiLineMatchInfo.Add(1)
-		a.bucket.add(msg, tokens)
 		if msg.RawDataLen >= a.maxContentSize {
-			// A startGroup can still truncate, but only because this individual line is
-			// already at the limit on its own. That's the remaining single-line truncation
-			// case in this codepath; it is not caused by multiline aggregation.
+			// The start line is already at the size limit on its own, so it is
+			// emitted immediately (the remaining single-line truncation case in this
+			// codepath, not caused by multiline aggregation). Its tokens are consumed
+			// now, so they stay borrowed.
+			a.bucket.add(msg, tokens)
 			a.flushToCollected()
+		} else {
+			// Under the limit: buffered until its continuation lines arrive, so it
+			// must own its tokens.
+			a.bucket.add(msg, tokens.retained())
 		}
 		return a.collected
 	}
@@ -254,8 +264,9 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 		return a.collected
 	}
 
-	// We're an aggregate label within a startGroup and within the maxContentSize. Append new multiline
-	a.bucket.add(msg, tokens)
+	// We're an aggregate label within a startGroup and within the maxContentSize.
+	// Append new multiline; the line stays buffered, so it must own its tokens.
+	a.bucket.add(msg, tokens.retained())
 	return a.collected
 }
 

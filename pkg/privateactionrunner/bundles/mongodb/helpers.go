@@ -12,11 +12,29 @@ import (
 	"net/url"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 )
+
+// optionsLister mirrors mongoutil.OptionsLister[T], which lives in an
+// internal package we can't import.
+type optionsLister[T any] struct {
+	opts *T
+}
+
+func (l optionsLister[T]) List() []func(*T) error {
+	if l.opts == nil {
+		return nil
+	}
+	return []func(*T) error{
+		func(t *T) error {
+			*t = *l.opts
+			return nil
+		},
+	}
+}
 
 func createMongoClientOptions(ctx context.Context, credentialTokens map[string]string) (*options.ClientOptions, *connstring.ConnString, error) {
 	connectionUri, err := getConnectionUri(credentialTokens)

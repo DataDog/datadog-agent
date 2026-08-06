@@ -34,7 +34,8 @@ func TestDatagramTailer_Syslog_EndToEnd(t *testing.T) {
 	serverConn, serverAddr := newTestUDPConn(t)
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
+	attrOn := true
+	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat, AttributeParsing: &attrOn})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)
@@ -80,7 +81,8 @@ func TestDatagramTailer_Syslog_SourceHostTag(t *testing.T) {
 	serverConn, serverAddr := newTestUDPConn(t)
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
+	attrOn := true
+	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat, AttributeParsing: &attrOn})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)
@@ -122,7 +124,8 @@ func TestDatagramTailer_Syslog_SourceHostTagDisabled(t *testing.T) {
 	serverConn, serverAddr := newTestUDPConn(t)
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
+	attrOn := true
+	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat, AttributeParsing: &attrOn})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)

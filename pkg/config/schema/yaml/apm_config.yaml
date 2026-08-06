@@ -56,6 +56,7 @@ properties:
       Enabling this setting may result in unexpected behavior.
     platform_default:
       linux: /var/run/datadog/apm.socket
+      aix: /var/run/datadog/apm.socket
       other: ''
   apm_non_local_traffic:
     node_type: setting
@@ -943,6 +944,12 @@ properties:
         env_parser: json
         additionalProperties:
           type: string
+      on_demand:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_INSTRUMENTATION_ON_DEMAND
       targets:
         node_type: setting
         type: array
@@ -1167,7 +1174,7 @@ properties:
     default: false
     env_vars:
     - DD_APM_DISABLE_RARE_SAMPLER
-    comment: Deprecated
+    comment: deprecated
   enable_container_tags_buffer:
     node_type: setting
     type: boolean

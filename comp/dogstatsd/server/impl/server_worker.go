@@ -73,8 +73,6 @@ func (w *worker) run() {
 			}
 			return
 		case <-w.server.health.C:
-		case <-w.server.serverlessFlushChan:
-			w.batcher.flush()
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
 		case ps := <-w.server.packetsIn:

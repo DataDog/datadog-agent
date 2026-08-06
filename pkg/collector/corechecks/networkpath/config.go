@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -40,6 +41,9 @@ type InitConfig struct {
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
+	// TestConfigID identifies the scheduled Network Path test config that produced this instance.
+	TestConfigID string `yaml:"test_config_id"`
+
 	DestHostname string `yaml:"hostname"`
 
 	DestPort uint16 `yaml:"port"`
@@ -71,6 +75,7 @@ type InstanceConfig struct {
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
+	TestConfigID       string
 	DestHostname       string
 	DestPort           uint16
 	SourceService      string
@@ -114,6 +119,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c := &CheckConfig{}
 
+	c.TestConfigID = instance.TestConfigID
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
 	c.SourceService = instance.SourceService
@@ -136,7 +142,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Timeout = firstNonZero(
 		time.Duration(instance.TimeoutMs)*time.Millisecond,
 		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
-		setup.DefaultNetworkPathTimeout*time.Millisecond,
+		constants.DefaultNetworkPathTimeout*time.Millisecond,
 	)
 	if c.Timeout <= 0 {
 		return nil, errors.New("timeout must be > 0")
@@ -145,19 +151,19 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.MaxTTL = firstNonZero(
 		instance.MaxTTL,
 		initConfig.MaxTTL,
-		setup.DefaultNetworkPathMaxTTL,
+		constants.DefaultNetworkPathMaxTTL,
 	)
 
 	c.TracerouteQueries = firstNonZero(
 		instance.TracerouteQueries,
 		initConfig.TracerouteQueries,
-		setup.DefaultNetworkPathStaticPathTracerouteQueries,
+		constants.DefaultNetworkPathStaticPathTracerouteQueries,
 	)
 
 	c.E2eQueries = firstNonZero(
 		instance.E2eQueries,
 		initConfig.E2eQueries,
-		setup.DefaultNetworkPathStaticPathE2eQueries,
+		constants.DefaultNetworkPathStaticPathE2eQueries,
 	)
 
 	c.Tags = instance.Tags

@@ -31,6 +31,16 @@ impl DaemonHandle {
     /// Start the daemon with the given config directory and socket path.
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
+        Self::start_with_env(config_dir, socket_path, &[])
+    }
+
+    /// Like [`start`](Self::start), but also sets the given extra environment variables on the
+    /// daemon process.
+    pub fn start_with_env(
+        config_dir: &Path,
+        socket_path: &Path,
+        extra_env: &[(&str, &str)],
+    ) -> Self {
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
 
         let mut cmd = Command::new(bin);
@@ -38,6 +48,9 @@ impl DaemonHandle {
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        for (k, v) in extra_env {
+            cmd.env(k, v);
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt as _;

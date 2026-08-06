@@ -38,7 +38,7 @@ var defaultContainerNames = []string{defaultTestContainer}
 var defaultLibraries = map[string]string{
 	"dotnet": "v3",
 	"java":   "v1",
-	"js":     "v5",
+	"js":     "v6",
 	"php":    "v1",
 	"python": "v4",
 	"ruby":   "v2",
@@ -95,7 +95,7 @@ func TestAutoinstrumentation(t *testing.T) {
 		shouldMutate bool
 		expected     *expected
 	}{
-		"default configuration should not mutate": {
+		"default on-demand configuration should not mutate without a matching rule": {
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
 				NS:         "application",
@@ -2702,7 +2702,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
-				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v5, v1
+				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v6, v1
 				containerNames:  defaultContainerNames,
 			},
 		},

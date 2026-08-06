@@ -12,12 +12,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/haagent/def",
-        "//comp/healthplatform/store/def",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/util/log",
-        "@com_github_mohae_deepcopy//:deepcopy",
     ],
 )
 
@@ -32,7 +30,6 @@ dd_agent_go_test(
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//comp/haagent/mock",
-        "//comp/healthplatform/store/mock",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",

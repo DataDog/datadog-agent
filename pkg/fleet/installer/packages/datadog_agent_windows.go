@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -145,6 +146,12 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := ensureADPProcmgrConfig(); err != nil {
 		return fmt.Errorf("failed to write ADP process manager config: %w", err)
 	}
+	if err := ensurePARProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write PAR process manager config: %w", err)
+	}
+	if err := ensurePARExecutorProcmgrConfig(); err != nil {
+		return fmt.Errorf("failed to write PAR executor process manager config: %w", err)
+	}
 
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
@@ -169,28 +176,6 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 		log.Warnf("failed to remove extensions: %s", err)
 	}
 
-	packagePath := ctx.PackagePath
-	if resolved, err := filepath.EvalSymlinks(ctx.PackagePath); err == nil {
-		packagePath = resolved
-	}
-	// ADP processes.d YAML is not an MSI component; keep it across upgrade prerm so a rolled-back
-	// install still has supervision config until postinst rewrites it. Full uninstall removes it.
-	if !ctx.Upgrade {
-		installRoot := paths.ResolveDatadogProgramFilesDir()
-		if installRoot == "" {
-			installRoot = packagePath
-		} else if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
-			installRoot = resolved
-			paths.DatadogProgramFilesDir = installRoot
-		}
-		if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
-			log.Warnf("failed to remove ADP process manager config: %v", err)
-		}
-		if env.FromEnv().ProcessManagerEnabled {
-			processmanager.ReloadOrRestartProcmgr()
-		}
-	}
-
 	if ctx.PackageType == PackageTypeMSI {
 		// MSI custom action calling hook - done.
 		// Note: the save file written above lives in ProtectedDir which intentionally persists
@@ -206,21 +191,59 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	return nil
 }
 
-func ensureADPProcmgrConfig() error {
+func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	installRoot := paths.ResolveDatadogProgramFilesDir()
 	if installRoot == "" {
-		return errors.New("cannot resolve Datadog Agent install path for ADP processes.d")
+		return "", errors.New("cannot resolve Datadog Agent install path for processes.d")
 	}
 	if resolved, err := filepath.EvalSymlinks(installRoot); err == nil {
 		installRoot = resolved
 	}
 	paths.DatadogProgramFilesDir = installRoot
+	return installRoot, nil
+}
+
+func ensureADPProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
 
 	if env.FromEnv().ProcessManagerEnabled {
 		return processmanager.WriteADPProcmgrConfig(installRoot)
 	}
 	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
 		log.Warnf("ADP: could not remove stale process manager config: %v", err)
+	}
+	return nil
+}
+
+func ensurePARProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WritePARProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
+		log.Warnf("PAR: could not remove stale process manager config: %v", err)
+	}
+	return nil
+}
+
+func ensurePARExecutorProcmgrConfig() error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if env.FromEnv().ProcessManagerEnabled {
+		return processmanager.WritePARExecutorProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemovePARExecutorProcmgrConfig(installRoot); err != nil {
+		log.Warnf("PAR executor: could not remove stale process manager config: %v", err)
 	}
 	return nil
 }
@@ -521,13 +544,17 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		msi.WithMsiFromPackagePath(target, agentPackage),
 		msi.WithLogFile(logFile),
 	}
-	if env.MsiParams.AgentUserName != "" {
+	// msi.Cmd() places typed properties after raw args on the command line regardless of
+	// option order, so a getenv() fallback (AgentUserName, AgentUserKeepRights) would
+	// silently win over an explicit value already in args. Guard against that.
+	// AgentUserPassword has no fallback, so it's not at risk.
+	if env.MsiParams.AgentUserName != "" && !argsHaveProperty(args, "DDAGENTUSER_NAME") {
 		opts = append(opts, msi.WithDdAgentUserName(env.MsiParams.AgentUserName))
 	}
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	if env.MsiParams.AgentUserKeepRights != "" {
+	if env.MsiParams.AgentUserKeepRights != "" && !argsHaveProperty(args, "DDAGENTUSER_KEEP_RIGHTS") {
 		opts = append(opts, msi.WithDdAgentUserKeepRights(env.MsiParams.AgentUserKeepRights))
 	}
 	opts = append(opts, msi.WithProperties(props))
@@ -548,6 +575,18 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 		return err
 	}
 	return nil
+}
+
+// argsHaveProperty returns true if args already contains an explicit "property=value" entry
+// for the given MSI property.
+func argsHaveProperty(args []string, property string) bool {
+	prefix := property + "="
+	for _, arg := range args {
+		if strings.HasPrefix(arg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func removeProductIfInstalled(ctx context.Context, product string) (err error) {
@@ -670,6 +709,10 @@ func getWatchdogTimeout() time.Duration {
 	return time.Duration(val) * time.Minute
 }
 
+// getAgentUserKeepRightsFromRegistry is a package-level var so tests can override it without
+// touching the real registry.
+var getAgentUserKeepRightsFromRegistry = windowsuser.GetAgentUserKeepRightsFromRegistry
+
 // getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
 // See also env.FromEnv()
@@ -678,6 +721,7 @@ func getWatchdogTimeout() time.Duration {
 //   - Agent user name
 //   - Project location
 //   - Application data directory
+//   - Agent user keep-rights opt-out
 //
 // This accomplishes the following:
 //   - ensures setup carries over settings from previous installs (i.e. before remote updates)
@@ -689,6 +733,7 @@ func getenv() *env.Env {
 	//   - Agent user name (fallback to service user)
 	//   - Project location
 	//   - Application data directory
+	//   - Agent user keep-rights opt-out (fallback to registry)
 	//
 	// Using service allows for remote updates to work when the hostname changes
 	if env.MsiParams.AgentUserName == "" {
@@ -708,6 +753,18 @@ func getenv() *env.Env {
 	}
 	if env.MsiParams.ApplicationDataDirectory == "" {
 		env.MsiParams.ApplicationDataDirectory = paths.DatadogDataDir
+	}
+
+	// fallback to registry for the DDAGENTUSER_KEEP_RIGHTS opt-out. Fleet upgrades uninstall
+	// then reinstall the MSI as two transactions, wiping the registry copy in between, so we
+	// read it here - before the uninstall - to carry it forward.
+	if env.MsiParams.AgentUserKeepRights == "" {
+		keepRights, err := getAgentUserKeepRightsFromRegistry()
+		if err != nil {
+			log.Warnf("Could not read DDAGENTUSER_KEEP_RIGHTS from registry: %v", err)
+		} else if keepRights != "" {
+			env.MsiParams.AgentUserKeepRights = keepRights
+		}
 	}
 
 	return env
@@ -993,6 +1050,8 @@ func preInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preInstallDDOTExtension(ctx)
+	case "eudm":
+		return preInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -1003,6 +1062,8 @@ func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return postInstallDDOTExtension(ctx)
+	case "eudm":
+		return postInstallEUDMExtension(ctx)
 	default:
 		return nil
 	}
@@ -1013,6 +1074,8 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
 	case "ddot":
 		return preRemoveDDOTExtension(ctx)
+	case "eudm":
+		return preRemoveEUDMExtension(ctx)
 	default:
 		return nil
 	}

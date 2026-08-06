@@ -41,6 +41,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -73,10 +74,36 @@ func testDemuxSamples(_ *testing.T) metrics.MetricSampleBatch {
 
 // the option is NOT enabled, this metric should go into the first
 // timesampler of the statsd stack.
+type recordingDogStatsDNoAggLookback struct {
+	calls  int
+	stops  int
+	series []*metrics.Serie
+}
+
+func (r *recordingDogStatsDNoAggLookback) WantsDogStatsDMetric(string) bool { return false }
+
+func (r *recordingDogStatsDNoAggLookback) ObserveDogStatsDSample(*metrics.MetricSample, float64, DogStatsDLookbackContext) {
+}
+
+func (r *recordingDogStatsDNoAggLookback) FlushDogStatsDBuckets(float64, bool) {}
+
+func (r *recordingDogStatsDNoAggLookback) AppendDogStatsDNoAggSerie(serie *metrics.Serie) {
+	r.calls++
+	copySerie := *serie
+	copySerie.Points = append([]metrics.Point(nil), serie.Points...)
+	r.series = append(r.series, &copySerie)
+}
+
+func (r *recordingDogStatsDNoAggLookback) Stop() {
+	r.stops++
+}
+
 func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require := require.New(t)
 
+	lookback := &recordingDogStatsDNoAggLookback{}
 	opts := demuxTestOptions()
+	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
@@ -87,6 +114,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require.Len(demux.statsd.workers[0].samplesChan, 1)
 	read := <-demux.statsd.workers[0].samplesChan
 	require.Len(read, 3)
+	require.Equal(0, lookback.calls, "lookback should not receive samples when no-aggregation is disabled and samples are redirected to normal aggregation")
 }
 
 // the option is enabled, these metrics will go through the no aggregation pipeline.
@@ -95,7 +123,9 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 	noAggWorkerStreamCheckFrequency = 100 * time.Millisecond
 
+	lookback := &recordingDogStatsDNoAggLookback{}
 	opts := demuxTestOptions()
+	opts.DogStatsDLookback = lookback
 	mockSerializer := &MockSerializerIterableSerie{}
 	mockSerializer.On("AreSeriesEnabled").Return(true)
 	mockSerializer.On("AreSketchesEnabled").Return(true)
@@ -115,12 +145,20 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	// nothing should be in the time sampler
 	require.Len(demux.statsd.workers[0].samplesChan, 0)
 	require.Len(mockSerializer.series, 3)
+	require.Equal(3, lookback.calls)
+	require.Equal(1, lookback.stops)
+	require.Len(lookback.series, 3)
 
 	for i := 0; i < len(batch); i++ {
 		require.Equal(batch[i].Name, mockSerializer.series[i].Name)
 		require.Len(mockSerializer.series[i].Points, 1)
 		require.Equal(batch[i].Timestamp, mockSerializer.series[i].Points[0].Ts)
 		require.ElementsMatch(batch[i].Tags, mockSerializer.series[i].Tags.UnsafeToReadOnlySliceString())
+		require.Equal(mockSerializer.series[i].Name, lookback.series[i].Name)
+		require.Equal(mockSerializer.series[i].Points, lookback.series[i].Points)
+		require.Equal(mockSerializer.series[i].Tags.UnsafeToReadOnlySliceString(), lookback.series[i].Tags.UnsafeToReadOnlySliceString())
+		require.Equal(mockSerializer.series[i].MType, lookback.series[i].MType)
+		require.Equal(mockSerializer.series[i].Interval, lookback.series[i].Interval)
 	}
 }
 
@@ -214,9 +252,44 @@ func TestDemuxNoAggWorkersUseSharedQueue(t *testing.T) {
 	}
 }
 
-func TestSendSamplesWithoutAggregationDropsEmptyBatch(t *testing.T) {
+func TestDemuxNoAggLookbackDoesNotReceiveNormalAggregationBatches(t *testing.T) {
+	lookback := &recordingDogStatsDNoAggLookback{}
 	opts := demuxTestOptions()
 	opts.NoAggregationPipelineWorkersCount = 1
+	opts.DogStatsDLookback = lookback
+	deps := createDemultiplexerAgentTestDeps(t)
+
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	demux.AggregateSamples(TimeSamplerID(0), testDemuxSamples(t))
+
+	require.Equal(t, 0, lookback.calls)
+	require.Len(t, demux.statsd.workers[0].samplesChan, 1)
+}
+
+func TestDemuxNoAggLookbackFactoryReceivesSharedSerializer(t *testing.T) {
+	lookback := &recordingDogStatsDNoAggLookback{}
+	called := false
+	opts := demuxTestOptions()
+	opts.NoAggregationPipelineWorkersCount = 1
+	opts.DogStatsDLookbackFactory = func(metricSerializer serializer.MetricSerializer) DogStatsDLookback {
+		called = true
+		require.NotNil(t, metricSerializer)
+		return lookback
+	}
+	deps := createDemultiplexerAgentTestDeps(t)
+
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	require.True(t, called)
+	require.Same(t, lookback, demux.options.DogStatsDLookback)
+}
+
+func TestSendSamplesWithoutAggregationDropsEmptyBatch(t *testing.T) {
+	lookback := &recordingDogStatsDNoAggLookback{}
+	opts := demuxTestOptions()
+	opts.NoAggregationPipelineWorkersCount = 1
+	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
@@ -224,6 +297,7 @@ func TestSendSamplesWithoutAggregationDropsEmptyBatch(t *testing.T) {
 	demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{})
 
 	require.Len(t, demux.statsd.noAggSamplesChan, 0)
+	require.Equal(t, 0, lookback.calls)
 }
 
 func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {

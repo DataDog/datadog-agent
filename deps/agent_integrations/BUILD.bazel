@@ -1,8 +1,9 @@
 load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/agent:defs.bzl", "CONF_DIR_SELECTOR")
 load(":defs.bzl", "install_wheels")
 load(":source_packages_test.bzl", "source_packages_test_suite")
 
@@ -93,6 +94,13 @@ pkg_files(
     tags = ["manual"],
 )
 
+pkg_filegroup(
+    name = "integration_configuration_files",
+    srcs = ["@integration_source_packages//:integrations_configuration_files"],
+    prefix = select(CONF_DIR_SELECTOR),
+    tags = ["manual"],
+)
+
 # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
 # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
 # older than the one shipped in the agent
@@ -111,6 +119,7 @@ package_licenses(
 pkg_install(
     name = "install",
     srcs = [
+        ":integration_configuration_files",
         ":integrations_bin_files",
         ":integrations_runtime_files",
         ":license_files",

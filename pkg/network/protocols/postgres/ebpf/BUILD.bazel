@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
@@ -23,14 +24,15 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
         "types_linux_test.go",
         "types_test.go",
     ],
     embed = [":ebpf"],
-    gotags = ["test"],
+    gotags_sets = [["linux_bpf"]],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/config",
         "@com_github_stretchr_testify//assert",

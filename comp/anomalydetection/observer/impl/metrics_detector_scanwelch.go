@@ -139,6 +139,9 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
+			if !supportsSeriesAggregate(storage, ref, agg) {
+				continue
+			}
 			sk := scanwelchStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]

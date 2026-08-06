@@ -67,7 +67,7 @@ type ntmConfig struct {
 	allowDynamicSchema *atomic.Bool
 	// state of env vars, only used by tests to decide when to rebuild the env var layer. Necessary because
 	// viper would lookup env vars at runtime, instead of storing them, and many many tests rely on this behavior
-	lastEnvVarState string
+	lastRawEnv []string
 
 	// tree debugger is used by the Stringify method, useful for debugging and test assertions
 	td *treeDebugger
@@ -204,6 +204,9 @@ func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
 // config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!
 func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	c.Lock()
+	defer c.Unlock()
+	c.root = newInnerNode(nil) // invalidated with ready becoming false
 	c.ready.Store(false)
 	return c
 }
@@ -289,7 +292,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	}
 
 	parts := splitKey(key)
-	err = tree.setAt(parts, value, source)
+	err = tree.setAt(parts, value, source, copyOnWrite) // config may already be in use
 	return tree, err
 }
 
@@ -322,8 +325,11 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 }
 
 func (c *ntmConfig) setDefault(key string, value interface{}) {
-	parts := splitKey(key)
-	_ = c.defaults.setAt(parts, value, model.SourceDefault)
+	mode := copyOnWrite
+	if !c.isReady() {
+		mode = mutateInPlace // still being initialized
+	}
+	_ = c.defaults.setAt(splitKey(key), value, model.SourceDefault, mode)
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*nodeImpl, error) {
@@ -488,18 +494,31 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 
 func (c *ntmConfig) maybeRebuild() {
 	if c.allowDynamicSchema.Load() {
+		// Avoid taking the write lock and sorting in the common case where the raw
+		// environment snapshot is identical to the previous one.
+		rawEnv := os.Environ()
+		c.RLock()
+		unchanged := slices.Equal(c.lastRawEnv, rawEnv)
+		c.RUnlock()
+		if unchanged {
+			return
+		}
+
+		sortedEnv := slices.Clone(rawEnv)
+		slices.Sort(sortedEnv)
+
 		// Write-lock because the root will be written to in order to rebuild the state
 		c.Lock()
 		defer c.Unlock()
 
-		// Only need to rebuild if env vars have different state than last rebuild
-		envs := os.Environ()
-		sort.Strings(envs)
-		envVarState := strings.Join(envs, "$")
-		if c.lastEnvVarState == envVarState {
+		// Avoid an expensive rebuild if only the environment order changed while the
+		// environment content stayed the same.
+		slices.Sort(c.lastRawEnv)
+		unchanged = slices.Equal(c.lastRawEnv, sortedEnv)
+		c.lastRawEnv = rawEnv
+		if unchanged {
 			return
 		}
-		c.lastEnvVarState = envVarState
 
 		// building the schema may access data from the config, disable the dynamic schema
 		// flag to prevent recursive rebuilds
@@ -662,7 +681,7 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 		}
 	}
 	parts := splitKeyFunc(key)
-	return curr.setAt(parts, actualValue, model.SourceEnvVar)
+	return curr.setAt(parts, actualValue, model.SourceEnvVar, mutateInPlace) // still being initialized
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -1159,18 +1178,6 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.configFile
-}
-
-// GetSubfields returns the names of child fields of this setting
-func (c *ntmConfig) GetSubfields(key string) []string {
-	n, err := c.GetNode(key)
-	if err != nil {
-		return nil
-	}
-	if n.IsInnerNode() {
-		return n.ChildrenKeys()
-	}
-	return nil
 }
 
 // BindEnvAndSetDefault fully declares a setting with a default value and optional env var overrides

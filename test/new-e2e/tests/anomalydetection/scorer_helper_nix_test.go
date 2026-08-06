@@ -68,19 +68,19 @@ func TestAnomalyDetectionScorerHelper(t *testing.T) {
 	agentConfig := `
 log_level: debug
 anomaly_detection:
-  enabled: true
-  metrics:
-    enabled: true
-  logs:
-    enabled: false
   anomaly_scorer:
-    enabled: true
+    dry_run:
+      enabled: true
     alpha: 0.3
-    window_secs: 5
+    window: 5s
     low_threshold: 0.005
     high_threshold: 0.010
     output:
       logs: true
+  metrics:
+    enabled: true
+  logs:
+    enabled: false
   detectors:
     cusum:
       enabled: true
@@ -96,14 +96,6 @@ anomaly_detection:
 			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		),
 	), e2e.WithStackName("anomalydetection-scorer-helper"))
-}
-
-// sendHelperGauge sends one DogStatsD gauge over UDP to the local agent.
-func (s *scorerHelperSuite) sendHelperGauge(name string, value float64) {
-	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
-	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
-		s.T().Logf("sendHelperGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
-	}
 }
 
 // TestScorerHelperEmitsSeverityTransitionOnMultiSeriesSpike sends a stable baseline
@@ -150,7 +142,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 			default:
 			}
 			for n := 0; n < seriesCount; n++ {
-				s.sendHelperGauge(fmt.Sprintf("%s%d", metricPrefix, n), baseline)
+				sendGauge(s, fmt.Sprintf("%s%d", metricPrefix, n), baseline)
 			}
 			if (i+1)%5 == 0 {
 				s.T().Logf("baseline: tick %d/%d", i+1, baselinePoints)
@@ -172,7 +164,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 			default:
 			}
 			for n := 0; n < seriesCount; n++ {
-				s.sendHelperGauge(fmt.Sprintf("%s%d", metricPrefix, n), spike)
+				sendGauge(s, fmt.Sprintf("%s%d", metricPrefix, n), spike)
 			}
 			if (i+1)%5 == 0 {
 				s.T().Logf("spike: tick %d/%d", i+1, spikePoints)

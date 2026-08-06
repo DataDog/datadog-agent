@@ -14,7 +14,7 @@ go_library(
         "//pkg/util/ecs/common",
         "//pkg/util/ecs/telemetry",
         "//pkg/util/log",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )
 
@@ -23,11 +23,11 @@ dd_agent_go_test(
     srcs = ["client_test.go"],
     data = glob(["testdata/**"]),
     embed = [":v3or4"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "docker",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/util/ecs/metadata/testutil",
         "//pkg/util/pointer",

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -8,6 +9,7 @@ go_library(
         "pipelines_agentdiscovery.go",
         "pipelines_container.go",
         "pipelines_dataobservability.go",
+        "pipelines_datasecurity.go",
         "pipelines_datastreams.go",
         "pipelines_dbm.go",
         "pipelines_eventmanagement.go",
@@ -41,6 +43,7 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/logs/message",
         "//pkg/util/compression",
         "//pkg/util/ecs/metadata",
@@ -52,11 +55,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = ["epforwarder_test.go"],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/secrets/noop-impl",

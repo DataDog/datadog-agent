@@ -22,6 +22,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -60,7 +61,7 @@ func TestDefaults(t *testing.T) {
 	// site and dd_url now have defaults; IsConfigured stays false until the user sets them
 	assert.False(t, config.IsConfigured("site"))
 	assert.False(t, config.IsConfigured("dd_url"))
-	assert.Equal(t, DefaultSite, config.GetString("site"))
+	assert.Equal(t, constants.DefaultSite, config.GetString("site"))
 	assert.Equal(t, "https://app.datadoghq.com", config.GetString("dd_url"))
 	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
@@ -110,18 +111,36 @@ func TestMetricLookbackDefaults(t *testing.T) {
 	assert.False(t, config.GetBool("metric_lookback.enabled"))
 	assert.Empty(t, config.GetStringSlice("metric_lookback.enabled_checks"))
 	assert.Equal(t, time.Second, config.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "disabled", config.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 30*time.Second, config.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.0, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Empty(t, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 0*time.Second, config.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 30*time.Second, config.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
 func TestMetricLookbackEnvOverride(t *testing.T) {
 	t.Setenv("DD_METRIC_LOOKBACK_ENABLED", "true")
 	t.Setenv("DD_METRIC_LOOKBACK_ENABLED_CHECKS", `["cpu","disk"]`)
 	t.Setenv("DD_METRIC_LOOKBACK_COLLECTION_INTERVAL", "3s")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_MODE", "dry_run")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_EVALUATION_INTERVAL", "10s")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON", "0.05")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_PARTITION_TAGS", `["az","instance_type"]`)
+	t.Setenv("DD_METRIC_LOOKBACK_EGRESS_PRE_TRIGGER_WINDOW", "5s")
+	t.Setenv("DD_METRIC_LOOKBACK_EGRESS_POST_RECOVERY_WINDOW", "20s")
 
 	config := newTestConf(t)
 
 	assert.True(t, config.GetBool("metric_lookback.enabled"))
 	assert.Equal(t, []string{"cpu", "disk"}, config.GetStringSlice("metric_lookback.enabled_checks"))
 	assert.Equal(t, 3*time.Second, config.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "dry_run", config.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 10*time.Second, config.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.05, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Equal(t, []string{"az", "instance_type"}, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 5*time.Second, config.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 20*time.Second, config.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
 func TestMetricLookbackYAML(t *testing.T) {
@@ -132,11 +151,27 @@ metric_lookback:
   enabled_checks:
     - cpu
     - disk
+  monitor:
+    mode: dry_run
+    evaluation_interval: 15s
+    range_epsilon: 0.05
+    partition_tags:
+      - az
+      - instance_type
+  egress:
+    pre_trigger_window: 7s
+    post_recovery_window: 21s
 `)
 
 	assert.True(t, cfg.GetBool("metric_lookback.enabled"))
 	assert.Equal(t, []string{"cpu", "disk"}, cfg.GetStringSlice("metric_lookback.enabled_checks"))
 	assert.Equal(t, 5*time.Second, cfg.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "dry_run", cfg.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 15*time.Second, cfg.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.05, cfg.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Equal(t, []string{"az", "instance_type"}, cfg.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 7*time.Second, cfg.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 21*time.Second, cfg.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
@@ -714,6 +749,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, false, config.GetBool("network_path.remote_config.enabled"))
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
@@ -766,88 +802,32 @@ allowed_additional_checks:
 	assert.Contains(t, additional, "redis")
 }
 
-func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
-	datadogYaml := `
-infrastructure_mode: end_user_device
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters, "filters should be set in end_user_device mode")
+func TestNetworkPathFiltersEndUserDeviceModeUnchanged(t *testing.T) {
+	t.Run("default filters remain empty", func(t *testing.T) {
+		config := confFromYAML(t, "infrastructure_mode: end_user_device")
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be a list of maps")
-	require.Greater(t, len(filtersList), 0, "filters should not be empty")
+		applyInfrastructureModeOverrides(config)
 
-	// Check that the first filter is the deny-all rule
-	assert.Equal(t, "*", filtersList[0]["match_domain"])
-	assert.Equal(t, "exclude", filtersList[0]["type"])
+		assert.Empty(t, config.Get("network_path.collector.filters"))
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 
-	// Check that some expected SaaS domains are present
-	var foundGoogle, foundSlack, foundGitHub bool
-	for _, filter := range filtersList {
-		if filter["match_domain"] == "*.google.com" && filter["type"] == "include" {
-			foundGoogle = true
-		}
-		if filter["match_domain"] == "*.slack.com" && filter["type"] == "include" {
-			foundSlack = true
-		}
-		if filter["match_domain"] == "*.github.com" && filter["type"] == "include" {
-			foundGitHub = true
-		}
-	}
-	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
-	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
-	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
-
-}
-
-func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
-	datadogYaml := `
+	t.Run("user filters remain unchanged", func(t *testing.T) {
+		config := confFromYAML(t, `
 infrastructure_mode: end_user_device
 network_path:
   collector:
     filters:
       - match_ip: 0.0.0.0/0
         type: include
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters)
+`)
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+		applyInfrastructureModeOverrides(config)
 
-	last := filtersList[len(filtersList)-1]
-	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
-	assert.Equal(t, "include", last["type"])
-}
-
-func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
-	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
-	datadogYaml := `
-infrastructure_mode: end_user_device
-network_path:
-  collector:
-    filters:
-      - "not_a_map"
-      - "still_not_a_map"
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-
-	// The filter override must be skipped: the user's (malformed) value is left in place
-	// rather than being silently replaced with the EUDM defaults.
-	filters := config.Get("network_path.collector.filters")
-	_, ok := filters.([]map[string]string)
-	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
-
-	// The other EUDM overrides should still be applied — a filter parse failure must not
-	// prevent the rest of the mode from taking effect.
-	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
-	assert.True(t, config.GetBool("software_inventory.enabled"))
-	assert.True(t, config.GetBool("notable_events.enabled"))
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 }
 
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
@@ -956,6 +936,7 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
 	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.Equal(t, 3, cfg.GetInt("data_plane.serializer_zstd_compressor_level"))
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
 	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
@@ -1759,6 +1740,13 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
+			name:         "aix preserves true",
+			goos:         "aix",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
 			name:                  "windows procmgr disabled resets true to false",
 			goos:                  "windows",
 			processManagerEnabled: boolPtr(false),
@@ -1874,6 +1862,69 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
 		})
 	}
+}
+
+func TestApplyKubernetesContainerDefaults(t *testing.T) {
+	keys := []string{"apm_config.apm_non_local_traffic", "jmx_use_container_support"}
+
+	t.Run("non-kubernetes leaves defaults false", func(t *testing.T) {
+		t.Setenv("KUBERNETES", "")
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("kubernetes enables defaults", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		t.Setenv("KUBERNETES", "yes")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
+			// Kept at SourceDefault so consumers relying on IsConfigured (e.g. the trace-agent
+			// containerized fallback) keep their existing behavior.
+			assert.False(t, config.IsConfigured(k), k)
+		}
+	})
+
+	t.Run("eks fargate enables defaults without kubernetes service env", func(t *testing.T) {
+		// The EKS Fargate sidecar sets DD_EKS_FARGATE but not KUBERNETES; the defaults must
+		// still apply (jmx_use_container_support has no consumption-side fallback).
+		t.Setenv("KUBERNETES", "")
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "true")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("config file overrides kubernetes default", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "yes")
+		config := confFromYAML(t, "apm_config:\n  apm_non_local_traffic: false\njmx_use_container_support: false\n")
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("env var overrides kubernetes default", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "yes")
+		t.Setenv("DD_APM_NON_LOCAL_TRAFFIC", "false")
+		t.Setenv("DD_JMX_USE_CONTAINER_SUPPORT", "false")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		assert.False(t, config.GetBool("apm_config.apm_non_local_traffic"))
+		assert.False(t, config.GetBool("jmx_use_container_support"))
+	})
 }
 
 func boolPtr(b bool) *bool {
