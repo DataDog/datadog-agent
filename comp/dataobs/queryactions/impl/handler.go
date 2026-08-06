@@ -430,30 +430,47 @@ type identifierMatchEvaluation struct {
 }
 
 func evaluateInstanceIdentifier(instance map[string]any, identifier DBIdentifier, integrationName string) identifierMatchEvaluation {
+	switch integrationName {
+	case "postgres":
+		return evaluatePostgresIdentifier(instance, identifier)
+	case "sap_hana":
+		return evaluateSapHanaIdentifier(instance, identifier.Host)
+	default:
+		return identifierMatchEvaluation{strategy: "unsupported_integration"}
+	}
+}
+
+func evaluatePostgresIdentifier(instance map[string]any, identifier DBIdentifier) identifierMatchEvaluation {
 	host := instanceHost(instance)
 	if host == identifier.Host {
 		return identifierMatchEvaluation{matched: true, strategy: "host"}
 	}
-	// Try matching "host:port" form — sap_hana backends include the port in the identifier.
 	if port, ok := instancePort(instance); ok {
 		if fmt.Sprintf("%s:%d", host, port) == identifier.Host {
 			return identifierMatchEvaluation{matched: true, strategy: "host_port"}
 		}
 	}
 
-	defaultTemplate := ""
-	defaultPort := 0
-	if integrationName == "postgres" {
-		defaultTemplate = "$resolved_hostname"
-		defaultPort = defaultPostgresPort
-	}
-	databaseIdentifier, ok := renderDatabaseIdentifier(instance, identifier.AgentHostname, defaultTemplate, defaultPort)
+	databaseIdentifier, ok := renderDatabaseIdentifier(instance, identifier.AgentHostname, "$resolved_hostname", defaultPostgresPort)
 	return identifierMatchEvaluation{
 		matched:            ok && databaseIdentifier == identifier.Host,
 		strategy:           "database_identifier",
 		renderedIdentifier: databaseIdentifier,
 		renderable:         ok,
 	}
+}
+
+func evaluateSapHanaIdentifier(instance map[string]any, targetHost string) identifierMatchEvaluation {
+	host := instanceHost(instance)
+	if host == targetHost {
+		return identifierMatchEvaluation{matched: true, strategy: "host"}
+	}
+	if port, ok := instancePort(instance); ok {
+		if fmt.Sprintf("%s:%d", host, port) == targetHost {
+			return identifierMatchEvaluation{matched: true, strategy: "host_port"}
+		}
+	}
+	return identifierMatchEvaluation{strategy: "sap_hana_endpoint"}
 }
 
 // renderDatabaseIdentifier renders a database_identifier template using the same inputs as the

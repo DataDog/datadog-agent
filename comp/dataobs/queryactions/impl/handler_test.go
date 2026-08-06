@@ -139,6 +139,27 @@ func TestMatchesIdentifier_DatabaseIdentifierTemplateUsesTags(t *testing.T) {
 	assert.True(t, matchesIdentifier(instance, dbID))
 }
 
+func TestInstanceMatchesIdentifier_SapHanaDoesNotRenderDatabaseIdentifier(t *testing.T) {
+	instance := map[string]any{
+		"server": "sap.internal",
+		"port":   39041,
+		"database_identifier": map[string]any{
+			"template": "rendered-sap-identifier",
+		},
+	}
+
+	assert.False(t, instanceMatchesIdentifier(
+		instance,
+		DBIdentifier{Host: "rendered-sap-identifier"},
+		"sap_hana",
+	))
+	assert.True(t, instanceMatchesIdentifier(
+		instance,
+		DBIdentifier{Host: "sap.internal:39041"},
+		"sap_hana",
+	))
+}
+
 func TestRenderDatabaseIdentifier_UsesAgentHostnameForSameResolvedIPv4(t *testing.T) {
 	instance := map[string]any{
 		"host": "postgres.internal",
