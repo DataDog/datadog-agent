@@ -25,7 +25,7 @@ exports_files(
 
 # TODO: IoT agent binary.
 # dda build command: dda inv agent.build --flavor iot --no-development
-#   Build tags: IOT_AGENT_TAGS = {"jetson", "systemd", "zlib", "zstd"} (tasks/build_tags.bzl)
+#   Build tags: IOT_AGENT_TAGS = {"jetson", "systemd", "zlib"} (tasks/build_tags.bzl)
 #   Binary output: bin/agent/agent (same path as the standard agent binary).
 # In the rb file this was: copy 'bin/agent', "#{install_dir}/bin/"
 # Create cmd/iot-agent/BUILD.bazel and point to it for our package.

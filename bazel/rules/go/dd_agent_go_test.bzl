@@ -105,7 +105,7 @@ def dd_agent_go_test(
 
     Args:
         name: Default target name and prefix for gotags-set variants.
-        gotags_sets: Lists of Go build tags, such as [["zlib", "zstd"]].
+        gotags_sets: Lists of Go build tags, such as [["docker", "kubelet"]].
         include_default: Whether to emit the minimally tagged default test.
         tags: Optional user-supplied Bazel tags.
         target_compatible_with: Optional user-supplied target_compatible_with;
