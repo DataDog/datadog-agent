@@ -23,6 +23,41 @@ type alwaysFiringDetector struct {
 	ref       observerdef.SeriesRef
 }
 
+// baselineTestDetector can model independently timed detector baselines and
+// records series reclamation from another detector's baseline completion.
+type baselineTestDetector struct {
+	name          string
+	spec          observerdef.BaselineSpec
+	source        observerdef.SeriesDescriptor
+	ref           observerdef.SeriesRef
+	emitAfterSec  int64
+	includeSource bool
+	removed       []observerdef.SeriesRef
+}
+
+func (d *baselineTestDetector) Name() string { return d.name }
+func (d *baselineTestDetector) BaselineSpec() observerdef.BaselineSpec {
+	return d.spec
+}
+func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64) observerdef.DetectionResult {
+	if dataSec < d.emitAfterSec {
+		return observerdef.DetectionResult{}
+	}
+	anomaly := observerdef.Anomaly{
+		Source:       d.source,
+		DetectorName: d.name,
+		Timestamp:    dataSec,
+		Title:        "anomaly",
+	}
+	if d.includeSource {
+		anomaly.SourceRef = &observerdef.QueryHandle{Ref: d.ref, Aggregate: AggregateAverage}
+	}
+	return observerdef.DetectionResult{Anomalies: []observerdef.Anomaly{anomaly}}
+}
+func (d *baselineTestDetector) RemoveSeries(refs []observerdef.SeriesRef) {
+	d.removed = append(d.removed, refs...)
+}
+
 func (d *alwaysFiringDetector) Name() string { return "always_firing" }
 func (*alwaysFiringDetector) BaselineSpec() observerdef.BaselineSpec {
 	return observerdef.BaselineSpec{}
@@ -79,10 +114,19 @@ func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 		{name: "fast", spec: observerdef.BaselineSpec{}},
 		{name: "slow", spec: observerdef.BaselineSpec{WarmupDuration: 5 * time.Minute}},
 	})
+	assert.False(t, b.debugStatus().Started)
 	b.start(1000)
+	status := b.debugStatus()
+	assert.True(t, status.Started)
+	require.Len(t, status.Detectors, 2)
+	assert.Equal(t, BaselineDetectorDebugStatus{Name: "fast", WarmupEndSec: 1000, BaselineEndSec: 1600}, status.Detectors[0])
+	assert.Equal(t, BaselineDetectorDebugStatus{Name: "slow", WarmupEndSec: 1300, BaselineEndSec: 1900}, status.Detectors[1])
 	assert.True(t, b.isAnalyzingAt("fast", 1000))
 	assert.True(t, b.isAnalyzingAt("slow", 1299))
 	assert.True(t, b.isAnalyzingAt("slow", 1300))
+	assert.True(t, b.isAnalyzingAt("slow", 1899))
+	assert.False(t, b.isAnalyzingAt("slow", 1900))
+	assert.False(t, b.isAnalyzingAt("unknown", 1000))
 	assert.Equal(t, []string{"fast"}, b.due(1600))
 
 	b.mark("fast", 1)
@@ -92,9 +136,15 @@ func TestBaselineController_DetectorSpecificWindows(t *testing.T) {
 	assert.Equal(t, 2, count)
 	assert.Len(t, newHashes, 1)
 	assert.False(t, allComplete)
+	status = b.debugStatus()
+	assert.True(t, status.Detectors[0].Completed)
+	assert.False(t, status.Detectors[1].Completed)
+	assert.Equal(t, 1, status.Detectors[0].MutedCount)
 	assert.Equal(t, []string{"slow"}, b.due(1900))
 	_, _, _, allComplete = b.complete("slow")
 	assert.True(t, allComplete)
+	assert.False(t, b.isAnalyzingAt("slow", 1900))
+	assert.True(t, b.debugStatus().AllComplete)
 }
 
 func TestBaselineController_CompletionPublishesImmutableUnionAndReleasesPendingHashes(t *testing.T) {
@@ -181,6 +231,90 @@ func TestBaseline_AnomaliesForwardedAfterWindow(t *testing.T) {
 	e.Advance(800) // past window end: anomaly forwarded, freeze fires
 
 	assert.NotEmpty(t, correlator.received)
+}
+
+func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
+	source := observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage}
+	fast := &baselineTestDetector{name: "fast", source: source, ref: ref, includeSource: true}
+	slow := &baselineTestDetector{
+		name:          "slow",
+		spec:          observerdef.BaselineSpec{WarmupDuration: 5 * time.Minute},
+		source:        source,
+		ref:           ref,
+		includeSource: true,
+	}
+	e := newEngine(engineConfig{
+		storage:   storage,
+		detectors: []observerdef.Detector{fast, slow},
+		baseline:  BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
+	})
+
+	e.Advance(100) // both detectors are analysing and nominate cpu for muting
+	e.Advance(200) // fast completes, immediately reclaiming cpu everywhere
+
+	assert.Zero(t, storage.TotalSeriesCount(""))
+	assert.Equal(t, []observerdef.SeriesRef{ref}, fast.removed)
+	assert.Equal(t, []observerdef.SeriesRef{ref}, slow.removed)
+	assert.True(t, e.baseline.detectors["fast"].completed)
+	assert.False(t, e.baseline.detectors["slow"].completed)
+	assert.False(t, e.baseline.allComplete())
+}
+
+func TestBaseline_FastDetectorForwardsWhileSlowerDetectorStillAnalyses(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "memory", 1.0, 100, nil).Ref
+	fast := &baselineTestDetector{
+		name:          "fast",
+		source:        observerdef.SeriesDescriptor{Namespace: "ns", Name: "memory", Aggregate: AggregateAverage},
+		ref:           ref,
+		emitAfterSec:  200,
+		includeSource: true,
+	}
+	slow := &baselineTestDetector{name: "slow", spec: observerdef.BaselineSpec{WarmupDuration: 5 * time.Minute}, emitAfterSec: 1<<62 - 1}
+	correlator := &recordingCorrelator{}
+	e := newEngine(engineConfig{
+		storage:     storage,
+		detectors:   []observerdef.Detector{fast, slow},
+		correlators: []observerdef.Correlator{correlator},
+		baseline:    BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
+	})
+
+	e.Advance(100) // starts both windows; neither detector emits
+	e.Advance(200) // fast completes and its first anomaly is forwarded
+
+	require.Len(t, correlator.received, 1)
+	assert.Equal(t, "fast", correlator.received[0].DetectorName)
+	assert.True(t, e.baseline.detectors["fast"].completed)
+	assert.False(t, e.baseline.detectors["slow"].completed)
+	assert.False(t, e.baseline.allComplete())
+}
+
+func TestBaseline_RRCFStyleDetectorCannotMuteSeries(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 100, nil)
+	rrcf := &baselineTestDetector{
+		name:         "rrcf",
+		spec:         observerdef.BaselineSpec{WarmupDuration: 100 * time.Second},
+		source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
+		emitAfterSec: 100,
+		// RRCF anomalies intentionally do not identify a source series.
+		includeSource: false,
+	}
+	e := newEngine(engineConfig{
+		storage:   storage,
+		detectors: []observerdef.Detector{rrcf},
+		baseline:  BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
+	})
+
+	e.Advance(100)
+	e.Advance(300) // end of RRCF's warmup plus qualification window
+
+	assert.True(t, e.baseline.allComplete())
+	assert.Zero(t, e.baseline.debugStatus().MutedCount)
+	assert.Equal(t, 1, storage.TotalSeriesCount(""))
+	assert.Empty(t, rrcf.removed)
 }
 
 func TestBaseline_ExactFreezeTimeBoundary(t *testing.T) {
