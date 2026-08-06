@@ -5,9 +5,9 @@
 # actually does so is checked against real binaries in
 # TestSyntheticProcfsScanWork.
 #
-# Such a process is written off for good: identifying its executable costs a
-# readlink, an open and a stat even when the answer is already cached, and that
-# is the common case on a host.
+# Such a process backs off on the same schedule as every other verdict rather
+# than being ruled out, because exec keeps a pid and a start time and can turn
+# it into a Go binary later. See exec_into_go_binary.
 - !initialize
   current_time: 100
   backoff_base: 10
@@ -46,7 +46,7 @@ command: !create-process
 command: !scan {}
 state:
   current_time: 100
-  candidates: [{pid: 1001, start_time: 50, written_off: true}, {pid: 1002, start_time: 50, written_off: true}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}, {pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001, 1002]
 ---
 command: !advance-time {to: 110}
@@ -54,5 +54,5 @@ command: !advance-time {to: 110}
 command: !scan {}
 state:
   current_time: 110
-  candidates: [{pid: 1001, start_time: 50, written_off: true}, {pid: 1002, start_time: 50, written_off: true}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}, {pid: 1002, start_time: 50, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001, 1002]

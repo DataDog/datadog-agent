@@ -1,6 +1,7 @@
-# A Go binary whose tracer reports another language cannot be instrumented, and
-# nothing about that will change, so it is written off like a binary that is not
-# Go at all.
+# A Go binary whose tracer reports another language cannot be instrumented, so
+# it backs off like a binary that is not Go at all. The answer is very unlikely
+# to change, but it costs a metadata read per cap interval to keep asking, and
+# no verdict this scanner reaches is worth making permanent.
 - !initialize
   current_time: 0
   backoff_base: 10
@@ -35,7 +36,7 @@ command: !advance-time {to: 100}
 command: !scan {}
 state:
   current_time: 100
-  candidates: [{pid: 1001, start_time: 50, written_off: true}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 110}
@@ -43,7 +44,7 @@ command: !advance-time {to: 110}
 command: !scan {}
 state:
   current_time: 110
-  candidates: [{pid: 1001, start_time: 50, written_off: true}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 130}
@@ -51,5 +52,5 @@ command: !advance-time {to: 130}
 command: !scan {}
 state:
   current_time: 130
-  candidates: [{pid: 1001, start_time: 50, written_off: true}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
   processes_in_procfs: [1001]
