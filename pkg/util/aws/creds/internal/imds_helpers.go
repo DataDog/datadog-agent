@@ -53,11 +53,26 @@ func GetMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedI
 
 // GetMetadataItem returns the metadata item at the given endpoint
 func GetMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions Ec2IMDSVersionConfig, updateMetadataSource bool) (string, error) {
-	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", errors.New("cloud provider is disabled by configuration")
+	if err := CheckCloudProviderEnabled(); err != nil {
+		return "", err
 	}
 
 	return DoHTTPRequest(ctx, MetadataURL+endpoint, allowedIMDSVersions, updateMetadataSource)
+}
+
+// ErrCloudProviderDisabled reports that the operator excluded AWS from cloud_provider_metadata, so
+// IMDS must not be contacted. Callers that reach IMDS through DoHTTPRequest directly, rather than
+// through GetMetadataItem which checks this itself, have to consult CheckCloudProviderEnabled
+// first; otherwise they contact an endpoint the operator deliberately disabled.
+var ErrCloudProviderDisabled = errors.New("AWS is excluded from cloud_provider_metadata, so IMDS was not queried")
+
+// CheckCloudProviderEnabled returns ErrCloudProviderDisabled when the operator has excluded AWS
+// from cloud_provider_metadata, and nil otherwise.
+func CheckCloudProviderEnabled() error {
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		return ErrCloudProviderDisabled
+	}
+	return nil
 }
 
 // UseIMDSv2 returns true if the agent should use IMDSv2

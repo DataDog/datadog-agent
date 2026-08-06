@@ -3,6 +3,9 @@
   <span class="stat_data">
     {{- if not .enabled }}
     Not enabled
+    {{- if .disabledReason }}
+    <br>&nbsp;&nbsp;<span class="error">Reason: {{ .disabledReason }}</span>
+    {{- end }}
     {{- else }}
     <span class="stat_subtitle">Cloud Provider:</span> {{ .provider }}<br>
     {{- if .awsRegion }}
@@ -12,6 +15,9 @@
     {{- range $key, $info := .instances }}
     <span class="stat_subsubtitle">{{ $key }}</span><br>
     &nbsp;&nbsp;Status: {{ $info.Status }}<br>
+    {{- if $info.CredentialSource }}
+    &nbsp;&nbsp;Credential Source: {{ $info.CredentialSource }}<br>
+    {{- end }}
     &nbsp;&nbsp;Refresh Interval: {{ $info.RefreshInterval }}<br>
     {{- if $info.LastRefresh }}
     &nbsp;&nbsp;Last Refresh: {{ $info.LastRefresh }}<br>

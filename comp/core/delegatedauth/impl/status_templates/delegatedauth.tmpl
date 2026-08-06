@@ -1,5 +1,8 @@
 {{- if not .enabled }}
 Delegated Authentication is not enabled
+{{- if .disabledReason }}
+  Reason: {{ .disabledReason }}
+{{- end }}
 {{- else }}
 
 === Delegated Authentication ===
@@ -12,6 +15,9 @@ Configured Delegated Auth Instances:
 {{- range $key, $info := .instances }}
 - {{ $key }}
   Status: {{ $info.Status }}
+  {{- if $info.CredentialSource }}
+  Credential Source: {{ $info.CredentialSource }}
+  {{- end }}
   Refresh Interval: {{ $info.RefreshInterval }}
   {{- if $info.LastRefresh }}
   Last Refresh: {{ $info.LastRefresh }}

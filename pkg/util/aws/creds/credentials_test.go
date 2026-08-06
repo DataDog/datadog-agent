@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build ec2
-
 package creds
 
 import (
@@ -19,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"
 )
 
@@ -65,4 +64,16 @@ func TestGetSecurityCredentials(t *testing.T) {
 	assert.Equal(t, "123456", cred.AccessKeyID)
 	assert.Equal(t, "secret access key", cred.SecretAccessKey)
 	assert.Equal(t, "secret token", cred.Token)
+}
+
+// GetSecurityCredentials is the leg used when delegated_auth.provider is set explicitly, which
+// bypasses DetectAWSCredentialSource entirely, so the cloud_provider_metadata opt-out has to be
+// honored here too rather than only in detection.
+func TestGetSecurityCredentialsHonorsCloudProviderMetadata(t *testing.T) {
+	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n  - azure\n")
+
+	got, err := GetSecurityCredentials(context.Background())
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.ErrorIs(t, err, ec2internal.ErrCloudProviderDisabled)
 }
