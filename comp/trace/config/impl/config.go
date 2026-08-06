@@ -18,6 +18,7 @@ import (
 	"html"
 	"net/http"
 	"strings"
+	"sync"
 
 	"go.yaml.in/yaml/v2"
 
@@ -82,6 +83,12 @@ type cfg struct {
 
 	// ipc is used to retrieve the auth_token to issue authenticated requests
 	ipc ipc.Component
+
+	// reloadMu guards concurrent writes from registerConfigUpdateListener's OnUpdate callback -
+	// core config can fire it for different settings from different goroutines, and without this,
+	// two settings that touch overlapping state (e.g. api_key rotation writing Endpoints[0].APIKey
+	// at the same time apm_config.additional_endpoints reassigns the whole Endpoints slice) race.
+	reloadMu sync.Mutex
 }
 
 // NewComponent is the default constructor for the component, it returns
@@ -141,6 +148,8 @@ func (c *cfg) registerConfigUpdateListener() {
 // the current core config, so a change to a trace-relevant additional_endpoints-shaped value
 // takes effect without an agent restart.
 func (c *cfg) reloadAdditionalEndpoints(setting string) {
+	c.reloadMu.Lock()
+	defer c.reloadMu.Unlock()
 	switch setting {
 	case apmAdditionalEndpointsConfigKey:
 		// c.Endpoints[0] is the main endpoint, optionally followed by an MRF endpoint; rebuild only
@@ -180,8 +189,12 @@ func (c *cfg) reloadAdditionalEndpoints(setting string) {
 }
 
 func (c *cfg) updateAPIKey(oldKey, newKey string) {
-	// Update API Key on config, and propagate the signal to registered listeners
+	// Update API Key on config, and propagate the signal to registered listeners. Guarded by the
+	// same lock as reloadAdditionalEndpoints, since this mutates Endpoints[0].APIKey and a
+	// concurrent apm_config.additional_endpoints reload reassigns the whole Endpoints slice.
+	c.reloadMu.Lock()
 	c.UpdateAPIKey(newKey)
+	c.reloadMu.Unlock()
 	if c.updateAPIKeyFn != nil {
 		c.updateAPIKeyFn(oldKey, newKey)
 	}
