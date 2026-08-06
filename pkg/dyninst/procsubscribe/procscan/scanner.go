@@ -33,9 +33,10 @@ const (
 	// is looked at.
 	DefaultMinProcessAge = time.Second
 	// DefaultRetryBackoffBase is the delay before the second attempt at reading
-	// a process' tracer metadata. It matches the scan interval so that the
-	// first retry happens on the next scan.
-	DefaultRetryBackoffBase = 3 * time.Second
+	// a process' tracer metadata. It matches the subscriber's scan interval so
+	// that the first retry happens on the next scan; a shorter value would buy
+	// nothing, since retries only happen during a scan.
+	DefaultRetryBackoffBase = 5 * time.Second
 	// DefaultRetryBackoffCap is the longest delay between two attempts at
 	// reading a process' tracer metadata.
 	DefaultRetryBackoffCap = 5 * time.Minute

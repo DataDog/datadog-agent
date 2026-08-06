@@ -24,9 +24,10 @@ import (
 
 // benchScanInterval mirrors the interval the agent runs with, so that a
 // measured scan is the same amount of work as a production tick and can be
-// expressed as a fraction of a core. The scanner itself is built with its
-// defaults, which are the values the agent passes.
-const benchScanInterval = 3 * time.Second
+// expressed as a fraction of a core. Keep it in step with defaultScanInterval
+// in the procsubscribe package. The scanner itself is built with its defaults,
+// which are the values the agent passes.
+const benchScanInterval = 5 * time.Second
 
 // benchProcessCounts and benchFDCounts describe the hosts we care about: a
 // small host, a busy host, and a container host with thousands of processes,
@@ -410,5 +411,5 @@ func forEachBenchSize(
 func reportPctCore(b *testing.B) {
 	nsPerScan := float64(b.Elapsed().Nanoseconds()) / float64(b.N)
 	pct := nsPerScan / float64(benchScanInterval.Nanoseconds()) * 100
-	b.ReportMetric(pct, "pct_core_at_3s")
+	b.ReportMetric(pct, "pct_core_at_interval")
 }

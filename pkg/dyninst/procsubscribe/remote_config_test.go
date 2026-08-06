@@ -172,7 +172,6 @@ func TestRemoteConfigProcessSubscriberTracksUpdatesAndRemovals(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 		procsubscribe.WithWaitFunc(waitRequests.Wait),
 	)
 	t.Cleanup(subscriber.Close)
@@ -189,7 +188,7 @@ func TestRemoteConfigProcessSubscriberTracksUpdatesAndRemovals(t *testing.T) {
 	w2.Close()
 	s := <-streams
 	// Now only the scanner should come and wait.
-	scanWait := waitRequests.expect(t, 3*time.Second)
+	scanWait := waitRequests.expect(t, procsubscribe.DefaultScanInterval)
 
 	mockClock.Add(time.Millisecond)
 
@@ -323,7 +322,6 @@ func TestRetrackAfterNewStream(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 
@@ -398,7 +396,6 @@ func TestRemoteConfigSymDBUpdates(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -516,7 +513,6 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 
@@ -574,15 +570,14 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 	subscriber.Close()
 }
 
-// A slow scan pushes the next scan out by a hundred times its duration, so that
-// scanning never costs more than 1% of a core. The cap is what keeps a single
-// slow scan, such as the first one after a restart, from putting discovery to
-// sleep for minutes.
-func TestSlowScanIntervalIsCapped(t *testing.T) {
+// Scans happen on a fixed interval. How long a scan took does not feed back
+// into when the next one starts, so a slow scan cannot delay discovery for
+// everything else on the host.
+func TestScanIntervalIsFixed(t *testing.T) {
 	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	mockClock := clock.NewMock()
-	// A one second scan earns a hundred second penalty, well past the cap.
+	// A scan slow enough that any duration-derived penalty would be obvious.
 	scanner := procsubscribe.ProcessScannerFunc(
 		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
 			mockClock.Add(time.Second)
@@ -595,7 +590,6 @@ func TestSlowScanIntervalIsCapped(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 		procsubscribe.WithWaitFunc(waitRequests.Wait),
 	)
 	t.Cleanup(subscriber.Close)
@@ -605,7 +599,9 @@ func TestSlowScanIntervalIsCapped(t *testing.T) {
 	w1.Close()
 	w2.Close()
 	<-streams
-	waitRequests.expect(t, procsubscribe.DefaultMaxScanInterval)
+	// Two intervals, to show the delay does not creep as slow scans accumulate.
+	waitRequests.expect(t, procsubscribe.DefaultScanInterval).Close()
+	waitRequests.expect(t, procsubscribe.DefaultScanInterval)
 }
 
 func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
@@ -619,7 +615,6 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 		procsubscribe.WithWaitFunc(waitRequests.Wait),
 	)
 	t.Cleanup(subscriber.Close)
@@ -630,7 +625,7 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	w2.Close()
 	t.Logf("waiting for scanner to start")
 	s := <-streams
-	scanWait := waitRequests.expect(t, 3*time.Second)
+	scanWait := waitRequests.expect(t, procsubscribe.DefaultScanInterval)
 	defer scanWait.Close()
 
 	var durations []time.Duration
@@ -678,7 +673,6 @@ func TestSymDBStatePreservedWhenNotInMatchedConfigs(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 	ctx, cancel := context.WithCancel(context.Background())
