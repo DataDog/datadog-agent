@@ -27,6 +27,9 @@ import (
 // CheckName is the name of the check
 const CheckName = "thermal"
 
+// getThermalReadingFunc is a mockable function variable for retrieving thermal sensor readings
+var getThermalReadingFunc = getThermalReading
+
 // thermalCheck collects thermal sensor readings on Apple Silicon and Intel
 // Macs via the AppleSMC utility in thermal_darwin.c.
 type thermalCheck struct {
@@ -137,7 +140,7 @@ func (c *thermalCheck) Run() error {
 	}
 	defer sender.Commit()
 
-	reading := getThermalReading()
+	reading := getThermalReadingFunc()
 
 	if v := reading.smc.cpu; v != nil {
 		log.Debugf("thermal: SMC CPU temperature: %.1f°C", *v)
