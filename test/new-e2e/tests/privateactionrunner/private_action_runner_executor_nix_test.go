@@ -72,7 +72,7 @@ func TestLinuxPrivateActionRunnerExecutorSuite(t *testing.T) {
 func (s *linuxPrivateActionRunnerExecutorSuite) pushFakeRunnerKeysConfig() {
 	t := s.T()
 
-	_, pub, err := ed25519.GenerateKey(rand.Reader)
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err, "failed to generate fake runner key")
 
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
