@@ -1,5 +1,30 @@
+# gazelle:ebpf_c on
+
+# Both variants are reached only through vmlinux.h, which picks one by
+# architecture; route them to the target that makes that choice in Bazel.
+# gazelle:resolve ebpf_c vmlinux_6_14_0.h //pkg/ebpf/c:hdr/vmlinux_arch
+# gazelle:resolve ebpf_c vmlinux_6_14_0_arm.h //pkg/ebpf/c:hdr/vmlinux_arch
+
+load("@linux_headers//:defs.bzl", "KERNEL_ARCH")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
+
+# Must match _get_arch_flags in //bazel/rules/ebpf:ebpf.bzl, which falls back to
+# the detected kernel arch when the target_arch flag is unset.
+_DEFAULT_VMLINUX = ":hdr/vmlinux_6_14_0_arm" if KERNEL_ARCH == "arm64" else ":hdr/vmlinux_6_14_0"
+
+# vmlinux.h switches on __TARGET_ARCH_arm64, a define the rule derives from the
+# same flag, so only the selected variant is ever read.
+# keep
+cc_library(
+    name = "hdr/vmlinux_arch",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "//bazel/rules/ebpf:target_arch_aarch64": [":hdr/vmlinux_6_14_0_arm"],
+        "//bazel/rules/ebpf:target_arch_x86_64": [":hdr/vmlinux_6_14_0"],
+        "//conditions:default": [_DEFAULT_VMLINUX],
+    }),
+)
 
 _HDRS = glob(["*.h"])
 
@@ -21,7 +46,17 @@ ebpf_prog(
     src = "lock_contention.c",
     core = True,
     visibility = ["//visibility:public"],
-    deps = [":ebpf_c_headers"],
+    deps = [
+        ":hdr/bpf_builtins",
+        ":hdr/bpf_core_read",
+        ":hdr/bpf_helpers",
+        ":hdr/bpf_metadata",
+        ":hdr/bpf_tracing",
+        ":hdr/compiler",
+        ":hdr/ktypes",
+        ":hdr/lock_contention",
+        ":hdr/map-defs",
+    ],
 )
 
 ebpf_prog(
@@ -29,5 +64,199 @@ ebpf_prog(
     src = "ksyms_iter.c",
     core = True,
     visibility = ["//visibility:public"],
-    deps = [":ebpf_c_headers"],
+    deps = [
+        ":hdr/bpf_helpers",
+        ":hdr/bpf_metadata",
+        ":hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/asm_goto_workaround",
+    hdrs = ["asm_goto_workaround.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/bpf_builtins",
+    hdrs = ["bpf_builtins.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/compiler"],
+)
+
+cc_library(
+    name = "hdr/bpf_bypass",
+    hdrs = ["bpf_bypass.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/compiler",
+        ":hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/bpf_core_read",
+    hdrs = ["bpf_core_read.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/bpf_helpers"],
+)
+
+cc_library(
+    name = "hdr/bpf_cross_compile",
+    hdrs = ["bpf_cross_compile.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/bpf_endian",
+    hdrs = ["bpf_endian.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/bpf_helper_defs",
+    hdrs = ["bpf_helper_defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/bpf_helpers",
+    hdrs = ["bpf_helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/bpf_helper_defs",
+        ":hdr/bpf_helpers_custom",
+        ":hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/bpf_helpers_custom",
+    hdrs = ["bpf_helpers_custom.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/bpf_cross_compile"],
+)
+
+cc_library(
+    name = "hdr/bpf_metadata",
+    hdrs = ["bpf_metadata.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/bpf_telemetry",
+    hdrs = ["bpf_telemetry.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/bpf_helpers",
+        ":hdr/compiler",
+        ":hdr/map-defs",
+        ":hdr/telemetry_types",
+    ],
+)
+
+cc_library(
+    name = "hdr/bpf_tracing",
+    hdrs = ["bpf_tracing.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/bpf_helpers",
+        ":hdr/bpf_tracing_custom",
+    ],
+)
+
+cc_library(
+    name = "hdr/bpf_tracing_custom",
+    hdrs = ["bpf_tracing_custom.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/cgroup",
+    hdrs = ["cgroup.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/bpf_builtins",
+        ":hdr/bpf_core_read",
+        ":hdr/bpf_tracing",
+    ],
+)
+
+cc_library(
+    name = "hdr/compiler",
+    hdrs = ["compiler.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/kconfig",
+    hdrs = ["kconfig.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/ktypes",
+    hdrs = ["ktypes.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/lock_contention",
+    hdrs = ["lock_contention.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/map-defs",
+    hdrs = ["map-defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/bpf_helpers"],
+)
+
+cc_library(
+    name = "hdr/telemetry_types",
+    hdrs = ["telemetry_types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/vmlinux",
+    hdrs = ["vmlinux.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/vmlinux_arch"],
+)
+
+cc_library(
+    name = "hdr/vmlinux_6_14_0",
+    hdrs = ["vmlinux_6_14_0.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/vmlinux_6_14_0_arm",
+    hdrs = ["vmlinux_6_14_0_arm.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
 )

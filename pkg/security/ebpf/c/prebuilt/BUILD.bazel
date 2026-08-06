@@ -1,45 +1,74 @@
+# gazelle:ebpf_c on
+
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 exports_files(["probe.c"])
-
-_COMMON_DEPS = [
-    "//pkg/ebpf/c:ebpf_c_headers",
-    "//pkg/security/ebpf/c/include:security_ebpf_headers",
-]
 
 _SECURITY_FLAGS = [
     "-Ipkg/security/ebpf/c/include",
     "-g",
 ]
 
+# probe.c pulls tests/tests.h, and with it the rest of the unit test headers,
+# only under #ifdef __BALOUM__. The non-baloum variants never read them.
+_BALOUM_ONLY_HDRS = [
+    "pkg/security/ebpf/c/include/tests/activity_dump_ratelimiter_test.h",
+    "pkg/security/ebpf/c/include/tests/baloum.h",
+    "pkg/security/ebpf/c/include/tests/discarders_test.h",
+    "pkg/security/ebpf/c/include/tests/path_id_test.h",
+    "pkg/security/ebpf/c/include/tests/raw_packet_test.h",
+    "pkg/security/ebpf/c/include/tests/tests.h",
+]
+
 # runtime-security: basic variant
 ebpf_prog(
     name = "runtime-security",
     src = "probe.c",
+    allowed_unused = _BALOUM_ONLY_HDRS,
     extra_flags = _SECURITY_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/security/ebpf/c/include:hdr/hooks/all",
+        "//pkg/security/ebpf/c/include:hdr/tests/tests",
+    ],
 )
 
 # runtime-security: syscall wrapper variant
 ebpf_prog(
     name = "runtime-security-syscall-wrapper",
     src = "probe.c",
+    allowed_unused = _BALOUM_ONLY_HDRS,
     extra_flags = _SECURITY_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/security/ebpf/c/include:hdr/hooks/all",
+        "//pkg/security/ebpf/c/include:hdr/tests/tests",
+    ],
 )
 
 # runtime-security: fentry variant (syscall wrapper + fentry)
 ebpf_prog(
     name = "runtime-security-fentry",
     src = "probe.c",
+    allowed_unused = _BALOUM_ONLY_HDRS,
     extra_flags = _SECURITY_FLAGS + [
         "-DUSE_SYSCALL_WRAPPER",
         "-DUSE_FENTRY",
     ],
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/security/ebpf/c/include:hdr/hooks/all",
+        "//pkg/security/ebpf/c/include:hdr/tests/tests",
+    ],
 )
 
 _BALOUM_FLAGS = _SECURITY_FLAGS + ["-D__BALOUM__"]
@@ -53,7 +82,13 @@ ebpf_prog(
     src = "probe.c",
     extra_flags = _BALOUM_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/security/ebpf/c/include:hdr/hooks/all",
+        "//pkg/security/ebpf/c/include:hdr/tests/tests",
+    ],
 )
 
 ebpf_prog(
@@ -61,7 +96,13 @@ ebpf_prog(
     src = "probe.c",
     extra_flags = _BALOUM_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/security/ebpf/c/include:hdr/hooks/all",
+        "//pkg/security/ebpf/c/include:hdr/tests/tests",
+    ],
 )
 
 ebpf_prog(
@@ -72,7 +113,13 @@ ebpf_prog(
         "-DUSE_FENTRY",
     ],
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/security/ebpf/c/include:hdr/hooks/all",
+        "//pkg/security/ebpf/c/include:hdr/tests/tests",
+    ],
 )
 
 # offset guesser
@@ -81,5 +128,11 @@ ebpf_prog(
     src = "offset-guesser.c",
     extra_flags = _SECURITY_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/map-defs",
+        "//pkg/security/ebpf/c/include:hdr/hooks/offset_guesser",
+    ],
 )

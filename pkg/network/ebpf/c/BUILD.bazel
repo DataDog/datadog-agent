@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
@@ -30,10 +32,1302 @@ filegroup(
 ebpf_program_suite(
     name = "tracer",
     src = "tracer.c",
+    # Both sit behind compile-mode #ifdefs that are off for a CO-RE build:
+    # kconfig.h under COMPILE_RUNTIME, offsets.h under COMPILE_PREBUILT.
+    allowed_unused = [
+        "pkg/ebpf/c/kconfig.h",
+        "pkg/network/ebpf/c/prebuilt/offsets.h",
+    ],
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":ebpf_c_network",
-        "//pkg/ebpf/c:ebpf_c_headers",
+        ":hdr/pid_tgid",
+        ":hdr/protocols/classification/protocol-classification",
+        ":hdr/protocols/tls/tls-certs",
+        ":hdr/skb",
+        ":hdr/tracer/bind",
+        ":hdr/tracer/events",
+        ":hdr/tracer/maps",
+        ":hdr/tracer/port",
+        ":hdr/tracer/tcp_recv",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c/prebuilt:hdr/offsets",
+    ],
+)
+
+cc_library(
+    name = "hdr/conn_tuple",
+    hdrs = ["conn_tuple.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/conntrack/helpers",
+    hdrs = ["conntrack/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/conntrack/types",
+        ":hdr/ip",
+        ":hdr/ipv6",
+        ":hdr/netns",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+    ],
+)
+
+cc_library(
+    name = "hdr/conntrack/maps",
+    hdrs = ["conntrack/maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/conn_tuple",
+        ":hdr/conntrack/types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/conntrack/types",
+    hdrs = ["conntrack/types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/cookie",
+    hdrs = ["cookie.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/defs",
+    hdrs = ["defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/compiler"],
+)
+
+cc_library(
+    name = "hdr/ip",
+    hdrs = ["ip.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/conn_tuple",
+        ":hdr/defs",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/compiler",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/ipv6",
+    hdrs = ["ipv6.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/netns",
+    hdrs = ["netns.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/pid_fd",
+    hdrs = ["pid_fd.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/pid_tgid",
+    hdrs = ["pid_tgid.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/port_range",
+    hdrs = ["port_range.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/ip"],
+)
+
+cc_library(
+    name = "hdr/protocols/amqp/defs",
+    hdrs = ["protocols/amqp/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/amqp/helpers",
+    hdrs = ["protocols/amqp/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/amqp/defs",
+        ":hdr/protocols/classification/common",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/classification-context",
+    hdrs = ["protocols/classification/classification-context.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/common",
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/classification/maps",
+        ":hdr/protocols/classification/stack-helpers",
+        ":hdr/tracer/tracer",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/common",
+    hdrs = ["protocols/classification/common.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/read_into_buffer",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/defs",
+    hdrs = ["protocols/classification/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/amqp/defs",
+        ":hdr/protocols/http/classification-defs",
+        ":hdr/protocols/http2/defs",
+        ":hdr/protocols/mongo/defs",
+        ":hdr/protocols/mysql/defs",
+        ":hdr/protocols/redis/defs",
+        ":hdr/protocols/sql/defs",
+        "//pkg/ebpf/c:hdr/bpf_helpers_custom",
+        "//pkg/ebpf/c:hdr/compiler",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/dispatcher-helpers",
+    hdrs = ["protocols/classification/dispatcher-helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/ip",
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/classification/dispatcher-maps",
+        ":hdr/protocols/classification/maps",
+        ":hdr/protocols/classification/structs",
+        ":hdr/protocols/http/classification-helpers",
+        ":hdr/protocols/http/usm-events",
+        ":hdr/protocols/http2/helpers",
+        ":hdr/protocols/http2/usm-events",
+        ":hdr/protocols/kafka/kafka-classification",
+        ":hdr/protocols/kafka/usm-events",
+        ":hdr/protocols/postgres/helpers",
+        ":hdr/protocols/postgres/usm-events",
+        ":hdr/protocols/redis/helpers",
+        ":hdr/protocols/redis/usm-events",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/dispatcher-maps",
+    hdrs = ["protocols/classification/dispatcher-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/classification/shared-tracer-maps",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/maps",
+    hdrs = ["protocols/classification/maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/classification/structs",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/protocol-classification",
+    hdrs = ["protocols/classification/protocol-classification.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/ip",
+        ":hdr/port_range",
+        ":hdr/protocols/amqp/helpers",
+        ":hdr/protocols/classification/classification-context",
+        ":hdr/protocols/classification/common",
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/classification/maps",
+        ":hdr/protocols/classification/routing",
+        ":hdr/protocols/classification/stack-helpers",
+        ":hdr/protocols/classification/structs",
+        ":hdr/protocols/grpc/defs",
+        ":hdr/protocols/grpc/helpers",
+        ":hdr/protocols/http/classification-helpers",
+        ":hdr/protocols/http2/helpers",
+        ":hdr/protocols/kafka/kafka-classification",
+        ":hdr/protocols/mongo/helpers",
+        ":hdr/protocols/mysql/helpers",
+        ":hdr/protocols/postgres/helpers",
+        ":hdr/protocols/redis/helpers",
+        ":hdr/protocols/tls/tls",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/routing-helpers",
+    hdrs = ["protocols/classification/routing-helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/defs",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/routing",
+    hdrs = ["protocols/classification/routing.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/classification/routing-helpers",
+        ":hdr/protocols/classification/stack-helpers",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/shared-tracer-maps",
+    hdrs = ["protocols/classification/shared-tracer-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/port_range",
+        ":hdr/protocols/classification/stack-helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/stack-helpers",
+    hdrs = ["protocols/classification/stack-helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/defs",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/classification/structs",
+    hdrs = ["protocols/classification/structs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/conn_tuple",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/direct_consumer",
+    hdrs = ["protocols/direct_consumer.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/events-types",
+    hdrs = ["protocols/events-types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/protocols/events",
+    hdrs = ["protocols/events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/events-types",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/flush",
+    hdrs = ["protocols/flush.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/http/http",
+        ":hdr/protocols/http2/decoding",
+        ":hdr/protocols/kafka/kafka-parsing",
+        ":hdr/protocols/postgres/decoding",
+        ":hdr/protocols/redis/decoding",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/grpc/defs",
+    hdrs = ["protocols/grpc/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/grpc/helpers",
+    hdrs = ["protocols/grpc/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/grpc/defs",
+        ":hdr/protocols/http2/decoding-defs",
+        ":hdr/protocols/http2/defs",
+        ":hdr/protocols/http2/helpers",
+        ":hdr/protocols/http2/skb-common",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/helpers/big_endian",
+    hdrs = ["protocols/helpers/big_endian.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/bpf_endian"],
+)
+
+cc_library(
+    name = "hdr/protocols/helpers/pktbuf",
+    hdrs = ["protocols/helpers/pktbuf.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/helpers/big_endian",
+        ":hdr/protocols/read_into_buffer",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http/buffer",
+    hdrs = ["protocols/http/buffer.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/http/types",
+        ":hdr/protocols/read_into_buffer",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http/classification-defs",
+    hdrs = ["protocols/http/classification-defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/http/classification-helpers",
+    hdrs = ["protocols/http/classification-helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/protocols/classification/common"],
+)
+
+cc_library(
+    name = "hdr/protocols/http/http",
+    hdrs = [
+        "protocols/http/http.h",
+        "protocols/tls/https.h",
+    ],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/pid_tgid",
+        ":hdr/port_range",
+        ":hdr/protocols/amqp/helpers",
+        ":hdr/protocols/classification/common",
+        ":hdr/protocols/classification/dispatcher-helpers",
+        ":hdr/protocols/classification/dispatcher-maps",
+        ":hdr/protocols/http/buffer",
+        ":hdr/protocols/http/maps",
+        ":hdr/protocols/http/types",
+        ":hdr/protocols/http/usm-events",
+        ":hdr/protocols/mysql/helpers",
+        ":hdr/protocols/redis/helpers",
+        ":hdr/protocols/sockfd",
+        ":hdr/protocols/tls/go-tls-maps",
+        ":hdr/protocols/tls/go-tls-types",
+        ":hdr/protocols/tls/native-tls-maps",
+        ":hdr/protocols/tls/tags-types",
+        ":hdr/protocols/tls/tls-maps",
+        ":hdr/sock",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http/maps",
+    hdrs = ["protocols/http/maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/http/types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http/types",
+    hdrs = ["protocols/http/types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/conn_tuple"],
+)
+
+cc_library(
+    name = "hdr/protocols/http/usm-events",
+    hdrs = ["protocols/http/usm-events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/direct_consumer",
+        ":hdr/protocols/events",
+        ":hdr/protocols/http/types",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/decoding-common",
+    hdrs = ["protocols/http2/decoding-common.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/ip",
+        ":hdr/protocols/classification/defs",
+        ":hdr/protocols/http2/decoding-defs",
+        ":hdr/protocols/http2/helpers",
+        ":hdr/protocols/http2/maps-defs",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/decoding-defs",
+    hdrs = ["protocols/http2/decoding-defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/http2/defs",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/decoding-tls",
+    hdrs = ["protocols/http2/decoding-tls.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/http/types",
+        ":hdr/protocols/http2/decoding-common",
+        ":hdr/protocols/http2/usm-events",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/decoding",
+    hdrs = ["protocols/http2/decoding.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/helpers/pktbuf",
+        ":hdr/protocols/http/types",
+        ":hdr/protocols/http2/decoding-common",
+        ":hdr/protocols/http2/skb-common",
+        ":hdr/protocols/http2/usm-events",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/defs",
+    hdrs = ["protocols/http2/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/helpers",
+    hdrs = ["protocols/http2/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/http2/defs",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/maps-defs",
+    hdrs = ["protocols/http2/maps-defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/skb-common",
+    hdrs = ["protocols/http2/skb-common.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/protocols/http2/helpers"],
+)
+
+cc_library(
+    name = "hdr/protocols/http2/usm-events",
+    hdrs = ["protocols/http2/usm-events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/events",
+        ":hdr/protocols/http2/decoding-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/kafka/defs",
+    hdrs = ["protocols/kafka/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/kafka/kafka-classification",
+    hdrs = ["protocols/kafka/kafka-classification.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/helpers/big_endian",
+        ":hdr/protocols/helpers/pktbuf",
+        ":hdr/protocols/kafka/defs",
+        ":hdr/protocols/kafka/maps",
+        ":hdr/protocols/kafka/types",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/kafka/kafka-parsing",
+    hdrs = ["protocols/kafka/kafka-parsing.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/kafka/parsing-maps",
+        ":hdr/protocols/kafka/types",
+        ":hdr/protocols/kafka/usm-events",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/kafka/maps",
+    hdrs = ["protocols/kafka/maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/kafka/defs",
+        ":hdr/protocols/kafka/types",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/kafka/parsing-maps",
+    hdrs = ["protocols/kafka/parsing-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/kafka/types",
+    hdrs = ["protocols/kafka/types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/protocols/kafka/defs"],
+)
+
+cc_library(
+    name = "hdr/protocols/kafka/usm-events",
+    hdrs = ["protocols/kafka/usm-events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/events",
+        ":hdr/protocols/kafka/types",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/mongo/defs",
+    hdrs = ["protocols/mongo/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/mongo/helpers",
+    hdrs = ["protocols/mongo/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/common",
+        ":hdr/protocols/mongo/defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/mysql/defs",
+    hdrs = ["protocols/mysql/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/mysql/helpers",
+    hdrs = ["protocols/mysql/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/common",
+        ":hdr/protocols/mysql/defs",
+        ":hdr/protocols/sql/helpers",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/postgres/decoding-maps",
+    hdrs = ["protocols/postgres/decoding-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/postgres/types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/postgres/decoding",
+    hdrs = ["protocols/postgres/decoding.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/helpers/pktbuf",
+        ":hdr/protocols/postgres/decoding-maps",
+        ":hdr/protocols/postgres/defs",
+        ":hdr/protocols/postgres/types",
+        ":hdr/protocols/postgres/usm-events",
+        ":hdr/protocols/read_into_buffer",
+        ":hdr/protocols/sockfd",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/postgres/defs",
+    hdrs = ["protocols/postgres/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/postgres/helpers",
+    hdrs = ["protocols/postgres/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/postgres/defs",
+        ":hdr/protocols/sql/helpers",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/postgres/types",
+    hdrs = ["protocols/postgres/types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/conn_tuple"],
+)
+
+cc_library(
+    name = "hdr/protocols/postgres/usm-events",
+    hdrs = ["protocols/postgres/usm-events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/events",
+        ":hdr/protocols/postgres/types",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/read_into_buffer",
+    hdrs = ["protocols/read_into_buffer.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/redis/decoding-maps",
+    hdrs = ["protocols/redis/decoding-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/redis/types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/redis/decoding",
+    hdrs = ["protocols/redis/decoding.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/helpers/pktbuf",
+        ":hdr/protocols/redis/decoding-maps",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/redis/defs",
+    hdrs = ["protocols/redis/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/redis/helpers",
+    hdrs = ["protocols/redis/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/common",
+        ":hdr/protocols/redis/defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/redis/types",
+    hdrs = ["protocols/redis/types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/conn_tuple",
+        ":hdr/protocols/events-types",
+        ":hdr/protocols/redis/defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/redis/usm-events",
+    hdrs = ["protocols/redis/usm-events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/events",
+        ":hdr/protocols/redis/types",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/sockfd-probes",
+    hdrs = ["protocols/sockfd-probes.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/pid_tgid",
+        ":hdr/protocols/sockfd",
+        ":hdr/protocols/tls/go-tls-maps",
+        ":hdr/sock",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/sockfd",
+    hdrs = ["protocols/sockfd.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/pid_fd",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/sql/defs",
+    hdrs = ["protocols/sql/defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/sql/helpers",
+    hdrs = ["protocols/sql/helpers.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/sql/defs",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/go-tls-conn",
+    hdrs = ["protocols/tls/go-tls-conn.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/ip",
+        ":hdr/pid_tgid",
+        ":hdr/port_range",
+        ":hdr/protocols/http/maps",
+        ":hdr/protocols/tls/go-tls-types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/go-tls-goid",
+    hdrs = ["protocols/tls/go-tls-goid.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/http/maps",
+        ":hdr/protocols/tls/go-tls-location",
+        ":hdr/protocols/tls/go-tls-types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/go-tls-location",
+    hdrs = ["protocols/tls/go-tls-location.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/bpf_helpers"],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/go-tls-maps",
+    hdrs = ["protocols/tls/go-tls-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/tls/go-tls-types",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/go-tls-types",
+    hdrs = ["protocols/tls/go-tls-types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/native-tls-maps",
+    hdrs = ["protocols/tls/native-tls-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/map-defs"],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/native-tls",
+    hdrs = ["protocols/tls/native-tls.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/tls/native-tls-maps",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tags-types",
+    hdrs = ["protocols/tls/tags-types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tls-certs-maps",
+    hdrs = ["protocols/tls/tls-certs-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/tls/tls-certs-types",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tls-certs-parser",
+    hdrs = ["protocols/tls/tls-certs-parser.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/tls/tls-certs-types",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tls-certs-statem",
+    hdrs = ["protocols/tls/tls-certs-statem.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        ":hdr/protocols/tls/tls-certs-maps",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tls-certs-types",
+    hdrs = ["protocols/tls/tls-certs-types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tls-certs",
+    hdrs = ["protocols/tls/tls-certs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/tls/tls-certs-maps",
+        ":hdr/protocols/tls/tls-certs-parser",
+        ":hdr/protocols/tls/tls-certs-statem",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tls-maps",
+    hdrs = ["protocols/tls/tls-maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/protocols/classification/defs",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/protocols/tls/tls",
+    hdrs = ["protocols/tls/tls.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/tracer/tracer"],
+)
+
+cc_library(
+    name = "hdr/shared-libraries/maps",
+    hdrs = ["shared-libraries/maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/shared-libraries/types",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/shared-libraries/probes",
+    hdrs = ["shared-libraries/probes.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/pid_tgid",
+        ":hdr/shared-libraries/types",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/shared-libraries/types",
+    hdrs = ["shared-libraries/types.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/skb",
+    hdrs = ["skb.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/ip",
+        ":hdr/ipv6",
+        ":hdr/sock",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_helpers_custom",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/sock",
+    hdrs = ["sock.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/ip",
+        ":hdr/ipv6",
+        ":hdr/netns",
+        ":hdr/pid_tgid",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/tcp_states",
+    hdrs = ["tcp_states.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "hdr/tracer/bind",
+    hdrs = ["tracer/bind.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/pid_tgid",
+        ":hdr/tracer/maps",
+        ":hdr/tracer/port",
+        ":hdr/tracer/tracer",
+    ],
+)
+
+cc_library(
+    name = "hdr/tracer/events",
+    hdrs = ["tracer/events.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/cookie",
+        ":hdr/ip",
+        ":hdr/port_range",
+        ":hdr/tracer/maps",
+        ":hdr/tracer/stats",
+        ":hdr/tracer/telemetry",
+        ":hdr/tracer/tracer",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/tracer/maps",
+    hdrs = ["tracer/maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/conn_tuple",
+        ":hdr/tracer/tracer",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
+)
+
+cc_library(
+    name = "hdr/tracer/port",
+    hdrs = ["tracer/port.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":hdr/tracer/tracer"],
+)
+
+cc_library(
+    name = "hdr/tracer/stats",
+    hdrs = ["tracer/stats.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/cookie",
+        ":hdr/defs",
+        ":hdr/ip",
+        ":hdr/pid_tgid",
+        ":hdr/port_range",
+        ":hdr/protocols/classification/shared-tracer-maps",
+        ":hdr/protocols/classification/stack-helpers",
+        ":hdr/protocols/tls/tags-types",
+        ":hdr/protocols/tls/tls-certs",
+        ":hdr/skb",
+        ":hdr/sock",
+        ":hdr/tracer/maps",
+        ":hdr/tracer/telemetry",
+        ":hdr/tracer/tracer",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_core_read",
+    ],
+)
+
+cc_library(
+    name = "hdr/tracer/tcp_recv",
+    hdrs = ["tracer/tcp_recv.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/sock",
+        ":hdr/tracer/events",
+        ":hdr/tracer/maps",
+        ":hdr/tracer/stats",
+        "//pkg/ebpf/c:hdr/bpf_bypass",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+    ],
+)
+
+cc_library(
+    name = "hdr/tracer/telemetry",
+    hdrs = ["tracer/telemetry.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/ip",
+        ":hdr/tracer/maps",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/compiler",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/tracer/tracer",
+    hdrs = ["tracer/tracer.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/conn_tuple",
+        ":hdr/protocols/classification/defs",
+        "//pkg/ebpf/c:hdr/ktypes",
     ],
 )
