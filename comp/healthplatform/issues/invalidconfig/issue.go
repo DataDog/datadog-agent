@@ -15,6 +15,10 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+// impactText is shared by the description and extra.impact so the consequence is stated on
+// every surface, including the ones that only render the description.
+const impactText = "Until this is corrected the Agent falls back to the default for each setting, so it may not behave as configured."
+
 const (
 	contextKeyConfigPath = "config_path"
 	contextKeyErrors     = "errors"
@@ -22,10 +26,12 @@ const (
 	contextKeyImpact     = "impact"
 )
 
-// contextErrorKey returns the Context key for the i-th error line.
-func contextErrorKey(i int) string {
-	return "error." + strconv.Itoa(i)
-}
+// The check writes each violation as three parallel keys rather than one string, so BuildIssue
+// never has to parse a message back apart. The previous form split on ": ", which silently
+// produced a garbage pointer for any message containing that sequence.
+func contextErrorKey(i int) string   { return "error." + strconv.Itoa(i) }
+func contextPointerKey(i int) string { return "error." + strconv.Itoa(i) + ".pointer" }
+func contextFixKey(i int) string     { return "error." + strconv.Itoa(i) + ".fix" }
 
 // InvalidConfigIssue is the template for "invalid-config" issues.
 type InvalidConfigIssue struct{}
@@ -38,10 +44,15 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	}
 	count, _ := strconv.Atoi(ctx[contextKeyErrorCount])
 
-	errLines := make([]string, 0, count)
+	type violation struct{ message, fix, pointer string }
+	violations := make([]violation, 0, count)
 	for i := 0; i < count; i++ {
-		if v := ctx[contextErrorKey(i)]; v != "" {
-			errLines = append(errLines, v)
+		if m := ctx[contextErrorKey(i)]; m != "" {
+			violations = append(violations, violation{
+				message: m,
+				fix:     ctx[contextFixKey(i)],
+				pointer: ctx[contextPointerKey(i)],
+			})
 		}
 	}
 
@@ -49,35 +60,79 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	if count != 1 {
 		suffix = "s"
 	}
-	desc := fmt.Sprintf("Found %d schema violation%s in %s", count, suffix, path)
-	if len(errLines) > 0 {
-		desc += ": " + strings.Join(errLines, "; ")
-	} else {
-		desc += "."
+	// The only field `agent diagnose` renders, so it carries the diagnosis and the consequence.
+	var descBuilder strings.Builder
+	fmt.Fprintf(&descBuilder, "Found %d problem%s in %s.", count, suffix, path)
+	for _, v := range violations {
+		descBuilder.WriteString(" " + v.message)
 	}
+	descBuilder.WriteString(" " + impactText)
+	desc := descBuilder.String()
 
-	errGroups := make(map[string][]string, len(errLines))
-	for _, line := range errLines {
-		// Schema errors have the form: at '<path>': <message>
-		// Strip the "at '" prefix and trailing "'" to get a bare JSON path.
-		before, msg, _ := strings.Cut(line, ": ")
-		path := strings.TrimSuffix(strings.TrimPrefix(before, "at '"), "'")
-		errGroups[path] = append(errGroups[path], msg)
+	// Path-keyed so a consumer can attach each one to the config line it came from; the
+	// diagnosis and its correction sit under the same key.
+	errGroups := make(map[string][]string, len(violations))
+	order := make([]string, 0, len(violations))
+	for _, v := range violations {
+		key := v.pointer
+		if key == "" {
+			key = "/"
+		}
+		if _, seen := errGroups[key]; !seen {
+			order = append(order, key)
+		}
+		errGroups[key] = append(errGroups[key], v.message)
+		if v.fix != "" {
+			errGroups[key] = append(errGroups[key], v.fix)
+		}
 	}
 	errMap := make(map[string]any, len(errGroups))
-	for path, msgs := range errGroups {
+	for _, key := range order {
+		msgs := errGroups[key]
 		slice := make([]any, len(msgs))
 		for i, m := range msgs {
 			slice[i] = m
 		}
-		errMap[path] = slice
+		errMap[key] = slice
 	}
+
+	// One step per violation. "Fix each violation listed in the description" was the only
+	// remediation step in the package that told the user nothing they did not already know.
+	// Capped because a bad 50-element list would otherwise produce 50 steps.
+	const maxViolationSteps = 10
+	steps := []*healthplatform.RemediationStep{
+		{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
+	}
+	for _, v := range violations {
+		if len(steps) > maxViolationSteps {
+			break
+		}
+		text := v.fix
+		if text == "" {
+			text = v.message
+		}
+		steps = append(steps, &healthplatform.RemediationStep{Order: int32(len(steps) + 1), Text: text})
+	}
+	if hidden := len(violations) - maxViolationSteps; hidden > 0 {
+		plural := "s"
+		if hidden == 1 {
+			plural = ""
+		}
+		steps = append(steps, &healthplatform.RemediationStep{
+			Order: int32(len(steps) + 1),
+			Text:  fmt.Sprintf("Correct the remaining %d setting%s listed in the issue details.", hidden, plural),
+		})
+	}
+	steps = append(steps,
+		&healthplatform.RemediationStep{Order: int32(len(steps) + 1), Text: "Restart the Datadog Agent."},
+		&healthplatform.RemediationStep{Order: int32(len(steps) + 2), Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
+	)
 
 	extra, _ := structpb.NewStruct(map[string]any{
 		contextKeyConfigPath: path,
 		contextKeyErrorCount: count,
 		contextKeyErrors:     errMap,
-		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+		contextKeyImpact:     impactText,
 	})
 
 	return &healthplatform.Issue{
@@ -92,13 +147,9 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		Extra:       extra,
 		Tags:        []string{"config", "schema"},
 		Remediation: &healthplatform.Remediation{
-			Summary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
-			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: "Fix each violation listed in the description."},
-				{Order: 3, Text: "Restart the Datadog Agent."},
-				{Order: 4, Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
-			},
+			Summary: fmt.Sprintf("Correct %d setting%s in %s, then restart the Datadog Agent.",
+				count, suffix, filepath.Base(path)),
+			Steps: steps,
 		},
 	}, nil
 }
