@@ -25,6 +25,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	helmactionsfx "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/fx"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
@@ -77,6 +78,7 @@ func runExecutor(ctx context.Context, confPath string, extraConfFiles []string) 
 		eventplatformreceiverimpl.Module(),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		statsdfx.Module(),
+		helmactionsfx.Module(),
 		privateactionrunnerfx.ExecutorModule(),
 	}
 
