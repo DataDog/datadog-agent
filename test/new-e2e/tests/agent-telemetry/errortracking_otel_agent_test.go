@@ -109,6 +109,7 @@ type errorTrackingOTelAgentSuite struct {
 // TestAgentTelemetryErrorTrackingSuite, exercised via the OTel collector's
 // own zap-bridged logging rather than the core agent's.
 func TestErrorTrackingOTelAgentSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &errorTrackingOTelAgentSuite{},
 		e2e.WithProvisioner(provkind.Provisioner(
 			provkind.WithRunOptions(
