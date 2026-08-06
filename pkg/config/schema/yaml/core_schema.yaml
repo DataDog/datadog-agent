@@ -1786,7 +1786,7 @@ properties:
               Custom filters to include or exclude specific destinations from network path collection.
               Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
               Filters are applied sequentially, the last matching filter takes precedence.
-              In end_user_device infrastructure mode, user-defined filters are appended to the default SaaS filters below.
+              No filters are added automatically in end_user_device infrastructure mode; configure filters explicitly when needed.
             example: |2-
 
 
@@ -4230,6 +4230,24 @@ properties:
             description: |-
               List of IP addresses to exclude from automatic scanning.
               Devices with these IP addresses will be skipped during default scan.
+          bulk_batch_size:
+            node_type: setting
+            type: integer
+            default: 20
+            visibility: public
+            description: |-
+              Starting number of values requested per GetBulk call during the automatic
+              device scan. The scan adjusts this down on failures and back up on
+              successes, so this is the ceiling it works toward.
+          flush_every_n_oids:
+            node_type: setting
+            type: integer
+            default: 0
+            comment: Internal, undocumented knobs for tuning partial result reporting.
+          flush_interval:
+            node_type: setting
+            type: string
+            default: 0s
       autodiscovery:
         node_type: section
         type: object
@@ -6377,6 +6395,35 @@ properties:
               type: object
             comment: Ordered log-processing rules applied to anomaly-detection log
               sources.
+          time_buckets:
+            node_type: section
+            type: object
+            properties:
+              bucket_width:
+                node_type: setting
+                type: string
+                default: 5s
+                format: duration
+                tags:
+                - golang_type:duration
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              idle_ttl:
+                node_type: setting
+                type: string
+                default: 5m0s
+                format: duration
+                tags:
+                - golang_type:duration
+              retention:
+                node_type: setting
+                type: string
+                default: 10m0s
+                format: duration
+                tags:
+                - golang_type:duration
       metrics:
         node_type: section
         type: object
@@ -8763,6 +8810,10 @@ properties:
             node_type: setting
             type: integer
             default: 7778
+      log_file:
+        node_type: setting
+        type: string
+        default: ${log_path}/host-profiler.log
     tags:
     - full-agent-only:true
   hpa_configmap_name:
@@ -9599,6 +9650,10 @@ properties:
       or connected mode (expects core agent for secrets and tagger)
   otelcollector:
     $ref: otelcollector.yaml
+  patch_prometheus_client:
+    node_type: setting
+    type: boolean
+    default: true
   prioritize_go_check_loader:
     node_type: setting
     type: boolean

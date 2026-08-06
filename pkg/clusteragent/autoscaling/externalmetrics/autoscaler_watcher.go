@@ -300,7 +300,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 
 				external := metric.External
 				ref := buildAutoscalerReference(autoscalerWPAKindKey, wpa.ObjectMeta)
-				ddMetricID, metricName, metricLabels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, allowAutogen)
+				ddMetricID, metricName, metricLabels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, wpa.Namespace, allowAutogen)
 				if ok {
 					addAutoscalerReference(ddMetricID, ref, metricName, metricLabels)
 				}
@@ -340,7 +340,7 @@ func (w *AutoscalerWatcher) processHPAv2beta1Reference(addAutoscalerReference ad
 		}
 
 		external := metric.External
-		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, allowAutogen)
+		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.MetricName, external.MetricSelector, hpa.Namespace, allowAutogen)
 		if ok {
 			addAutoscalerReference(ddMetricID, ref, metricName, labels)
 		}
@@ -356,7 +356,7 @@ func (w *AutoscalerWatcher) processHPAv2beta2Reference(addAutoscalerReference ad
 		}
 
 		external := metric.External
-		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector, allowAutogen)
+		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector, hpa.Namespace, allowAutogen)
 		if ok {
 			addAutoscalerReference(ddMetricID, ref, metricName, labels)
 		}
@@ -372,7 +372,7 @@ func (w *AutoscalerWatcher) processHPAv2Reference(addAutoscalerReference addAuto
 		}
 
 		external := metric.External
-		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector, allowAutogen)
+		ddMetricID, metricName, labels, ok := w.extractAutoscalerReference(external.Metric.Name, external.Metric.Selector, hpa.Namespace, allowAutogen)
 		if ok {
 			addAutoscalerReference(ddMetricID, ref, metricName, labels)
 		}
@@ -382,6 +382,7 @@ func (w *AutoscalerWatcher) processHPAv2Reference(addAutoscalerReference addAuto
 func (w *AutoscalerWatcher) extractAutoscalerReference(
 	externalMetricName string,
 	externalMetricSelector *metav1.LabelSelector,
+	autoscalerNamespace string,
 	allowAutogen bool,
 ) (
 	ddMetricID string,
@@ -389,7 +390,7 @@ func (w *AutoscalerWatcher) extractAutoscalerReference(
 	labels map[string]string,
 	ok bool,
 ) {
-	ddMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(externalMetricName)
+	ddMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(externalMetricName, autoscalerNamespace)
 	if parsed {
 		// datadogmetric@ references are always tracked regardless of hpaLabelSelector — the selector controls autogen only.
 		return ddMetricID, "", nil, true
