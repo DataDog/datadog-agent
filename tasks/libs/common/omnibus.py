@@ -100,6 +100,7 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
     },
     'darwin': {
+        'AWS_SHARED_CREDENTIALS_FILE': 'Path to the CI Identities-populated AWS credentials file, read by Omnibus for S3 cache access',
         'APPLE_ACCOUNT': 'Apple developer account used for notarization',
         'NOTARIZATION_ATTEMPTS': 'Number of retries for notarization steps',
         'NOTARIZATION_PWD': 'App-specific password for notarization',
@@ -118,6 +119,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
     """
     excluded_variables = {
         'APPDATA',
+        'AWS_SHARED_CREDENTIALS_FILE',
         'BUILDBARN_ID_TOKEN',
         'BAZELISK_HOME',
         'CI_JOB_ID',
