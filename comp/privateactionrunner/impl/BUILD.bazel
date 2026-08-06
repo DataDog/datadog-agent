@@ -48,6 +48,8 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
+        "//comp/privateactionrunner/def",
+        "//pkg/config/mock",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

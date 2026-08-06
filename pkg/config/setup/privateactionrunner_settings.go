@@ -34,6 +34,9 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		"other":   "${run_path}/par-executor.sock",
 	}))
 
+	// Enables the Rust control plane and on-demand Go executor on Linux and Windows. Other platforms continue using the monolithic runner.
+	config.BindEnvAndSetDefault("private_action_runner.split_enabled", false)
+
 	config.BindEnvAndSetDefault("private_action_runner.http_timeout_seconds", 30)
 	config.BindEnvAndSetDefault("private_action_runner.http_allowlist", []string{})
 	config.ParseEnvSplitComma("private_action_runner.http_allowlist")
