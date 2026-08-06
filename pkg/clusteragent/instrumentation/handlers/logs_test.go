@@ -198,56 +198,39 @@ func TestLogsHandle_CreateAndDelete(t *testing.T) {
 }
 
 func TestTranslateWorkloadLogExpandedFields(t *testing.T) {
-	attributeParsing := true
-	autoMultiLineDetection := false
-	enableJSONDetection := true
-	enableDatetimeDetection := false
-	enableJSONAggregation := true
-	tagAggregatedJSON := false
-	tokenizerMaxInputBytes := int32(2048)
-	patternTableMaxSize := int32(50)
-	stackTraceParsers := []string{"go", "java"}
-	customSampleLabel := "stack_trace"
-	customSamples := []datadoghq.DatadogInstrumentationLogAutoMultiLineSample{
-		{Sample: "2026-08-06 error", Label: &customSampleLabel},
-		{Regex: `^\d{4}-\d{2}-\d{2}`},
-	}
-	maxConnections := int32(25)
-	fingerprintCount := int32(2)
-	fingerprintCountToSkip := int32(1)
-	fingerprintMaxBytes := int32(4096)
-	maxMessageSizeBytes := int32(262144)
-
 	cr := newLogsCR("test", "default", "Deployment", "app", nil)
 	config, err := translateWorkloadLog(cr, datadoghq.DatadogInstrumentationLogConfig{
 		ContainerName: "app",
 		DatadogInstrumentationLogFields: datadoghq.DatadogInstrumentationLogFields{
-			Type:                                "tcp",
-			BindHost:                            "127.0.0.1",
-			IdleTimeout:                         "30s",
-			MaxConnections:                      &maxConnections,
-			AllowedIPs:                          []string{"10.0.0.0/8", "192.168.1.10"},
-			DeniedIPs:                           []string{"10.0.0.5"},
-			Format:                              "syslog",
-			AttributeParsing:                    &attributeParsing,
-			AutoMultiLineDetection:              &autoMultiLineDetection,
-			AutoMultiLineDetectionCustomSamples: &customSamples,
+			Type:                   "tcp",
+			BindHost:               "127.0.0.1",
+			IdleTimeout:            "30s",
+			MaxConnections:         new(int32(25)),
+			AllowedIPs:             []string{"10.0.0.0/8", "192.168.1.10"},
+			DeniedIPs:              []string{"10.0.0.5"},
+			Format:                 "syslog",
+			AttributeParsing:       new(true),
+			AutoMultiLineDetection: new(false),
+			AutoMultiLineDetectionCustomSamples: &[]datadoghq.DatadogInstrumentationLogAutoMultiLineSample{
+				{Sample: "2026-08-06 error", Label: new("stack_trace")},
+				{Regex: `^\d{4}-\d{2}-\d{2}`},
+			},
 			AutoMultiLine: &datadoghq.DatadogInstrumentationLogAutoMultiLineOptions{
-				EnableJSONDetection:     &enableJSONDetection,
-				EnableDatetimeDetection: &enableDatetimeDetection,
-				TokenizerMaxInputBytes:  &tokenizerMaxInputBytes,
-				PatternTableMaxSize:     &patternTableMaxSize,
-				EnableJSONAggregation:   &enableJSONAggregation,
-				TagAggregatedJSON:       &tagAggregatedJSON,
-				StackTraceParsers:       &stackTraceParsers,
+				EnableJSONDetection:     new(true),
+				EnableDatetimeDetection: new(false),
+				TokenizerMaxInputBytes:  new(int32(2048)),
+				PatternTableMaxSize:     new(int32(50)),
+				EnableJSONAggregation:   new(true),
+				TagAggregatedJSON:       new(false),
+				StackTraceParsers:       &[]string{"go", "java"},
 			},
 			FingerprintConfig: &datadoghq.DatadogInstrumentationLogFingerprintConfig{
 				FingerprintStrategy: "line_checksum",
-				Count:               &fingerprintCount,
-				CountToSkip:         &fingerprintCountToSkip,
-				MaxBytes:            &fingerprintMaxBytes,
+				Count:               new(int32(2)),
+				CountToSkip:         new(int32(1)),
+				MaxBytes:            new(int32(4096)),
 			},
-			MaxMessageSizeBytes: &maxMessageSizeBytes,
+			MaxMessageSizeBytes: new(int32(262144)),
 		},
 	})
 	require.NoError(t, err)
