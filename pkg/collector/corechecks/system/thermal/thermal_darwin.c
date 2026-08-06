@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <notify.h>
 #include <CoreFoundation/CoreFoundation.h>
@@ -64,26 +65,25 @@ typedef struct {
 // shared handle would let one call close or overwrite a connection another is
 // still reading through, leaking the overwritten mach port.
 
-static UInt32 smcStrToUL(const char *str, int size, int base) {
+// smcStrToUL packs the first size bytes of str into a big-endian UInt32, the
+// wire format the SMC expects for a key. Each byte is widened to UInt32 before
+// shifting: shifting a promoted int would be undefined for bytes >= 128.
+static UInt32 smcStrToUL(const char *str, size_t size) {
     UInt32 total = 0;
-    int i;
-    for (i = 0; i < size; i++) {
-        if (base == 16) {
-            total += (unsigned char)str[i] << (size - 1 - i) * 8;
-        } else {
-            total += (unsigned char)(str[i] << (size - 1 - i) * 8);
-        }
+    for (size_t i = 0; i < size; i++) {
+        total += (UInt32)(unsigned char)str[i] << ((size - 1 - i) * 8);
     }
     return total;
 }
 
-static void smcULToStr(char *str, UInt32 val) {
-    str[0] = '\0';
-    sprintf(str, "%c%c%c%c",
-            (unsigned int)val >> 24,
-            (unsigned int)val >> 16,
-            (unsigned int)val >> 8,
-            (unsigned int)val);
+// smcULToStr unpacks a big-endian UInt32 into a NUL-terminated 4-character
+// string. val comes from the kernel, so the write is explicitly bounded.
+static void smcULToStr(UInt32Char_t str, UInt32 val) {
+    snprintf(str, sizeof(UInt32Char_t), "%c%c%c%c",
+             (unsigned int)val >> 24,
+             (unsigned int)val >> 16,
+             (unsigned int)val >> 8,
+             (unsigned int)val);
 }
 
 // SMCOpen stores an open AppleSMC connection in *conn. On failure *conn is
@@ -94,6 +94,12 @@ static kern_return_t SMCOpen(io_connect_t *conn) {
     io_object_t   device;
 
     CFMutableDictionaryRef matchingDictionary = IOServiceMatching("AppleSMC");
+    if (matchingDictionary == NULL) {
+        return kIOReturnNoMemory;
+    }
+
+    // IOServiceGetMatchingServices always consumes one reference to the
+    // dictionary, including on failure, so it must not be released here.
     result = IOServiceGetMatchingServices(IOKIT_MAIN_PORT, matchingDictionary, &iterator);
     if (result != kIOReturnSuccess) {
         return result;
@@ -114,10 +120,21 @@ static kern_return_t SMCClose(io_connect_t conn) {
     return IOServiceClose(conn);
 }
 
-static kern_return_t SMCCall(io_connect_t conn, int index, SMCKeyData_t *in, SMCKeyData_t *out) {
+// SMCCall performs one struct call and fails if the kernel wrote back a short
+// struct. Without that check a partial write would leave stale bytes from a
+// previous call in *out, which the caller would decode as live data.
+static kern_return_t SMCCall(io_connect_t conn, uint32_t index, SMCKeyData_t *in, SMCKeyData_t *out) {
     size_t inSize = sizeof(SMCKeyData_t);
     size_t outSize = sizeof(SMCKeyData_t);
-    return IOConnectCallStructMethod(conn, index, in, inSize, out, &outSize);
+
+    kern_return_t result = IOConnectCallStructMethod(conn, index, in, inSize, out, &outSize);
+    if (result != kIOReturnSuccess) {
+        return result;
+    }
+    if (outSize != sizeof(SMCKeyData_t)) {
+        return kIOReturnUnderrun;
+    }
+    return kIOReturnSuccess;
 }
 
 static kern_return_t SMCReadKey(io_connect_t conn, const char *key, SMCVal_t *val) {
@@ -129,7 +146,7 @@ static kern_return_t SMCReadKey(io_connect_t conn, const char *key, SMCVal_t *va
     memset(&outputStructure, 0, sizeof(SMCKeyData_t));
     memset(val, 0, sizeof(SMCVal_t));
 
-    inputStructure.key = smcStrToUL(key, 4, 16);
+    inputStructure.key = smcStrToUL(key, 4);
     inputStructure.data8 = SMC_CMD_READ_KEYINFO;
 
     result = SMCCall(conn, KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
@@ -141,6 +158,10 @@ static kern_return_t SMCReadKey(io_connect_t conn, const char *key, SMCVal_t *va
     smcULToStr(val->dataType, outputStructure.keyInfo.dataType);
     inputStructure.keyInfo.dataSize = val->dataSize;
     inputStructure.data8 = SMC_CMD_READ_BYTES;
+
+    // Clear the output struct between calls so nothing from the key-info call
+    // can be mistaken for payload of the read-bytes call.
+    memset(&outputStructure, 0, sizeof(SMCKeyData_t));
 
     result = SMCCall(conn, KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
     if (result != kIOReturnSuccess) {
@@ -162,19 +183,30 @@ static float smcFltToF(const unsigned char *b) {
     return u.f;
 }
 
+// Width in bytes each temperature encoding needs from the SMC payload.
+#define DATASIZE_SP78 2
+#define DATASIZE_FLT  4
+
 // SMCGetTemperature returns the key's value in °C, or 0.0 if the key does not
 // exist, is not temperature-shaped, or the read fails. Missing keys are not
 // reported as errors, so callers must range-filter the result.
+//
+// dataSize is reported by the kernel and is checked against the width the
+// decoder actually consumes: a key whose type says sp78/flt but whose payload
+// is shorter would otherwise be decoded out of zero padding.
 static double SMCGetTemperature(io_connect_t conn, const char *key) {
     SMCVal_t val;
     kern_return_t result = SMCReadKey(conn, key, &val);
-    if (result == kIOReturnSuccess && val.dataSize > 0) {
-        if (strcmp(val.dataType, DATATYPE_SP78) == 0) {
-            int intValue = ((unsigned char)val.bytes[0] * 256 + (unsigned char)val.bytes[1]) >> 2;
-            return intValue / 64.0;
-        } else if (strcmp(val.dataType, DATATYPE_FLT) == 0) {
-            return (double)smcFltToF((unsigned char *)val.bytes);
-        }
+    if (result != kIOReturnSuccess) {
+        return 0.0;
+    }
+
+    if (strcmp(val.dataType, DATATYPE_SP78) == 0 && val.dataSize >= DATASIZE_SP78) {
+        int intValue = ((unsigned char)val.bytes[0] * 256 + (unsigned char)val.bytes[1]) >> 2;
+        return intValue / 64.0;
+    }
+    if (strcmp(val.dataType, DATATYPE_FLT) == 0 && val.dataSize >= DATASIZE_FLT) {
+        return (double)smcFltToF((unsigned char *)val.bytes);
     }
     return 0.0;
 }
@@ -292,14 +324,24 @@ static OptionalFloat smcMaxOfKeysInRange(const char **keys, int keyCount, double
 // Thermal pressure level, via the Darwin notification API.
 // ---------------------------------------------------------------------
 
-// getThermalPressureLevel returns the raw thermal pressure level (0=Nominal,
-// 1=Moderate, 2=Heavy, 3=Trapping, 4=Sleeping) from the private
-// "com.apple.system.thermalpressurelevel" notification, or {false, 0} if
-// registration or the state lookup failed.
+// getThermalPressureLevel returns the raw thermal pressure level from the
+// private "com.apple.system.thermalpressurelevel" notification, or {false, 0}
+// if registration or the state lookup failed.
+//
+// Values are the OSThermalPressureLevel enum from
+// <libkern/OSThermalNotification.h>:
+//
+//   Value | Constant | Meaning                      | Expected app response
+//   ------+----------+------------------------------+-------------------------------------
+//   0     | Nominal  | No thermal constraint.       | None.
+//   1     | Moderate | Mild pressure.               | Defer non-user-visible work.
+//   2     | Heavy    | Substantial pressure.        | Reduce CPU/GPU/IO, drop frame rates.
+//   3     | Trapping | Severe, OS trapping heat.    | Only work needed to stay responsive.
+//   4     | Sleeping | Terminal, forced sleep near. | Save state.
 static OptionalInt getThermalPressureLevel(void) {
     OptionalInt result = { false, 0 };
 
-    int token;
+    int token = NOTIFY_TOKEN_INVALID;
     if (notify_register_check("com.apple.system.thermalpressurelevel", &token) != NOTIFY_STATUS_OK) {
         return result;
     }
