@@ -95,7 +95,6 @@ dd_agent_go_test(
         "resources/dotnet/index.aspx",
         "resources/dotnet/web.config",
     ],
-    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/activedirectory",
