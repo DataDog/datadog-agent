@@ -54,7 +54,13 @@ _LIB_DEPS = [
     "@crates//:tonic-prost",
     "@crates//:tower",
     "@crates//:uuid",
-]
+] + select({
+    "@platforms//os:windows": [
+        "@crates//:windows-registry",
+        "@crates//:windows-sys",
+    ],
+    "//conditions:default": [],
+})
 
 rust_library(
     name = "par-control-lib",
