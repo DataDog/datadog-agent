@@ -137,6 +137,12 @@ func TestFabricInfoToTags(t *testing.T) {
 	}
 }
 
+func TestFabricClusterUUIDFromNVMLInfo(t *testing.T) {
+	clusterUUID := [16]uint8{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+
+	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", fabricClusterUUIDFromNVMLInfo(clusterUUID))
+}
+
 func TestPCIBusIDFromNVMLInfo(t *testing.T) {
 	tests := []struct {
 		name     string
