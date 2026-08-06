@@ -174,7 +174,12 @@ static double SMCGetTemperature(const char *key) {
     return 0.0;
 }
 
-// cpuSMCKeys are the per-chip-generation Apple Silicon CPU SMC keys.
+// cpuSMCKeys are the CPU SMC keys for every supported Mac. Apple Silicon and
+// Intel keys are probed unconditionally: a key absent on the running machine
+// reads as 0.0 and is dropped by the range filter in smcMaxOfKeysInRange, so
+// each family is inert on the other architecture.
+//
+// SMC keys are case-sensitive: Tg0D and TG0D are different sensors.
 static const char *cpuSMCKeys[] = {
     // M1 efficiency cores
     "Tp09", "Tp0T",
@@ -196,10 +201,20 @@ static const char *cpuSMCKeys[] = {
     // M4
     "Te09", "Te0H",
     "Tp0V", "Tp0Y", "Tp0e",
+    // Intel: package/die/proximity. Distinct from the Apple Silicon
+    // "Tp"/"Te"/"Tf" keys and from the TC10-TC53 cluster keys above.
+    "TC0D", "TC0E", "TC0F", "TC0H", "TC0P",
+    "TCAD", "TCXC",
+    // Intel: per-core die temperatures.
+    "TC0C", "TC1C", "TC2C", "TC3C", "TC4C", "TC5C", "TC6C", "TC7C",
 };
 static const int cpuSMCKeysCount = sizeof(cpuSMCKeys) / sizeof(cpuSMCKeys[0]);
 
-// gpuSMCKeys are the per-chip-generation Apple Silicon GPU SMC keys.
+// gpuSMCKeys are the GPU SMC keys for every supported Mac, probed
+// unconditionally for the same reason as cpuSMCKeys.
+//
+// A key reused across chip generations is listed once, under the first
+// generation that uses it, and the later group notes the reuse.
 static const char *gpuSMCKeys[] = {
     // M5
     "Tg0U", "Tg0X", "Tg0d", "Tg0g", "Tg0j", "Tg1Y", "Tg1c", "Tg1g",
@@ -207,12 +222,18 @@ static const char *gpuSMCKeys[] = {
     "Tg0G", "Tg0H", "Tg1U", "Tg1k", "Tg0K", "Tg0L", "Tg0e", "Tg0k",
     // M3
     "Tf14", "Tf18", "Tf19", "Tf1A", "Tf24", "Tf28", "Tf29", "Tf2A",
-    // M2
-    "Tg0f", "Tg0j",
-    // M1/M2 Pro/Max/Ultra
-    "Tg04", "Tg0C", "Tg0K", "Tg0S",
-    // M1
-    "Tg05", "Tg0D", "Tg0L", "Tg0T",
+    // M2 (also uses Tg0j, listed under M5)
+    "Tg0f",
+    // M1/M2 Pro/Max/Ultra (also uses Tg0K, listed under M4)
+    "Tg04", "Tg0C", "Tg0S",
+    // M1 (also uses Tg0L, listed under M4)
+    "Tg05", "Tg0D", "Tg0T",
+    // Intel discrete GPU: die/proximity/heatsink for up to two GPUs. Uppercase
+    // "TG", distinct from the lowercase "Tg" Apple Silicon keys above.
+    "TG0D", "TG0H", "TG0P", "TG1D", "TG1H", "TG1P",
+    // Intel integrated graphics, reported on the CPU package. Covers Intel
+    // Macs with no discrete GPU, where the TG* keys are absent.
+    "TCGC",
 };
 static const int gpuSMCKeysCount = sizeof(gpuSMCKeys) / sizeof(gpuSMCKeys[0]);
 
