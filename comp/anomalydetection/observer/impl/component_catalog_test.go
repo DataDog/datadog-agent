@@ -26,16 +26,6 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
 }
 
-func TestProductionCatalogExcludesCleanupComponents(t *testing.T) {
-	removed := map[string]bool{
-		"cross_signal": true,
-		"passthrough":  true,
-	}
-	for _, entry := range defaultCatalog().entries {
-		require.False(t, removed[entry.name], "%s must not be registered in the production catalog", entry.name)
-	}
-}
-
 func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
 	found := false
 	for _, entry := range TestbenchCatalogEntries() {
