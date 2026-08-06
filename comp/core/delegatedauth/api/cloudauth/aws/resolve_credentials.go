@@ -19,13 +19,36 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// awsCredentials is a resolved AWS credential set. It replaces aws-sdk-go-v2's aws.Credentials,
+// which every leg below now populates by hand: with the last SDK provider gone (see
+// staticProvider and containerProvider) the type carried no SDK behavior, only the SDK's
+// package graph. Field names and semantics are unchanged so the providers read the same.
+type awsCredentials struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string
+
+	// Source names the provider that produced these credentials (ex: DelegatedAuthIMDS). It is
+	// logged so operators can confirm which mechanism was used.
+	Source string
+
+	// CanExpire and Expires carry the expiry reported by the issuing endpoint, where there is one.
+	CanExpire bool
+	Expires   time.Time
+}
+
+// credentialsProvider resolves credentials for one mechanism. It replaces
+// aws-sdk-go-v2's aws.CredentialsProvider, which this package only ever used to hold its own
+// provider implementations behind a common interface.
+type credentialsProvider interface {
+	Retrieve(ctx context.Context) (awsCredentials, error)
+}
 
 // Container credential endpoint and the hosts the SDK allows for an http
 // AWS_CONTAINER_CREDENTIALS_FULL_URI: loopback plus the link-local ECS and EKS Pod Identity
@@ -95,7 +118,7 @@ func (a *AWSAuth) resolveCredentials(ctx context.Context, cfg pkgconfigmodel.Rea
 // resolveCredentialsFrom retrieves and validates credentials from an already-selected provider.
 // Split out from resolveCredentials so the retrieval and validation behavior can be tested against
 // an injected provider without depending on the ambient environment.
-func (a *AWSAuth) resolveCredentialsFrom(ctx context.Context, provider aws.CredentialsProvider, source string) (*creds.SecurityCredentials, error) {
+func (a *AWSAuth) resolveCredentialsFrom(ctx context.Context, provider credentialsProvider, source string) (*creds.SecurityCredentials, error) {
 	// Resolve once per call. Delegated auth re-runs this on each proof generation (startup and
 	// every refresh interval), and the credentials it returns are valid for hours, so no
 	// cross-call caching is needed.
@@ -128,7 +151,7 @@ func (a *AWSAuth) resolveCredentialsFrom(ctx context.Context, provider aws.Crede
 // SDK default-chain precedence: static env vars, then IRSA web identity, then container
 // credentials (ECS / EKS Pod Identity), then EC2 IMDS instance role. It also returns the name of
 // the mechanism it selected, so callers can attribute a failure to the one leg that was tried.
-func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.CredentialsProvider, string, error) {
+func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (credentialsProvider, string, error) {
 	// A half-configured mechanism is skipped rather than treated as an error, so the selection below
 	// silently lands on a lower-precedence source and the proof gets signed as a different principal.
 	// Say so, otherwise the only symptom is telemetry attributed to an unexpected identity.
@@ -140,7 +163,7 @@ func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.Credentials
 
 	switch {
 	case creds.HasAWSCredentialsInEnvironment():
-		return staticProvider{aws.Credentials{
+		return staticProvider{awsCredentials{
 			AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
 			SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
 			SessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
@@ -188,26 +211,26 @@ func (a *AWSAuth) credentialProvider(cfg pkgconfigmodel.Reader) (aws.Credentials
 // staticProvider returns fixed credentials read from the environment. It stands in for
 // credentials.NewStaticCredentialsProvider so that aws-sdk-go-v2/credentials is not linked for a
 // value the caller already has in hand.
-type staticProvider struct{ creds aws.Credentials }
+type staticProvider struct{ creds awsCredentials }
 
 // Retrieve returns the fixed credentials.
-func (p staticProvider) Retrieve(context.Context) (aws.Credentials, error) { return p.creds, nil }
+func (p staticProvider) Retrieve(context.Context) (awsCredentials, error) { return p.creds, nil }
 
 // imdsProvider resolves EC2 instance-role credentials through the Agent's IMDS helper, which
 // applies the Agent's ec2_metadata_timeout and IMDSv2 configuration. It implements
-// aws.CredentialsProvider so it slots into the same resolution path as the other providers. fetch
+// credentialsProvider so it slots into the same resolution path as the other providers. fetch
 // is creds.GetSecurityCredentials in production and is injected in tests.
 type imdsProvider struct {
 	fetch func(ctx context.Context) (*creds.SecurityCredentials, error)
 }
 
-// Retrieve fetches the instance-role credentials and maps them to aws.Credentials.
-func (p imdsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+// Retrieve fetches the instance-role credentials and maps them to awsCredentials.
+func (p imdsProvider) Retrieve(ctx context.Context) (awsCredentials, error) {
 	c, err := p.fetch(ctx)
 	if err != nil {
-		return aws.Credentials{}, err
+		return awsCredentials{}, err
 	}
-	return aws.Credentials{
+	return awsCredentials{
 		AccessKeyID:     c.AccessKeyID,
 		SecretAccessKey: c.SecretAccessKey,
 		SessionToken:    c.Token,
@@ -233,7 +256,7 @@ func (a *AWSAuth) resolveRegion() string {
 }
 
 // webIdentityProvider retrieves credentials via STS AssumeRoleWithWebIdentity using the projected
-// web-identity token (IRSA / EKS). It implements aws.CredentialsProvider. The call is
+// web-identity token (IRSA / EKS). It implements credentialsProvider. The call is
 // unauthenticated apart from the token, so unlike the GetCallerIdentity proof it needs no SigV4
 // signing; we POST the query-API form and parse the XML response.
 type webIdentityProvider struct {
@@ -257,13 +280,13 @@ type assumeRoleWithWebIdentityResponse struct {
 }
 
 // Retrieve exchanges the web-identity token for temporary credentials.
-func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+func (p *webIdentityProvider) Retrieve(ctx context.Context) (awsCredentials, error) {
 	if p.roleARN == "" || p.tokenFile == "" {
-		return aws.Credentials{}, errors.New("AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE must be set")
+		return awsCredentials{}, errors.New("AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE must be set")
 	}
 	token, err := os.ReadFile(p.tokenFile)
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("read token file %s: %w", p.tokenFile, err)
+		return awsCredentials{}, fmt.Errorf("read token file %s: %w", p.tokenFile, err)
 	}
 
 	form := url.Values{
@@ -275,34 +298,34 @@ func (p *webIdentityProvider) Retrieve(ctx context.Context) (aws.Credentials, er
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.stsURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("build STS request: %w", err)
+		return awsCredentials{}, fmt.Errorf("build STS request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("STS request failed: %w", err)
+		return awsCredentials{}, fmt.Errorf("STS request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSTSResponseBytes))
 	if err != nil {
-		return aws.Credentials{}, fmt.Errorf("read STS response: %w", err)
+		return awsCredentials{}, fmt.Errorf("read STS response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return aws.Credentials{}, fmt.Errorf("STS returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return awsCredentials{}, fmt.Errorf("STS returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var parsed assumeRoleWithWebIdentityResponse
 	if err := xml.Unmarshal(body, &parsed); err != nil {
-		return aws.Credentials{}, fmt.Errorf("parse STS response: %w", err)
+		return awsCredentials{}, fmt.Errorf("parse STS response: %w", err)
 	}
 	c := parsed.Result.Credentials
 	if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-		return aws.Credentials{}, errors.New("STS response missing credentials")
+		return awsCredentials{}, errors.New("STS response missing credentials")
 	}
 
-	return aws.Credentials{
+	return awsCredentials{
 		AccessKeyID:     c.AccessKeyID,
 		SecretAccessKey: c.SecretAccessKey,
 		SessionToken:    c.SessionToken,
@@ -347,7 +370,7 @@ func containerCredentialsEndpoint() (string, error) {
 // authorization token from AWS_CONTAINER_AUTHORIZATION_TOKEN or AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.
 // It uses a proxy-less HTTP client (see containerCredentialsHTTPClient) so the local credential
 // request is never routed through an environment proxy.
-func containerCredentialsProvider() (aws.CredentialsProvider, error) {
+func containerCredentialsProvider() (credentialsProvider, error) {
 	endpoint, err := containerCredentialsEndpoint()
 	if err != nil {
 		return nil, err
@@ -401,7 +424,7 @@ type containerProvider struct {
 // trading the hour-long outage for a startup stall: containerCredentialsTimeout is per attempt, so
 // against a wedged endpoint the first attempt alone exhausts the budget and Retrieve returns after
 // one timeout rather than three.
-func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+func (p *containerProvider) Retrieve(ctx context.Context) (awsCredentials, error) {
 	deadline := time.Now().Add(containerCredentialsRetryBudget)
 
 	var lastErr error
@@ -419,27 +442,27 @@ func (p *containerProvider) Retrieve(ctx context.Context) (aws.Credentials, erro
 
 		select {
 		case <-ctx.Done():
-			return aws.Credentials{}, ctx.Err()
+			return awsCredentials{}, ctx.Err()
 		case <-time.After(containerCredentialsRetryDelay):
 		}
 	}
-	return aws.Credentials{}, lastErr
+	return awsCredentials{}, lastErr
 }
 
 // retrieveOnce performs a single fetch. The bool reports whether the failure looks transient, which
 // is the same set credentials/endpointcreds retried through the SDK retryer: connection-level
 // errors, 5xx, and 429. A non-2xx outside that set (ex: 403 from a wrong authorization token) is a
 // configuration problem that retrying cannot fix, and a malformed document is not transient either.
-func (p *containerProvider) retrieveOnce(ctx context.Context) (aws.Credentials, bool, error) {
+func (p *containerProvider) retrieveOnce(ctx context.Context) (awsCredentials, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.endpoint, nil)
 	if err != nil {
-		return aws.Credentials{}, false, fmt.Errorf("build container credentials request: %w", err)
+		return awsCredentials{}, false, fmt.Errorf("build container credentials request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if p.token != nil {
 		token, err := p.token()
 		if err != nil {
-			return aws.Credentials{}, false, err
+			return awsCredentials{}, false, err
 		}
 		req.Header.Set("Authorization", token)
 	}
@@ -447,7 +470,7 @@ func (p *containerProvider) retrieveOnce(ctx context.Context) (aws.Credentials, 
 	resp, err := p.client.Do(req)
 	if err != nil {
 		// Connection refused, DNS, TLS, or the per-attempt timeout: all transient from here.
-		return aws.Credentials{}, true, fmt.Errorf("container credentials request failed: %w", err)
+		return awsCredentials{}, true, fmt.Errorf("container credentials request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -456,14 +479,14 @@ func (p *containerProvider) retrieveOnce(ctx context.Context) (aws.Credentials, 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, containerCredentialsMaxResponseBytes))
 	if err != nil {
 		// A truncated body is usually the connection dropping mid-response.
-		return aws.Credentials{}, true, fmt.Errorf("read container credentials response: %w", err)
+		return awsCredentials{}, true, fmt.Errorf("read container credentials response: %w", err)
 	}
 	// Accept any 2xx, as credentials/endpointcreds does. The endpoint is documented to answer 200,
 	// but matching the reference implementation's range avoids rejecting a valid credential document
 	// over a status code we did not anticipate.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		retryable := resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests
-		return aws.Credentials{}, retryable, fmt.Errorf("container credentials endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return awsCredentials{}, retryable, fmt.Errorf("container credentials endpoint returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var doc struct {
@@ -472,11 +495,11 @@ func (p *containerProvider) retrieveOnce(ctx context.Context) (aws.Credentials, 
 		Token           string `json:"Token"`
 	}
 	if err := json.Unmarshal(body, &doc); err != nil {
-		return aws.Credentials{}, false, fmt.Errorf("parse container credentials response: %w", err)
+		return awsCredentials{}, false, fmt.Errorf("parse container credentials response: %w", err)
 	}
 
 	// Blank fields are caught by resolveCredentialsFrom, which reports them against this source.
-	return aws.Credentials{
+	return awsCredentials{
 		AccessKeyID:     doc.AccessKeyID,
 		SecretAccessKey: doc.SecretAccessKey,
 		SessionToken:    doc.Token,

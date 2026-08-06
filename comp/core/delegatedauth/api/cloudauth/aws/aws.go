@@ -11,18 +11,19 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/smithy-go/aws-http-auth/credentials"
+	"github.com/aws/smithy-go/aws-http-auth/sigv4"
+	v4 "github.com/aws/smithy-go/aws-http-auth/v4"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
@@ -39,9 +40,10 @@ type signingData struct {
 
 const (
 	// orgIDHeader is the header we use to specify the name of the org we request a token for
-	orgIDHeader       = "x-ddog-org-id"
-	contentTypeHeader = "Content-Type"
-	applicationForm   = "application/x-www-form-urlencoded; charset=utf-8"
+	orgIDHeader         = "x-ddog-org-id"
+	contentTypeHeader   = "Content-Type"
+	contentLengthHeader = "Content-Length"
+	applicationForm     = "application/x-www-form-urlencoded; charset=utf-8"
 
 	defaultRegion         = "us-east-1"
 	defaultStsHost        = "sts.amazonaws.com"
@@ -49,6 +51,29 @@ const (
 	service               = "sts"
 	getCallerIdentityBody = "Action=GetCallerIdentity&Version=2011-06-15"
 )
+
+// signingTime returns the timestamp the proof is signed with. It is a variable so
+// TestSignedProofMatchesAWSSDK can pin it and compare the signature to a recorded aws-sdk-go-v2
+// one; production always uses the wall clock.
+var signingTime = func() time.Time { return time.Now().UTC() }
+
+// signedHeaderRules selects which request headers the SigV4 signature covers. aws-http-auth
+// defaults to the minimum set (Host and X-Amz-*), which would leave orgIDHeader unsigned and let
+// the org a proof is for be changed in transit. This mirrors aws-sdk-go-v2's rule instead -- sign
+// every header except the five it excludes -- so the signature covers exactly what it covered
+// before, orgIDHeader included. See TestSignedProofMatchesAWSSDK for the byte-for-byte check.
+type signedHeaderRules struct{}
+
+// IsSigned reports whether a header is included in the signature. It is called with lowercase
+// header names.
+func (signedHeaderRules) IsSigned(header string) bool {
+	switch header {
+	case "authorization", "user-agent", "x-amzn-trace-id", "expect", "transfer-encoding":
+		return false
+	default:
+		return true
+	}
+}
 
 // AWSAuth contains the implementation for the AWS cloud auth
 type AWSAuth struct {
@@ -197,7 +222,10 @@ func (a *AWSAuth) getUserAgent() string {
 	return "datadog-agent/" + version.AgentVersion
 }
 
-func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCredentials *creds.SecurityCredentials) (*signingData, error) {
+// The context is unused: signing is a local computation, and the aws-sdk-go-v2 signer that
+// previously took one did not use it for cancellation either. It is kept in the signature
+// because the caller has one and a future signing step may need it.
+func (a *AWSAuth) generateAwsAuthData(_ context.Context, orgUUID string, awsCredentials *creds.SecurityCredentials) (*signingData, error) {
 	if orgUUID == "" {
 		return nil, errors.New("missing org UUID")
 	}
@@ -211,8 +239,7 @@ func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCr
 	bodyBytes := []byte(requestBody)
 
 	// Calculate the payload hash manually
-	payloadHashBytes := sha256.Sum256(bodyBytes)
-	payloadHash := hex.EncodeToString(payloadHashBytes[:])
+	payloadHash := sha256.Sum256(bodyBytes)
 
 	// Create a seekable body reader
 	bodyReader := bytes.NewReader(bodyBytes)
@@ -229,24 +256,37 @@ func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCr
 	req.Header.Set("User-Agent", a.getUserAgent())
 	req.ContentLength = int64(len(bodyBytes))
 	req.Host = host
+	// Content-Length has to be in the header map for the signer to cover it: aws-sdk-go-v2
+	// synthesized the canonical entry from req.ContentLength, this signer reads only the map, and
+	// omitting content-length would change the signature. It is removed again after signing, below.
+	req.Header.Set(contentLengthHeader, strconv.Itoa(len(bodyBytes)))
 
-	// Create AWS credentials from our EC2 credentials
-	awsCreds := aws.Credentials{
-		AccessKeyID:     awsCredentials.AccessKeyID,
-		SecretAccessKey: awsCredentials.SecretAccessKey,
-		SessionToken:    awsCredentials.Token,
-	}
-
-	// Create the v4 signer
-	signer := v4.NewSigner()
-
-	// Sign the request
-	// The orgIDHeader is already set on the request, so it will be included in the signature
-	now := time.Now().UTC()
-	err = signer.SignHTTP(ctx, awsCreds, req, payloadHash, service, region, now)
+	// Sign the request. The orgIDHeader is already set on the request, and signedHeaderRules
+	// signs it, so the org this proof is for is covered by the signature and cannot be swapped
+	// in transit.
+	now := signingTime()
+	signer := sigv4.New(func(o *v4.SignerOptions) { o.HeaderRules = signedHeaderRules{} })
+	err = signer.SignRequest(&sigv4.SignRequestInput{
+		Request:     req,
+		PayloadHash: payloadHash[:],
+		Credentials: credentials.Credentials{
+			AccessKeyID:     awsCredentials.AccessKeyID,
+			SecretAccessKey: awsCredentials.SecretAccessKey,
+			SessionToken:    awsCredentials.Token,
+		},
+		Service: service,
+		Region:  region,
+		Time:    now,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign request: %w", err)
 	}
+
+	// Signed but not carried in the proof. aws-sdk-go-v2 covered content-length in the signature
+	// without ever putting it in the header map, so the backend already reconstructs it when it
+	// replays the request. Leaving it set would add a key to the proof's header blob, changing the
+	// payload the backend parses for no benefit.
+	req.Header.Del(contentLengthHeader)
 
 	// Extract headers from the signed request
 	headerMap := make(map[string][]string)

@@ -2818,6 +2818,8 @@ github.com/aws/karpenter-provider-aws v1.9.0 h1:JER51ivJqzz4FeAuRpA5ozEUEmJhHpyq
 github.com/aws/karpenter-provider-aws v1.9.0/go.mod h1:luLmzj7d9IhXS9O4OuO44QYySzKwkZc0TFb8yGHxfyw=
 github.com/aws/smithy-go v1.27.6 h1:0zjT8jgK3jbrTT7JJ3EE6JsMhX8JTrZ+f1sEndYDXrA=
 github.com/aws/smithy-go v1.27.6/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=
+github.com/aws/smithy-go/aws-http-auth v1.2.1 h1:uRP2q0BGnhpE1/8iriH3yHVMCg6nhFNaVCDvKYPQVmQ=
+github.com/aws/smithy-go/aws-http-auth v1.2.1/go.mod h1:KL46VTjVK9De3jurMqDLBkXCP9vrAvD03zQrmyzyrQ0=
 github.com/awslabs/amazon-eks-ami/nodeadm v0.0.0-20240229193347-cfab22a10647 h1:8yRBVsjGmI7qQsPWtIrbWP+XfwHO9Wq7gdLVzjqiZFs=
 github.com/awslabs/amazon-eks-ami/nodeadm v0.0.0-20240229193347-cfab22a10647/go.mod h1:9NafTAUHL0FlMeL6Cu5PXnMZ1q/LnC9X2emLXHsVbM8=
 github.com/awslabs/operatorpkg v0.0.0-20251222193911-34e9a1898737 h1:hF8FFDPnboX/ABn1r8oS77t8tG4TVS8i99iPXMaL8Jk=
