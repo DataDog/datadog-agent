@@ -18,6 +18,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
@@ -36,6 +37,7 @@ type domainForwarder struct {
 	config                  config.Component
 	log                     log.Component
 	secrets                 secrets.Component
+	delegatedAuth           delegatedauth.Component
 	isRetrying              *atomic.Bool
 	domain                  string
 	isMRF                   bool
@@ -60,6 +62,7 @@ func newDomainForwarder(
 	config config.Component,
 	log log.Component,
 	secrets secrets.Component,
+	delegatedAuth delegatedauth.Component,
 	domain string,
 	mrf bool,
 	isLocal bool,
@@ -72,6 +75,7 @@ func newDomainForwarder(
 		config:                  config,
 		log:                     log,
 		secrets:                 secrets,
+		delegatedAuth:           delegatedAuth,
 		isRetrying:              atomic.NewBool(false),
 		isMRF:                   mrf,
 		isLocal:                 isLocal,
@@ -224,7 +228,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
+		w := NewWorker(f.config, f.log, f.secrets, f.delegatedAuth, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -374,7 +378,7 @@ func (f *domainForwarder) sendHTTPTransactionDirect(ctx context.Context, t *tran
 		}
 	}
 
-	if err := t.Process(ctx, f.config, f.log, f.secrets, f.Client.GetClient(), f.pointCountTelemetry); err != nil {
+	if err := t.Process(ctx, f.config, f.log, f.secrets, f.delegatedAuth, f.Client.GetClient(), f.pointCountTelemetry); err != nil {
 		f.blockedList.close(target, time.Now())
 		return err
 	}

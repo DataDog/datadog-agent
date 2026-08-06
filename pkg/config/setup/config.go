@@ -842,6 +842,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 				APIKeyConfigKey:                  fmt.Sprintf("%s[%d][%s]", configKey, index, directive.orgUUID),
 				TargetSite:                       targetSite,
 				AdditionalEndpointsListConfigKey: configKey,
+				ListEntryIndex:                   index,
 				AdditionalEndpointDirective:      valStr,
 				FallbackAPIKey:                   resolveFallbackAPIKey(secretResolver, directive.params["fallback"], configKey),
 			})

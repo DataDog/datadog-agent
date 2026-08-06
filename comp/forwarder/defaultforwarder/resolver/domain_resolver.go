@@ -409,6 +409,23 @@ func (r *domainResolver) IsUsable() bool {
 	return r.IsLocal() || len(r.dedupedAPIKeys) > 0 || r.hasPendingDelegatedAuth
 }
 
+// HasPendingDelegatedAuth reports whether the API key at apiKeyIdx (an index into GetAPIKeys(), the
+// same indexing transaction.HTTPTransaction.APIKeyIndex and Authorize use) is still a DELA(...)
+// placeholder awaiting resolution. Checked per key rather than once for the whole domain, since a
+// domain can mix a static key with a DELA-managed one and a 403 on the static key's index must not
+// be treated as transient just because another key on the domain is still pending.
+func (r *domainResolver) HasPendingDelegatedAuth(apiKeyIdx uint) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.hasPendingDelegatedAuth {
+		return false
+	}
+	if apiKeyIdx >= uint(len(r.dedupedAPIKeys)) {
+		return false
+	}
+	return utils.IsDelaDirective(r.dedupedAPIKeys[apiKeyIdx])
+}
+
 // IsLocal returns true if the domain corresponds to another agent.
 func (r *domainResolver) IsLocal() bool {
 	return r.destinationType == Local

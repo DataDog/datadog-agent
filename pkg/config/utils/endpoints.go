@@ -88,6 +88,39 @@ func IsDelaDirective(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
 }
 
+// delaPlaceholderSentinel is the placeholder kept for a DELA(...) directive that doesn't even
+// have a parseable org_uuid/provider pair. It carries no information from the original directive
+// text, so it can never leak a parameter value regardless of what characters that value contains.
+const delaPlaceholderSentinel = "DELA(unresolved)"
+
+// sanitizeDelaPlaceholder rebuilds a DELA(...) placeholder from only the org_uuid and provider
+// fields, dropping every other parameter (including fallback=...) so no secret value can survive
+// into the placeholder regardless of what characters it contains.
+func sanitizeDelaPlaceholder(directive string) string {
+	rest, ok := strings.CutPrefix(directive, delaDirectivePrefix)
+	if !ok {
+		return delaPlaceholderSentinel
+	}
+	// Truncate at the first ')' so a fallback value's own ')' (and everything after it) is
+	// discarded rather than inspected.
+	if idx := strings.IndexByte(rest, ')'); idx >= 0 {
+		rest = rest[:idx]
+	}
+
+	fields := strings.SplitN(rest, ",", 3)
+	if len(fields) < 2 {
+		return delaPlaceholderSentinel
+	}
+
+	orgUUID := strings.TrimSpace(fields[0])
+	provider := strings.TrimSpace(fields[1])
+	if orgUUID == "" || provider == "" {
+		return delaPlaceholderSentinel
+	}
+
+	return fmt.Sprintf("%s%s, %s)", delaDirectivePrefix, orgUUID, provider)
+}
+
 // MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
 // a map of domain to Endpoint structs.
 func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIKeys {
@@ -108,9 +141,14 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 			}
 			if IsDelaDirective(trimmedAPIKey) {
 				// Not a real API key (yet) - the delegatedauth component resolves this
-				// asynchronously and writes the real key into this same config slot.
+				// asynchronously and writes the real key into this same config slot. Keep a
+				// sanitized placeholder (see sanitizeDelaPlaceholder) as the key rather than
+				// dropping it, so the domain still gets a transaction/authorizer and can 403 (and
+				// retry) instead of being silently starved of keys until resolution. The original
+				// directive text is never kept verbatim since it may carry a fallback=<api_key>
+				// secret.
 				hasPendingDelegatedAuth = true
-				continue
+				trimmedAPIKey = sanitizeDelaPlaceholder(trimmedAPIKey)
 			}
 			trimmed = append(trimmed, trimmedAPIKey)
 		}

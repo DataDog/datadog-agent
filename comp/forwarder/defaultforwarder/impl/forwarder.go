@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -23,11 +24,12 @@ import (
 )
 
 type dependencies struct {
-	Config  config.Component
-	Log     log.Component
-	Lc      compdef.Lifecycle
-	Params  defaultforwarderdef.Params
-	Secrets secrets.Component
+	Config        config.Component
+	Log           log.Component
+	Lc            compdef.Lifecycle
+	Params        defaultforwarderdef.Params
+	Secrets       secrets.Component
+	DelegatedAuth delegatedauth.Component
 }
 
 type provides struct {
@@ -36,7 +38,7 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) (provides, error) {
-	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets)
+	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets, dep.DelegatedAuth)
 	if err != nil {
 		return provides{}, err
 	}
@@ -44,13 +46,14 @@ func newForwarder(dep dependencies) (provides, error) {
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
+func createOptions(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component, delegatedAuth delegatedauth.Component) (*Options, error) {
 	var options *Options
 	endpoints, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
+	markPendingDelegatedAuthDomains(endpoints, config, delegatedAuth)
 
 	if !params.Resolver() {
 		options, err = NewOptionsWithOPW(config, log, endpoints)
@@ -71,8 +74,9 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 	if disableAPIKeyChecking, ok := disableOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
 	}
-	// set the secrets component from the dependencies
+	// set the secrets and delegated-auth components from the dependencies
 	options.Secrets = secrets
+	options.DelegatedAuth = delegatedAuth
 	options.SetEnabledFeatures(params.EnabledFeatures())
 
 	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
@@ -84,6 +88,30 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 		log.Infof("domain '%s' has %d keys: %s", resolver.GetBaseDomain(), len(scrubbedKeys), strings.Join(scrubbedKeys, ", "))
 	}
 	return options, nil
+}
+
+// markPendingDelegatedAuthDomains overwrites HasPendingDelegatedAuth for each domain with
+// delegatedAuth.IsManaged's result. GetMultipleEndpoints only guesses from a literal DELA(...)
+// prefix, which stays true even for a directive that was rejected as malformed/unsupported and
+// never registered - IsManaged is needed as the source of truth so a rejected domain's payloads
+// eventually drop instead of retrying forever. This also covers the primary domain, which
+// GetMultipleEndpoints never marks (it only inspects `additional_endpoints`).
+func markPendingDelegatedAuthDomains(endpoints utils.EndpointDescriptorSet, config config.Component, delegatedAuth delegatedauth.Component) {
+	if delegatedAuth == nil {
+		return
+	}
+	primaryDomain := utils.GetInfraEndpoint(config)
+	for domain, ed := range endpoints {
+		managed := delegatedAuth.IsManaged(delegatedauth.Target{
+			AdditionalEndpointsConfigKey: "additional_endpoints",
+			AdditionalEndpointDomain:     domain,
+		})
+		if !managed && domain == primaryDomain {
+			managed = delegatedAuth.IsManaged(delegatedauth.Target{APIKeyConfigKey: "api_key"})
+		}
+		ed.HasPendingDelegatedAuth = managed
+		endpoints[domain] = ed
+	}
 }
 
 // NewForwarder returns a new forwarder component.
