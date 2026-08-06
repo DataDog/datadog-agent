@@ -76,9 +76,23 @@ impl AgentAccount {
             AgentAccount::LocalService => AccountName::new(NT_AUTHORITY, "LocalService"),
             AgentAccount::NetworkService => AccountName::new(NT_AUTHORITY, "NetworkService"),
             AgentAccount::PasswordLogon { domain, user, .. }
-            | AgentAccount::ServiceAccountLogon { domain, user } => AccountName::new(domain, user),
+            | AgentAccount::ServiceAccountLogon { domain, user } => {
+                account_name_for_logon(domain, user)
+            }
         }
     }
+}
+
+/// Match registry-style local SAM display (`.\user`) when installer stored the computer name as domain.
+fn account_name_for_logon(domain: &str, user: &str) -> AccountName {
+    let display_domain = match lookup_account_sid(domain, user)
+        .ok()
+        .and_then(|sid| is_local_account(&sid).ok())
+    {
+        Some(true) => String::new(),
+        _ => domain.to_string(),
+    };
+    AccountName::new(display_domain, user)
 }
 
 /// Resolve the spawn account display string for a profile on Windows.
@@ -416,6 +430,35 @@ mod tests {
             }
             .display_name(),
             AccountName::new("CORP", "gmsa$").display(),
+        );
+    }
+
+    #[test]
+    fn display_name_normalizes_local_machine_domain() {
+        let username = "Administrator";
+        let sid =
+            match lookup_account_sid(".", username).or_else(|_| lookup_account_sid("", username)) {
+                Ok(sid) => sid,
+                Err(e) => {
+                    eprintln!("skipping: built-in Administrator not available: {e:#}");
+                    return;
+                }
+            };
+        if !is_local_account(&sid).unwrap_or(false) {
+            eprintln!("skipping: Administrator is not a local SAM account on this host");
+            return;
+        }
+
+        let computer = super::super::local_account::computer_name().expect("computer name");
+        assert_eq!(
+            AgentAccount::PasswordLogon {
+                domain: computer,
+                user: username.to_string(),
+                password: "secret".to_string(),
+            }
+            .display_name(),
+            AccountName::new("", username).display(),
+            "installer machine-name domain should display as .\\user for local SAM accounts"
         );
     }
 
