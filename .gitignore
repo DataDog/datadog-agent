@@ -266,3 +266,6 @@ pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
 flake.lock
+
+# NCM local config store (runtime artifact)
+.run/ncm_config.db

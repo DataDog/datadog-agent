@@ -26,6 +26,11 @@ import (
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 )
 
+// minConfigsPerDeviceFloor is the lowest allowed value for the min_configs_per_device
+// setting: at least the two most recent configs (last-known-good and current) must
+// always be retained per device.
+const minConfigsPerDeviceFloor = 2
+
 // Requires defines the dependencies for the networkconfigmanagement component
 type Requires struct {
 	compdef.In
@@ -76,6 +81,16 @@ func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 		} else {
 			reqs.Logger.Debugf("ncm: config rollback enabled; local db is %v", dbPath)
 			reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
+			minConfigsPerDevice := reqs.Config.GetInt("network_devices.config_management.store.min_configs_per_device")
+			if minConfigsPerDevice < minConfigsPerDeviceFloor {
+				reqs.Logger.Warnf("ncm: network_devices.config_management.store.min_configs_per_device=%d is below the minimum of %d, using %d instead", minConfigsPerDevice, minConfigsPerDeviceFloor, minConfigsPerDeviceFloor)
+				minConfigsPerDevice = minConfigsPerDeviceFloor
+			}
+			store.UpdateStoreConfig(
+				minConfigsPerDevice,
+				reqs.Config.GetInt("network_devices.config_management.store.max_configs_per_device"),
+				reqs.Config.GetInt64("network_devices.config_management.store.max_raw_config_store_bytes"),
+			)
 		}
 	}
 
