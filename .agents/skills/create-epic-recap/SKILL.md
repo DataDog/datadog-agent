@@ -1,12 +1,12 @@
 ---
 name: create-epic-recap
-description: "Use when an engineer or manager asks to recap, summarize, or post a Jira Epic resolution: gathers completed child issues, merged GitHub PRs, and release notes, previews a stakeholder-ready recap, and posts only after approval."
+description: "Use when an engineer or manager asks to recap, summarize, or post an update on a Jira Epic — a progress update for an in-progress Epic (how far along it is, what's shipped so far, what's next) or a resolution recap for a finished one. Gathers child-issue progress, merged GitHub PRs, release notes, and Epic/child comments, previews a stakeholder-ready recap, and posts only after approval."
 argument-hint: "<EPIC-KEY e.g. OTAGENT-820> [--dry-run]"
 model: sonnet
 allowed-tools: Bash, Read, Write, Glob, Grep, AskUserQuestion, mcp__atlassian__getJiraIssue, mcp__atlassian__searchJiraIssuesUsingJql, mcp__atlassian__getJiraIssueRemoteIssueLinks, mcp__atlassian__addCommentToJiraIssue, mcp__atlassian__getAccessibleAtlassianResources
 ---
 
-Generate a resolution recap for the Jira Epic **$ARGUMENTS**, aggregating merged GitHub PRs and release notes. Show a preview and post it as a comment on the Epic **only after explicit user approval**. This lets an engineer who has finished an Epic communicate the resolution to PMs and stakeholders without losing flow (motivation: [OTAGENT-1038](https://datadoghq.atlassian.net/browse/OTAGENT-1038)).
+Generate a recap for the Jira Epic **$ARGUMENTS**, aggregating child-issue progress, merged GitHub PRs, and release notes. The recap adapts to the Epic's state: a **progress update** while it's in flight (how far along it is, what's shipped so far, what's next) or a **resolution recap** once it's done — see *Determine the recap mode* in Step 2. Show a preview and post it as a comment on the Epic **only after explicit user approval**. This lets an engineer communicate progress or resolution to PMs and stakeholders without losing flow (motivation: [OTAGENT-1038](https://datadoghq.atlassian.net/browse/OTAGENT-1038)).
 
 **Owning team:** `team/opentelemetry-agent` (`@DataDog/opentelemetry-agent`)
 
@@ -38,16 +38,24 @@ Saved draft to /tmp/OTAGENT-304-recap.md
 
 - **EPIC-KEY** (required, first positional): matches `^[A-Z][A-Z0-9_]+-\d+$`, e.g. `OTAGENT-820`. If missing or malformed, stop and ask the user.
 - `--dry-run` (optional flag): render and preview only, never post.
+- `--mode <resolution|progress>` (optional): override the recap mode. When omitted, Step 2 auto-detects it from the Epic status. Use `progress` for an in-progress Epic (a status update on how far along it is) and `resolution` for a finished Epic.
 
 ## Step 2: Fetch the Epic
 
-Call the **Fetch issue** tool (see `references/runtime-tooling.md`) requesting fields `summary, description, status, issuetype, labels, assignee, reporter`.
+Call the **Fetch issue** tool (see `references/runtime-tooling.md`) requesting fields `summary, description, status, issuetype, labels, assignee, reporter` **and the Epic's comments** (Cursor: `comment_limit: 20`; Claude Code: add `"comment"` to the `fields` array with `responseContentFormat: "markdown"`). See *Reading comments* in `references/runtime-tooling.md`.
 
 Validate:
 - If the issue cannot be found, stop and inform the user.
 - Read the issue type from whichever shape the runtime returns — accept **both** `issuetype.name` (Rovo) **and** `issue_type.name` (some `mcp-atlassian` versions). If the resolved name is not `Epic`, stop and tell the user this skill only works on Epics (suggest `/run-jira` for non-Epics). Do not reject just because one of the two shapes is absent.
 
-Keep `summary`, `description`, `status`, `labels` in memory for rendering.
+**Determine the recap mode** (`epic_mode`), used from here on to shape wording and sections:
+- If `--mode` was passed in Step 1, use it verbatim.
+- Otherwise auto-detect from the Epic's `status.category` (accept `status.statusCategory.key` too): category `Done` → `resolution`; anything else (`indeterminate`/In Progress, `new`/To Do) → `progress`.
+- `resolution` = the Epic is finished, produce a "Resolution recap". `progress` = the Epic is still in flight, produce a "Progress update" (how far along it is, what's shipped so far, what's next).
+
+**Read the Epic comments** you fetched: skim the most recent ones for context that is not in the description or PRs — decisions, scope changes, blockers, and (especially in `progress` mode) status updates on how far along the work is. Capture this as `epic_comment_context` for `{{summary}}` and the progress narrative.
+
+Keep `summary`, `description`, `status`, `labels`, `epic_mode`, and `epic_comment_context` in memory for rendering.
 
 ## Step 3: Fetch child issues
 
@@ -55,14 +63,24 @@ Call the **Search children** tool with the Epic-children JQL (see `references/ru
 
 Collect each child's `key`, `summary`, `status.name`, and `status.category` (accept `status.statusCategory.key` too).
 
-**Filter out unfinished work** — drop children whose status category is `To Do`/`new`/`indeterminate`; keep only `Done` (statuses like `Done`, `Closed`, `Resolved`). Record dropped children in `skipped_children` so you can mention them if asked.
+**Classify children by status category** into three buckets:
+- `done_children` — category `Done` (statuses like `Done`, `Closed`, `Resolved`).
+- `in_progress_children` — category `indeterminate` (In Progress, In Review, etc.).
+- `todo_children` — category `new` (To Do, Backlog, etc.).
+
+Compute progress counts for rendering: `done = len(done_children)`, `total = <count of all children>`, `percent = round(100 * done / total)` (guard against `total == 0`).
+
+- In **`resolution`** mode, PR discovery and the recap body are driven by `done_children`; unfinished items go into `skipped_children` and are only mentioned if asked (as before).
+- In **`progress`** mode, `done_children` still drive PR discovery (merged PRs), while `in_progress_children` and `todo_children` are surfaced in the `Progress` section as remaining work.
+
+**Read comments on the relevant child issues too** — useful context often lives only in task comments, so don't skip them. For each relevant child (in `resolution` mode: `done_children`; in `progress` mode: prioritise `in_progress_children`, then `done_children`), call the **Fetch issue** tool individually with `comment_limit` / `fields:["comment"]` and skim the latest comments. Do **not** request the `comment` field in the bulk *Search children* call (it blows up the response — see *Large responses* / *Reading comments* in `references/runtime-tooling.md`). Bound the work: cap at ~10 issues and the latest ~10 comments each; capture anything material as `child_comment_context`.
 
 An empty list of completed children is fine — some Epics are resolved by PRs that reference the Epic key directly. Continue with just `<EPIC-KEY>` as the search term.
 
 ## Step 4: Find merged PRs
 
 **Read `references/pr-discovery.md` and follow it.** In short:
-- Build the key list `[EPIC-KEY, <completed child keys>]`.
+- Build the key list `[EPIC-KEY, <completed child keys>]`. PR discovery is **merged-only**: even in `progress` mode only `done_children` contribute keys — `in_progress_children`/`todo_children` are represented as remaining work in the `Progress` section, not searched for PRs.
 - **Phase A** (Cursor only): A1 reads Tier 0 PRs from the Jira Development panel; A2 reads merged-PR counts from `customfield_10000` into `jira_pr_counts` for cross-validation. On Claude Code, skip A1 (no dev-status) and use A2 + Phase B only.
 - **Phase B** (both runtimes): `gh search prs` once per key, then classify each hit into Tier 1 (include) / Tier 2 (include) / Tier 3 (opt-in, surfaced in preview) / Tier 4 (cross-ref, drop).
 - Apply the revert/bot drop rules, dedup across phases, and record `tier3_candidates` and `pr_shortfall`.
@@ -141,7 +159,9 @@ Read [recap-template.md](recap-template.md) and substitute each `{{placeholder}}
 |---|---|
 | `{{epic_key}}` | Step 1 |
 | `{{epic_summary}}` | Step 2 |
-| `{{summary}}` | Synthesised 1-2 sentences for PMs. Prefer Epic summary + release-note headlines; if no release notes, combine the Epic summary with the most user-relevant PR titles. |
+| `{{recap_title}}` | Step 2 `epic_mode`: `Resolution recap` (`resolution`) or `Progress update` (`progress`). |
+| `{{summary}}` | Synthesised 1-2 sentences for PMs, informed by `epic_comment_context`. **`resolution`**: what shipped and that the Epic is done — prefer Epic summary + release-note headlines; if no release notes, combine the Epic summary with the most user-relevant PR titles. **`progress`**: where the work stands — what's shipped so far and what's next, leading with the progress count. |
+| `{{progress}}` | **`progress` mode only** (omit the section otherwise). From Step 3: a bold `**<done> of <total> issues complete (<percent>%).**` line, then a `Remaining:` bullet list of `in_progress_children` (label `In progress`) and `todo_children` (label `To do`) as `[<KEY>](<url>) — <summary>`. Fold in status notes from `epic_comment_context` / `child_comment_context` when they explain where things stand. |
 | `{{whats_new}}` | Bullet list of user-facing wins, in order of preference: (1) `features`/`enhancements` release-note prose; (2) `fixes`/`upgrade`/`deprecations` if user-visible; (3) **fallback when release notes are empty**: one bullet per PR from the title (strip the `[OTAGENT-XXX]` prefix, rewrite in user-facing language) + a one-sentence summary of the PR body's `### What does this PR do?`. The fallback is the normal path for `changelog/no-changelog` teams. Drop internal refactors, behaviourless dep bumps, and test-only PRs. |
 | `{{signal_path}}` | Step 7 bullet list, or omit the section if empty |
 | `{{signal_type}}` | Step 7 bullet list, or omit the section if empty |

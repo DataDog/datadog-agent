@@ -22,6 +22,14 @@ This skill runs in **two environments** with different Atlassian MCP servers. De
 - **Cursor** — no `cloudId` needed; `fields` is CSV; has full Jira Development panel access (Tier 0 PRs).
 - **Claude Code** — `cloudId` required on every call; `fields` is a JSON array; **no dev-status endpoint** — Phase A1/Tier 0 is unavailable, all PR URLs come from GitHub search (Phase B).
 
+## Reading comments
+
+Comments carry context that is not in the description or PRs, so this skill reads them on the Epic (Step 2) and on relevant child issues (Step 3).
+
+- **Cursor** — pass `comment_limit: <N>` (e.g. `20`) to `jira_get_issue`; the comments come back on the issue payload.
+- **Claude Code** — add `"comment"` to the `fields` array of `getJiraIssue` and set `responseContentFormat: "markdown"` so the bodies are readable.
+- **Never request the `comment` field in the bulk *Search children* call** — it explodes the response size (see *Large responses*). Fetch comments per issue with individual *Fetch issue* calls instead, and cap how many issues / comments you pull.
+
 ## JQL for Epic children
 
 Use `parent = <EPIC-KEY>` — works on both runtimes and modern Jira hierarchies. Fall back to `"Epic Link" = <EPIC-KEY>` (double quotes exactly as shown) only if `parent =` is rejected on a classic project.
