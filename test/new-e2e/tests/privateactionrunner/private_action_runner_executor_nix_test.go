@@ -116,6 +116,14 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorListeningLogLine, privateActionRunnerLogFile))
+	}, 2*time.Minute, 5*time.Second, "executor log should report listening")
+
+	// Readiness depends on the KeysManager receiving its first AP_RUNNER_KEYS
+	// remote-config update. The backend director's first fetch of a brand-new
+	// product can take well over 2 minutes regardless of the client's poll
+	// interval (observed ~2m10s in CI), so this needs a longer budget than the
+	// other checks in this test.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorReadyLogLine, privateActionRunnerLogFile))
-	}, 2*time.Minute, 5*time.Second, "executor log should report listening and ready")
+	}, 5*time.Minute, 5*time.Second, "executor log should report ready")
 }
