@@ -544,3 +544,68 @@ func TestAsyncHandlerHandleRaceWithMutation(t *testing.T) {
 
 	handler.Flush()
 }
+
+// TestAsyncHandlerWithAttrsSnapshotsMutableAttrsImmediately checks that a KindAny value
+// passed to WithAttrs is snapshotted before WithAttrs returns, so a mutation right after
+// doesn't leak into the logged output.
+func TestAsyncHandlerWithAttrsSnapshotsMutableAttrsImmediately(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	type mutable struct {
+		Field string
+	}
+	obj := &mutable{Field: "before"}
+
+	derivedHandler := handler.WithAttrs([]slog.Attr{slog.Any("obj", obj)})
+
+	obj.Field = "after"
+
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+	require.NoError(t, derivedHandler.Handle(context.Background(), record))
+
+	handler.Flush()
+
+	records := capture.getRecords()
+	require.Len(t, records, 1)
+	attrs := collectAttrs(records[0])
+	require.Len(t, attrs, 1)
+	assert.Equal(t, "obj", attrs[0].Key)
+	assert.Equal(t, slog.KindString, attrs[0].Value.Kind())
+	assert.Equal(t, fmt.Sprint(&mutable{Field: "before"}), attrs[0].Value.String())
+}
+
+// TestAsyncHandlerWithAttrsRaceWithMutation reproduces the same race as
+// TestAsyncHandlerHandleRaceWithMutation, but through the WithAttrs path: a mutable object
+// is bound via WithAttrs and mutated right after, while the background goroutine formats
+// it. Run with -race.
+func TestAsyncHandlerWithAttrsRaceWithMutation(t *testing.T) {
+	inner := NewFormat(func(_ context.Context, r slog.Record) string {
+		var sb strings.Builder
+		r.Attrs(func(a slog.Attr) bool {
+			sb.WriteString(a.Value.String())
+			return true
+		})
+		return sb.String()
+	}, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	type mutable struct {
+		Field string
+	}
+
+	for i := range 1000 {
+		obj := &mutable{Field: "before"}
+		derivedHandler := handler.WithAttrs([]slog.Attr{slog.Any("obj", obj)})
+
+		record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+		require.NoError(t, derivedHandler.Handle(context.Background(), record))
+
+		obj.Field = fmt.Sprintf("after-%d", i)
+	}
+
+	handler.Flush()
+}
