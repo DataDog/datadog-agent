@@ -54,6 +54,9 @@ func (s *NCMStub) ReportConfig(_ context.Context, _ string, _ sender.Sender) err
 func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.TypedError) {
 	return nil, s.GetError()
 }
+func (s *NCMStub) RunCommand(_ context.Context, _, _ string) (*types.CommandResult, types.TypedError) {
+	return nil, s.GetError()
+}
 func (s *NCMStub) SetMaxReportInterval(_ time.Duration) {}
 
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].
