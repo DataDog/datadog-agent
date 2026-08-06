@@ -163,13 +163,12 @@ func (c *IOCheck) Run() error {
 }
 
 func normalizeWindowsDeviceName(deviceName string, lowercase bool) string {
-	// Path-based device names must match the lowercase, forward-slash form used
-	// when metric intake normalizes the same value as a regular tag.
-	if len(deviceName) >= 2 && deviceName[1] == ':' && strings.Contains(deviceName, "\\") {
-		return strings.ToLower(strings.ReplaceAll(deviceName, "\\", "/"))
-	}
+	// Backslashes must never reach the backend: metric intake normalizes the
+	// device resource with \ -> / but tag values with \ -> _, which yields two
+	// device values for the same folder-mounted volume.
+	deviceName = strings.ReplaceAll(deviceName, "\\", "/")
 	if lowercase {
-		return strings.ToLower(deviceName)
+		deviceName = strings.ToLower(deviceName)
 	}
 	return deviceName
 }

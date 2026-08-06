@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    Normalize Windows folder-mounted volume device tags to use lowercase
-    forward-slash paths, preventing duplicate disk and IO metric device tags.
+    Normalize Windows folder-mounted volume device tags to use forward-slash
+    paths, preventing duplicate disk and IO metric device tags.

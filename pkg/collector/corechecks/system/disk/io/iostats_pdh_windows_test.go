@@ -130,9 +130,15 @@ lowercase_device_tag: true
 }
 
 func TestNormalizeWindowsDeviceName(t *testing.T) {
+	// Casing is governed solely by lowercase_device_tag.
 	require.Equal(t, "C:", normalizeWindowsDeviceName("C:", false))
 	require.Equal(t, "c:", normalizeWindowsDeviceName("C:", true))
-	require.Equal(t, "f:/tlog", normalizeWindowsDeviceName(`F:\Tlog`, false))
+	require.Equal(t, "HarddiskVolume1", normalizeWindowsDeviceName("HarddiskVolume1", false))
+
+	// Backslashes are always replaced, whatever the casing option.
+	require.Equal(t, "F:/Tlog", normalizeWindowsDeviceName(`F:\Tlog`, false))
+	require.Equal(t, "f:/tlog", normalizeWindowsDeviceName(`F:\Tlog`, true))
+	require.Equal(t, "?/Volume{123}/", normalizeWindowsDeviceName(`?\Volume{123}\`, false))
 }
 
 func TestIoCheckInstanceAdded(t *testing.T) {
