@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
+	clock "k8s.io/utils/clock/testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -25,6 +28,27 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 )
+
+// TestIsInPlaceResizeSupportedConcurrent reproduces the scenario that raced in
+// production: multiple pod-autoscaler reconcile workers sharing one *verticalController
+// calling isInPlaceResizeSupported() concurrently while its cache is unpopulated/expired.
+// Run with -race.
+func TestIsInPlaceResizeSupportedConcurrent(_ *testing.T) {
+	u := &verticalController{
+		clock:  clock.NewFakeClock(time.Now()),
+		client: k8sfake.NewSimpleClientset(),
+	}
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			u.isInPlaceResizeSupported()
+		}()
+	}
+	wg.Wait()
+}
 
 func TestHasLimitIncrease_Detected(t *testing.T) {
 	cpuLimit1 := float64(50) // 500m

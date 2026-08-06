@@ -44,8 +44,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"darwin":  "${install_path}/bin/agent/agent",
 		"aix":     "${install_path}/bin/agent/agent",
 		"windows": "${install_path}/bin/agent.exe",
-	}),
-		"DD_PROCESS_CONFIG_DD_AGENT_BIN", "DD_PROCESS_AGENT_DD_AGENT_BIN")
+	}), "DD_PROCESS_CONFIG_DD_AGENT_BIN", "DD_PROCESS_AGENT_DD_AGENT_BIN")
 	config.BindEnvAndSetDefault("process_config.custom_sensitive_words", []string{}, "DD_CUSTOM_SENSITIVE_WORDS", "DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS", "DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
 	pkgconfighelper.ParseEnvJSONOrComma("process_config.custom_sensitive_words", config)
 	config.BindEnvAndSetDefault("process_config.scrub_args", true, "DD_SCRUB_ARGS", "DD_PROCESS_CONFIG_SCRUB_ARGS", "DD_PROCESS_AGENT_SCRUB_ARGS")

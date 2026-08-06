@@ -60,9 +60,9 @@ func HandleRCFlareTask(
 		log.Infof("[RemoteFlare] enable_streamlogs is not yet supported for the cluster-agent flare")
 	}
 
-	logFile := cfg.GetString("log_file")
-	if logFile == "" {
-		logFile = defaultpaths.GetDefaultDCALogFile()
+	logFile := defaultpaths.GetDefaultDCALogFile()
+	if cfg.IsConfigured("log_file") {
+		logFile = cfg.GetString("log_file")
 	}
 
 	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, flareArgs, statusComp, diagnoseComp, ipcComp)

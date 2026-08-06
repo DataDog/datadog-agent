@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -45,20 +46,28 @@ func Fail(stderr string, exit uint32) FakeResponse {
 
 func FakeData(data map[string]FakeResponse) ShellFunc {
 	return func(shell *ShellContext) uint32 {
-		resp, ok := data[shell.command]
-		if !ok {
-			resp = FakeResponse{
-				Stderr:     fmt.Sprintf("unknown command: %s\n", shell.command),
-				ExitStatus: 127,
+		var exitStatus uint32
+		for _, command := range strings.Split(shell.command, "\n") {
+			command = strings.TrimSpace(command)
+			if command == "" {
+				continue
 			}
+			resp, ok := data[command]
+			if !ok {
+				resp = FakeResponse{
+					Stderr:     fmt.Sprintf("unknown command: %s\n", command),
+					ExitStatus: 127,
+				}
+			}
+			if resp.Stdout != "" {
+				_, _ = io.WriteString(shell.stdout, resp.Stdout)
+			}
+			if resp.Stderr != "" {
+				_, _ = io.WriteString(shell.stderr, resp.Stderr)
+			}
+			exitStatus = resp.ExitStatus
 		}
-		if resp.Stdout != "" {
-			_, _ = io.WriteString(shell.stdout, resp.Stdout)
-		}
-		if resp.Stderr != "" {
-			_, _ = io.WriteString(shell.stderr, resp.Stderr)
-		}
-		return resp.ExitStatus
+		return exitStatus
 	}
 }
 

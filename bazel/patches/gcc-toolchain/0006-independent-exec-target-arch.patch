@@ -1,0 +1,89 @@
+From 25e9f409b39cc7d858ecfd7f85489e36ea71fbd8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Tue, 4 Aug 2026 15:40:02 +0200
+Subject: [PATCH] support independent exec/target arch
+
+Cross toolchains (e.g. an aarch64-hosted compiler targeting armv7)
+need exec_compatible_with independent from target_arch.
+---
+ toolchain/defs.bzl              | 23 +++++++++++++++++++----
+ toolchain/module_extensions.bzl |  1 +
+ 2 files changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
+index 4e46f7d..bb031de 100644
+--- a/toolchain/defs.bzl
++++ b/toolchain/defs.bzl
+@@ -107,6 +107,11 @@ def _gcc_toolchain_impl(rctx):
+         for v in rctx.attr.target_settings
+     ]
+
++    exec_compatible_with = [
++        v.format(target_arch = target_arch)
++        for v in rctx.attr.exec_compatible_with
++    ]
++
+     builtin_include_directories = []
+     builtin_include_directories.extend(c_builtin_includes)
+     builtin_include_directories.extend(cxx_builtin_includes)
+@@ -212,6 +217,7 @@ def _gcc_toolchain_impl(rctx):
+         enable_fortran = str(rctx.attr.enable_fortran),
+         target_compatible_with = target_compatible_with,
+         target_settings = target_settings,
++        exec_compatible_with = exec_compatible_with,
+         binary_prefix = binary_prefix,
+         include_prefix = include_prefix,
+
+@@ -370,6 +376,17 @@ _FEATURE_ATTRS = {
+         doc = "contraint_values passed to target_compatible_with of the toolchain. {target_arch} is rendered to the target_arch attribute value.",
+         mandatory = False,
+     ),
++    "exec_compatible_with": attr.string_list(
++        default = [
++            "@platforms//os:linux",
++            "@platforms//cpu:{target_arch}",
++        ],
++        doc = "contraint_values passed to exec_compatible_with of the toolchain. {target_arch} is rendered to the" +
++              " target_arch attribute value. Defaults to matching target_arch (i.e. a native compiler), but must" +
++              " be overridden for genuine cross toolchains whose execution platform differs from target_arch" +
++              " (e.g. an aarch64-hosted compiler targeting armv7).",
++        mandatory = False,
++    ),
+     "target_settings": attr.string_list(
+         default = [],
+         doc = "config_settings passed to target_compatible_with of the toolchain. {target_arch} is rendered to the target_arch attribute value.",
+@@ -393,7 +410,7 @@ gcc_toolchain = repository_rule(
+
+ ATTRS_SHARED_WITH_MODULE_EXTENSION = {
+     attr_name: _FEATURE_ATTRS[attr_name]
+-    for attr_name in ["gcc_version", "gcc_versions", "enable_fortran", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "binary_prefix"]
++    for attr_name in ["gcc_version", "gcc_versions", "enable_fortran", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "binary_prefix", "exec_compatible_with"]
+ }
+
+ def _render_tool_paths(rctx, path_prefix, binary_prefix):
+@@ -549,10 +566,7 @@ package(default_visibility = ["//visibility:public"])
+
+ toolchain(
+     name = "cc_toolchain",
+-    exec_compatible_with = [
+-        "@platforms//os:linux",
+-        "@platforms//cpu:{target_arch}",
+-    ],
++    exec_compatible_with = {exec_compatible_with},
+     target_compatible_with = {target_compatible_with},
+     target_settings = {target_settings},
+     toolchain = ":_cc_toolchain",
+diff --git a/toolchain/module_extensions.bzl b/toolchain/module_extensions.bzl
+index 82e133d..7b30fa3 100644
+--- a/toolchain/module_extensions.bzl
++++ b/toolchain/module_extensions.bzl
+@@ -21,6 +21,7 @@ def _gcc_register_toolchain_module_extension(mctx):
+                 extra_ldflags = declare.extra_ldflags,
+                 extra_fflags = declare.extra_fflags,
+                 binary_prefix = declare.binary_prefix,
++                exec_compatible_with = declare.exec_compatible_with,
+             )
+
+     # Since we know that for each gcc toolchain repository we'll generate the same files, we mark the rule as reproducible.
+--
+2.43.0

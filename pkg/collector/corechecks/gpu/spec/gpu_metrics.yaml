@@ -177,6 +177,54 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  clock.throttle_reasons.hw_power_brake_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled due to an external power brake assertion
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttle_reasons.hw_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled by hardware slowdown
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttle_reasons.hw_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled by hardware thermal slowdown
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   clock.throttle_reasons.none:
     metadata:
       metric_type: gauge
@@ -234,6 +282,24 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttled_while_active:
+    metadata:
+      metric_type: gauge
+      description: Whether the GPU clock is throttled for a reason other than the GPU being idle
+      aggregation: sensor_data
+    tagsets:
+      - device
+    custom_tags:
+      - throttle_reason
     validator:
       values: [0, 1]
     support:

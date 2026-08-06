@@ -83,6 +83,7 @@
     <Compile Include="Interfaces\IWindowsService.cs" />
     <Compile Include="Native\FileSystemServices.cs" />
     <Compile Include="Native\Registries.cs" />
+    <Compile Include="Native\SecureDirectory.cs" />
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
     <Compile Include="Native\ServiceController.cs" />
