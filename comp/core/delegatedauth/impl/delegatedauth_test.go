@@ -1368,6 +1368,75 @@ func TestRefreshDoesNotBlockWhenTriggerAlreadyPending(t *testing.T) {
 	}
 }
 
+// erroringProvider always fails auth proof generation, for tests that need a deterministic,
+// network-free way to drive performRefreshAttempt's failure branch.
+type erroringProvider struct{ err error }
+
+func (e erroringProvider) GenerateAuthProof(context.Context, pkgconfigmodel.Reader, *common.AuthConfig) (string, error) {
+	return "", e.err
+}
+
+// TestPerformRefreshAttemptRecordsErrorAndNextRefresh pins the status-tracking fields that
+// startBackgroundRefresh's ticker case used to set inline, before being moved into the shared
+// performRefreshAttempt helper (used by both the ticker and the Refresh()-triggered path). Without
+// this test, removing lastError/nextRefresh from performRefreshAttempt would pass every other test
+// in this file.
+func TestPerformRefreshAttemptRecordsErrorAndNextRefresh(t *testing.T) {
+	wantErr := errors.New("boom")
+	instance := &authInstance{
+		apiKeyConfigKey: "api_key",
+		provider:        erroringProvider{err: wantErr},
+		backoff:         newBackoff(time.Hour),
+		refreshCtx:      context.Background(),
+	}
+	comp := &delegatedAuthComponent{}
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+
+	exit := comp.performRefreshAttempt(instance, ticker)
+
+	require.False(t, exit)
+	assert.Equal(t, 1, instance.consecutiveFailures)
+	require.Error(t, instance.lastError)
+	assert.Contains(t, instance.lastError.Error(), "boom")
+	assert.False(t, instance.nextRefresh.IsZero())
+}
+
+// TestRefreshTriggeredAttemptRecordsErrorAndNextRefresh exercises the actual triggerRefresh path
+// through a real startBackgroundRefresh goroutine (not performRefreshAttempt called directly), to
+// confirm Refresh() reaches it and the same status fields get populated as the ticker path would
+// set. The refresh interval is long enough that the ticker itself cannot fire during the test, so
+// any observed update is attributable only to the manual trigger.
+func TestRefreshTriggeredAttemptRecordsErrorAndNextRefresh(t *testing.T) {
+	wantErr := errors.New("boom")
+	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+	defer refreshCancel()
+	instance := &authInstance{
+		apiKeyConfigKey: "api_key",
+		provider:        erroringProvider{err: wantErr},
+		backoff:         newBackoff(time.Hour),
+		refreshCtx:      refreshCtx,
+		refreshCancel:   refreshCancel,
+		done:            make(chan struct{}),
+		triggerRefresh:  make(chan struct{}, 1),
+	}
+	comp := &delegatedAuthComponent{instances: map[string]*authInstance{"api_key": instance}}
+
+	comp.startBackgroundRefresh(instance)
+	require.True(t, comp.Refresh())
+
+	require.Eventually(t, func() bool {
+		comp.mu.RLock()
+		defer comp.mu.RUnlock()
+		return instance.lastError != nil && !instance.nextRefresh.IsZero()
+	}, time.Second, 5*time.Millisecond)
+
+	comp.mu.RLock()
+	defer comp.mu.RUnlock()
+	assert.Contains(t, instance.lastError.Error(), "boom")
+	assert.Equal(t, 1, instance.consecutiveFailures)
+}
+
 // stubProvider is a common.Provider that reports a fixed credential source, standing in for the
 // AWS provider so the status assertions do not depend on the ambient AWS environment.
 type stubProvider struct {
