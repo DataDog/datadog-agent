@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "usm",
@@ -57,7 +58,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "usm_test",
     srcs = [
         "config_test.go",
@@ -65,10 +66,7 @@ go_test(
         "sysinfo_linux_test.go",
     ],
     embed = [":usm"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
+    gotags_sets = [["linux_bpf"]],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//cmd/system-probe/command",
