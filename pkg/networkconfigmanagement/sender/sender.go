@@ -26,6 +26,7 @@ import (
 const (
 	ncmCheckDurationMetric             = "datadog.ncm.check_duration"
 	ncmCheckIntervalMetric             = "datadog.ncm.check_interval"
+	ncmCheckFailureMetric              = "datadog.ncm.check_failure"
 	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
 	ncmConfigSizeMetric                = "ncm.config_size"
 
@@ -76,6 +77,14 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 		interval := startTime.Sub(lastCheckTime).Seconds()
 		s.Sender.Gauge(ncmCheckIntervalMetric, interval, s.agentHostname, tags)
 	}
+}
+
+// SendNCMCheckFailure sends a count metric indicating that the NCM check
+// failed, tagged with the reason for the failure.
+func (s *NCMSender) SendNCMCheckFailure(errType types.ErrorType) {
+	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
+	tags = append(tags, "error:"+string(errType))
+	s.Sender.Count(ncmCheckFailureMetric, 1, s.agentHostname, tags)
 }
 
 func (s *NCMSender) sendNCMPayloadMetrics(payload ncmreport.NCMPayload) {
