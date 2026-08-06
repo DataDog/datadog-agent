@@ -31,9 +31,6 @@ import (
 type ProcessID uint32
 
 const (
-	// DefaultMinProcessAge is how long a process must have been alive before it
-	// is looked at.
-	DefaultMinProcessAge = time.Second
 	// DefaultRetryBackoffBase is the delay before the second attempt at reading
 	// a process' tracer metadata. It matches the subscriber's scan interval so
 	// that the first retry happens on the next scan.
@@ -81,8 +78,6 @@ const never = ticks(1<<64 - 1)
 //
 // Thread-safety: Scan is not thread-safe, use from a single goroutine only.
 type Scanner struct {
-	// minAge is how long a process must have been alive before it is looked at.
-	minAge ticks
 	// backoffBase and backoffCap bound the delay between two metadata reads for
 	// the same process.
 	backoffBase ticks
@@ -121,14 +116,12 @@ type Scanner struct {
 }
 
 type scannerConfig struct {
-	minProcessAge       time.Duration
 	backoffBase         time.Duration
 	backoffCap          time.Duration
 	executableCacheSize int
 }
 
 var defaultScannerConfig = scannerConfig{
-	minProcessAge:       DefaultMinProcessAge,
 	backoffBase:         DefaultRetryBackoffBase,
 	backoffCap:          DefaultRetryBackoffCap,
 	executableCacheSize: defaultExecutableCacheSize,
@@ -142,12 +135,6 @@ type Option interface {
 type optionFunc func(*scannerConfig)
 
 func (f optionFunc) apply(c *scannerConfig) { f(c) }
-
-// WithMinProcessAge sets how long a process must have been alive before the
-// scanner looks at it.
-func WithMinProcessAge(d time.Duration) Option {
-	return optionFunc(func(c *scannerConfig) { c.minProcessAge = d })
-}
 
 // WithRetryBackoff sets the delay before the first retry of a tracer metadata
 // read and the cap that the doubling delay grows to.
@@ -200,7 +187,6 @@ func newScanner(
 		opt.apply(&cfg)
 	}
 	s := &Scanner{
-		minAge:               durationToTicks(cfg.minProcessAge),
 		backoffBase:          durationToTicks(cfg.backoffBase),
 		backoffCap:           durationToTicks(cfg.backoffCap),
 		nowTicks:             nowTicks,
@@ -308,12 +294,6 @@ func (p *Scanner) Scan() (
 
 		// Skip processes that are already instrumented.
 		if _, ok := noLongerLive.Delete(key); ok {
-			continue
-		}
-
-		// Give the process a moment to prove that it is not about to exit
-		// before we attach probes to it and extract symbols from its binary.
-		if startTime+p.minAge > now {
 			continue
 		}
 

@@ -1,7 +1,6 @@
 # Test discovering multiple processes in one scan.
 - !initialize
   current_time: 0
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 - !create-process
@@ -21,7 +20,6 @@
 ---
 command: !initialize
   current_time: 0
-  min_age: 10
   backoff_base: 10
   backoff_cap: 100
 ---
