@@ -1,3 +1,9 @@
+# linux_bpf tests require a privileged environment, so exclude them from the wildcard
+# while still running the other tag sets of the same packages. --test_tag_filters is
+# last-wins rather than additive, so any config or command line that sets it has to
+# repeat this exclusion.
+test --test_tag_filters=-tagset_linux_bpf
+
 # Go race detector for test invocations. Usage: bazel test --config=gorace //...
 test:gorace --@rules_go//go/config:race
 test:gorace --test_env=GORACE=atexit_sleep_ms=50

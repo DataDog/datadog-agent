@@ -248,14 +248,11 @@ go_library(
 )
 
 # keep
-go_test(
+dd_agent_go_test(
     name = "types_linux_test",
     srcs = ["types_linux_test.go"],
     embed = [":ebpf"],
-    gotags = [
-        "linux_bpf",
-        "test",
-    ],
+    gotags_sets = [["linux_bpf"]],
     # keep
     deps = [
         "//pkg/ebpf/ebpftest:cgo_align",
