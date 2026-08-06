@@ -56,7 +56,16 @@ import (
 
 	"go.uber.org/fx"
 
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/diagnostic"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
@@ -70,6 +79,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -185,6 +195,14 @@ func preloadEarly() {
 	// compile in. Adopting a compressor here is tracked in SVLS-9451.
 	setOverride("serializer_compressor_kind", "none")
 
+	// Disable logs-pipeline compression. The default is use_compression=true with
+	// compression_kind="zstd", but the serverless build tags exclude zstd
+	// (!zstd build constraint active), so NewCompressor("zstd", ...) hits the
+	// selector's default case and logs "invalid compression set" twice (once per
+	// pipeline construction). Disabling compression here silences those errors and
+	// matches the uncompressed-by-default intent of serializer_compressor_kind above.
+	setOverride("logs_config.use_compression", false)
+
 	// Disable UDS listener for the APM receiver — traces are sent via HTTP to
 	// localhost in serverless. Avoids noisy error logs.
 	setOverride("apm_config.receiver_socket", "")
@@ -205,6 +223,7 @@ func preloadEarly() {
 	// hardcodes forceFlushAll=false on ticks, so bucket-aligned flushes during
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
+
 }
 
 // setOverride sets key to val with SourceAgentRuntime priority, logging a
@@ -258,6 +277,15 @@ func main() {
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
+
+	// Use the real gopsutil UUID (DMI product_uuid or random fallback). The
+	// cloud resource_name (a GCP/Azure path string) is not a valid UUID format
+	// and may be rejected by Subotka. The gopsutil UUID is a proper UUID v4
+	// that Subotka accepts. cloudCCRID is still logged in SERVERLESS_DIAGNOSTIC
+	// and sent as a tag for cloud resource linking.
+	log.Debugf("Agent UUID for inventoryagent payload: %s", uuid.GetUUID())
+
+	diagnostic.LogIfEnabled(modeConf, cloudService)
 
 	// Compute tags after the early LoadDatadog so that yaml-configured
 	// `tags` and `extra_tags` (read by configUtils.GetConfiguredTags inside
@@ -335,10 +363,18 @@ func main() {
 		)),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: true}),
 		secretsfx.Module(),
-		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
+		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "trace", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
 		hostnameimpl.Module(),
+		// Inject shared serializer for inventoryagent (not yet a standalone component)
+		fx.Provide(func(d demultiplexer.Component) serializer.MetricSerializer {
+			return d.Serializer()
+		}),
+		ipcfx.ModuleReadWrite(),
+		sysprobeconfig.NoneModule(),
+		metadatarunnerfx.Module(),
+		inventoryagentfx.Module(),
 	)
 
 	if err != nil {
@@ -365,14 +401,26 @@ func run(
 	// (and fires its OnStop flush hook on shutdown); the body no longer calls
 	// into it directly now that flush-on-stop is internal to the component.
 	_ dogstatsdServer.Component,
+	_ runner.Component,
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
+	inventoryAgentComp inventoryagent.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
 		cloudService, tagConfig, metricTags, demux,
 	)
+
+	// Force one inventory payload into the forwarder queue before the wrapped
+	// process starts. This guarantees the payload is queued even on containers
+	// that scale to zero immediately after the workload completes. The forwarder
+	// shutdown drain (forwarder_stop_timeout) then delivers it. Without this
+	// call, the first periodic inventory fires only after firstRunDelay +
+	// MinInterval (~60 s), which is longer than most scale-to-zero windows.
+	if err := inventoryAgentComp.ForceCollect(); err != nil {
+		log.Warnf("serverless-init: initial inventory collection failed: %v", err)
+	}
 
 	err := modeConf.Runner(logConfig)
 
