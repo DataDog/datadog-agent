@@ -9,6 +9,7 @@
 '@datadog/agent-onboarding': AGENTONB
 '@datadog/container-autoscaling': CASCL
 '@datadog/credential-management': WIF
+'@datadog/delegated-auth-login': WIF
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring-core': NDMC
