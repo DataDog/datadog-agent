@@ -129,9 +129,9 @@ fn env_bool(env: EnvLookup<'_>, name: &str, yaml_value: Option<bool>) -> Result<
     let Some(raw) = env_string(env, name, None) else {
         return Ok(yaml_value.unwrap_or(false));
     };
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "true" => Ok(true),
-        "false" => Ok(false),
+    match raw.trim() {
+        "1" | "t" | "T" | "TRUE" | "true" | "True" => Ok(true),
+        "0" | "f" | "F" | "FALSE" | "false" | "False" => Ok(false),
         _ => bail!("invalid boolean value for {name}: {raw:?}"),
     }
 }
@@ -242,8 +242,36 @@ mod tests {
     }
 
     #[test]
+    fn supports_agent_boolean_environment_values() {
+        for (raw, expected) in [
+            ("1", true),
+            ("t", true),
+            ("T", true),
+            ("TRUE", true),
+            ("true", true),
+            ("True", true),
+            ("0", false),
+            ("f", false),
+            ("F", false),
+            ("FALSE", false),
+            ("false", false),
+            ("False", false),
+        ] {
+            let config = parse(
+                "",
+                &[
+                    ("DD_PRIVATE_ACTION_RUNNER_ENABLED", raw),
+                    ("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true"),
+                ],
+            )
+            .unwrap();
+            assert_eq!(config.split_mode, expected, "boolean value {raw:?}");
+        }
+    }
+
+    #[test]
     fn rejects_invalid_boolean_environment_value() {
-        let err = parse("", &[("DD_PRIVATE_ACTION_RUNNER_ENABLED", "1")]).unwrap_err();
+        let err = parse("", &[("DD_PRIVATE_ACTION_RUNNER_ENABLED", "yes")]).unwrap_err();
         assert!(err.to_string().contains("DD_PRIVATE_ACTION_RUNNER_ENABLED"));
     }
 }
