@@ -12,7 +12,7 @@ type EnvLookup<'a> = &'a dyn Fn(&str) -> Option<String>;
 #[derive(Debug)]
 pub struct Config {
     pub enabled: bool,
-    pub log_level: log::Level,
+    pub log_level: log::LevelFilter,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -43,7 +43,7 @@ impl Config {
             enabled,
             log_level: log_level
                 .as_deref()
-                .map_or(log::Level::Info, parse_log_level),
+                .map_or(log::LevelFilter::Info, parse_log_level),
         })
     }
 }
@@ -64,13 +64,14 @@ fn env_bool(env: EnvLookup<'_>, name: &str, yaml_value: Option<bool>) -> Result<
     }
 }
 
-fn parse_log_level(raw: &str) -> log::Level {
+fn parse_log_level(raw: &str) -> log::LevelFilter {
     match raw.trim().to_ascii_lowercase().as_str() {
-        "trace" => log::Level::Trace,
-        "debug" => log::Level::Debug,
-        "warn" => log::Level::Warn,
-        "error" => log::Level::Error,
-        _ => log::Level::Info,
+        "trace" => log::LevelFilter::Trace,
+        "debug" => log::LevelFilter::Debug,
+        "warn" | "warning" => log::LevelFilter::Warn,
+        "error" | "critical" => log::LevelFilter::Error,
+        "off" => log::LevelFilter::Off,
+        _ => log::LevelFilter::Info,
     }
 }
 
@@ -94,7 +95,7 @@ mod tests {
         )
         .unwrap();
         assert!(config.enabled);
-        assert_eq!(config.log_level, log::Level::Debug);
+        assert_eq!(config.log_level, log::LevelFilter::Debug);
     }
 
     #[test]
@@ -108,14 +109,31 @@ mod tests {
         )
         .unwrap();
         assert!(config.enabled);
-        assert_eq!(config.log_level, log::Level::Trace);
+        assert_eq!(config.log_level, log::LevelFilter::Trace);
     }
 
     #[test]
     fn falls_back_to_defaults() {
         let config = parse("", &[]).unwrap();
         assert!(!config.enabled);
-        assert_eq!(config.log_level, log::Level::Info);
+        assert_eq!(config.log_level, log::LevelFilter::Info);
+    }
+
+    #[test]
+    fn supports_agent_log_levels() {
+        for (raw, expected) in [
+            ("trace", log::LevelFilter::Trace),
+            ("debug", log::LevelFilter::Debug),
+            ("info", log::LevelFilter::Info),
+            ("warn", log::LevelFilter::Warn),
+            ("warning", log::LevelFilter::Warn),
+            ("error", log::LevelFilter::Error),
+            ("critical", log::LevelFilter::Error),
+            ("off", log::LevelFilter::Off),
+        ] {
+            let config = parse(&format!("log_level: {raw}\n"), &[]).unwrap();
+            assert_eq!(config.log_level, expected, "log level {raw}");
+        }
     }
 
     #[test]
