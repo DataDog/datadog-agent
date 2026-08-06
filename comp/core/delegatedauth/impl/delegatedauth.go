@@ -49,6 +49,12 @@ const (
 	maxAdditionalEndpointsWriteAttempts = 3
 )
 
+// detectAWSCredentialSource is a seam for tests. The real detection probes IMDS as its last step,
+// which succeeds on an AWS CI runner, so a test asserting the "no credential source" path cannot
+// force a failure through configuration alone. The URLs it probes live in
+// pkg/util/aws/creds/internal, which this package cannot import.
+var detectAWSCredentialSource = creds.DetectAWSCredentialSource
+
 // authInstance holds the state for a single delegated auth configuration (one API key target).
 type authInstance struct {
 	apiKey          *string
@@ -98,6 +104,14 @@ type authInstance struct {
 	// consecutiveFailures tracks failures for status reporting
 	consecutiveFailures int
 
+	// lastRefresh is when this key was last fetched successfully, and nextRefresh when the next
+	// attempt is scheduled. lastError is the most recent failure. All three are for status
+	// reporting only: without lastError the status page can only report a failure count, which
+	// tells an operator that something is broken but not what.
+	lastRefresh time.Time
+	nextRefresh time.Time
+	lastError   error
+
 	// Context and cancellation for background refresh goroutine
 	refreshCtx    context.Context
 	refreshCancel context.CancelFunc
@@ -129,6 +143,10 @@ type delegatedAuthComponent struct {
 	initialized      bool                     // Whether Initialize() has been called
 	providerConfig   common.ProviderConfig    // Resolved provider configuration
 	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
+	// disabledReason explains why no provider was resolved, for status display. Empty when a
+	// provider was resolved. Without it the status page reports only "not enabled", which is
+	// indistinguishable from "never configured".
+	disabledReason string
 
 	// additionalEndpointsMu serializes read-modify-write access to `additional_endpoints` config
 	// values across concurrent instances. Kept separate from mu because config writes happen
@@ -188,21 +206,38 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 	// to avoid blocking during IMDS network calls
 	var detectedConfig common.ProviderConfig
 	var resolvedProvider string
+	var disabledReason string
 
-	// If provider config is explicitly specified, use it
 	if params.ProviderConfig != nil {
+		// If provider config is explicitly specified, use it
 		detectedConfig = params.ProviderConfig
 		resolvedProvider = params.ProviderConfig.ProviderName()
 		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", resolvedProvider)
 	} else {
 		// Auto-detect cloud provider (network I/O happens here, outside any lock)
-		if creds.IsRunningOnAWS(ctx) {
-			log.Info("Auto-detected AWS as cloud provider for delegated auth")
+		source, err := detectAWSCredentialSource(ctx)
+		if err != nil {
+			// No supported cloud provider detected, so delegated auth stays disabled. This is only
+			// reached when the operator asked for delegated auth (AddInstance is only called for a
+			// prefix with org_uuid set), so it is a misconfiguration rather than a normal state:
+			// warn, and record the reason for the status page.
+			disabledReason = fmt.Sprintf("no supported cloud provider detected: %v", err)
+			log.Warnf("Delegated authentication is configured but no supported cloud provider was "+
+				"detected, so it will stay disabled and the Agent will keep using its statically "+
+				"configured API key. %v", err)
+		} else {
+			log.Infof("Auto-detected AWS as cloud provider for delegated auth (credential source: %s)", source)
 
-			// Auto-detect AWS region
+			// A configured delegated_auth.aws.region wins over detection. Setting it must not imply
+			// an explicitly configured provider, or it would suppress the detection above and the
+			// disable reason that goes with it.
 			awsRegion := ""
-			region, err := creds.GetAWSRegion(ctx)
-			if err != nil {
+			if params.Config != nil {
+				awsRegion = params.Config.GetString("delegated_auth.aws.region")
+			}
+			if awsRegion != "" {
+				log.Infof("Using configured AWS region for delegated auth: %s", awsRegion)
+			} else if region, err := creds.GetAWSRegion(ctx); err != nil {
 				log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
 			} else if region != "" {
 				awsRegion = region
@@ -213,11 +248,6 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 				Region: awsRegion,
 			}
 			resolvedProvider = cloudauthconfig.ProviderAWS
-		} else {
-			// No supported cloud provider detected - delegated auth will be disabled
-			log.Debug("No supported cloud provider detected for delegated auth, feature will be disabled")
-			detectedConfig = nil
-			resolvedProvider = ""
 		}
 	}
 
@@ -234,6 +264,7 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 	d.config = params.Config
 	d.providerConfig = detectedConfig
 	d.resolvedProvider = resolvedProvider
+	d.disabledReason = disabledReason
 	d.initialized = true
 
 	return d.providerConfig, nil
@@ -279,13 +310,14 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		return err
 	}
 
-	// If no provider is configured (unsupported cloud or not running in cloud),
-	// skip - the agent will use whatever API key is already configured. For an
-	// additional-endpoints target with a fallback, write that fallback now so dual-shipping still
-	// works with a static key instead of silently shipping nothing; there's no retry here since
-	// cloud-provider detection only runs once, at the first AddInstance call.
+	// If no provider is configured (unsupported cloud or not running in cloud), skip this instance;
+	// the agent will use whatever API key is already configured. initializeIfNeeded already warned
+	// with the detection failure, so this only names the affected key. For an additional-endpoints
+	// target with a fallback, write that fallback now so dual-shipping still works with a static key
+	// instead of silently shipping nothing; there's no retry here since cloud-provider detection only
+	// runs once, at the first AddInstance call.
 	if providerConfig == nil {
-		log.Debugf("Delegated auth not available (no supported cloud provider), skipping configuration for '%s'", params.APIKeyConfigKey)
+		log.Warnf("Delegated auth is not available on this host, so '%s' will keep its statically configured value", params.APIKeyConfigKey)
 		if params.FallbackAPIKey != "" {
 			d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true)
 		}
@@ -379,6 +411,13 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		if params.FallbackAPIKey != "" {
 			d.writeAPIKeyToTarget(instance, params.FallbackAPIKey, true)
 		}
+		// Record the failure so the status page shows it. Without this the instance renders as
+		// "Pending" with no error until the first background refresh, which is a full refresh
+		// interval away, so a startup failure would look identical to a fetch still in flight.
+		d.mu.Lock()
+		instance.consecutiveFailures++
+		instance.lastError = err
+		d.mu.Unlock()
 	} else {
 		// Update the config with the initial API key
 		d.updateConfigWithAPIKey(instance, *apiKey)
@@ -427,6 +466,8 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(ctx context.Context, instan
 	// Now acquire write lock briefly to update state
 	d.mu.Lock()
 	instance.apiKey = apiKey
+	instance.lastRefresh = time.Now()
+	instance.lastError = nil
 	d.mu.Unlock()
 
 	return apiKey, true, nil
@@ -442,6 +483,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 		// Get initial interval with jitter from backoff
 		d.mu.Lock()
 		nextInterval := instance.backoff.NextBackOff()
+		instance.nextRefresh = time.Now().Add(nextInterval)
 		d.mu.Unlock()
 
 		ticker := time.NewTicker(nextInterval)
@@ -492,9 +534,11 @@ func (d *delegatedAuthComponent) performRefreshAttempt(instance *authInstance, t
 
 		// Track failures for status reporting
 		instance.consecutiveFailures++
+		instance.lastError = lErr
 
 		// Get next backoff interval (exponentially increasing with jitter)
 		nextInterval := instance.backoff.NextBackOff()
+		instance.nextRefresh = time.Now().Add(nextInterval)
 		log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
 			instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
 		ticker.Reset(nextInterval)
@@ -507,6 +551,7 @@ func (d *delegatedAuthComponent) performRefreshAttempt(instance *authInstance, t
 		instance.consecutiveFailures = 0
 		instance.backoff.Reset()
 		nextInterval := instance.backoff.NextBackOff()
+		instance.nextRefresh = time.Now().Add(nextInterval)
 
 		// Capture the API key to update config outside the lock
 		if updated && lCreds != nil {
@@ -902,6 +947,12 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 	stats["enabled"] = len(d.instances) > 0
 
 	if len(d.instances) == 0 {
+		// Distinguish "configured but could not start" from "never configured". Detection only runs
+		// when an org_uuid was set, so a reason here means the operator asked for delegated auth and
+		// it could not be brought up.
+		if d.disabledReason != "" {
+			stats["disabledReason"] = d.disabledReason
+		}
 		return
 	}
 
@@ -929,14 +980,37 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 		// Refresh interval
 		instanceInfo["RefreshInterval"] = instance.refreshInterval.String()
 
+		// Refresh timestamps. The status templates have always rendered these when present; before
+		// they were never populated, so the section could not answer "is this key still refreshing".
+		if !instance.lastRefresh.IsZero() {
+			instanceInfo["LastRefresh"] = instance.lastRefresh.Format(time.RFC3339)
+		}
+		if !instance.nextRefresh.IsZero() {
+			instanceInfo["NextRefresh"] = instance.nextRefresh.Format(time.RFC3339)
+		}
+
+		// Which credential mechanism was selected for this key. Reported for failed attempts too,
+		// since "which source did it even try" is the first thing to establish when delegated auth
+		// works on one workload and not another.
+		if reporter, ok := instance.provider.(common.CredentialSourceReporter); ok {
+			if source := reporter.LastCredentialSource(); source != "" {
+				instanceInfo["CredentialSource"] = source
+			}
+		}
+
 		// Additional endpoint domain, if this instance manages a dual-shipping key
 		if instance.additionalEndpointDomain != "" {
 			instanceInfo["AdditionalEndpointDomain"] = instance.additionalEndpointDomain
 		}
 
-		// Add error info if there are consecutive failures
+		// Add error info if there are consecutive failures. The message carries the last error, which
+		// names the credential mechanism that was tried and why it failed.
 		if instance.consecutiveFailures > 0 {
-			instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures", instance.consecutiveFailures)
+			if instance.lastError != nil {
+				instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures, last error: %v", instance.consecutiveFailures, instance.lastError)
+			} else {
+				instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures", instance.consecutiveFailures)
+			}
 		}
 
 		instances[key] = instanceInfo
