@@ -697,7 +697,7 @@ func (h *Host) getProcessesUnitInfo() map[string]ProcessesUnitInfo {
 		info := ProcessesUnitInfo{
 			Name:         e.Name,
 			UUID:         e.UUID,
-			State:        ProcessState(e.State),
+			State:        e.State,
 			PID:          e.PID,
 			Command:      e.Command,
 			Args:         e.Args,
@@ -804,9 +804,6 @@ const (
 	Dead SubState = "dead"
 )
 
-// ProcessState is the state of a process managed by procmgr.
-type ProcessState string
-
 // SystemdUnitInfo is the info of a systemd unit.
 type SystemdUnitInfo struct {
 	Name      string
@@ -820,7 +817,7 @@ type SystemdUnitInfo struct {
 type ProcessesUnitInfo struct {
 	Name         string
 	UUID         string
-	State        ProcessState
+	State        string
 	PID          int
 	Command      string
 	Args         []string
