@@ -16,3 +16,6 @@ features:
               span_derived_primary_tags: [team, region]
 
     Keys absent from both the span and its resource attributes are omitted.
+    Each key must also be configured as a primary tag in your Datadog
+    organization; keys that are not registered as primary tags are dropped by
+    the intake and do not appear on the resulting span metrics.

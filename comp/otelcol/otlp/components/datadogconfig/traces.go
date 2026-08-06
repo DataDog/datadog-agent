@@ -187,8 +187,10 @@ type TracesConnectorConfig struct {
 	// computed by the connector, so that those metrics can be broken down by the tag's value.
 	// Each key is resolved off the span first and, if absent there, off the span's resource; keys
 	// found in neither place are omitted. Unlike peer tags, these are not restricted by span kind.
-	// A high cardinality of values increases the metric volume the connector generates, so prefer
-	// keys with a small, bounded set of values.
+	// Each key must also be configured as a primary tag in your Datadog organization; keys that are
+	// not registered as primary tags are dropped by the intake and do not appear on the resulting
+	// span metrics. A high cardinality of values increases the metric volume the connector
+	// generates, so prefer keys with a small, bounded set of values.
 	SpanDerivedPrimaryTags []string `mapstructure:"span_derived_primary_tags"`
 }
 

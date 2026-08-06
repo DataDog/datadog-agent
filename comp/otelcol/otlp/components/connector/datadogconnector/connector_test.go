@@ -502,10 +502,6 @@ func TestSpanDerivedPrimaryTags(t *testing.T) {
 	cfg.Traces.BucketInterval = time.Second
 	cfg.Traces.SpanDerivedPrimaryTags = []string{"team"}
 
-	if err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true); err != nil {
-		t.Fatal(err)
-	}
-
 	connector, metricsSink := createConnectorCfg(t, cfg)
 	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
 	defer func() {
