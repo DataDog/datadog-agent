@@ -145,6 +145,7 @@ func (m *mutatorCore) buildLibraryInjectionConfig(pod *corev1.Pod, config extrac
 		Debug:                       m.isDebugEnabled(pod),
 		AutoDetected:                autoDetected,
 		InjectionType:               injectionType,
+		CSIAutoRegistries:           m.config.staticConfig.defaultDDRegistries,
 		CSIDriverWatcher:            m.csiDriverWatcher,
 		Injector: libraryinjection.InjectorConfig{
 			Package: injectorImage,

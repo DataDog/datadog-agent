@@ -106,7 +106,7 @@ func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		inputs := OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, nil, nil, obfuscator)
+		inputs := OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, nil, nil, nil, obfuscator)
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)
@@ -156,7 +156,7 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		inputs := OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys, nil)
+		inputs := OTLPTracesToConcentratorInputs(traces, conf, containerTagKeys, nil, nil)
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)
@@ -215,7 +215,7 @@ func benchmarkOTelPeerTags(b *testing.B, initOnce bool) {
 		if !initOnce {
 			peerTagKeys = conf.ConfiguredPeerTags()
 		}
-		inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, peerTagKeys)
+		inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, peerTagKeys, nil)
 		assert.Len(b, inputs, 1)
 		input := inputs[0]
 		concentrator.Add(input)

@@ -9,11 +9,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 )
 
@@ -216,4 +218,52 @@ func TestGenerateAwsAuthDataWithoutToken(t *testing.T) {
 
 	// X-Amz-Security-Token should NOT be present for permanent credentials
 	assert.NotContains(t, headers, "X-Amz-Security-Token")
+}
+
+func TestCredentialRemediationIMDSVersions(t *testing.T) {
+	// The IMDS leg allows v2 when either ec2_prefer_imdsv2 or
+	// ec2_imdsv2_transition_payload_enabled is set (UseIMDSv2 in pkg/util/aws/creds/internal), and
+	// the latter defaults to true. Reporting ec2_prefer_imdsv2 alone told an operator running the
+	// default configuration that v2 was not attempted when it was.
+	tests := []struct {
+		name       string
+		preferV2   bool
+		transition bool
+		want       string
+	}{
+		{name: "defaults attempt v2", preferV2: false, transition: true, want: "v2 then v1"},
+		{name: "prefer_imdsv2 alone", preferV2: true, transition: false, want: "v2 then v1"},
+		{name: "both set", preferV2: true, transition: true, want: "v2 then v1"},
+		{name: "neither set is v1 only", preferV2: false, transition: false, want: "v1 only"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(
+				"ec2_prefer_imdsv2: %t\nec2_imdsv2_transition_payload_enabled: %t\n",
+				tc.preferV2, tc.transition))
+
+			got := credentialRemediation(creds.SourceIMDS, cfg)
+
+			assert.Contains(t, got, "IMDS versions attempted="+tc.want)
+			// The old key must not reappear: it is the config value, not the effective behavior.
+			assert.NotContains(t, got, "ec2_prefer_imdsv2=")
+		})
+	}
+}
+
+func TestCredentialRemediationNamesOnlyTheAttemptedSource(t *testing.T) {
+	// The chain is first-match, so remediation must describe one mechanism. Advising an IRSA pod to
+	// check IMDS reachability sends the operator down a path the Agent never took.
+	cfg := configmock.New(t)
+
+	assert.Contains(t, credentialRemediation(creds.SourceWebIdentity, cfg), "IRSA was used")
+	assert.NotContains(t, credentialRemediation(creds.SourceWebIdentity, cfg), "IMDS")
+
+	assert.Contains(t, credentialRemediation(creds.SourceContainer, cfg), "container credentials were used")
+	assert.NotContains(t, credentialRemediation(creds.SourceContainer, cfg), "IMDS")
+
+	assert.Contains(t, credentialRemediation(creds.SourceEnvironment, cfg), "no other credential source was tried")
+
+	// An unrecognized source must not fall back to IMDS advice.
+	assert.Equal(t, "the credential mechanism could not be determined", credentialRemediation("", cfg))
 }

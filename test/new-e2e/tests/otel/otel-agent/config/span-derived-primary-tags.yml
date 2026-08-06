@@ -1,0 +1,54 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+processors:
+  # Stamp a SPAN-level attribute so the test covers the span-attribute lookup
+  # path in the minimal OTel->DD span conversion. The other configured key
+  # (custom.attribute) is a RESOURCE attribute set by the calendar app, and so
+  # covers the resource-attribute fallback path.
+  attributes/primary-tags:
+    actions:
+      - key: team
+        value: checkout
+        action: insert
+connectors:
+  datadog/connector:
+    traces:
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
+      # Under test: each of these keys is resolved off the span (then its
+      # resource) and attached to the emitted APM stats. k8s.pod.name is
+      # deliberately NOT listed, and is asserted absent as a negative control.
+      span_derived_primary_tags: [team, custom.attribute]
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/primary-tags]
+      exporters: [datadog/connector]
+    traces/send:
+      receivers: [otlp]
+      processors: []
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp, datadog/connector]
+      processors: []
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: []
+      exporters: [datadog]

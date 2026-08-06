@@ -18,9 +18,9 @@ import (
 
 // isolateAWSEnv makes credential resolution hermetic: it clears every AWS credential-source
 // environment variable, neutralizes AWS_PROFILE, and points the shared config/credentials files at
-// a nonexistent path so tests do not pick up the developer or CI machine's AWS configuration. In
-// the ec2 build credentialProvider selects a provider from these env vars, so a stray AWS_ROLE_ARN
-// or container URI on the host would otherwise change which provider is chosen. Tests deliberately
+// a nonexistent path so tests do not pick up the developer or CI machine's AWS configuration.
+// credentialProvider selects a provider from these env vars, so a stray AWS_ROLE_ARN or container
+// URI on the host would otherwise change which provider is chosen. Tests deliberately
 // avoid driving the default IMDS branch through resolveCredentials (which would make a live
 // metadata call, ignoring AWS_EC2_METADATA_DISABLED since the Agent governs IMDS via its own
 // config); they assert provider selection or inject the fetch instead.
@@ -30,6 +30,7 @@ func isolateAWSEnv(t *testing.T) {
 		"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
 		"AWS_PROFILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN",
 		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+		"AWS_CONTAINER_AUTHORIZATION_TOKEN", "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
 		"AWS_REGION", "AWS_DEFAULT_REGION",
 	} {
 		t.Setenv(k, "")
@@ -39,7 +40,7 @@ func isolateAWSEnv(t *testing.T) {
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missing)
 }
 
-// -- Static env var tests (run in both build variants) --
+// -- Static env var tests --
 
 func TestResolveCredentials_StaticEnvVars(t *testing.T) {
 	isolateAWSEnv(t)
@@ -48,7 +49,8 @@ func TestResolveCredentials_StaticEnvVars(t *testing.T) {
 	t.Setenv("AWS_SESSION_TOKEN", "token456")
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got := auth.resolveCredentials(context.Background(), configmock.New(t))
+	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", got.AccessKeyID)
 	assert.Equal(t, "secret123", got.SecretAccessKey)
@@ -61,7 +63,8 @@ func TestResolveCredentials_StaticEnvVars_NoToken(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret123")
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got := auth.resolveCredentials(context.Background(), configmock.New(t))
+	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", got.AccessKeyID)
 	assert.Equal(t, "secret123", got.SecretAccessKey)

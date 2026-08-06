@@ -426,6 +426,7 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.ticker", "10s")
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.workload_deny_list", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.auto_suppression.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.tags_resolver.queue_size", 1000)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_interval", "1m")
