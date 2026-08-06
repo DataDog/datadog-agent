@@ -2151,12 +2151,14 @@ dd_agent_go_test(
     name = "start_test",
     srcs = ["command_test.go"],
     embed = [":start"],
-    # comp/metadata/clusteragent/impl needs the clusterchecks tag, which the
-    # fips flavor's tag set lacks.
-    # keep
-    flavors = [
-        "base",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/cluster-agent/command",

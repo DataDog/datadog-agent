@@ -127,11 +127,7 @@ dd_agent_go_test(
     name = "bomconvert_test",
     srcs = ["convert_test.go"],
     embed = [":bomconvert"],
-    # keep
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [["trivy"]],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
