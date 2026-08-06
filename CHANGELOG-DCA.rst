@@ -102,6 +102,20 @@ Bug Fixes
   Kubernetes subresources under certain custom resource API groups.
 
 
+.. _Release Notes_7.81.3:
+
+7.81.3
+======
+
+.. _Release Notes_7.81.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-30
+Pinned to datadog-agent v7.81.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7813>`_.
+
+
 .. _Release Notes_7.81.2:
 
 7.81.2

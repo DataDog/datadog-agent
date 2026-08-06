@@ -592,6 +592,39 @@ Other Notes
 - Update ``libgcrypt`` to 1.12.2.
 
 
+.. _Release Notes_7.81.3:
+
+7.81.3
+======
+
+.. _Release Notes_7.81.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-30
+
+- Please refer to the `7.81.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7813>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.81.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Windows: Fixed an issue where the ``DDAGENTUSER_KEEP_RIGHTS`` opt-out was
+  not preserved when the Agent was upgraded through Fleet Automation.
+  Fleet-triggered upgrades uninstall and reinstall the Agent MSI as two
+  separate steps, which cleared the stored opt-out before the reinstall
+  could read it back, causing the ``SeDeny*LogonRight`` assignments on the
+  Agent service account to be reapplied even when the customer had
+  previously opted out with ``DDAGENTUSER_KEEP_RIGHTS=1``. In-place MSI
+  upgrades were not affected.
+
+- Fixed an issue where Remote Configuration would sometimes attempt to
+  process client requests that had already timed out.
+
+
 .. _Release Notes_7.81.2:
 
 7.81.2
