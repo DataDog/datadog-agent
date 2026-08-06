@@ -1051,8 +1051,8 @@ network_devices:
 	assert.False(t, conf.Deduplicate)
 }
 
-func Test_EnrichDeviceTagsFromResource(t *testing.T) {
-	// legacy snmp_listener key: enabled by default
+func Test_DeviceTagsSource(t *testing.T) {
+	// legacy snmp_listener key: resource by default
 	configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
@@ -1061,23 +1061,23 @@ snmp_listener:
 
 	conf, err := snmp.NewListenerConfig()
 	assert.NoError(t, err)
-	assert.True(t, conf.EnrichDeviceTagsFromResource)
-	assert.True(t, conf.Configs[0].EnrichDeviceTagsFromResource)
+	assert.Equal(t, "resource", conf.DeviceTagsSource)
+	assert.Equal(t, "resource", conf.Configs[0].DeviceTagsSource)
 
-	// legacy snmp_listener key: opted out
+	// legacy snmp_listener key: set to agent
 	configmock.NewFromYAML(t, `
 snmp_listener:
-  enrich_device_tags_from_resource: false
+  device_tags_source: agent
   configs:
    - network: 127.0.0.1/30
 `)
 
 	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
-	assert.False(t, conf.EnrichDeviceTagsFromResource)
-	assert.False(t, conf.Configs[0].EnrichDeviceTagsFromResource)
+	assert.Equal(t, "agent", conf.DeviceTagsSource)
+	assert.Equal(t, "agent", conf.Configs[0].DeviceTagsSource)
 
-	// network_devices.autodiscovery key: enabled by default
+	// network_devices.autodiscovery key: resource by default
 	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
@@ -1087,23 +1087,23 @@ network_devices:
 
 	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
-	assert.True(t, conf.EnrichDeviceTagsFromResource)
-	assert.True(t, conf.Configs[0].EnrichDeviceTagsFromResource)
+	assert.Equal(t, "resource", conf.DeviceTagsSource)
+	assert.Equal(t, "resource", conf.Configs[0].DeviceTagsSource)
 
-	// network_devices.autodiscovery key: opted out, with a per-config override
+	// network_devices.autodiscovery key: set to agent, with a per-config override
 	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
-    enrich_device_tags_from_resource: false
+    device_tags_source: agent
     configs:
      - network: 127.0.0.1/30
      - network: 127.0.0.2/30
-       enrich_device_tags_from_resource: true
+       device_tags_source: both
 `)
 
 	conf, err = snmp.NewListenerConfig()
 	assert.NoError(t, err)
-	assert.False(t, conf.EnrichDeviceTagsFromResource)
-	assert.False(t, conf.Configs[0].EnrichDeviceTagsFromResource)
-	assert.True(t, conf.Configs[1].EnrichDeviceTagsFromResource)
+	assert.Equal(t, "agent", conf.DeviceTagsSource)
+	assert.Equal(t, "agent", conf.Configs[0].DeviceTagsSource)
+	assert.Equal(t, "both", conf.Configs[1].DeviceTagsSource)
 }

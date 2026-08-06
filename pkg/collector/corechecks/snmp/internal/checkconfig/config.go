@@ -94,14 +94,13 @@ type InitConfig struct {
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
 	CollectVPN            Boolean                           `yaml:"collect_vpn"`
 	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
-	// EnrichDeviceTagsFromResource controls whether device tags are attached to metrics by the
-	// backend (default) or stamped on each metric by the Agent. Only has an effect when
-	// collect_device_metadata is enabled.
-	EnrichDeviceTagsFromResource Boolean                          `yaml:"enrich_device_tags_from_resource"`
-	MinCollectionInterval        int                              `yaml:"min_collection_interval"`
-	Namespace                    string                           `yaml:"namespace"`
-	PingConfig                   snmpintegration.PackedPingConfig `yaml:"ping"`
-	Loader                       string                           `yaml:"loader"`
+	// DeviceTagsSource controls where the device tags on metrics come from: the backend
+	// enrichment (`resource`, default), the Agent (`agent`), or both.
+	DeviceTagsSource      string                           `yaml:"device_tags_source"`
+	MinCollectionInterval int                              `yaml:"min_collection_interval"`
+	Namespace             string                           `yaml:"namespace"`
+	PingConfig            snmpintegration.PackedPingConfig `yaml:"ping"`
+	Loader                string                           `yaml:"loader"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -127,11 +126,11 @@ type InstanceConfig struct {
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
 	CollectVPN            *Boolean                            `yaml:"collect_vpn"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
-	// EnrichDeviceTagsFromResource overrides the init config value for this instance.
-	EnrichDeviceTagsFromResource *Boolean                         `yaml:"enrich_device_tags_from_resource"`
-	PingConfig                   snmpintegration.PackedPingConfig `yaml:"ping"`
-	Loader                       string                           `yaml:"loader"`
-	UseRCProfiles                *Boolean                         `yaml:"use_remote_config_profiles"`
+	// DeviceTagsSource overrides the init config value for this instance.
+	DeviceTagsSource string                           `yaml:"device_tags_source"`
+	PingConfig       snmpintegration.PackedPingConfig `yaml:"ping"`
+	Loader           string                           `yaml:"loader"`
+	UseRCProfiles    *Boolean                         `yaml:"use_remote_config_profiles"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -196,15 +195,15 @@ type CheckConfig struct {
 	CollectTopology       bool
 	CollectVPN            bool
 	UseDeviceIDAsHostname bool
-	// EnrichDeviceTagsFromResource reports whether device tags are left to the backend to attach
-	// (true, default) or stamped on every metric by the Agent (false). Ignored when
-	// CollectDeviceMetadata is false, since there is no metadata payload to enrich from.
-	EnrichDeviceTagsFromResource bool
-	DeviceID                     string
-	DeviceIDTags                 []string
-	ResolvedSubnetName           string
-	Namespace                    string
-	MinCollectionInterval        time.Duration
+	// DeviceTagsSource reports where the device tags on metrics come from. Forced to
+	// `both` when CollectDeviceMetadata is false, since there is no metadata payload to
+	// enrich from and the legacy device tags must be kept on metrics.
+	DeviceTagsSource      snmpintegration.DeviceTagsSource
+	DeviceID              string
+	DeviceIDTags          []string
+	ResolvedSubnetName    string
+	Namespace             string
+	MinCollectionInterval time.Duration
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -295,7 +294,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
 	initConfig.CollectTopology = true
-	initConfig.EnrichDeviceTagsFromResource = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -353,10 +351,19 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.UseDeviceIDAsHostname = bool(initConfig.UseDeviceIDAsHostname)
 	}
 
-	if instance.EnrichDeviceTagsFromResource != nil {
-		c.EnrichDeviceTagsFromResource = bool(*instance.EnrichDeviceTagsFromResource)
-	} else {
-		c.EnrichDeviceTagsFromResource = bool(initConfig.EnrichDeviceTagsFromResource)
+	rawDeviceTagsSource := instance.DeviceTagsSource
+	if rawDeviceTagsSource == "" {
+		rawDeviceTagsSource = initConfig.DeviceTagsSource
+	}
+	deviceTagsSource, sourceErr := snmpintegration.ParseDeviceTagsSource(rawDeviceTagsSource)
+	if sourceErr != nil {
+		log.Warnf("%s", sourceErr)
+	}
+	c.DeviceTagsSource = deviceTagsSource
+	if !c.CollectDeviceMetadata {
+		// Without a metadata payload there is nothing for the backend to enrich from, so the
+		// device tags must stay on the metrics whatever the configured source is.
+		c.DeviceTagsSource = snmpintegration.DeviceTagsSourceBoth
 	}
 
 	if instance.ExtraTags != "" {
@@ -655,7 +662,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.CollectTopology = c.CollectTopology
 	newConfig.CollectVPN = c.CollectVPN
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
-	newConfig.EnrichDeviceTagsFromResource = c.EnrichDeviceTagsFromResource
+	newConfig.DeviceTagsSource = c.DeviceTagsSource
 	newConfig.DeviceID = c.DeviceID
 
 	newConfig.DeviceIDTags = netutils.CopyStrings(c.DeviceIDTags)

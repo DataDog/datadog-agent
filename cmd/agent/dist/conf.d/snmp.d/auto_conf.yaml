@@ -131,13 +131,16 @@ instances:
     #
     collect_vpn: "%%extra_collect_vpn%%"
 
-    ## @param enrich_device_tags_from_resource - boolean - optional - default: true
-    ## When device metadata collection is enabled, device tags are attached to metrics by the
-    ## backend from the metadata payload instead of being sent with every metric.
-    ## Set to `false` to have the Agent attach the device tags to every metric it submits.
+    ## @param device_tags_source - string - optional - default: resource
+    ## Where the device tags on metrics come from.
+    ## `resource`: only the resource tag is sent and the backend attaches the device tags from
+    ## the metadata payload.
+    ## `agent`: the Agent attaches the device tags to every metric it submits and no resource
+    ## tag is sent, so the backend does not enrich the metrics.
+    ## `both`: the Agent attaches the device tags and the backend enrichment applies on top.
     ## This has no effect when `collect_device_metadata` is disabled.
     #
-    enrich_device_tags_from_resource: "%%extra_enrich_device_tags_from_resource%%"
+    device_tags_source: "%%extra_device_tags_source%%"
 
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.
