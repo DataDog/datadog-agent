@@ -169,6 +169,13 @@ func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter
 	return result
 }
 
+func (s *instrumentedStorage) SupportsAggregate(ref observerdef.SeriesRef, agg observerdef.Aggregate) bool {
+	if support, ok := s.inner.(seriesAggregateSupport); ok {
+		return support.SupportsAggregate(ref, agg)
+	}
+	return true
+}
+
 func (s *instrumentedStorage) GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
 	s.readCount++
 	result := s.inner.GetSeriesRange(ref, start, end, agg)
