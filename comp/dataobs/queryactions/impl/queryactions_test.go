@@ -178,11 +178,24 @@ func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 	}
 }
 
-// TestStream_ChannelReplace_PreservesUnschedule covers a capacity-one channel replacement:
-// update 2 is still waiting for autodiscovery when update 3 arrives, so update 2 must be
-// removed from the channel to make room. Its Schedule entries are stale and must be dropped,
-// but its Unschedule entries must be carried into update 3; otherwise configs already
-// processed from update 1 would remain running in autodiscovery.
+// TestStream_ChannelReplace_PreservesUnschedule covers this capacity-one channel sequence:
+//
+//	update 1 (consumed by autodiscovery)
+//	  Schedule:   cfg-A(db-a + query), remainder-b(db-b without queries)
+//	  Active now: cfg-A, remainder-b
+//
+//	update 2 (left buffered in outCh)
+//	  Unschedule: cfg-A, remainder-b
+//	  Schedule:   original base config
+//
+//	update 3 arrives while update 2 occupies outCh
+//	  Unschedule: original base config
+//	  Schedule:   remainder-a(db-a without queries), cfg-B(db-b + query)
+//
+// sendChanges removes update 2 from the full channel. It prepends update 2's Unschedules to
+// update 3 so autodiscovery still removes cfg-A and remainder-b, which it activated from
+// update 1. It discards update 2's Schedule because restoring the original base config is
+// stale once update 3 applies cfg-B.
 func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	// Use two instances because applying one query action splits the base config into two
 	// scheduled configs: the matched instance with its query and the unmatched remainder.
@@ -204,8 +217,9 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	noStatus := func(string, state.ApplyStatus) {}
 
 	// Update 1 targets db-a. Consume the update to simulate autodiscovery applying both
-	// scheduled configs: cfg-A for db-a and the unchanged db-b remainder. We save their
-	// digests because both must later be removed, not merely an arbitrary pair of configs.
+	// scheduled configs. Their digests are their identities in Unschedule: saving them here
+	// lets the final assertion prove that sendChanges carried forward the exact two removals
+	// from buffered update 2, rather than merely returning two Unschedule entries.
 	payload1 := buildPayloadJSON(t, "cfg-A", "db-a.internal", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: payload1}}, noStatus)
 	update1 := <-outCh
@@ -256,9 +270,10 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 		}
 		assert.Equal(t, map[string]bool{"db-a.internal": true, "db-b.internal": true}, scheduledHosts)
 
-		// The final update must remove exactly three configs: cfg-A and the db-b remainder from
-		// update 1, carried forward from dropped update 2, plus the original base removed by
-		// update 3. Comparing digests ensures no stale update-1 config remains active.
+		// The final update must remove exactly three configs: cfg-A and remainder-b (identified
+		// by the update-1 digests), carried forward from dropped update 2, plus the original base
+		// removed by update 3. Without the first two exact digests, autodiscovery would keep one
+		// or both update-1 configs active alongside cfg-B.
 		expectedUnscheduleDigests := append(append([]string(nil), update1ScheduleDigests...), postgresCfg.Digest())
 		actualUnscheduleDigests := make([]string, 0, len(changes.Unschedule))
 		for _, cfg := range changes.Unschedule {
