@@ -1649,6 +1649,54 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
+func TestKSMCheck_ensureArgoRolloutLabelJoin(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		expected []string
+	}{
+		{
+			name:     "no kube_pod_labels join configured",
+			config:   &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{}},
+			expected: nil,
+		},
+		{
+			name: "user-defined kube_pod_labels join missing the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{"label_team"}},
+			}},
+			expected: []string{"label_team", argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join already has the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{argoRolloutLabelName}},
+			}},
+			expected: []string{argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join uses get_all_labels",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {GetAllLabels: true},
+			}},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.ensureArgoRolloutLabelJoin()
+
+			podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
+			if !found {
+				assert.Nil(t, tt.expected)
+				return
+			}
+			assert.Equal(t, tt.expected, podLabelJoin.LabelsToGet)
+		})
+	}
+}
+
 func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 	tests := []struct {
 		name                    string

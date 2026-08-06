@@ -352,6 +352,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	k.mergeLabelJoins(defaultLabelJoins())
+	k.ensureArgoRolloutLabelJoin()
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
@@ -1085,6 +1086,20 @@ func (k *KSMCheck) mergeLabelsMapper(extra map[string]string) {
 			k.instance.LabelsMapper[key] = value
 		}
 	}
+}
+
+// ensureArgoRolloutLabelJoin makes sure the internal label the
+// kube_argo_rollout tag is derived from is joined for pod labels.
+// mergeLabelJoins only adds the default kube_pod_labels join when the key is
+// absent, so a user-defined kube_pod_labels join would otherwise silently
+// drop this required label.
+func (k *KSMCheck) ensureArgoRolloutLabelJoin() {
+	podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
+	if !found || podLabelJoin.GetAllLabels || slices.Contains(podLabelJoin.LabelsToGet, argoRolloutLabelName) {
+		return
+	}
+
+	podLabelJoin.LabelsToGet = append(podLabelJoin.LabelsToGet, argoRolloutLabelName)
 }
 
 // mergeLabelJoins adds extra label joins to the configured label joins
