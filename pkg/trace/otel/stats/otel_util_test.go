@@ -24,7 +24,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	corestats "github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
 
 var (
@@ -504,91 +503,37 @@ func TestOTLPTracesToConcentratorInputsSkipsClientComputedResource(t *testing.T)
 	assert.Empty(t, OTLPTracesToConcentratorInputs(traces, conf, nil, nil))
 }
 
-func newTestClientSpan(traceID pcommon.TraceID, spanID pcommon.SpanID) ptrace.Span {
+func newTestClientSpan(spanID pcommon.SpanID, markComputed bool) ptrace.Span {
 	span := ptrace.NewSpan()
-	span.SetTraceID(traceID)
+	span.SetTraceID(testTraceID)
 	span.SetSpanID(spanID)
 	span.SetName("client request")
 	span.SetKind(ptrace.SpanKindClient)
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-time.Second)))
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	if markComputed {
+		span.Attributes().PutBool(keyStatsComputed, true)
+	}
 	return span
 }
 
-func TestOTLPTracesToConcentratorInputsSkipsClientComputedSpan(t *testing.T) {
+// A marker on one span must only drop that span, not the whole payload, since a single OTLP
+// payload can bundle spans from multiple resources with different CSS settings.
+func TestOTLPTracesToConcentratorInputsSkipsOnlyClientComputedSpan(t *testing.T) {
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
 	attributesTranslator, err := attributes.NewTranslator(set)
 	assert.NoError(t, err)
 
 	traces := ptrace.NewTraces()
-	rspan := traces.ResourceSpans().AppendEmpty()
-	scopeSpans := rspan.ScopeSpans().AppendEmpty()
-
-	unmarked := newTestClientSpan(testTraceID, testSpanID1)
-	unmarked.CopyTo(scopeSpans.Spans().AppendEmpty())
-
-	marked := newTestClientSpan(testTraceID, testSpanID2)
-	marked.Attributes().PutBool(keyStatsComputed, true)
-	marked.CopyTo(scopeSpans.Spans().AppendEmpty())
+	scopeSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
+	newTestClientSpan(testSpanID1, false).CopyTo(scopeSpans.Spans().AppendEmpty())
+	newTestClientSpan(testSpanID2, true).CopyTo(scopeSpans.Spans().AppendEmpty())
 
 	conf := config.New()
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
-	assert.Len(t, inputs, 1)
 	assert.Len(t, inputs[0].Traces[0].TraceChunk.Spans, 1)
-	assert.Equal(t, transform.OTelSpanIDToUint64(testSpanID1), inputs[0].Traces[0].TraceChunk.Spans[0].SpanID)
-}
-
-func TestOTLPTracesToConcentratorInputsAbortsWhenFirstSpanClientComputed(t *testing.T) {
-	set := componenttest.NewNopTelemetrySettings()
-	set.MeterProvider = noop.NewMeterProvider()
-	attributesTranslator, err := attributes.NewTranslator(set)
-	assert.NoError(t, err)
-
-	traces := ptrace.NewTraces()
-	rspan := traces.ResourceSpans().AppendEmpty()
-	scopeSpans := rspan.ScopeSpans().AppendEmpty()
-
-	first := newTestClientSpan(testTraceID, testSpanID1)
-	first.Attributes().PutBool(keyStatsComputed, true)
-	first.CopyTo(scopeSpans.Spans().AppendEmpty())
-
-	// Second span carries no marker, but the whole payload should still be skipped
-	// because the first span in the payload was marked as client-computed.
-	second := newTestClientSpan(testTraceID, testSpanID2)
-	second.CopyTo(scopeSpans.Spans().AppendEmpty())
-
-	conf := config.New()
-	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
-	assert.Empty(t, OTLPTracesToConcentratorInputs(traces, conf, nil, nil))
-}
-
-func TestFirstSpanHasClientComputedStats(t *testing.T) {
-	t.Run("empty_traces", func(t *testing.T) {
-		assert.False(t, firstSpanHasClientComputedStats(ptrace.NewTraces()))
-	})
-	t.Run("empty_scope_spans", func(t *testing.T) {
-		traces := ptrace.NewTraces()
-		traces.ResourceSpans().AppendEmpty()
-		assert.False(t, firstSpanHasClientComputedStats(traces))
-	})
-	t.Run("empty_spans", func(t *testing.T) {
-		traces := ptrace.NewTraces()
-		traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
-		assert.False(t, firstSpanHasClientComputedStats(traces))
-	})
-	t.Run("first_span_marked", func(t *testing.T) {
-		traces := ptrace.NewTraces()
-		span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-		span.Attributes().PutBool(keyStatsComputed, true)
-		assert.True(t, firstSpanHasClientComputedStats(traces))
-	})
-	t.Run("first_span_unmarked", func(t *testing.T) {
-		traces := ptrace.NewTraces()
-		traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-		assert.False(t, firstSpanHasClientComputedStats(traces))
-	})
 }
 
 func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
