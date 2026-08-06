@@ -64,14 +64,12 @@ type candidate struct {
 	// seenAt is the time of the last scan that observed the process. Candidates
 	// not observed by a scan have exited and are dropped.
 	seenAt ticks
-	// attempts is the number of metadata reads that have failed.
+	// attempts is the number of scans that have looked at this process without
+	// instrumenting it.
 	attempts uint32
-	// nextAttempt is the earliest time of the next metadata read, or never for
-	// a process that has been written off.
+	// nextAttempt is the earliest time of the next look at this process.
 	nextAttempt ticks
 }
-
-const never = ticks(1<<64 - 1)
 
 // Scanner reconciles the set of processes that should be instrumented against
 // the set that is, once per Scan.
@@ -310,25 +308,25 @@ func (p *Scanner) Scan() (
 		executable, err := p.resolveExecutable(int32(pid))
 		if err != nil {
 			maybeLogErr("resolve executable", err)
-			p.scheduleRetry(key, c, now, p.backoffCap)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 
 		isGo, err := p.isGoExecutable(executable)
 		if err != nil {
 			maybeLogErr("analyze executable", err)
-			p.scheduleRetry(key, c, now, p.backoffCap)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 		if !isGo {
-			p.writeOff(key, now)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 
 		tracerMetadata, err := p.tracerMetadataReader(int32(pid))
 		if err != nil {
 			maybeLogErr("read tracer metadata", err)
-			p.scheduleRetry(key, c, now, p.backoffCap)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 		if tracerMetadata.TracerLanguage != "go" {
@@ -336,7 +334,7 @@ func (p *Scanner) Scan() (
 				"scanner: pid %d reports tracer language %q",
 				pid, tracerMetadata.TracerLanguage,
 			)
-			p.writeOff(key, now)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 
@@ -381,52 +379,35 @@ func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
 	return c
 }
 
-// writeOff records that a process will never be instrumentable, so that later
-// scans skip it for the cost of the stat read that listing pids costs anyway.
-// The entry goes away when the process exits.
+// scheduleRetry records a look that did not instrument the process and pushes
+// the next one out, doubling the delay each time up to the cap.
 //
-// Note: exec keeps a process' pid and start time, so a wrapper that is still
-// running its entrypoint the first time we look at it, roughly one to six
-// seconds in, is written off along with the service it later becomes. Most
-// entrypoints exec within milliseconds, well before that. An agent restart
-// re-evaluates everything.
-func (p *Scanner) writeOff(key procKey, now ticks) {
-	p.candidates[key.pid] = &candidate{
-		startTime:   key.startTime,
-		seenAt:      now,
-		nextAttempt: never,
-	}
-}
-
-// scheduleRetry records a failed attempt and pushes the next one out, doubling
-// the delay each time up to maxDelay.
-//
-// There is no attempt limit. A tracer can publish its metadata at any point in
-// the life of the process, so the backoff bounds the cost of waiting for it
-// without ever ruling it out.
-func (p *Scanner) scheduleRetry(
-	key procKey, c *candidate, now, maxDelay ticks,
-) {
+// Every verdict short of a discovery lands here, and none of them is terminal.
+// A tracer can publish its metadata at any point in the life of a process, and
+// exec keeps a process' pid and start time, so a process that is not running a
+// Go binary now may be running one later. The backoff bounds what asking again
+// costs without ever ruling a process out.
+func (p *Scanner) scheduleRetry(key procKey, c *candidate, now ticks) {
 	if c == nil {
 		c = &candidate{startTime: key.startTime}
 	}
 	c.attempts++
 	c.seenAt = now
-	c.nextAttempt = now + p.retryDelay(c.attempts, maxDelay)
+	c.nextAttempt = now + p.retryDelay(c.attempts)
 	p.candidates[key.pid] = c
 }
 
-func (p *Scanner) retryDelay(attempts uint32, maxDelay ticks) ticks {
+func (p *Scanner) retryDelay(attempts uint32) ticks {
 	delay := p.backoffBase
-	for i := uint32(1); i < attempts && delay < maxDelay; i++ {
+	for i := uint32(1); i < attempts && delay < p.backoffCap; i++ {
 		delay *= 2
 	}
-	return min(delay, maxDelay)
+	return min(delay, p.backoffCap)
 }
 
 // forgetExitedCandidates drops the retry state of processes that this scan did
-// not observe. Backoff bounds the cost of retrying a live process forever; it
-// does nothing for entries that will never be retried again.
+// not observe. Backoff bounds what retrying a live process costs; only this
+// sweep bounds the map.
 func (p *Scanner) forgetExitedCandidates(now ticks) {
 	for pid, c := range p.candidates {
 		if c.seenAt != now {

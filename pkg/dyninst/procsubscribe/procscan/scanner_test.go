@@ -435,13 +435,10 @@ type procSnapshot struct {
 // candidateSnapshot exposes the retry schedule of a process that is not
 // instrumented yet.
 type candidateSnapshot struct {
-	PID       uint32 `yaml:"pid"`
-	StartTime uint64 `yaml:"start_time"`
-	Attempts  uint32 `yaml:"attempts,omitempty"`
-	// NextAttempt is absent for a process that has been written off, which
-	// WrittenOff marks instead.
+	PID         uint32 `yaml:"pid"`
+	StartTime   uint64 `yaml:"start_time"`
+	Attempts    uint32 `yaml:"attempts,omitempty"`
 	NextAttempt uint64 `yaml:"next_attempt,omitempty"`
-	WrittenOff  bool   `yaml:"written_off,omitempty"`
 }
 
 type scannerStateSnapshot struct {
@@ -477,17 +474,12 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 
 	candidates := make([]candidateSnapshot, 0, len(s.candidates))
 	for pid, c := range s.candidates {
-		snap := candidateSnapshot{
-			PID:       pid,
-			StartTime: uint64(c.startTime),
-			Attempts:  c.attempts,
-		}
-		if c.nextAttempt == never {
-			snap.WrittenOff = true
-		} else {
-			snap.NextAttempt = uint64(c.nextAttempt)
-		}
-		candidates = append(candidates, snap)
+		candidates = append(candidates, candidateSnapshot{
+			PID:         pid,
+			StartTime:   uint64(c.startTime),
+			Attempts:    c.attempts,
+			NextAttempt: uint64(c.nextAttempt),
+		})
 	}
 	slices.SortFunc(candidates, func(a, b candidateSnapshot) int {
 		return cmp.Compare(a.PID, b.PID)
