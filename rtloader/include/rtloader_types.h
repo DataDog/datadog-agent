@@ -138,8 +138,9 @@ typedef char *(*cb_obfuscate_sql_exec_plan_t)(char *, bool, char **);
 typedef double (*cb_get_process_start_time_t)(void);
 // (cmd, error_message)
 typedef char *(*cb_obfuscate_mongodb_string_t)(char *, char **);
-// (check_name, metric_name, metric_value, metric_type)
-typedef void (*cb_emit_agent_telemetry_t)(char *, char *, double, char *);
+// (check_name, metric_name, metric_value, metric_type, labels_json)
+// labels_json may be NULL, meaning "no labels".
+typedef void (*cb_emit_agent_telemetry_t)(char *, char *, double, char *, char *);
 // (check_name, report_json, error_message_out)
 typedef void (*cb_report_issue_t)(char *, char *, char **);
 // (issue_id, error_message_out)
