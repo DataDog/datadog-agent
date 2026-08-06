@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
