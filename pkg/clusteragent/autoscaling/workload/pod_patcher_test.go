@@ -1604,3 +1604,88 @@ func TestObservedPodCallback(t *testing.T) {
 		assert.Empty(t, fakeRecorder.Events, "expected no events when not leader")
 	})
 }
+
+func TestPatchContainerResourcesGOMEMLIMIT(t *testing.T) {
+	reco := datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		Name:     "app",
+		Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+	}
+
+	t.Run("adds GOMEMLIMIT when env var absent", func(t *testing.T) {
+		cont := &corev1.Container{Name: "app"}
+		runtime := &model.ContainerRuntimeValues{GoMemLimit: "256MiB"}
+		patched := patchContainerResources(reco, runtime, cont)
+		assert.True(t, patched)
+		require.Len(t, cont.Env, 1)
+		assert.Equal(t, "GOMEMLIMIT", cont.Env[0].Name)
+		assert.Equal(t, "256MiB", cont.Env[0].Value)
+		assert.Nil(t, cont.Env[0].ValueFrom)
+	})
+
+	t.Run("updates GOMEMLIMIT when value differs", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env:  []corev1.EnvVar{{Name: "GOMEMLIMIT", Value: "128MiB"}},
+		}
+		runtime := &model.ContainerRuntimeValues{GoMemLimit: "512MiB"}
+		patched := patchContainerResources(reco, runtime, cont)
+		assert.True(t, patched)
+		require.Len(t, cont.Env, 1)
+		assert.Equal(t, "512MiB", cont.Env[0].Value)
+	})
+
+	t.Run("no patch when GOMEMLIMIT already has the right value", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env:  []corev1.EnvVar{{Name: "GOMEMLIMIT", Value: "256MiB"}},
+		}
+		runtime := &model.ContainerRuntimeValues{GoMemLimit: "256MiB"}
+		patched := patchContainerResources(reco, runtime, cont)
+		assert.False(t, patched)
+		assert.Equal(t, "256MiB", cont.Env[0].Value)
+	})
+
+	t.Run("clears ValueFrom and sets Value when env was sourced from ConfigMap", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env: []corev1.EnvVar{{
+				Name:      "GOMEMLIMIT",
+				ValueFrom: &corev1.EnvVarSource{ConfigMapKeyRef: &corev1.ConfigMapKeySelector{Key: "limit"}},
+			}},
+		}
+		runtime := &model.ContainerRuntimeValues{GoMemLimit: "256MiB"}
+		patched := patchContainerResources(reco, runtime, cont)
+		assert.True(t, patched)
+		assert.Equal(t, "256MiB", cont.Env[0].Value)
+		assert.Nil(t, cont.Env[0].ValueFrom, "ValueFrom must be cleared to avoid Kubernetes rejection")
+	})
+
+	t.Run("nil runtime leaves env vars unchanged", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env:  []corev1.EnvVar{{Name: "SOME_VAR", Value: "foo"}},
+		}
+		patched := patchContainerResources(reco, nil, cont)
+		assert.False(t, patched)
+		require.Len(t, cont.Env, 1)
+		assert.Equal(t, "SOME_VAR", cont.Env[0].Name)
+	})
+
+	t.Run("other env vars are preserved alongside GOMEMLIMIT", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env: []corev1.EnvVar{
+				{Name: "MY_VAR", Value: "hello"},
+				{Name: "ANOTHER_VAR", Value: "world"},
+			},
+		}
+		runtime := &model.ContainerRuntimeValues{GoMemLimit: "256MiB"}
+		patched := patchContainerResources(reco, runtime, cont)
+		assert.True(t, patched)
+		require.Len(t, cont.Env, 3)
+		assert.Equal(t, "MY_VAR", cont.Env[0].Name)
+		assert.Equal(t, "ANOTHER_VAR", cont.Env[1].Name)
+		assert.Equal(t, "GOMEMLIMIT", cont.Env[2].Name)
+		assert.Equal(t, "256MiB", cont.Env[2].Value)
+	})
+}

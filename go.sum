@@ -2528,10 +2528,6 @@ github.com/CycloneDX/cyclonedx-go v0.11.0 h1:GokP8FiRC+foiuwWhSSLpSD5H4hSWtGnR3w
 github.com/CycloneDX/cyclonedx-go v0.11.0/go.mod h1:vUvbCXQsEm48OI6oOlanxstwNByXjCZ2wuleUlwGEO8=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.205 h1:7+ZNser6vX1ptlZWO1UnYQ1trKoYmYFMvt1/ZIw3iD0=
-github.com/DataDog/agent-payload/v5 v5.0.205/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
-github.com/DataDog/agent-payload/v5 v5.0.207 h1:3x5Tv8krDgeYdmd1H4ovkv9d2yKPBGwUu9YaWOSGEB8=
-github.com/DataDog/agent-payload/v5 v5.0.207/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
 github.com/DataDog/agent-payload/v5 v5.0.208-0.20260731113900-979682809cb2 h1:IhnXMtarC+b/A22Svw1DDiTFYZZFaMgGgh2ozMFWjnc=
 github.com/DataDog/agent-payload/v5 v5.0.208-0.20260731113900-979682809cb2/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9 h1:SqGEmv63IrjqqDmXf49ZjlZnyBiHiBbF/1AVaM3q+wI=
@@ -2545,8 +2541,6 @@ github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dX
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.9.0 h1:0rhs5wBov9Iz+xLXLk4maaReHvOANM1ijSm2IKWtKFs=
 github.com/DataDog/datadog-go/v5 v5.9.0/go.mod h1:2SBt8zJu6r7sRQHZFMQ8oCukWTKj0ymwulmNgQzJ1JM=
-github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597 h1:ljwK4rFC1hW2DWC/kJBLnFIpTQmuXcda5zfVLhQSmew=
-github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597/go.mod h1:sFOkv8MUOOjgCmbunaHsUlPzD0RVaQpGuzBAPOPCSmY=
 github.com/DataDog/datadog-operator/api v0.0.0-20260803143613-7bd601fbb285 h1:84/wT85yP7RisTm4CfAaBeuVTZxd6kjMGV3Cp5rHPSw=
 github.com/DataDog/datadog-operator/api v0.0.0-20260803143613-7bd601fbb285/go.mod h1:1NbnIkICgL12lNUXlvrKRjBn14W5TErvd0HnMEJcp4U=
 github.com/DataDog/datadog-traceroute v1.0.19 h1:eVUuHWQ3gjAmeo4vG/xKM9atw85eSvIA0E1Ypl5UH2s=
