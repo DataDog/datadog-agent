@@ -1031,32 +1031,47 @@ collect_vpn: true
 	assert.False(t, config.CollectVPN)
 }
 
-func Test_buildConfig_enrichDeviceTagsFromResource(t *testing.T) {
+func Test_buildConfig_deviceTagsSource(t *testing.T) {
 	tests := []struct {
 		name         string
 		instanceYaml string
 		initYaml     string
-		expected     bool
+		expected     snmpintegration.DeviceTagsSource
 	}{
 		{
-			name:     "enabled by default",
-			expected: true,
+			name:     "resource by default",
+			expected: snmpintegration.DeviceTagsSourceResource,
 		},
 		{
-			name:     "disabled in init config",
-			initYaml: "enrich_device_tags_from_resource: false",
-			expected: false,
+			name:     "set in init config",
+			initYaml: "device_tags_source: agent",
+			expected: snmpintegration.DeviceTagsSourceAgent,
 		},
 		{
-			name:         "disabled in instance config",
-			instanceYaml: "enrich_device_tags_from_resource: false",
-			expected:     false,
+			name:         "set in instance config",
+			instanceYaml: "device_tags_source: both",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
 		},
 		{
 			name:         "instance config overrides init config",
-			instanceYaml: "enrich_device_tags_from_resource: true",
-			initYaml:     "enrich_device_tags_from_resource: false",
-			expected:     true,
+			instanceYaml: "device_tags_source: resource",
+			initYaml:     "device_tags_source: agent",
+			expected:     snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:         "invalid value falls back to the default",
+			instanceYaml: "device_tags_source: nope",
+			expected:     snmpintegration.DeviceTagsSourceResource,
+		},
+		{
+			name:         "forced to both when device metadata is not collected",
+			instanceYaml: "device_tags_source: resource\ncollect_device_metadata: false",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
+		},
+		{
+			name:         "agent is also forced to both when device metadata is not collected",
+			instanceYaml: "device_tags_source: agent\ncollect_device_metadata: false",
+			expected:     snmpintegration.DeviceTagsSourceBoth,
 		},
 	}
 	for _, tt := range tests {
@@ -1072,7 +1087,7 @@ oid_batch_size: 10
 ` + tt.initYaml)
 			config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 			assert.Nil(t, err)
-			assert.Equal(t, tt.expected, config.EnrichDeviceTagsFromResource)
+			assert.Equal(t, tt.expected, config.DeviceTagsSource)
 		})
 	}
 }
