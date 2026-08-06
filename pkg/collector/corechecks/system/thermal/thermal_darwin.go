@@ -27,8 +27,8 @@ import (
 // CheckName is the name of the check
 const CheckName = "thermal"
 
-// thermalCheck collects Apple Silicon thermal sensor readings via the
-// AppleSMC utility in thermal_darwin.c.
+// thermalCheck collects thermal sensor readings on Apple Silicon and Intel
+// Macs via the AppleSMC utility in thermal_darwin.c.
 type thermalCheck struct {
 	core.CheckBase
 }
