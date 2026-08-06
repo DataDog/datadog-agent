@@ -42,6 +42,7 @@ AGENT_CORECHECKS = [
     "network_config_management",
     "battery",
     "cloud_hostinfo",
+    "thermal",
 ]
 
 AIX_CORECHECKS = [
@@ -65,7 +66,6 @@ AIX_CORECHECKS = [
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "sbom",
-    "thermal",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
