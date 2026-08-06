@@ -44,6 +44,10 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
+### [comp/aggregator/dogstatsdclienttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry)
+
+Package dogstatsdclienttelemetry defines the DogStatsD client telemetry component.
+
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
 *Datadog Team*: agent-runtimes
@@ -139,6 +143,12 @@ Package configstreamconsumer implements a component that consumes config streams
 *Datadog Team*: fleet-automation
 
 Package configsync implements synchronizing the configuration using the core agent config API
+
+### [comp/core/delegatedauth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/delegatedauth)
+
+*Datadog Team*: credential-management
+
+Package delegatedauth manages cloud-based delegated authentication for the agent.
 
 ### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
 
