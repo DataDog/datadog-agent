@@ -65,9 +65,17 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	}
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
+	// The tag is typically set once per resource rather than on every span, so cache the
+	// per-resource result instead of re-parsing the same resource attributes for each of its spans.
+	resourceComputedStats := make(map[pcommon.Resource]bool)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
-		if hasClientComputedStats(otelres.Attributes()) || hasClientComputedStats(otelspan.Attributes()) {
+		resComputed, ok := resourceComputedStats[otelres]
+		if !ok {
+			resComputed = hasClientComputedStats(otelres.Attributes())
+			resourceComputedStats[otelres] = resComputed
+		}
+		if resComputed || hasClientComputedStats(otelspan.Attributes()) {
 			continue
 		}
 		var resourceName string
