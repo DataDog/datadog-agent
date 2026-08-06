@@ -37,6 +37,13 @@ cross_build_agent-binary_aix_ppc64:
 
 cross_build_trace_agent-binary_aix_ppc64:
   extends: .cross_build_aix_ppc64
+  # [TEST] disable the progressive .cache/go (and bazel/pip) cache restore for
+  # this job specifically - trace-agent's build never actually invokes bazel
+  # (unlike agent.build, which runs `bazel run //pkg/config/schema:install_compressed`
+  # via schema_compress() since sys.platform is "linux" on this cross-compile
+  # host), so this only drops the GOCACHE/bazelisk restore, not bazel itself.
+  # Testing whether a cold GOCACHE changes the AIX TOC overflow outcome.
+  cache: []
   script:
     - dda inv -- check-go-version
     - PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e trace-agent.build
