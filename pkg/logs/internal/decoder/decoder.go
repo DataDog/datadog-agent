@@ -305,7 +305,7 @@ func (r *smartSeverityProfileWarningRegistry) warnGlobal(profiles [severityevent
 	})
 }
 
-func warnSourceSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) {
+func warnSourceSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, sourceDetails string) {
 	if sourceAdaptiveSampling == nil || (sourceAdaptiveSampling.RateLimit == nil && sourceAdaptiveSampling.BurstSize == nil) {
 		return
 	}
@@ -315,8 +315,15 @@ func warnSourceSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.Num
 		return
 	}
 	for _, discrepancy := range discrepancies {
-		log.Warnf("config adaptive sampler smart severity profiles: %s", discrepancy)
+		log.Warnf("config adaptive sampler smart severity profiles for source-specific experimental_adaptive_sampling (%s): %s", sourceDetails, discrepancy)
 	}
+}
+
+func adaptiveSamplingSourceDetails(source *sources.LogSource) string {
+	if source.Config.IntegrationSource != "" {
+		return fmt.Sprintf("log source %q, integration config %q (index %d)", source.Name, source.Config.IntegrationSource, source.Config.IntegrationSourceIndex)
+	}
+	return fmt.Sprintf("log source %q, type %q", source.Name, source.Config.Type)
 }
 
 func smartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) []string {
@@ -413,7 +420,7 @@ func resolveSamplerMode(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOpt
 	return samplerDisabled
 }
 
-func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer) preprocessor.AdaptiveSamplerConfig {
+func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions, tok *preprocessor.Tokenizer, sourceDetails ...string) preprocessor.AdaptiveSamplerConfig {
 	includeFilters, includeConfigured := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.include", tok)
 	excludeFilters, _ := resolveGlobalAdaptiveSamplerFilters("logs_config.experimental_adaptive_sampling.exclude", tok)
 
@@ -462,7 +469,11 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 	c.SmartSeverityProfilesEnabled = pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey)
 	if c.SmartSeverityProfilesEnabled {
 		c.Profiles = resolveSmartSeverityProfiles(preprocessor.SamplerProfile{RateLimit: c.RateLimit, BurstSize: c.BurstSize})
-		warnSourceSmartSeverityProfileDiscrepancies(c.Profiles, sourceAdaptiveSampling)
+		details := "unknown source"
+		if len(sourceDetails) > 0 {
+			details = sourceDetails[0]
+		}
+		warnSourceSmartSeverityProfileDiscrepancies(c.Profiles, sourceAdaptiveSampling, details)
 		c.SeverityProvider = severityprovider.Current
 	}
 
@@ -534,7 +545,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	sourceConfig := source.Config()
 	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
 	case samplerAdaptiveSampling:
-		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok, adaptiveSamplingSourceDetails(source.UnderlyingSource()))
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
 		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
 	case samplerNoisyLogDetection:

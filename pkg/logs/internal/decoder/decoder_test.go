@@ -706,6 +706,20 @@ func TestSmartSeverityProfileWarningRegistry(t *testing.T) {
 	assert.Empty(t, sourceSmartSeverityProfileDiscrepancies(passThrough))
 }
 
+func TestAdaptiveSamplingSourceDetails(t *testing.T) {
+	assert.Equal(t,
+		`log source "redis", integration config "/etc/datadog-agent/conf.d/redisdb.d/conf.yaml" (index 2)`,
+		adaptiveSamplingSourceDetails(sources.NewLogSource("redis", &config.LogsConfig{
+			IntegrationSource:      "/etc/datadog-agent/conf.d/redisdb.d/conf.yaml",
+			IntegrationSourceIndex: 2,
+		})),
+	)
+	assert.Equal(t,
+		`log source "container", type "docker"`,
+		adaptiveSamplingSourceDetails(sources.NewLogSource("container", &config.LogsConfig{Type: "docker"})),
+	)
+}
+
 func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.max_patterns", 100, pkgconfigmodel.SourceAgentRuntime)
