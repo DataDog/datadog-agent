@@ -152,6 +152,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 
+	config.BindEnvAndSetDefault("patch_prometheus_client", true)
+
 	// Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)
 	// Enables Service Endpoints checks in the prometheus config provider
@@ -218,6 +220,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", true)
 	config.BindEnvAndSetDefault("network_devices.default_scan.excluded_ips", []string{})
+	config.BindEnvAndSetDefault("network_devices.default_scan.bulk_batch_size", 20)
+	// Internal, undocumented knobs for tuning partial result reporting.
+	config.BindEnvAndSetDefault("network_devices.default_scan.flush_every_n_oids", 0)
+	config.BindEnvAndSetDefault("network_devices.default_scan.flush_interval", "0s")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -1155,6 +1161,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Integrations excluded from these restrictions.
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 
+	config.BindEnvAndSetDefault("hostprofiler.log_file", "${log_path}/host-profiler.log")
 	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
@@ -2238,6 +2245,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.bucket_width", 5*time.Second)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.idle_ttl", 5*time.Minute)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.retention", 10*time.Minute)
 
 	// Internal agent log tap.
 	// min_severity is the minimum level forwarded (logs below it are dropped before sampling).
