@@ -20,9 +20,11 @@ go_library(
         "syscall_tester.go",
         "syscalls_amd64.go",
         "syscalls_arm64.go",
+        "testdecl.go",
         "testdrive.go",
         "testmount.go",
         "testopts.go",
+        "testruns.go",
         "trace_pipe.go",
     ],
     # keep

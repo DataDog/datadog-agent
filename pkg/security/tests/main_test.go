@@ -23,6 +23,17 @@ var GitAncestorOnMain = "main"
 func TestMain(m *testing.M) {
 	flag.Parse()
 
+	// Every config is registered at init() time, so the partition of the suite
+	// into runs that each build the eBPF module once needs no test execution.
+	// Keep this ahead of any other output: the KMT test runner parses stdout.
+	if listTestRuns {
+		if err := printTestRuns(os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	fmt.Printf("Using git ref %s as common ancestor between HEAD and main branch\n", GitAncestorOnMain)
 
 	preTestsHook()
@@ -43,10 +54,13 @@ var (
 	logPatterns     stringSlice
 	logTags         stringSlice
 	ebpfLessEnabled bool
+	listTestRuns    bool
 )
 
 func init() {
 	flag.StringVar(&logLevelStr, "loglevel", log.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
+	flag.BoolVar(&listTestRuns, "list-groups", false,
+		"print how the suite partitions into runs that each build the eBPF module once, as one JSON object per line, then exit")
 }
