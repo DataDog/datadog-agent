@@ -134,6 +134,9 @@ static kern_return_t SMCCall(io_connect_t conn, uint32_t index, SMCKeyData_t *in
     if (outSize != sizeof(SMCKeyData_t)) {
         return kIOReturnUnderrun;
     }
+    if (out->result != 0) {
+        return kIOReturnError;
+    }
     return kIOReturnSuccess;
 }
 
