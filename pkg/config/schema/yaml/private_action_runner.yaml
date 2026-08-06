@@ -207,7 +207,6 @@ properties:
     type: boolean
     default: false
     comment: Enables the Rust control plane and on-demand Go executor on Linux.
-      Other platforms continue using the monolithic runner.
   urn:
     node_type: setting
     type: string
