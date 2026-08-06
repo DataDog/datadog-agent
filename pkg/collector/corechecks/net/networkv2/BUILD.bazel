@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "const.go",
         "network.go",
+        "network_linux.go",
         "network_windows.go",
         "stub.go",
     ],
