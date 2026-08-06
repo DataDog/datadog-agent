@@ -50,6 +50,7 @@ dd_agent_go_test(
         "//comp/collector/collector/mock",
         "//comp/core",
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers",
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/hostnameinterface/def",

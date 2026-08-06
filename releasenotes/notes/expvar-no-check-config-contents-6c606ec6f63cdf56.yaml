@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    The content of check config files is no longer shown in the ``inventories`` expvar, which is
+    served without authentication on the expvar port. The content is still sent to Datadog and is
+    still included in the flare.
