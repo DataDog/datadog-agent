@@ -9,7 +9,6 @@ import (
 	"container/list"
 	"context"
 	"fmt"
-	"iter"
 	"log/slog"
 	"os"
 	"slices"
@@ -209,25 +208,25 @@ func (h *Async) WithGroup(_name string) slog.Handler {
 	}
 }
 
-func hasMutableAttrs(attrs iter.Seq[slog.Attr]) bool {
-	for attr := range attrs {
-		if attr.Value.Kind() == slog.KindAny || attr.Value.Kind() == slog.KindLogValuer {
-			return true
-		}
-		if attr.Value.Kind() == slog.KindGroup {
-			if hasMutableAttrs(slices.Values(attr.Value.Group())) {
-				return true
-			}
-		}
+func isMutableAttr(a slog.Attr) bool {
+	switch a.Value.Kind() {
+	case slog.KindAny, slog.KindLogValuer:
+		return true
+	case slog.KindGroup:
+		return hasMutableAttrs(a.Value.Group())
 	}
 	return false
+}
+
+func hasMutableAttrs(attrs []slog.Attr) bool {
+	return slices.ContainsFunc(attrs, isMutableAttr)
 }
 
 // snapshotMutableAttrs formats mutable attribute values into strings eagerly to avoid
 // races in the background goroutine.
 func snapshotMutableAttrs(attrs []slog.Attr) []slog.Attr {
-	newAttrs := slices.Clone(attrs)
-	for i, attr := range newAttrs {
+	newAttrs := make([]slog.Attr, len(attrs))
+	for i, attr := range attrs {
 		value := attr.Value
 		if value.Kind() == slog.KindLogValuer {
 			value = value.Resolve()
@@ -238,6 +237,7 @@ func snapshotMutableAttrs(attrs []slog.Attr) []slog.Attr {
 		} else if value.Kind() == slog.KindGroup {
 			value = slog.GroupValue(snapshotMutableAttrs(value.Group())...)
 		}
+		newAttrs[i] = attr
 		newAttrs[i].Value = value
 	}
 
@@ -245,18 +245,28 @@ func snapshotMutableAttrs(attrs []slog.Attr) []slog.Attr {
 }
 
 func snapshotMutableAttrsFromRecord(r slog.Record) slog.Record {
-	if !hasMutableAttrs(r.Attrs) {
+	hasMutable := false
+	r.Attrs(func(a slog.Attr) bool {
+		hasMutable = isMutableAttr(a)
+		return !hasMutable
+	})
+	if !hasMutable {
 		return r
 	}
 
-	attrs := snapshotMutableAttrs(slices.Collect(r.Attrs))
+	attrs := make([]slog.Attr, 0, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		attrs = append(attrs, a)
+		return true
+	})
+
 	snapshot := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
-	snapshot.AddAttrs(attrs...)
+	snapshot.AddAttrs(snapshotMutableAttrs(attrs)...)
 	return snapshot
 }
 
 func snapshotMutableAttrsFromSlice(attrs []slog.Attr) []slog.Attr {
-	if !hasMutableAttrs(slices.Values(attrs)) {
+	if !hasMutableAttrs(attrs) {
 		return attrs
 	}
 
