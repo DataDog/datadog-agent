@@ -21,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func runHardlinkTests(t *testing.T, opts testOpts) {
+// runHardlinkTests runs the hardlink assertions against whichever dentry
+// resolution path its caller declared.
+func runHardlinkTests(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_orig_exec",
@@ -37,7 +39,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,14 +126,18 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	})
 }
 
+var _ = declare(TestHardLinkExecsWithERPC, testOpts{disableMapDentryResolution: true})
+
 func TestHardLinkExecsWithERPC(t *testing.T) {
 	SkipIfNotAvailable(t)
-	runHardlinkTests(t, testOpts{disableMapDentryResolution: true})
+	runHardlinkTests(t)
 }
+
+var _ = declare(TestHardLinkExecsWithMaps, testOpts{disableERPCDentryResolution: true})
 
 func TestHardLinkExecsWithMaps(t *testing.T) {
 	SkipIfNotAvailable(t)
-	runHardlinkTests(t, testOpts{disableERPCDentryResolution: true})
+	runHardlinkTests(t)
 }
 
 func TestHardLink(t *testing.T) {
