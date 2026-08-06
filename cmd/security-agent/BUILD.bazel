@@ -117,6 +117,7 @@ go_library(
             "//comp/core/configstreamconsumer/fx",
             "//comp/core/configsync/def",
             "//comp/core/configsync/fx",
+            "//comp/core/delegatedauth/def",
             "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/hostname/remotehostnameimpl",
             "//comp/core/ipc/def",
