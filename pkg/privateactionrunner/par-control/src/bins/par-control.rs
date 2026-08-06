@@ -3,118 +3,137 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! par-control installation and executor-lifecycle scaffold.
+//! `par-control` binary: the always-on Private Action Runner control plane.
+//! Loads the runner identity/config, wires the OPMS client, process-manager
+//! lifecycle, and executor dispatcher, and runs the orchestration loop until a
+//! termination signal.
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use clap::Parser;
-use par_control::config::Config;
+use par_control::bootstrap;
+use par_control::config::{LaunchGate, log_level_from_yaml_file};
+use par_control::executor::ExecutorDispatcher;
+use par_control::jwt::{Es256Signer, JwtSigner};
+use par_control::opms::{HttpOpms, HttpOpmsConfig};
+use par_control::orchestrator::{Orchestrator, Params};
 use par_control::procmgr::ProcmgrLifecycle;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
     #[arg(short = 'c', long, default_value = "/etc/datadog-agent/datadog.yaml")]
     config: PathBuf,
+
+    /// Existing Go Private Action Runner binary used to resolve the Agent's
+    /// effective configuration, including secret-backend values.
+    #[arg(long = "config-helper")]
+    config_helper: PathBuf,
+
+    /// Go one-shot enrollment command. Must be the last option because it
+    /// consumes all remaining arguments.
+    #[arg(long = "enroll-command", num_args = 1.., allow_hyphen_values = true)]
+    enroll_command: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let result = run().await;
-    if let Err(error) = &result {
-        log::error!("par-control failed: {error:#}");
-    }
-    log::logger().flush();
-    result
-}
-
-async fn run() -> Result<()> {
     let cli = Cli::parse();
-    let config = Config::from_yaml_file(&cli.config);
 
-    let log_level = config
-        .as_ref()
-        .map_or(log::LevelFilter::Info, |c| c.log_level);
-    if let Err(error) = dd_agent_log::init(dd_agent_log::LogConfig {
+    // Initialize logging before the launch gate so clean exits and config errors
+    // are visible. Logging failure does not prevent the runner from starting.
+    if let Err(e) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
-        // The logger API requires a Level. Use Error for Off during
-        // initialization, then apply the exact filter below.
-        level: log_level.to_level().unwrap_or(log::Level::Error),
-        log_file: log_file_for_config(&cli.config),
+        level: log_level_from_yaml_file(&cli.config),
+        log_file: None,
     }) {
-        eprintln!("par-control: could not initialize the logger: {error}");
+        eprintln!("par-control: could not initialize the logger: {e}");
     }
-    log::set_max_level(log_level);
-    let config = config?;
 
-    if !config.split_mode {
-        log::info!("private_action_runner split mode is disabled; par-control is exiting");
+    // The process definition is installed unconditionally; inactive hosts exit 0.
+    let gate = LaunchGate::from_yaml_file(&cli.config)?;
+    if !gate.split_mode {
+        log::info!(
+            "private_action_runner.split_enabled is not enabled; \
+             the monolithic runner owns OPMS polling. Exiting."
+        );
+        log::logger().flush();
         return Ok(());
     }
+    let config = bootstrap::load_config_with_bootstrap(
+        &cli.config,
+        &cli.config_helper,
+        &cli.enroll_command,
+        gate.self_enroll,
+    )?;
 
-    let lifecycle = ProcmgrLifecycle::new();
-    lifecycle.ensure_started().await?;
+    let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
+        config.identity.org_id,
+        config.identity.runner_id.clone(),
+        &config.identity.private_key,
+    )?);
 
-    tokio::select! {
-        _ = shutdown_signal() => {
-            // dd-procmgrd may be synchronously waiting for par-control to exit, so
-            // don't call back into it. It owns the executor and stops both processes.
-            log::info!("par-control is exiting");
-            Ok(())
-        }
-        state = lifecycle.wait_for_exit() => {
-            bail!("executor exited unexpectedly with state {:?}", state?);
+    let opms = Arc::new(HttpOpms::new(
+        config.opms_base_url.clone(),
+        signer,
+        HttpOpmsConfig {
+            runner_version: config.runner_version.clone(),
+            modes: config.modes.clone(),
+            timeout: config.opms_request_timeout,
+            proxy: config.proxy.clone(),
+            tls: config.tls.clone(),
+            extra_headers: config.opms_extra_headers.clone(),
+        },
+    )?);
+    let lifecycle = Arc::new(ProcmgrLifecycle::new(
+        &config.procmgr_socket,
+        config.executor_process_name.clone(),
+    ));
+    // The IPC certificate is loaded lazily because the executor may create it.
+    let dispatcher = Arc::new(ExecutorDispatcher::new(
+        &config.executor_socket,
+        Some(&config.ipc_cert_file),
+    ));
+
+    let params = Params::from_config(&config);
+    let orchestrator = Orchestrator::new(opms, lifecycle, dispatcher, params);
+
+    log::info!(
+        "par-control starting: version={} urn={} opms={} executor_socket={} procmgr_socket={} ipc_cert={}",
+        config.runner_version,
+        config.identity.urn,
+        config.opms_base_url,
+        config.executor_socket.display(),
+        config.procmgr_socket.display(),
+        config.ipc_cert_file.display(),
+    );
+
+    orchestrator.run(shutdown_signal()).await;
+    log::info!("par-control stopped");
+    log::logger().flush();
+    Ok(())
+}
+
+/// Resolves when the process receives Ctrl-C or (on Unix) SIGTERM.
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut term = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+                return;
+            }
+        };
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = term.recv() => {},
         }
     }
-}
-
-#[cfg(unix)]
-async fn shutdown_signal() {
-    use tokio::signal::unix::{SignalKind, signal};
-    match signal(SignalKind::terminate()) {
-        Ok(mut term) => {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {},
-                _ = term.recv() => {},
-            }
-        }
-        Err(_) => {
-            let _ = tokio::signal::ctrl_c().await;
-        }
-    }
-}
-
-// Windows services normally have no inheritable stdout/stderr handles. Persist
-// control-plane diagnostics next to the other Agent logs instead of letting
-// dd-procmgrd redirect them to the null device.
-#[cfg(windows)]
-fn log_file_for_config(config_path: &Path) -> Option<PathBuf> {
-    let config_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
-    Some(config_dir.join("logs").join("par-control.log"))
-}
-
-#[cfg(not(windows))]
-fn log_file_for_config(_config_path: &Path) -> Option<PathBuf> {
-    None
-}
-
-/// dd-procmgrd stops children with `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`
-/// (see `send_graceful_stop` in `pkg/procmgr/rust/src/platform/windows.rs`), so
-/// CTRL_BREAK is the event that matters in production; CTRL_C only covers
-/// interactive runs. Missing CTRL_BREAK would mean waiting out `stop_timeout`
-/// and being force-killed with the job object.
-#[cfg(windows)]
-async fn shutdown_signal() {
-    match tokio::signal::windows::ctrl_break() {
-        Ok(mut ctrl_break) => {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {},
-                _ = ctrl_break.recv() => {},
-            }
-        }
-        Err(error) => {
-            log::warn!("could not listen for CTRL_BREAK, falling back to CTRL_C: {error}");
-            let _ = tokio::signal::ctrl_c().await;
-        }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
     }
 }

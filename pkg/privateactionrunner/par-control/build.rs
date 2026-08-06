@@ -3,14 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Bazel builds use `//pkg/proto/datadog/procmgr:procmgr_rust_proto` instead; this
-// script only serves `cargo build` and IDE workflows.
+// Bazel builds use the generated Rust crates from
+// `//pkg/proto/datadog/procmgr:procmgr_rust_proto` and
+// `//pkg/proto/datadog/privateactionrunner:executor_rust_proto`.
+// This script exists only for `cargo build` / IDE workflows outside Bazel.
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo::rustc-check-cfg=cfg(bazel)");
-    tonic_prost_build::configure().compile_protos(
-        &["../../proto/datadog/procmgr/process_manager.proto"],
-        &["../../proto"],
-    )?;
+
+    let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    tonic_prost_build::configure()
+        .file_descriptor_set_path(out_dir.join("par_control_descriptor.bin"))
+        .compile_protos(
+            &[
+                "../../proto/datadog/procmgr/process_manager.proto",
+                "../../proto/datadog/privateactionrunner/executor.proto",
+                "../../proto/datadog/privateactionrunner/error_code.proto",
+            ],
+            &["../../proto"],
+        )?;
     Ok(())
 }

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Private Action Runner control-plane process lifecycle scaffold"
+description = "Private Action Runner control plane (always-on, on-demand executor orchestration)"
 
 [lib]
 name = "par_control"
@@ -17,23 +17,34 @@ path = "src/bins/par-control.rs"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 dd-agent-log.workspace = true
 hyper-util.workspace = true
 log.workspace = true
+native-tls.workspace = true
+# Used to convert the Agent IPC key from SEC1 to PKCS8 for native-tls.
+openssl.workspace = true
+p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
+reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = [
   "macros",
-  "net",
   "rt-multi-thread",
   "signal",
   "time",
+  "sync",
 ] }
+tokio-native-tls.workspace = true
+tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }
 tonic-prost.workspace = true
 tower.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-registry.workspace = true

@@ -33,6 +33,7 @@ type WorkflowRunner struct {
 	encryptionStore *encryptioncontext.Store
 	sem             chan struct{}
 	shutdownChannel chan struct{}
+	lifecycleCancel context.CancelFunc
 	wg              sync.WaitGroup
 	started         bool
 }
@@ -70,12 +71,22 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 	n.started = true
 	startTime := time.Now()
 	go n.encryptionStore.Start()
-	n.keysManager.Start(ctx)
+	// Fx's Start context has a short deadline that only bounds lifecycle hooks.
+	// Key readiness can legitimately take longer, so detach from that deadline
+	// and cancel this context explicitly from Stop instead.
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
+	n.lifecycleCancel = lifecycleCancel
+	n.keysManager.Start(lifecycleCtx)
+	n.wg.Add(1)
 	go func() {
-		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
-		n.keysManager.WaitForReady()
-		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
-		n.run(ctx)
+		defer n.wg.Done()
+		log.FromContext(lifecycleCtx).Info("Waiting for KeysManager to be ready")
+		if err := n.keysManager.WaitForReady(lifecycleCtx); err != nil {
+			log.FromContext(lifecycleCtx).Info("Stopped waiting for KeysManager", log.ErrorField(err))
+			return
+		}
+		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(lifecycleCtx), startTime)
+		n.run(lifecycleCtx)
 	}()
 	return nil
 }
@@ -84,6 +95,9 @@ func (n *WorkflowRunner) Stop(ctx context.Context) error {
 	log.FromContext(ctx).Info("Stopping Workflow runner")
 
 	close(n.shutdownChannel)
+	if n.lifecycleCancel != nil {
+		n.lifecycleCancel()
+	}
 	done := make(chan struct{})
 	go func() {
 		n.wg.Wait()
