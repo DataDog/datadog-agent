@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "agent-rollout-gate_lib",
+    srcs = [
+        "gate_linux.go",
+        "gate_unsupported.go",
+        "main.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent-rollout-gate",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "agent-rollout-gate",
+    embed = [":agent-rollout-gate_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "agent-rollout-gate_test",
+    srcs = [
+        "gate_linux_test.go",
+        "main_test.go",
+    ],
+    embed = [":agent-rollout-gate_lib"],
+)

@@ -152,6 +152,9 @@ build do
   end
 
   if linux_target?
+    command "dda inv -- -e agent-rollout-gate.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    copy "bin/agent-rollout-gate/agent-rollout-gate", "#{install_dir}/embedded/bin"
+
     if heroku_target?
       # shouldn't be needed in practice, but it is used by the systemd service,
       # which is used when installing the deb manually

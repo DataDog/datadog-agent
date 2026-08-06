@@ -10,6 +10,7 @@ from invoke import Collection, Task
 from tasks import (
     agent,
     agent_ci_api,
+    agent_rollout_gate,
     ai_sandbox,
     ami,
     anomalydetection,
@@ -201,6 +202,7 @@ ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(bazel)
 ns.add_collection(agent)
+ns.add_collection(agent_rollout_gate)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(ai_sandbox)

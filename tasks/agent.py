@@ -465,6 +465,13 @@ def hacky_dev_image_build(
             copy_checks_d_final = "COPY --from=bin /etc/datadog-agent/checks.d /etc/datadog-agent/checks.d\n"
 
     copy_extra_agents = ""
+    from tasks.agent_rollout_gate import build as agent_rollout_gate_build
+
+    agent_rollout_gate_build(ctx)
+    copy_extra_agents += (
+        "COPY bin/agent-rollout-gate/agent-rollout-gate /opt/datadog-agent/embedded/bin/agent-rollout-gate\n"
+    )
+
     if security_agent:
         from tasks.security_agent import build as security_agent_build
 

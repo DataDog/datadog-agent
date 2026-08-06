@@ -286,6 +286,7 @@ docker_build_base_image_arm64:
   extends: .docker_build_job_definition
   before_script:
     - cp bin/host-profiler/host-profiler $BUILD_CONTEXT/
+    - cp bin/agent-rollout-gate/agent-rollout-gate $BUILD_CONTEXT/
     - cp cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
     - cp cmd/host-profiler/deploy/seccomp-profile.json $BUILD_CONTEXT/
     - "jq '. + {flags: [\"SECCOMP_FILTER_FLAG_LOG\"]}' cmd/host-profiler/deploy/seccomp-profile.json > $BUILD_CONTEXT/logging-seccomp.json"
@@ -327,7 +328,8 @@ docker_build_host_profiler_standalone_arm64:
       --verbose \
       --directory $BUILD_CONTEXT \
       --strip-components 4 \
-      opt/datadog-agent/embedded/bin/otel-agent
+      opt/datadog-agent/embedded/bin/otel-agent \
+      opt/datadog-agent/embedded/bin/agent-rollout-gate
     - |
       tar --extract --xz --file $ARCHIVE_NAME \
       --verbose \
