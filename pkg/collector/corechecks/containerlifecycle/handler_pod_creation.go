@@ -31,7 +31,7 @@ func (h *PodCreationHandler) String() string {
 }
 
 // CanHandle reports whether this handler processes the given event.
-func (h *PodCreationHandler) CanHandle(ev workloadmeta.Event) bool {
+func (h *PodCreationHandler) CanHandle(ev workloadmeta.Event, _ workloadmeta.Source) bool {
 	return ev.Entity.GetID().Kind == workloadmeta.KindKubernetesPod
 }
 

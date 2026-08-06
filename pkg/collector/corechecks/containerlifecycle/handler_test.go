@@ -47,14 +47,16 @@ func TestContainerTerminationHandlerCanHandle(t *testing.T) {
 	tests := []struct {
 		subdomain string
 		ev        workloadmeta.Event
+		source    workloadmeta.Source
 		want      bool
 	}{
-		{"event type unset + entity kind container", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: cont}, true},
-		{"event type set + entity kind non-container", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}, false},
+		{"event type unset + entity kind container + source runtime", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: cont}, workloadmeta.SourceRuntime, true},
+		{"event type set + entity kind non-container + source runtime", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}, workloadmeta.SourceRuntime, false},
+		{"event type unset + entity kind container + source node orchestrator", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: cont}, workloadmeta.SourceNodeOrchestrator, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.subdomain, func(t *testing.T) {
-			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev, tt.source))
 		})
 	}
 }
@@ -156,7 +158,7 @@ func TestPodTerminationHandlerCanHandle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.subdomain, func(t *testing.T) {
-			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev, workloadmeta.SourceNodeOrchestrator))
 		})
 	}
 }
@@ -218,7 +220,7 @@ func TestTaskTerminationHandlerCanHandle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.subdomain, func(t *testing.T) {
-			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev, workloadmeta.SourceNodeOrchestrator))
 		})
 	}
 }
@@ -285,7 +287,7 @@ func TestPodCreationHandlerCanHandle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.subdomain, func(t *testing.T) {
-			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev, workloadmeta.SourceAll))
 		})
 	}
 }
@@ -380,7 +382,7 @@ func TestContainerCreationHandlerCanHandle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.subdomain, func(t *testing.T) {
-			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev, workloadmeta.SourceAll))
 		})
 	}
 }

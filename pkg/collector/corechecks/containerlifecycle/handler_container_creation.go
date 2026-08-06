@@ -35,7 +35,7 @@ func (h *ContainerCreationHandler) String() string {
 }
 
 // CanHandle reports whether this handler processes the given event.
-func (h *ContainerCreationHandler) CanHandle(ev workloadmeta.Event) bool {
+func (h *ContainerCreationHandler) CanHandle(ev workloadmeta.Event, _ workloadmeta.Source) bool {
 	return ev.Entity.GetID().Kind == workloadmeta.KindContainer
 }
 

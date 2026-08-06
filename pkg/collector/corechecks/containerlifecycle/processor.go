@@ -56,14 +56,15 @@ func (p *processor) start(ctx context.Context, pollInterval time.Duration) {
 }
 
 // processEvents handles workloadmeta events, supports pods and container unset events.
-func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
+// source identifies which subscription the bundle arrived on.
+func (p *processor) processEvents(evBundle workloadmeta.EventBundle, source workloadmeta.Source) {
 	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
 		for _, h := range p.handlers {
-			if h.CanHandle(event) {
+			if h.CanHandle(event, source) {
 				les, err := h.Handle(event)
 				if err != nil {
 					log.Debugf("Handler '%s' failed to handle event %q: %v", h.String(), event.Entity.GetID().ID, err)

@@ -176,31 +176,31 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
-			c.processor.processEvents(eventBundle)
+			c.processor.processEvents(eventBundle, workloadmeta.SourceRuntime)
 		case eventBundle, ok := <-contCreateEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			c.processor.processEvents(eventBundle)
+			c.processor.processEvents(eventBundle, workloadmeta.SourceAll)
 		case eventBundle, ok := <-contNodeOrchestratorDeleteEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			c.processor.processEvents(eventBundle)
+			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-podEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			c.processor.processEvents(eventBundle)
+			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-taskEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			c.processor.processEvents(eventBundle)
+			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case <-c.stopCh:
 			return nil
 		}
@@ -247,5 +247,5 @@ func (c *Check) sendFargateTaskEvent() {
 			},
 		},
 		Ch: make(chan struct{}),
-	})
+	}, workloadmeta.SourceNodeOrchestrator)
 }
