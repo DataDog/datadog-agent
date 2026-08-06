@@ -160,6 +160,9 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 		if mf.Help != nil {
 			help = *mf.Help
 		}
+		// Prometheus requires one HELP string per metric family, so same-name local and remote
+		// metrics with divergent HELP make the combined gather fail. The injected emitter label
+		// separates samples but does not affect family metadata.
 		if canonicalHelp, found := canonicalMetricHelp(mf.GetName()); found {
 			help = canonicalHelp
 		}

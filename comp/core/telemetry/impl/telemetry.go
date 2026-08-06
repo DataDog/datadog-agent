@@ -26,8 +26,10 @@ import (
 
 // TODO (components): Remove the globals and move this into `newTelemetry` after all telemetry is migrated to the component
 var (
-	registry        = newRegistry()
-	mutex           = sync.Mutex{}
+	registry = newRegistry()
+	mutex    = sync.Mutex{}
+	// metricHelpMutex cannot reuse mutex because Gather holds mutex while collectors run,
+	// and the RAR collector looks up canonical HELP during collection.
 	metricHelpMutex = sync.RWMutex{}
 	defaultRegistry = prometheus.NewRegistry()
 	metricHelp      = make(map[string]string)
@@ -152,8 +154,7 @@ func (t *telemetryImpl) NewCounterWithOpts(subsystem, name string, tags []string
 			tags,
 		),
 	}
-	t.mustRegister(c.pc, opts)
-	t.catalogMetricHelp(subsystem, name, help, opts)
+	t.mustRegister(c.pc, subsystem, name, help, opts)
 	return c
 }
 
@@ -173,8 +174,7 @@ func (t *telemetryImpl) NewSimpleCounterWithOpts(subsystem, name, help string, o
 		Help:      help,
 	})
 
-	t.mustRegister(pc, opts)
-	t.catalogMetricHelp(subsystem, name, help, opts)
+	t.mustRegister(pc, subsystem, name, help, opts)
 	return &simplePromCounter{c: pc}
 }
 
@@ -198,8 +198,7 @@ func (t *telemetryImpl) NewGaugeWithOpts(subsystem, name string, tags []string, 
 			tags,
 		),
 	}
-	t.mustRegister(g.pg, opts)
-	t.catalogMetricHelp(subsystem, name, help, opts)
+	t.mustRegister(g.pg, subsystem, name, help, opts)
 	return g
 }
 
@@ -219,8 +218,7 @@ func (t *telemetryImpl) NewSimpleGaugeWithOpts(subsystem, name, help string, opt
 		Help:      help,
 	})}
 
-	t.mustRegister(pc.g, opts)
-	t.catalogMetricHelp(subsystem, name, help, opts)
+	t.mustRegister(pc.g, subsystem, name, help, opts)
 	return pc
 }
 
@@ -246,8 +244,7 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 		),
 	}
 
-	t.mustRegister(h.ph, opts)
-	t.catalogMetricHelp(subsystem, name, help, opts)
+	t.mustRegister(h.ph, subsystem, name, help, opts)
 
 	return h
 }
@@ -269,25 +266,20 @@ func (t *telemetryImpl) NewSimpleHistogramWithOpts(subsystem, name, help string,
 		Buckets:   buckets,
 	})}
 
-	t.mustRegister(pc.h, opts)
-	t.catalogMetricHelp(subsystem, name, help, opts)
+	t.mustRegister(pc.h, subsystem, name, help, opts)
 	return pc
 }
 
-func (t *telemetryImpl) catalogMetricHelp(subsystem, name, help string, opts telemetry.Options) {
-	if !opts.DefaultMetric {
-		t.metricHelpMutex.Lock()
-		defer t.metricHelpMutex.Unlock()
-		t.metricHelp[prometheus.BuildFQName("", subsystem, name)] = help
-	}
-}
-
-func (t *telemetryImpl) mustRegister(c prometheus.Collector, opts telemetry.Options) {
+func (t *telemetryImpl) mustRegister(c prometheus.Collector, subsystem, name, help string, opts telemetry.Options) {
 	if opts.DefaultMetric {
 		t.defaultRegistry.MustRegister(c)
-	} else {
-		t.registry.MustRegister(c)
+		return
 	}
+
+	t.registry.MustRegister(c)
+	t.metricHelpMutex.Lock()
+	defer t.metricHelpMutex.Unlock()
+	t.metricHelp[prometheus.BuildFQName("", subsystem, name)] = help
 }
 
 func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, error) {

@@ -225,6 +225,8 @@ func TestGetTelemetryUsesCanonicalHelpForLocalMetricFamily(t *testing.T) {
 	lc.Start(context.Background())
 	component := provides.Comp
 
+	// This intentionally combines same-name local Core Agent and remote RAR families with
+	// mismatched HELP to ensure local metadata is canonical while the remote sample is retained.
 	telemetryComp.NewSimpleCounter("dogstatsd_client", "bytes_sent", "Total bytes sent by DogStatsD clients")
 
 	promText := `
