@@ -12,7 +12,7 @@ import "github.com/NVIDIA/go-nvml/pkg/nvml"
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
 	nvmlDevice nvml.Device
-	lib        symbolLookup
+	lib        nvmlSafety
 }
 
 func (d *safeDeviceImpl) GetArchitecture() (nvml.DeviceArchitecture, error) {
@@ -393,6 +393,8 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	if err := d.lib.lookup("nvmlGpmSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmSampleGet(sample)
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
@@ -401,6 +403,8 @@ func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSampl
 	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
 	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
 }

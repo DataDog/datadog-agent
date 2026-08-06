@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result};
 
-use core::*;
+use shlib_core::*;
 
 /// Check implementation
 pub fn check(check: &AgentCheck) -> Result<()> {
@@ -34,8 +34,8 @@ pub fn check(check: &AgentCheck) -> Result<()> {
 mod tests {
     use super::check;
 
-    use core::stubs::{AggregatorStub, RecordedEvent};
-    use core::{LogLevel, MetricType, ServiceCheckStatus};
+    use shlib_core::stubs::{AggregatorStub, RecordedEvent};
+    use shlib_core::{LogLevel, MetricType, ServiceCheckStatus};
 
     fn run_check() -> AggregatorStub {
         let aggregator = AggregatorStub::new();

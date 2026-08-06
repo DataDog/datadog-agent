@@ -77,20 +77,20 @@ func TestTokenizer(t *testing.T) {
 
 	tokenizer := NewTokenizer(0)
 	for _, tc := range testCases {
-		tokens, _ := tokenizer.tokenize([]byte(tc.input))
+		tokens, _ := tokenizer.Tokenize([]byte(tc.input))
 		actualToken := TokensToString(tokens)
 		assert.Equal(t, tc.expectedToken, actualToken)
 	}
 }
 
 func TestTokenizerMaxCharRun(t *testing.T) {
-	tokens, indicies := NewTokenizer(0).tokenize([]byte("ABCDEFGHIJKLMNOP"))
+	tokens, indicies := NewTokenizer(0).Tokenize([]byte("ABCDEFGHIJKLMNOP"))
 	assert.Equal(t, "CCCCCCCCCC", TokensToString(tokens))
 	assert.Equal(t, []int{0}, indicies)
 }
 
 func TestTokenizerMaxDigitRun(t *testing.T) {
-	tokens, indicies := NewTokenizer(0).tokenize([]byte("0123456789012345"))
+	tokens, indicies := NewTokenizer(0).Tokenize([]byte("0123456789012345"))
 	assert.Equal(t, "DDDDDDDDDD", TokensToString(tokens))
 	assert.Equal(t, []int{0}, indicies)
 }
@@ -125,6 +125,18 @@ func TestTokenizerMaxEvalBytes(t *testing.T) {
 	toks, indices = tokenizer.Tokenize([]byte("123Z"))
 	assert.Equal(t, "DDDZONE", TokensToString(toks))
 	assert.Equal(t, []int{0, 3}, indices)
+}
+
+func TestTokenizerOwnedResultsSurviveReuse(t *testing.T) {
+	tokenizer := NewTokenizer(0)
+	tokens, indices := tokenizer.Tokenize([]byte("first 123"))
+
+	expectedTokens := append([]Token(nil), tokens...)
+	expectedIndices := append([]int(nil), indices...)
+	tokenizer.Tokenize([]byte("a completely different message 456"))
+
+	assert.Equal(t, expectedTokens, tokens)
+	assert.Equal(t, expectedIndices, indices)
 }
 
 // --- Fuzz tests ---
@@ -355,6 +367,16 @@ func FuzzTokenizerCorrectness(f *testing.F) {
 	f.Add([]byte("abc!📀🐶📊123"))
 	f.Add([]byte("Sun Mar 2PM EST JAN FEB MAR"))
 	f.Add([]byte("12-12-12T12:12:12.12T12:12Z123"))
+	f.Add([]byte("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC MON TUE WED THU FRI SAT SUN " +
+		"AM PM UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST IST MSK CET BST HST HDT NST NDT " +
+		"CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT AKST AKDT CHST CHDT WARN CRIT FATAL ERROR " +
+		"PANIC ALERT EMERG CRASH SEVERE FAILED WARNING CRASHED FAILURE TIMEOUT CRITICAL DEADLOCK " +
+		"EMERGENCY EXCEPTION T Z"))
+	f.Add([]byte("jan feb mar apr may jun jul aug sep oct nov dec mon tue wed thu fri sat sun " +
+		"am pm utc gmt est edt cst cdt mst mdt pst pdt jst kst ist msk cet bst hst hdt nst ndt " +
+		"cest nzst nzdt acst acdt aest aedt awst awdt akst akdt chst chdt warn crit fatal error " +
+		"panic alert emerg crash severe failed warning crashed failure timeout critical deadlock " +
+		"emergency exception t z"))
 	f.Fuzz(func(t *testing.T, input []byte) {
 		tok := NewTokenizer(0)
 		actual, _ := tok.Tokenize(input)
@@ -494,32 +516,32 @@ func FuzzIsMatchMonotonicity(f *testing.F) {
 func TestIsMatch(t *testing.T) {
 	tokenizer := NewTokenizer(0)
 	// A string of 10 tokens to make math easier.
-	ta, _ := tokenizer.tokenize([]byte("! @ # $ %"))
-	tb, _ := tokenizer.tokenize([]byte("! @ # $ %"))
+	ta, _ := tokenizer.Tokenize([]byte("! @ # $ %"))
+	tb, _ := tokenizer.Tokenize([]byte("! @ # $ %"))
 
 	assert.True(t, IsMatch(ta, tb, 1))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte("! @ #1a1a1"))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte("! @ #1a1a1"))
 
 	assert.True(t, IsMatch(ta, tb, 0.5))
 	assert.False(t, IsMatch(ta, tb, 0.55))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte("#1a1a1$ $ "))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte("#1a1a1$ $ "))
 
 	assert.False(t, IsMatch(ta, tb, 0.5))
 	assert.True(t, IsMatch(ta, tb, 0.3))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte(""))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte(""))
 
 	assert.False(t, IsMatch(ta, tb, 0.5))
 	assert.False(t, IsMatch(ta, tb, 0))
 	assert.False(t, IsMatch(ta, tb, 1))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte("!"))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte("!"))
 
 	assert.True(t, IsMatch(ta, tb, 1))
 	assert.True(t, IsMatch(ta, tb, 0.01))

@@ -1,7 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_linux_bpf on
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
 exports_files([
@@ -57,7 +57,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "events_test",
     srcs = [
         "batch_offsets_test.go",
@@ -65,10 +65,7 @@ go_test(
         "types_linux_test.go",
     ],
     embed = [":events"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
+    gotags_sets = [["linux_bpf"]],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
