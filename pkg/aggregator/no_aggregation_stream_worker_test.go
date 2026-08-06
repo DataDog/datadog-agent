@@ -48,6 +48,23 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 	demux.Stop()
 }
 
+// flushSignalingSerializer signals every completed flush so a test can wait for
+// the no-aggregation worker to have serialized a batch instead of sleeping for a
+// fixed interval.
+type flushSignalingSerializer struct {
+	*MockSerializerIterableSerie
+	flushed chan struct{}
+}
+
+func (s *flushSignalingSerializer) SendIterableSeries(seriesSource metrics.SerieSource) error {
+	err := s.MockSerializerIterableSerie.SendIterableSeries(seriesSource)
+	select {
+	case s.flushed <- struct{}{}:
+	default: // never block the worker: it flushes again on stop
+	}
+	return err
+}
+
 // TestNoAggStreamWorkerSampleToSerieFields checks every field the
 // no-aggregation pipeline is expected to carry from a MetricSample onto the
 // Serie it emits.
@@ -59,18 +76,23 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 func TestNoAggStreamWorkerSampleToSerieFields(t *testing.T) {
 	require := require.New(t)
 
-	noAggWorkerStreamCheckFrequency = 100 * time.Millisecond
-
 	opts := demuxTestOptions()
 	opts.NoAggregationPipelineWorkersCount = 1
 
 	mockSerializer := &MockSerializerIterableSerie{}
 	mockSerializer.On("AreSeriesEnabled").Return(true)
 	mockSerializer.On("AreSketchesEnabled").Return(true)
+	serializer := &flushSignalingSerializer{
+		MockSerializerIterableSerie: mockSerializer,
+		flushed:                     make(chan struct{}, 1),
+	}
 
 	deps := createDemultiplexerAgentTestDeps(t)
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
-	demux.statsd.noAggStreamWorkers[0].serializer = mockSerializer
+	demux.statsd.noAggStreamWorkers[0].serializer = serializer
+	// Flush as soon as the batch has been processed, instead of waiting for the
+	// idle ticker, so the test can wait on the flush rather than on a clock.
+	demux.statsd.noAggStreamWorkers[0].maxMetricsPerPayload = 0
 
 	go demux.run()
 
@@ -105,7 +127,18 @@ func TestNoAggStreamWorkerSampleToSerieFields(t *testing.T) {
 	}
 
 	demux.SendSamplesWithoutAggregation(batch)
-	time.Sleep(200 * time.Millisecond) // give some time for the automatic flush to trigger
+
+	// SendSamplesWithoutAggregation only queues the batch, and stopping the worker
+	// races with it consuming that queue: wait for the worker to tell us it has
+	// serialized the batch before stopping it.
+	select {
+	case <-serializer.flushed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for the no-aggregation worker to serialize the batch")
+	}
+
+	// Stopping the worker is what makes reading mockSerializer.series race-free:
+	// stop() blocks until the worker's run() has returned.
 	demux.Stop()
 
 	// Counters and rates are reported as APIRateType, so their value is divided
