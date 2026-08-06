@@ -140,23 +140,23 @@ func (c *thermalCheck) Run() error {
 	reading := getThermalReading()
 
 	if v := reading.smc.cpu; v != nil {
-		log.Infof("thermal: SMC CPU temperature: %.1f°C", *v)
+		log.Debugf("thermal: SMC CPU temperature: %.1f°C", *v)
 		sender.Gauge("system.thermal.temperature.cpu", *v, "", []string{"macos", "smc", "cpu"})
 	}
 	if v := reading.smc.gpu; v != nil {
-		log.Infof("thermal: SMC GPU temperature: %.1f°C", *v)
+		log.Debugf("thermal: SMC GPU temperature: %.1f°C", *v)
 		sender.Gauge("system.thermal.temperature.gpu", *v, "", []string{"macos", "smc", "gpu"})
 	}
 	if v := reading.smc.ssd; v != nil {
-		log.Infof("thermal: SMC SSD temperature: %.1f°C", *v)
+		log.Debugf("thermal: SMC SSD temperature: %.1f°C", *v)
 		sender.Gauge("system.thermal.temperature.ssd", *v, "", []string{"macos", "smc", "ssd"})
 	}
 	if v := reading.smc.battery; v != nil {
-		log.Infof("thermal: SMC battery temperature: %.1f°C", *v)
+		log.Debugf("thermal: SMC battery temperature: %.1f°C", *v)
 		sender.Gauge("system.thermal.temperature.battery", *v, "", []string{"macos", "smc", "battery"})
 	}
 	if v := reading.thermalLevel; v != nil {
-		log.Infof("thermal: thermal pressure level: %d", *v)
+		log.Debugf("thermal: thermal pressure level: %d", *v)
 		tags := []string{"macos", "pressure_level:" + thermalPressureLevelName(*v)}
 		sender.Gauge("system.thermal.pressure_level", float64(*v), "", tags)
 	}
