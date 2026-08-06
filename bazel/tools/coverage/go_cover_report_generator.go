@@ -29,8 +29,25 @@ func (f *stringListFlag) Set(value string) error {
 	return nil
 }
 
-// mergeBlock applies the standard go cover profile block merge (set |=, count/atomic +=).
-// Same semantics as tools like gocovmerge; independent implementation for Bazel integration.
+// mergedProfileMode is the mode declared on the merged profile. Blocks carry a
+// 0/1 covered flag rather than an execution count, which is what set mode means.
+const mergedProfileMode = "set"
+
+// unionCount collapses an execution count to a 0/1 covered flag.
+//
+// Summing counts (what gocovmerge does) is wrong here: a Bazel coverage run
+// instruments the whole dependency closure of every test target, so a block in
+// a widely depended-on package is counted once per target that links it. In CI
+// that inflated a single block to 3x10^8 executions against ~18k under a plain
+// `go test`. Only "was this reached" survives the merge meaningfully.
+func unionCount(count int) int {
+	if count > 0 {
+		return 1
+	}
+	return 0
+}
+
+// mergeBlock merges a block into profile, unioning coverage rather than summing it.
 func mergeBlock(profile *cover.Profile, block cover.ProfileBlock) error {
 	index := sort.Search(len(profile.Blocks), func(i int) bool {
 		current := profile.Blocks[i]
@@ -46,20 +63,28 @@ func mergeBlock(profile *cover.Profile, block cover.ProfileBlock) error {
 			return fmt.Errorf("incompatible coverage blocks in %s at %d.%d", profile.FileName, block.StartLine, block.StartCol)
 		}
 		switch profile.Mode {
-		case "set":
-			current.Count |= block.Count
-		case "count", "atomic":
-			current.Count += block.Count
+		case "set", "count", "atomic":
+			current.Count |= unionCount(block.Count)
 		default:
 			return fmt.Errorf("unsupported coverage mode %q", profile.Mode)
 		}
 		return nil
 	}
 
+	block.Count = unionCount(block.Count)
 	profile.Blocks = append(profile.Blocks, cover.ProfileBlock{})
 	copy(profile.Blocks[index+1:], profile.Blocks[index:])
 	profile.Blocks[index] = block
 	return nil
+}
+
+// adoptProfile takes a parsed profile as the merge base for its file, normalizing
+// counts so blocks that only ever appear in one input still read as 0/1.
+func adoptProfile(profilesByFile map[string]*cover.Profile, profile *cover.Profile) {
+	for i := range profile.Blocks {
+		profile.Blocks[i].Count = unionCount(profile.Blocks[i].Count)
+	}
+	profilesByFile[profile.FileName] = profile
 }
 
 func mergeProfiles(profilesByFile map[string]*cover.Profile, profiles []*cover.Profile, mode *string) error {
@@ -72,7 +97,7 @@ func mergeProfiles(profilesByFile map[string]*cover.Profile, profiles []*cover.P
 
 		merged, found := profilesByFile[profile.FileName]
 		if !found {
-			profilesByFile[profile.FileName] = profile
+			adoptProfile(profilesByFile, profile)
 			continue
 		}
 		for _, block := range profile.Blocks {
@@ -94,7 +119,7 @@ func mergeBaselineProfiles(profilesByFile map[string]*cover.Profile, profiles []
 		if _, found := profilesByFile[profile.FileName]; found {
 			continue
 		}
-		profilesByFile[profile.FileName] = profile
+		adoptProfile(profilesByFile, profile)
 	}
 	return nil
 }
@@ -387,31 +412,34 @@ func filterProfilesByRegex(profilesByFile map[string]*cover.Profile, patterns []
 	return nil
 }
 
-func mergeReportPaths(profilesByFile map[string]*cover.Profile, reportPaths []string) (string, error) {
+// mergeReportPaths merges every report into profilesByFile. The mode it tracks
+// is the inputs' mode, used only to reject mixing incompatible ones; the merged
+// output is always written as mergedProfileMode.
+func mergeReportPaths(profilesByFile map[string]*cover.Profile, reportPaths []string) error {
 	mode := ""
 	for _, reportPath := range reportPaths {
 		profiles, isGoProfile, err := parseGoProfiles(reportPath)
 		if err != nil {
-			return "", fmt.Errorf("parse %s: %w", reportPath, err)
+			return fmt.Errorf("parse %s: %w", reportPath, err)
 		}
 		if isGoProfile {
 			if err := mergeProfiles(profilesByFile, profiles, &mode); err != nil {
-				return "", err
+				return err
 			}
 			continue
 		}
 
 		baselineProfiles, isBaselineProfile, err := parseBaselineProfiles(reportPath)
 		if err != nil {
-			return "", fmt.Errorf("parse %s: %w", reportPath, err)
+			return fmt.Errorf("parse %s: %w", reportPath, err)
 		}
 		if isBaselineProfile {
 			if err := mergeBaselineProfiles(profilesByFile, baselineProfiles, &mode); err != nil {
-				return "", err
+				return err
 			}
 		}
 	}
-	return mode, nil
+	return nil
 }
 
 func generateCoverageDirReport(coverageDir, outputFile string, filterSources []string, sourceFileManifest, sourcesToReplaceFile string) error {
@@ -421,8 +449,7 @@ func generateCoverageDirReport(coverageDir, outputFile string, filterSources []s
 	}
 
 	profilesByFile := make(map[string]*cover.Profile)
-	mode, err := mergeReportPaths(profilesByFile, datFiles)
-	if err != nil {
+	if err := mergeReportPaths(profilesByFile, datFiles); err != nil {
 		return err
 	}
 
@@ -446,11 +473,7 @@ func generateCoverageDirReport(coverageDir, outputFile string, filterSources []s
 		return err
 	}
 
-	if mode == "" {
-		mode = "atomic"
-	}
-
-	if err := writeProfiles(outputFile, mode, profilesByFile); err != nil {
+	if err := writeProfiles(outputFile, mergedProfileMode, profilesByFile); err != nil {
 		return fmt.Errorf("write merged profile: %w", err)
 	}
 	return nil
@@ -463,15 +486,11 @@ func generateReport(reportsFile, outputFile string) error {
 	}
 
 	profilesByFile := make(map[string]*cover.Profile)
-	mode, err := mergeReportPaths(profilesByFile, reportPaths)
-	if err != nil {
+	if err := mergeReportPaths(profilesByFile, reportPaths); err != nil {
 		return err
 	}
-	if mode == "" {
-		mode = "atomic"
-	}
 
-	if err := writeProfiles(outputFile, mode, profilesByFile); err != nil {
+	if err := writeProfiles(outputFile, mergedProfileMode, profilesByFile); err != nil {
 		return fmt.Errorf("write merged profile: %w", err)
 	}
 	return nil
