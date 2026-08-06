@@ -898,6 +898,9 @@ func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
 	}
 	sort.Strings(groups)
 	s.callback(evt.timestamp, groups)
+	// The sink is retained across testbench replays. Release this run's groups
+	// so a later replay reports only its own muted series.
+	s.mutedGroups = nil
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
