@@ -50,6 +50,10 @@ func waitAndExec(opts options, stderr io.Writer) error {
 	if err := setCloseOnExec(lock.Fd(), false); err != nil {
 		return fmt.Errorf("preserve component lock across exec: %w", err)
 	}
+	path, err := exec.LookPath(opts.command[0])
+	if err != nil {
+		return fmt.Errorf("resolve command after acquiring component lock: %w", err)
+	}
 	if opts.waitFile != "" {
 		fmt.Fprintf(stderr, "agent-rollout-gate: %s acquired component lock; waiting for %s\n", opts.component, opts.waitFile)
 		if err := waitForNonEmptyFile(opts.waitFile); err != nil {
@@ -57,10 +61,6 @@ func waitAndExec(opts options, stderr io.Writer) error {
 		}
 	}
 
-	path, err := exec.LookPath(opts.command[0])
-	if err != nil {
-		return fmt.Errorf("resolve command after acquiring component lock: %w", err)
-	}
 	fmt.Fprintf(stderr, "agent-rollout-gate: %s acquired component lock; starting %s\n", opts.component, opts.command[0])
 	if err := syscall.Exec(path, opts.command, os.Environ()); err != nil {
 		return fmt.Errorf("exec command after acquiring component lock: %w", err)

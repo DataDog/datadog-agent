@@ -88,6 +88,7 @@ func TestMissingCommandIsNotCheckedUntilAfterLockAcquisition(t *testing.T) {
 		lockPath:     dir + "/agent.lock",
 		preparedPath: dir + "/agent.prepared",
 		podUID:       "pod-uid",
+		waitFile:     dir + "/missing-token",
 		command:      []string{dir + "/missing-agent"},
 	}
 
