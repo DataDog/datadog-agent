@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Standalone Private Action Runner control-plane scaffold.
-
 use anyhow::Result;
 use clap::Parser;
 use par_control::config::Config;
@@ -32,14 +30,14 @@ async fn main() -> Result<()> {
     let config = config?;
 
     if !config.enabled {
-        log::info!("private_action_runner is disabled; par-control is exiting");
+        log::info!("PAR is disabled; par-control is exiting");
         log::logger().flush();
         return Ok(());
     }
 
-    log::info!("par-control scaffold started");
+    log::info!("par-control started");
     shutdown_signal().await;
-    log::info!("par-control is exiting");
+    log::info!("par-control exiting");
     log::logger().flush();
     Ok(())
 }
