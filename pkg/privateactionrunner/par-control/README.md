@@ -5,6 +5,6 @@
 ## Build and test
 
 ```bash
-dda env dev run -- bazel test //pkg/privateactionrunner/par-control:par-control_test
-dda env dev run -- bazel build //pkg/privateactionrunner/par-control:par-control
+bazel test //pkg/privateactionrunner/par-control:par-control_test
+bazel build //pkg/privateactionrunner/par-control:par-control
 ```
