@@ -494,9 +494,9 @@ func buildRemoteAgentOnListener(t *testing.T, ipcComp ipc.Component, listener ne
 
 	// block until the server is started
 	// initializing a dummy echo client to make sure the server is started
-	probeTarget, probeCreds, err := resolveDialTarget(apiEndpointURI, ipcComp.GetTLSClientConfig())
+	probeTarget, probeDialOpts, err := resolveDialTarget(apiEndpointURI, ipcComp.GetTLSClientConfig())
 	require.NoError(t, err)
-	client, err := grpc.NewClient(probeTarget, grpc.WithTransportCredentials(probeCreds))
+	client, err := grpc.NewClient(probeTarget, probeDialOpts...)
 	require.NoError(t, err)
 	echoClient := echo.NewEchoClient(client)
 	_, err = echoClient.UnaryEcho(context.Background(), &echo.EchoRequest{}, grpc.WaitForReady(true))

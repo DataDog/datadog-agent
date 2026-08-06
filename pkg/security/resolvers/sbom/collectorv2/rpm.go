@@ -17,9 +17,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
+
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
 )
 
 var rpmdbPaths = []string{
@@ -141,7 +142,7 @@ func splitFileName(filename string) (name, ver, rel string, err error) {
 	return name, ver, rel, nil
 }
 
-func writeFileToTemp(root *os.Root, path string) (string, error) {
+func writeFileToTemp(root *os.Root, path string) (_ string, err error) {
 	srcFile, err := root.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to open source file %s: %w", path, err)
@@ -152,18 +153,24 @@ func writeFileToTemp(root *os.Root, path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			// remove any partially-written file
+			os.Remove(tmpFile.Name())
+		}
+	}()
 	defer tmpFile.Close()
 
-	if _, err := io.Copy(tmpFile, srcFile); err != nil {
+	if _, err = io.Copy(tmpFile, srcFile); err != nil {
 		return "", fmt.Errorf("failed to copy source file %s to temp file: %w", path, err)
 	}
 
 	// important to handle close errors when writing to a file
-	if err := tmpFile.Sync(); err != nil {
+	if err = tmpFile.Sync(); err != nil {
 		return "", fmt.Errorf("failed to sync temp file: %w", err)
 	}
 
-	if err := tmpFile.Close(); err != nil {
+	if err = tmpFile.Close(); err != nil {
 		return "", fmt.Errorf("failed to close temp file: %w", err)
 	}
 
