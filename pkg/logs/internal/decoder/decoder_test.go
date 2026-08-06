@@ -664,6 +664,48 @@ func TestSmartSeverityProfileDiscrepancies(t *testing.T) {
 	}
 }
 
+func TestSmartSeverityProfileWarningRegistry(t *testing.T) {
+	profiles := func(low, medium, high preprocessor.SamplerProfile) [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile {
+		return [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile{
+			severityeventsdef.SeverityLow:    low,
+			severityeventsdef.SeverityMedium: medium,
+			severityeventsdef.SeverityHigh:   high,
+		}
+	}
+
+	registry := newSmartSeverityProfileWarningRegistry()
+	global := profiles(
+		preprocessor.SamplerProfile{RateLimit: 2, BurstSize: 2},
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 3},
+		preprocessor.SamplerProfile{RateLimit: 3, BurstSize: 4},
+	)
+	var warnings []string
+	registry.warnGlobal(global, func(discrepancy string) { warnings = append(warnings, discrepancy) })
+	registry.warnGlobal(global, func(discrepancy string) { warnings = append(warnings, discrepancy) })
+	assert.Len(t, warnings, 1, "global discrepancies should be reported once")
+
+	globalSourceDiscrepancy := sourceSmartSeverityProfileDiscrepancies(global)
+	require.Len(t, globalSourceDiscrepancy, 1)
+	assert.False(t, registry.markSourceProfile(global[severityeventsdef.SeverityLow]), "the global low-to-medium discrepancy should not be repeated for a source")
+
+	burstOnly := profiles(
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 4},
+		preprocessor.SamplerProfile{RateLimit: 2, BurstSize: 2},
+		preprocessor.SamplerProfile{RateLimit: 3, BurstSize: 3},
+	)
+	burstDiscrepancy := sourceSmartSeverityProfileDiscrepancies(burstOnly)
+	require.Len(t, burstDiscrepancy, 1)
+	assert.True(t, registry.markSourceProfile(burstOnly[severityeventsdef.SeverityLow]), "a distinct source profile should be reported")
+	assert.False(t, registry.markSourceProfile(burstOnly[severityeventsdef.SeverityLow]), "an identical source profile should be deduplicated")
+
+	passThrough := profiles(
+		preprocessor.SamplerProfile{RateLimit: 10, BurstSize: 10},
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true},
+		preprocessor.SamplerProfile{RateLimit: 1, BurstSize: 1, PassThrough: true},
+	)
+	assert.Empty(t, sourceSmartSeverityProfileDiscrepancies(passThrough))
+}
+
 func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.max_patterns", 100, pkgconfigmodel.SourceAgentRuntime)

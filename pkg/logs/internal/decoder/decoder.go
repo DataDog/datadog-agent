@@ -243,22 +243,80 @@ func resolveSmartSeverityProfiles(low preprocessor.SamplerProfile) [severityeven
 	return profiles
 }
 
-// warnSmartSeverityProfileDiscrepancies reports profiles that become less permissive
-// as severity increases. Profiles are validated after source overrides and cascading
-// have been resolved, so the warning describes the values the sampler will use.
-var smartSeverityProfileWarningsOnce sync.Once
+// smartSeverityProfileWarningRegistry separates global validation from
+// source-specific validation. Global configuration is reported once at logs-agent
+// startup, while each distinct source override discrepancy is reported once.
+type smartSeverityProfileWarningRegistry struct {
+	globalOnce sync.Once
+	mu         sync.Mutex
+	sources    map[smartSeveritySourceProfileKey]struct{}
+}
 
-func warnSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) {
-	discrepancies := smartSeverityProfileDiscrepancies(profiles)
-	if len(discrepancies) == 0 {
+type smartSeveritySourceProfileKey struct {
+	rateLimit float64
+	burstSize float64
+}
+
+func newSmartSeverityProfileWarningRegistry() *smartSeverityProfileWarningRegistry {
+	return &smartSeverityProfileWarningRegistry{sources: make(map[smartSeveritySourceProfileKey]struct{})}
+}
+
+func (r *smartSeverityProfileWarningRegistry) markSourceProfile(profile preprocessor.SamplerProfile) bool {
+	key := smartSeveritySourceProfileKey{
+		rateLimit: effectiveProfileLimit(profile.RateLimit, profile.PassThrough),
+		burstSize: effectiveProfileLimit(profile.BurstSize, profile.PassThrough),
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, found := r.sources[key]; found {
+		return false
+	}
+	r.sources[key] = struct{}{}
+	return true
+}
+
+var smartSeverityProfileWarnings = newSmartSeverityProfileWarningRegistry()
+
+// WarnGlobalSmartSeverityProfileDiscrepancies validates the global adaptive
+// sampling profile before log sources are started. It is safe to call repeatedly.
+func WarnGlobalSmartSeverityProfileDiscrepancies() {
+	if !pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey) {
 		return
 	}
 
-	smartSeverityProfileWarningsOnce.Do(func() {
-		for _, discrepancy := range discrepancies {
-			log.Warnf("config adaptive sampler smart severity profiles: %s", discrepancy)
+	low := preprocessor.SamplerProfile{
+		RateLimit: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
+		BurstSize: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
+	}
+	profiles := resolveSmartSeverityProfiles(low)
+	smartSeverityProfileWarnings.warnGlobal(profiles, func(discrepancy string) {
+		log.Warnf("config adaptive sampler smart severity profiles: %s", discrepancy)
+	})
+}
+
+func (r *smartSeverityProfileWarningRegistry) warnGlobal(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile, warn func(string)) {
+	r.globalOnce.Do(func() {
+		for _, discrepancy := range smartSeverityProfileDiscrepancies(profiles) {
+			warn(discrepancy)
+		}
+		if len(sourceSmartSeverityProfileDiscrepancies(profiles)) > 0 {
+			r.markSourceProfile(profiles[severityeventsdef.SeverityLow])
 		}
 	})
+}
+
+func warnSourceSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile, sourceAdaptiveSampling *config.SourceAdaptiveSamplingOptions) {
+	if sourceAdaptiveSampling == nil || (sourceAdaptiveSampling.RateLimit == nil && sourceAdaptiveSampling.BurstSize == nil) {
+		return
+	}
+
+	discrepancies := sourceSmartSeverityProfileDiscrepancies(profiles)
+	if len(discrepancies) == 0 || !smartSeverityProfileWarnings.markSourceProfile(profiles[severityeventsdef.SeverityLow]) {
+		return
+	}
+	for _, discrepancy := range discrepancies {
+		log.Warnf("config adaptive sampler smart severity profiles: %s", discrepancy)
+	}
 }
 
 func smartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) []string {
@@ -281,6 +339,26 @@ func smartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLe
 	}
 	if medium.PassThrough && !high.PassThrough {
 		discrepancies = append(discrepancies, fmt.Sprintf("%s enabled but not %s", smartSeverityProfilesMediumPassThroughConfigKey, smartSeverityProfilesHighPassThroughConfigKey))
+	}
+	return discrepancies
+}
+
+// sourceSmartSeverityProfileDiscrepancies only checks the low-to-medium boundary:
+// medium and high are global settings and are checked during startup validation.
+func sourceSmartSeverityProfileDiscrepancies(profiles [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile) []string {
+	low := profiles[severityeventsdef.SeverityLow]
+	medium := profiles[severityeventsdef.SeverityMedium]
+
+	var discrepancies []string
+	lowRateLimit := effectiveProfileLimit(low.RateLimit, low.PassThrough)
+	mediumRateLimit := effectiveProfileLimit(medium.RateLimit, medium.PassThrough)
+	if lowRateLimit > mediumRateLimit {
+		discrepancies = append(discrepancies, fmt.Sprintf("rate limits should be non-decreasing (low=%g, medium=%g)", lowRateLimit, mediumRateLimit))
+	}
+	lowBurstSize := effectiveProfileLimit(low.BurstSize, low.PassThrough)
+	mediumBurstSize := effectiveProfileLimit(medium.BurstSize, medium.PassThrough)
+	if lowBurstSize > mediumBurstSize {
+		discrepancies = append(discrepancies, fmt.Sprintf("burst sizes should be non-decreasing (low=%g, medium=%g)", lowBurstSize, mediumBurstSize))
 	}
 	return discrepancies
 }
@@ -384,7 +462,7 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 	c.SmartSeverityProfilesEnabled = pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey)
 	if c.SmartSeverityProfilesEnabled {
 		c.Profiles = resolveSmartSeverityProfiles(preprocessor.SamplerProfile{RateLimit: c.RateLimit, BurstSize: c.BurstSize})
-		warnSmartSeverityProfileDiscrepancies(c.Profiles)
+		warnSourceSmartSeverityProfileDiscrepancies(c.Profiles, sourceAdaptiveSampling)
 		c.SeverityProvider = severityprovider.Current
 	}
 
