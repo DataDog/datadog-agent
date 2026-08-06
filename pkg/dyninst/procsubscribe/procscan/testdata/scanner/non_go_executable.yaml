@@ -7,8 +7,7 @@
 #
 # Such a process is written off for good: identifying its executable costs a
 # readlink, an open and a stat even when the answer is already cached, and that
-# is the common case on a host. An exec into a Go binary keeps the pid and the
-# start time and so goes unnoticed, which is accepted.
+# is the common case on a host.
 - !initialize
   current_time: 100
   min_age: 10

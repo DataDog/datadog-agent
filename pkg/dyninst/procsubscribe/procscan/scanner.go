@@ -36,8 +36,7 @@ const (
 	DefaultMinProcessAge = time.Second
 	// DefaultRetryBackoffBase is the delay before the second attempt at reading
 	// a process' tracer metadata. It matches the subscriber's scan interval so
-	// that the first retry happens on the next scan; a shorter value would buy
-	// nothing, since retries only happen during a scan.
+	// that the first retry happens on the next scan.
 	DefaultRetryBackoffBase = 5 * time.Second
 	// DefaultRetryBackoffCap is the longest delay between two attempts at
 	// reading a process' tracer metadata.
@@ -48,9 +47,6 @@ const (
 	defaultExecutableCacheSize = 1024
 )
 
-// procKey identifies a process. The start time is part of the identity so that
-// a process which happens to reuse a pid does not inherit the status of the one
-// that died.
 type procKey struct {
 	pid       uint32
 	startTime ticks
@@ -78,19 +74,10 @@ type candidate struct {
 	nextAttempt ticks
 }
 
-// never is a nextAttempt that no scan can reach.
 const never = ticks(1<<64 - 1)
 
 // Scanner reconciles the set of processes that should be instrumented against
 // the set that is, once per Scan.
-//
-// Almost nothing about it is edge-triggered: a process is examined on every
-// scan until it is either instrumented or gone, with an exponential backoff on
-// the reads that turn out to be expensive. A read that fails because the tracer
-// has not published its metadata yet is therefore retried for as long as the
-// process lives, which is what makes a missed read, a slow scan or an agent
-// restart self-healing. The one exception is a process that turns out not to be
-// running a Go binary, which is written off; see Scan.
 //
 // Thread-safety: Scan is not thread-safe, use from a single goroutine only.
 type Scanner struct {
@@ -126,14 +113,10 @@ type Scanner struct {
 	// Go binary.
 	checkGoExecutable func(path string) (bool, error)
 
-	// goExecutables caches whether an executable is a Go binary. This is the
-	// filter that makes looking at every process on every scan affordable.
 	goExecutables *lru.Cache[process.FileKey, bool]
 
-	// candidates holds the retry state of processes that are not instrumented
-	// yet, keyed by pid. It needs no bound of its own: an entry appears when a
-	// process is evaluated and is dropped by the first scan that does not see
-	// the process, so the map cannot outgrow the number of live processes.
+	// candidates holds the retry state of processes that are not yet
+	// instrumented, keyed by pid.
 	candidates map[uint32]*candidate
 }
 
@@ -351,9 +334,6 @@ func (p *Scanner) Scan() (
 			continue
 		}
 
-		// Reading tracer metadata means walking the process' open file
-		// descriptors, so only do it for processes that could plausibly have
-		// published any.
 		isGo, err := p.isGoExecutable(executable)
 		if err != nil {
 			maybeLogErr("analyze executable", err)
@@ -361,23 +341,7 @@ func (p *Scanner) Scan() (
 			continue
 		}
 		if !isGo {
-			// Written off for good. The verdict is remembered per executable,
-			// but reaching it costs a readlink, an open and a stat to identify
-			// the executable at all, and this is the common case on a host, so
-			// the process is never looked at again. The entry goes away when
-			// the process exits.
-			//
-			// Known gap: exec keeps a process' pid and start time, so a wrapper
-			// that is still running its entrypoint the first time we look at
-			// it, roughly one to six seconds in, is written off along with the
-			// service it later becomes. Accepted rather than fixed, on the
-			// grounds that most entrypoints exec within milliseconds. An agent
-			// restart re-evaluates everything.
-			p.candidates[pid] = &candidate{
-				startTime:   key.startTime,
-				seenAt:      now,
-				nextAttempt: never,
-			}
+			p.writeOff(key, now)
 			continue
 		}
 
@@ -388,14 +352,11 @@ func (p *Scanner) Scan() (
 			continue
 		}
 		if tracerMetadata.TracerLanguage != "go" {
-			// A Go binary reporting some other tracer language is not something
-			// we can instrument, but back off rather than giving up so that the
-			// only terminal state remains "the process exited".
 			log.Tracef(
 				"scanner: pid %d reports tracer language %q",
 				pid, tracerMetadata.TracerLanguage,
 			)
-			p.scheduleRetry(key, c, now, p.backoffCap)
+			p.writeOff(key, now)
 			continue
 		}
 
@@ -438,6 +399,23 @@ func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
 	}
 	c.seenAt = now
 	return c
+}
+
+// writeOff records that a process will never be instrumentable, so that later
+// scans skip it for the cost of the stat read that listing pids costs anyway.
+// The entry goes away when the process exits.
+//
+// Note: exec keeps a process' pid and start time, so a wrapper that is still
+// running its entrypoint the first time we look at it, roughly one to six
+// seconds in, is written off along with the service it later becomes. Most
+// entrypoints exec within milliseconds, well before that. An agent restart
+// re-evaluates everything.
+func (p *Scanner) writeOff(key procKey, now ticks) {
+	p.candidates[key.pid] = &candidate{
+		startTime:   key.startTime,
+		seenAt:      now,
+		nextAttempt: never,
+	}
 }
 
 // scheduleRetry records a failed attempt and pushes the next one out, doubling
