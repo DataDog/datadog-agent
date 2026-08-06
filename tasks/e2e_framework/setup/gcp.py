@@ -6,7 +6,12 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.setup.ssh_keys import add_key_to_ssh_agent, default_key_paths, generate_keypair_with_passphrase
+from tasks.e2e_framework.setup.ssh_keys import (
+    add_key_to_ssh_agent,
+    default_key_paths,
+    discard_key_without_passphrase,
+    generate_keypair_with_passphrase,
+)
 from tasks.e2e_framework.tool import info
 
 
@@ -30,6 +35,8 @@ def setup_gcp_config(ctx: Context, config: Config):
 
     private_path = Path(gcp.privateKeyPath).expanduser()
     public_path = Path(gcp.publicKeyPath).expanduser()
+
+    discard_key_without_passphrase(ctx, private_path, public_path, default_priv, gcp.privateKeyPassword)
 
     if not private_path.is_file():
         info(f"🔑 Generating GCP SSH keypair → {private_path}")

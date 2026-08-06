@@ -1,9 +1,11 @@
+import contextlib
 import getpass
 import json
 import os
 import pathlib
 import platform
 import subprocess
+import tempfile
 from io import StringIO
 from typing import Any
 
@@ -75,18 +77,21 @@ def write_secret_file(path: str | pathlib.Path, content: str) -> None:
     change then fail. These files hold the only copy of the Pulumi and SSH key passphrases.
     """
     path = pathlib.Path(path)
-    # The staging file is a sibling of the target because os.replace is only atomic within
-    # a single filesystem, and a temp directory is shared with other users.
-    staging = path.with_name(f".{path.name}.tmp")
+    # mkstemp creates the file with O_EXCL under an unpredictable name, so a symlink planted
+    # at a guessable staging path cannot redirect the write and concurrent saves cannot land
+    # on the same file. It shares a directory with the target because os.replace is only
+    # atomic within a single filesystem.
+    fd, staging = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        # The opener applies the mode at creation, which suffices on POSIX. Windows ignores
-        # it, so the ACL is rewritten separately before any content is written.
-        with open(staging, "w", opener=lambda p, flags: os.open(p, flags, 0o600)) as f:
+        # mkstemp applies mode 0600, which suffices on POSIX. Windows ignores it, so the ACL
+        # is rewritten separately before any content is written.
+        with os.fdopen(fd, "w") as f:
             restrict_file_to_owner(staging)
             f.write(content)
         os.replace(staging, path)
     except BaseException:
-        staging.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            os.remove(staging)
         raise
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from invoke.context import Context
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.e2e_framework.tool import info, is_windows, restrict_file_to_owner, warn
 
@@ -207,6 +207,39 @@ def default_key_paths(
     private_path = Path.home() / ".ssh" / f"id_{key_type}_e2e_{provider_part}{account_part}_{user}.pem"
     public_path = private_path.with_name(f"{private_path.stem}.pub")
     return private_path, public_path
+
+
+def discard_key_without_passphrase(
+    ctx: Context,
+    private_key_path: Path,
+    public_key_path: Path,
+    generated_key_path: Path,
+    recorded_passphrase: str | None,
+) -> None:
+    """
+    Remove a generated key whose passphrase never made it into the local config.
+
+    A run interrupted between generating a key and saving that config leaves an encrypted
+    file nobody holds the passphrase for. Callers read the file's presence as proof of setup,
+    so left alone it would be reported as usable by every later run.
+
+    A key the user supplied is never deleted: an unencrypted one needs no passphrase, and one
+    at a path they chose is theirs to replace.
+    """
+    if recorded_passphrase or not private_key_path.is_file():
+        return
+    if not is_key_encrypted(ctx, str(private_key_path)):
+        return
+    if private_key_path != generated_key_path:
+        raise Exit(
+            f"{private_key_path} is encrypted but no passphrase is recorded in the local config, "
+            f"so it cannot be used. Record the passphrase, or delete the key to have setup "
+            f"generate a replacement."
+        )
+    warn(f"Discarding {private_key_path}, which is encrypted with a passphrase that was never recorded")
+    for stale in (private_key_path, public_key_path):
+        with contextlib.suppress(OSError):
+            os.remove(stale)
 
 
 def generate_keypair_with_passphrase(
