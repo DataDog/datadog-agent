@@ -171,6 +171,7 @@ type RRCFDetector struct {
 type rrcfLogSeriesState struct {
 	lastProcessedTime  int64
 	lastProcessedCount int
+	lastVisibleSamples float64
 	lastWriteGen       int64
 	shinglePrefix      []float64
 	source             observer.SeriesDescriptor
@@ -540,6 +541,15 @@ func (r *RRCFDetector) collectLogShingles(storage observer.StorageReader, dataTi
 			if state.lastProcessedCount == visibleCount && state.lastWriteGen == writeGen {
 				continue
 			}
+			if state.lastProcessedCount == visibleCount {
+				visibleSamples := storage.SumRange(ref, 0, dataTime, observer.AggregateCount)
+				if state.lastVisibleSamples == visibleSamples {
+					// WriteGeneration includes points newer than dataTime. Record the
+					// generation without rebuilding when the visible prefix is unchanged.
+					state.lastWriteGen = writeGen
+					continue
+				}
+			}
 			start = state.lastProcessedTime
 		}
 
@@ -575,6 +585,7 @@ func (r *RRCFDetector) collectLogShingles(storage observer.StorageReader, dataTi
 				copy(state.shinglePrefix, state.shinglePrefix[1:])
 				state.shinglePrefix = state.shinglePrefix[:r.config.ShingleSize]
 			}
+			state.lastVisibleSamples += point.Value
 			if len(state.shinglePrefix) < r.config.ShingleSize {
 				continue
 			}

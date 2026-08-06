@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"strconv"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -197,6 +198,65 @@ func TestRRCFDetector_RemoveSeriesPreservesUnrelatedLogState(t *testing.T) {
 	assert.False(t, detector.logSeriesCached)
 }
 
+func TestRRCFDetector_FutureLogWriteDoesNotReset(t *testing.T) {
+	cfg := DefaultRRCFConfig()
+	cfg.NumTrees = 5
+	cfg.TreeSize = 8
+	cfg.ShingleSize = 2
+	detector := NewRRCFDetector(cfg)
+	storage := newDetectorTestStorage()
+
+	for ts := int64(1); ts <= 8; ts++ {
+		storage.Add(LogPatternExtractorName, "log.pattern.one", 1, ts, nil)
+		storage.Add(LogPatternExtractorName, "log.pattern.two", 1, ts, nil)
+	}
+	detector.Detect(storage, 8)
+	metas := storage.ListSeries(observer.SeriesFilter{Namespace: LogPatternExtractorName})
+	require.Len(t, metas, 2)
+	states := map[observer.SeriesRef]*rrcfLogSeriesState{
+		metas[0].Ref: detector.logSeries[metas[0].Ref],
+		metas[1].Ref: detector.logSeries[metas[1].Ref],
+	}
+	scored := detector.logTotalScored
+
+	storage.Add(LogPatternExtractorName, "log.pattern.one", 1, 10, nil)
+	detector.Detect(storage, 9)
+
+	assert.Same(t, states[metas[0].Ref], detector.logSeries[metas[0].Ref])
+	assert.Same(t, states[metas[1].Ref], detector.logSeries[metas[1].Ref])
+	assert.Equal(t, scored, detector.logTotalScored)
+
+	detector.Detect(storage, 10)
+	assert.Same(t, states[metas[0].Ref], detector.logSeries[metas[0].Ref])
+	assert.Same(t, states[metas[1].Ref], detector.logSeries[metas[1].Ref])
+	assert.Equal(t, scored+1, detector.logTotalScored)
+}
+
+func TestRRCFDetector_VisibleSameBucketMergeStillResets(t *testing.T) {
+	cfg := DefaultRRCFConfig()
+	cfg.NumTrees = 5
+	cfg.TreeSize = 8
+	cfg.ShingleSize = 2
+	detector := NewRRCFDetector(cfg)
+	storage := newDetectorTestStorage()
+
+	for ts := int64(1); ts <= 8; ts++ {
+		storage.Add(LogPatternExtractorName, "log.pattern.count", 1, ts, nil)
+	}
+	detector.Detect(storage, 8)
+	meta := storage.ListSeries(observer.SeriesFilter{Namespace: LogPatternExtractorName})
+	require.Len(t, meta, 1)
+	previousState := detector.logSeries[meta[0].Ref]
+	require.NotNil(t, previousState)
+
+	storage.Add(LogPatternExtractorName, "log.pattern.count", 1, 8, nil)
+	detector.Detect(storage, 8)
+
+	state := detector.logSeries[meta[0].Ref]
+	assert.NotSame(t, previousState, state)
+	assert.Equal(t, float64(9), state.lastVisibleSamples)
+}
+
 func TestRRCFShouldEmitAnomalyOnlyOnRisingEdge(t *testing.T) {
 	anomalous := false
 
@@ -219,4 +279,31 @@ func TestRRCFDetector_LogScoreHistoryIsBoundedAndOrdered(t *testing.T) {
 	require.Len(t, scores, maxRRCFLogScoreHistory)
 	assert.Equal(t, int64(1), scores[0].Timestamp)
 	assert.Equal(t, int64(maxRRCFLogScoreHistory), scores[len(scores)-1].Timestamp)
+}
+
+func BenchmarkRRCFDetector_SparseFutureLogWrite(b *testing.B) {
+	cfg := DefaultRRCFConfig()
+	cfg.NumTrees = 10
+	cfg.TreeSize = 32
+	cfg.ShingleSize = 4
+	cfg.ThresholdSigma = 0
+	cfg.Metrics = []RRCFMetricDef{{Namespace: "unused", Name: "unused", Agg: observer.AggregateAverage}}
+	detector := NewRRCFDetector(cfg)
+	storage := newDetectorTestStorage()
+
+	const seriesCount = 500
+	for i := 0; i < seriesCount; i++ {
+		name := "log.pattern." + strconv.Itoa(i)
+		for ts := int64(1); ts <= 8; ts++ {
+			storage.Add(LogPatternExtractorName, name, 1, ts, nil)
+		}
+	}
+	detector.Detect(storage, 8)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		storage.Add(LogPatternExtractorName, "log.pattern.0", 1, 10, nil)
+		detector.Detect(storage, 9)
+	}
 }
