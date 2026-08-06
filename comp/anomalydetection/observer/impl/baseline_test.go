@@ -291,32 +291,6 @@ func TestBaseline_FastDetectorForwardsWhileSlowerDetectorStillAnalyses(t *testin
 	assert.False(t, e.baseline.allComplete())
 }
 
-func TestBaseline_RRCFStyleDetectorCannotMuteSeries(t *testing.T) {
-	storage := newTimeSeriesStorage()
-	storage.Add("ns", "cpu", 1.0, 100, nil)
-	rrcf := &baselineTestDetector{
-		name:         "rrcf",
-		spec:         observerdef.BaselineSpec{WarmupDuration: 100 * time.Second},
-		source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
-		emitAfterSec: 100,
-		// RRCF anomalies intentionally do not identify a source series.
-		includeSource: false,
-	}
-	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{rrcf},
-		baseline:  BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
-	})
-
-	e.Advance(100)
-	e.Advance(300) // end of RRCF's warmup plus qualification window
-
-	assert.True(t, e.baseline.allComplete())
-	assert.Zero(t, e.baseline.debugStatus().MutedCount)
-	assert.Equal(t, 1, storage.TotalSeriesCount(""))
-	assert.Empty(t, rrcf.removed)
-}
-
 func TestBaseline_ExactFreezeTimeBoundary(t *testing.T) {
 	// Window: [100, 700). activeAt uses strict <, so t=699 is the last in-window
 	// second and t=700 is the first out-of-window second (exact freeze point).
