@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // mockRCClient implements rcclient.Component for tests.
@@ -209,9 +210,14 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: payload1}}, noStatus)
 	update1 := <-outCh
 	require.Len(t, update1.Schedule, 2, "update 1 should schedule cfg-A and the db-b remainder")
+	update1ScheduleDigests := make([]string, 0, len(update1.Schedule))
+	for _, cfg := range update1.Schedule {
+		update1ScheduleDigests = append(update1ScheduleDigests, cfg.Digest())
+	}
 
 	// Update 2: remove cfg-A (empty queries = disable). Channel is now empty — writes directly.
-	// Disabling produces: Unschedule=[cfg-A DO config], Schedule=[base config restoration].
+	// Disabling produces Unschedule=[cfg-A DO config, db-b remainder] and
+	// Schedule=[base config restoration].
 	removeA, _ := json.Marshal(DOQueryPayload{ConfigID: "cfg-A"})
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: removeA}}, noStatus)
 	// DON'T read outCh — leave update 2 buffered.
@@ -226,7 +232,38 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	select {
 	case changes := <-outCh:
 		require.Len(t, changes.Schedule, 2, "should contain cfg-B and its remainder (dropped base restoration is discarded)")
-		require.Len(t, changes.Unschedule, 3, "should contain cfg-A and remainder Unschedules from dropped + cfg-B's base config Unschedule")
+
+		// The stale base restoration from update 2 must not be scheduled. The latest snapshot
+		// instead schedules cfg-B and a remainder containing db-a.
+		scheduledHosts := make(map[string]bool, len(changes.Schedule))
+		for _, cfg := range changes.Schedule {
+			assert.NotEqual(t, postgresCfg.Digest(), cfg.Digest(), "dropped base restoration must not be scheduled")
+			require.Len(t, cfg.Instances, 1)
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(cfg.Instances[0], &instance))
+			host, _ := instance["host"].(string)
+			scheduledHosts[host] = true
+			doConfig, _ := instance["data_observability"].(map[string]any)
+			_, hasQueries := doConfig["queries"]
+			switch host {
+			case "db-a.internal":
+				assert.False(t, hasQueries, "db-a should be the plain remainder instance")
+			case "db-b.internal":
+				assert.True(t, hasQueries, "db-b should be the latest DO check")
+			default:
+				t.Errorf("unexpected scheduled host %q", host)
+			}
+		}
+		assert.Equal(t, map[string]bool{"db-a.internal": true, "db-b.internal": true}, scheduledHosts)
+
+		// Both configs scheduled by update 1 must be unscheduled even though update 2 was
+		// replaced in the channel. Update 3 additionally unschedules the original base.
+		expectedUnscheduleDigests := append(append([]string(nil), update1ScheduleDigests...), postgresCfg.Digest())
+		actualUnscheduleDigests := make([]string, 0, len(changes.Unschedule))
+		for _, cfg := range changes.Unschedule {
+			actualUnscheduleDigests = append(actualUnscheduleDigests, cfg.Digest())
+		}
+		assert.ElementsMatch(t, expectedUnscheduleDigests, actualUnscheduleDigests)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for merged ConfigChanges")
 	}
