@@ -26,10 +26,8 @@ import (
 
 // TODO (components): Remove the globals and move this into `newTelemetry` after all telemetry is migrated to the component
 var (
-	registry = newRegistry()
-	mutex    = sync.Mutex{}
-	// metricHelpMutex cannot reuse mutex because Gather holds mutex while collectors run,
-	// and the RAR collector looks up canonical HELP during collection.
+	registry        = newRegistry()
+	mutex           = sync.Mutex{}
 	metricHelpMutex = sync.RWMutex{}
 	defaultRegistry = prometheus.NewRegistry()
 	metricHelp      = make(map[string]string)
