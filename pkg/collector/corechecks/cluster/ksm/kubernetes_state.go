@@ -1005,6 +1005,16 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tagList = append(tagList, owners...)
 	}
 
+	if labelJoiner.isArgoRolloutPod(labels) {
+		deploymentPrefix := tags.KubeDeployment + ":"
+		for _, tag := range tagList {
+			if deployment, found := strings.CutPrefix(tag, deploymentPrefix); found {
+				tagList = append(tagList, tags.KubeArgoRollout+":"+deployment)
+				break
+			}
+		}
+	}
+
 	var namespaceTags []string
 	var tagErr error
 

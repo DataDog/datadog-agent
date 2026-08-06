@@ -65,8 +65,20 @@ type joinsConfig struct {
 }
 
 type labelJoiner struct {
-	metricsToJoin map[string]metricToJoin
+	metricsToJoin   map[string]metricToJoin
+	argoRolloutPods map[namespacedPod]struct{}
 }
+
+type namespacedPod struct {
+	namespace string
+	name      string
+}
+
+const (
+	kubePodLabelsMetricName = "kube_pod_labels"
+	// argoRolloutLabelName is the KSM-normalized name of the rollouts-pod-template-hash label.
+	argoRolloutLabelName = "label_rollouts_pod_template_hash"
+)
 
 type metricToJoin struct {
 	config *joinsConfig
@@ -101,7 +113,8 @@ func newLabelJoiner(config map[string]*joinsConfig) *labelJoiner {
 	}
 
 	return &labelJoiner{
-		metricsToJoin: metricsToJoin,
+		metricsToJoin:   metricsToJoin,
+		argoRolloutPods: make(map[namespacedPod]struct{}),
 	}
 }
 
@@ -204,6 +217,20 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 }
 
 func (lj *labelJoiner) insertFamily(metricFamily ksmstore.DDMetricsFam) {
+	if metricFamily.Name == kubePodLabelsMetricName {
+		for _, metric := range metricFamily.ListMetrics {
+			if metric.Labels[argoRolloutLabelName] == "" {
+				continue
+			}
+
+			namespace, hasNamespace := metric.Labels[namespaceKey]
+			pod, hasPod := metric.Labels["pod"]
+			if hasNamespace && namespace != "" && hasPod && pod != "" {
+				lj.argoRolloutPods[namespacedPod{namespace: namespace, name: pod}] = struct{}{}
+			}
+		}
+	}
+
 	// The metricsToJoin map has been created in newLabelJoiner and contains one entry per label join config.
 	// insertFamily is then called with the metrics to use to do the label join.
 	// The metrics passed to insertFamily are retrieved by (*KSMCheck)Run() and are filtered by (*KSMCheck)familyFilter
@@ -218,6 +245,17 @@ func (lj *labelJoiner) insertFamily(metricFamily ksmstore.DDMetricsFam) {
 	for _, metric := range metricFamily.ListMetrics {
 		lj.insertMetric(metric, metricToJoin.config, metricToJoin.tree)
 	}
+}
+
+func (lj *labelJoiner) isArgoRolloutPod(labels map[string]string) bool {
+	namespace, hasNamespace := labels[namespaceKey]
+	pod, hasPod := labels["pod"]
+	if !hasNamespace || !hasPod {
+		return false
+	}
+
+	_, found := lj.argoRolloutPods[namespacedPod{namespace: namespace, name: pod}]
+	return found
 }
 
 func (lj *labelJoiner) insertFamilies(metrics map[string][]ksmstore.DDMetricsFam) {

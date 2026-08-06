@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -1325,6 +1326,106 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, labelJoiner, tt.args.lMapperOverride)
 			assert.ElementsMatch(t, tt.wantTags, tags)
 			assert.Equal(t, tt.wantHostname, hostname)
+		})
+	}
+}
+
+func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
+	tests := []struct {
+		name             string
+		ownerKind        string
+		ownerName        string
+		argoRolloutLabel string
+		expectedTags     []string
+	}{
+		{
+			name:             "Argo Rollout pod",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+			},
+		},
+		{
+			name:      "Deployment pod",
+			ownerKind: kubernetes.ReplicaSetKind,
+			ownerName: "my-deployment-7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-deployment-7f59c78c9b",
+				"kube_deployment:my-deployment",
+			},
+		},
+		{
+			name:             "non-ReplicaSet Argo-labeled pod",
+			ownerKind:        kubernetes.DaemonSetKind,
+			ownerName:        "my-daemonset",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_daemon_set:my-daemonset",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const (
+				namespace = "default"
+				podName   = "my-rollout-7f59c78c9b-abcde"
+			)
+
+			config := &KSMConfig{
+				LabelsMapper: defaultLabelsMapper(),
+				labelJoins: map[string]*joinsConfig{
+					kubePodLabelsMetricName: {
+						labelsToMatch: []string{namespaceKey, "pod"},
+						labelsToGet:   map[string]string{},
+					},
+					"kube_pod_info": {
+						labelsToMatch: []string{namespaceKey, "pod"},
+						labelsToGet: map[string]string{
+							createdByKindKey: createdByKindKey,
+							createdByNameKey: createdByNameKey,
+						},
+					},
+				},
+			}
+
+			labelJoiner := newLabelJoiner(config.labelJoins)
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: kubePodLabelsMetricName,
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         namespace,
+					"pod":                podName,
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:     namespace,
+					"pod":            podName,
+					createdByKindKey: tt.ownerKind,
+					createdByNameKey: tt.ownerName,
+				}}},
+			})
+
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
+			_, actualTags := check.hostnameAndTags(map[string]string{
+				namespaceKey: namespace,
+				"pod":        podName,
+			}, labelJoiner, nil)
+
+			assert.ElementsMatch(t, tt.expectedTags, actualTags)
 		})
 	}
 }
