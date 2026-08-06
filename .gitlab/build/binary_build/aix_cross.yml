@@ -10,7 +10,6 @@
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: ["go_deps"]
   variables:
     GOOS: aix
     GOARCH: ppc64
@@ -18,7 +17,9 @@
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     KUBERNETES_CPU_REQUEST: 6
   before_script:
-    - !reference [.retrieve_linux_go_deps]
+    - !reference [.sanitize_goproxy]
+    # [TEST] intentionally not restoring the go_deps modcache here - see if a
+    # fresh `go mod download` changes the AIX TOC overflow outcome.
     # Workaround for a Go linker bug: cmd/link/internal/ld/lib.go hardcodes
     # "/lib/crt0_64.o" path instead of resolving it through the compiler
     # Fix upstream: https://go-review.googlesource.com/c/go/+/800880
@@ -36,6 +37,13 @@ cross_build_agent-binary_aix_ppc64:
 
 cross_build_trace_agent-binary_aix_ppc64:
   extends: .cross_build_aix_ppc64
+  # [TEST] disable the progressive .cache/go (and bazel/pip) cache restore for
+  # this job specifically - trace-agent's build never actually invokes bazel
+  # (unlike agent.build, which runs `bazel run //pkg/config/schema:install_compressed`
+  # via schema_compress() since sys.platform is "linux" on this cross-compile
+  # host), so this only drops the GOCACHE/bazelisk restore, not bazel itself.
+  # Testing whether a cold GOCACHE changes the AIX TOC overflow outcome.
+  cache: []
   script:
     - dda inv -- check-go-version
     - PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e trace-agent.build
