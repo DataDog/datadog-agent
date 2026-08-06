@@ -13,11 +13,14 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/task-verifier",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/executor",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ] + select({
         "@rules_go//go/platform:windows": [
             "@com_github_microsoft_go_winio//:go-winio",
@@ -36,6 +39,7 @@ dd_agent_go_test(
     embed = [":executor"],
     deps = [
         "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/task-verifier",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",

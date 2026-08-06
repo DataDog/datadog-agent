@@ -1,2 +1,3 @@
 [overrides]
 "glob-match" = { origin = "https://github.com/lmapii/globmatch" }
+"openssl-macros" = { origin = "https://github.com/sfackler/rust-openssl" }

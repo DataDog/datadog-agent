@@ -17,9 +17,12 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
+	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
@@ -35,18 +38,20 @@ type actionExecutor interface {
 type Server struct {
 	pb.UnimplementedExecutorServer
 
-	executor actionExecutor
-	version  string
+	executor    actionExecutor
+	version     string
+	keysManager taskverifier.KeysManager
 
 	ready  atomic.Bool
 	active atomic.Int32
 }
 
 // NewServer builds a gRPC server that dispatches actions to the given core.
-func NewServer(executor actionExecutor, version string) *Server {
+func NewServer(executor actionExecutor, version string, keysManager taskverifier.KeysManager) *Server {
 	return &Server{
-		executor: executor,
-		version:  version,
+		executor:    executor,
+		version:     version,
+		keysManager: keysManager,
 	}
 }
 
@@ -62,6 +67,42 @@ func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthRespo
 		ActiveActions: s.active.Load(),
 		Version:       s.version,
 	}, nil
+}
+
+// SyncKeys seeds a cold executor, then waits for this executor's Remote Config
+// client to confirm a fresh key snapshot before enabling dispatch. The seed is
+// usable as an initial cache but never proves freshness by itself.
+func (s *Server) SyncKeys(ctx context.Context, req *pb.SyncKeysRequest) (*pb.SyncKeysResponse, error) {
+	if s.keysManager == nil {
+		return nil, status.Error(codes.FailedPrecondition, "key manager is not configured")
+	}
+
+	seed := make([]taskverifier.SigningKey, 0, len(req.GetKeys()))
+	for _, key := range req.GetKeys() {
+		seed = append(seed, taskverifier.SigningKey{
+			ID:      key.GetId(),
+			KeyType: types.KeyType(key.GetKeyType()),
+			Key:     append([]byte(nil), key.GetKey()...),
+		})
+	}
+	if err := s.keysManager.Seed(seed); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid signing-key seed: %v", err)
+	}
+	if err := s.keysManager.WaitForReady(ctx); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
+
+	s.SetReady(true)
+	snapshot := s.keysManager.Snapshot()
+	response := &pb.SyncKeysResponse{Keys: make([]*pb.SigningKey, 0, len(snapshot))}
+	for _, key := range snapshot {
+		response.Keys = append(response.Keys, &pb.SigningKey{
+			Id:      key.ID,
+			KeyType: string(key.KeyType),
+			Key:     append([]byte(nil), key.Key...),
+		})
+	}
+	return response, nil
 }
 
 // RunAction verifies and runs a single action, streaming a terminal ActionResult back.
