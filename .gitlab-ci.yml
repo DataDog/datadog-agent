@@ -473,12 +473,15 @@ variables:
 
 # fakeintake changes that rebuild the published image (server binary only).
 # Client/CLI/docs changes don't. Keep in sync with _is_server_file() in tasks/fakeintake.py.
+# Only `.go` files under the server paths matter: the image is built from the Go sources
+# via test/fakeintake/Dockerfile, so BUILD.bazel and test fixtures don't affect it
+# (rules:changes has no exclusion syntax, hence the extension in the glob).
 .fakeintake_server_paths: &fakeintake_server_paths
   paths:
-    - test/fakeintake/cmd/server/**/*
-    - test/fakeintake/server/**/*
-    - test/fakeintake/aggregator/**/*
-    - test/fakeintake/api/**/*
+    - test/fakeintake/cmd/server/**/*.go
+    - test/fakeintake/server/**/*.go
+    - test/fakeintake/aggregator/**/*.go
+    - test/fakeintake/api/**/*.go
     - test/fakeintake/go.mod
     - test/fakeintake/go.sum
     - test/fakeintake/Dockerfile

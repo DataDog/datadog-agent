@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
-# gazelle:dd_linux_bpf on
-
 exports_files([
     "c_types_linux.go",
     "c_types_linux_test.go",
@@ -67,7 +65,6 @@ go_test(
     name = "oomkill_test",
     # keep: split from oomkill_types_test; see comment above.
     srcs = ["oom_kill_test.go"],
-    embed = [":oomkill"],
     gotags = [
         "test",
         "linux_bpf",
