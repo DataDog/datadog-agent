@@ -63,6 +63,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsConfigured("dd_url"))
 	assert.Equal(t, constants.DefaultSite, config.GetString("site"))
 	assert.Equal(t, "https://app.datadoghq.com", config.GetString("dd_url"))
+	assert.False(t, config.GetBool("anomaly_detection.detectors.rrcf.enabled"))
 	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
 	// Testing process-agent defaults

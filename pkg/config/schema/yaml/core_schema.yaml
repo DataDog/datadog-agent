@@ -6237,7 +6237,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: true
+                default: false
           scanmw:
             node_type: section
             type: object

@@ -2314,7 +2314,7 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_pattern_extractor.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.cusum.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.bocpd.enabled", true)
-	config.BindEnvAndSetDefault("anomaly_detection.detectors.rrcf.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.rrcf.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanmw.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanwelch.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.holt_residual.enabled", false)

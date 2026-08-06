@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recordernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -76,5 +77,19 @@ func TestValidateCLIParams(t *testing.T) {
 	t.Run("retain override is accepted in headless mode", func(t *testing.T) {
 		err := validateCLIParams(CLIParams{RetainParquet: true, Headless: "scenario"})
 		require.NoError(t, err)
+	})
+}
+
+func TestApplyTestbenchComponentDefaults(t *testing.T) {
+	t.Run("enables RRCF by default", func(t *testing.T) {
+		settings := applyTestbenchComponentDefaults(observerimpl.ComponentSettings{})
+		require.True(t, settings.Enabled["rrcf"])
+	})
+
+	t.Run("preserves an explicit RRCF override", func(t *testing.T) {
+		settings := applyTestbenchComponentDefaults(observerimpl.ComponentSettings{
+			Enabled: map[string]bool{"rrcf": false},
+		})
+		require.False(t, settings.Enabled["rrcf"])
 	})
 }

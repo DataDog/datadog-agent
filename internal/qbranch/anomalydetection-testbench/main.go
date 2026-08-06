@@ -129,6 +129,7 @@ func main() {
 		}
 		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
 	}
+	componentSettings = applyTestbenchComponentDefaults(componentSettings)
 
 	if *baselineDuration == "0" || *baselineDuration == "disabled" {
 		componentSettings.Baseline = observerimpl.BaselineConfig{Enabled: false}
@@ -215,6 +216,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to run observer test bench: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func applyTestbenchComponentDefaults(settings observerimpl.ComponentSettings) observerimpl.ComponentSettings {
+	if settings.Enabled == nil {
+		settings.Enabled = make(map[string]bool)
+	}
+	if _, explicitlySet := settings.Enabled["rrcf"]; !explicitlySet {
+		settings.Enabled["rrcf"] = true
+	}
+	return settings
 }
 
 func run(

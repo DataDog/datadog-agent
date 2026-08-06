@@ -17,10 +17,6 @@ type node interface {
 	setParent(node)
 	leafCount() int
 	setLeafCount(int)
-	// boundingBox returns the bounding box as a flat slice:
-	// [min_d0, min_d1, ..., min_{ndim-1}, max_d0, max_d1, ..., max_{ndim-1}]
-	boundingBox() []float64
-	setBoundingBox([]float64)
 }
 
 // branch is an internal node in a random cut tree.
@@ -34,13 +30,11 @@ type branch struct {
 	b []float64 // bounding box: [min_d0, ..., min_{ndim-1}, max_d0, ..., max_{ndim-1}]
 }
 
-func (b *branch) isNode()                     {}
-func (b *branch) getParent() node             { return b.u }
-func (b *branch) setParent(p node)            { b.u = p }
-func (b *branch) leafCount() int              { return b.n }
-func (b *branch) setLeafCount(n int)          { b.n = n }
-func (b *branch) boundingBox() []float64      { return b.b }
-func (b *branch) setBoundingBox(bb []float64) { b.b = bb }
+func (b *branch) isNode()            {}
+func (b *branch) getParent() node    { return b.u }
+func (b *branch) setParent(p node)   { b.u = p }
+func (b *branch) leafCount() int     { return b.n }
+func (b *branch) setLeafCount(n int) { b.n = n }
 
 // leaf is a terminal node in a random cut tree.
 type leaf struct {
@@ -56,19 +50,6 @@ func (l *leaf) getParent() node    { return l.u }
 func (l *leaf) setParent(p node)   { l.u = p }
 func (l *leaf) leafCount() int     { return l.n }
 func (l *leaf) setLeafCount(n int) { l.n = n }
-
-// boundingBox for a leaf returns the point as both min and max.
-func (l *leaf) boundingBox() []float64 {
-	ndim := len(l.x)
-	bb := make([]float64, 2*ndim)
-	copy(bb[:ndim], l.x)
-	copy(bb[ndim:], l.x)
-	return bb
-}
-
-func (l *leaf) setBoundingBox(_ []float64) {
-	// Leaf bounding box is always just its point, so this is a no-op.
-}
 
 // rcTree is a single random cut tree.
 type rcTree struct {
@@ -123,11 +104,19 @@ func (t *rcTree) insertPoint(point []float64, index int) *leaf {
 
 	// Walk down tree, at each step decide if we create a cut above the current node
 	for {
-		nodeBbox := currentNode.boundingBox()
-		cutDim, cutVal := t.insertPointCut(point, nodeBbox)
+		// RRCF represents identical points as one leaf with multiplicity. Log
+		// count series commonly produce long runs of identical shingles; making
+		// a zero-width branch for every duplicate gives those normal shingles
+		// the same large CoDisp score as a real outlier.
+		if leafNode, ok := currentNode.(*leaf); ok && equalPoint(leafNode.x, point) {
+			leafNode.n++
+			t.updateLeafCountUpwards(leafNode.u, 1)
+			t.leaves[index] = leafNode
+			return leafNode
+		}
 
-		minVal := nodeBbox[cutDim]        // min in cut dimension
-		maxVal := nodeBbox[t.ndim+cutDim] // max in cut dimension
+		cutDim, cutVal := t.insertPointCutNode(point, currentNode)
+		minVal, maxVal := nodeBoundsAt(currentNode, cutDim, t.ndim)
 
 		// If cut separates point from current subtree (cut <= min or cut >= max),
 		// create a new branch here
@@ -207,6 +196,18 @@ func (t *rcTree) insertPoint(point []float64, index int) *leaf {
 	}
 }
 
+func equalPoint(a, b []float64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // linkBranchToParent links a new branch to its parent (or sets it as root).
 func (t *rcTree) linkBranchToParent(newBranch *branch, parent node, side byte) {
 	if parent == nil {
@@ -224,23 +225,18 @@ func (t *rcTree) linkBranchToParent(newBranch *branch, parent node, side byte) {
 // insertPointCut generates cut dimension and value for inserting a new point.
 // bbox is the bounding box of the current subtree in flat format.
 func (t *rcTree) insertPointCut(point []float64, bbox []float64) (cutDim int, cutVal float64) {
-	ndim := t.ndim
+	return t.insertPointCutFromBounds(point, bbox, nil)
+}
 
-	// Compute expanded bounding box including the new point
-	bboxHatMin := make([]float64, ndim)
-	bboxHatMax := make([]float64, ndim)
+func (t *rcTree) insertPointCutNode(point []float64, current node) (cutDim int, cutVal float64) {
+	return t.insertPointCutFromBounds(point, nil, current)
+}
 
-	for d := 0; d < ndim; d++ {
-		bboxHatMin[d] = math.Min(bbox[d], point[d])
-		bboxHatMax[d] = math.Max(bbox[ndim+d], point[d])
-	}
-
-	// Compute span in each dimension and total range
-	spans := make([]float64, ndim)
+func (t *rcTree) insertPointCutFromBounds(point, bbox []float64, current node) (cutDim int, cutVal float64) {
 	totalRange := 0.0
-	for d := 0; d < ndim; d++ {
-		spans[d] = bboxHatMax[d] - bboxHatMin[d]
-		totalRange += spans[d]
+	for d := 0; d < t.ndim; d++ {
+		minVal, maxVal := t.boundsAt(bbox, current, d)
+		totalRange += math.Max(maxVal, point[d]) - math.Min(minVal, point[d])
 	}
 
 	// If all spans are zero (all points identical), pick dimension 0 arbitrarily
@@ -253,9 +249,10 @@ func (t *rcTree) insertPointCut(point []float64, bbox []float64) (cutDim int, cu
 
 	// Find which dimension the cut falls in
 	cumSum := 0.0
-	cutDim = ndim - 1 // default to last dimension
-	for d := 0; d < ndim; d++ {
-		cumSum += spans[d]
+	cutDim = t.ndim - 1 // default to last dimension
+	for d := 0; d < t.ndim; d++ {
+		minVal, maxVal := t.boundsAt(bbox, current, d)
+		cumSum += math.Max(maxVal, point[d]) - math.Min(minVal, point[d])
 		if cumSum >= r {
 			cutDim = d
 			break
@@ -263,9 +260,28 @@ func (t *rcTree) insertPointCut(point []float64, bbox []float64) (cutDim int, cu
 	}
 
 	// Cut value within that dimension
-	cutVal = bboxHatMin[cutDim] + cumSum - r
+	minVal, _ := t.boundsAt(bbox, current, cutDim)
+	cutVal = math.Min(minVal, point[cutDim]) + cumSum - r
 
 	return cutDim, cutVal
+}
+
+func (t *rcTree) boundsAt(bbox []float64, current node, d int) (float64, float64) {
+	if current != nil {
+		return nodeBoundsAt(current, d, t.ndim)
+	}
+	return bbox[d], bbox[t.ndim+d]
+}
+
+func nodeBoundsAt(n node, d, ndim int) (float64, float64) {
+	switch current := n.(type) {
+	case *leaf:
+		return current.x[d], current.x[d]
+	case *branch:
+		return current.b[d], current.b[ndim+d]
+	default:
+		panic("unknown RRCF node type")
+	}
 }
 
 // forgetPoint removes a point from the tree by its index.
@@ -420,19 +436,21 @@ func (t *rcTree) incrementDepthsBelow(n node, inc int) {
 
 // computeBranchBbox computes bounding box of a branch from its children.
 func (t *rcTree) computeBranchBbox(br *branch) []float64 {
-	lbox := br.l.boundingBox()
-	rbox := br.r.boundingBox()
+	return t.computeBranchBboxInto(br, nil)
+}
 
-	ndim := t.ndim
-	bbox := make([]float64, 2*ndim)
-
-	// Min values
-	for d := 0; d < ndim; d++ {
-		bbox[d] = math.Min(lbox[d], rbox[d])
+func (t *rcTree) computeBranchBboxInto(br *branch, bbox []float64) []float64 {
+	if cap(bbox) < 2*t.ndim {
+		bbox = make([]float64, 2*t.ndim)
+	} else {
+		bbox = bbox[:2*t.ndim]
 	}
-	// Max values
-	for d := 0; d < ndim; d++ {
-		bbox[ndim+d] = math.Max(lbox[ndim+d], rbox[ndim+d])
+
+	for d := 0; d < t.ndim; d++ {
+		leftMin, leftMax := nodeBoundsAt(br.l, d, t.ndim)
+		rightMin, rightMax := nodeBoundsAt(br.r, d, t.ndim)
+		bbox[d] = math.Min(leftMin, rightMin)
+		bbox[t.ndim+d] = math.Max(leftMax, rightMax)
 	}
 
 	return bbox
@@ -502,7 +520,7 @@ func (t *rcTree) relaxBboxUpwards(n node, deletedPoint []float64) {
 		}
 
 		// Recompute bbox from children
-		br.b = t.computeBranchBbox(br)
+		br.b = t.computeBranchBboxInto(br, br.b)
 		n = n.getParent()
 	}
 }
@@ -514,6 +532,7 @@ type rcForest struct {
 	treeSize   int // max points per tree
 	ndim       int
 	rng        *rand.Rand
+	seed       int64
 	indexQueue []int // FIFO queue of point indices for sliding window
 	nextIndex  int   // next index to assign to new points
 }
@@ -536,6 +555,7 @@ func newRCForest(numTrees, treeSize, ndim int, seed int64) *rcForest {
 		treeSize:   treeSize,
 		ndim:       ndim,
 		rng:        rng,
+		seed:       seed,
 		indexQueue: make([]int, 0, treeSize),
 		nextIndex:  0,
 	}
@@ -610,6 +630,9 @@ func (f *rcForest) score(point []float64) float64 {
 
 // reset clears all trees in the forest.
 func (f *rcForest) reset() {
+	// Recreate the seed stream as well as the trees so Reset and a fresh
+	// detector produce identical scores for the same replay.
+	f.rng = rand.New(rand.NewSource(f.seed))
 	for i := range f.trees {
 		treeSeed := f.rng.Int63()
 		treeRng := rand.New(rand.NewSource(treeSeed))
