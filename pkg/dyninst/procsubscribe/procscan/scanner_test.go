@@ -32,6 +32,7 @@ import (
 
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // TestScannerSnapshot runs snapshot tests for the Scanner using YAML-defined
@@ -405,7 +406,7 @@ func (ts *scannerTestState) readTracerMetadata(
 	// Metadata is only available after metadataAvailableAt.
 	if ts.currentTime < proc.metadataAvailableAt {
 		return tracermetadata.TracerMetadata{}, fmt.Errorf(
-			"process %d: %w", pid, errTracerMemfdNotFound,
+			"process %d: %w", pid, kernel.ErrMemFdFileNotFound,
 		)
 	}
 	return proc.tracerMetadata, nil
