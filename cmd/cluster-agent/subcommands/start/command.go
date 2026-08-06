@@ -111,6 +111,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/configmapdata"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
@@ -507,6 +508,9 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
+		if configMapDataRCEnabled() {
+			products = append(products, state.ProductDebug)
+		}
 
 		var err error
 		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
@@ -515,6 +519,9 @@ func start(log log.Component,
 		} else {
 			subscribeAgentConfig(rcClient, config)
 			subscribeAgentTask(rcClient, config, statusComponent, diagnoseComp, ipc)
+			if configMapDataRCEnabled() {
+				configmapdata.Subscribe(rcClient.Subscribe)
+			}
 			rcClient.Start()
 			defer func() {
 				rcClient.Close()
@@ -852,6 +859,15 @@ func startPrivateActionRunner(
 			log.Errorf("Error stopping private action runner: %v", err)
 		}
 	}, nil
+}
+
+// configMapDataRCEnabledEnvVar gates the ConfigMap data collection proof of concept. It is an
+// environment variable rather than a config field so that no released agent ever requests the
+// staging-only DEBUG product.
+const configMapDataRCEnabledEnvVar = "DD_ORCHESTRATOR_EXPLORER_CONFIGMAP_DATA_RC_POC_ENABLED"
+
+func configMapDataRCEnabled() bool {
+	return os.Getenv(configMapDataRCEnabledEnvVar) == "true"
 }
 
 func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {

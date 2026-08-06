@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/configmapdata"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -136,6 +137,11 @@ type K8sProcessorContext struct {
 	HostName   string
 	SystemInfo *model.SystemInfo
 	NodeName   string
+
+	// ConfigMapAllowSet is the set of ConfigMaps collected with their data instead of stripped. It is
+	// snapshotted from remote config once per run, by ConfigMapHandlers.ResourceList, so that the
+	// resource version and the strip decision are taken from the same view of the allow-list.
+	ConfigMapAllowSet configmapdata.AllowSet
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
