@@ -1384,24 +1384,15 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 
 			config := &KSMConfig{
 				LabelsMapper: defaultLabelsMapper(),
-				labelJoins: map[string]*joinsConfig{
-					kubePodLabelsMetricName: {
-						labelsToMatch: []string{namespaceKey, "pod"},
-						labelsToGet:   map[string]string{},
-					},
-					"kube_pod_info": {
-						labelsToMatch: []string{namespaceKey, "pod"},
-						labelsToGet: map[string]string{
-							createdByKindKey: createdByKindKey,
-							createdByNameKey: createdByNameKey,
-						},
-					},
-				},
+				LabelJoins:   defaultLabelJoins(),
 			}
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
+			check.processLabelJoins()
 
 			labelJoiner := newLabelJoiner(config.labelJoins)
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
-				Name: kubePodLabelsMetricName,
+				Name: "kube_pod_labels",
 				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
 					namespaceKey:         namespace,
 					"pod":                podName,
@@ -1418,8 +1409,6 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 				}}},
 			})
 
-			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
 			_, actualTags := check.hostnameAndTags(map[string]string{
 				namespaceKey: namespace,
 				"pod":        podName,
@@ -2025,16 +2014,18 @@ func TestKSMCheckInitTags(t *testing.T) {
 
 func TestOwnerTags(t *testing.T) {
 	tests := []struct {
-		tc   string
-		kind string
-		name string
-		want []string
+		tc             string
+		kind           string
+		name           string
+		want           []string
+		wantDeployment string
 	}{
 		{
-			tc:   "rs + deploy",
-			kind: "ReplicaSet",
-			name: "foo-6768ddc4d",
-			want: []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			tc:             "rs + deploy",
+			kind:           "ReplicaSet",
+			name:           "foo-6768ddc4d",
+			want:           []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			wantDeployment: "foo",
 		},
 		{
 			tc:   "rs only",
@@ -2075,7 +2066,9 @@ func TestOwnerTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.tc, func(t *testing.T) {
-			assert.EqualValues(t, tt.want, ownerTags(tt.kind, tt.name))
+			actualTags, actualDeployment := ownerTags(tt.kind, tt.name)
+			assert.EqualValues(t, tt.want, actualTags)
+			assert.Equal(t, tt.wantDeployment, actualDeployment)
 		})
 	}
 }
@@ -2084,14 +2077,14 @@ func BenchmarkOwnerTags(b *testing.B) {
 	b.Run("ReplicaSet", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("ReplicaSet", "foo-6768ddc4d")
+			_, _ = ownerTags("ReplicaSet", "foo-6768ddc4d")
 		}
 	})
 
 	b.Run("Job", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("Job", "foo-1627309500")
+			_, _ = ownerTags("Job", "foo-1627309500")
 		}
 	})
 }

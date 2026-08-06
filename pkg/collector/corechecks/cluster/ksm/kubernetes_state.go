@@ -951,6 +951,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName, resourceNamespace := "", "", ""
+	isArgoRollout := false
 
 	for key, value := range labels {
 
@@ -963,6 +964,8 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerKind = value
 		case createdByNameKey, ownerNameKey:
 			ownerName = value
+		case argoRolloutLabelName:
+			isArgoRollout = value != ""
 		default:
 			tag, hostTag := k.buildTag(key, value, lMapperOverride)
 			tagList = append(tagList, tag)
@@ -988,6 +991,8 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerKind = label.value
 		case createdByNameKey, ownerNameKey:
 			ownerName = label.value
+		case argoRolloutLabelName:
+			isArgoRollout = label.value != ""
 		default:
 			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
 			tagList = append(tagList, tag)
@@ -1001,18 +1006,13 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		}
 	}
 
-	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
+	owners, deploymentName := ownerTags(ownerKind, ownerName)
+	if len(owners) != 0 {
 		tagList = append(tagList, owners...)
 	}
 
-	if labelJoiner.isArgoRolloutPod(labels) {
-		deploymentPrefix := tags.KubeDeployment + ":"
-		for _, tag := range tagList {
-			if deployment, found := strings.CutPrefix(tag, deploymentPrefix); found {
-				tagList = append(tagList, tags.KubeArgoRollout+":"+deployment)
-				break
-			}
-		}
+	if isArgoRollout && deploymentName != "" {
+		tagList = append(tagList, tags.KubeArgoRollout+":"+deploymentName)
 	}
 
 	var namespaceTags []string
@@ -1471,31 +1471,31 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	return deniedMetrics
 }
 
-// ownerTags returns kube_<kind> tags based on given kind and name.
-// If the owner is a replicaset, it tries to get the kube_deployment tag in addition to kube_replica_set.
+// ownerTags returns kube_<kind> tags based on given kind and name, along with the resolved Deployment name.
+// If the owner is a replicaset, it tries to get the kube_deployment tag and Deployment name in addition to kube_replica_set.
 // If the owner is a job, it tries to get the kube_cronjob tag in addition to kube_job.
-func ownerTags(kind, name string) []string {
+func ownerTags(kind, name string) ([]string, string) {
 	if kind == "" || name == "" {
-		return nil
+		return nil, ""
 	}
 
 	tagKey, err := kubetags.GetTagForKubernetesKind(kind)
 	if err != nil {
-		return nil
+		return nil, ""
 	}
 
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}
+			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}, ""
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}
+			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}, deployment
 		}
 	}
 
-	return []string{tagKey + ":" + name}
+	return []string{tagKey + ":" + name}, ""
 }
 
 // labelsMapperOverride allows overriding the default label mapping for
