@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    [DBM] Add ``datadog-agent integration setup postgres`` command that idempotently
+    configures a Postgres instance for Database Monitoring. The command handles user
+    creation, privilege grants, pg_stat_statements setup, and helper function installation
+    across self-hosted Postgres, RDS, Aurora, Cloud SQL, and Azure. Supports ``--dry-run``
+    and ``--output json`` for automation-friendly usage.
