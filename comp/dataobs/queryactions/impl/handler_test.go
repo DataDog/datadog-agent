@@ -166,6 +166,22 @@ func TestRenderDatabaseIdentifier_UsesAgentHostnameForSameResolvedIPv4(t *testin
 	assert.Equal(t, "agent.internal:5432", identifier)
 }
 
+func TestRenderDatabaseIdentifier_UsesDefaultPostgresTemplate(t *testing.T) {
+	identifier, ok := renderDatabaseIdentifierWithLookup(
+		map[string]any{"host": "localhost"},
+		"agent.internal",
+		"$resolved_hostname:$port",
+		defaultPostgresPort,
+		func(string) ([]string, error) {
+			t.Fatal("local database hosts should not require a DNS lookup")
+			return nil, nil
+		},
+	)
+
+	require.True(t, ok)
+	assert.Equal(t, "agent.internal:5432", identifier)
+}
+
 func TestMatchesIdentifier_RDS(t *testing.T) {
 	instance := map[string]any{"host": "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}
 	dbID := &DBIdentifier{Type: "rds", Host: "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}

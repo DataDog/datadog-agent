@@ -385,7 +385,18 @@ func (c *component) findMatchingInstance(cfg *integration.Config, dbID *DBIdenti
 			continue
 		}
 
-		if instanceMatchesIdentifier(instance, *dbID, cfg.Name) && instanceHasDOEnabled(instance) {
+		match := evaluateInstanceIdentifier(instance, *dbID, cfg.Name)
+		c.log.Debugf(
+			"Evaluated DO query action database identifier: integration=%s instance_host=%q target=%q strategy=%s rendered_database_identifier=%q renderable=%t matched=%t",
+			cfg.Name,
+			instanceHost(instance),
+			dbID.Host,
+			match.strategy,
+			match.renderedIdentifier,
+			match.renderable,
+			match.matched,
+		)
+		if match.matched && instanceHasDOEnabled(instance) {
 			return instance, identifyInstanceConfig(instanceData), nil
 		}
 	}
@@ -408,14 +419,25 @@ func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
 //
 // This is the single source of truth for selecting the instance to schedule.
 func instanceMatchesIdentifier(instance map[string]any, identifier DBIdentifier, integrationName string) bool {
+	return evaluateInstanceIdentifier(instance, identifier, integrationName).matched
+}
+
+type identifierMatchEvaluation struct {
+	matched            bool
+	strategy           string
+	renderedIdentifier string
+	renderable         bool
+}
+
+func evaluateInstanceIdentifier(instance map[string]any, identifier DBIdentifier, integrationName string) identifierMatchEvaluation {
 	host := instanceHost(instance)
 	if host == identifier.Host {
-		return true
+		return identifierMatchEvaluation{matched: true, strategy: "host"}
 	}
 	// Try matching "host:port" form — sap_hana backends include the port in the identifier.
 	if port, ok := instancePort(instance); ok {
 		if fmt.Sprintf("%s:%d", host, port) == identifier.Host {
-			return true
+			return identifierMatchEvaluation{matched: true, strategy: "host_port"}
 		}
 	}
 
@@ -426,7 +448,12 @@ func instanceMatchesIdentifier(instance map[string]any, identifier DBIdentifier,
 		defaultPort = defaultPostgresPort
 	}
 	databaseIdentifier, ok := renderDatabaseIdentifier(instance, identifier.AgentHostname, defaultTemplate, defaultPort)
-	return ok && databaseIdentifier == identifier.Host
+	return identifierMatchEvaluation{
+		matched:            ok && databaseIdentifier == identifier.Host,
+		strategy:           "database_identifier",
+		renderedIdentifier: databaseIdentifier,
+		renderable:         ok,
+	}
 }
 
 // renderDatabaseIdentifier renders a database_identifier template using the same inputs as the
