@@ -18,8 +18,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	model "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // benchScanInterval mirrors the interval the agent runs with, so that a
@@ -167,12 +169,12 @@ func BenchmarkTracerMetadataMiss(b *testing.B) {
 			// A lookup that fails to open the descriptor directory returns the
 			// same error without walking anything, so the miss must be
 			// confirmed against a directory we know is readable.
-			_, err = readTracerMetadata(tc.root, int32(tc.pid))
-			require.ErrorIs(b, err, errTracerMemfdNotFound)
+			_, err = tracermetadata.GetTracerMetadata(tc.pid, tc.root)
+			require.ErrorIs(b, err, kernel.ErrMemFdFileNotFound)
 
 			b.ReportAllocs()
 			for b.Loop() {
-				_, _ = readTracerMetadata(tc.root, int32(tc.pid))
+				_, _ = tracermetadata.GetTracerMetadata(tc.pid, tc.root)
 			}
 			b.ReportMetric(float64(len(entries)), "fds")
 		})
@@ -349,8 +351,8 @@ func (tree syntheticProcfs) verify(tb testing.TB) {
 		require.NoError(tb, err)
 		require.Len(tb, entries, tree.fdsPerProc)
 
-		_, err = readTracerMetadata(tree.root, int32(pid))
-		require.ErrorIs(tb, err, errTracerMemfdNotFound)
+		_, err = tracermetadata.GetTracerMetadata(int(pid), tree.root)
+		require.ErrorIs(tb, err, kernel.ErrMemFdFileNotFound)
 	}
 }
 

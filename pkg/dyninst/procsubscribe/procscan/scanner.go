@@ -20,8 +20,10 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	model "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,6 +42,7 @@ const (
 	// DefaultRetryBackoffCap is the longest delay between two attempts at
 	// reading a process' tracer metadata.
 	DefaultRetryBackoffCap = 5 * time.Minute
+
 	// defaultExecutableCacheSize bounds the number of distinct executables for
 	// which we remember whether they are Go binaries.
 	defaultExecutableCacheSize = 1024
@@ -189,7 +192,7 @@ func NewScanner(procfsRoot string, opts ...Option) *Scanner {
 			return ticks(startTime), nil
 		},
 		func(pid int32) (model.TracerMetadata, error) {
-			return readTracerMetadata(procfsRoot, pid)
+			return tracermetadata.GetTracerMetadata(int(pid), procfsRoot)
 		},
 		func(pid int32) (process.Executable, error) {
 			return process.ResolveExecutable(procfsRoot, pid)
@@ -275,11 +278,13 @@ func (p *Scanner) Scan() (
 	// Rate-limit logging about errors that are interesting.
 	maybeLogErr := func(prefix string, err error) {
 		if err == nil ||
-			// These errors are expected and not interesting (process may have
-			// exited, etc).
+			// These errors are expected and not interesting: the process may
+			// have exited, or it may simply not have published any tracer
+			// metadata, which is true of most processes on a host.
 			errors.Is(err, fs.ErrNotExist) ||
 			errors.Is(err, fs.ErrPermission) ||
-			errors.Is(err, syscall.ESRCH) {
+			errors.Is(err, syscall.ESRCH) ||
+			errors.Is(err, kernel.ErrMemFdFileNotFound) {
 			return
 		}
 		if scannerLogLimiter.Allow() {
@@ -378,7 +383,7 @@ func (p *Scanner) Scan() (
 
 		tracerMetadata, err := p.tracerMetadataReader(int32(pid))
 		if err != nil {
-			logMetadataReadFailure(pid, err)
+			maybeLogErr("read tracer metadata", err)
 			p.scheduleRetry(key, c, now, p.backoffCap)
 			continue
 		}
@@ -487,26 +492,6 @@ func (p *Scanner) isGoExecutable(exe process.Executable) (bool, error) {
 	}
 	p.goExecutables.Add(exe.Key, isGo)
 	return isGo, nil
-}
-
-// logMetadataReadFailure logs a failed tracer metadata read. A tracer that has
-// not published yet usually will, and every process on the host takes this path
-// until it does, so it is not worth a warning. Being unable to read what a
-// tracer did publish does not resolve itself and is.
-func logMetadataReadFailure(pid uint32, err error) {
-	if errors.Is(err, errTracerMemfdNotFound) ||
-		errors.Is(err, fs.ErrNotExist) ||
-		errors.Is(err, syscall.ESRCH) {
-		log.Tracef(
-			"scanner: pid %d has not published tracer metadata: %v", pid, err,
-		)
-		return
-	}
-	if scannerLogLimiter.Allow() {
-		log.Warnf("scanner: cannot read tracer metadata for pid %d: %v", pid, err)
-	} else {
-		log.Tracef("scanner: cannot read tracer metadata for pid %d: %v", pid, err)
-	}
 }
 
 // LiveProcesses returns the list of processes that were alive as of the last
