@@ -30,5 +30,7 @@ type Connection interface {
 	// with more details - calling code should not assume that the PushResult is
 	// nil just because there was an error.
 	PushConfig(ctx context.Context, config string) (*types.PushResult, types.TypedError)
+	// ExecuteCommand
+	ExecuteCommand(ctx context.Context, command string) (*types.CommandResult, types.TypedError)
 	Close() error
 }
