@@ -9,9 +9,13 @@ package sbom
 
 import (
 	"testing"
+	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
@@ -104,5 +108,132 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 
 	if len(r.pendingFileEvents) != 0 {
 		t.Errorf("queued file accesses of the removed SBOM were not released")
+	}
+}
+
+// TestAnalyzeWorkloadReusesCachedDataAsComputed checks that a workload whose data
+// landed in the cache while it was queued for a scan still ends up computed. Left
+// pending, every package lookup for that container queues instead of resolving and
+// its queued accesses are never applied — which is the fate of every replica of an
+// image but the one that gets scanned.
+func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		// long enough that the forwarding debouncer cannot fire during the test
+		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
+		dataCache:         dataCache,
+		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
+	}
+
+	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}}, false))
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+
+	if err := r.analyzeWorkload(sbom); err != nil {
+		t.Fatalf("analyzeWorkload: %v", err)
+	}
+
+	if !sbom.IsComputed() {
+		t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
+	}
+	if len(r.pendingFileEvents) != 0 {
+		t.Errorf("queued file accesses were not drained")
+	}
+	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() {
+		t.Errorf("package = %+v, want last access set from the queued accesses", pkg)
+	}
+	if got := r.sbomsCacheHit.Load(); got != 1 {
+		t.Errorf("cache hits = %d, want 1: the scan avoided while queued was not counted", got)
+	}
+	if got := r.sbomsCacheMiss.Load(); got != 0 {
+		t.Errorf("cache misses = %d, want 0: the workload did not scan", got)
+	}
+}
+
+// TestAnalyzeWorkloadSkipsStoppedWorkload checks that a workload stopped while it was
+// queued for a scan is left alone. Reviving it as computed restarts a forwarding
+// debouncer that can never be stopped again, since a stopped workload is no longer
+// reachable from the resolver, and reports an SBOM for a container that is gone.
+func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
+		dataCache:         dataCache,
+		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
+	}
+
+	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}}, false))
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.stop()
+	t.Cleanup(sbom.stop)
+
+	if err := r.analyzeWorkload(sbom); err != nil {
+		t.Fatalf("analyzeWorkload: %v", err)
+	}
+
+	if got := sbom.state.Load(); got != stoppedState {
+		t.Errorf("state = %d, want stoppedState (%d)", got, stoppedState)
+	}
+	if sbom.forwarder != nil {
+		t.Errorf("a forwarding debouncer was started for a stopped workload")
+	}
+}
+
+// TestQueueWorkloadAppliesQueuedAccessesOnCacheHit checks that a workload admitted
+// with data already in the cache applies the accesses queued for it. They are queued
+// from the moment its container ID resolves, which precedes the workload selector
+// that admits it, so a workload going idle right after would otherwise never have
+// them applied.
+func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		dataCache:         dataCache,
+		scanChan:          make(chan *SBOM, 1),
+		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
+	}
+
+	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}}, false))
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+
+	r.queueWorkload(sbom)
+
+	if !sbom.IsComputed() {
+		t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
+	}
+	if len(r.pendingFileEvents) != 0 {
+		t.Errorf("queued file accesses were not applied")
+	}
+	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
 	}
 }

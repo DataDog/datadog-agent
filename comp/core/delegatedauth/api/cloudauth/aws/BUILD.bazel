@@ -5,8 +5,7 @@ go_library(
     name = "aws",
     srcs = [
         "aws.go",
-        "resolve_credentials_ec2.go",
-        "resolve_credentials_noec2.go",
+        "resolve_credentials.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws",
     visibility = ["//visibility:public"],
@@ -20,8 +19,6 @@ go_library(
         "//pkg/version",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
-        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
-        "@com_github_aws_aws_sdk_go_v2_credentials//endpointcreds",
     ],
 )
 
@@ -29,17 +26,13 @@ dd_agent_go_test(
     name = "aws_test",
     srcs = [
         "aws_test.go",
-        "resolve_credentials_ec2_test.go",
-        "resolve_credentials_noec2_test.go",
+        "resolve_credentials_providers_test.go",
         "resolve_credentials_test.go",
     ],
     embed = [":aws"],
-    gotags_sets = [["ec2"]],
     deps = [
         "//pkg/config/mock",
         "//pkg/util/aws/creds",
-        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
-        "@com_github_aws_aws_sdk_go_v2_credentials//endpointcreds",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

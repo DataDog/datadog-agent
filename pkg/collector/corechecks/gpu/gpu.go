@@ -11,6 +11,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,21 +47,22 @@ var _ check.IssueAwareCheck = (*Check)(nil)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors         []nvidia.Collector               // collectors for NVML metrics
-	disabledCollectors []string                         // disabledCollectors is a list of collector names that should not be created
-	tagger             tagger.Component                 // Tagger instance to add tags to outgoing metrics
-	telemetry          *checkTelemetry                  // Internal telemetry metrics for the check
-	wmeta              workloadmeta.Component           // Workloadmeta store to get the list of containers
-	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
-	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
-	spCache            *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
-	prmCache           *nvidia.PRMCache                 // prmCache manages privileged NVLink PRM metrics fetched from system-probe
-	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
-	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
-	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
-	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
-	parallelCollectors bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
-	issueReporter      healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
+	collectors          []nvidia.Collector               // collectors for NVML metrics
+	disabledCollectors  []string                         // disabledCollectors is a list of collector names that should not be created
+	excludedDeviceUUIDs map[string]struct{}              // excludedDeviceUUIDs contains normalized device UUIDs whose metrics should not be collected
+	tagger              tagger.Component                 // Tagger instance to add tags to outgoing metrics
+	telemetry           *checkTelemetry                  // Internal telemetry metrics for the check
+	wmeta               workloadmeta.Component           // Workloadmeta store to get the list of containers
+	deviceTags          map[string][]string              // deviceTags is a map of device UUID to tags
+	deviceCache         ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
+	spCache             *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	prmCache            *nvidia.PRMCache                 // prmCache manages privileged NVLink PRM metrics fetched from system-probe
+	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
+	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
+	containerProvider   proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	rateCalculator      *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
+	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
+	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 }
 
 type checkTelemetry struct {
@@ -87,13 +89,14 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:      core.NewCheckBase(CheckName),
-		tagger:         tagger,
-		telemetry:      newCheckTelemetry(telemetry),
-		wmeta:          wmeta,
-		deviceTags:     make(map[string][]string),
-		deviceCache:    ddnvml.NewDeviceCache(),
-		rateCalculator: nvidia.NewRateCalculator(),
+		CheckBase:           core.NewCheckBase(CheckName),
+		tagger:              tagger,
+		telemetry:           newCheckTelemetry(telemetry),
+		wmeta:               wmeta,
+		deviceTags:          make(map[string][]string),
+		excludedDeviceUUIDs: make(map[string]struct{}),
+		deviceCache:         ddnvml.NewDeviceCache(),
+		rateCalculator:      nvidia.NewRateCalculator(),
 	}
 }
 
@@ -148,6 +151,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	for _, collectorName := range c.disabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
 	}
+	c.excludedDeviceUUIDs = make(map[string]struct{})
+	for _, deviceUUID := range pkgconfigsetup.Datadog().GetStringSlice("gpu.excluded_devices") {
+		c.excludedDeviceUUIDs[strings.ToLower(deviceUUID)] = struct{}{}
+		log.Infof("GPU device %s is excluded by configuration", deviceUUID)
+	}
 	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
 	if c.parallelCollectors {
 		log.Infof("Enabled concurrent NVML collector collection")
@@ -198,7 +206,11 @@ func (c *Check) ensureInitCollectors() error {
 	}
 	curDevices := map[string]ddnvml.Device{}
 	for _, d := range devices {
-		curDevices[d.GetDeviceInfo().UUID] = d
+		deviceUUID := d.GetDeviceInfo().UUID
+		if c.isDeviceExcluded(deviceUUID) {
+			continue
+		}
+		curDevices[deviceUUID] = d
 	}
 
 	// discard collectors of devices that are no more available
@@ -239,6 +251,11 @@ func (c *Check) ensureInitCollectors() error {
 	c.collectors = collectors
 	c.deviceTags = nvidia.GetDeviceTagsMapping(c.deviceCache, c.tagger)
 	return nil
+}
+
+func (c *Check) isDeviceExcluded(deviceUUID string) bool {
+	_, excluded := c.excludedDeviceUUIDs[strings.ToLower(deviceUUID)]
+	return excluded
 }
 
 // Cancel stops the check

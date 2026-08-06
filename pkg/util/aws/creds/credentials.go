@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build ec2
-
 // Package creds holds aws creds fetching related files
 package creds
 
@@ -26,7 +24,16 @@ type SecurityCredentials struct {
 
 // GetSecurityCredentials retrieves AWS security credentials from the EC2 instance metadata service.
 // This function queries the IMDS to get temporary credentials associated with the instance's IAM role.
+//
+// Both requests below reach DoHTTPRequest directly rather than GetMetadataItem, so neither applies
+// the cloud_provider_metadata check on its own. Honor it here: this is the leg an explicitly
+// configured provider takes (delegated_auth.provider: aws skips DetectAWSCredentialSource
+// entirely), so checking only in detection would leave the common path probing a disabled endpoint.
 func GetSecurityCredentials(ctx context.Context) (*SecurityCredentials, error) {
+	if err := ec2internal.CheckCloudProviderEnabled(); err != nil {
+		return nil, err
+	}
+
 	iamRole, err := getIAMRole(ctx)
 	if err != nil {
 		return nil, err

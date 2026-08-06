@@ -42,6 +42,11 @@ var memoryLocationToName = map[nvml.MemoryLocation]string{
 	nvml.MEMORY_LOCATION_SRAM:           "sram",
 }
 
+var eccCounterTypeToName = map[nvml.EccCounterType]string{
+	nvml.AGGREGATE_ECC: "total",
+	nvml.VOLATILE_ECC:  "volatile",
+}
+
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
 	if val {

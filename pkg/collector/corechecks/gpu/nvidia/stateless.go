@@ -197,16 +197,22 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	return processMemoryUsage(device, usage, High), 0, err
 }
 
-func shouldSkipLegacyEccMetric(device ddnvml.Device, errorType nvml.MemoryErrorType, memoryLocation nvml.MemoryLocation) bool {
+// shouldSkipLegacyEccMetric checks if the legacy ECC metric should be skipped because the information it gives
+// is already covered by GetSramEccErrorStatus
+func shouldSkipLegacyEccMetric(device ddnvml.Device, errorType nvml.MemoryErrorType, memoryLocation nvml.MemoryLocation, counterType nvml.EccCounterType) bool {
 	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_AMPERE {
 		return false
 	}
 
-	if memoryLocation == nvml.MEMORY_LOCATION_SRAM {
-		return true
+	if counterType == nvml.VOLATILE_ECC { // volatile counters count errors from the last boot
+		// Sram APIs only gives us global volatile counters for ECC corrected errors
+		return memoryLocation == nvml.MEMORY_LOCATION_SRAM && errorType == nvml.MEMORY_ERROR_TYPE_CORRECTED
 	}
 
-	return errorType == nvml.MEMORY_ERROR_TYPE_UNCORRECTED && memoryLocation == nvml.MEMORY_LOCATION_L2_CACHE
+	// AGGREGATE_ECC, GPU lifetime counters
+	// GetSramEccErrorStatus gives us detailed aggregate counters for corrected and uncorrected errors in SRAM.
+	// It also includes, despite the name, uncorrected counters for L2 cache.
+	return memoryLocation == nvml.MEMORY_LOCATION_SRAM || (errorType == nvml.MEMORY_ERROR_TYPE_UNCORRECTED && memoryLocation == nvml.MEMORY_LOCATION_L2_CACHE)
 }
 
 func sramEccErrorStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
@@ -229,14 +235,32 @@ func sramEccErrorStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
 			Tags:  []string{"memory_location:sram"},
 		},
 		{
+			Name:  "errors.ecc.corrected.volatile",
+			Value: float64(status.VolatileCor),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram"},
+		},
+		{
 			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
 			Value: float64(status.AggregateUncParity),
 			Type:  metrics.GaugeType,
 			Tags:  []string{"memory_location:sram", "error_subtype:parity"},
 		},
 		{
+			Name:  "errors.ecc.sram.uncorrected_by_subtype.volatile",
+			Value: float64(status.VolatileUncParity),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram", "error_subtype:parity"},
+		},
+		{
 			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
 			Value: float64(status.AggregateUncSecDed),
+			Type:  metrics.GaugeType,
+			Tags:  []string{"memory_location:sram", "error_subtype:secded"},
+		},
+		{
+			Name:  "errors.ecc.sram.uncorrected_by_subtype.volatile",
+			Value: float64(status.VolatileUncSecDed),
 			Type:  metrics.GaugeType,
 			Tags:  []string{"memory_location:sram", "error_subtype:secded"},
 		},
@@ -818,30 +842,42 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 	}
 
-	// Create APIs for ECC errors
+	// Create APIs for corrected and uncorrected ECC errors.
 	for errorType, errorTypeName := range eccErrorTypeToName {
+		// Handlers close over these values and run after the loops finish, so rebind
+		// each range variable to preserve the values for this API.
+		errorType := errorType
+		errorTypeName := errorTypeName
 		for memoryLocation, memoryLocationName := range memoryLocationToName {
-			apis = append(apis, apiCallInfo{
-				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
-				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-					if shouldSkipLegacyEccMetric(device, errorType, memoryLocation) {
-						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", nvml.ERROR_NOT_SUPPORTED)
-					}
+			memoryLocation := memoryLocation
+			memoryLocationName := memoryLocationName
+			for counterType, counterTypeName := range eccCounterTypeToName {
+				counterType := counterType
+				counterTypeName := counterTypeName
+				apis = append(apis, apiCallInfo{
+					Name: fmt.Sprintf("ecc_errors.%s.%s.%s", errorTypeName, memoryLocationName, counterTypeName),
+					Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+						if shouldSkipLegacyEccMetric(device, errorType, memoryLocation, counterType) {
+							return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", nvml.ERROR_NOT_SUPPORTED)
+						}
 
-					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
-					if err != nil {
-						return nil, 0, err
-					}
-					return []Metric{{
-						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
-						Value: float64(count),
-						Type:  metrics.GaugeType,
-						Tags: []string{
-							"memory_location:" + memoryLocationName,
-						},
-					}}, 0, nil
-				},
-			})
+						count, err := device.GetMemoryErrorCounter(errorType, counterType, memoryLocation)
+						if err != nil {
+							return nil, 0, err
+						}
+
+						tags := []string{"memory_location:" + memoryLocationName}
+						return []Metric{
+							{
+								Name:  fmt.Sprintf("errors.ecc.%s.%s", errorTypeName, counterTypeName),
+								Value: float64(count),
+								Type:  metrics.GaugeType,
+								Tags:  tags,
+							},
+						}, 0, nil
+					},
+				})
+			}
 		}
 	}
 
