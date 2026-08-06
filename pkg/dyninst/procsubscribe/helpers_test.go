@@ -16,10 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan"
 )
 
-const (
-	DefaultScanInterval    = defaultScanInterval
-	DefaultMaxScanInterval = defaultMaxScanInterval
-)
+const DefaultScanInterval = defaultScanInterval
 
 // WithScanner overrides the scanner used to discover processes.
 func WithProcessScanner(scanner processScanner) Option {
@@ -46,10 +43,4 @@ func WithClock(clk clock.Clock) Option {
 
 func WithWaitFunc(waitFunc func(ctx context.Context, duration time.Duration) error) Option {
 	return optionFunc(func(c *config) { c.wait = waitFunc })
-}
-
-// WithJitterFactor sets the fraction by which each scan interval is randomly
-// stretched or shortened.
-func WithJitterFactor(factor float64) Option {
-	return optionFunc(func(c *config) { c.jitterFactor = factor })
 }

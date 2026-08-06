@@ -12,7 +12,6 @@ package procsubscribe
 import (
 	"context"
 	"encoding/json"
-	"math/rand/v2"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,28 +34,27 @@ const (
 	rcInitialReconnectDelay = 200 * time.Millisecond
 	rcMaxReconnectDelay     = 30 * time.Second
 
-	defaultScanInterval = 3 * time.Second
-
-	// defaultMaxScanInterval caps how far the interval can be stretched by slow
-	// scans. Without a cap, a single slow scan can put discovery to sleep for
-	// minutes, and the slowest scan is the first one after a restart, when
-	// every pre-existing process is discovered at once.
-	defaultMaxScanInterval = 30 * time.Second
+	// defaultScanInterval is the fixed delay between two process scans. It is
+	// also the delay before the first retry of a process whose tracer metadata
+	// could not be read, so that retry lands on the next scan.
+	//
+	// Every process on the host costs a stat read on every scan, which is
+	// around 1% of a core at two thousand processes if we scan every three
+	// seconds. Five buys most of that back for two extra seconds of discovery
+	// latency.
+	defaultScanInterval = 5 * time.Second
 )
 
 type config struct {
-	scanInterval    time.Duration
-	maxScanInterval time.Duration
-	processScanner  processScanner
-	clk             clock.Clock
-	jitterFactor    float64
-	wait            func(ctx context.Context, duration time.Duration) error
+	scanInterval   time.Duration
+	processScanner processScanner
+	clk            clock.Clock
+	wait           func(ctx context.Context, duration time.Duration) error
 }
 
 var defaultConfig = config{
-	scanInterval:    defaultScanInterval,
-	maxScanInterval: defaultMaxScanInterval,
-	clk:             clock.New(),
+	scanInterval: defaultScanInterval,
+	clk:          clock.New(),
 	wait: func(ctx context.Context, duration time.Duration) error {
 		select {
 		case <-ctx.Done():
@@ -91,10 +89,8 @@ type Subscriber struct {
 		callback        func(process.ProcessesUpdate)
 	}
 
-	scanInterval    time.Duration
-	maxScanInterval time.Duration
-	jitterFactor    float64
-	wait            func(ctx context.Context, duration time.Duration) error
+	scanInterval time.Duration
+	wait         func(ctx context.Context, duration time.Duration) error
 
 	stats scannerStats
 
@@ -107,10 +103,7 @@ type Subscriber struct {
 
 // scannerStats describes the cadence of the scan loop.
 type scannerStats struct {
-	scans atomic.Uint64
-	// scanIntervalMillis is the interval computed after the last scan, which is
-	// the scan interval plus whatever penalty the last scan's duration earned.
-	scanIntervalMillis atomic.Int64
+	scans              atomic.Uint64
 	scanDurationMillis atomic.Int64
 }
 
@@ -157,14 +150,12 @@ func NewSubscriber(
 		)
 	}
 	s := &Subscriber{
-		client:          client,
-		notifyRequests:  make(chan struct{}, 1),
-		scanner:         scanner,
-		clk:             cfg.clk,
-		jitterFactor:    cfg.jitterFactor,
-		scanInterval:    cfg.scanInterval,
-		maxScanInterval: cfg.maxScanInterval,
-		wait:            cfg.wait,
+		client:         client,
+		notifyRequests: make(chan struct{}, 1),
+		scanner:        scanner,
+		clk:            cfg.clk,
+		scanInterval:   cfg.scanInterval,
+		wait:           cfg.wait,
 	}
 	s.mu.state = makeSubscriberState()
 	return s
@@ -242,20 +233,9 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 		} else if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("process subscriber: onScanUpdate: no changes")
 		}
-		// Add a factor of 100 from how long the scan took to ensure that if
-		// scanning is slow, that we don't scan too frequently. This should
-		// mean we are never scanning for more than 1% of any core time.
-		//
-		// Generally speaking, scanning should be very fast relative to the
-		// interval, so we expect this factor to be small. The cap trades that
-		// guarantee away rather than let one slow scan stop discovery for
-		// minutes.
-		took := s.clk.Since(start)
-		interval := min(s.scanInterval+100*took, s.maxScanInterval)
 		s.stats.scans.Add(1)
-		s.stats.scanDurationMillis.Store(took.Milliseconds())
-		s.stats.scanIntervalMillis.Store(interval.Milliseconds())
-		next = jitter(interval, s.jitterFactor)
+		s.stats.scanDurationMillis.Store(s.clk.Since(start).Milliseconds())
+		next = s.scanInterval
 	}
 }
 
@@ -263,7 +243,6 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 func (s *Subscriber) Stats() map[string]any {
 	return map[string]any{
 		"scans":                s.stats.scans.Load(),
-		"scan_interval_millis": s.stats.scanIntervalMillis.Load(),
 		"scan_duration_millis": s.stats.scanDurationMillis.Load(),
 	}
 }
@@ -640,9 +619,4 @@ func nextReconnectDelay(current time.Duration) time.Duration {
 		return rcInitialReconnectDelay
 	}
 	return next
-}
-
-func jitter(duration time.Duration, fraction float64) time.Duration {
-	multiplier := 1 + ((rand.Float64()*2 - 1) * fraction)
-	return time.Duration(float64(duration) * multiplier)
 }
