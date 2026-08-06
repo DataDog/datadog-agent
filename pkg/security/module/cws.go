@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -118,7 +119,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string, secretsComp secrets.Component) (*CWSConsumer, error) {
+func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
@@ -146,7 +147,7 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 	}
 
 	stopChan := make(chan struct{})
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, stopChan, secretsComp, filterStore)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, stopChan, secretsComp, filterStore, delegatedAuthComp)
 	if err != nil {
 		return nil, err
 	}

@@ -51,7 +51,6 @@ dd_agent_go_test(
         "//comp/core/delegatedauth/mock",
         "//comp/core/delegatedauth/noop-impl",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/config/setup/constants",
         "//pkg/config/utils",
         "//pkg/logs/types",

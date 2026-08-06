@@ -16,6 +16,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -40,6 +41,7 @@ func StartCompliance(log log.Component,
 	compression compression.Component,
 	sysProbeClient SysProbeClient,
 	secretsComp secrets.Component,
+	delegatedAuthComp delegatedauth.Component,
 ) (*Agent, error) {
 
 	enabled := config.GetBool("compliance_config.enabled")
@@ -51,7 +53,7 @@ func StartCompliance(log log.Component,
 		return nil, nil
 	}
 
-	endpoints, context, err := common.NewLogContextCompliance()
+	endpoints, context, err := common.NewLogContextCompliance(delegatedAuthComp)
 	if err != nil {
 		log.Error(err)
 	}
@@ -75,7 +77,7 @@ func StartCompliance(log log.Component,
 		enabledConfigurationsExporters = append(enabledConfigurationsExporters, DBExporter)
 	}
 
-	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression, secretsComp)
+	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression, secretsComp, delegatedAuthComp)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
 	agent := NewAgent(telemetrySender, wmeta, filterStore, hostname, AgentOptions{

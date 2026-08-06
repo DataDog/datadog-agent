@@ -334,6 +334,32 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		log.Warnf("Refresh interval was set to %d for '%s', defaulting to 60 minutes", params.RefreshInterval, apiKeyConfigKey)
 	}
 
+	targetSite := resolveTargetSite(params)
+
+	// AddInstance can legitimately be called more than once for the same key (e.g. once against
+	// the primary config, again after merging security-agent.yaml). If an instance already has a
+	// resolved API key and the identity-defining params are unchanged, skip re-registering:
+	// otherwise every repeat call would cancel the running refresh goroutine and force a fresh
+	// synchronous WIF exchange, which could also overwrite a good key with a stale fallback if
+	// that exchange transiently fails. A nil apiKey (fetch still failing/retrying) always falls
+	// through to the replace path so retries get a fresh shot.
+	d.mu.RLock()
+	if existing, ok := d.instances[apiKeyConfigKey]; ok &&
+		existing.apiKey != nil &&
+		existing.authConfig != nil &&
+		existing.authConfig.OrgUUID == params.OrgUUID &&
+		existing.refreshInterval == refreshInterval &&
+		existing.targetSite == targetSite &&
+		existing.additionalEndpointDomain == params.AdditionalEndpointDomain &&
+		existing.additionalEndpointsConfigKey == params.AdditionalEndpointsConfigKey &&
+		existing.additionalEndpointsListConfigKey == params.AdditionalEndpointsListConfigKey &&
+		existing.listEntryIndex == params.ListEntryIndex {
+		d.mu.RUnlock()
+		log.Debugf("Delegated auth for '%s' is already configured and resolved with identical parameters; skipping redundant re-registration", apiKeyConfigKey)
+		return nil
+	}
+	d.mu.RUnlock()
+
 	// Create the appropriate provider based on the provider config type
 	var tokenProvider common.Provider
 	switch cfg := providerConfig.(type) {
@@ -356,7 +382,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		authConfig:                       authConfig,
 		refreshInterval:                  refreshInterval,
 		apiKeyConfigKey:                  apiKeyConfigKey,
-		targetSite:                       resolveTargetSite(params),
+		targetSite:                       targetSite,
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
