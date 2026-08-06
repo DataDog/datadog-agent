@@ -130,7 +130,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
-	fmt.Printf("fabricInfo: %+v, err: %v", fabricInfo, err)
 	if err == nil &&
 		fabricInfo.State == nvml.GPU_FABRIC_STATE_COMPLETED &&
 		nvml.Return(fabricInfo.Status) == nvml.SUCCESS &&
