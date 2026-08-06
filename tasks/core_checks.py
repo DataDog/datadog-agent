@@ -40,6 +40,7 @@ AGENT_CORECHECKS = [
     "versa",
     "network_config_management",
     "cloud_hostinfo",
+    "thermal",
 ]
 
 AIX_CORECHECKS = [
@@ -64,7 +65,6 @@ WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "battery",
     "sbom",
-    "thermal",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
