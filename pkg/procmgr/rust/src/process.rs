@@ -279,6 +279,9 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
+        // Resolve intended spawn user before creating the child so a slow lookup
+        // cannot block the manager lock while an unwatched process is starting.
+        self.refresh_intended_user();
         let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
@@ -290,7 +293,6 @@ impl ManagedProcess {
         );
 
         self.handle = Some(handle);
-        self.refresh_intended_user();
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
         Ok(())
@@ -807,6 +809,21 @@ pub mod tests {
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(status.code(), Some(7));
+    }
+
+    #[tokio::test]
+    async fn test_spawn_refreshes_intended_user_before_running() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut proc = ManagedProcess::new_config(
+            "spawn-user-refresh".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        let expected = spawn_user_for(&proc.name(), proc.profile());
+        proc.spawn().unwrap();
+        assert_eq!(proc.user(), expected);
+        assert!(proc.is_running());
+        let _ = proc.wait().await;
     }
 
     // -- signal tests (Unix-only: test the raw send_signal API) --
