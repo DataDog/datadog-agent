@@ -282,32 +282,6 @@ func (ts *scannerTestState) declareExecutable(
 	return exe
 }
 
-// execProcessCommand replaces the executable of a running process, leaving its
-// pid and start time alone, which is what an exec does.
-type execProcessCommand struct {
-	PID        int32           `yaml:"pid"`
-	Executable executableInput `yaml:"executable"`
-	// MetadataAvailableAt is when the new image publishes its tracer metadata.
-	// It defaults to leaving the process' existing time alone.
-	MetadataAvailableAt *uint64 `yaml:"metadata_available_at,omitempty"`
-}
-
-func (c *execProcessCommand) execute(
-	_ *testing.T,
-	ts *scannerTestState,
-) error {
-	proc, exists := ts.processes[c.PID]
-	if !exists {
-		return fmt.Errorf("process %d does not exist", c.PID)
-	}
-	proc.executable = ts.declareExecutable(c.PID, c.Executable)
-	proc.executableResolves = !c.Executable.Unresolvable
-	if c.MetadataAvailableAt != nil {
-		proc.metadataAvailableAt = ticks(*c.MetadataAvailableAt)
-	}
-	return nil
-}
-
 type removeProcessCommand struct {
 	PID int32 `yaml:"pid"`
 }
@@ -350,9 +324,6 @@ type initializeCommand struct {
 	MinAge      uint64 `yaml:"min_age"`
 	BackoffBase uint64 `yaml:"backoff_base"`
 	BackoffCap  uint64 `yaml:"backoff_cap"`
-	// NonGoBackoffCap defaults to BackoffCap, so that a timeline only has to
-	// mention it when the difference between the two is the point.
-	NonGoBackoffCap uint64 `yaml:"non_go_backoff_cap,omitempty"`
 }
 
 func (c *initializeCommand) execute(
@@ -360,17 +331,12 @@ func (c *initializeCommand) execute(
 	ts *scannerTestState,
 ) error {
 	ts.currentTime = ticks(c.CurrentTime)
-	nonGoBackoffCap := c.NonGoBackoffCap
-	if nonGoBackoffCap == 0 {
-		nonGoBackoffCap = c.BackoffCap
-	}
 	ts.scanner = newScanner(
 		[]Option{
 			WithMinProcessAge(ticksToDuration(c.MinAge)),
 			WithRetryBackoff(
 				ticksToDuration(c.BackoffBase), ticksToDuration(c.BackoffCap),
 			),
-			WithNonGoBackoffCap(ticksToDuration(nonGoBackoffCap)),
 		},
 		func() (ticks, error) { return ts.currentTime, nil },
 		ts.listPids,
@@ -472,11 +438,11 @@ type procSnapshot struct {
 type candidateSnapshot struct {
 	PID       uint32 `yaml:"pid"`
 	StartTime uint64 `yaml:"start_time"`
-	// ExeIno is the inode of the executable the last verdict was reached about,
-	// which is how the timelines show an exec being noticed.
-	ExeIno      uint64 `yaml:"exe_ino,omitempty"`
-	Attempts    uint32 `yaml:"attempts"`
-	NextAttempt uint64 `yaml:"next_attempt"`
+	Attempts  uint32 `yaml:"attempts,omitempty"`
+	// NextAttempt is absent for a process that has been written off, which
+	// WrittenOff marks instead.
+	NextAttempt uint64 `yaml:"next_attempt,omitempty"`
+	WrittenOff  bool   `yaml:"written_off,omitempty"`
 }
 
 type scannerStateSnapshot struct {
@@ -512,13 +478,17 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 
 	candidates := make([]candidateSnapshot, 0, len(s.candidates))
 	for pid, c := range s.candidates {
-		candidates = append(candidates, candidateSnapshot{
-			PID:         pid,
-			StartTime:   uint64(c.startTime),
-			ExeIno:      c.exeKey.Ino,
-			Attempts:    c.attempts,
-			NextAttempt: uint64(c.nextAttempt),
-		})
+		snap := candidateSnapshot{
+			PID:       pid,
+			StartTime: uint64(c.startTime),
+			Attempts:  c.attempts,
+		}
+		if c.nextAttempt == never {
+			snap.WrittenOff = true
+		} else {
+			snap.NextAttempt = uint64(c.nextAttempt)
+		}
+		candidates = append(candidates, snap)
 	}
 	slices.SortFunc(candidates, func(a, b candidateSnapshot) int {
 		return cmp.Compare(a.PID, b.PID)
@@ -677,15 +647,6 @@ func parseCommand(node ast.Node) (command, error) {
 		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
 			return nil, fmt.Errorf(
 				"failed to decode create-process: %w", err,
-			)
-		}
-		return &cmd, nil
-
-	case "exec-process":
-		var cmd execProcessCommand
-		if err := yaml.Unmarshal(dataBytes, &cmd); err != nil {
-			return nil, fmt.Errorf(
-				"failed to decode exec-process: %w", err,
 			)
 		}
 		return &cmd, nil
