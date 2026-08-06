@@ -59,7 +59,10 @@ typedef struct {
     SMCBytes_t   bytes;
 } SMCVal_t;
 
-static io_connect_t smcConn;
+// The SMC connection is passed as a parameter rather than held in a global:
+// thermal instances run concurrently on separate collector workers, and a
+// shared handle would let one call close or overwrite a connection another is
+// still reading through, leaking the overwritten mach port.
 
 static UInt32 smcStrToUL(const char *str, int size, int base) {
     UInt32 total = 0;
@@ -83,7 +86,9 @@ static void smcULToStr(char *str, UInt32 val) {
             (unsigned int)val);
 }
 
-static kern_return_t SMCOpen(void) {
+// SMCOpen stores an open AppleSMC connection in *conn. On failure *conn is
+// left untouched and must not be used.
+static kern_return_t SMCOpen(io_connect_t *conn) {
     kern_return_t result;
     io_iterator_t iterator;
     io_object_t   device;
@@ -100,22 +105,22 @@ static kern_return_t SMCOpen(void) {
         return kIOReturnNotFound;
     }
 
-    result = IOServiceOpen(device, mach_task_self(), 0, &smcConn);
+    result = IOServiceOpen(device, mach_task_self(), 0, conn);
     IOObjectRelease(device);
     return result;
 }
 
-static kern_return_t SMCClose(void) {
-    return IOServiceClose(smcConn);
+static kern_return_t SMCClose(io_connect_t conn) {
+    return IOServiceClose(conn);
 }
 
-static kern_return_t SMCCall(int index, SMCKeyData_t *in, SMCKeyData_t *out) {
+static kern_return_t SMCCall(io_connect_t conn, int index, SMCKeyData_t *in, SMCKeyData_t *out) {
     size_t inSize = sizeof(SMCKeyData_t);
     size_t outSize = sizeof(SMCKeyData_t);
-    return IOConnectCallStructMethod(smcConn, index, in, inSize, out, &outSize);
+    return IOConnectCallStructMethod(conn, index, in, inSize, out, &outSize);
 }
 
-static kern_return_t SMCReadKey(const char *key, SMCVal_t *val) {
+static kern_return_t SMCReadKey(io_connect_t conn, const char *key, SMCVal_t *val) {
     kern_return_t result;
     SMCKeyData_t  inputStructure;
     SMCKeyData_t  outputStructure;
@@ -127,7 +132,7 @@ static kern_return_t SMCReadKey(const char *key, SMCVal_t *val) {
     inputStructure.key = smcStrToUL(key, 4, 16);
     inputStructure.data8 = SMC_CMD_READ_KEYINFO;
 
-    result = SMCCall(KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
+    result = SMCCall(conn, KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
     if (result != kIOReturnSuccess) {
         return result;
     }
@@ -137,7 +142,7 @@ static kern_return_t SMCReadKey(const char *key, SMCVal_t *val) {
     inputStructure.keyInfo.dataSize = val->dataSize;
     inputStructure.data8 = SMC_CMD_READ_BYTES;
 
-    result = SMCCall(KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
+    result = SMCCall(conn, KERNEL_INDEX_SMC, &inputStructure, &outputStructure);
     if (result != kIOReturnSuccess) {
         return result;
     }
@@ -160,9 +165,9 @@ static float smcFltToF(const unsigned char *b) {
 // SMCGetTemperature returns the key's value in °C, or 0.0 if the key does not
 // exist, is not temperature-shaped, or the read fails. Missing keys are not
 // reported as errors, so callers must range-filter the result.
-static double SMCGetTemperature(const char *key) {
+static double SMCGetTemperature(io_connect_t conn, const char *key) {
     SMCVal_t val;
-    kern_return_t result = SMCReadKey(key, &val);
+    kern_return_t result = SMCReadKey(conn, key, &val);
     if (result == kIOReturnSuccess && val.dataSize > 0) {
         if (strcmp(val.dataType, DATATYPE_SP78) == 0) {
             int intValue = ((unsigned char)val.bytes[0] * 256 + (unsigned char)val.bytes[1]) >> 2;
@@ -257,17 +262,20 @@ static const int ssdSMCKeysCount = sizeof(ssdSMCKeys) / sizeof(ssdSMCKeys[0]);
 // smcMaxOfKeysInRange returns the hottest reading in the exclusive
 // (minC, maxC) range across keys/keyCount, taking the hottest core or die as
 // the representative value. Returns {false, 0} if the connection cannot be
-// opened or no key reads in range. The connection is opened once for the
-// whole list.
+// opened or no key reads in range.
+//
+// The connection is opened once for the whole list and is local to this call,
+// so concurrent invocations cannot disturb each other.
 static OptionalFloat smcMaxOfKeysInRange(const char **keys, int keyCount, double minC, double maxC) {
     OptionalFloat result = { false, 0.0f };
+    io_connect_t  conn = MACH_PORT_NULL;
 
-    if (SMCOpen() != kIOReturnSuccess) {
+    if (SMCOpen(&conn) != kIOReturnSuccess) {
         return result;
     }
 
     for (int i = 0; i < keyCount; i++) {
-        double t = SMCGetTemperature(keys[i]);
+        double t = SMCGetTemperature(conn, keys[i]);
         if (t > minC && t < maxC) {
             if (!result.hasValue || t > result.value) {
                 result.value = (float)t;
@@ -276,7 +284,7 @@ static OptionalFloat smcMaxOfKeysInRange(const char **keys, int keyCount, double
         }
     }
 
-    SMCClose();
+    SMCClose(conn);
     return result;
 }
 
