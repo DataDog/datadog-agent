@@ -220,6 +220,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", true)
 	config.BindEnvAndSetDefault("network_devices.default_scan.excluded_ips", []string{})
+	config.BindEnvAndSetDefault("network_devices.default_scan.bulk_batch_size", 20)
+	// Internal, undocumented knobs for tuning partial result reporting.
+	config.BindEnvAndSetDefault("network_devices.default_scan.flush_every_n_oids", 0)
+	config.BindEnvAndSetDefault("network_devices.default_scan.flush_interval", "0s")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -484,6 +488,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
 	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
+	// GPU device UUIDs to exclude from metric collection. UUID matching is case-insensitive.
+	// MIG devices can only be excluded by their own UUID, not by the parent device UUID.
+	config.BindEnvAndSetDefault("gpu.excluded_devices", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
 	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
 	// gpu.collection_interval_override (seconds) overrides the gpu check scheduling
@@ -2238,6 +2245,10 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.bucket_width", 5*time.Second)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.idle_ttl", 5*time.Minute)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.time_buckets.retention", 10*time.Minute)
 
 	// Internal agent log tap.
 	// min_severity is the minimum level forwarded (logs below it are dropped before sampling).

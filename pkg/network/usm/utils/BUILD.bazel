@@ -112,6 +112,7 @@ dd_agent_go_test(
         "//conditions:default": [],
     }),
     embed = [":utils"],
+    gotags_sets = [["linux_bpf"]],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/network/types",
