@@ -16,32 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWritePARProcmgrConfigs(t *testing.T) {
+func TestWritePARExecutorProcmgrConfig(t *testing.T) {
 	installRoot := t.TempDir()
-	require.NoError(t, writePARProcmgrConfigs(installRoot))
+	configPath := filepath.Join(installRoot, "processes.d", parExecutorProcmgrConfigName)
 
-	executor := readProcmgrConfig(t, installRoot, parExecutorProcmgrConfigName)
-	assert.Contains(t, executor, "${DD_CONF_DIR}/datadog.yaml")
-	assert.Contains(t, executor, filepath.Join(installRoot, "embedded", "bin", "privateactionrunner"))
-	// Only par-control starts the executor, and procmgr must not resurrect it.
-	assert.Contains(t, executor, "auto_start: false")
-	assert.Contains(t, executor, "restart: never")
-	assert.NotContains(t, executor, "/opt/datadog-agent/")
-
-	control := readProcmgrConfig(t, installRoot, parControlProcmgrConfigName)
-	assert.Contains(t, control, "${DD_CONF_DIR}/datadog.yaml")
-	assert.Contains(t, control, filepath.Join(installRoot, "embedded", "bin", "par-control"))
-	// The control plane is always on: procmgr starts it with the Agent and restarts
-	// it on crash. on-failure ignores the clean exit taken when split mode is off.
-	assert.Contains(t, control, "auto_start: true")
-	assert.Contains(t, control, "stop_timeout: 30")
-	assert.Contains(t, control, "restart: on-failure")
-	assert.NotContains(t, control, "/opt/datadog-agent/")
-}
-
-func readProcmgrConfig(t *testing.T, installRoot, name string) string {
-	t.Helper()
-	content, err := os.ReadFile(filepath.Join(installRoot, "processes.d", name))
+	require.NoError(t, writePARExecutorProcmgrConfig(installRoot))
+	content, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	return string(content)
+
+	assert.Contains(t, string(content), "${DD_CONF_DIR}/datadog.yaml")
+	assert.Contains(t, string(content), filepath.Join(installRoot, "embedded", "bin", "privateactionrunner"))
+	assert.Contains(t, string(content), "auto_start: false")
+	assert.Contains(t, string(content), "restart: never")
+	assert.NotContains(t, string(content), "/opt/datadog-agent/")
 }

@@ -682,9 +682,6 @@ namespace WixSetup.Datadog_Agent
                     EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.PrivateActionRunner)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 });
-
-                // par-control, the Rust control plane. Plain file, no service: dd-procmgrd runs it.
-                agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ParControl));
             }
             var procmgrService = GenerateDependentServiceInstaller(
                 new Id("ddagentprocmgrservice"),

@@ -488,7 +488,6 @@ new-e2e-privateactionrunner:
   variables:
     TARGETS: ./tests/privateactionrunner
     TEAM: action-platform
-    EXTRA_PARAMS: --skip "Windows"
 
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template

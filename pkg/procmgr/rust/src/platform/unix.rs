@@ -9,16 +9,6 @@ use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 
-/// Restore the standard service PATH after `Command::env_clear` without
-/// inheriting arbitrary variables from dd-procmgrd. Environment-file and
-/// process-definition values are applied afterward and may override it.
-pub fn apply_child_baseline_env(cmd: &mut tokio::process::Command) {
-    cmd.env(
-        "PATH",
-        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-    );
-}
-
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
 pub fn setup_process_group(cmd: &mut tokio::process::Command) {
