@@ -114,15 +114,16 @@ func TestSDKTraceMetric_EmitsAPMStats(t *testing.T) {
 	rattrs := rm.Resource().Attributes()
 	for k, v := range map[string]string{
 		"service.name": "checkout-svc", "deployment.environment.name": "staging",
-		"service.version": "1.2.3", "datadog.entrypoint.name": "server",
+		"service.version": "1.2.3",
 		"datadog.runtime_id": "abc-123", "host.name": "my-host",
 	} {
 		rattrs.PutStr(k, v)
 	}
+	rattrs.PutEmptySlice("datadog.process_tags").AppendEmpty().SetStr("entrypoint.name:server")
 	m := sdkTraceMetric("s", 5, 2.0, map[string]string{
 		"datadog.operation.name": "http.request", "span.name": "checkout",
-		"datadog.span.type": "web", "span.kind": "SERVER", "datadog.span.top_level": "true",
-		"status.code": "STATUS_CODE_ERROR", "_datadog.is_trace_root": "true",
+		"datadog.span.type": "web", "span.kind": "SPAN_KIND_SERVER", "datadog.span.top_level": "true",
+		"status.code": "STATUS_CODE_ERROR", "datadog.is_trace_root": "true",
 		"datadog.origin": "synthetics", "http.request.method": "POST", "http.route": "/users/:id",
 		"rpc.response.status_code": "NOT_FOUND", "peer.service": "users-db",
 	})

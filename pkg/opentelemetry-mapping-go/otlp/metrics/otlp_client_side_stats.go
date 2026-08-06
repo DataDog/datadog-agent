@@ -116,11 +116,7 @@ func sdkGroupedStats(logger *zap.Logger, service string, blankSketch []byte, dp 
 	hits := dp.Count()
 
 	// isError gates on status.code only (no HTTP-status/error.type heuristics).
-	isError := false
-	switch attributes.GetOTelAttrVal(attrs, false, "status.code") {
-	case "ERROR", "STATUS_CODE_ERROR", "2":
-		isError = true
-	}
+	isError := attributes.GetOTelAttrVal(attrs, false, "status.code") == "STATUS_CODE_ERROR"
 
 	if svc := attributes.GetOTelAttrVal(attrs, false, "service.name"); svc != "" {
 		service, _ = normalizeutil.NormalizeService(svc, "")
@@ -205,19 +201,25 @@ func sdkBucketWindow(startTS, endTS pcommon.Timestamp) (start, duration uint64) 
 }
 
 func sdkProcessTags(attrs pcommon.Map) string {
-	tags := make([]string, 0, attrs.Len())
-	for key, value := range attrs.All() {
-		if !strings.HasPrefix(key, "datadog.") || key == "datadog.runtime_id" {
-			continue
-		}
-		tags = append(tags, strings.TrimPrefix(key, "datadog.")+":"+value.AsString())
+	return strings.Join(sdkTagList(attrs, "datadog.process_tags"), ",")
+}
+
+// sdkTagList reads an arrayValue attribute of colon-joined "key:value" strings.
+func sdkTagList(attrs pcommon.Map, key string) []string {
+	v, ok := attrs.Get(key)
+	if !ok || v.Type() != pcommon.ValueTypeSlice {
+		return nil
 	}
-	sort.Strings(tags)
-	return strings.Join(tags, ",")
+	slice := v.Slice()
+	tags := make([]string, 0, slice.Len())
+	for i := 0; i < slice.Len(); i++ {
+		tags = append(tags, slice.At(i).AsString())
+	}
+	return tags
 }
 
 func sdkIsTraceRoot(attrs pcommon.Map) pb.Trilean {
-	switch attributes.GetOTelAttrVal(attrs, false, "_datadog.is_trace_root") {
+	switch attributes.GetOTelAttrVal(attrs, false, "datadog.is_trace_root") {
 	case "true", "1":
 		return pb.Trilean_TRUE
 	case "false", "0":
@@ -256,7 +258,7 @@ var sdkGRPCStatusCodes = map[string]string{
 }
 
 var sdkGroupedStatsAttributeKeys = map[string]struct{}{
-	"_datadog.is_trace_root":    {},
+	"datadog.is_trace_root":     {},
 	"datadog.operation.name":    {},
 	"datadog.span.top_level":    {},
 	"datadog.span.type":         {},
@@ -297,11 +299,11 @@ func sdkOperationName(attrs pcommon.Map) string {
 }
 
 var sdkSpanKinds = map[string]ptrace.SpanKind{
-	"SERVER":   ptrace.SpanKindServer,
-	"CLIENT":   ptrace.SpanKindClient,
-	"PRODUCER": ptrace.SpanKindProducer,
-	"CONSUMER": ptrace.SpanKindConsumer,
-	"INTERNAL": ptrace.SpanKindInternal,
+	"SPAN_KIND_SERVER":   ptrace.SpanKindServer,
+	"SPAN_KIND_CLIENT":   ptrace.SpanKindClient,
+	"SPAN_KIND_PRODUCER": ptrace.SpanKindProducer,
+	"SPAN_KIND_CONSUMER": ptrace.SpanKindConsumer,
+	"SPAN_KIND_INTERNAL": ptrace.SpanKindInternal,
 }
 
 func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
