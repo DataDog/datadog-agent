@@ -41,6 +41,13 @@ def build(
         install_path=install_path,
     )
 
+    # [TEST] diagnostic-only: preserve the external linker's temp objects
+    # (go.o, host objects) instead of letting cmd/link clean them up, so we
+    # can inspect them post-mortem when the AIX TOC-overflow link fails.
+    # Not meant to be merged.
+    if os.getenv("TOC_DEBUG_TMPDIR"):
+        ldflags = (ldflags or "") + f" -tmpdir={os.getenv('TOC_DEBUG_TMPDIR')}"
+
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)

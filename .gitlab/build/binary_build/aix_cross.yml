@@ -36,7 +36,87 @@ cross_build_agent-binary_aix_ppc64:
 
 cross_build_trace_agent-binary_aix_ppc64:
   extends: .cross_build_aix_ppc64
+  # [TEST] instrumentation-only job: dumps environment/cgroup/toolchain state
+  # and preserves+inspects the external linker's temp objects when the AIX
+  # TOC-overflow link fails, to compare against local reproductions that
+  # succeed on the same commit/toolchain/command line. Not meant to be merged.
+  variables:
+    TOC_DEBUG_TMPDIR: "$CI_PROJECT_DIR/toc-debug-objs"
   script:
     - dda inv -- check-go-version
-    - PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e trace-agent.build
-    - file $CI_PROJECT_DIR/bin/trace-agent/trace-agent
+    - mkdir -p "$TOC_DEBUG_TMPDIR"
+    - |
+      {
+        echo "=== env (sorted) ==="
+        env | sort
+        echo
+        echo "=== go env ==="
+        go env
+        echo
+        echo "=== ulimit -a ==="
+        ulimit -a
+        echo
+        echo "=== nproc ==="
+        nproc
+        echo
+        echo "=== /proc/self/cgroup ==="
+        cat /proc/self/cgroup 2>&1 || true
+        echo
+        echo "=== cgroup v2 cpu.max / memory.max (if present) ==="
+        cat /sys/fs/cgroup/cpu.max 2>&1 || true
+        cat /sys/fs/cgroup/memory.max 2>&1 || true
+        echo
+        echo "=== df -hT ==="
+        df -hT / /tmp "$CI_PROJECT_DIR" 2>&1 || true
+        echo
+        echo "=== toolchain sha256sums ==="
+        sha256sum \
+          /opt/aix-cross/compiler/powerpc-ibm-aix7.3.0.0/bin/ld \
+          /opt/aix-cross/bin/powerpc-ibm-aix7.3.0.0-ld \
+          /opt/aix-cross/bin/powerpc-ibm-aix7.3.0.0-gcc \
+          /opt/aix-cross/sysroot/usr/lib/crt0_64.o \
+          /opt/aix-cross/sysroot/usr/lib/libperfstat.a \
+          /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtcxa_64.o \
+          /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtdbase_64.o \
+          2>&1 || true
+        echo
+        echo "=== gcc -print-search-dirs ==="
+        PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-gcc -print-search-dirs 2>&1 || true
+      } > toc-debug-report.txt
+    - |
+      if PATH="/opt/aix-cross/bin:$PATH" dda inv -- -e trace-agent.build; then
+        BUILD_RC=0
+      else
+        BUILD_RC=$?
+      fi
+    - |
+      {
+        echo
+        echo "=== build exit code: $BUILD_RC ==="
+        echo
+        echo "=== narrow R_TOC scan: preserved link objects ($TOC_DEBUG_TMPDIR) ==="
+        if [ -d "$TOC_DEBUG_TMPDIR" ]; then
+          ls -la "$TOC_DEBUG_TMPDIR" || true
+          for f in "$TOC_DEBUG_TMPDIR"/*.o; do
+            [ -e "$f" ] || continue
+            n=$(PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-objdump -r "$f" 2>/dev/null | grep -c "R_TOC\b" || true)
+            echo "$f: R_TOC=$n"
+          done
+        else
+          echo "(no $TOC_DEBUG_TMPDIR directory found)"
+        fi
+        echo
+        echo "=== narrow R_TOC scan: toolchain crt objects ==="
+        for f in /lib/crt0_64.o /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtcxa_64.o /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtdbase_64.o; do
+          n=$(PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-objdump -r "$f" 2>/dev/null | grep -c "R_TOC\b" || true)
+          echo "$f: R_TOC=$n"
+        done
+      } >> toc-debug-report.txt
+    - cat toc-debug-report.txt
+    - file $CI_PROJECT_DIR/bin/trace-agent/trace-agent || true
+    - exit $BUILD_RC
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - toc-debug-report.txt
