@@ -204,7 +204,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-api-client-go/v2 v2.62.0
 	github.com/DataDog/datadog-go/v5 v5.9.0
-	github.com/DataDog/datadog-operator/api v0.0.0-20260626205451-dfafc0810597
+	github.com/DataDog/datadog-operator/api v0.0.0-20260806170227-3b6faa8eceac
 	github.com/DataDog/datadog-traceroute v1.0.19
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.9.0
