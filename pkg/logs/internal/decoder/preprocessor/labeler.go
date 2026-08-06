@@ -19,10 +19,10 @@ const (
 
 type messageContext struct {
 	rawMessage []byte
-	// NOTE: tokens can be nil if the heuristic runs before the tokenizer.
-	// Heuristic implementations must check if tokens is nil before using it.
-	tokens          []Token
-	tokenIndicies   []int
+	// tokens is a view over the tokenizer's scratch buffers, valid only for the
+	// duration of Label. Heuristics read it via tokens.Borrow() and must clone
+	// (tokens.Clone()) before retaining it. It may be empty (check tokens.Empty()).
+	tokens          BorrowedTokens
 	label           Label
 	labelAssignedBy string
 }
@@ -35,10 +35,11 @@ type Heuristic interface {
 }
 
 // Labeler classifies a log line as startGroup, noAggregate, or aggregate.
-// Tokens and tokenIndices are pre-computed by the Preprocessor's Tokenizer step
-// and forwarded here so that heuristics can inspect them without re-tokenizing.
+// tokens are pre-computed by the Preprocessor's Tokenizer step and passed here
+// so heuristics can inspect them without re-tokenizing. They are borrowed for
+// the duration of Label; a heuristic that retains them must Clone first.
 type Labeler interface {
-	Label(content []byte, tokens []Token, tokenIndices []int) Label
+	Label(content []byte, tokens BorrowedTokens) Label
 }
 
 // labeler is the real implementation: it chains a set of heuristics and returns
@@ -60,11 +61,10 @@ func NewLabeler(lablerHeuristics []Heuristic, analyticsHeuristics []Heuristic) L
 }
 
 // Label labels a log message using the provided content and pre-computed tokens.
-func (l *labeler) Label(content []byte, tokens []Token, tokenIndices []int) Label {
+func (l *labeler) Label(content []byte, tokens BorrowedTokens) Label {
 	context := &messageContext{
 		rawMessage:      content,
 		tokens:          tokens,
-		tokenIndicies:   tokenIndices,
 		label:           aggregate,
 		labelAssignedBy: defaultLabelSource,
 	}
@@ -92,7 +92,7 @@ func NewNoopLabeler() *NoopLabeler {
 }
 
 // Label always returns noAggregate without inspecting content or tokens.
-func (l *NoopLabeler) Label(_ []byte, _ []Token, _ []int) Label {
+func (l *NoopLabeler) Label(_ []byte, _ BorrowedTokens) Label {
 	return noAggregate
 }
 
