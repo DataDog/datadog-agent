@@ -99,7 +99,7 @@ cross_build_trace_agent-binary_aix_ppc64:
           ls -la "$TOC_DEBUG_TMPDIR" || true
           for f in "$TOC_DEBUG_TMPDIR"/*.o; do
             [ -e "$f" ] || continue
-            n=$(PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-objdump -r "$f" 2>/dev/null | grep -c "R_TOC\b")
+            n=$(PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-objdump -r "$f" 2>/dev/null | grep -c "R_TOC\b" || true)
             echo "$f: R_TOC=$n"
           done
         else
@@ -108,7 +108,7 @@ cross_build_trace_agent-binary_aix_ppc64:
         echo
         echo "=== narrow R_TOC scan: toolchain crt objects ==="
         for f in /lib/crt0_64.o /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtcxa_64.o /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtdbase_64.o; do
-          n=$(PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-objdump -r "$f" 2>/dev/null | grep -c "R_TOC\b")
+          n=$(PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-objdump -r "$f" 2>/dev/null | grep -c "R_TOC\b" || true)
           echo "$f: R_TOC=$n"
         done
       } >> toc-debug-report.txt
