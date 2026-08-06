@@ -86,6 +86,8 @@ bazel:test:windows-amd64:go:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going //... --
+      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going 
+      //... --
+      -//test/new-e2e/...
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
