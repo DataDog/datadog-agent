@@ -67,6 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/diagnostic"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -411,6 +412,12 @@ func run(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
 		cloudService, tagConfig, metricTags, demux,
 	)
+
+	// Populate serverless-init-specific fields before ForceCollect so they are
+	// included in the first (and possibly only) inventory payload per container
+	// lifecycle. These fields feed the serverless_init_agent REDAPL table via
+	// the agentmetadata EPRW decoder (SVLS-9607).
+	inventory.SetInventoryFields(inventoryAgentComp, cloudService, modeConf)
 
 	// Force one inventory payload into the forwarder queue before the wrapped
 	// process starts. This guarantees the payload is queued even on containers
