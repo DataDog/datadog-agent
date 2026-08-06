@@ -66,7 +66,7 @@ namespace Datadog.CustomActions
         /// dialog cannot send a message to the user, and returning failure exits the installer.
         /// https://learn.microsoft.com/en-us/windows/win32/msi/sending-messages-to-windows-installer-using-msiprocessmessage
         /// </remarks>
-        private static ActionResult EnsureSecureConfigRoot(ISession session, bool calledFromUIControl = false)
+        internal static ActionResult EnsureSecureConfigRoot(ISession session, bool calledFromUIControl = false)
         {
             if (calledFromUIControl)
             {
@@ -78,15 +78,27 @@ namespace Datadog.CustomActions
             // Read outside the try so that the messages below can name the directory
             var configRoot = session.Property("APPLICATIONDATADIRECTORY");
 
-            try
+            if (string.IsNullOrEmpty(configRoot))
             {
-                if (string.IsNullOrEmpty(configRoot))
+                // On a fresh install or a maintenance (Change/Repair) run, CostFinalize resolves this
+                // property to a concrete path before this action runs, so an empty value means the
+                // install state that records the configuration directory is unavailable. That happens
+                // when operating on an install whose registry state was removed or corrupted - for
+                // example uninstalling it. There is no directory to verify or secure in that case, and
+                // returning Failure would fail the MSI (exit code 1603) and make a broken-but-removable
+                // install impossible to uninstall. Treat it as nothing to verify and let the operation
+                // proceed. See incident 58787.
+                session.Log("APPLICATIONDATADIRECTORY is not set, skipping the configuration directory owner check");
+                if (calledFromUIControl)
                 {
-                    // Resolved by CostFinalize, which runs before this action in both sequences, so an
-                    // empty value means something is wrong. Fail rather than skip the check.
-                    throw new InvalidOperationException("APPLICATIONDATADIRECTORY is not set");
+                    session[ConfigRootValidProperty] = "True";
                 }
 
+                return ActionResult.Success;
+            }
+
+            try
+            {
                 SecureDirectory.AssertSecureOwner(session, configRoot);
             }
             catch (SecureDirectoryException e)

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    On Windows, fixed an issue where uninstalling the Agent could fail with MSI error code 1603
+    when the Agent's install state in the registry had been removed or corrupted. The configuration
+    directory owner check no longer blocks the operation when the configuration directory cannot be
+    resolved, since there is nothing to secure in that case.

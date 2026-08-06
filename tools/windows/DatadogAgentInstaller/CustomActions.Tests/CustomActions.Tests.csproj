@@ -83,6 +83,7 @@
     <Compile Include="IntegrationTests\TestConfig.cs" />
     <Compile Include="Logs\ProcessConfigTests.cs" />
     <Compile Include="Native\SecureDirectoryTests.cs" />
+    <Compile Include="Prerequisites\EnsureSecureConfigRootTests.cs" />
     <Compile Include="ProcessUserCustomActions\TestDelegate.cs" />
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
