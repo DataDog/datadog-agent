@@ -96,7 +96,9 @@ func TestMetricsMuxRouting(t *testing.T) {
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "metrics")
 	})
-	mux.Handle("/debug/", loopbackOnly(debug))
+	debugHandler := loopbackOnly(debug)
+	mux.Handle("/debug", debugHandler)
+	mux.Handle("/debug/", debugHandler)
 
 	const offPod = "10.0.0.5:41000"
 	const loopback = "127.0.0.1:41000"
@@ -110,6 +112,7 @@ func TestMetricsMuxRouting(t *testing.T) {
 	}{
 		{"metrics reachable off-pod", "/metrics", offPod, http.StatusOK, "metrics"},
 		{"metrics reachable loopback", "/metrics", loopback, http.StatusOK, "metrics"},
+		{"debug root hidden off-pod", "/debug", offPod, http.StatusNotFound, ""},
 		{"expvar hidden off-pod", "/debug/vars", offPod, http.StatusNotFound, ""},
 		{"expvar served loopback", "/debug/vars", loopback, http.StatusOK, "vars"},
 		{"pprof hidden off-pod", "/debug/pprof/heap", offPod, http.StatusNotFound, ""},

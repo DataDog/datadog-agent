@@ -337,7 +337,9 @@ func start(log log.Component,
 	// must not: gate everything under /debug/ to loopback callers only.
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", telemetry.Handler())
-	metricsMux.Handle("/debug/", loopbackOnly(http.DefaultServeMux))
+	debugHandler := loopbackOnly(http.DefaultServeMux)
+	metricsMux.Handle("/debug", debugHandler)
+	metricsMux.Handle("/debug/", debugHandler)
 	metricsPort := config.GetInt("metrics_port")
 	metricsServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
