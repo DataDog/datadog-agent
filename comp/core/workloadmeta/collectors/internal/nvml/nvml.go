@@ -130,12 +130,11 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
-	if err == nil &&
-		fabricInfo.State == nvml.GPU_FABRIC_STATE_COMPLETED &&
-		nvml.Return(fabricInfo.Status) == nvml.SUCCESS &&
-		fabricInfo.ClusterUuid != [16]uint8{} {
-		gpuDeviceInfo.FabricClusterUUID = fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid)
-		gpuDeviceInfo.FabricCliqueID = fabricInfo.CliqueId
+	if err == nil {
+		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
+			gpuDeviceInfo.FabricClusterUUID = clusterUUID
+			gpuDeviceInfo.FabricCliqueID = cliqueID
+		}
 	}
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
@@ -174,6 +173,16 @@ func pciBusIDFromNVMLInfo(pciInfo nvml.PciInfo) string {
 
 func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
+}
+
+func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
+	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
+		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
+		fabricInfo.ClusterUuid == [16]uint8{} {
+		return "", 0, false
+	}
+
+	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
