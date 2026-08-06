@@ -689,3 +689,54 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 
 	// The deferred goleak.VerifyNone() will detect if goroutine leaked
 }
+
+// TestReplaceSourceRefreshesNoFollow verifies that ReplaceSource updates the
+// tailer's noFollow setting to match the new source's NoFollow flag.
+func TestReplaceSourceRefreshesNoFollow(t *testing.T) {
+	testDir := t.TempDir()
+	testPath := filepath.Join(testDir, "tailer.log")
+	f, err := os.Create(testPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	info := status.NewInfoRegistry()
+	makeSource := func(noFollow bool) *sources.LogSource {
+		return sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     testPath,
+			NoFollow: noFollow,
+		})
+	}
+
+	tailerOptions := &TailerOptions{
+		OutputChan:      make(chan *message.Message, chanSize),
+		File:            NewFile(testPath, makeSource(false), false),
+		SleepDuration:   10 * time.Millisecond,
+		Decoder:         decoder.NewDecoderFromSource(sources.NewReplaceableSource(makeSource(false)), info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+	}
+
+	tailer := NewTailer(tailerOptions)
+
+	// Initial state: NoFollow=false.
+	if tailer.noFollow {
+		t.Fatal("expected noFollow to be false initially")
+	}
+
+	// Replace with NoFollow=true.
+	tailer.ReplaceSource(makeSource(true))
+	if !tailer.noFollow {
+		t.Fatal("expected noFollow to be true after NoFollow=true source")
+	}
+
+	// Replace again with NoFollow=false.
+	tailer.ReplaceSource(makeSource(false))
+	if tailer.noFollow {
+		t.Fatal("expected noFollow to be false after NoFollow=false source")
+	}
+}

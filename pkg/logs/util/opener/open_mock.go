@@ -41,6 +41,15 @@ func (m *MockFileOpener) OpenShared(path string) (afero.File, error) {
 
 // OpenLogFile returns the specified mock file or an error if the file was not added to the mock opener.
 func (m *MockFileOpener) OpenLogFile(path string) (afero.File, error) {
+	return m.openLogFile(path)
+}
+
+// OpenLogFileNoFollow returns the specified mock file or an error if the file was not added to the mock opener.
+func (m *MockFileOpener) OpenLogFileNoFollow(path string) (afero.File, error) {
+	return m.openLogFile(path)
+}
+
+func (m *MockFileOpener) openLogFile(path string) (afero.File, error) {
 	file, ok := m.MockedFiles[path]
 	if !ok {
 		return nil, fmt.Errorf("file not found: [ %s ]", path)

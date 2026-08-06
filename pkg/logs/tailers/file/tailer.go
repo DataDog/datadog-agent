@@ -133,6 +133,9 @@ type Tailer struct {
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
+
+	// noFollow controls whether openLogFile rejects symbolic links.
+	noFollow bool
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -182,6 +185,11 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
+	noFollow := false
+	if cfg := opts.File.Source.Config(); cfg != nil && cfg.NoFollow {
+		noFollow = true
+	}
+
 	t := &Tailer{
 		file:                         opts.File,
 		outputChan:                   opts.OutputChan,
@@ -209,6 +217,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
 		fileOpener:                   opts.FileOpener,
+		noFollow:                     noFollow,
 	}
 
 	if fileRotated {
@@ -453,6 +462,15 @@ func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
 }
 
+// openLogFile opens a log file using this tailer's no-follow setting. All open
+// sites (initial open, rotation re-open) must call this helper.
+func (t *Tailer) openLogFile(path string) (afero.File, error) {
+	if t.noFollow {
+		return t.fileOpener.OpenLogFileNoFollow(path)
+	}
+	return t.fileOpener.OpenLogFile(path)
+}
+
 // wait lets the tailer sleep for a bit
 func (t *Tailer) wait() {
 	time.Sleep(t.sleepDuration)
@@ -463,9 +481,11 @@ func (t *Tailer) recordBytes(n int64) {
 	t.bytesRead.Add(n)
 }
 
-// ReplaceSource replaces the current source
+// ReplaceSource replaces the current source and refreshes open-policy state
+// derived from the source config (e.g. NoFollow).
 func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
 	t.file.Source.Replace(newSource)
+	t.noFollow = newSource.Config != nil && newSource.Config.NoFollow
 }
 
 // Source gets the source (currently only used for testing)
