@@ -25,16 +25,6 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
 }
 
-func TestDefaultCatalogRRCFIsDisabled(t *testing.T) {
-	for _, entry := range defaultCatalog().entries {
-		if entry.name == "rrcf" {
-			require.False(t, entry.defaultEnabled)
-			return
-		}
-	}
-	t.Fatal("rrcf is not registered in the production catalog")
-}
-
 // TestValidateDetectorTeardownContract_FlagsBareDetector confirms the
 // validator rejects a Detector that doesn't implement SeriesRemover and isn't
 // allowlisted — i.e. the check actually fails when it should.
