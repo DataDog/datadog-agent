@@ -12,6 +12,7 @@ go_library(
         "kubernetes_reader_noop.go",
         "process_commandline.go",
         "process_retry.go",
+        "process_retry_noop.go",
         "reader_helpers.go",
         "scheduler.go",
         "types.go",

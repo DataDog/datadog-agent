@@ -149,27 +149,14 @@ func adSchedulerConfigFromAgentConfig(agentConfig config.Component) adSchedulerC
 }
 
 func (c *component) start(context.Context) error {
-	if c.store != nil {
-		filter := workloadmeta.NewFilterBuilder().
-			SetEventType(workloadmeta.EventTypeSet).
-			AddKindWithEntityFilter(workloadmeta.KindProcess, func(entity workloadmeta.Entity) bool {
-				process, ok := entity.(*workloadmeta.Process)
-				return ok && process.ContainerID != "" && len(process.Cmdline) > 0
-			}).
-			Build()
-		c.processEvents = c.store.Subscribe(schedulerName, workloadmeta.NormalPriority, filter)
-		c.scheduler.startProcessEventListener(c.processEvents)
-	}
+	c.startProcessFallbackListener()
 	c.ad.AddScheduler(schedulerName, c.scheduler, true)
 	return nil
 }
 
 func (c *component) stop(context.Context) error {
 	c.ad.RemoveScheduler(schedulerName)
-	if c.processEvents != nil {
-		c.store.Unsubscribe(c.processEvents)
-		c.processEvents = nil
-	}
+	c.stopProcessFallbackListener()
 	c.scheduler.Stop()
 	return nil
 }
