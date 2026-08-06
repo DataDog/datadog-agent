@@ -252,6 +252,72 @@ func TestKafkaCollectorReadsDefaultConfig(t *testing.T) {
 	}, collected.ConfigFiles[0])
 }
 
+func TestKafkaCollectorIgnoresPackagedExampleConfigs(t *testing.T) {
+	tests := []struct {
+		name               string
+		runtimeCommandline configfilesdiscoveryimpl.TargetCommandline
+		activeConfig       configfilesdiscoveryimpl.ConfigFile
+		exampleConfigs     map[string]configfilesdiscoveryimpl.ConfigFile
+	}{
+		{
+			name: "apache",
+			runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+				Args: []string{"/etc/kafka/docker/run"},
+			},
+			activeConfig: configfilesdiscoveryimpl.ConfigFile{
+				Path:    "/opt/kafka/config/server.properties",
+				Content: []byte("process.roles=broker,controller\n"),
+			},
+			exampleConfigs: map[string]configfilesdiscoveryimpl.ConfigFile{
+				"/opt/kafka/config/kraft/server.properties": {
+					Path:    "/opt/kafka/config/kraft/server.properties",
+					Content: []byte("process.roles=broker,controller\n"),
+				},
+			},
+		},
+		{
+			name: "confluent",
+			runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+				Args: []string{"/bin/bash", "/etc/confluent/docker/run"},
+			},
+			activeConfig: configfilesdiscoveryimpl.ConfigFile{
+				Path:    "/etc/kafka/kafka.properties",
+				Content: []byte("node.id=1\n"),
+			},
+			exampleConfigs: map[string]configfilesdiscoveryimpl.ConfigFile{
+				"/etc/kafka/server.properties": {
+					Path:    "/etc/kafka/server.properties",
+					Content: []byte("broker.id=0\n"),
+				},
+				"/etc/kafka/kraft/server.properties": {
+					Path:    "/etc/kafka/kraft/server.properties",
+					Content: []byte("process.roles=broker,controller\n"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := tt.exampleConfigs
+			files[tt.activeConfig.Path] = tt.activeConfig
+			reader := &kafkaCollectorTestReader{
+				runtimeCommandline: tt.runtimeCommandline,
+				files:              files,
+			}
+
+			collected, err := NewKafka().Collect(context.Background(), reader)
+
+			require.NoError(t, err)
+			assert.Equal(t, kafkaDefaultConfigPaths, reader.readFileCalls)
+			require.Len(t, collected.ConfigFiles, 1)
+			expectedConfig := tt.activeConfig
+			expectedConfig.PayloadFormat = kafkaConfigPayloadFormat
+			assert.Equal(t, expectedConfig, collected.ConfigFiles[0])
+		})
+	}
+}
+
 func TestKafkaCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
@@ -383,6 +449,7 @@ type kafkaCollectorTestReader struct {
 	processCommandlineCalls int
 	readFileCalls           []string
 	file                    configfilesdiscoveryimpl.ConfigFile
+	files                   map[string]configfilesdiscoveryimpl.ConfigFile
 	readFileErr             error
 }
 
@@ -399,6 +466,9 @@ func (r *kafkaCollectorTestReader) ReadFile(_ context.Context, path string) (con
 	}
 	if r.file.Path == path {
 		return r.file, nil
+	}
+	if file, ok := r.files[path]; ok {
+		return file, nil
 	}
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }

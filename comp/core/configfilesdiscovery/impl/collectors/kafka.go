@@ -20,12 +20,12 @@ const (
 	kafkaConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
 )
 
+// kafkaDefaultConfigPaths contains final config paths passed to Kafka by known
+// distribution image startup scripts. Apache and Confluent images also ship
+// example configs, but their startup scripts do not pass those files to Kafka.
 var kafkaDefaultConfigPaths = []string{
 	"/opt/kafka/config/server.properties",
-	"/opt/kafka/config/kraft/server.properties",
 	"/etc/kafka/kafka.properties",
-	"/etc/kafka/server.properties",
-	"/etc/kafka/kraft/server.properties",
 	"/opt/bitnami/kafka/config/server.properties",
 	"/tmp/strimzi.properties",
 }
