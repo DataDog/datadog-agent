@@ -1,6 +1,6 @@
-# A Go binary whose tracer reports another language cannot be instrumented, but
-# it still backs off rather than being written off: the only terminal state is
-# the process exiting.
+# A Go binary whose tracer reports another language cannot be instrumented, and
+# nothing about that will change, so it is written off like a binary that is not
+# Go at all.
 - !initialize
   current_time: 0
   min_age: 10
@@ -37,7 +37,7 @@ command: !advance-time {to: 100}
 command: !scan {}
 state:
   current_time: 100
-  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
+  candidates: [{pid: 1001, start_time: 50, written_off: true}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 110}
@@ -45,7 +45,7 @@ command: !advance-time {to: 110}
 command: !scan {}
 state:
   current_time: 110
-  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
+  candidates: [{pid: 1001, start_time: 50, written_off: true}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 130}
@@ -53,5 +53,5 @@ command: !advance-time {to: 130}
 command: !scan {}
 state:
   current_time: 130
-  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
+  candidates: [{pid: 1001, start_time: 50, written_off: true}]
   processes_in_procfs: [1001]

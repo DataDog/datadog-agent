@@ -12,9 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// goSections are the ELF sections that the Go toolchain emits. Any one of them
-// is enough to conclude that the binary was built by it.
-var goSections = map[string]struct{}{
+var goELFSections = map[string]struct{}{
 	".gosymtab":     {},
 	".gopclntab":    {},
 	".go.buildinfo": {},
@@ -34,7 +32,7 @@ func isGoELFBinary(path string) (bool, error) {
 	}
 	defer elfFile.Close()
 	for _, section := range elfFile.SectionHeaders() {
-		if _, ok := goSections[section.Name]; ok {
+		if _, ok := goELFSections[section.Name]; ok {
 			return true, nil
 		}
 	}
