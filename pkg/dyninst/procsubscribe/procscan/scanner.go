@@ -47,12 +47,6 @@ const (
 	// for tracer metadata: at 2000 processes, re-identifying every one of them
 	// this often costs well under a tenth of a percent of a core.
 	DefaultNonGoBackoffCap = time.Minute
-	// DefaultMaxCandidates bounds the candidate set, which holds every process
-	// still awaiting a verdict rather than only the Go ones. It matches the
-	// common pid_max default so that the set can hold an entire host; above the
-	// bound, evicted processes lose their backoff and are re-examined sooner.
-	// Entries are allocated on demand, so a host with few processes pays little.
-	DefaultMaxCandidates = 32768
 
 	// defaultExecutableCacheSize bounds the number of distinct executables for
 	// which we remember whether they are Go binaries.
@@ -146,9 +140,11 @@ type Scanner struct {
 	// filter that makes looking at every process on every scan affordable.
 	goExecutables *lru.Cache[process.FileKey, bool]
 
-	// candidates holds the retry state of processes whose tracer metadata is
-	// not readable yet, keyed by pid.
-	candidates *lru.Cache[uint32, *candidate]
+	// candidates holds the retry state of processes that are not instrumented
+	// yet, keyed by pid. It needs no bound of its own: an entry appears when a
+	// process is evaluated and is dropped by the first scan that does not see
+	// the process, so the map cannot outgrow the number of live processes.
+	candidates map[uint32]*candidate
 }
 
 type scannerConfig struct {
@@ -156,7 +152,6 @@ type scannerConfig struct {
 	backoffBase         time.Duration
 	backoffCap          time.Duration
 	nonGoBackoffCap     time.Duration
-	maxCandidates       int
 	executableCacheSize int
 }
 
@@ -165,7 +160,6 @@ var defaultScannerConfig = scannerConfig{
 	backoffBase:         DefaultRetryBackoffBase,
 	backoffCap:          DefaultRetryBackoffCap,
 	nonGoBackoffCap:     DefaultNonGoBackoffCap,
-	maxCandidates:       DefaultMaxCandidates,
 	executableCacheSize: defaultExecutableCacheSize,
 }
 
@@ -197,12 +191,6 @@ func WithRetryBackoff(base, maxDelay time.Duration) Option {
 // noticed.
 func WithNonGoBackoffCap(d time.Duration) Option {
 	return optionFunc(func(c *scannerConfig) { c.nonGoBackoffCap = d })
-}
-
-// WithMaxCandidates sets the maximum number of processes for which retry state
-// is kept.
-func WithMaxCandidates(n int) Option {
-	return optionFunc(func(c *scannerConfig) { c.maxCandidates = n })
 }
 
 // NewScanner creates a new Scanner that discovers processes in the given
@@ -261,7 +249,7 @@ func newScanner(
 		goExecutables: mustNewLRU[process.FileKey, bool](
 			cfg.executableCacheSize,
 		),
-		candidates: mustNewLRU[uint32, *candidate](cfg.maxCandidates),
+		candidates: make(map[uint32]*candidate),
 	}
 	s.mu.live = btree.NewG(16, procKeyLess)
 	return s
@@ -346,7 +334,7 @@ func (p *Scanner) Scan() (
 			// The process is here, we just could not confirm which one it is.
 			// Hold on to its retry state rather than let this scan look like
 			// the process exited and reset its backoff.
-			if c, ok := p.candidates.Peek(pid); ok {
+			if c, ok := p.candidates[pid]; ok {
 				c.seenAt = now
 			}
 			continue
@@ -424,7 +412,7 @@ func (p *Scanner) Scan() (
 			continue
 		}
 
-		p.candidates.Remove(pid)
+		delete(p.candidates, pid)
 		ret = append(ret, DiscoveredProcess{
 			PID:            pid,
 			StartTimeTicks: uint64(startTime),
@@ -457,7 +445,7 @@ func (p *Scanner) Scan() (
 // none. A candidate whose start time no longer matches belongs to a process
 // that died and whose pid was reused.
 func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
-	c, ok := p.candidates.Peek(key.pid)
+	c, ok := p.candidates[key.pid]
 	if !ok || c.startTime != key.startTime {
 		return nil
 	}
@@ -485,10 +473,7 @@ func (p *Scanner) scheduleRetry(
 	c.attempts++
 	c.seenAt = now
 	c.nextAttempt = now + p.retryDelay(c.attempts, maxDelay)
-	// Adding refreshes the entry's position, so the candidate evicted when the
-	// set is full is the one that has gone longest without a retry.
-	if evicted := p.candidates.Add(key.pid, c); evicted {
-	}
+	p.candidates[key.pid] = c
 }
 
 func (p *Scanner) retryDelay(attempts uint32, maxDelay ticks) ticks {
@@ -503,9 +488,9 @@ func (p *Scanner) retryDelay(attempts uint32, maxDelay ticks) ticks {
 // not observe. Backoff bounds the cost of retrying a live process forever; it
 // does nothing for entries that will never be retried again.
 func (p *Scanner) forgetExitedCandidates(now ticks) {
-	for _, pid := range p.candidates.Keys() {
-		if c, ok := p.candidates.Peek(pid); ok && c.seenAt != now {
-			p.candidates.Remove(pid)
+	for pid, c := range p.candidates {
+		if c.seenAt != now {
+			delete(p.candidates, pid)
 		}
 	}
 }

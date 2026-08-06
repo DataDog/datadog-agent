@@ -353,7 +353,6 @@ type initializeCommand struct {
 	// NonGoBackoffCap defaults to BackoffCap, so that a timeline only has to
 	// mention it when the difference between the two is the point.
 	NonGoBackoffCap uint64 `yaml:"non_go_backoff_cap,omitempty"`
-	MaxCandidates   int    `yaml:"max_candidates,omitempty"`
 }
 
 func (c *initializeCommand) execute(
@@ -361,10 +360,6 @@ func (c *initializeCommand) execute(
 	ts *scannerTestState,
 ) error {
 	ts.currentTime = ticks(c.CurrentTime)
-	maxCandidates := c.MaxCandidates
-	if maxCandidates == 0 {
-		maxCandidates = DefaultMaxCandidates
-	}
 	nonGoBackoffCap := c.NonGoBackoffCap
 	if nonGoBackoffCap == 0 {
 		nonGoBackoffCap = c.BackoffCap
@@ -376,7 +371,6 @@ func (c *initializeCommand) execute(
 				ticksToDuration(c.BackoffBase), ticksToDuration(c.BackoffCap),
 			),
 			WithNonGoBackoffCap(ticksToDuration(nonGoBackoffCap)),
-			WithMaxCandidates(maxCandidates),
 		},
 		func() (ticks, error) { return ts.currentTime, nil },
 		ts.listPids,
@@ -516,12 +510,8 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 		return true
 	})
 
-	candidates := make([]candidateSnapshot, 0, s.candidates.Len())
-	for _, pid := range s.candidates.Keys() {
-		c, ok := s.candidates.Peek(pid)
-		if !ok {
-			continue
-		}
+	candidates := make([]candidateSnapshot, 0, len(s.candidates))
+	for pid, c := range s.candidates {
 		candidates = append(candidates, candidateSnapshot{
 			PID:         pid,
 			StartTime:   uint64(c.startTime),
