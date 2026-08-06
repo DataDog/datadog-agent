@@ -116,6 +116,11 @@ type LibraryInjectionConfig struct {
 	// An empty list allows all registries (default).
 	RegistryAllowList []string
 
+	// CSIAutoRegistries contains registries that auto mode can use through CSI.
+	// Images from other registries fall back to init containers, which use the
+	// workload's image pull credentials.
+	CSIAutoRegistries []string
+
 	// CSIDriverWatcher caches the Datadog CSI driver state observed via
 	// workloadmeta. AutoProvider consults it to decide between CSI and
 	// init-container injection without hitting workloadmeta on every

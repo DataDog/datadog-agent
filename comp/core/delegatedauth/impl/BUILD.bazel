@@ -31,8 +31,11 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",
+        "//comp/core/delegatedauth/common",
         "//comp/core/delegatedauth/def",
         "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/aws/creds",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
