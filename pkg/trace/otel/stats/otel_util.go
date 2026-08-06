@@ -56,6 +56,12 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	peerTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
 ) []stats.Input {
+	if firstSpanHasClientComputedStats(traces) {
+		// The client marked the first span of the payload as stats-computed, meaning it
+		// already computed stats for everything it sent. Mirror the native OTLP receiver's
+		// header-based short-circuit and skip stats computation for the whole payload.
+		return nil
+	}
 	spanByID, resByID, scopeByID := transform.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	topLevelSpans := transform.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
@@ -67,7 +73,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	containerTagsByID := make(map[string][]string)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
-		if hasClientComputedStats(otelres.Attributes()) {
+		if hasClientComputedStats(otelres.Attributes()) || hasClientComputedStats(otelspan.Attributes()) {
 			continue
 		}
 		var resourceName string
@@ -145,6 +151,26 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		})
 	}
 	return inputs
+}
+
+// firstSpanHasClientComputedStats reports whether the first span in the payload carries the
+// _dd.stats_computed attribute. A client that marks its first span this way has computed stats
+// for the whole payload, so callers can skip stats computation entirely instead of checking every
+// span individually.
+func firstSpanHasClientComputedStats(traces ptrace.Traces) bool {
+	rspans := traces.ResourceSpans()
+	if rspans.Len() == 0 {
+		return false
+	}
+	scopeSpans := rspans.At(0).ScopeSpans()
+	if scopeSpans.Len() == 0 {
+		return false
+	}
+	spans := scopeSpans.At(0).Spans()
+	if spans.Len() == 0 {
+		return false
+	}
+	return hasClientComputedStats(spans.At(0).Attributes())
 }
 
 func hasClientComputedStats(attrs pcommon.Map) bool {
