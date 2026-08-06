@@ -143,6 +143,12 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 		}
 		for _, k := range apiKeys {
+			if utils.IsDelaDirective(k) {
+				// Not a real API key (yet) - the delegatedauth component resolves this
+				// asynchronously and writes the real key into this same config slot. Skip it
+				// rather than submitting the literal directive text upstream as an API key.
+				continue
+			}
 			*endpoints = append(*endpoints, apicfg.Endpoint{
 				APIKey:            utils.SanitizeAPIKey(k),
 				Endpoint:          u,

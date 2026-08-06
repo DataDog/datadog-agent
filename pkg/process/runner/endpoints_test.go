@@ -90,6 +90,31 @@ func TestGetAPIEndpoints(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Regression test: a still-pending DELA(...) directive must never be submitted
+			// upstream as a literal API key - the delegatedauth component resolves it
+			// asynchronously into the same config slot, and until then there's no real key.
+			name:   "pending delegated auth directive is filtered out",
+			apiKey: "test",
+			additionalEndpoints: map[string][]string{
+				"https://mock.datadoghq.com": {
+					"key1",
+					"DELA(some-org-uuid, aws)",
+				},
+			},
+			expected: []apicfg.Endpoint{
+				{
+					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
+					APIKey:            "test",
+					ConfigSettingPath: "api_key",
+				},
+				{
+					Endpoint:          mkurl("https://mock.datadoghq.com"),
+					APIKey:            "key1",
+					ConfigSettingPath: "process_config.additional_endpoints",
+				},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)

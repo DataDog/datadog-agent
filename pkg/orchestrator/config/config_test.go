@@ -104,6 +104,20 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	}
 }
 
+// TestExtractOrchestratorEndpointsFiltersPendingDelegatedAuth is a regression test: a still-pending
+// DELA(...) directive must never be submitted upstream as a literal API key - the delegatedauth
+// component resolves it asynchronously into the same config slot, and until then there's no real key.
+func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsFiltersPendingDelegatedAuth() {
+	var actualEndpoints []apicfg.Endpoint
+
+	suite.config.SetInTest("api_key", "wassupkey")
+	suite.config.SetInTest("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1", "DELA(some-org-uuid, aws)"]}`)
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+	suite.Len(actualEndpoints, 1)
+	suite.Equal("key1", actualEndpoints[0].APIKey)
+}
+
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	expected := make(map[string]string)
 	expected["key1"] = "orchestrator1.com"

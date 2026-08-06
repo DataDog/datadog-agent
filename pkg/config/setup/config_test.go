@@ -1995,6 +1995,58 @@ func TestParseDelaDirective(t *testing.T) {
 	}
 }
 
+func TestResolveFallbackAPIKey(t *testing.T) {
+	t.Run("plaintext fallback is returned as-is", func(t *testing.T) {
+		resolver := secretsmock.New(t)
+		assert.Equal(t, "plain-fallback-key", resolveFallbackAPIKey(resolver, "plain-fallback-key", "additional_endpoints"))
+	})
+
+	t.Run("empty fallback is returned as-is", func(t *testing.T) {
+		resolver := secretsmock.New(t)
+		assert.Equal(t, "", resolveFallbackAPIKey(resolver, "", "additional_endpoints"))
+	})
+
+	t.Run("ENC[handle] fallback is resolved through the secrets backend", func(t *testing.T) {
+		resolver := secretsmock.New(t)
+		resolver.SetSecrets(map[string]string{"my-handle": "resolved-fallback-key"})
+		assert.Equal(t, "resolved-fallback-key", resolveFallbackAPIKey(resolver, "ENC[my-handle]", "additional_endpoints"))
+	})
+
+	t.Run("unknown handle falls back to the raw value", func(t *testing.T) {
+		resolver := secretsmock.New(t)
+		assert.Equal(t, "ENC[unknown-handle]", resolveFallbackAPIKey(resolver, "ENC[unknown-handle]", "additional_endpoints"))
+	})
+}
+
+func TestRedactDelaDirectiveForLogging(t *testing.T) {
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "no fallback param",
+			value: "DELA(some-org-uuid, aws, not-a-kv-pair)",
+			want:  "DELA(some-org-uuid, aws, not-a-kv-pair)",
+		},
+		{
+			name:  "fallback param is masked",
+			value: "DELA(some-org-uuid, aws, fallback=super-secret-key, region=us-east-1)",
+			want:  "DELA(some-org-uuid, aws, fallback=***, region=us-east-1)",
+		},
+		{
+			name:  "fallback param at the end is masked",
+			value: "DELA(some-org-uuid, aws, fallback=super-secret-key)",
+			want:  "DELA(some-org-uuid, aws, fallback=***)",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, redactDelaDirectiveForLogging(c.value))
+		})
+	}
+}
+
 func TestConfigureAdditionalEndpointsDelegatedAuth(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey
@@ -2015,7 +2067,7 @@ additional_endpoints:
 		},
 	}
 
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil, secretsmock.New(t))
 
 	require.Len(t, captured, 2)
 
@@ -2057,7 +2109,7 @@ additional_endpoints:
 		},
 	}
 
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil, secretsmock.New(t))
 
 	require.Len(t, captured, 2)
 	assert.NotEqual(t, captured[0].APIKeyConfigKey, captured[1].APIKeyConfigKey,
@@ -2091,7 +2143,7 @@ process_config:
 		},
 	}
 
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil, secretsmock.New(t))
 
 	require.Len(t, captured, 2)
 
@@ -2141,7 +2193,7 @@ sbom:
 		},
 	}
 
-	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil)
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil, secretsmock.New(t))
 
 	require.Len(t, captured, 3)
 

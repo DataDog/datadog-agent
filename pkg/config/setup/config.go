@@ -513,7 +513,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	// Cloud provider detection happens automatically within the delegatedauth component
 	// Use a background context since LoadDatadog doesn't take a context parameter.
 	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
-	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp); err != nil {
+	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp, secretResolver); err != nil {
 		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
 
@@ -554,7 +554,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 // Delegated auth is automatically enabled when org_uuid is specified for a given prefix.
 // Cloud provider detection happens automatically within the delegatedauth component.
 // The context is used for cloud provider detection and initial API key fetch.
-func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
+func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, secretResolver secrets.Component) error {
 	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
 	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
 	// during config initialization (see bindDelegatedAuthConfig for examples)
@@ -598,8 +598,8 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
-	configureAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig)
-	configureListShapeAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig)
+	configureAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig, secretResolver)
+	configureListShapeAdditionalEndpointsDelegatedAuth(ctx, config, delegatedAuthComp, providerConfig, secretResolver)
 
 	return nil
 }
@@ -648,6 +648,47 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 	return delaDirective{orgUUID: orgUUID, provider: provider, params: params}, true
 }
 
+// resolveFallbackAPIKey resolves a DELA(...) directive's fallback=<value> parameter through the
+// secrets backend if it's a whole ENC[handle] secret handle, so an operator can supply a
+// secret-backed fallback key rather than only a plaintext one. Secret resolution normally runs
+// once, early, over the whole config file and only recognizes config values that are entirely an
+// ENC[...] expression - a handle embedded as one parameter inside a larger DELA(...) string is
+// never seen by that pass, so it has to be resolved here instead, on the extracted substring
+// alone. Falls back to the raw value (which is what happened before this existed) on any
+// resolution error, so a working directive never breaks over a fallback-resolution problem.
+func resolveFallbackAPIKey(secretResolver secrets.Component, fallback string, origin string) string {
+	if fallback == "" {
+		return fallback
+	}
+	wrapped, err := yaml.Marshal(map[string]string{"v": fallback})
+	if err != nil {
+		return fallback
+	}
+	resolved, err := secretResolver.Resolve(wrapped, origin, "", "", false)
+	if err != nil {
+		log.Warnf("Failed to resolve secret in delegated auth fallback key: %v", err)
+		return fallback
+	}
+	var out map[string]string
+	if err := yaml.Unmarshal(resolved, &out); err != nil {
+		log.Warnf("Failed to unmarshal resolved delegated auth fallback key: %v", err)
+		return fallback
+	}
+	return out["v"]
+}
+
+// fallbackParamRe matches a fallback=<value> parameter within a raw DELA(...) directive string,
+// capturing the value up to the next comma or closing paren.
+var fallbackParamRe = regexp.MustCompile(`(fallback=)[^,)]*`)
+
+// redactDelaDirectiveForLogging returns value with any fallback=<key> parameter's value masked,
+// safe to include in a log message or flare. Directives that fail to parse (the only case this is
+// used for) can't be redacted via parseDelaDirective's structured output, since parsing is what
+// failed - this regex-based approach works directly on the raw string instead.
+func redactDelaDirectiveForLogging(value string) string {
+	return fallbackParamRe.ReplaceAllString(value, "${1}***")
+}
+
 // providerConfigForDirective builds a ProviderConfig for a DELA(...) directive, falling back to
 // the process-wide default when the directive omits provider-specific overrides. Only the first
 // AddInstance call actually applies its ProviderConfig, so a directive's provider/params only take
@@ -686,7 +727,7 @@ var mapShapeAdditionalEndpointsConfigKeys = []string{
 // a delegated auth instance per match, letting a second (or later) Datadog org receive a
 // WIF-managed API key alongside (or instead of) a statically-configured one - i.e. dual/multi-org
 // "dual shipping" via delegated auth.
-func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
+func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig, secretResolver secrets.Component) {
 	for _, configKey := range mapShapeAdditionalEndpointsConfigKeys {
 		for domain, keys := range config.GetStringMapStringSlice(configKey) {
 			for _, key := range keys {
@@ -698,7 +739,7 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 
 				directive, ok := parseDelaDirective(key)
 				if !ok {
-					log.Warnf("Could not parse delegated auth directive %q for additional endpoint '%s' at '%s'; leaving it as-is (it will not be sent as an API key)", key, domain, configKey)
+					log.Warnf("Could not parse delegated auth directive %q for additional endpoint '%s' at '%s'; leaving it as-is (it will not be sent as an API key)", redactDelaDirectiveForLogging(key), domain, configKey)
 					continue
 				}
 
@@ -723,7 +764,7 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 					AdditionalEndpointDomain:     domain,
 					AdditionalEndpointsConfigKey: configKey,
 					AdditionalEndpointDirective:  key,
-					FallbackAPIKey:               directive.params["fallback"],
+					FallbackAPIKey:               resolveFallbackAPIKey(secretResolver, directive.params["fallback"], configKey),
 				})
 				if err != nil {
 					log.Errorf("Failed to configure delegated auth for additional endpoint '%s' at '%s': %v", domain, configKey, err)
@@ -749,6 +790,7 @@ var listShapeAdditionalEndpointsConfigKeys = []string{
 	"network_path.forwarder.additional_endpoints",
 	"compliance_config.endpoints.additional_endpoints",
 	"runtime_security_config.endpoints.additional_endpoints",
+	"runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints",
 	"container_lifecycle.additional_endpoints",
 	"container_image.additional_endpoints",
 	"sbom.additional_endpoints",
@@ -759,7 +801,7 @@ var listShapeAdditionalEndpointsConfigKeys = []string{
 // config value (see listShapeAdditionalEndpointsConfigKeys) for entries whose api_key field is a
 // DELA(...) directive, and configures a delegated auth instance per match - the list-shape
 // counterpart to configureAdditionalEndpointsDelegatedAuth.
-func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
+func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig, secretResolver secrets.Component) {
 	for _, configKey := range listShapeAdditionalEndpointsConfigKeys {
 		entries := normalizeListShapeEntries(config.Get(configKey))
 
@@ -771,7 +813,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 
 			directive, ok := parseDelaDirective(valStr)
 			if !ok {
-				log.Warnf("Could not parse delegated auth directive %q for additional endpoint entry %d at '%s'; leaving it as-is (it will not be sent as an API key)", valStr, index, configKey)
+				log.Warnf("Could not parse delegated auth directive %q for additional endpoint entry %d at '%s'; leaving it as-is (it will not be sent as an API key)", redactDelaDirectiveForLogging(valStr), index, configKey)
 				continue
 			}
 
@@ -801,7 +843,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 				TargetSite:                       targetSite,
 				AdditionalEndpointsListConfigKey: configKey,
 				AdditionalEndpointDirective:      valStr,
-				FallbackAPIKey:                   directive.params["fallback"],
+				FallbackAPIKey:                   resolveFallbackAPIKey(secretResolver, directive.params["fallback"], configKey),
 			})
 			if err != nil {
 				log.Errorf("Failed to configure delegated auth for additional endpoint entry %d at '%s': %v", index, configKey, err)
