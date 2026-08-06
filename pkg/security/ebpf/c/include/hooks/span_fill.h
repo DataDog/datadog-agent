@@ -83,11 +83,11 @@ TAIL_CALL_TRACEPOINT_FNC(fill_span_and_send_setsockopt, void *ctx) {
     return fill_span_and_send_setsockopt_impl(ctx);
 }
 
-// exit has its own target: it tears down the process' Go pprof-label
-// registration after sending the event
+// exit has its own target: it tears down the process' thread-context
+// registrations (Go pprof labels, OTel TLS) after sending the event
 TAIL_CALL_FNC(fill_span_and_send_exit, void *ctx) {
     int ret = fill_span_and_send_impl(ctx);
-    unregister_go_labels();
+    unregister_span_context();
     return ret;
 }
 

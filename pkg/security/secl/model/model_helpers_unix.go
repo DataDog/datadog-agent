@@ -157,9 +157,10 @@ func (p *Process) SetSpanContext(sc SpanContext) {
 }
 
 // SetSpanContextAttributes updates only the Attributes field on the process's
-// already-populated SpanContext. Used when extra attributes are resolved after
-// the PCE was first stamped (i.e. after AddForkEntry / AddExecEntry, which only
-// had the event SpanContext to copy from).
+// already-populated SpanContext. Used when OTel extra attributes are resolved
+// after the PCE was first stamped (resolveOTelSpanAttrs runs after
+// AddForkEntry / AddExecEntry, which only had the index→name-less event
+// SpanContext to copy from).
 func (p *Process) SetSpanContextAttributes(attrs map[string]string) {
 	p.Tracer.Trace.Attributes = attrs
 }
