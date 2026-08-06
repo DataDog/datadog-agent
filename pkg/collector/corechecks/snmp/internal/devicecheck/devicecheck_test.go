@@ -629,15 +629,17 @@ profiles:
 	sender.AssertNotCalled(t, "Gauge", "datadog.snmp.requests", mock.Anything, mock.Anything, mock.Anything)
 }
 
-// TestEnrichDeviceTagsFromResource verifies both paths for device tag handling on metrics:
-//   - When collect_device_metadata is true (default), metrics are tagged with only the
-//     ndm_device resource tag; the backend enriches them with device tags using the
-//     metadata payload.
-//   - When collect_device_metadata is false, no metadata payload is produced, so the
-//     backend cannot enrich. In that case the legacy device tags must remain on metrics.
+// TestDeviceTagsSource verifies every path for device tag handling on metrics:
+//   - `resource` (default): metrics are tagged with only the ndm_device resource tag; the
+//     backend enriches them with device tags using the metadata payload.
+//   - `agent`: the Agent stamps the device tags on metrics and the resource tag is omitted,
+//     so the backend does not enrich them at all.
+//   - `both`: the Agent stamps the device tags and the resource tag is still sent.
+//   - When collect_device_metadata is false, no metadata payload is produced, so the backend
+//     cannot enrich. The source is forced to `both` whatever it is configured to.
 //
-// Service checks keep full device tags in both modes.
-func TestEnrichDeviceTagsFromResource(t *testing.T) {
+// Service checks keep full device tags in every mode.
+func TestDeviceTagsSource(t *testing.T) {
 	const resourceTag = "dd.internal.resource:ndm_device:default:1.2.3.4"
 	deviceTag := "snmp_device:1.2.3.4"
 
@@ -648,7 +650,7 @@ profiles:
    definition_file: f5-big-ip.yaml
 `)
 
-	runCheck := func(t *testing.T, collectDeviceMetadata bool) *mocksender.MockSender {
+	runCheck := func(t *testing.T, collectDeviceMetadata bool, deviceTagsSource string) *mocksender.MockSender {
 		profile.SetConfdPathAndCleanProfiles()
 		sess := session.CreateFakeSession()
 		sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -668,11 +670,12 @@ ip_address: 1.2.3.4
 community_string: public
 collect_topology: false
 collect_device_metadata: %t
+device_tags_source: %s
 metrics:
 - symbol:
     OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.0
     name: myMetric
-`, collectDeviceMetadata))
+`, collectDeviceMetadata, deviceTagsSource))
 
 		config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 		assert.Nil(t, err)
@@ -690,8 +693,8 @@ metrics:
 		return sender
 	}
 
-	t.Run("with device metadata: metrics carry only the resource tag", func(t *testing.T) {
-		sender := runCheck(t, true)
+	t.Run("resource: metrics carry only the resource tag", func(t *testing.T) {
+		sender := runCheck(t, true, "resource")
 
 		sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{resourceTag})
 		sender.AssertMetricNotTaggedWith(t, "Gauge", deviceReachableMetric, []string{deviceTag})
@@ -701,8 +704,29 @@ metrics:
 		sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", []string{deviceTag}, "")
 	})
 
+	t.Run("agent: metrics carry the device tags and no resource tag", func(t *testing.T) {
+		sender := runCheck(t, true, "agent")
+
+		// No resource tag means the backend does not enrich, so no combined tag groups.
+		sender.AssertMetricNotTaggedWith(t, "Gauge", deviceReachableMetric, []string{resourceTag})
+		sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{deviceTag})
+		sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{"device_namespace:default"})
+
+		sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", []string{deviceTag}, "")
+	})
+
+	t.Run("both: metrics carry the device tags and the resource tag", func(t *testing.T) {
+		sender := runCheck(t, true, "both")
+
+		sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{resourceTag})
+		sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{deviceTag})
+		sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{"device_namespace:default"})
+
+		sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", []string{deviceTag}, "")
+	})
+
 	t.Run("without device metadata: legacy device tags stay on metrics", func(t *testing.T) {
-		sender := runCheck(t, false)
+		sender := runCheck(t, false, "resource")
 
 		// Backend cannot enrich without the metadata payload, so keep the legacy tags.
 		sender.AssertMetricTaggedWith(t, "Gauge", deviceReachableMetric, []string{resourceTag})
