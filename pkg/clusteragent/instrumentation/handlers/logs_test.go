@@ -17,7 +17,6 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -199,39 +198,56 @@ func TestLogsHandle_CreateAndDelete(t *testing.T) {
 }
 
 func TestTranslateWorkloadLogExpandedFields(t *testing.T) {
+	attributeParsing := true
+	autoMultiLineDetection := false
+	enableJSONDetection := true
+	enableDatetimeDetection := false
+	enableJSONAggregation := true
+	tagAggregatedJSON := false
+	tokenizerMaxInputBytes := int32(2048)
+	patternTableMaxSize := int32(50)
+	stackTraceParsers := []string{"go", "java"}
+	customSampleLabel := "stack_trace"
+	customSamples := []datadoghq.DatadogInstrumentationLogAutoMultiLineSample{
+		{Sample: "2026-08-06 error", Label: &customSampleLabel},
+		{Regex: `^\d{4}-\d{2}-\d{2}`},
+	}
+	maxConnections := int32(25)
+	fingerprintCount := int32(2)
+	fingerprintCountToSkip := int32(1)
+	fingerprintMaxBytes := int32(4096)
+	maxMessageSizeBytes := int32(262144)
+
 	cr := newLogsCR("test", "default", "Deployment", "app", nil)
 	config, err := translateWorkloadLog(cr, datadoghq.DatadogInstrumentationLogConfig{
 		ContainerName: "app",
 		DatadogInstrumentationLogFields: datadoghq.DatadogInstrumentationLogFields{
-			Type:                   "tcp",
-			BindHost:               "127.0.0.1",
-			IdleTimeout:            "30s",
-			MaxConnections:         ptr.To(int32(25)),
-			AllowedIPs:             []string{"10.0.0.0/8", "192.168.1.10"},
-			DeniedIPs:              []string{"10.0.0.5"},
-			Format:                 "syslog",
-			AttributeParsing:       ptr.To(true),
-			AutoMultiLineDetection: ptr.To(false),
-			AutoMultiLineDetectionCustomSamples: ptr.To([]datadoghq.DatadogInstrumentationLogAutoMultiLineSample{
-				{Sample: "2026-08-06 error", Label: ptr.To("stack_trace")},
-				{Regex: `^\d{4}-\d{2}-\d{2}`},
-			}),
+			Type:                                "tcp",
+			BindHost:                            "127.0.0.1",
+			IdleTimeout:                         "30s",
+			MaxConnections:                      &maxConnections,
+			AllowedIPs:                          []string{"10.0.0.0/8", "192.168.1.10"},
+			DeniedIPs:                           []string{"10.0.0.5"},
+			Format:                              "syslog",
+			AttributeParsing:                    &attributeParsing,
+			AutoMultiLineDetection:              &autoMultiLineDetection,
+			AutoMultiLineDetectionCustomSamples: &customSamples,
 			AutoMultiLine: &datadoghq.DatadogInstrumentationLogAutoMultiLineOptions{
-				EnableJSONDetection:     ptr.To(true),
-				EnableDatetimeDetection: ptr.To(false),
-				TokenizerMaxInputBytes:  ptr.To(int32(2048)),
-				PatternTableMaxSize:     ptr.To(int32(50)),
-				EnableJSONAggregation:   ptr.To(true),
-				TagAggregatedJSON:       ptr.To(false),
-				StackTraceParsers:       ptr.To([]string{"go", "java"}),
+				EnableJSONDetection:     &enableJSONDetection,
+				EnableDatetimeDetection: &enableDatetimeDetection,
+				TokenizerMaxInputBytes:  &tokenizerMaxInputBytes,
+				PatternTableMaxSize:     &patternTableMaxSize,
+				EnableJSONAggregation:   &enableJSONAggregation,
+				TagAggregatedJSON:       &tagAggregatedJSON,
+				StackTraceParsers:       &stackTraceParsers,
 			},
 			FingerprintConfig: &datadoghq.DatadogInstrumentationLogFingerprintConfig{
 				FingerprintStrategy: "line_checksum",
-				Count:               ptr.To(int32(2)),
-				CountToSkip:         ptr.To(int32(1)),
-				MaxBytes:            ptr.To(int32(4096)),
+				Count:               &fingerprintCount,
+				CountToSkip:         &fingerprintCountToSkip,
+				MaxBytes:            &fingerprintMaxBytes,
 			},
-			MaxMessageSizeBytes: ptr.To(int32(262144)),
+			MaxMessageSizeBytes: &maxMessageSizeBytes,
 		},
 	})
 	require.NoError(t, err)
@@ -253,12 +269,13 @@ func TestTranslateWorkloadLogExpandedFields(t *testing.T) {
 }
 
 func TestTranslateWorkloadLogPreservesEmptyCustomSamples(t *testing.T) {
+	customSamples := []datadoghq.DatadogInstrumentationLogAutoMultiLineSample{}
 	cr := newLogsCR("test", "default", "Deployment", "app", nil)
 
 	config, err := translateWorkloadLog(cr, datadoghq.DatadogInstrumentationLogConfig{
 		ContainerName: "app",
 		DatadogInstrumentationLogFields: datadoghq.DatadogInstrumentationLogFields{
-			AutoMultiLineDetectionCustomSamples: ptr.To([]datadoghq.DatadogInstrumentationLogAutoMultiLineSample{}),
+			AutoMultiLineDetectionCustomSamples: &customSamples,
 		},
 	})
 	require.NoError(t, err)
