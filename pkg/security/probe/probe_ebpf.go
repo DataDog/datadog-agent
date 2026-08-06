@@ -2583,11 +2583,13 @@ func (p *EBPFProbe) Close() error {
 				running++
 			}
 		}
-		seclog.Warnf("[phase] EBPFProbe.Close/Manager.Stop about to detach %d running probes out of %d", running, len(p.Manager.Probes))
+		seclog.Warnf("[phase-probes] running=%d total=%d", running, len(p.Manager.Probes))
 	}
 
-	// Stopping the manager will stop the perf map reader and unload eBPF programs
-	stop = seclog.StartPhase("EBPFProbe.Close/Manager.Stop")
+	// Stopping the manager will stop the perf map reader and unload eBPF programs. This is the
+	// phase that dominates a manager rebuild, so profile it rather than only timing it: cpu_ratio
+	// and wchan tell us whether it is CPU-bound patching kernel structures or blocked on a wait.
+	stop = seclog.StartPhaseProfile("EBPFProbe.Close/Manager.Stop")
 	err := p.Manager.Stop(manager.CleanAll)
 	stop()
 	if err != nil {
