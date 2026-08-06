@@ -355,3 +355,54 @@ apm_config:
 		{name: "other namespace matches", ns: "app", want: "all"},
 	})
 }
+
+// TestMatching_UnresolvableNamespaceRuleIsSkipped verifies that an unavailable
+// namespace-label source only skips rules that need it. Other rules continue to
+// be evaluated in order, independently of where the unresolvable rule appears.
+func TestMatching_UnresolvableNamespaceRuleIsSkipped(t *testing.T) {
+	const podRuleFirst = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "pod-only"
+        podSelector:
+          matchLabels:
+            app: "web"
+        ddTraceVersions:
+          java: "default"
+      - name: "ns-label"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          python: "default"
+`
+	const nsRuleFirst = `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "ns-label"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          python: "default"
+      - name: "pod-only"
+        podSelector:
+          matchLabels:
+            app: "web"
+        ddTraceVersions:
+          java: "default"
+`
+
+	// No namespace is registered in the store, so the namespace-label rule
+	// cannot be evaluated for the "ghost" namespace and is skipped.
+	runMatchCases(t, podRuleFirst, []matchCase{
+		{name: "pod-only rule before the unresolvable rule still matches", ns: "ghost", podLabels: map[string]string{"app": "web"}, want: "pod-only"},
+	})
+	runMatchCases(t, nsRuleFirst, []matchCase{
+		{name: "unresolvable rule first does not block the pod-only rule", ns: "ghost", podLabels: map[string]string{"app": "web"}, want: "pod-only"},
+	})
+}
