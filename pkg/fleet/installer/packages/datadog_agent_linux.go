@@ -736,10 +736,6 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 
 // WriteProcesses writes the processes for the given package path
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
-	// Delete existing processes regardless of the service manager to delete old processes if the service manager changes
-	if err := os.RemoveAll(service.ConfigDir(packagePath)); err != nil {
-		return fmt.Errorf("failed to delete procmgr processes directory: %v", err)
-	}
 	switch service.GetServiceManagerType(packagePath) {
 	case service.ProcmgrType:
 		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)

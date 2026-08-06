@@ -305,7 +305,7 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool, ddot
 	}
 
 	for _, process := range loadedProcesses {
-		state.AssertFileExists(filepath.Join("/opt/datadog-packages/datadog-agent/stable/processes.d", process), 0755, "dd-agent", "dd-agent")
+		state.AssertFileExists(filepath.Join("/opt/datadog-packages/datadog-agent/stable/processes.d", process), 0644, "dd-agent", "dd-agent")
 	}
 }
 
