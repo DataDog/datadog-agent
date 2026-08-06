@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import platform
+import subprocess
 from io import StringIO
 from typing import Any
 
@@ -32,6 +33,61 @@ if is_windows():
         print(
             "colorama is not up to date, terminal colors may not work properly. Please run 'dda self dep sync' to fix this."
         )
+
+
+def restrict_file_to_owner(path: str | pathlib.Path) -> None:
+    """
+    Restrict a file holding secrets so that only its owner can read it.
+
+    On Windows os.chmod only toggles the read-only attribute, so the ACL has to be replaced
+    outright. Sandboxing and management tools grant themselves an ACE on the user profile,
+    and a single inherited ACE of that kind leaves the file readable by another principal,
+    which is enough for OpenSSH to reject a private key.
+    """
+    if not is_windows():
+        os.chmod(path, 0o600)
+        return
+    user = os.environ.get("USERNAME") or getpass.getuser()
+    # SYSTEM (S-1-5-18) and Administrators (S-1-5-32-544) are named by SID because their
+    # names are localized, and granting them full control matches what ssh-keygen writes.
+    subprocess.run(
+        [
+            "icacls",
+            str(path),
+            "/inheritance:r",
+            "/grant:r",
+            f"{user}:(F)",
+            "*S-1-5-18:(F)",
+            "*S-1-5-32-544:(F)",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+def write_secret_file(path: str | pathlib.Path, content: str) -> None:
+    """
+    Write text to a file that only its owner can read.
+
+    The content is staged in a file that is locked down while still empty, then moved into
+    place. Writing to the target directly would expose the secret for the duration of the
+    write, and truncating it would destroy the previous contents should the permission
+    change then fail. These files hold the only copy of the Pulumi and SSH key passphrases.
+    """
+    path = pathlib.Path(path)
+    # The staging file is a sibling of the target because os.replace is only atomic within
+    # a single filesystem, and a temp directory is shared with other users.
+    staging = path.with_name(f".{path.name}.tmp")
+    try:
+        # The opener applies the mode at creation, which suffices on POSIX. Windows ignores
+        # it, so the ACL is rewritten separately before any content is written.
+        with open(staging, "w", opener=lambda p, flags: os.open(p, flags, 0o600)) as f:
+            restrict_file_to_owner(staging)
+            f.write(content)
+        os.replace(staging, path)
+    except BaseException:
+        staging.unlink(missing_ok=True)
+        raise
 
 
 def ask(question: str, color: str = "blue") -> str:
