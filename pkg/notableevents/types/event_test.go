@@ -85,6 +85,31 @@ func TestValidateCustomValueNumbers(t *testing.T) {
 	}
 }
 
+func TestIsEventID(t *testing.T) {
+	hex64 := strings.Repeat("a", 64)
+	tests := []struct {
+		name string
+		id   string
+		want bool
+	}{
+		{name: "valid crash id", id: "macos-crash-v1:" + hex64, want: true},
+		{name: "valid thermal id", id: ThermalEventIDPrefix + hex64, want: true},
+		{name: "unknown prefix", id: "macos-unknown-v1:" + hex64, want: false},
+		{name: "no prefix", id: hex64, want: false},
+		{name: "short hex suffix", id: "macos-crash-v1:" + strings.Repeat("a", 63), want: false},
+		{name: "long hex suffix", id: "macos-crash-v1:" + strings.Repeat("a", 65), want: false},
+		{name: "uppercase hex suffix", id: "macos-crash-v1:" + strings.Repeat("A", 64), want: false},
+		{name: "non-hex suffix", id: "macos-crash-v1:" + strings.Repeat("g", 64), want: false},
+		{name: "empty", id: "", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, IsEventID(test.id))
+		})
+	}
+}
+
 func validEvent() Event {
 	return Event{
 		ID:        "macos-crash-v1:" + strings.Repeat("a", 64),

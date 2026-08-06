@@ -28,12 +28,17 @@ import (
 )
 
 const (
-	defaultDarwinReconcileInterval   = 5 * time.Minute
-	defaultDarwinRetryInterval       = 30 * time.Second
-	defaultDarwinIdentityRetention   = 30 * 24 * time.Hour
-	darwinDirectoryHeartbeatInterval = 24 * time.Hour
-	defaultDarwinMaxAcknowledged     = 4096
-	darwinBookmarkSchemaVersion      = 1
+	defaultDarwinReconcileInterval = 5 * time.Minute
+	defaultDarwinRetryInterval     = 30 * time.Second
+	// defaultDarwinThermalPressureInterval balances prompt detection of a
+	// thermal excursion against notifyd IPC overhead; notify_get_state is a
+	// cheap local round trip (see notes/NOTIFY_THERMAL_STATE.md), so a short
+	// interval is affordable.
+	defaultDarwinThermalPressureInterval = 15 * time.Second
+	defaultDarwinIdentityRetention       = 30 * 24 * time.Hour
+	darwinDirectoryHeartbeatInterval     = 24 * time.Hour
+	defaultDarwinMaxAcknowledged         = 4096
+	darwinBookmarkSchemaVersion          = 1
 	// Pending delivery is deliberately bounded so the 4 MiB bookmark remains
 	// durable under sustained intake: at most 128 events of at most 16 KiB each.
 	// Pending exposes 100 at a time to bound each poll payload.
@@ -71,10 +76,18 @@ type directoryBookmarkState struct {
 }
 
 type darwinBookmarkState struct {
-	Version      int                                `json:"version,omitempty"`
-	Directories  map[string]*directoryBookmarkState `json:"directories"`
-	Acknowledged map[string]int64                   `json:"acknowledged,omitempty"`
-	Pending      map[string]Event                   `json:"pending,omitempty"`
+	Version         int                                `json:"version,omitempty"`
+	Directories     map[string]*directoryBookmarkState `json:"directories"`
+	Acknowledged    map[string]int64                   `json:"acknowledged,omitempty"`
+	Pending         map[string]Event                   `json:"pending,omitempty"`
+	ThermalPressure darwinThermalPressureState         `json:"thermal_pressure,omitempty"`
+}
+
+// darwinThermalPressureState tracks edge-trigger arming for the macOS
+// thermal-pressure notable event so a restart during a sustained elevated
+// episode does not re-emit the event.
+type darwinThermalPressureState struct {
+	Armed bool `json:"armed,omitempty"`
 }
 
 type darwinBookmarkStore interface {
@@ -94,9 +107,10 @@ type stagedDarwinScanRuntime struct {
 type darwinCommitKind string
 
 const (
-	darwinCommitScan           darwinCommitKind = "scan"
-	darwinCommitStagedRecovery darwinCommitKind = "staged-recovery"
-	darwinCommitAck            darwinCommitKind = "ack"
+	darwinCommitScan            darwinCommitKind = "scan"
+	darwinCommitStagedRecovery  darwinCommitKind = "staged-recovery"
+	darwinCommitAck             darwinCommitKind = "ack"
+	darwinCommitThermalPressure darwinCommitKind = "thermal-pressure"
 )
 
 type darwinCommitReservation struct {
@@ -115,16 +129,18 @@ type Collector struct {
 	scanMu  sync.Mutex
 	stateMu sync.Mutex
 
-	discoverDirs      func() []reportDirectory
-	scanDirectory     func(context.Context, reportDirectory, *darwinBookmarkState) (directoryScanResult, error)
-	reconcileInterval time.Duration
-	retryInterval     time.Duration
-	store             darwinBookmarkStore
-	createWatcher     darwinReportWatcherFactory
-	watcher           darwinReportWatcher
-	knownDirs         map[string]reportDirectory
-	retryDirs         map[string]reportDirectory
-	stagedRuntime     *stagedDarwinScanRuntime
+	discoverDirs            func() []reportDirectory
+	scanDirectory           func(context.Context, reportDirectory, *darwinBookmarkState) (directoryScanResult, error)
+	reconcileInterval       time.Duration
+	retryInterval           time.Duration
+	thermalPressureInterval time.Duration
+	readThermalPressure     func() (int, bool)
+	store                   darwinBookmarkStore
+	createWatcher           darwinReportWatcherFactory
+	watcher                 darwinReportWatcher
+	knownDirs               map[string]reportDirectory
+	retryDirs               map[string]reportDirectory
+	stagedRuntime           *stagedDarwinScanRuntime
 
 	state             *darwinBookmarkState
 	stagedScan        *stagedDarwinScan
@@ -194,19 +210,21 @@ func newDarwinCollectorWithDeps(
 	}
 
 	collector := &Collector{
-		discoverDirs:      discoverDirs,
-		reconcileInterval: reconcileInterval,
-		retryInterval:     retryInterval,
-		store:             store,
-		createWatcher:     createWatcher,
-		state:             state,
-		unsaved:           unsaved,
-		knownDirs:         make(map[string]reportDirectory),
-		retryDirs:         make(map[string]reportDirectory),
-		now:               time.Now,
-		identityRetention: defaultDarwinIdentityRetention,
-		maxAcknowledged:   defaultDarwinMaxAcknowledged,
-		closeDone:         make(chan struct{}),
+		discoverDirs:            discoverDirs,
+		reconcileInterval:       reconcileInterval,
+		retryInterval:           retryInterval,
+		thermalPressureInterval: defaultDarwinThermalPressureInterval,
+		readThermalPressure:     rawThermalPressureLevel,
+		store:                   store,
+		createWatcher:           createWatcher,
+		state:                   state,
+		unsaved:                 unsaved,
+		knownDirs:               make(map[string]reportDirectory),
+		retryDirs:               make(map[string]reportDirectory),
+		now:                     time.Now,
+		identityRetention:       defaultDarwinIdentityRetention,
+		maxAcknowledged:         defaultDarwinMaxAcknowledged,
+		closeDone:               make(chan struct{}),
 	}
 	collector.scanDirectory = collector.scanDirectoryInternal
 	return collector, nil
@@ -352,6 +370,62 @@ func (c *Collector) Ack(ids []string) error {
 	return nil
 }
 
+// pollThermalPressure reads the current macOS thermal pressure level and,
+// on an edge transition across thermalPressureElevatedLevel, arms/disarms
+// state and (on the rising edge) enqueues a pending notable event. It
+// follows Ack's simpler clone/reserve-commit/Save-outside-lock/publish
+// pattern rather than the staged-scan pipeline, since thermal pressure has
+// no per-directory retry semantics.
+func (c *Collector) pollThermalPressure() {
+	level, ok := c.readThermalPressure()
+	if !ok {
+		return
+	}
+	elevated := level >= thermalPressureElevatedLevel
+
+	c.stateMu.Lock()
+	if c.closed {
+		c.stateMu.Unlock()
+		return
+	}
+	c.wg.Add(1)
+	defer c.wg.Done()
+
+	if elevated == c.state.ThermalPressure.Armed {
+		c.stateMu.Unlock()
+		return
+	}
+	if c.stagedScan != nil || c.commitReservation != nil {
+		// Persistence is busy; the next tick will retry this transition.
+		c.stateMu.Unlock()
+		return
+	}
+
+	next := cloneDarwinBookmarkStateForAck(c.state)
+	next.ThermalPressure.Armed = elevated
+	if elevated && len(next.Pending) < maxDarwinPendingEvents {
+		event := newThermalPressureEvent(c.currentTime(), level)
+		next.Pending[event.ID] = event
+	}
+	reservation := c.reserveCommitLocked(darwinCommitThermalPressure, c.generation)
+	c.stateMu.Unlock()
+
+	if err := c.store.Save(next); err != nil {
+		log.Warnf("persist macOS thermal pressure notable event state: %v", err)
+		c.stateMu.Lock()
+		c.releaseCommitLocked(reservation)
+		c.stateMu.Unlock()
+		return
+	}
+
+	c.stateMu.Lock()
+	c.state = next
+	c.unsaved = false
+	c.generation++
+	c.releaseCommitLocked(reservation)
+	c.stateMu.Unlock()
+}
+
 // reserveCommitLocked grants exclusive ownership of one bookmark Save.
 // stateMu must be held and callers must have already checked that no
 // reservation exists.
@@ -378,10 +452,13 @@ func (c *Collector) run(ctx context.Context) {
 	defer c.wg.Done()
 
 	c.scanOnce(ctx)
+	c.pollThermalPressure()
 	reconcileTicker := time.NewTicker(c.reconcileInterval)
 	defer reconcileTicker.Stop()
 	retryTicker := time.NewTicker(c.retryInterval)
 	defer retryTicker.Stop()
+	thermalPressureTicker := time.NewTicker(c.thermalPressureInterval)
+	defer thermalPressureTicker.Stop()
 
 	for {
 		c.scanMu.Lock()
@@ -395,6 +472,8 @@ func (c *Collector) run(ctx context.Context) {
 			c.scanOnce(ctx)
 		case <-retryTicker.C:
 			c.retryMaintenance(ctx)
+		case <-thermalPressureTicker.C:
+			c.pollThermalPressure()
 		case path, ok := <-watcherEvents:
 			if !ok {
 				c.scanMu.Lock()
@@ -1301,10 +1380,11 @@ func normalizeDarwinBookmarkState(state *darwinBookmarkState, now time.Time) boo
 // cloneDarwinBookmarkState explicitly deep-copies mutable reconciliation state.
 func cloneDarwinBookmarkState(state *darwinBookmarkState) *darwinBookmarkState {
 	cloned := &darwinBookmarkState{
-		Version:      state.Version,
-		Directories:  make(map[string]*directoryBookmarkState, len(state.Directories)),
-		Acknowledged: cloneAcknowledgedMap(state.Acknowledged),
-		Pending:      clonePendingMapDeep(state.Pending),
+		Version:         state.Version,
+		Directories:     make(map[string]*directoryBookmarkState, len(state.Directories)),
+		Acknowledged:    cloneAcknowledgedMap(state.Acknowledged),
+		Pending:         clonePendingMapDeep(state.Pending),
+		ThermalPressure: state.ThermalPressure,
 	}
 	for key, directory := range state.Directories {
 		if directory == nil {
@@ -1325,14 +1405,16 @@ func cloneDarwinBookmarkState(state *darwinBookmarkState) *darwinBookmarkState {
 	return cloned
 }
 
-// cloneDarwinBookmarkStateForAck copies only maps ACK mutates. Directory state
-// is safely shared because acknowledgement never changes it.
+// cloneDarwinBookmarkStateForAck copies only maps ACK mutates. Directory and
+// thermal pressure state are safely shared because acknowledgement never
+// changes them.
 func cloneDarwinBookmarkStateForAck(state *darwinBookmarkState) *darwinBookmarkState {
 	return &darwinBookmarkState{
-		Version:      state.Version,
-		Directories:  state.Directories,
-		Acknowledged: cloneAcknowledgedMap(state.Acknowledged),
-		Pending:      clonePendingMap(state.Pending),
+		Version:         state.Version,
+		Directories:     state.Directories,
+		Acknowledged:    cloneAcknowledgedMap(state.Acknowledged),
+		Pending:         clonePendingMap(state.Pending),
+		ThermalPressure: state.ThermalPressure,
 	}
 }
 

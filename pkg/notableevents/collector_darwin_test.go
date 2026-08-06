@@ -1667,6 +1667,88 @@ func fmtCorrupt(err error) error {
 	return errors.Join(errDarwinBookmarkCorrupt, err)
 }
 
+func TestDarwinThermalPressureEdgeTriggered(t *testing.T) {
+	levels := []struct {
+		level int
+		ok    bool
+	}{
+		{level: 0, ok: true}, // nominal baseline, no event
+		{level: 2, ok: true}, // rising edge -> event 1
+		{level: 3, ok: true}, // stays elevated, no event
+		{level: 4, ok: true}, // stays elevated, no event
+		{level: 1, ok: true}, // falling edge, disarm, no event
+		{level: 2, ok: true}, // rising edge -> event 2
+	}
+	callIndex := 0
+
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory { return nil },
+		time.Hour,
+		time.Hour,
+		&fakeDarwinBookmarkStore{},
+		nil,
+	)
+	require.NoError(t, err)
+
+	clockTick := 0
+	collector.now = func() time.Time {
+		clockTick++
+		return time.Date(2026, time.July, 22, 12, 0, 0, 0, time.UTC).Add(time.Duration(clockTick) * time.Second)
+	}
+	collector.readThermalPressure = func() (int, bool) {
+		result := levels[callIndex]
+		callIndex++
+		return result.level, result.ok
+	}
+
+	for range levels {
+		collector.pollThermalPressure()
+	}
+
+	require.Len(t, collector.Pending(), 2)
+	assert.True(t, collector.state.ThermalPressure.Armed)
+}
+
+func TestDarwinThermalPressureRestartWhileElevatedDoesNotReemit(t *testing.T) {
+	seed := newDarwinBookmarkState()
+	seed.ThermalPressure.Armed = true
+	store := &fakeDarwinBookmarkStore{state: seed}
+
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory { return nil },
+		time.Hour,
+		time.Hour,
+		store,
+		nil,
+	)
+	require.NoError(t, err)
+	require.True(t, collector.state.ThermalPressure.Armed)
+
+	collector.readThermalPressure = func() (int, bool) { return 3, true }
+	collector.pollThermalPressure()
+
+	assert.Empty(t, collector.Pending())
+	assert.True(t, collector.state.ThermalPressure.Armed)
+	assert.Zero(t, store.saveCalls)
+}
+
+func TestDarwinThermalPressureUnreadableLevelIsNoop(t *testing.T) {
+	collector, err := newDarwinCollectorWithDeps(
+		func() []reportDirectory { return nil },
+		time.Hour,
+		time.Hour,
+		&fakeDarwinBookmarkStore{},
+		nil,
+	)
+	require.NoError(t, err)
+
+	collector.readThermalPressure = func() (int, bool) { return 0, false }
+	collector.pollThermalPressure()
+
+	assert.Empty(t, collector.Pending())
+	assert.False(t, collector.state.ThermalPressure.Armed)
+}
+
 // realTempDir resolves a temporary directory to satisfy no-symlink directory validation.
 func realTempDir(t *testing.T) string {
 	t.Helper()

@@ -8,6 +8,7 @@ go_library(
         "format_darwin.go",
         "reader_darwin.go",
         "store_darwin.go",
+        "thermal_pressure_darwin.go",
         "watcher_darwin.go",
         "watcher_fsevents_darwin.c",
         "watcher_fsevents_darwin.h",
