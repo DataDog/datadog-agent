@@ -121,6 +121,17 @@ type seriesStats struct {
 	tagsHash  uint64                  // fnv64a hash of Tags; 0 means not interned
 	ref       observer.SeriesRef      // compact numeric ID assigned on creation
 	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
+	// supportedAggregations is a bit mask. Zero means all aggregations are
+	// supported; materialized log count buckets set only Average because each
+	// stored point is already one aggregated window count.
+	supportedAggregations uint8
+	// retentionOverrideSecs, when positive, replaces the storage-wide point
+	// retention for this series. Zero uses the storage default.
+	retentionOverrideSecs int64
+	// lastActivityTimestamp drives capacity eviction. It normally follows the
+	// latest stored timestamp, but producers of synthetic points may override it
+	// so generated data does not make an otherwise-idle series look active.
+	lastActivityTimestamp int64
 
 	// writeGeneration is per-series and increments on every Add, including
 	// same-bucket merges into an existing point.
@@ -132,6 +143,10 @@ type seriesStats struct {
 	counts     []int64
 	mins       []float64
 	maxes      []float64
+}
+
+func aggregateMask(agg observer.Aggregate) uint8 {
+	return 1 << uint8(agg)
 }
 
 // pointCount returns the number of stored points.
@@ -331,6 +346,9 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	}
 	res := AddResult{IsNew: !exists, Ref: stats.ref}
 	stats.writeGeneration++
+	if len(stats.timestamps) == 0 || timestamp > stats.lastActivityTimestamp {
+		stats.lastActivityTimestamp = timestamp
+	}
 
 	// Bucket by second.
 	bucket := timestamp
@@ -359,12 +377,16 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
 
-	if s.cfg.PointRetentionSecs > 0 {
+	retentionSecs := s.cfg.PointRetentionSecs
+	if stats.retentionOverrideSecs > 0 {
+		retentionSecs = stats.retentionOverrideSecs
+	}
+	if retentionSecs > 0 {
 		// Trim points outside the retention window. Use the series' latest
 		// timestamp (not the incoming bucket) so that backfilled/out-of-order
 		// points don't shift the cutoff backwards and over-retain stale data.
 		latestTS := stats.timestamps[len(stats.timestamps)-1]
-		if trim := searchAfter(stats.timestamps, latestTS-s.cfg.PointRetentionSecs-1); trim > 0 {
+		if trim := searchAfter(stats.timestamps, latestTS-retentionSecs-1); trim > 0 {
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
@@ -1071,6 +1093,54 @@ func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricC
 	return nil
 }
 
+// SetSupportedAggregations limits which interpretations detectors should use
+// for a series. An empty list restores the default of supporting all.
+func (s *timeSeriesStorage) SetSupportedAggregations(ref observer.SeriesRef, aggregations ...observer.Aggregate) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return
+	}
+	var mask uint8
+	for _, agg := range aggregations {
+		mask |= aggregateMask(agg)
+	}
+	stats.supportedAggregations = mask
+}
+
+// SupportsAggregate implements the optional detector aggregate policy.
+func (s *timeSeriesStorage) SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := s.resolveByID(ref)
+	if stats == nil || stats.supportedAggregations == 0 {
+		return true
+	}
+	return stats.supportedAggregations&aggregateMask(agg) != 0
+}
+
+// SetSeriesRetention overrides point retention for one series. Zero restores
+// the storage-wide default.
+func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retentionSecs int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		stats.retentionOverrideSecs = max(retentionSecs, 0)
+	}
+}
+
+// SetSeriesActivityTimestamp overrides the timestamp used to rank a series for
+// capacity eviction. Materialized log-count series use the last real log time
+// so synthetic zero buckets do not keep an idle series artificially hot.
+func (s *timeSeriesStorage) SetSeriesActivityTimestamp(ref observer.SeriesRef, timestamp int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		stats.lastActivityTimestamp = timestamp
+	}
+}
+
 // RemoveSeriesByMetricName removes all series in the given namespace whose Name
 // matches name. Used when an extractor GC/LRU evicts a pattern cluster — the
 // cluster identity (namespace + metric name) is deterministic, so we can clean
@@ -1099,7 +1169,7 @@ func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []o
 	return removed
 }
 
-// EvictToCapacity evicts the oldest series (by last written timestamp) when
+// EvictToCapacity evicts the oldest series (by last activity timestamp) when
 // the live series count exceeds seriesLimit, draining down to target. The band
 // between the two thresholds prevents a fan-out on every Advance when the
 // count hovers near the cap. Returns the freed SeriesRefs for detector cleanup.
@@ -1130,11 +1200,7 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 		if st == nil {
 			continue
 		}
-		lastTs := int64(0)
-		if n := len(st.timestamps); n > 0 {
-			lastTs = st.timestamps[n-1]
-		}
-		candidates = append(candidates, entry{ref: st.ref, lastTs: lastTs})
+		candidates = append(candidates, entry{ref: st.ref, lastTs: st.lastActivityTimestamp})
 	}
 
 	excess := count - target

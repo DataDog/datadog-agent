@@ -26,11 +26,8 @@ dd_agent_go_test(
     name = "podman_test",
     srcs = ["podman_test.go"],
     embed = [":podman"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [["podman"]],
+    include_default = False,
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/util/log",

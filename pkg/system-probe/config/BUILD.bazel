@@ -54,6 +54,7 @@ dd_agent_go_test(
         "config_test.go",
     ],
     embed = [":config"],
+    gotags_sets = [["linux_bpf"]],
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

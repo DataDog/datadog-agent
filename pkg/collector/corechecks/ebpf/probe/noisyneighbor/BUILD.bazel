@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
-# gazelle:dd_linux_bpf on
-
 exports_files([
     "ebpf_types_linux.go",
     "ebpf_types_linux_test.go",
@@ -65,7 +63,6 @@ go_test(
     name = "noisyneighbor_test",
     # keep: split from noisyneighbor_types_test; see comment above.
     srcs = ["probe_test.go"],
-    embed = [":noisyneighbor"],
     gotags = [
         "test",
         "linux_bpf",

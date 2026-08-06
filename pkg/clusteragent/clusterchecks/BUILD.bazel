@@ -77,7 +77,14 @@ dd_agent_go_test(
         "ksm_sharding_test.go",
     ],
     embed = [":clusterchecks"],
-    flavors = ["base"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/scheduler",

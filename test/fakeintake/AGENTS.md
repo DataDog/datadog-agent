@@ -217,10 +217,11 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
 - **Only server changes rebuild the image.** The image is
   `go build cmd/server/main.go`, whose in-module deps are `server/`,
   `aggregator/` and `api/`. So a bump/rebuild/publish is required only for
-  changes under those (plus `go.mod`/`go.sum`/`Dockerfile`) — see
+  `.go` changes under those (plus `go.mod`/`go.sum`/`Dockerfile`) — see
   `.fakeintake_server_paths` in `.gitlab-ci.yml` and `_is_server_file()` in
   `tasks/fakeintake.py`. Changes to `client/`, `cmd/client/` or `docs/` do **not**
-  change the image and need no bump.
+  change the image and need no bump, and neither do non-Go files under the server
+  paths (`BUILD.bazel`, test fixtures).
 - **When you change server-side fakeintake code**, **bump `version/VERSION` in
   the same PR** — a strictly greater integer than the base branch's value (e.g.
   `v1` → `v2`). CI (`fakeintake_check_version_bump`, using

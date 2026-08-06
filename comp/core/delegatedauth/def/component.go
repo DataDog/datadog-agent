@@ -16,7 +16,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// team: core-authn
+// team: credential-management
 
 // InstanceParams configures a single API key instance.
 type InstanceParams struct {

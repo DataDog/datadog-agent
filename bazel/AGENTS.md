@@ -295,6 +295,13 @@ is written in the Starlark∩Python subset so it is both `load()`ed by `//BUILD.
 step. Edit that file to add or change a tag, using `set([...])` (a `{...}` literal is a dict in
 Starlark). The `AgentFlavor` mapping stays in `build_tags.py`, since Starlark has no enums.
 
+Unit tests are flavorless. `dd_agent_go_test` always uses the minimal `test` tag and derives extra,
+package-local tag combinations from `//go:build` constraints. Dependency-only optimization tags in
+`DEP_ONLY_TAGS` are not propagated through ordinary test graphs. The inheritable
+`# gazelle:go_canonical_test_tag_set tag tag ...` directive (one line per combination) defines canonical combinations for the
+tags it names. Gazelle uses those combinations instead of unsafe partial modes and only considers
+embedded library constraints when a configured combination satisfies them.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
@@ -860,8 +867,19 @@ paths, breaking Bazel label syntax.
 **File deletion.** Open files cannot be deleted on Windows ("Access Denied"). Close handles eagerly. A running process
 also holds its working directory open, preventing deletion.
 
-**Path length.** The hard limit is 32,767 characters (Developer Mode removes the legacy 260-character limit). Keep
-workspace names, target names, and directory structures short to stay well within this.
+**Path length.** File APIs go up to 32,767 characters (Developer Mode removes the legacy 260-character limit), but a
+process's *current directory* is still capped at `MAX_PATH` (260) unless the binary ships a `longPathAware` manifest —
+and Bazel's Windows test wrapper (`tools/test/windows/tw.cc`) does not. It `chdir`s into
+`<target>_/<target>.exe.runfiles` before launching the test, so an over-long target name fails at test time with
+`Could not chdir` / `Failed to load runfiles` (error 206, `ERROR_FILENAME_EXCED_RANGE`) rather than at build time.
+The target name is spent twice in that path, so keep target names, tag-set suffixes, and package depth short.
+`dd_agent_go_test` enforces the budget at analysis time via `_test_tag_set_check_name()` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
+
+**CI lane split.** Windows is the only platform whose Bazel tests run in two jobs, partitioned by the complementary
+`--config=no-dd-agent-go-tests` / `--config=dd-agent-go-tests-only` filters in `bazel/configs/go_tests.bazelrc`. The
+runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tests starves them enough that tests
+asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
 
 ## Testing
 

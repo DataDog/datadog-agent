@@ -384,12 +384,36 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			},
 		},
 		{
-			name: "lib injection, mutate labelled",
+			name: "lib injection, on demand",
 			setupConfig: func(mockConfig model.Config) {
 				mockConfig.SetInTest("admission_controller.inject_config.enabled", false)
 				mockConfig.SetInTest("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetInTest("admission_controller.inject_tags.enabled", false)
 				mockConfig.SetInTest("admission_controller.auto_instrumentation.enabled", true)
+				mockConfig.SetInTest("admission_controller.cws_instrumentation.enabled", false)
+			},
+			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, false, false, mockConfig) },
+			want: func() []admiv1beta1.MutatingWebhook {
+				webhook := webhook("datadog.webhook.lib.injection", "/injectlib", &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
+					},
+				}, defaultNsSelector, []admiv1beta1.MatchCondition{}, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, timeout)
+				return []admiv1beta1.MutatingWebhook{webhook}
+			},
+		},
+		{
+			name: "lib injection, on demand disabled, mutate labelled",
+			setupConfig: func(mockConfig model.Config) {
+				mockConfig.SetInTest("admission_controller.inject_config.enabled", false)
+				mockConfig.SetInTest("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetInTest("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.enabled", true)
+				mockConfig.SetInTest("apm_config.instrumentation.on_demand", false)
 				mockConfig.SetInTest("admission_controller.cws_instrumentation.enabled", false)
 			},
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, false, false, mockConfig) },

@@ -250,6 +250,9 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
+			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
+				continue
+			}
 			sk := holtStateKey{ref: meta.Ref, agg: agg}
 			state, exists := d.series[sk]
 			if !exists {

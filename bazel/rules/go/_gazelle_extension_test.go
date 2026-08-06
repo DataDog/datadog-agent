@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -30,9 +31,63 @@ func newLang() *lang {
 	return NewLanguage().(*lang)
 }
 
+func attrGotagsSets(r *rule.Rule) [][]string {
+	attr := r.Attr("gotags_sets")
+	if attr == nil {
+		return nil
+	}
+	list, ok := attr.(*bzl.ListExpr)
+	if !ok {
+		return nil
+	}
+	var out [][]string
+	for _, item := range list.List {
+		inner, ok := item.(*bzl.ListExpr)
+		if !ok {
+			continue
+		}
+		var tags []string
+		for _, tagExpr := range inner.List {
+			lit, ok := tagExpr.(*bzl.StringExpr)
+			if !ok {
+				continue
+			}
+			tags = append(tags, lit.Value)
+		}
+		out = append(out, tags)
+	}
+	return out
+}
+
+func tagSetsEqual(a, b [][]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	keysA := make([]string, len(a))
+	for i, ts := range a {
+		keysA[i] = tagSetKey(ts)
+	}
+	keysB := make([]string, len(b))
+	for i, ts := range b {
+		keysB[i] = tagSetKey(ts)
+	}
+	sort.Strings(keysA)
+	sort.Strings(keysB)
+	for i := range keysA {
+		if keysA[i] != keysB[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func tagsList(tags ...string) []string {
+	return normalizeTagSet(tags)
+}
+
 func TestReplaceGoTests_NonGoTestPassesThrough(t *testing.T) {
 	lib := rule.NewRule("go_library", "lib")
-	result := newLang().replaceGoTests(makeGoTestResult(lib), nil, "")
+	result := newLang().replaceGoTests(makeGoTestResult(lib), nil, "", nil)
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_library" {
 		t.Errorf("expected go_library to pass through, got %v", result.Gen)
@@ -50,7 +105,7 @@ func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	orig.SetAttr("embed", []string{":pkg"})
 	orig.SetAttr("deps", []string{"//some/dep"})
 
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "")
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil)
 
 	if len(result.Gen) != 1 {
 		t.Fatalf("expected 1 gen rule, got %d", len(result.Gen))
@@ -71,6 +126,68 @@ func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	}
 }
 
+func TestReplaceGoTests_ConfiguredTagSets(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pkg_test.go"), []byte("//go:build zlib\n\npackage x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := rule.NewRule("go_test", "pkg_test")
+	orig.SetAttr("srcs", []string{"pkg_test.go"})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("zstd", "zlib")})
+
+	got := attrGotagsSets(result.Gen[0])
+	want := [][]string{tagsList("zlib", "zstd")}
+	if !tagSetsEqual(got, want) {
+		t.Errorf("gotags_sets = %v, want %v", got, want)
+	}
+}
+
+func TestReplaceGoTests_NoApplicableTagSetKeepsManualGoTest(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pkg_test.go"), []byte("//go:build trivy_no_javadb\n\npackage x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := rule.NewRule("go_test", "pkg_test")
+	orig.SetAttr("srcs", []string{"pkg_test.go"})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, nil)
+
+	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_test" {
+		t.Fatalf("expected one go_test, got %v", result.Gen)
+	}
+	if got := result.Gen[0].AttrStrings("tags"); !stringSlicesEqual(got, []string{"manual"}) {
+		t.Errorf("tags = %v, want [manual]", got)
+	}
+	if got := result.Gen[0].AttrStrings("gotags"); !stringSlicesEqual(got, BaseTestTags) {
+		t.Errorf("gotags = %v, want %v", got, BaseTestTags)
+	}
+	if len(result.Empty) != 0 {
+		t.Errorf("expected no empty rules, got %v", result.Empty)
+	}
+}
+
+func TestReplaceGoTests_LinuxBPFStillUsesMacro(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pkg_test.go"), []byte("//go:build linux_bpf\n\npackage x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := rule.NewRule("go_test", "pkg_test")
+	orig.SetAttr("srcs", []string{"pkg_test.go"})
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, dir, [][]string{tagsList("linux_bpf")})
+
+	if len(result.Gen) != 1 || result.Gen[0].Kind() != "dd_agent_go_test" {
+		t.Fatalf("expected one dd_agent_go_test, got %v", result.Gen)
+	}
+	if got := attrGotagsSets(result.Gen[0]); !tagSetsEqual(got, [][]string{tagsList("linux_bpf")}) {
+		t.Errorf("gotags_sets = %v, want [[linux_bpf]]", got)
+	}
+	if len(result.Empty) != 1 || result.Empty[0].Kind() != "go_test" {
+		t.Errorf("expected replaced go_test in empty rules, got %v", result.Empty)
+	}
+}
+
 func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig := rule.NewRule("go_test", "mytest")
 	orig.SetAttr("srcs", []string{"mytest.go"})
@@ -78,7 +195,7 @@ func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig.SetAttr("data", []string{"testdata/foo.json"})
 	orig.SetAttr("target_compatible_with", []string{"@platforms//os:linux"})
 
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "")
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil)
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("embed"); !stringSlicesEqual(got, []string{":mypkg"}) {
@@ -109,7 +226,7 @@ func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
 	prior.SetAttr("srcs", []string{"stale.go"}) // Gazelle-owned -> should NOT carry over
 	file := &rule.File{Rules: []*rule.Rule{prior}}
 
-	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "")
+	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "", nil)
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("data"); !stringSlicesEqual(got, []string{"testdata/foo.json"}) {
@@ -150,7 +267,7 @@ func TestReplaceGoTests_KeepCommentPreserved(t *testing.T) {
 	}
 	file := &rule.File{Rules: []*rule.Rule{prior}}
 
-	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "")
+	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "", nil)
 	r := result.Gen[0]
 	list, ok := r.Attr("tags").(*bzl.ListExpr)
 	if !ok {
@@ -164,7 +281,7 @@ func TestReplaceGoTests_KeepCommentPreserved(t *testing.T) {
 
 func TestReplaceGoTests_ImportsForwarded(t *testing.T) {
 	orig := rule.NewRule("go_test", "t")
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "")
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "", nil)
 	if len(result.Imports) != len(result.Gen) {
 		t.Errorf("Imports len %d != Gen len %d", len(result.Imports), len(result.Gen))
 	}
@@ -178,7 +295,7 @@ func TestReplaceGoTests_MixedRules(t *testing.T) {
 	tst := rule.NewRule("go_test", "lib_test")
 	bin := rule.NewRule("go_binary", "main")
 
-	result := newLang().replaceGoTests(makeGoTestResult(lib, tst, bin), nil, "")
+	result := newLang().replaceGoTests(makeGoTestResult(lib, tst, bin), nil, "", nil)
 
 	if len(result.Gen) != 3 {
 		t.Fatalf("expected 3 gen rules, got %d", len(result.Gen))
@@ -252,50 +369,6 @@ func TestGenerateRules_OffDirectiveRevertsExistingConversion(t *testing.T) {
 	}
 }
 
-// TestGenerateRules_OffDirectiveWithLinuxBPFKeepsTestTag guards a rule that
-// reverts from dd_agent_go_test while dd_linux_bpf is also enabled: gotags is
-// not mergeable, so once applyLinuxBPF writes linux_bpf directly onto the
-// existing (reverted) rule, merge keeps that value verbatim -- if
-// revertDdAgentGoTests hadn't already put "test" on that same rule, it would
-// never make it into the merged file.
-func TestGenerateRules_OffDirectiveWithLinuxBPFKeepsTestTag(t *testing.T) {
-	dir := t.TempDir()
-	writeGoFile(t, dir, "pkg_test.go", "//go:build linux_bpf")
-
-	old := rule.NewRule("dd_agent_go_test", "pkg_test")
-	old.SetAttr("srcs", []string{"pkg_test.go"})
-	old.SetAttr("embed", []string{":pkg"})
-	file := rule.EmptyFile("BUILD.bazel", "some/pkg")
-	old.Insert(file)
-
-	fresh := rule.NewRule("go_test", "pkg_test")
-	fresh.SetAttr("srcs", []string{"pkg_test.go"})
-	fresh.SetAttr("embed", []string{":pkg"})
-
-	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
-		Gen:     []*rule.Rule{fresh},
-		Imports: []interface{}{nil},
-	}}}
-	c := &config.Config{Exts: map[string]interface{}{
-		extName:         ddAgentGoTestConfig{enabled: false},
-		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
-	}}
-
-	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file, Dir: dir})
-	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
-
-	if len(file.Rules) != 1 {
-		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
-	}
-	if got := file.Rules[0].AttrStrings("gotags"); !stringSlicesEqual(got, []string{"test", linuxBPFTag}) {
-		t.Errorf("gotags after merge = %v, want [test %s]", got, linuxBPFTag)
-	}
-}
-
-// TestGenerateRules_OffDirectiveNoOpWithoutExistingConversion guards the
-// already-working case (e.g. cmd/cluster-agent/subcommands/coverage): a
-// package that was never converted keeps its plain go_test untouched when
-// "off" is (still) in effect.
 func TestGenerateRules_OffDirectiveNoOpWithoutExistingConversion(t *testing.T) {
 	existing := rule.NewRule("go_test", "pkg_test")
 	existing.SetAttr("srcs", []string{"pkg_test.go"})
@@ -416,91 +489,6 @@ dd_agent_go_test(
 	}
 }
 
-// TestGenerateRules_LinuxBPFOnlyTestSurvivesFlavorPruning reproduces the bug
-// found while auditing pkg/dyninst after "bazel: globally enable
-// dd_agent_go_test for pkg/": a package with both "dd_agent_go_test on" and
-// "dd_linux_bpf on" (dyninst's real, inherited state) whose test sources are
-// gated entirely behind //go:build linux_bpf lost its test rule outright.
-//
-// linux_bpf isn't a flavor, so dd_linux_bpf and dd_agent_go_test are
-// mutually exclusive (enforced in shouldReplace): once dd_linux_bpf is on,
-// shouldReplace declines and revertDdAgentGoTests takes over instead of
-// flavoring, then applyLinuxBPF tags the surviving plain go_test.
-func TestGenerateRules_LinuxBPFOnlyTestSurvivesFlavorPruning(t *testing.T) {
-	dir := t.TempDir()
-	writeGoFile(t, dir, "x_test.go", "//go:build linux_bpf")
-
-	fresh := rule.NewRule("go_test", "pkg_test")
-	fresh.SetAttr("srcs", []string{"x_test.go"})
-
-	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
-		Gen:     []*rule.Rule{fresh},
-		Imports: []interface{}{nil},
-	}}}
-	c := &config.Config{Exts: map[string]interface{}{
-		extName:         ddAgentGoTestConfig{enabled: true},
-		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
-	}}
-
-	result := l.GenerateRules(language.GenerateArgs{Config: c, Dir: dir})
-
-	if len(result.Gen) != 1 {
-		t.Fatalf("expected the linux_bpf-gated test to survive, got %d gen rules: %v", len(result.Gen), result.Gen)
-	}
-	got := result.Gen[0]
-	if got.Kind() != "go_test" {
-		t.Errorf("expected the rule to stay a plain go_test (not a flavor), got %s", got.Kind())
-	}
-	if want := []string{"test", linuxBPFTag}; !stringSlicesEqual(got.AttrStrings("gotags"), want) {
-		t.Errorf("gotags = %v, want %v", got.AttrStrings("gotags"), want)
-	}
-	if want := []string{linuxPlatform}; !stringSlicesEqual(got.AttrStrings("target_compatible_with"), want) {
-		t.Errorf("target_compatible_with = %v, want %v", got.AttrStrings("target_compatible_with"), want)
-	}
-}
-
-// TestGenerateRules_LinuxBPFDropsStaleFlavoredRule covers a package whose
-// test sources used to have an applicable flavor (so it was converted to
-// dd_agent_go_test) and later became linux_bpf-only. Once dd_linux_bpf turns
-// on, shouldReplace declines regardless of the flavor directive, so
-// revertDdAgentGoTests must remove that stale dd_agent_go_test, not leave it
-// alongside the plain go_test that replaces it.
-func TestGenerateRules_LinuxBPFDropsStaleFlavoredRule(t *testing.T) {
-	dir := t.TempDir()
-	writeGoFile(t, dir, "x_test.go", "//go:build linux_bpf")
-
-	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
-dd_agent_go_test(
-    name = "pkg_test",
-    srcs = ["x_test.go"],
-)
-`))
-	if err != nil {
-		t.Fatalf("LoadData: %v", err)
-	}
-
-	fresh := rule.NewRule("go_test", "pkg_test")
-	fresh.SetAttr("srcs", []string{"x_test.go"})
-
-	l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
-		Gen:     []*rule.Rule{fresh},
-		Imports: []interface{}{nil},
-	}}}
-	c := &config.Config{Exts: map[string]interface{}{
-		extName:         ddAgentGoTestConfig{enabled: true},
-		linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
-	}}
-
-	result := l.GenerateRules(language.GenerateArgs{Config: c, File: file, Dir: dir})
-	merger.MergeFile(file, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
-
-	if len(file.Rules) != 1 {
-		t.Fatalf("expected 1 rule after merge, got %d: %v", len(file.Rules), file.Rules)
-	}
-	if file.Rules[0].Kind() != "go_test" {
-		t.Errorf("expected the stale dd_agent_go_test to be replaced by a plain go_test, got %s", file.Rules[0].Kind())
-	}
-}
 func TestLoads(t *testing.T) {
 	mal, ok := NewLanguage().(language.ModuleAwareLanguage)
 	if !ok {
@@ -527,14 +515,15 @@ func TestLoads(t *testing.T) {
 // directives are still advertised.
 func TestKnownDirectives(t *testing.T) {
 	dirs := NewLanguage().(*lang).KnownDirectives()
-	found := false
+	found := map[string]bool{}
 	for _, d := range dirs {
-		if d == extName {
-			found = true
-		}
+		found[d] = true
 	}
-	if !found {
+	if !found[extName] {
 		t.Errorf("%q not in KnownDirectives: %v", extName, dirs)
+	}
+	if !found[canonicalTagSetDirective] {
+		t.Errorf("%q not in KnownDirectives: %v", canonicalTagSetDirective, dirs)
 	}
 	if len(dirs) <= 1 {
 		t.Errorf("expected Go extension directives to be preserved, got %v", dirs)
@@ -563,6 +552,23 @@ func TestConfigure_DirectiveOn(t *testing.T) {
 
 	if !c.Exts[extName].(ddAgentGoTestConfig).enabled {
 		t.Error("expected enabled=true after directive on")
+	}
+}
+
+func TestConfigure_TagSets(t *testing.T) {
+	f := &rule.File{}
+	f.Directives = []rule.Directive{
+		{Key: canonicalTagSetDirective, Value: "zstd zlib"},
+		{Key: canonicalTagSetDirective, Value: "kubeapiserver"},
+	}
+
+	c := &config.Config{Exts: map[string]interface{}{}}
+	NewLanguage().(*lang).Configure(c, "some/pkg", f)
+
+	got := c.Exts[extName].(ddAgentGoTestConfig).tagSets
+	want := [][]string{tagsList("kubeapiserver"), tagsList("zlib", "zstd")}
+	if !tagSetsEqual(got, want) {
+		t.Errorf("tagSets = %v, want %v", got, want)
 	}
 }
 
@@ -667,16 +673,6 @@ func TestShouldReplace(t *testing.T) {
 			},
 			want: true,
 		},
-		{
-			// linux_bpf is not a flavor, so the two are mutually exclusive:
-			// dd_linux_bpf wins even over an explicit dd_agent_go_test on.
-			name: "enabled but dd_linux_bpf also enabled",
-			c: &config.Config{Exts: map[string]interface{}{
-				extName:         ddAgentGoTestConfig{enabled: true},
-				linuxBPFExtName: ddLinuxBPFConfig{enabled: true},
-			}},
-			want: false,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := shouldReplace(tc.c); got != tc.want {
@@ -686,7 +682,7 @@ func TestShouldReplace(t *testing.T) {
 	}
 }
 
-func TestApplicableFlavors(t *testing.T) {
+func TestApplicableTagSets(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, header string) string {
 		path := filepath.Join(dir, name)
@@ -705,66 +701,190 @@ func TestApplicableFlavors(t *testing.T) {
 	linuxBpf := write("bpf_test.go", "//go:build linux_bpf")
 	requireFips := write("fips_test.go", "//go:build requirefips")
 	windowsOnly := write("win_test.go", "//go:build windows")
+	platformAlternative := write("platform_alternative_test.go", "//go:build trivy || windows")
 	notRequireFips := write("nofips_test.go", "//go:build !requirefips")
 	goVersion := write("ver_test.go", "//go:build go1.22")
 	tagCombined := write("combo_test.go", "//go:build kubeapiserver && linux")
+	twoTags := write("two_tags_test.go", "//go:build trivy && containerd")
+	relatedTags := write("related_tags_test.go", "//go:build trivy && docker")
+	oneTag := write("one_tag_test.go", "//go:build trivy")
+	negativeTag := write("negative_tag_test.go", "//go:build zlib && !zstd")
+	compression := write("compression_test.go", "//go:build zlib && zstd")
+	alternatives := write("alternatives_test.go", "//go:build docker || containerd")
+	depOnly := write("dep_only_test.go", "//go:build trivy_no_javadb")
+	taggedLibrary := write("tagged.go", "//go:build kubeapiserver")
+	linuxBpfLibrary := write("bpf.go", "//go:build linux_bpf")
+	orchestrator := write("orchestrator_test.go", "//go:build orchestrator")
+	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
+	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet", "orchestrator")
+	var manyTagNames []string
+	for tag := range AutoTestTags {
+		manyTagNames = append(manyTagNames, tag)
+	}
+	sort.Strings(manyTagNames)
+	if len(manyTagNames) <= maxEnumeratedAutoTestTags {
+		t.Fatalf("need more than %d auto test tags", maxEnumeratedAutoTestTags)
+	}
+	manyTagNames = manyTagNames[:maxEnumeratedAutoTestTags+1]
+	manyTagSet := tagsList(manyTagNames...)
+	manyTags := write("many_tags_test.go", "//go:build "+strings.Join(manyTagNames, " && "))
+	manyPositiveTagSet := tagsList(manyTagNames[:maxEnumeratedAutoTestTags]...)
+	manyTagsWithNegative := write(
+		"many_tags_negative_test.go",
+		"//go:build "+strings.Join(manyTagNames[:maxEnumeratedAutoTestTags], " && ")+" && !"+manyTagNames[maxEnumeratedAutoTestTags],
+	)
 
 	for _, tc := range []struct {
-		name string
-		srcs []string
-		want []string
+		name              string
+		srcs              []string
+		librarySrcs       []string
+		configuredTagSets [][]string
+		wantDefault       bool
+		wantTagSets       [][]string
 	}{
 		{
-			name: "unconstrained file => all flavors",
-			srcs: []string{noConstraint},
-			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+			name:        "unconstrained file uses default only",
+			srcs:        []string{noConstraint},
+			wantDefault: true,
 		},
 		{
-			name: "linux_bpf only => no flavor (no flavor's tag set contains linux_bpf)",
-			srcs: []string{linuxBpf},
-			want: nil,
+			name:        "linux_bpf gets focused variant",
+			srcs:        []string{linuxBpf},
+			wantTagSets: [][]string{tagsList("linux_bpf")},
 		},
 		{
-			name: "requirefips => only fips",
-			srcs: []string{requireFips},
-			want: []string{"fips"},
+			name:        "requirefips gets focused variant",
+			srcs:        []string{requireFips},
+			wantTagSets: [][]string{tagsList("requirefips")},
 		},
 		{
-			name: "windows-only => all flavors (platform tokens treated as may-match)",
-			srcs: []string{windowsOnly},
-			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+			name:        "windows-only uses default",
+			srcs:        []string{windowsOnly},
+			wantDefault: true,
 		},
 		{
-			name: "!requirefips => everything except fips",
-			srcs: []string{notRequireFips},
-			want: []string{"base", "dogstatsd", "heroku", "iot"},
+			name:        "feature alternative to platform needs both targets",
+			srcs:        []string{platformAlternative},
+			wantDefault: true,
+			wantTagSets: [][]string{tagsList("trivy")},
 		},
 		{
-			name: "go1.x version constraint => all flavors",
-			srcs: []string{goVersion},
-			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+			name:        "negative feature uses default",
+			srcs:        []string{notRequireFips},
+			wantDefault: true,
 		},
 		{
-			name: "kubeapiserver && linux => only flavors whose tag set includes kubeapiserver",
-			srcs: []string{tagCombined},
-			want: []string{"base", "fips"},
+			name:        "go1.x version constraint uses default",
+			srcs:        []string{goVersion},
+			wantDefault: true,
 		},
 		{
-			name: "mix: one unconstrained file overrides everything",
-			srcs: []string{linuxBpf, noConstraint},
-			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+			name:        "feature and platform",
+			srcs:        []string{tagCombined},
+			wantTagSets: [][]string{tagsList("kubeapiserver")},
 		},
 		{
-			name: "mix: any matching src is enough",
-			srcs: []string{linuxBpf, requireFips},
-			want: []string{"fips"},
+			name:        "unconstrained and tagged files need both targets",
+			srcs:        []string{linuxBpf, noConstraint},
+			wantDefault: true,
+			wantTagSets: [][]string{tagsList("linux_bpf")},
+		},
+		{
+			name:        "independent tagged files get independent variants",
+			srcs:        []string{linuxBpf, requireFips},
+			wantTagSets: [][]string{tagsList("linux_bpf"), tagsList("requirefips")},
+		},
+		{
+			name:        "and expression gets combined variant",
+			srcs:        []string{twoTags},
+			wantTagSets: [][]string{tagsList("containerd", "trivy")},
+		},
+		{
+			name:        "superset covering same sources removes subset",
+			srcs:        []string{oneTag, twoTags},
+			wantTagSets: [][]string{tagsList("containerd", "trivy")},
+		},
+		{
+			name:        "related combinations coalesce",
+			srcs:        []string{twoTags, relatedTags},
+			wantTagSets: [][]string{tagsList("containerd", "docker", "trivy")},
+		},
+		{
+			name:        "superset does not remove negative-tag mode",
+			srcs:        []string{negativeTag, compression},
+			wantTagSets: [][]string{tagsList("zlib"), tagsList("zlib", "zstd")},
+		},
+		{
+			name:        "or expression gets minimal alternatives",
+			srcs:        []string{alternatives},
+			wantTagSets: [][]string{tagsList("containerd"), tagsList("docker")},
+		},
+		{
+			name:        "unreadable source does not hide later variants",
+			srcs:        []string{"missing_test.go", linuxBpf},
+			wantTagSets: [][]string{tagsList("linux_bpf")},
+		},
+		{
+			name:        "large expression uses bounded combined variant",
+			srcs:        []string{manyTags},
+			wantTagSets: [][]string{manyTagSet},
+		},
+		{
+			name:        "large expression preserves negative tags",
+			srcs:        []string{manyTagsWithNegative},
+			wantTagSets: [][]string{manyPositiveTagSet},
+		},
+		{
+			name: "dependency-only tag does not create unit test",
+			srcs: []string{depOnly},
+		},
+		{
+			name:        "embedded library does not derive a variant",
+			srcs:        []string{noConstraint},
+			librarySrcs: []string{taggedLibrary},
+			wantDefault: true,
+		},
+		{
+			name:              "configured set is canonical for related tags",
+			srcs:              []string{orchestrator},
+			configuredTagSets: [][]string{kubernetesTagSet},
+			wantTagSets:       [][]string{kubernetesTagSet},
+		},
+		{
+			name:              "configured set suppresses incompatible partial mode",
+			srcs:              []string{kubeAPIServerWithoutKubelet},
+			configuredTagSets: [][]string{kubernetesTagSet},
+		},
+		{
+			name:              "unrelated tags still derive focused variants",
+			srcs:              []string{linuxBpf},
+			configuredTagSets: [][]string{kubernetesTagSet},
+			wantTagSets:       [][]string{tagsList("linux_bpf")},
+		},
+		{
+			name:              "embedded library selects configured set",
+			srcs:              []string{noConstraint},
+			librarySrcs:       []string{taggedLibrary},
+			configuredTagSets: [][]string{kubernetesTagSet},
+			wantDefault:       true,
+			wantTagSets:       [][]string{kubernetesTagSet},
+		},
+		{
+			name:              "untagged test embedding linux_bpf library selects configured set",
+			srcs:              []string{noConstraint},
+			librarySrcs:       []string{linuxBpfLibrary},
+			configuredTagSets: [][]string{tagsList("linux_bpf")},
+			wantDefault:       true,
+			wantTagSets:       [][]string{tagsList("linux_bpf")},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := applicableFlavors(tc.srcs, dir)
-			sort.Strings(got) // applicableFlavors already returns sorted, double-check stability
-			if !stringSlicesEqual(got, tc.want) {
-				t.Errorf("got %v, want %v", got, tc.want)
+			gotDefault, gotTagSets := applicableTagSets(tc.srcs, tc.librarySrcs, dir, tc.configuredTagSets)
+			if gotDefault != tc.wantDefault {
+				t.Errorf("includeDefault = %v, want %v", gotDefault, tc.wantDefault)
+			}
+			if !tagSetsEqual(gotTagSets, tc.wantTagSets) {
+				t.Errorf("tagSets = %v, want %v", gotTagSets, tc.wantTagSets)
 			}
 		})
 	}
@@ -787,6 +907,9 @@ func TestKinds(t *testing.T) {
 	}
 	if !info.MergeableAttrs["srcs"] {
 		t.Error("expected srcs in MergeableAttrs")
+	}
+	if !info.MergeableAttrs["gotags_sets"] || !info.MergeableAttrs["include_default"] {
+		t.Error("expected flavorless attrs in MergeableAttrs")
 	}
 	if !info.ResolveAttrs["deps"] {
 		t.Error("expected deps in ResolveAttrs")

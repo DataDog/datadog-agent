@@ -35,11 +35,15 @@ dd_agent_go_test(
         "tailer_test.go",
     ],
     embed = [":container"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/logs/agent/config",
         "//comp/logs/auditor/mock",

@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.69.4
 	github.com/itchyny/gojq v0.12.19
 	github.com/stretchr/testify v1.11.1
-	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v3 v3.0.5
 )
 
 require (

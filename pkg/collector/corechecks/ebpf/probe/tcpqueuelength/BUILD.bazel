@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
-# gazelle:dd_linux_bpf on
-
 exports_files([
     "tcp_queue_length_kern_types_linux.go",
     "tcp_queue_length_kern_types_linux_test.go",
@@ -64,7 +62,6 @@ go_test(
     name = "tcpqueuelength_test",
     # keep: split from tcpqueuelength_types_test; see comment above.
     srcs = ["tcp_queue_length_test.go"],
-    embed = [":tcpqueuelength"],
     gotags = [
         "test",
         "linux_bpf",

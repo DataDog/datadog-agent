@@ -61,6 +61,16 @@ dd_agent_go_test(
         "kubernetes_reader_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [
+        [
+            "containerd",
+            "cri",
+        ],
+        [
+            "docker",
+            "kubelet",
+        ],
+    ],
     deps = [
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",

@@ -132,9 +132,27 @@ func TestBuildRemoteAgentListener(t *testing.T) {
 	})
 
 	t.Run("unsupported_scheme", func(t *testing.T) {
-		_, err := buildRemoteAgentListener("vsock://2:50051")
+		_, err := buildRemoteAgentListener("ftp://2:50051")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported remote agent listen URI scheme")
+	})
+
+	t.Run("vsock", func(t *testing.T) {
+		ral, err := buildRemoteAgentListener("vsock://0")
+		if err != nil {
+			t.Skipf("AF_VSOCK not available in this environment: %v", err)
+		}
+		t.Cleanup(func() { _ = ral.listener.Close() })
+
+		assert.Empty(t, ral.cleanupSocketPath)
+		assert.True(t, strings.HasPrefix(ral.apiEndpointURI, "vsock://"), "got %q", ral.apiEndpointURI)
+		assert.NotEqual(t, "vsock://0", ral.apiEndpointURI, "random port should be resolved")
+	})
+
+	t.Run("vsock_invalid_port", func(t *testing.T) {
+		_, err := buildRemoteAgentListener("vsock://not-a-port")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid port")
 	})
 }
 

@@ -45,10 +45,14 @@ dd_agent_go_test(
         "releases_store_test.go",
     ],
     embed = [":helm"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/aggregator/mocksender",
         "//pkg/metrics/event",

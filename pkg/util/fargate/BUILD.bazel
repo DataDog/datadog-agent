@@ -23,9 +23,7 @@ dd_agent_go_test(
     name = "fargate_test",
     srcs = ["hostname_process_test.go"],
     embed = [":fargate"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [["fargateprocess"]],
+    include_default = False,
     deps = ["@com_github_stretchr_testify//assert"],
 )

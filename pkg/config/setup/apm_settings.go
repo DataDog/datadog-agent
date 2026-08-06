@@ -68,6 +68,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", true, "DD_APM_PEER_TAGS_AGGREGATION")
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.instrumentation.on_demand", true, "DD_APM_INSTRUMENTATION_ON_DEMAND")
 	config.BindEnvAndSetDefault("apm_config.workload_selection", true, "DD_APM_WORKLOAD_SELECTION")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injection_mode", "auto", "DD_APM_INSTRUMENTATION_INJECTION_MODE")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")

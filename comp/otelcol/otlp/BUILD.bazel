@@ -70,11 +70,8 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":otlp"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["otlp"]],
+    include_default = False,
     deps = [
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/tagger/fx-mock",

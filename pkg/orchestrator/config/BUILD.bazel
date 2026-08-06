@@ -22,10 +22,14 @@ dd_agent_go_test(
     name = "config_test",
     srcs = ["config_test.go"],
     embed = [":config"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

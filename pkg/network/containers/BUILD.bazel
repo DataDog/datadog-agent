@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-
-# gazelle:dd_linux_bpf on
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "containers",
@@ -48,17 +47,15 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "containers_test",
     srcs = [
         "container_item_linux_test.go",
         "container_store_linux_test.go",
     ],
     embed = [":containers"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],  # keep
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [

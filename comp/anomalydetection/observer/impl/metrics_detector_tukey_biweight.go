@@ -207,6 +207,9 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
+			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
+				continue
+			}
 			sk := tbStateKey{ref: meta.Ref, agg: agg}
 
 			state, exists := d.series[sk]

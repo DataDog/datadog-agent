@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 func TestUnmarshalDefaultConfig(t *testing.T) {
@@ -38,7 +37,7 @@ func TestUnmarshalConfig(t *testing.T) {
 	factory := newFactory()
 	got := factory.CreateDefaultConfig()
 	require.NoError(t, sub.Unmarshal(&got))
-	assert.NoError(t, xconfmap.Validate(got))
+	assert.NoError(t, confmap.Validate(got))
 
 	want := factory.CreateDefaultConfig().(*ExporterConfig)
 	want.TimeoutConfig.Timeout = 10 * time.Second

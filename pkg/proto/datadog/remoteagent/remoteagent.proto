@@ -35,6 +35,8 @@ message RegisterRemoteAgentRequest {
   // Supported schemes:
   // - "https://host:port" for TCP with TLS (recommended for network endpoints).
   // - "unix:///absolute/path" for Unix domain socket with TLS.
+  // - "vsock://cid:port" for AF_VSOCK with TLS (used when the remote agent and core agent
+  //   run in separate VMs, e.g. on kata/microVM clusters).
   //
   // SHOULD present a valid certificate where possible.
   string api_endpoint_uri = 4;

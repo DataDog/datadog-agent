@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
-# gazelle:dd_linux_bpf on
-
 exports_files([
     "c_types_linux.go",
     "c_types_linux_test.go",
@@ -74,7 +72,6 @@ go_test(
     # keep: split from ebpfcheck_types_test; see comment above.
     srcs = ["probe_test.go"],
     data = glob(["testdata/**"]),
-    embed = [":ebpfcheck"],
     gotags = [
         "test",
         "linux_bpf",

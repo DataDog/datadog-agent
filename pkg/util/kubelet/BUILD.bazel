@@ -25,11 +25,15 @@ dd_agent_go_test(
     name = "kubelet_test",
     srcs = ["hostname_test.go"],
     embed = [":kubelet"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",

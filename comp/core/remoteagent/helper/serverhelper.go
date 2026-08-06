@@ -77,8 +77,14 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return nil, errors.New("displayName is required")
 	}
 
-	// create the listener at a random port
-	ral, err := buildRemoteAgentListener("https://127.0.0.1:0")
+	// create the listener at a random port. On vsock-enabled (kata/microVM) clusters, the
+	// remote agent runs in a separate guest VM from the core agent, so the callback listener
+	// (used for status/flare/telemetry pulls) must also be reachable over AF_VSOCK.
+	listenURI := "https://127.0.0.1:0"
+	if config.GetString("vsock_addr") != "" {
+		listenURI = "vsock://0"
+	}
+	ral, err := buildRemoteAgentListener(listenURI)
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +315,21 @@ func buildRemoteAgentListener(listenURI string) (*remoteAgentListener, error) {
 		// http:// is permitted by the protocol but the helper itself always serves TLS,
 		// so we refuse to set up a server that advertises plaintext to the registry.
 		return nil, errors.New("http:// scheme is not supported on the remote agent server side (use https:// or unix://)")
+	case "vsock":
+		port, err := strconv.ParseUint(rest, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid vsock listen URI %q: invalid port: %w", listenURI, err)
+		}
+		l, err := vsock.Listen(uint32(port), &vsock.Config{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to listen on vsock port %d: %w", port, err)
+		}
+		addr, ok := l.Addr().(*vsock.Addr)
+		if !ok {
+			_ = l.Close()
+			return nil, fmt.Errorf("unexpected vsock listener address type %T", l.Addr())
+		}
+		return &remoteAgentListener{listener: l, apiEndpointURI: fmt.Sprintf("vsock://%d:%d", addr.ContextID, addr.Port)}, nil
 	default:
 		return nil, fmt.Errorf("unsupported remote agent listen URI scheme %q", scheme)
 	}

@@ -31,6 +31,7 @@ go_test(
     srcs = ["suite_test.go"],
     embed = [":e2e"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components",
         "//test/e2e-framework/testing/environments",

@@ -105,7 +105,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 	if a.SourceRef == nil || storage == nil {
 		return 0, false
 	}
-	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateCount)
+	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateSum)
 	return total / logPatternRateWindowSec, true
 }
 
@@ -114,7 +114,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 func logPatternPrevRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
 	if a.SourceRef != nil && storage != nil {
 		start := a.Timestamp - logPatternPrevRateWindowSec - logPatternRateWindowSec
-		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateCount)
+		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateSum)
 		if total == 0 {
 			return 0, false
 		}
