@@ -6,6 +6,8 @@ Windows without adding the binary to Agent packages.
 
 - `par-control` runs only when both `private_action_runner.enabled` and
   `private_action_runner.split_enabled` are true. Otherwise it exits cleanly.
+- On Linux and Windows, the monolithic Go runner also exits cleanly when split
+  mode is enabled. Other platforms continue to use the monolithic runner.
 - In split mode, `par-control` asks `dd-procmgrd` to start the existing
   `privateactionrunner run-executor` process and polls its state.
 - Graceful shutdown uses `SIGTERM` on Linux and `CTRL_BREAK` on Windows,
