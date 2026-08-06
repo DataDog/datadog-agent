@@ -30,28 +30,6 @@ func RemovePARProcmgrConfig(installRootResolved string) error {
 	return removeInstallRootProcmgrConfig(installRootResolved, parInstallRootProcmgrSpec)
 }
 
-// The control plane ships as its own binary, so the write is gated on
-// par-control.exe rather than privateactionrunner.exe.
-var parControlInstallRootProcmgrSpec = installRootProcmgrSpec{
-	logLabel:          "PAR control plane",
-	binaryRelPath:     "bin/agent/par-control.exe",
-	configFileName:    "datadog-agent-par-control.yaml",
-	embeddedConfig:    embedded.PARControlWindowsProcmgrConfig,
-	placeholderPrefix: "PAR",
-}
-
-// WritePARControlProcmgrConfig writes datadog-agent-par-control.yaml under
-// installRootResolved\processes.d.
-func WritePARControlProcmgrConfig(installRootResolved string) error {
-	return writeInstallRootProcmgrConfig(installRootResolved, parControlInstallRootProcmgrSpec)
-}
-
-// RemovePARControlProcmgrConfig removes the PAR control plane processes.d YAML from
-// installRootResolved\processes.d.
-func RemovePARControlProcmgrConfig(installRootResolved string) error {
-	return removeInstallRootProcmgrConfig(installRootResolved, parControlInstallRootProcmgrSpec)
-}
-
 var parExecutorInstallRootProcmgrSpec = installRootProcmgrSpec{
 	logLabel:          "PAR executor",
 	binaryRelPath:     "bin/agent/privateactionrunner.exe",

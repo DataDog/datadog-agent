@@ -130,7 +130,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 	}
 
 	err := fxutil.Run(fxOptions...)
-	if errors.Is(err, privateactionrunner.ErrNotEnabled) || errors.Is(err, privateactionrunner.ErrSplitDeployment) {
+	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
 		return nil
 	}
 	return err
