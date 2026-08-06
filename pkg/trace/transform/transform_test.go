@@ -458,7 +458,7 @@ func TestOtelSpanToDDSpanTraceStatePreservation(t *testing.T) {
 			}
 
 			// Minimal conversion (APM stats path).
-			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 			// Full conversion.
 			fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
 
@@ -506,7 +506,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 					return span
 				}
 
-				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 				rate, ok := minSpan.Metrics["_sample_rate"]
 				require.True(t, ok, "minimal conversion must set _sample_rate")
 				assert.InDelta(t, tt.wantRate, rate, 1e-9)
@@ -522,7 +522,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 	t.Run("no tracestate leaves _sample_rate unset", func(t *testing.T) {
 		span := ptrace.NewSpan()
 		span.SetName("test-span")
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 		_, ok := minSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
 	})
@@ -534,6 +534,84 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 		fullSpan := OtelSpanToDDSpan(span, pcommon.NewResource(), lib, newCfg())
 		_, ok := fullSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
+	})
+}
+
+// TestOtelSpanToDDSpanMinimalPrimaryTags verifies that span-derived primary tag
+// keys are copied into the minimal span's Meta (so the APM stats Concentrator's
+// matchingAdditionalMetricTags can aggregate on them), that span attributes take
+// precedence over resource attributes, and that unlisted keys are not copied.
+func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+
+	t.Run("copies configured keys from span and resource attrs", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("region", "us-east-1")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team", "region"})
+
+		assert.Equal(t, "checkout", minSpan.Meta["team"])
+		assert.Equal(t, "us-east-1", minSpan.Meta["region"])
+	})
+
+	t.Run("span attribute takes precedence over resource attribute", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "span-team")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("team", "resource-team")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+
+		assert.Equal(t, "span-team", minSpan.Meta["team"])
+	})
+
+	t.Run("unlisted keys are not copied and empty values are skipped", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+		span.Attributes().PutStr("not-a-primary-tag", "ignored")
+		span.Attributes().PutStr("empty", "")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, []string{"team", "empty", "missing"})
+
+		assert.Equal(t, "checkout", minSpan.Meta["team"])
+		assert.NotContains(t, minSpan.Meta, "not-a-primary-tag")
+		assert.NotContains(t, minSpan.Meta, "empty")
+		assert.NotContains(t, minSpan.Meta, "missing")
+	})
+
+	t.Run("empty span attribute falls back to resource attribute", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("team", "platform")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+
+		// An empty span value is treated as absent, so the resource value is used.
+		assert.Equal(t, "platform", minSpan.Meta["team"])
+	})
+
+	t.Run("nil primaryTagKeys copies nothing", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+
+		assert.NotContains(t, minSpan.Meta, "team")
 	})
 }
 
