@@ -15,6 +15,9 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "-framework IOKit -framework CoreFoundation",
         ],
+        "@rules_go//go/platform:ios": [
+            "-framework IOKit -framework CoreFoundation",
+        ],
         "//conditions:default": [],
     }),
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/thermal",
@@ -49,7 +52,11 @@ go_library(
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/sender",
             "//pkg/collector/check",
+            "//pkg/collector/corechecks",
+            "//pkg/util/log",
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:js": [
