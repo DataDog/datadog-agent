@@ -1157,10 +1157,10 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 517
 	case metrics.MetricSourceVersa:
 		return 519
-	case metrics.MetricSourceKueue:
-		return 526
 	case metrics.MetricSourceExternalSecrets:
 		return 525
+	case metrics.MetricSourceKueue:
+		return 526
 	default:
 		return 0
 	}
