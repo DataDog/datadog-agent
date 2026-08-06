@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -179,6 +180,86 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
 		assert.NoError(ct, err)
 		assert.NotContains(ct, owner, "NT AUTHORITY/SYSTEM")
 	}, 60*time.Second, 2*time.Second)
+}
+
+func (s *procmgrWindowsSuite) TestAgentProfileDescribeUserMatchesRuntimeUser() {
+	host := s.Env().RemoteHost
+
+	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
+	require.NoError(s.T(), err)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		assertField(ct, desc, "State", "Running")
+		assertField(ct, desc, "Profile", "agent")
+		assertHasField(ct, desc, "User")
+		assertHasField(ct, desc, "Runtime User")
+
+		user := fieldValue(desc, "User")
+		runtimeUser := fieldValue(desc, "Runtime User")
+		assert.NotEmpty(ct, user)
+		assert.NotEmpty(ct, runtimeUser)
+		assert.Equal(ct, user, runtimeUser,
+			"describe User should match Runtime User for agent-profile children")
+		// MSI stores the machine name as installedDomain for local ddagentuser;
+		// procmgr display normalizes local SAM accounts to .\user.
+		assert.Equal(ct, `.\`+agentUser, user,
+			"local agent user should use registry-style .\\user display")
+	}, 60*time.Second, 2*time.Second)
+}
+
+func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
+	host := s.Env().RemoteHost
+
+	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
+	require.NoError(s.T(), err)
+
+	markerPath := `C:\ProgramData\Datadog\procmgr-e2e-userprofile.txt`
+	// Use forward slashes inside the YAML double-quoted arg: backslashes are escape sequences in YAML.
+	markerPathForYAML := `C:/ProgramData/Datadog/procmgr-e2e-userprofile.txt`
+	yamlPath := joinWindowsPath(winConfigDir, "test-userprofile-env.yaml")
+	yamlContent := fmt.Sprintf(`command: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+args:
+  - "-NoProfile"
+  - "-NonInteractive"
+  - "-Command"
+  - "$env:USERPROFILE | Set-Content -LiteralPath '%s'"
+env:
+  SystemRoot: C:\Windows
+  PATH: C:\Windows\System32;C:\Windows
+auto_start: true
+restart: always
+description: E2E userprofile env check
+`, markerPathForYAML)
+
+	host.MustExecute(writeProcessesDYamlContent(yamlPath, yamlContent))
+	// Register marker cleanup first so it runs after yaml removal and agent restart (LIFO).
+	defer func() {
+		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, markerPath))
+	}()
+	defer func() {
+		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, yamlPath))
+		_ = windowsCommon.RestartService(host, "DatadogAgent")
+	}()
+
+	require.NoError(s.T(), windowsCommon.RestartService(host, "DatadogAgent"))
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := host.MustExecuteOn(ct, s.platform.checkSvcRunning)
+		assert.Contains(ct, strings.TrimSpace(out), s.platform.svcRunningOutput)
+	}, 60*time.Second, 2*time.Second)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-userprofile-env"))
+		assertField(ct, desc, "State", "Running")
+	}, 60*time.Second, 2*time.Second)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := host.MustExecuteOn(ct, psRemote(`Get-Content -LiteralPath '%s' -ErrorAction Stop`, markerPath))
+		userProfile := strings.TrimSpace(out)
+		assert.NotEmpty(ct, userProfile)
+		assert.NotContains(ct, strings.ToLower(userProfile), "systemprofile")
+		assert.Contains(ct, strings.ToLower(userProfile), strings.ToLower(agentUser))
+	}, 120*time.Second, 2*time.Second)
 }
 
 func (s *procmgrWindowsSuite) waitWindowsADPRunning(timeout time.Duration) string {
