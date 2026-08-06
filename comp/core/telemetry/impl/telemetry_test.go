@@ -135,6 +135,87 @@ func TestGoMetrics(t *testing.T) {
 	assert.NotContains(t, metricNames, "go_godebug_non_default_behavior_execerrdot_events_total")
 }
 
+func TestCanonicalMetricHelp(t *testing.T) {
+	tel := fxutil.Test[telemetry.Mock](t, MockModule())
+
+	tests := []struct {
+		name       string
+		metricName string
+		help       string
+		create     func()
+	}{
+		{
+			name:       "counter vec",
+			metricName: "counter_vec__requests",
+			help:       "counter vec help",
+			create: func() {
+				tel.NewCounterWithOpts("counter_vec", "requests", []string{"state"}, "counter vec help", telemetry.DefaultOptions)
+			},
+		},
+		{
+			name:       "simple counter",
+			metricName: "dogstatsd_client__bytes_sent",
+			help:       "simple counter help",
+			create: func() {
+				tel.NewSimpleCounterWithOpts("dogstatsd_client", "bytes_sent", "simple counter help", telemetry.DefaultOptions)
+			},
+		},
+		{
+			name:       "gauge vec",
+			metricName: "gauge_vec_connections",
+			help:       "gauge vec help",
+			create: func() {
+				tel.NewGaugeWithOpts("gauge_vec", "connections", []string{"state"}, "gauge vec help", telemetry.Options{NoDoubleUnderscoreSep: true})
+			},
+		},
+		{
+			name:       "simple gauge",
+			metricName: "simple_gauge__queue_depth",
+			help:       "simple gauge help",
+			create: func() {
+				tel.NewSimpleGaugeWithOpts("simple_gauge", "queue_depth", "simple gauge help", telemetry.DefaultOptions)
+			},
+		},
+		{
+			name:       "histogram vec",
+			metricName: "histogram_vec__duration_seconds",
+			help:       "histogram vec help",
+			create: func() {
+				tel.NewHistogramWithOpts("histogram_vec", "duration_seconds", []string{"state"}, "histogram vec help", []float64{1}, telemetry.DefaultOptions)
+			},
+		},
+		{
+			name:       "simple histogram",
+			metricName: "simple_histogram__size_bytes",
+			help:       "simple histogram help",
+			create: func() {
+				tel.NewSimpleHistogramWithOpts("simple_histogram", "size_bytes", "simple histogram help", []float64{1}, telemetry.DefaultOptions)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.create()
+
+			help, found := tel.CanonicalMetricHelp(tt.metricName)
+			assert.True(t, found)
+			assert.Equal(t, tt.help, help)
+		})
+	}
+
+	_, found := tel.CanonicalMetricHelp("missing_metric")
+	assert.False(t, found)
+
+	tel.NewSimpleGaugeWithOpts("default", "metric", "default metric help", telemetry.Options{DefaultMetric: true})
+	_, found = tel.CanonicalMetricHelp("default__metric")
+	assert.False(t, found)
+
+	tel.Reset()
+	_, found = tel.CanonicalMetricHelp("dogstatsd_client__bytes_sent")
+	assert.False(t, found)
+}
+
 func TestGatherText(t *testing.T) {
 	tel := fxutil.Test[telemetry.Mock](t, MockModule())
 

@@ -137,7 +137,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 			return struct{}{}
 		}
 		if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
-			collectFromPromText(ch, promText.PromText, details.SanitizedDisplayName)
+			collectFromPromText(ch, promText.PromText, details.SanitizedDisplayName, c.registry.telemetry.CanonicalMetricHelp)
 		}
 		return struct{}{}
 	}
@@ -147,7 +147,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent
-func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string) {
+func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string, canonicalMetricHelp func(string) (string, bool)) {
 	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
 	if err != nil {
@@ -159,6 +159,9 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 		help := ""
 		if mf.Help != nil {
 			help = *mf.Help
+		}
+		if canonicalHelp, found := canonicalMetricHelp(mf.GetName()); found {
+			help = canonicalHelp
 		}
 
 		for _, metric := range mf.Metric {

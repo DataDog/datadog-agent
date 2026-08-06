@@ -220,6 +220,50 @@ func TestGetTelemetry(t *testing.T) {
 	}, protocmp.Transform()))
 }
 
+func TestGetTelemetryUsesCanonicalHelpForLocalMetricFamily(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	lc.Start(context.Background())
+	component := provides.Comp
+
+	telemetryComp.NewSimpleCounter("dogstatsd_client", "bytes_sent", "Total bytes sent by DogStatsD clients")
+
+	promText := `
+# HELP dogstatsd_client__bytes_sent Remote Agent Data Plane wording
+# TYPE dogstatsd_client__bytes_sent counter
+dogstatsd_client__bytes_sent 100
+# HELP remote_only_metric Remote-only help
+# TYPE remote_only_metric gauge
+remote_only_metric 1
+`
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "agent-data-plane", "Agent Data Plane", "123",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+	metricsByName := metricsToMap(metrics)
+
+	localMetric := metricsByName["dogstatsd_client__bytes_sent"]
+	require.NotNil(t, localMetric)
+	assert.Equal(t, "Total bytes sent by DogStatsD clients", localMetric.GetHelp())
+	require.Len(t, localMetric.GetMetric(), 2)
+
+	var remoteMetric *io_prometheus_client.Metric
+	for _, metric := range localMetric.GetMetric() {
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == emitterMetricTagName && label.GetValue() == "agent-data-plane" {
+				remoteMetric = metric
+			}
+		}
+	}
+	require.NotNil(t, remoteMetric)
+	assert.Equal(t, 100.0, remoteMetric.GetCounter().GetValue())
+
+	remoteOnlyMetric := metricsByName["remote_only_metric"]
+	require.NotNil(t, remoteOnlyMetric)
+	assert.Equal(t, "Remote-only help", remoteOnlyMetric.GetHelp())
+}
+
 func TestGetTelemetryCollectsADPClientByteCounters(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	lc.Start(context.Background())
