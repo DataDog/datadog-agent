@@ -4,7 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "networkv2",
     srcs = [
-        "const.go",
+        "const_linux.go",
         "network.go",
         "network_linux.go",
         "network_windows.go",
