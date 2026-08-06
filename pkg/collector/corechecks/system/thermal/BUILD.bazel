@@ -7,6 +7,7 @@ go_library(
         "thermal_darwin.c",
         "thermal_darwin.go",
         "thermal_darwin.h",
+        "thermal_darwin_testhelpers.go",
         "thermal_stub.go",
         "thermal_windows.go",
     ],
@@ -107,9 +108,24 @@ go_library(
 
 dd_agent_go_test(
     name = "thermal_test",
-    srcs = ["thermal_windows_test.go"],
+    srcs = [
+        "thermal_darwin_test.go",
+        "thermal_windows_test.go",
+    ],
     embed = [":thermal"],
     deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:windows": [
             "//comp/core/autodiscovery/integration",
             "//pkg/aggregator/mocksender",
