@@ -37,6 +37,7 @@ const (
 	containerImageSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
 	processSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	kubeMetadataSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	nodeSource                = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesNode)
 	deploymentSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 	kueueQueueSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueQueue)
 	kueueResourceFlavorSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesKueueResourceFlavor)

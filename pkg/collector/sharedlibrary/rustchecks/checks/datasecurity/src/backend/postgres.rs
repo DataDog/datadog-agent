@@ -36,14 +36,6 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         bail!("postgres connection host is required");
     }
     let timeout = sub_task.timeout;
-    println!(
-        "datasecurity: connecting to postgres host={} port={} dbname={} user={} timeout={}s",
-        conn.host,
-        conn.port,
-        conn.dbname,
-        conn.username,
-        timeout.as_secs()
-    );
 
     let mut config = Config::new();
     config

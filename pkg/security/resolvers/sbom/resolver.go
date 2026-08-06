@@ -244,11 +244,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		pendingFileEvents:     make(map[containerutils.ContainerID][]pendingFileEvent),
 	}
 
-	sboms, err := simplelru.NewLRU(maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
-		// should be trigger from a function already locking the sbom, see Add, Delete
-		sbom.stop()
-		resolver.removePendingScan(sbom.ContainerID)
-	})
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, resolver.onSBOMEvicted)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOM resolver: %w", err)
 	}
@@ -589,7 +585,6 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 
 		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
 			sbom.usrMerged = isUsrMerged(containerProcRootPath)
-			sbom.setReport(report)
 			scanned = true
 			break
 		}
@@ -654,21 +649,32 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		if currentState != stoppedState {
 			// should not append, ignore
 			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sb.ContainerID, currentState)
-			return nil
 		}
+
+		// a stopped workload is unreachable from the resolver, so not returning here would start a new
+		// forwarding debouncer go routine that we can never stop
+		return nil
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	r.dataCacheLock.RLock()
+	r.dataCacheLock.Lock()
 	if data, exists := r.dataCache.Get(sb.workloadKey); exists {
-		r.dataCacheLock.RUnlock()
+		r.dataCacheLock.Unlock()
 		sb.data = data
 
+		sb.state.Store(computedState)
+
+		r.sbomsCacheHit.Inc()
+
 		r.removePendingScan(sb.ContainerID)
+		r.processPendingFileEvents(sb)
 
 		return nil
 	}
-	r.dataCacheLock.RUnlock()
+	r.dataCacheLock.Unlock()
+
+	// Only count a cache miss when we actually do the scan
+	r.sbomsCacheMiss.Inc()
 
 	report, scanErr := r.doScan(sb)
 	if scanErr != nil {
@@ -863,17 +869,24 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 
 	// check if this sbom has been scanned before
 	r.dataCacheLock.Lock()
-	defer r.dataCacheLock.Unlock()
+	data, cached := r.dataCache.Get(sbom.workloadKey)
+	r.dataCacheLock.Unlock()
 
-	if data, ok := r.dataCache.Get(sbom.workloadKey); ok {
+	if cached {
 		sbom.data = data
 
 		sbom.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
+
+		// file accesses are queued from the moment a container ID resolves, which
+		// happens before the workload selector that got us here.
+		r.processPendingFileEvents(sbom)
+
 		return
 	}
-	r.sbomsCacheMiss.Inc()
+	// Do not increment sbomsCacheMiss here since the SBOM can still hit
+	// the cache after it has been dequeued.
 
 	r.triggerScan(sbom)
 }
@@ -950,6 +963,10 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 
 	sbom, ok := r.sboms.Peek(id)
 	if !ok {
+		// file accesses are queued as soon as a container ID is resolved, which
+		// happens well before the workload selector that creates the SBOM entry, so
+		// a container that dies in between has accesses to release and nothing else
+		r.deletePendingFileEvents(id)
 		return
 	}
 	sbom.Lock()
@@ -964,12 +981,26 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
 
-	r.pendingFileEventsLock.Lock()
-	delete(r.pendingFileEvents, sbom.ContainerID)
-	r.pendingFileEventsLock.Unlock()
-
 	// should be called under sbom.Lock and sbomsLock.Lock
+	// the eviction callback releases everything else indexed by the container ID
 	r.sboms.Remove(sbom.ContainerID)
+}
+
+// onSBOMEvicted releases everything indexed by the container ID of an SBOM leaving
+// the cache. It runs both on the explicit removal done by deleteSBOM and on the
+// eviction of the least recently used entry, so it is the single release point.
+// Should be triggered from a function already locking the sbom, see Add, Delete.
+func (r *Resolver) onSBOMEvicted(_ containerutils.ContainerID, sbom *SBOM) {
+	sbom.stop()
+	r.removePendingScan(sbom.ContainerID)
+	r.deletePendingFileEvents(sbom.ContainerID)
+}
+
+// deletePendingFileEvents drops the file accesses queued for the provided container ID
+func (r *Resolver) deletePendingFileEvents(containerID containerutils.ContainerID) {
+	r.pendingFileEventsLock.Lock()
+	delete(r.pendingFileEvents, containerID)
+	r.pendingFileEventsLock.Unlock()
 }
 
 // SetPolicyGeneratorCallback sets a callback to be called when an SBOM is computed

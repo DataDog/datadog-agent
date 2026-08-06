@@ -159,13 +159,13 @@ func (l *Launcher) startSource(source *sourcesPkg.LogSource) {
 
 	tailer, err := l.tailerFactory.MakeTailer(source)
 	if err != nil {
-		source.Status.Error(err)
+		source.Status().Error(err)
 		return
 	}
 
 	err = tailer.Start()
 	if err != nil {
-		source.Status.Error(err)
+		source.Status().Error(err)
 		return
 	}
 	source.AddInput(source.Config.Identifier)

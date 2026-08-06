@@ -198,6 +198,19 @@ dd_agent_go_test(
         "status_provider_test.go",
     ],
     embed = [":compliance"],
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        [
+            "docker",
+            "kubelet",
+        ],
+    ],
     deps = [
         "//comp/core/secrets/noop-impl",
         "//comp/logs-library/client",

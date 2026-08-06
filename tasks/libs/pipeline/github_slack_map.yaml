@@ -216,13 +216,13 @@
   review:
     name: '#container-platform'
     id: 'C0702JHC7G8'
-'@datadog/core-authn':
+'@datadog/credential-management':
   notification:
-    name: '#aaa-authn'
-    id: 'C02S3STU39N'
+    name: '#dal-ops'
+    id: 'C0AQHTYTVAA'
   review:
-    name: '#aaa-authn'
-    id: 'C02S3STU39N'
+    name: '#aaa-auth-identity-help'
+    id: 'C0AA7D5117D'
 '@datadog/data-observability':
   notification:
     name: '#data-observability-ops'

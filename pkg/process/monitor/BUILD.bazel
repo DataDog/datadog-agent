@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "monitor",
@@ -28,4 +29,24 @@ go_library(
         ],
         "//conditions:default": [],
     }),
+)
+
+dd_agent_go_test(
+    name = "monitor_test",
+    srcs = ["process_monitor_test.go"],
+    embed = [":monitor"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    # keep: the linux_bpf variant needs a privileged host with a live kernel;
+    # it runs in the system-probe lane, not under wildcard builds.
+    tags = ["manual"],
+    deps = [
+        "//pkg/eventmonitor/consumers/testutil",
+        "//pkg/network/protocols/telemetry",
+        "//pkg/util/kernel/netns",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@com_github_vishvananda_netns//:netns",
+    ],
 )

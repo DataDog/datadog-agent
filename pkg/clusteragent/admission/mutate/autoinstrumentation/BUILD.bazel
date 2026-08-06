@@ -64,7 +64,6 @@ dd_agent_go_test(
         "namespace_mutator_test.go",
         "policy_matcher_test.go",
         "service_name_test.go",
-        "target_matching_change_test.go",
         "target_matching_test.go",
         "target_mutator_test.go",
         "targets_test.go",
@@ -72,10 +71,14 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":autoinstrumentation"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//cmd/cluster-agent/admission",
         "//comp/core/config",
