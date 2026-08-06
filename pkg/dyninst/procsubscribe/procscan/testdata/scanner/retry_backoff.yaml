@@ -52,7 +52,7 @@ command: !create-process
 command: !scan {}
 state:
   current_time: 100
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 1, next_attempt: 110}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 109}
@@ -60,7 +60,7 @@ command: !advance-time {to: 109}
 command: !scan {}
 state:
   current_time: 109
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 1, next_attempt: 110}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 110}
@@ -68,7 +68,7 @@ command: !advance-time {to: 110}
 command: !scan {}
 state:
   current_time: 110
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 2, next_attempt: 130}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 129}
@@ -76,7 +76,7 @@ command: !advance-time {to: 129}
 command: !scan {}
 state:
   current_time: 129
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 2, next_attempt: 130}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 130}
@@ -84,7 +84,7 @@ command: !advance-time {to: 130}
 command: !scan {}
 state:
   current_time: 130
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 3, next_attempt: 170}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 169}
@@ -92,7 +92,7 @@ command: !advance-time {to: 169}
 command: !scan {}
 state:
   current_time: 169
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 3, next_attempt: 170}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 170}
@@ -100,7 +100,7 @@ command: !advance-time {to: 170}
 command: !scan {}
 state:
   current_time: 170
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 4, next_attempt: 250}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 4, next_attempt: 250}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 250}
@@ -108,7 +108,7 @@ command: !advance-time {to: 250}
 command: !scan {}
 state:
   current_time: 250
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 5, next_attempt: 350}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 5, next_attempt: 350}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 350}
@@ -116,7 +116,7 @@ command: !advance-time {to: 350}
 command: !scan {}
 state:
   current_time: 350
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 6, next_attempt: 450}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 6, next_attempt: 450}]
   processes_in_procfs: [1001]
 ---
 command: !advance-time {to: 450}
@@ -124,5 +124,5 @@ command: !advance-time {to: 450}
 command: !scan {}
 state:
   current_time: 450
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 1001, attempts: 7, next_attempt: 550}]
+  candidates: [{pid: 1001, start_time: 50, attempts: 7, next_attempt: 550}]
   processes_in_procfs: [1001]

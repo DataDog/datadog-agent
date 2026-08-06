@@ -57,7 +57,7 @@ new: [{pid: 1001, start_time: 50}]
 state:
   current_time: 100
   live: [{pid: 1001, start_time: 50}]
-  candidates: [{pid: 1002, start_time: 50, exe_ino: 1002, attempts: 1, next_attempt: 110}]
+  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
   processes_in_procfs: [1001, 1002]
 ---
 command: !remove-process {pid: 1001}
@@ -85,5 +85,5 @@ removed: [1001]
 state:
   current_time: 120
   live: [{pid: 1001, start_time: 105}]
-  candidates: [{pid: 1002, start_time: 105, exe_ino: 1002, attempts: 1, next_attempt: 130}]
+  candidates: [{pid: 1002, start_time: 105, attempts: 1, next_attempt: 130}]
   processes_in_procfs: [1001, 1002]

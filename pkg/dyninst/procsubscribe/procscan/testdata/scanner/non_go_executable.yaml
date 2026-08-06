@@ -5,10 +5,10 @@
 # actually does so is checked against real binaries in
 # TestSyntheticProcfsScanWork.
 #
-# Such a process still backs off, because identifying its executable costs a
-# readlink, an open and a stat even when the answer is already cached. It stays
-# a candidate rather than being written off, because a process can exec into a
-# Go binary without its pid or start time changing.
+# Such a process is written off for good: identifying its executable costs a
+# readlink, an open and a stat even when the answer is already cached, and that
+# is the common case on a host. An exec into a Go binary keeps the pid and the
+# start time and so goes unnoticed, which is accepted.
 - !initialize
   current_time: 100
   min_age: 10
@@ -49,7 +49,7 @@ command: !create-process
 command: !scan {}
 state:
   current_time: 100
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 1, next_attempt: 110}, {pid: 1002, start_time: 50, exe_ino: 7, attempts: 1, next_attempt: 110}]
+  candidates: [{pid: 1001, start_time: 50, written_off: true}, {pid: 1002, start_time: 50, written_off: true}]
   processes_in_procfs: [1001, 1002]
 ---
 command: !advance-time {to: 110}
@@ -57,5 +57,5 @@ command: !advance-time {to: 110}
 command: !scan {}
 state:
   current_time: 110
-  candidates: [{pid: 1001, start_time: 50, exe_ino: 7, attempts: 2, next_attempt: 130}, {pid: 1002, start_time: 50, exe_ino: 7, attempts: 2, next_attempt: 130}]
+  candidates: [{pid: 1001, start_time: 50, written_off: true}, {pid: 1002, start_time: 50, written_off: true}]
   processes_in_procfs: [1001, 1002]

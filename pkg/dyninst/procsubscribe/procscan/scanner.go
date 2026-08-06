@@ -40,14 +40,6 @@ const (
 	// DefaultRetryBackoffCap is the longest delay between two attempts at
 	// reading a process' tracer metadata.
 	DefaultRetryBackoffCap = 5 * time.Minute
-	// DefaultNonGoBackoffCap is the longest delay between two looks at a
-	// process that is not running a Go binary, and therefore how late an exec
-	// into one can be noticed. It is shorter than DefaultRetryBackoffCap
-	// because identifying an executable costs a fraction of searching a process
-	// for tracer metadata: at 2000 processes, re-identifying every one of them
-	// this often costs well under a tenth of a percent of a core.
-	DefaultNonGoBackoffCap = time.Minute
-
 	// defaultExecutableCacheSize bounds the number of distinct executables for
 	// which we remember whether they are Go binaries.
 	defaultExecutableCacheSize = 1024
@@ -73,30 +65,29 @@ func procKeyLess(a, b procKey) bool {
 type candidate struct {
 	// startTime distinguishes this process from a later one that reuses its pid.
 	startTime ticks
-	// exeKey identifies the executable the last verdict was reached about, and
-	// is zero if the executable could not be identified. An exec is the one way
-	// a verdict about a process' executable stops being true without its pid or
-	// start time changing, so a scan that finds a different key here knows to
-	// start the schedule over.
-	exeKey process.FileKey
 	// seenAt is the time of the last scan that observed the process. Candidates
 	// not observed by a scan have exited and are dropped.
 	seenAt ticks
 	// attempts is the number of metadata reads that have failed.
 	attempts uint32
-	// nextAttempt is the earliest time of the next metadata read.
+	// nextAttempt is the earliest time of the next metadata read, or never for
+	// a process that has been written off.
 	nextAttempt ticks
 }
+
+// never is a nextAttempt that no scan can reach.
+const never = ticks(1<<64 - 1)
 
 // Scanner reconciles the set of processes that should be instrumented against
 // the set that is, once per Scan.
 //
-// Nothing about it is edge-triggered: a process is examined on every scan until
-// it is either instrumented or gone, with an exponential backoff on the reads
-// that turn out to be expensive. A read that fails because the tracer has not
-// published its metadata yet is therefore retried for as long as the process
-// lives, which is what makes a missed read, a slow scan or an agent restart
-// self-healing.
+// Almost nothing about it is edge-triggered: a process is examined on every
+// scan until it is either instrumented or gone, with an exponential backoff on
+// the reads that turn out to be expensive. A read that fails because the tracer
+// has not published its metadata yet is therefore retried for as long as the
+// process lives, which is what makes a missed read, a slow scan or an agent
+// restart self-healing. The one exception is a process that turns out not to be
+// running a Go binary, which is written off; see Scan.
 //
 // Thread-safety: Scan is not thread-safe, use from a single goroutine only.
 type Scanner struct {
@@ -106,10 +97,6 @@ type Scanner struct {
 	// the same process.
 	backoffBase ticks
 	backoffCap  ticks
-	// nonGoBackoffCap bounds the delay between two looks at a process that is
-	// not running a Go binary. Revisiting one is much cheaper than searching a
-	// process for tracer metadata, so it is worth doing more often.
-	nonGoBackoffCap ticks
 
 	// nowTicks returns the current time in ticks since boot.
 	nowTicks func() (ticks, error)
@@ -151,7 +138,6 @@ type scannerConfig struct {
 	minProcessAge       time.Duration
 	backoffBase         time.Duration
 	backoffCap          time.Duration
-	nonGoBackoffCap     time.Duration
 	executableCacheSize int
 }
 
@@ -159,7 +145,6 @@ var defaultScannerConfig = scannerConfig{
 	minProcessAge:       DefaultMinProcessAge,
 	backoffBase:         DefaultRetryBackoffBase,
 	backoffCap:          DefaultRetryBackoffCap,
-	nonGoBackoffCap:     DefaultNonGoBackoffCap,
 	executableCacheSize: defaultExecutableCacheSize,
 }
 
@@ -184,13 +169,6 @@ func WithRetryBackoff(base, maxDelay time.Duration) Option {
 	return optionFunc(func(c *scannerConfig) {
 		c.backoffBase, c.backoffCap = base, maxDelay
 	})
-}
-
-// WithNonGoBackoffCap sets the longest delay between two looks at a process
-// that is not running a Go binary, which bounds how late an exec into one is
-// noticed.
-func WithNonGoBackoffCap(d time.Duration) Option {
-	return optionFunc(func(c *scannerConfig) { c.nonGoBackoffCap = d })
 }
 
 // NewScanner creates a new Scanner that discovers processes in the given
@@ -239,7 +217,6 @@ func newScanner(
 		minAge:               durationToTicks(cfg.minProcessAge),
 		backoffBase:          durationToTicks(cfg.backoffBase),
 		backoffCap:           durationToTicks(cfg.backoffCap),
-		nonGoBackoffCap:      durationToTicks(cfg.nonGoBackoffCap),
 		nowTicks:             nowTicks,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
@@ -365,14 +342,8 @@ func (p *Scanner) Scan() (
 		executable, err := p.resolveExecutable(int32(pid))
 		if err != nil {
 			maybeLogErr("resolve executable", err)
-			p.scheduleRetry(key, c, process.FileKey{}, now, p.backoffCap)
+			p.scheduleRetry(key, c, now, p.backoffCap)
 			continue
-		}
-		if c != nil && c.exeKey != executable.Key {
-			// The process exec'd, so whatever its previous executable earned
-			// does not apply to this one. Start the schedule over instead of
-			// making the new binary wait out the old one's backoff.
-			c.attempts = 0
 		}
 
 		// Reading tracer metadata means walking the process' open file
@@ -381,23 +352,34 @@ func (p *Scanner) Scan() (
 		isGo, err := p.isGoExecutable(executable)
 		if err != nil {
 			maybeLogErr("analyze executable", err)
-			p.scheduleRetry(key, c, executable.Key, now, p.backoffCap)
+			p.scheduleRetry(key, c, now, p.backoffCap)
 			continue
 		}
 		if !isGo {
-			// The verdict is remembered per executable, but reaching it costs a
-			// readlink, an open and a stat to identify the executable at all.
-			// Back off so that cost is not paid every scan, under the shorter
-			// cap, since revisiting the process is how an exec into a Go binary
-			// gets noticed and that should not take five minutes.
-			p.scheduleRetry(key, c, executable.Key, now, p.nonGoBackoffCap)
+			// Written off for good. The verdict is remembered per executable,
+			// but reaching it costs a readlink, an open and a stat to identify
+			// the executable at all, and this is the common case on a host, so
+			// the process is never looked at again. The entry goes away when
+			// the process exits.
+			//
+			// Known gap: exec keeps a process' pid and start time, so a wrapper
+			// that is still running its entrypoint the first time we look at
+			// it, roughly one to six seconds in, is written off along with the
+			// service it later becomes. Accepted rather than fixed, on the
+			// grounds that most entrypoints exec within milliseconds. An agent
+			// restart re-evaluates everything.
+			p.candidates[pid] = &candidate{
+				startTime:   key.startTime,
+				seenAt:      now,
+				nextAttempt: never,
+			}
 			continue
 		}
 
 		tracerMetadata, err := p.tracerMetadataReader(int32(pid))
 		if err != nil {
 			logMetadataReadFailure(pid, err)
-			p.scheduleRetry(key, c, executable.Key, now, p.backoffCap)
+			p.scheduleRetry(key, c, now, p.backoffCap)
 			continue
 		}
 		if tracerMetadata.TracerLanguage != "go" {
@@ -408,7 +390,7 @@ func (p *Scanner) Scan() (
 				"scanner: pid %d reports tracer language %q",
 				pid, tracerMetadata.TracerLanguage,
 			)
-			p.scheduleRetry(key, c, executable.Key, now, p.backoffCap)
+			p.scheduleRetry(key, c, now, p.backoffCap)
 			continue
 		}
 
@@ -453,23 +435,18 @@ func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
 	return c
 }
 
-// scheduleRetry records a failed attempt against the process running exeKey and
-// pushes the next attempt out, doubling the delay each time up to maxDelay.
-//
-// A zero exeKey means the executable could not be identified this time. The next
-// scan that does identify it will read that as an exec and restart the schedule,
-// which costs a few cheap attempts and is the safe way to be wrong.
+// scheduleRetry records a failed attempt and pushes the next one out, doubling
+// the delay each time up to maxDelay.
 //
 // There is no attempt limit. A tracer can publish its metadata at any point in
-// the life of the process, and a process can exec into a Go binary at any point,
-// so the backoff bounds the cost of waiting without ever ruling either out.
+// the life of the process, so the backoff bounds the cost of waiting for it
+// without ever ruling it out.
 func (p *Scanner) scheduleRetry(
-	key procKey, c *candidate, exeKey process.FileKey, now, maxDelay ticks,
+	key procKey, c *candidate, now, maxDelay ticks,
 ) {
 	if c == nil {
 		c = &candidate{startTime: key.startTime}
 	}
-	c.exeKey = exeKey
 	c.attempts++
 	c.seenAt = now
 	c.nextAttempt = now + p.retryDelay(c.attempts, maxDelay)
