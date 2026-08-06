@@ -42,6 +42,10 @@ cross_build_trace_agent-binary_aix_ppc64:
   # succeed on the same commit/toolchain/command line. Not meant to be merged.
   variables:
     TOC_DEBUG_TMPDIR: "$CI_PROJECT_DIR/toc-debug-objs"
+    # [TEST] capture a linker map to see exactly where crt0_64.o's/crtcxa_64.o's
+    # own .tc (narrow-TOC) csects and the .tc0 anchor land, to compare against a
+    # local successful build's map on the same commit/toolchain.
+    CGO_LDFLAGS: "-Wl,-Map,$CI_PROJECT_DIR/trace-agent-ci.map"
   script:
     - dda inv -- check-go-version
     - mkdir -p "$TOC_DEBUG_TMPDIR"
@@ -76,8 +80,8 @@ cross_build_trace_agent-binary_aix_ppc64:
           /opt/aix-cross/bin/powerpc-ibm-aix7.3.0.0-gcc \
           /opt/aix-cross/sysroot/usr/lib/crt0_64.o \
           /opt/aix-cross/sysroot/usr/lib/libperfstat.a \
-          /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtcxa_64.o \
-          /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtdbase_64.o \
+          /opt/aix-cross/compiler/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtcxa_64.o \
+          /opt/aix-cross/compiler/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtdbase_64.o \
           2>&1 || true
         echo
         echo "=== gcc -print-search-dirs ==="
@@ -107,10 +111,17 @@ cross_build_trace_agent-binary_aix_ppc64:
         fi
         echo
         echo "=== narrow R_TOC scan: toolchain crt objects ==="
-        for f in /lib/crt0_64.o /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtcxa_64.o /opt/aix-cross/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtdbase_64.o; do
+        for f in /lib/crt0_64.o /opt/aix-cross/compiler/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtcxa_64.o /opt/aix-cross/compiler/lib/gcc/powerpc-ibm-aix7.3.0.0/13.4.0/crtdbase_64.o; do
           n=$(PATH="/opt/aix-cross/bin:$PATH" powerpc-ibm-aix7.3.0.0-objdump -r "$f" 2>/dev/null | grep -c "R_TOC\b" || true)
           echo "$f: R_TOC=$n"
         done
+        echo
+        echo "=== linker map: crt0_64.o / crtcxa_64.o / crtdbase_64.o / .tc0 anchor entries ==="
+        if [ -f "$CI_PROJECT_DIR/trace-agent-ci.map" ]; then
+          grep -E "crt0_64|crtcxa_64|crtdbase_64|\.tc0 " "$CI_PROJECT_DIR/trace-agent-ci.map" || true
+        else
+          echo "(no trace-agent-ci.map found - linker may not have written it on failure)"
+        fi
       } >> toc-debug-report.txt
     - cat toc-debug-report.txt
     - file $CI_PROJECT_DIR/bin/trace-agent/trace-agent || true
@@ -120,3 +131,4 @@ cross_build_trace_agent-binary_aix_ppc64:
     expire_in: 1 week
     paths:
       - toc-debug-report.txt
+      - trace-agent-ci.map
