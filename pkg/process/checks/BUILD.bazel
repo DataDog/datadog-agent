@@ -238,6 +238,7 @@ dd_agent_go_test(
     ],
     embed = [":checks"],
     env_inherit = ["PATH"],  # test invokes system utilities (e.g. ioreg on macOS) requiring the host PATH
+    gotags_sets = [["systemprobechecks"]],
     deps = [
         "//comp/core",
         "//comp/core/hostname/hostnameimpl",

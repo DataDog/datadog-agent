@@ -182,6 +182,10 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":dns"],
+    gotags_sets = [["linux_bpf"]],
+    # keep: the linux_bpf variant needs a privileged host with a live kernel;
+    # it runs in the system-probe lane, not under wildcard builds.
+    tags = ["manual"],
     deps = [
         "//pkg/config/mock",
         "//pkg/network/config",

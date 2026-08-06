@@ -57,5 +57,6 @@ dd_agent_go_test(
         "ebpf_types_linux_test.go",
     ],
     embed = [":protocols"],
+    gotags_sets = [["linux_bpf"]],
     deps = ["@com_github_stretchr_testify//require"],
 )
