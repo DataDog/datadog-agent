@@ -622,6 +622,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	for _, opt := range fopts {
 		opt(&opts)
 	}
+	resolveStaticOpts(t, &opts)
 
 	prevEbpfLessEnabled := ebpfLessEnabled
 	defer func() {

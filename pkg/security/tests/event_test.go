@@ -447,6 +447,10 @@ func cleanupABottomUp(path string) {
 	}
 }
 
+// The two subtests deliberately build different modules, one per dentry
+// resolution path, so this test cannot share one with anybody.
+var _ = declareInlineConfig(TestEventTruncatedParents)
+
 func TestEventTruncatedParents(t *testing.T) {
 	SkipIfNotAvailable(t)
 
