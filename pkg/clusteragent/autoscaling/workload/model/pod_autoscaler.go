@@ -598,12 +598,21 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 
 	if status.Vertical != nil {
 		if status.Vertical.Target != nil {
-			p.scalingValues.Vertical = &VerticalScalingValues{
+			vsv := &VerticalScalingValues{
 				Source:             status.Vertical.Target.Source,
 				Timestamp:          status.Vertical.Target.GeneratedAt.Time,
 				ContainerResources: status.Vertical.Target.DesiredResources,
 				ResourcesHash:      status.Vertical.Target.Version,
 			}
+			for _, cr := range status.Vertical.Target.DesiredResources {
+				if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+					if vsv.RuntimeValues == nil {
+						vsv.RuntimeValues = make(map[string]ContainerRuntimeValues)
+					}
+					vsv.RuntimeValues[cr.Name] = ContainerRuntimeValues{GoMemLimit: cr.Runtime.Gomemlimit}
+				}
+			}
+			p.scalingValues.Vertical = vsv
 		}
 
 		p.verticalLastAction = status.Vertical.LastAction
@@ -1204,6 +1213,11 @@ func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.
 					cp.Limits = make(corev1.ResourceList)
 				}
 				cp.Limits[res] = qty.DeepCopy()
+			}
+		}
+		if rv, ok := v.RuntimeValues[cr.Name]; ok && rv.GoMemLimit != "" {
+			cp.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+				Gomemlimit: rv.GoMemLimit,
 			}
 		}
 		result[i] = cp
