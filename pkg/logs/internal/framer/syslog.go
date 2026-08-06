@@ -94,9 +94,11 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 	switch {
 	case b >= '1' && b <= '9':
 		// A leading digit alone does not mean octet counting: plenty of log
-		// lines simply start with a number followed by a space (a Cisco NX-OS
-		// year-first header "2024 Apr 04 ...", an epoch prefix, "54 [main] INFO
-		// ..."). Require the full MSG-LEN SP PRI signature before committing,
+		// lines simply start with a number followed by a space. A sender that
+		// omits the PRI produces them routinely — rsyslog's file templates drop
+		// it, so anything relaying such a rendering arrives as a bare timestamp
+		// — as do epoch prefixes and thread ids ("54 [main] INFO ...").
+		// Require the full MSG-LEN SP PRI signature before committing,
 		// otherwise the digits would be consumed as a length and the declared
 		// body would swallow every following frame.
 		switch classifyOctetPrefix(buf) {
