@@ -365,6 +365,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	assert.NoError(t, err)
 
 	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
 
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 
@@ -373,6 +374,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
 		return assert.Contains(t, tags, "error:device_unreachable")
 	}))
+	reqs.sender.AssertCalled(t, "Commit")
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
@@ -387,6 +389,7 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	assert.Nil(t, dc.profile)
 
 	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
 
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
@@ -395,6 +398,32 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
 		return assert.Contains(t, tags, "error:no_profile")
 	}))
+	reqs.sender.AssertCalled(t, "Commit")
+}
+
+func TestCheck_Run_CachedNoProfileFailure_ReportsFailure(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+
+	device := createTestDevice()
+	device.Profile = ""
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
+	dc, err := comp.devices.Get(device.DeviceID())
+	assert.NoError(t, err)
+
+	// Simulate a prior run that already exhausted every candidate profile.
+	dc.noMatchingProfile = true
+
+	reqs.sender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	reqs.sender.On("Commit").Return()
+
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	assert.ErrorContains(t, err, "no matching NCM profile for device default:10.0.0.1")
+	assert.False(t, reqs.connFactory.conn.Opened, "no connection should be attempted once no profile has matched")
+	reqs.sender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
+		return assert.Contains(t, tags, "error:no_profile")
+	}))
+	reqs.sender.AssertCalled(t, "Commit")
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {

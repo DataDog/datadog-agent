@@ -109,13 +109,16 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	startTime := n.clock.Now()
 	log := LoggerFromContext(ctx)
 	deviceID := dc.device.DeviceID()
-	if dc.noMatchingProfile {
-		log.Debugf("All profiles tested on past runs with no matches.")
-		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
-	}
 	device := dc.device
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
 	sender.SetDeviceTags(dc.GetTags())
+	defer sender.Commit()
+
+	if dc.noMatchingProfile {
+		log.Debugf("All profiles tested on past runs with no matches.")
+		sender.SendNCMCheckFailure(types.ErrNoProfile)
+		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
+	}
 
 	conn, connErr := n.connectAndEnsureProfile(ctx, dc)
 	if connErr != nil {
@@ -135,7 +138,6 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		log.Warnf("failed to send device metadata: %s", err)
 		nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrMetadataSendFailed, "failed to send device metadata: %w", err))
 	}
-	defer sender.Commit()
 
 	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store)
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
