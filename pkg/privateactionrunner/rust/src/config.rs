@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Agent configuration used by the control-plane scaffold.
-
 use anyhow::{Context, Result, bail};
 use std::path::Path;
 
@@ -60,8 +58,8 @@ fn env_bool(env: EnvLookup<'_>, name: &str, yaml_value: Option<bool>) -> Result<
         return Ok(yaml_value.unwrap_or(false));
     };
     match raw.trim().to_ascii_lowercase().as_str() {
-        "1" | "t" | "true" | "y" | "yes" => Ok(true),
-        "0" | "f" | "false" | "n" | "no" => Ok(false),
+        "true" => Ok(true),
+        "false" => Ok(false),
         _ => bail!("invalid boolean value for {name}: {raw:?}"),
     }
 }
@@ -70,8 +68,8 @@ fn parse_log_level(raw: &str) -> log::Level {
     match raw.trim().to_ascii_lowercase().as_str() {
         "trace" => log::Level::Trace,
         "debug" => log::Level::Debug,
-        "warn" | "warning" => log::Level::Warn,
-        "error" | "critical" | "off" => log::Level::Error,
+        "warn" => log::Level::Warn,
+        "error" => log::Level::Error,
         _ => log::Level::Info,
     }
 }
@@ -122,7 +120,7 @@ mod tests {
 
     #[test]
     fn rejects_invalid_boolean_environment_value() {
-        let err = parse("", &[("DD_PRIVATE_ACTION_RUNNER_ENABLED", "sometimes")]).unwrap_err();
+        let err = parse("", &[("DD_PRIVATE_ACTION_RUNNER_ENABLED", "1")]).unwrap_err();
         assert!(err.to_string().contains("DD_PRIVATE_ACTION_RUNNER_ENABLED"));
     }
 }
