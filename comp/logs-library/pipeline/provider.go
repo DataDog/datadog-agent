@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -189,7 +189,7 @@ func httpSender(
 		workersPerQueue = sender.DefaultWorkersPerQueue
 		minSenderConcurrency = numberOfPipelines
 		maxSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
-		if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
+		if endpoints.BatchMaxConcurrentSend != constants.DefaultBatchMaxConcurrentSend {
 			// If the BatchMaxConcurrentSend parameter is set, we use it to control the concurrency of the destination.
 			// Legacy behavior ran numberOfPipelines senders, each with a concurrency of BatchMaxConcurrentSend, so
 			// we mimic that behavior here.

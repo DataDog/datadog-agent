@@ -28,6 +28,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -89,6 +90,34 @@ func TestReportRemoteAgentEvent(t *testing.T) {
 	require.Error(t, component.ReportRemoteAgentEvent("does-not-exist", events))
 }
 
+func TestReportRemoteAgentEventRefreshesSecrets(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("remote_agent.registry.enabled", true)
+	ipcComp := ipcmock.New(t)
+	resolver := secretsmock.New(t)
+	refreshes := 0
+	resolver.SetRefreshHook(func() bool {
+		refreshes++
+		return true
+	})
+
+	component := NewComponent(Requires{
+		Config:    cfg,
+		Ipc:       ipcComp,
+		Lifecycle: compdef.NewTestLifecycle(t),
+		Telemetry: telemetryimpl.NewMock(t),
+		Secrets:   resolver,
+	}).Comp.(*remoteAgentRegistry)
+	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "1234")
+
+	require.NoError(t, component.ReportRemoteAgentEvent(remoteAgent.registeredSessionID, []remoteagent.RemoteAgentEvent{
+		{Message: "ordinary event"},
+		{Message: "API key rejected", Details: &remoteagent.InvalidAPIKey{}},
+		{Message: "duplicate API key rejection", Details: &remoteagent.InvalidAPIKey{}},
+	}))
+	require.Equal(t, 1, refreshes)
+}
+
 func TestReportRemoteAgentEventBroadcast(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("remote_agent.registry.enabled", true)
@@ -124,6 +153,7 @@ func TestReportRemoteAgentEventBroadcast(t *testing.T) {
 		Ipc:              ipcComp,
 		Lifecycle:        lc,
 		Telemetry:        tel,
+		Secrets:          secretsmock.New(t),
 		EventSubscribers: []*remoteagent.EventSubscriber{panicker, nil, recorder},
 	}
 	component := NewComponent(reqs).Comp.(*remoteAgentRegistry)
@@ -262,6 +292,7 @@ func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides
 		Ipc:       ipc,
 		Lifecycle: lc,
 		Telemetry: telemetry,
+		Secrets:   secretsmock.New(t),
 	}
 
 	return NewComponent(reqs), lc, telemetry, ipc
@@ -463,9 +494,9 @@ func buildRemoteAgentOnListener(t *testing.T, ipcComp ipc.Component, listener ne
 
 	// block until the server is started
 	// initializing a dummy echo client to make sure the server is started
-	probeTarget, probeCreds, err := resolveDialTarget(apiEndpointURI, ipcComp.GetTLSClientConfig())
+	probeTarget, probeDialOpts, err := resolveDialTarget(apiEndpointURI, ipcComp.GetTLSClientConfig())
 	require.NoError(t, err)
-	client, err := grpc.NewClient(probeTarget, grpc.WithTransportCredentials(probeCreds))
+	client, err := grpc.NewClient(probeTarget, probeDialOpts...)
 	require.NoError(t, err)
 	echoClient := echo.NewEchoClient(client)
 	_, err = echoClient.UnaryEcho(context.Background(), &echo.EchoRequest{}, grpc.WaitForReady(true))

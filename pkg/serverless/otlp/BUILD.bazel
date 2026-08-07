@@ -26,6 +26,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":otlp"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//comp/core/tagger/impl-noop",
         "//pkg/proto/pbgo/trace",

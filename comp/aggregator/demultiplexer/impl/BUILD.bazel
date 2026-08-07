@@ -92,6 +92,7 @@ dd_agent_go_test(
         "//comp/serializer/metricscompression/fx-mock",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
+        "//pkg/metrics",
         "//pkg/serializer",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",

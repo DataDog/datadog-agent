@@ -30,7 +30,11 @@ SERVER_FILES = (
 
 def _is_server_file(path: str) -> bool:
     """True if changing `path` rebuilds the fakeintake image (needs a VERSION bump)."""
-    return path in SERVER_FILES or path.startswith(SERVER_PATH_PREFIXES)
+    if path in SERVER_FILES:
+        return True
+    # The image is built from the Go sources via test/fakeintake/Dockerfile, so BUILD.bazel
+    # and test fixtures under the server paths don't affect it.
+    return path.endswith(".go") and path.startswith(SERVER_PATH_PREFIXES)
 
 
 @task

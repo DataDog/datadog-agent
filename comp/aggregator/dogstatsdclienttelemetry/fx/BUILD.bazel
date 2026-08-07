@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/dogstatsdclienttelemetry/impl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+dd_agent_go_test(
+    name = "fx_test",
+    srcs = ["fx_test.go"],
+    embed = [":fx"],
+    deps = [
+        "//comp/core/telemetry/mock",
+        "//pkg/aggregator",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

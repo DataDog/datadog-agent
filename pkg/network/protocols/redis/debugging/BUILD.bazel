@@ -4,6 +4,7 @@ go_library(
     name = "debugging",
     srcs = ["debugging.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/redis/debugging",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/network/protocols",

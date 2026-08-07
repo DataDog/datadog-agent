@@ -1,0 +1,9 @@
+"""toolchain to wrap the codesign binary.
+
+Type: @codesign//:codesign_toolchain_type
+
+Toolchains:
+- @codesign//:codesign_toolchain: provides the tool
+- @codesign//:codesign_missing_toolchain: provides a fallback toolchain for
+  exec platforms where codesign might not be available.
+"""

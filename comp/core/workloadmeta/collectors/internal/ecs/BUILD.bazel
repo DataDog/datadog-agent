@@ -50,11 +50,11 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":ecs"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "docker",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/def",
