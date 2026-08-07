@@ -35,9 +35,32 @@ idle. Only a genuine failure makes `par-control` exit non-zero and let
 The crate is Linux/Windows-only. On a macOS workstation, run the Linux dev VM:
 
 ```bash
-dda env dev run -- cargo test -p par-control
 dda env dev run -- bazel test //pkg/privateactionrunner/par-control:par-control_test
 ```
+
+Bazel is the source of truth. `cargo` is supported for a faster edit/test loop,
+but note two things:
+
+- The dev VM exports an empty `PKG_CONFIG_LIBDIR`, which blanks pkg-config's
+  search path, so `openssl-sys` cannot find the system OpenSSL that is in fact
+  installed. Unset it for cargo:
+
+  ```bash
+  dda env dev run -- bash -c 'unset PKG_CONFIG_LIBDIR && cargo test -p par-control'
+  ```
+
+  Bazel is unaffected: it builds against the Agent's own OpenSSL through the
+  `openssl-sys` annotation in `deps/crates.MODULE.bazel`.
+
+- Anything touching the generated protobuf types must be verified with Bazel,
+  not just cargo. Under `--cfg=bazel` the bindings come from a separate crate,
+  so trait impls that satisfy the orphan rule under `cargo` (where
+  `include_proto!` generates them locally) can fail to compile under Bazel.
+
+- The TLS tests in `tls.rs` and `opms.rs` only pass on Linux. Running them with
+  `cargo` on a macOS host fails in `Security.framework` ("Unknown format in
+  import"), which rejects the PEM/SEC1 key material the tests generate. Run
+  them in the Linux dev VM; Bazel never builds this crate for macOS.
 
 On Linux:
 
