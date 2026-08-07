@@ -832,6 +832,8 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
     for name in sorted(consts):
         pad_space = magic_value - len(name)
         out.append(f"\t{name}{' ' * pad_space} = {consts[name]['value']}")
+    out.append(")")
+    out.append("")
 
 
 # The files produced by the constant generators, keyed by the output name generators use to
