@@ -1,0 +1,48 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: nina-cloudrun-sidecar
+  namespace: ${GCP_PROJECT}
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+spec:
+  template:
+    metadata:
+      annotations:
+        # dd-agent must start before the app container begins serving traffic
+        run.googleapis.com/container-dependencies: '{"app":["dd-agent"]}'
+    spec:
+      containers:
+        # ── Ingress container ──────────────────────────────────────────────
+        - name: app
+          image: ${GCP_REGISTRY}/plain-app:${IMAGE_TAG}
+          ports:
+            - name: http1
+              containerPort: 8080
+
+        # ── dd-agent sidecar (no args → sidecar mode in serverless-init) ──
+        - name: dd-agent
+          image: ${GCP_REGISTRY}/serverless-init:${IMAGE_TAG}
+          startupProbe:
+            tcpSocket:
+              port: 5555
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            failureThreshold: 20
+          env:
+            - name: DD_HEALTH_PORT
+              value: "5555"
+            - name: DD_SITE
+              value: "${DD_SITE}"
+            - name: DD_SERVICE
+              value: "nina-cloudrun-sidecar"
+            - name: DD_ENV
+              value: "nina"
+            - name: DD_APM_NON_LOCAL_TRAFFIC
+              value: "true"
+            - name: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
+              value: "true"
+            - name: DD_SERVERLESS_DIAGNOSTIC_INFO
+              value: "true"
+            - name: DD_API_KEY
+              value: "${DD_API_KEY}"

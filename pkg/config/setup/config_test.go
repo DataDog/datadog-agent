@@ -1639,7 +1639,9 @@ func TestServerlessConfigInit(t *testing.T) {
 
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
-	assert.False(t, conf.IsKnown("inventories_enabled"))
+	// inventories_enabled is registered in the serverless path because inventoryagent
+	// is wired into serverless-init for the Fleet/Subotka pipeline.
+	assert.True(t, conf.IsKnown("inventories_enabled"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.

@@ -1628,6 +1628,15 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
+
+	// inventoryagent is wired into serverless-init (Fleet/Subotka pipeline). Register
+	// these keys here so InventoryEnabled() works in the serverless config path, which
+	// only runs initCommonConfigComponents (not initCoreAgentFull where these live
+	// for the full agent). Defaults mirror initCoreAgentFull.
+	config.BindEnvAndSetDefault("inventories_enabled", true)
+	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
+	config.BindEnvAndSetDefault("inventories_min_interval", 0)
+	config.BindEnvAndSetDefault("inventories_max_interval", 0)
 }
 
 func forwarder(config pkgconfigmodel.Setup) {

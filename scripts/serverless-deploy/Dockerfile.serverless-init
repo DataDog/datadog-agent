@@ -1,14 +1,25 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.26-alpine AS builder
+
+ARG GIT_COMMIT=unknown
+ARG AGENT_VERSION=dev
+
+RUN apk add --no-cache gcc musl-dev
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
-RUN go mod download
-
 COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Disable Go workspace: go.work references test/* modules excluded from the build
+# context. GONOSUMCHECK skips checksum verification for local-replace modules.
+ENV GOWORK=off
+ENV GONOSUMCHECK=*
+# Skip go mod download (it resolves ALL replace directives including local ones
+# that aren't in the build context). go build only fetches actually-imported modules.
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+  -mod=mod \
   -tags "serverless otlp" \
+  -ldflags="-linkmode external -extldflags '-static' \
+    -X github.com/DataDog/datadog-agent/pkg/version.Commit=${GIT_COMMIT} \
+    -X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=${AGENT_VERSION}" \
   -o /serverless-init \
   ./cmd/serverless-init/
 
