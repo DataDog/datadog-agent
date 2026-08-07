@@ -36,6 +36,11 @@ func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFun
 	panic("unimplemented")
 }
 
+// RunCommandEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunCommandEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
+}
+
 // ReportConfig implements [networkconfigmanagement.Component].
 func (m *mockNetworkConfigManagement) ReportConfig(_ context.Context, deviceID string, _ sender.Sender) error {
 	if _, ok := m.devices[deviceID]; ok {
