@@ -53,7 +53,7 @@ type RunCommandOutputs struct {
 	Success       bool                    `json:"success,omitempty"`
 	CommandResult *ncmtypes.CommandResult `json:"command_result"`
 	Error         string                  `json:"error,omitempty"`
-	ErrorCode     string                  `json:"error_code"`
+	ErrorCode     string                  `json:"error_code,omitempty"`
 	FinishedAt    *time.Time              `json:"finished_at,omitempty"`
 }
 
