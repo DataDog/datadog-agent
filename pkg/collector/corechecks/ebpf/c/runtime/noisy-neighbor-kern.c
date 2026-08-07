@@ -148,7 +148,9 @@ static __always_inline void account_pmu_switch_out(struct task_struct *task, pmu
     if (!baseline)
         return;
 
-    if (baseline->generation != config->generation) {
+    __u64 cgroup_id = baseline->cgroup_id;
+    __u64 *generation = bpf_map_lookup_elem(&pmu_watchlist, &cgroup_id);
+    if (!generation || baseline->generation != *generation) {
         bpf_task_storage_delete(&pmu_task_state, task);
         return;
     }
@@ -181,7 +183,7 @@ static __always_inline void account_pmu_switch_out(struct task_struct *task, pmu
 static __always_inline void record_pmu_switch_in(struct task_struct *task, pmu_config_t *config) {
     __u64 cgroup_id = get_task_cgroup_id(task);
     __u64 *generation = bpf_map_lookup_elem(&pmu_watchlist, &cgroup_id);
-    if (!generation || *generation != config->generation)
+    if (!generation)
         return;
 
     pmu_task_state_t zero = {};
@@ -189,7 +191,7 @@ static __always_inline void record_pmu_switch_in(struct task_struct *task, pmu_c
     if (!state)
         return;
     state->cgroup_id = cgroup_id;
-    state->generation = config->generation;
+    state->generation = *generation;
     state->valid_event_mask = read_pmu_events(state->counters, config->effective_event_mask);
 }
 
@@ -272,7 +274,7 @@ int tp_sched_migrate_task(u64 *ctx) {
     struct task_struct *task = (struct task_struct *)ctx[0];
     __u64 cgroup_id = get_task_cgroup_id(task);
     __u64 *generation = bpf_map_lookup_elem(&pmu_watchlist, &cgroup_id);
-    if (!generation || *generation != config->generation)
+    if (!generation)
         return 0;
 
     pmu_cgroup_stats_t *stats = get_or_create_pmu_stats(cgroup_id);

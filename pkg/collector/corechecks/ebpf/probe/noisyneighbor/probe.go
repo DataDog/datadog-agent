@@ -269,16 +269,19 @@ func (p *Probe) ReplaceWatchlist(request model.WatchlistRequest) (model.Watchlis
 	}
 	var key, value uint64
 	iterator := watchlistMap.Iterate()
-	var oldKeys []uint64
+	oldGenerations := make(map[uint64]uint64, len(p.watchlist))
 	for iterator.Next(&key, &value) {
-		oldKeys = append(oldKeys, key)
+		oldGenerations[key] = value
 	}
 	if err := iterator.Err(); err != nil {
 		p.stats.AttachErrors++
 		p.clearWatchlistState()
 		return model.WatchlistResponse{}, fmt.Errorf("iterate PMU watchlist: %w", err)
 	}
-	for _, oldKey := range oldKeys {
+	for oldKey := range oldGenerations {
+		if _, retained := unique[oldKey]; retained {
+			continue
+		}
 		if err := watchlistMap.Delete(&oldKey); err != nil {
 			p.stats.AttachErrors++
 			p.clearWatchlistState()
@@ -288,6 +291,9 @@ func (p *Probe) ReplaceWatchlist(request model.WatchlistRequest) (model.Watchlis
 
 	p.generation++
 	for id := range unique {
+		if _, retained := oldGenerations[id]; retained {
+			continue
+		}
 		generation := p.generation
 		if err := watchlistMap.Update(&id, &generation, ebpf.UpdateNoExist); err != nil {
 			p.stats.AttachErrors++

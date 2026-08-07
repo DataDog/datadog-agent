@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	ciliumebpf "github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -101,6 +102,37 @@ func TestNoisyNeighborExactCPUMigrationAttribution(t *testing.T) {
 			return false
 		}, 5*time.Second, 50*time.Millisecond, "expected watched task migrations")
 		require.EqualValues(t, migrations, observed)
+	})
+}
+
+func TestReplaceWatchlistPreservesRetainedGenerations(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		if kv < minimumKernelVersion {
+			t.Skipf("Kernel version %v is not supported by the Noisy Neighbor probe", kv)
+		}
+
+		probe, err := NewProbe(testConfig(), Config{EventMask: model.EventCPUMigrations, MaxTrackedCgroups: 64})
+		require.NoError(t, err)
+		t.Cleanup(probe.Close)
+
+		response, err := probe.ReplaceWatchlist(model.WatchlistRequest{CgroupIDs: []uint64{100, 200}})
+		require.NoError(t, err)
+		watchlist, found, err := probe.mgr.GetMap("pmu_watchlist")
+		require.NoError(t, err)
+		require.True(t, found)
+
+		var retainedGeneration uint64
+		require.NoError(t, watchlist.Lookup(uint64(100), &retainedGeneration))
+		require.Equal(t, response.Generation, retainedGeneration)
+
+		response, err = probe.ReplaceWatchlist(model.WatchlistRequest{CgroupIDs: []uint64{100, 300}})
+		require.NoError(t, err)
+		var currentGeneration uint64
+		require.NoError(t, watchlist.Lookup(uint64(100), &currentGeneration))
+		require.Equal(t, retainedGeneration, currentGeneration)
+		require.ErrorIs(t, watchlist.Lookup(uint64(200), &currentGeneration), ciliumebpf.ErrKeyNotExist)
+		require.NoError(t, watchlist.Lookup(uint64(300), &currentGeneration))
+		require.Equal(t, response.Generation, currentGeneration)
 	})
 }
 

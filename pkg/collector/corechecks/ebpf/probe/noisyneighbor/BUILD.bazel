@@ -80,6 +80,7 @@ go_test(
         "//pkg/ebpf",
         "//pkg/ebpf/ebpftest",
         "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
         "@com_github_stretchr_testify//require",
     ],
 )
