@@ -48,6 +48,7 @@ colorchoice,https://github.com/rust-cli/anstyle,MIT OR Apache-2.0,The colorchoic
 const-oid,https://github.com/RustCrypto/formats,Apache-2.0 OR MIT,RustCrypto Developers
 cookie,https://github.com/SergioBenitez/cookie-rs,MIT OR Apache-2.0,"Sergio Benitez <sb@sergio.bz>, Alex Crichton <alex@alexcrichton.com>"
 cookie_store,https://github.com/pfernie/cookie_store,MIT OR Apache-2.0,Patrick Fernie <patrick.fernie@gmail.com>
+core-foundation,https://github.com/servo/core-foundation-rs,MIT OR Apache-2.0,The Servo Project Developers
 core-foundation-sys,https://github.com/servo/core-foundation-rs,MIT OR Apache-2.0,The Servo Project Developers
 cpufeatures,https://github.com/RustCrypto/utils,MIT OR Apache-2.0,RustCrypto Developers
 crc32fast,https://github.com/srijs/rust-crc32fast,MIT OR Apache-2.0,"Sam Rijs <srijs@airpost.net>, Alex Crichton <alex@alexcrichton.com>"
@@ -88,6 +89,8 @@ fixedbitset,https://github.com/petgraph/fixedbitset,MIT OR Apache-2.0,bluss
 flate2,https://github.com/rust-lang/flate2-rs,MIT OR Apache-2.0,"Alex Crichton <alex@alexcrichton.com>, Josh Triplett <josh@joshtriplett.org>"
 fnv,https://github.com/servo/rust-fnv,Apache-2.0  OR  MIT,Alex Crichton <alex@alexcrichton.com>
 foldhash,https://github.com/orlp/foldhash,Zlib,Orson Peters <orsonpeters@gmail.com>
+foreign-types,https://github.com/sfackler/foreign-types,MIT OR Apache-2.0,Steven Fackler <sfackler@gmail.com>
+foreign-types-shared,https://github.com/sfackler/foreign-types,MIT OR Apache-2.0,Steven Fackler <sfackler@gmail.com>
 form_urlencoded,https://github.com/servo/rust-url,MIT OR Apache-2.0,The rust-url developers
 fs-set-times,https://github.com/bytecodealliance/fs-set-times,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Dan Gohman <dev@sunfishcode.online>
 futures,https://github.com/rust-lang/futures-rs,MIT OR Apache-2.0,The futures Authors
@@ -170,6 +173,7 @@ mio,https://github.com/tokio-rs/mio,MIT,"Carl Lerche <me@carllerche.com>, Thomas
 moka,https://github.com/moka-rs/moka,(MIT OR Apache-2.0) AND Apache-2.0,The moka Authors
 monero,https://github.com/monero-rs/monero-rs,MIT,"Monero Rust Contributors, h4sh3d <h4sh3d@protonmail.com>"
 multimap,https://github.com/havarnov/multimap,MIT OR Apache-2.0,Håvar Nøvik <havar.novik@gmail.com>
+native-tls,https://github.com/rust-native-tls/rust-native-tls,MIT OR Apache-2.0,Steven Fackler <sfackler@gmail.com>
 nibble_vec,https://github.com/michaelsproul/rust_nibble_vec,MIT,Michael Sproul <micsproul@gmail.com>
 nix,https://github.com/nix-rust/nix,MIT,The nix Authors
 nom,https://github.com/Geal/nom,MIT,contact@geoffroycouprie.com
@@ -182,6 +186,10 @@ objc2-core-foundation,https://github.com/madsmtm/objc2,Zlib OR Apache-2.0 OR MIT
 objc2-system-configuration,https://github.com/madsmtm/objc2,Zlib OR Apache-2.0 OR MIT,The objc2-system-configuration Authors
 once_cell,https://github.com/matklad/once_cell,MIT OR Apache-2.0,Aleksey Kladov <aleksey.kladov@gmail.com>
 once_cell_polyfill,https://github.com/polyfill-rs/once_cell_polyfill,MIT OR Apache-2.0,The once_cell_polyfill Authors
+openssl,https://github.com/rust-openssl/rust-openssl,Apache-2.0,Steven Fackler <sfackler@gmail.com>
+openssl-macros,https://github.com/sfackler/rust-openssl,MIT OR Apache-2.0,The openssl-macros Authors
+openssl-probe,https://github.com/rustls/openssl-probe,MIT OR Apache-2.0,Alex Crichton <alex@alexcrichton.com>
+openssl-sys,https://github.com/rust-openssl/rust-openssl,MIT,"Alex Crichton <alex@alexcrichton.com>, Steven Fackler <sfackler@gmail.com>"
 ordered-float,https://github.com/reem/rust-ordered-float,MIT,"Jonathan Reem <jonathan.reem@gmail.com>, Matt Brubeck <mbrubeck@limpet.net>"
 parking_lot,https://github.com/Amanieu/parking_lot,MIT OR Apache-2.0,Amanieu d'Antras <amanieu@gmail.com>
 parking_lot_core,https://github.com/Amanieu/parking_lot,MIT OR Apache-2.0,Amanieu d'Antras <amanieu@gmail.com>
@@ -241,11 +249,14 @@ rustversion,https://github.com/dtolnay/rustversion,MIT OR Apache-2.0,David Tolna
 ryu,https://github.com/dtolnay/ryu,Apache-2.0 OR BSL-1.0,David Tolnay <dtolnay@gmail.com>
 same-file,https://github.com/BurntSushi/same-file,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
 saphyr-parser,https://github.com/saphyr-rs/saphyr,MIT OR Apache-2.0,"Ethiraric <ethiraric@gmail.com>, David Aguilar <davvid@gmail.com>, Yuheng Chen <yuhengchen@sensetime.com>"
+schannel,https://github.com/steffengy/schannel-rs,MIT,"Steven Fackler <sfackler@gmail.com>, Steffen Butzer <steffen.butzer@outlook.com>"
 schemars,https://github.com/GREsau/schemars,MIT,Graham Esau <gesau@hotmail.co.uk>
 scopeguard,https://github.com/bluss/scopeguard,MIT OR Apache-2.0,bluss
 sealed,https://github.com/jmg-duarte/sealed-rs,MIT OR Apache-2.0,José Duarte <jmg.duarte@campus.fct.unl.pt>
 secp256k1,https://github.com/rust-bitcoin/rust-secp256k1,CC0-1.0,"Dawid Ciężarkiewicz <dpc@ucore.info>, Andrew Poelstra <apoelstra@wpsoftware.net>"
 secp256k1-sys,https://github.com/rust-bitcoin/rust-secp256k1,CC0-1.0,"Dawid Ciężarkiewicz <dpc@ucore.info>, Andrew Poelstra <apoelstra@wpsoftware.net>, Steven Roose <steven@stevenroose.org>"
+security-framework,https://github.com/kornelski/rust-security-framework,MIT OR Apache-2.0,"Steven Fackler <sfackler@gmail.com>, Kornel <kornel@geekhood.net>"
+security-framework-sys,https://github.com/kornelski/rust-security-framework,MIT OR Apache-2.0,"Steven Fackler <sfackler@gmail.com>, Kornel <kornel@geekhood.net>"
 semver,https://github.com/dtolnay/semver,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 serde,https://github.com/serde-rs/serde,MIT OR Apache-2.0,"Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>"
 serde_core,https://github.com/serde-rs/serde,MIT OR Apache-2.0,"Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>"
@@ -288,6 +299,7 @@ tinyvec,https://github.com/Lokathor/tinyvec,Zlib OR Apache-2.0 OR MIT,Lokathor <
 tinyvec_macros,https://github.com/Soveu/tinyvec_macros,MIT OR Apache-2.0 OR Zlib,Soveu <marx.tomasz@gmail.com>
 tokio,https://github.com/tokio-rs/tokio,MIT,Tokio Contributors <team@tokio.rs>
 tokio-macros,https://github.com/tokio-rs/tokio,MIT,Tokio Contributors <team@tokio.rs>
+tokio-native-tls,https://github.com/tokio-rs/tls,MIT,Tokio Contributors <team@tokio.rs>
 tokio-postgres,https://github.com/rust-postgres/rust-postgres,MIT OR Apache-2.0,Steven Fackler <sfackler@gmail.com>
 tokio-stream,https://github.com/tokio-rs/tokio,MIT,Tokio Contributors <team@tokio.rs>
 tokio-util,https://github.com/tokio-rs/tokio,MIT,Tokio Contributors <team@tokio.rs>

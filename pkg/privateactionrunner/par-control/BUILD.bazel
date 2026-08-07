@@ -1,3 +1,5 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 load(":version.bzl", "par_control_agent_version")
 
@@ -8,6 +10,16 @@ _LINUX_OR_WINDOWS = select({
     "@platforms//os:windows": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
+
+# The executor rust_prost_library propagates C++ link requirements.
+cc_library(
+    name = "cpp_stdlib",
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["-lstdc++"],
+    }),
+)
 
 rust_library(
     name = "par-control-lib",
@@ -26,6 +38,7 @@ rust_library(
     ],
     crate_name = "par_control",
     edition = "2024",
+    link_deps = [":cpp_stdlib"],
     rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
@@ -75,10 +88,32 @@ rust_binary(
     ],
 )
 
+copy_to_directory(
+    name = "par-control_test_openssl_dlls",
+    srcs = [
+        "@openssl//:libcrypto_shared_file",
+        "@openssl//:libssl_shared_file",
+    ],
+    out = "par-control_test_openssl_dlls",
+    include_external_repositories = ["*"],
+    root_paths = ["**"],
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
 rust_test(
     name = "par-control_test",
     crate = ":par-control-lib",
+    data = select({
+        "@platforms//os:windows": [":par-control_test_openssl_dlls"],
+        "//conditions:default": [],
+    }),
     edition = "2024",
+    env = select({
+        # The Windows loader searches PATH before main(), so point it at the
+        # runfiles directory containing the Agent OpenSSL DLLs.
+        "@platforms//os:windows": {"PATH": "$(rlocationpath :par-control_test_openssl_dlls)"},
+        "//conditions:default": {},
+    }),
     rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,

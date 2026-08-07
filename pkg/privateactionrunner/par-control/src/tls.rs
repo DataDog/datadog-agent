@@ -99,12 +99,6 @@ fn extract_block(text: &str, label: &str) -> Option<String> {
 pub(crate) mod test_support {
     use super::*;
 
-    /// Re-encode a key PEM as PKCS8, for callers that need to hand a key to
-    /// `native_tls::Identity::from_pkcs8`.
-    pub fn to_pkcs8(key_pem: &[u8]) -> Vec<u8> {
-        to_pkcs8_pem(key_pem).expect("re-encoding the fixture key as PKCS8")
-    }
-
     /// Generate a self-signed P-256 cert with a SEC1 key, matching the shape of
     /// the agent IPC cert written by `pkg/api/security/cert/cert_generator.go`.
     pub fn generate_self_signed_cert() -> (Vec<u8>, Vec<u8>) {
