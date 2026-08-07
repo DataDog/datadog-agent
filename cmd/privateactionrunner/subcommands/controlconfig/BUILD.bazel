@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "controlconfig",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/controlconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
+        "//pkg/privateactionrunner/controlconfig",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "controlconfig_test",
+    srcs = ["command_test.go"],
+    embed = [":controlconfig"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//pkg/config/mock",
+        "//pkg/privateactionrunner/controlconfig",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

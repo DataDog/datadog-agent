@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/privateactionrunner/command",
+        "//cmd/privateactionrunner/subcommands/controlconfig",
         "//cmd/privateactionrunner/subcommands/rotateidentity",
         "//cmd/privateactionrunner/subcommands/run",
         "//cmd/privateactionrunner/subcommands/runexecutor",

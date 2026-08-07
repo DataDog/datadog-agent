@@ -1,5 +1,8 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load(":version.bzl", "par_control_agent_version")
+
+_RUSTC_ENV = {"DD_AGENT_VERSION": par_control_agent_version()}
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -21,7 +24,9 @@ cc_library(
 rust_library(
     name = "par-control-lib",
     srcs = [
+        "src/bootstrap.rs",
         "src/config.rs",
+        "src/identity.rs",
         "src/lib.rs",
         "src/platform.rs",
         "src/procmgr.rs",
@@ -32,6 +37,7 @@ rust_library(
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
+    rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -41,7 +47,9 @@ rust_library(
         "@crates//:hyper-util",
         "@crates//:log",
         "@crates//:prost",
+        "@crates//:reqwest",
         "@crates//:serde",
+        "@crates//:serde_json",
         "@crates//:serde_yaml",
         "@crates//:tokio",
         "@crates//:tonic",
@@ -77,6 +85,7 @@ rust_test(
     name = "par-control_test",
     crate = ":par-control-lib",
     edition = "2024",
+    rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
