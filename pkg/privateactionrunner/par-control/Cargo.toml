@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Private Action Runner control-plane process lifecycle scaffold"
+description = "Private Action Runner control plane (always-on, on-demand executor orchestration)"
 
 [lib]
 name = "par_control"
@@ -24,6 +24,7 @@ dd-agent-log.workspace = true
 hyper-util.workspace = true
 log.workspace = true
 native-tls.workspace = true
+# Used to convert the Agent IPC key from SEC1 to PKCS8 for native-tls.
 openssl.workspace = true
 p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
@@ -36,6 +37,7 @@ tokio = { workspace = true, features = [
   "net",
   "rt-multi-thread",
   "signal",
+  "sync",
   "time",
 ] }
 tokio-native-tls.workspace = true

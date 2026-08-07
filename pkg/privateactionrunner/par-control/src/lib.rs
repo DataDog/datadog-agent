@@ -3,8 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Process lifecycle, effective configuration, and identity bootstrap for the
-//! split Private Action Runner control plane.
+//! par-control is the always-on, minimal control plane of the split Private
+//! Action Runner. It polls the on-prem management service (OPMS) for tasks,
+//! drives the on-demand Go executor's lifecycle via the process manager,
+//! dispatches actions over the local control<->executor gRPC service, forwards
+//! heartbeats, and publishes results back to OPMS.
+//!
+//! Only the control plane touches OPMS; the executor verifies and runs actions.
 
 pub mod bootstrap;
 pub mod config;
@@ -12,6 +17,7 @@ pub mod executor;
 pub mod identity;
 pub mod jwt;
 pub mod opms;
+pub mod orchestrator;
 pub mod platform;
 pub mod procmgr;
 pub mod proto;
