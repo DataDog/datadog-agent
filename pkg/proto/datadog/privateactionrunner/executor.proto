@@ -19,6 +19,28 @@ message HealthResponse {
   string version = 3;
 }
 
+// SigningKey is a public task-signing verification key. The key bytes retain
+// the PEM encoding received from verified Remote Config so a newly spawned
+// executor can decode them exactly as it would an RC update.
+message SigningKey {
+  string id = 1;
+  string key_type = 2;
+  bytes key = 3;
+}
+
+// SyncKeysRequest seeds a newly spawned executor from the control plane's
+// in-memory cache. An empty request asks a cold executor to wait for its first
+// verified Remote Config update.
+message SyncKeysRequest {
+  repeated SigningKey keys = 1;
+}
+
+// SyncKeysResponse returns the executor's current snapshot, which may be newer
+// than the control plane cache after an RC update.
+message SyncKeysResponse {
+  repeated SigningKey keys = 1;
+}
+
 // RunActionRequest carries the raw task bytes as dequeued from OPMS so the executor
 // can verify the task signature itself.
 message RunActionRequest {
@@ -52,4 +74,7 @@ service Executor {
   rpc RunAction(RunActionRequest) returns (stream RunActionResponse);
   // Health reports executor readiness and liveness; used to gate dispatch.
   rpc Health(HealthRequest) returns (HealthResponse);
+  // SyncKeys exchanges public verification keys before dispatch. With an empty
+  // seed, the call waits for the executor's first verified RC key snapshot.
+  rpc SyncKeys(SyncKeysRequest) returns (SyncKeysResponse);
 }
