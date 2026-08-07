@@ -6,7 +6,7 @@ use crate::config::{CheckConfig, SubTask};
 use crate::constants::SDS_RESULT_EVENT_TYPE;
 use crate::proto::{self, Status as ScanStatus};
 use crate::result::{ScanOutcome, build_sds_result};
-use crate::scanning::{Scanner, clear_caches};
+use crate::scanning::{Scanner, clear_caches, malloc_trim};
 
 /// Check entrypoint.
 ///
@@ -29,10 +29,14 @@ fn run(check: &AgentCheck) -> Result<()> {
         ),
     );
 
-    // scan() drops the scanner on return; clear dd-sds' caches unconditionally
-    // afterwards, since scanner construction memoizes regexes even when it fails.
+    // scan() drops the scanner on return, making its compiled regexes reclaimable.
     let result = scan(check, &config);
-    clear_caches();
+    if config.debug_only_clear_caches {
+        clear_caches();
+    }
+    if config.debug_only_malloc_trim {
+        malloc_trim();
+    }
     result?;
 
     check.log(LogLevel::Info, "datasecurity: check completed");
