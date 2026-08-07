@@ -235,8 +235,8 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 				logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
 					"config": string(parsedJSON),
 					"state": map[string]string{
-						"error":  logSource.Status.GetError(),
-						"status": logSource.Status.String(),
+						"error":  logSource.Status().GetError(),
+						"status": logSource.Status().String(),
 					},
 					"service":                  logSource.Config.Service,
 					"source":                   logSource.Config.Source,

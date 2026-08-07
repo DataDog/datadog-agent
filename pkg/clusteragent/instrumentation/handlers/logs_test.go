@@ -80,6 +80,7 @@ func TestLogsSupportsTarget(t *testing.T) {
 		{"StatefulSet", true},
 		{"CronJob", true},
 		{"Job", true},
+		{"Rollout", true},
 		{"Service", false},
 		{"ReplicaSet", false},
 		{"Pod", false},
@@ -194,6 +195,74 @@ func TestLogsHandle_CreateAndDelete(t *testing.T) {
 			assert.Empty(t, configs)
 		})
 	}
+}
+
+func TestTranslateWorkloadLogExpandedFields(t *testing.T) {
+	cr := newLogsCR("test", "default", "Deployment", "app", nil)
+	config, err := translateWorkloadLog(cr, datadoghq.DatadogInstrumentationLogConfig{
+		ContainerName: "app",
+		DatadogInstrumentationLogFields: datadoghq.DatadogInstrumentationLogFields{
+			Type:                   "tcp",
+			BindHost:               "127.0.0.1",
+			IdleTimeout:            "30s",
+			MaxConnections:         new(int32(25)),
+			AllowedIPs:             []string{"10.0.0.0/8", "192.168.1.10"},
+			DeniedIPs:              []string{"10.0.0.5"},
+			Format:                 "syslog",
+			AttributeParsing:       new(true),
+			AutoMultiLineDetection: new(false),
+			AutoMultiLineDetectionCustomSamples: &[]datadoghq.DatadogInstrumentationLogAutoMultiLineSample{
+				{Sample: "2026-08-06 error", Label: new("stack_trace")},
+				{Regex: `^\d{4}-\d{2}-\d{2}`},
+			},
+			AutoMultiLine: &datadoghq.DatadogInstrumentationLogAutoMultiLineOptions{
+				EnableJSONDetection:     new(true),
+				EnableDatetimeDetection: new(false),
+				TokenizerMaxInputBytes:  new(int32(2048)),
+				PatternTableMaxSize:     new(int32(50)),
+				EnableJSONAggregation:   new(true),
+				TagAggregatedJSON:       new(false),
+				StackTraceParsers:       &[]string{"go", "java"},
+			},
+			FingerprintConfig: &datadoghq.DatadogInstrumentationLogFingerprintConfig{
+				FingerprintStrategy: "line_checksum",
+				Count:               new(int32(2)),
+				CountToSkip:         new(int32(1)),
+				MaxBytes:            new(int32(4096)),
+			},
+			MaxMessageSizeBytes: new(int32(262144)),
+		},
+	})
+	require.NoError(t, err)
+
+	logsConfig := string(config.LogsConfig)
+	assert.Contains(t, logsConfig, `"type":"tcp"`)
+	assert.Contains(t, logsConfig, `"bind_host":"127.0.0.1"`)
+	assert.Contains(t, logsConfig, `"idle_timeout":"30s"`)
+	assert.Contains(t, logsConfig, `"max_connections":25`)
+	assert.Contains(t, logsConfig, `"allowed_ips":["10.0.0.0/8","192.168.1.10"]`)
+	assert.Contains(t, logsConfig, `"denied_ips":["10.0.0.5"]`)
+	assert.Contains(t, logsConfig, `"format":"syslog"`)
+	assert.Contains(t, logsConfig, `"attribute_parsing":true`)
+	assert.Contains(t, logsConfig, `"auto_multi_line_detection":false`)
+	assert.Contains(t, logsConfig, `"auto_multi_line_detection_custom_samples":[{"sample":"2026-08-06 error","label":"stack_trace"},{"regex":"^\\d{4}-\\d{2}-\\d{2}"}]`)
+	assert.Contains(t, logsConfig, `"auto_multi_line":{"enable_json_detection":true,"enable_datetime_detection":false,"tokenizer_max_input_bytes":2048,"pattern_table_max_size":50,"enable_json_aggregation":true,"tag_aggregated_json":false,"stack_trace_parsers":["go","java"]}`)
+	assert.Contains(t, logsConfig, `"fingerprint_config":{"fingerprint_strategy":"line_checksum","count":2,"count_to_skip":1,"max_bytes":4096}`)
+	assert.Contains(t, logsConfig, `"max_message_size_bytes":262144`)
+}
+
+func TestTranslateWorkloadLogPreservesEmptyCustomSamples(t *testing.T) {
+	customSamples := []datadoghq.DatadogInstrumentationLogAutoMultiLineSample{}
+	cr := newLogsCR("test", "default", "Deployment", "app", nil)
+
+	config, err := translateWorkloadLog(cr, datadoghq.DatadogInstrumentationLogConfig{
+		ContainerName: "app",
+		DatadogInstrumentationLogFields: datadoghq.DatadogInstrumentationLogFields{
+			AutoMultiLineDetectionCustomSamples: &customSamples,
+		},
+	})
+	require.NoError(t, err)
+	require.JSONEq(t, `[{"auto_multi_line_detection_custom_samples":[]}]`, string(config.LogsConfig))
 }
 
 func TestLogsHandle_Update(t *testing.T) {

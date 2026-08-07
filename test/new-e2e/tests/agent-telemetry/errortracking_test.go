@@ -90,6 +90,7 @@ func errorTrackingAgentOptions(agentConfig string) []agentparams.Option {
 // every binary sharing the errortracking pipeline emits a deterministic
 // error, covering all of them with a single VM instead of one per binary.
 func TestAgentTelemetryErrorTrackingSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &errorTrackingSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
@@ -197,8 +198,8 @@ func dumpAPMTelemetryPayloadsOnFailure(t *testing.T, env *environments.Host) {
 }
 
 // TestPayloadShape verifies the happy path for errortracking logs from the
-// core agent (Python/Go paths), process-agent, security-agent, and trace-agent.
-// system-probe is not covered by this test.
+// core agent (Python/Go paths), process-agent, security-agent, trace-agent,
+// and system-probe.
 func (s *errorTrackingSuite) TestPayloadShape() {
 	dumpDiagnosticsOnFailure(s.T(), s.Env())
 	// BeforeTest already reset the environment to the suite's original
@@ -206,17 +207,21 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	// triggers here recur on every check run, so no re-provisioning is needed.
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 	triggerTraceAgentReceiverError(s.T(), s.Env())
+	// system-probe's npcollector filter error is a one-shot startup trigger, so
+	// it must be re-fired AFTER the flush above. UpdateEnv with unchanged agent
+	// options is a no-op, so restart the service directly instead.
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-sysprobe")
 
-	var pythonLogs, coreLogs, processLogs, securityLogs, traceLogs []*aggregator.AgentTelemetryLog
+	var pythonLogs, coreLogs, processLogs, securityLogs, traceLogs, systemProbeLogs []*aggregator.AgentTelemetryLog
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
 
-		pythonLogs, coreLogs, processLogs, securityLogs, traceLogs = nil, nil, nil, nil, nil
+		pythonLogs, coreLogs, processLogs, securityLogs, traceLogs, systemProbeLogs = nil, nil, nil, nil, nil, nil
 		for _, l := range logs {
-			// agent.flavor disambiguates process-agent/security-agent/trace-agent from
-			// the core agent more robustly than pinning to an internal call site. The
-			// core agent shares flavor.DefaultAgent across Python/Go-core, hence the stack-trace split.
+			// agent.flavor disambiguates process-agent/security-agent/trace-agent/
+			// system-probe from the core agent more robustly than pinning to an
+			// internal call site; the core agent still needs a stack-trace split.
 			switch {
 			case strings.Contains(l.Tags, "agent.flavor:"+flavor.ProcessAgent):
 				processLogs = append(processLogs, l)
@@ -224,6 +229,8 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 				securityLogs = append(securityLogs, l)
 			case strings.Contains(l.Tags, "agent.flavor:"+flavor.TraceAgent):
 				traceLogs = append(traceLogs, l)
+			case strings.Contains(l.Tags, "agent.flavor:"+flavor.SystemProbe):
+				systemProbeLogs = append(systemProbeLogs, l)
 			case strings.Contains(l.StackTrace, "datadog_agent.go"):
 				pythonLogs = append(pythonLogs, l)
 			case strings.Contains(l.StackTrace, "check_logger.go"):
@@ -235,6 +242,7 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 		assert.NotEmpty(c, processLogs, "no process-agent error logs received yet")
 		assert.NotEmpty(c, securityLogs, "no security-agent error logs received yet")
 		assert.NotEmpty(c, traceLogs, "no trace-agent error logs received yet")
+		assert.NotEmpty(c, systemProbeLogs, "no system-probe error logs received yet")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for error logs from every agent binary")
 
 	for _, l := range append(pythonLogs, coreLogs...) {
@@ -248,6 +256,9 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 	}
 	for _, l := range traceLogs {
 		assertCommonLogShape(s.T(), l, flavor.TraceAgent)
+	}
+	for _, l := range systemProbeLogs {
+		assertCommonLogShape(s.T(), l, flavor.SystemProbe)
 	}
 
 	// Python path: log.Error(string) carries no error-typed slog attribute,

@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_agent_go_test off
+
 go_library(
     name = "tests",
     srcs = [
@@ -62,6 +64,7 @@ go_library(
             "//comp/core/tagger/types",
             "//comp/serializer/logscompression/impl",
             "//pkg/config/setup/constants",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/telemetry",
             "//pkg/eventmonitor",
             "//pkg/security/ebpf/kernel",
@@ -96,6 +99,7 @@ go_library(
             "//comp/core/tagger/types",
             "//comp/serializer/logscompression/impl",
             "//pkg/config/setup/constants",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/telemetry",
             "//pkg/eventmonitor",
             "//pkg/security/ebpf/kernel",

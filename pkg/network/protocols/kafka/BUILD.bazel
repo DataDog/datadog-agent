@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
@@ -32,6 +33,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf",
@@ -61,7 +63,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "kafka_test",
     srcs = [
         "api_version_counter_test.go",
@@ -70,13 +72,13 @@ go_test(
         "telemetry_test.go",
         "types_linux_test.go",
     ],
-    # FIXME(agent-build) remove allow_empty once we don't build with omnibus
     data = glob(
         ["testdata/**"],
         allow_empty = True,
     ),
     embed = [":kafka"],
-    gotags = ["test"],
+    gotags_sets = [["linux_bpf"]],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/config",
         "//pkg/network/protocols/telemetry",
