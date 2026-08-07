@@ -114,6 +114,39 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 	return 2 // detectors without explicit thresholds default to Medium
 }
 
+// contributorWeight maps an anomaly score onto a continuous contributor weight
+// in [0.2, 3.0]. It is used only to rank retained top anomalies; the scorer's
+// EWMA continues to use the calibrated discrete levelWeights.
+func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
+	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
+	if !ok {
+		return 0.2 + 2.8*0.5 // uncalibrated detectors retain Medium's position
+	}
+	if a.Score == nil {
+		return 0.2
+	}
+
+	score := *a.Score
+	breakpoints := [5]float64{0, thresholds[0], thresholds[1], thresholds[2], thresholds[3]}
+	severity := 4.0
+	if score <= 0 {
+		severity = 0
+	} else {
+		for level := 0; level < len(breakpoints)-1; level++ {
+			if score < breakpoints[level+1] {
+				span := breakpoints[level+1] - breakpoints[level]
+				if span <= 0 {
+					severity = float64(level)
+				} else {
+					severity = float64(level) + (score-breakpoints[level])/span
+				}
+				break
+			}
+		}
+	}
+	return 0.2 + (severity/4)*2.8
+}
+
 // seriesID returns a stable string key for deduplication.
 // Prefers SourceRef.CompactID() when available (set by the metrics pipeline);
 // falls back to Source.Key() otherwise. SeriesDescriptor.Key() always returns
@@ -170,7 +203,7 @@ func (b *topAnomalyBuffer) update(sec int64, anomalies []observerdef.Anomaly, cf
 		b.insert(topAnomaly{
 			handle:    *anomaly.SourceRef,
 			timestamp: sec,
-			weight:    levelWeights[anomalyLevel(anomaly, cfg)],
+			weight:    contributorWeight(anomaly, cfg),
 		})
 	}
 }
