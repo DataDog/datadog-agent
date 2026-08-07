@@ -120,8 +120,6 @@ func TestVariablePrivateField(t *testing.T) {
 // subreaper - i.e. that the inherited value is snapshotted onto the grandchild
 // before its parent link changes.
 func TestVariableInheritanceReparenting(t *testing.T) {
-	t.Skip("Need to re-introduce subreaper reparenting")
-
 	SkipIfNotAvailable(t)
 
 	if ebpfLessEnabled {
