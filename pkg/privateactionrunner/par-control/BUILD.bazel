@@ -23,8 +23,10 @@ rust_library(
     srcs = [
         "src/config.rs",
         "src/lib.rs",
+        "src/platform.rs",
         "src/procmgr.rs",
         "src/proto.rs",
+        "src/test_support.rs",
         "src/transport.rs",
     ],
     crate_name = "par_control",
@@ -77,5 +79,8 @@ rust_test(
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"],
+    deps = [
+        "@crates//:tempfile",
+        "@crates//:tokio-stream",
+    ],
 )
