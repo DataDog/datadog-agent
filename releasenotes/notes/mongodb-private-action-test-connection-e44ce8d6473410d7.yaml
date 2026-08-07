@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Private Action Runner can now validate MongoDB connections and report
+    the MongoDB server version when it is available.
