@@ -9,3 +9,22 @@ type ebpfCgroupAggStats struct {
 	Preemption_count uint64
 	Pid_count        uint64
 }
+type ebpfPmuCounter struct {
+	Value   uint64
+	Enabled uint64
+	Running uint64
+}
+type ebpfPmuCgroupStats struct {
+	Counters           [6]ebpfPmuCounter
+	Cpu_migrations     uint64
+	Sampled_event_mask uint64
+}
+type ebpfPmuConfig struct {
+	Active     uint32
+	X_padding  uint32
+	Generation uint64
+	Event_mask uint64
+}
+type ebpfPmuErrorStats struct {
+	Errors uint64
+}
