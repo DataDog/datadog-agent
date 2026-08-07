@@ -123,6 +123,96 @@ func TestAnomalyLevel(t *testing.T) {
 	}
 }
 
+func TestTopAnomalyBuffer_OnlyTracksStorageBackedMetrics(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	buffer := newTopAnomalyBuffer()
+	handle := &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
+	buffer.update(1000, []observer.Anomaly{
+		{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(40)},
+		{Source: observer.SeriesDescriptor{Namespace: "rrcf", Name: "direct"}, DetectorName: "rrcf"},
+		{Type: observer.AnomalyTypeLog, Source: observer.SeriesDescriptor{Namespace: "logs", Name: "error"}, DetectorName: "log"},
+	}, cfg)
+
+	if len(buffer.entries) != 1 {
+		t.Fatalf("expected only one storage-backed entry, got %+v", buffer.entries)
+	}
+	if got := buffer.entries[0]; got.handle != *handle || got.weight != levelWeights[4] {
+		t.Fatalf("unexpected admitted anomaly: %+v", got)
+	}
+}
+
+func TestTopAnomalyBuffer_ExpiresAtFiveMinutes(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	buffer := newTopAnomalyBuffer()
+	handle := &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
+	buffer.update(1000, []observer.Anomaly{{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(40)}}, cfg)
+
+	buffer.update(1300, nil, cfg) // one catch-up advance reaches the five-minute boundary
+	if len(buffer.entries) != 0 {
+		t.Fatalf("expected contributor to expire after five minutes, got %+v", buffer.entries)
+	}
+}
+
+func TestTopAnomalyBuffer_UsesScorerWeightsAndDeterministicOrder(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	buffer := newTopAnomalyBuffer()
+	buffer.update(1000, []observer.Anomaly{
+		{SourceRef: &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(20)},
+		{SourceRef: &observer.QueryHandle{Ref: 7, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(40)},
+		{SourceRef: &observer.QueryHandle{Ref: 3, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(40)},
+	}, cfg)
+
+	if len(buffer.entries) != 3 {
+		t.Fatalf("expected three entries, got %+v", buffer.entries)
+	}
+	if buffer.entries[0].handle.Ref != 3 || buffer.entries[0].weight != levelWeights[4] {
+		t.Fatalf("unexpected first entry: %+v", buffer.entries[0])
+	}
+	if buffer.entries[1].handle.Ref != 7 || buffer.entries[1].weight != levelWeights[4] {
+		t.Fatalf("unexpected second entry: %+v", buffer.entries[1])
+	}
+	if buffer.entries[2].handle.Ref != 42 || buffer.entries[2].weight != levelWeights[3] {
+		t.Fatalf("unexpected third entry: %+v", buffer.entries[2])
+	}
+}
+
+func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesTail(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	buffer := newTopAnomalyBuffer()
+	for i := 1; i <= topAnomalyBufferSize; i++ {
+		handle := &observer.QueryHandle{Ref: observer.SeriesRef(i), Aggregate: observer.AggregateAverage}
+		buffer.update(1000, []observer.Anomaly{{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(8)}}, cfg)
+	}
+	weakHandle := &observer.QueryHandle{Ref: 99, Aggregate: observer.AggregateAverage}
+	buffer.update(1000, []observer.Anomaly{{SourceRef: weakHandle, DetectorName: "holt_residual", Score: scorePtr(8)}}, cfg)
+	strongHandle := &observer.QueryHandle{Ref: 100, Aggregate: observer.AggregateAverage}
+	buffer.update(1001, []observer.Anomaly{{SourceRef: strongHandle, DetectorName: "holt_residual", Score: scorePtr(40)}}, cfg)
+
+	if len(buffer.entries) != topAnomalyBufferSize {
+		t.Fatalf("expected capacity %d, got %d", topAnomalyBufferSize, len(buffer.entries))
+	}
+	for _, entry := range buffer.entries {
+		if entry.handle == *weakHandle {
+			t.Fatal("expected equal-weight tail candidate to be rejected")
+		}
+	}
+	if buffer.entries[0].handle != *strongHandle || buffer.entries[0].weight != levelWeights[4] {
+		t.Fatalf("expected stronger anomaly at the head, got %+v", buffer.entries[0])
+	}
+}
+
+func TestTopAnomalyBuffer_EnabledOnlyForCorrelationEvents(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	if scorer := newAnomalyScorerBase(cfg); scorer.topAnomalies != nil {
+		t.Fatal("expected contributor buffer to remain disabled")
+	}
+
+	cfg.CorrelationEvents = true
+	if scorer := newAnomalyScorerBase(cfg); scorer.topAnomalies == nil {
+		t.Fatal("expected contributor buffer when correlation events are enabled")
+	}
+}
+
 // TestEWMABasic verifies that the EWMA is seeded correctly and decays as expected.
 func TestEWMABasic(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -132,6 +133,90 @@ func seriesID(a observerdef.Anomaly) string {
 // highest level that still has an active timestamp, rather than carrying the
 // stale peak forward.
 type windowEntry [5]int64
+
+const (
+	topAnomalyBufferSize = 64
+	topAnomalyWindowSecs = int64(5 * 60)
+)
+
+// topAnomaly is one storage-backed anomaly occurrence retained for scorer
+// episode attribution. It deliberately stores no source descriptor, tags, or
+// detector payload; those are resolved only for the final reported series.
+type topAnomaly struct {
+	handle    observerdef.QueryHandle
+	timestamp int64
+	weight    float64
+}
+
+// topAnomalyBuffer is a bounded approximation of the strongest anomalies over
+// the previous five minutes. Entries are maintained in rank order so the hot
+// path only does a bounded binary search and slice shift.
+type topAnomalyBuffer struct {
+	entries []topAnomaly
+}
+
+func newTopAnomalyBuffer() *topAnomalyBuffer {
+	return &topAnomalyBuffer{entries: make([]topAnomaly, 0, topAnomalyBufferSize)}
+}
+
+// update expires stale entries then considers each anomaly from a finalized
+// scorer second. sec is data time, never wall-clock time.
+func (b *topAnomalyBuffer) update(sec int64, anomalies []observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) {
+	b.expire(sec)
+	for _, anomaly := range anomalies {
+		if anomaly.SourceRef == nil {
+			continue
+		}
+		b.insert(topAnomaly{
+			handle:    *anomaly.SourceRef,
+			timestamp: sec,
+			weight:    levelWeights[anomalyLevel(anomaly, cfg)],
+		})
+	}
+}
+
+func (b *topAnomalyBuffer) expire(sec int64) {
+	cutoff := sec - topAnomalyWindowSecs
+	kept := b.entries[:0]
+	for _, entry := range b.entries {
+		if entry.timestamp > cutoff {
+			kept = append(kept, entry)
+		}
+	}
+	b.entries = kept
+}
+
+func (b *topAnomalyBuffer) insert(candidate topAnomaly) {
+	index := sort.Search(len(b.entries), func(i int) bool {
+		return topAnomalyBefore(candidate, b.entries[i])
+	})
+	if len(b.entries) == topAnomalyBufferSize && index == len(b.entries) {
+		return
+	}
+	if len(b.entries) < topAnomalyBufferSize {
+		b.entries = append(b.entries, topAnomaly{})
+	}
+	copy(b.entries[index+1:], b.entries[index:len(b.entries)-1])
+	b.entries[index] = candidate
+}
+
+// topAnomalyBefore defines the stable rank order for retained occurrences.
+func topAnomalyBefore(a, b topAnomaly) bool {
+	if a.weight != b.weight {
+		return a.weight > b.weight
+	}
+	if a.timestamp != b.timestamp {
+		return a.timestamp > b.timestamp
+	}
+	if a.handle.Ref != b.handle.Ref {
+		return a.handle.Ref < b.handle.Ref
+	}
+	return a.handle.Aggregate < b.handle.Aggregate
+}
+
+func (b *topAnomalyBuffer) reset() {
+	b.entries = b.entries[:0]
+}
 
 // secState is the per-second scorer state emitted after each Advance step.
 type secState struct {
@@ -326,6 +411,9 @@ type anomalyScorer struct {
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
 	// Entries are evicted once lastSeenSec falls outside the window.
 	windowMap map[string]windowEntry
+	// topAnomalies retains bounded five-minute attribution only when
+	// correlation events are enabled.
+	topAnomalies *topAnomalyBuffer
 
 	// EWMA state
 	ewma float64
@@ -393,11 +481,15 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	} else {
 		cfg.CorrelationEventThreshold = threshold
 	}
-	return &anomalyScorer{
+	scorer := &anomalyScorer{
 		config:    cfg,
 		pending:   make(map[int64][]observerdef.Anomaly),
 		windowMap: make(map[string]windowEntry),
 	}
+	if cfg.CorrelationEvents {
+		scorer.topAnomalies = newTopAnomalyBuffer()
+	}
+	return scorer
 }
 
 // NewAnomalyScorer creates a new anomalyScorer with the given config.
@@ -621,6 +713,9 @@ func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
 	s.windowMap = make(map[string]windowEntry)
+	if s.topAnomalies != nil {
+		s.topAnomalies.reset()
+	}
 	s.ewma = 0
 	s.lastAdvancedSec = 0
 	s.buckets = nil
@@ -725,35 +820,39 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
+	if s.topAnomalies != nil {
+		s.topAnomalies.update(sec, anomalies, s.config.AnomalyScorerConfig)
+	}
+
 	// Step 1: merge new anomalies into the window.
 	for _, a := range anomalies {
 		sid := seriesID(a)
-		l := anomalyLevel(a, s.config.AnomalyScorerConfig)
-		e := s.windowMap[sid]
-		if sec > e[l] {
-			e[l] = sec
+		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
+		entry := s.windowMap[sid]
+		if sec > entry[level] {
+			entry[level] = sec
 		}
-		s.windowMap[sid] = e
+		s.windowMap[sid] = entry
 	}
 
 	// Step 2: evict per-level timestamps that have fallen out of the window,
 	// and remove the series entirely when no level remains active.
 	windowStart := sec - s.config.WindowSecs + 1
-	for sid, e := range s.windowMap {
+	for sid, entry := range s.windowMap {
 		alive := false
-		for lvl := 0; lvl < 5; lvl++ {
-			if e[lvl] > 0 && e[lvl] < windowStart {
-				e[lvl] = 0
+		for level := 0; level < 5; level++ {
+			if entry[level] > 0 && entry[level] < windowStart {
+				entry[level] = 0
 			}
-			if e[lvl] > 0 {
+			if entry[level] > 0 {
 				alive = true
 			}
 		}
 		if !alive {
 			delete(s.windowMap, sid)
-		} else {
-			s.windowMap[sid] = e
+			continue
 		}
+		s.windowMap[sid] = entry
 	}
 
 	// Step 3: bucket from the live window.
@@ -761,19 +860,15 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	var bins [5]int
 	var count int
 	var weightSum float64
-
-	for _, e := range s.windowMap {
-		maxLevel := -1
-		for lvl := 4; lvl >= 0; lvl-- {
-			if e[lvl] > 0 {
-				maxLevel = lvl
-				break
+	for _, entry := range s.windowMap {
+		for level := 4; level >= 0; level-- {
+			if entry[level] == 0 {
+				continue
 			}
-		}
-		if maxLevel >= 0 {
-			bins[maxLevel]++
+			bins[level]++
 			count++
-			weightSum += levelWeights[maxLevel]
+			weightSum += levelWeights[level]
+			break
 		}
 	}
 
