@@ -27,6 +27,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -82,7 +83,10 @@ func NewComponent(deps Dependencies) (Provides, error) {
 			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory)
+	options, err := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory)
+	if err != nil {
+		return Provides{}, err
+	}
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
@@ -114,7 +118,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 	}, nil
 }
 
-func createAgentDemultiplexerOptions(config config.Component, params Params, dogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory) aggregator.AgentDemultiplexerOptions {
+func createAgentDemultiplexerOptions(config config.Component, params Params, dogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory) (aggregator.AgentDemultiplexerOptions, error) {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
 		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
@@ -127,9 +131,24 @@ func createAgentDemultiplexerOptions(config config.Component, params Params, dog
 
 	options.DogStatsDLookbackFactory = dogStatsDLookbackFactory
 
-	// Override FlushInterval only if flushInterval is set by the user
+	// Component parameters override defaults. A zero flush interval is a sentinel
+	// used by one-shot commands to disable automatic flushing and must survive the
+	// experiment override.
+	preserveZeroFlushInterval := false
 	if v, ok := params.flushInterval.Get(); ok {
 		options.FlushInterval = v
+		preserveZeroFlushInterval = v == 0
 	}
-	return options
+
+	experiment, err := metricresolution.Read(config)
+	if err != nil {
+		return aggregator.AgentDemultiplexerOptions{}, err
+	}
+	if experiment.Enabled {
+		options.DogStatsDAggregationInterval = experiment.DogStatsDAggregationInterval
+		if !preserveZeroFlushInterval {
+			options.FlushInterval = experiment.SerializerFlushInterval
+		}
+	}
+	return options, nil
 }

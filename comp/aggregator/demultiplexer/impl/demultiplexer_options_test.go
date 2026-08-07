@@ -8,13 +8,22 @@ package demultiplexerimpl
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
+
+func requireOptions(t *testing.T, cfg configmock.Component, params Params, factory aggregator.DogStatsDLookbackFactory) aggregator.AgentDemultiplexerOptions {
+	t.Helper()
+	options, err := createAgentDemultiplexerOptions(cfg, params, factory)
+	require.NoError(t, err)
+	return options
+}
 
 func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountNotReadWithoutConfigOption(t *testing.T) {
 	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
@@ -22,8 +31,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountNotReadWithoutConfigOpti
 		"dogstatsd_no_aggregation_pipeline_workers_count": 4,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(), nil)
 	require.Equal(t, 0, options.NoAggregationPipelineWorkersCount)
 }
 
@@ -33,18 +41,14 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountFromConfig(t *testing.T)
 		"dogstatsd_no_aggregation_pipeline_workers_count": 4,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 	require.Equal(t, 4, options.NoAggregationPipelineWorkersCount)
 }
 
 func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountDefaultsToOneWhenEnabled(t *testing.T) {
-	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
-		"dogstatsd_no_aggregation_pipeline": true,
-	})
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{"dogstatsd_no_aggregation_pipeline": true})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 	require.Equal(t, 1, options.NoAggregationPipelineWorkersCount)
 }
 
@@ -54,8 +58,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountDisabled(t *testing.T) {
 		"dogstatsd_no_aggregation_pipeline_workers_count": 4,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
-
+	options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 	require.Equal(t, 0, options.NoAggregationPipelineWorkersCount)
 }
 
@@ -67,8 +70,7 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountFallsBackToOne(t *testin
 				"dogstatsd_no_aggregation_pipeline_workers_count": configured,
 			})
 
-			options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
-
+			options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 			require.Equal(t, 1, options.NoAggregationPipelineWorkersCount)
 		})
 	}
@@ -76,11 +78,69 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountFallsBackToOne(t *testin
 
 func TestCreateAgentDemultiplexerOptionsStoresLookbackFactory(t *testing.T) {
 	cfg := configmock.NewMock(t)
-	factory := aggregator.DogStatsDLookbackFactory(func(serializer.MetricSerializer) aggregator.DogStatsDLookback {
-		return nil
+	factory := aggregator.DogStatsDLookbackFactory(func(serializer.MetricSerializer) aggregator.DogStatsDLookback { return nil })
+
+	options := requireOptions(t, cfg, NewDefaultParams(), factory)
+	require.NotNil(t, options.DogStatsDLookbackFactory)
+}
+
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentDisabledParity(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		metricresolution.EnabledKey: false,
 	})
 
-	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), factory)
+	options := requireOptions(t, cfg, NewDefaultParams(), nil)
+	require.Equal(t, aggregator.DefaultFlushInterval, options.FlushInterval)
+	require.Equal(t, 10*time.Second, options.DogStatsDAggregationInterval)
+}
 
-	require.NotNil(t, options.DogStatsDLookbackFactory)
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentEnabled(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		metricresolution.EnabledKey:                      true,
+		metricresolution.CheckIntervalKey:                time.Second,
+		metricresolution.DogStatsDAggregationIntervalKey: time.Second,
+		metricresolution.SerializerFlushIntervalKey:      time.Second,
+	})
+
+	options := requireOptions(t, cfg, NewDefaultParams(), nil)
+	require.Equal(t, time.Second, options.FlushInterval)
+	require.Equal(t, time.Second, options.DogStatsDAggregationInterval)
+}
+
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentOverridesParams(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		metricresolution.EnabledKey:                      true,
+		metricresolution.CheckIntervalKey:                time.Second,
+		metricresolution.DogStatsDAggregationIntervalKey: time.Second,
+		metricresolution.SerializerFlushIntervalKey:      time.Second,
+	})
+
+	options := requireOptions(t, cfg, NewDefaultParams(WithFlushInterval(5*time.Second)), nil)
+	require.Equal(t, time.Second, options.FlushInterval)
+	require.Equal(t, time.Second, options.DogStatsDAggregationInterval)
+}
+
+func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentPreservesZeroFlushInterval(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		metricresolution.EnabledKey:                      true,
+		metricresolution.CheckIntervalKey:                time.Second,
+		metricresolution.DogStatsDAggregationIntervalKey: time.Second,
+		metricresolution.SerializerFlushIntervalKey:      time.Second,
+	})
+
+	options := requireOptions(t, cfg, NewDefaultParams(WithFlushInterval(0)), nil)
+	require.Zero(t, options.FlushInterval)
+	require.Equal(t, time.Second, options.DogStatsDAggregationInterval)
+}
+
+func TestCreateAgentDemultiplexerOptionsRejectsInvalidMetricResolutionExperiment(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		metricresolution.EnabledKey:                      true,
+		metricresolution.CheckIntervalKey:                time.Second,
+		metricresolution.DogStatsDAggregationIntervalKey: 500 * time.Millisecond,
+		metricresolution.SerializerFlushIntervalKey:      time.Second,
+	})
+
+	_, err := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), nil)
+	require.ErrorContains(t, err, metricresolution.DogStatsDAggregationIntervalKey)
 }

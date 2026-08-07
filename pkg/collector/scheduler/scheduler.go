@@ -38,6 +38,17 @@ func init() {
 	schedulerExpvars.Set("ChecksEntered", &schedulerChecksEntered)
 }
 
+// SchedulerOption configures a Scheduler.
+type SchedulerOption func(*Scheduler)
+
+// WithNormalCheckIntervalOverride forces positive intervals for normal checks to interval.
+// One-shot and shadow checks keep their original intervals.
+func WithNormalCheckIntervalOverride(interval time.Duration) SchedulerOption {
+	return func(s *Scheduler) {
+		s.normalCheckIntervalOverride = interval
+	}
+}
+
 // Scheduler keeps things rolling.
 // More docs to come...
 type Scheduler struct {
@@ -52,6 +63,8 @@ type Scheduler struct {
 	tlmTrackedChecks map[checkid.ID]string       // Keep track of the checks that are tracked with telemetry
 	mu               sync.Mutex                  // To protect critical sections in struct's fields
 
+	normalCheckIntervalOverride time.Duration
+
 	checkToQueue map[checkid.ID]*jobQueue // Keep track of what is the queue for any Check
 	// To protect checkToQueue. Using mu would create a deadlock when stopping the Scheduler. 'jobQueue' is calling
 	// 'IsCheckScheduled' right when then 'Stop' function is called and mu is already lock. for this reason we have
@@ -64,8 +77,8 @@ type Scheduler struct {
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
-func NewScheduler(checksPipe chan<- check.Check, shadowChecksPipe chan<- check.Check) *Scheduler {
-	return &Scheduler{
+func NewScheduler(checksPipe chan<- check.Check, shadowChecksPipe chan<- check.Check, options ...SchedulerOption) *Scheduler {
+	scheduler := &Scheduler{
 		checksPipe:       checksPipe,
 		shadowChecksPipe: shadowChecksPipe,
 		done:             make(chan bool),
@@ -79,46 +92,55 @@ func NewScheduler(checksPipe chan<- check.Check, shadowChecksPipe chan<- check.C
 		cancelOneTime:    make(chan bool),
 		wgOneTime:        sync.WaitGroup{},
 	}
+	for _, option := range options {
+		option(scheduler)
+	}
+	return scheduler
 }
 
 // Enter schedules a `Check`s for execution accordingly to the `Check.Interval()` value.
 // If the interval is 0, the check is supposed to run only once.
 func (s *Scheduler) Enter(ch check.Check) error {
+	interval := ch.Interval()
+
 	// enqueue immediately if this is a one-time schedule
-	if ch.Interval() == 0 {
+	if interval == 0 {
 		s.enqueueOnce(ch)
 		return nil
 	}
 
-	if ch.Interval() < minAllowedInterval {
+	isShadow := check.IsShadow(ch)
+	if !isShadow && interval > 0 && s.normalCheckIntervalOverride > 0 {
+		interval = s.normalCheckIntervalOverride
+	}
+	if interval < minAllowedInterval {
 		return fmt.Errorf("schedule interval must be greater than %v or 0", minAllowedInterval)
 	}
 
-	log.Infof("Scheduling check %s with an interval of %v", ch.ID(), ch.Interval())
+	log.Infof("Scheduling check %s with an interval of %v", ch.ID(), interval)
 
 	// sync when accessing `jobQueues` and `check2queue`
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	queues := s.jobQueues
-	isShadow := check.IsShadow(ch)
 	if isShadow {
 		queues = s.shadowJobQueues
 	}
 
-	if _, ok := queues[ch.Interval()]; !ok {
-		queues[ch.Interval()] = newJobQueue(ch.Interval(), isShadow)
-		s.startQueue(queues[ch.Interval()])
+	if _, ok := queues[interval]; !ok {
+		queues[interval] = newJobQueue(interval, isShadow)
+		s.startQueue(queues[interval])
 		if ch.IsTelemetryEnabled() {
 			tlmQueuesCount.Inc()
 		}
 		schedulerQueuesCount.Add(1)
 	}
-	queues[ch.Interval()].addJob(ch)
+	queues[interval].addJob(ch)
 
 	// map each check to the Job Queue it was assigned to
 	s.checkToQueueMutex.Lock()
-	s.checkToQueue[ch.ID()] = queues[ch.Interval()]
+	s.checkToQueue[ch.ID()] = queues[interval]
 	s.checkToQueueMutex.Unlock()
 
 	schedulerChecksEntered.Add(1)

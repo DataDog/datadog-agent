@@ -60,7 +60,7 @@ func TestAppendSamplesStoresCheckAndDogStatsDNoAggInOneRing(t *testing.T) {
 	require.Equal(t, []string{"z:9"}, series[1].Tags.UnsafeToReadOnlySliceString())
 	require.Equal(t, "host-b", series[1].Host)
 	require.Equal(t, metrics.APIGaugeType, series[1].MType)
-	require.Equal(t, int64(dogStatsDNoAggregationInterval), series[1].Interval)
+	require.Equal(t, metrics.TimestampedDogStatsDNormalizationInterval, series[1].Interval)
 	require.Empty(t, series[1].SourceTypeName)
 	require.Empty(t, series[1].Unit)
 	require.Equal(t, metrics.MetricSource(0), series[1].Source)
@@ -90,7 +90,7 @@ func TestDogStatsDNoAggRateLikeSamplesUseNoAggAPISemantics(t *testing.T) {
 	series := buf.Series()
 	require.Len(t, series, 1)
 	require.Equal(t, metrics.APIRateType, series[0].MType)
-	require.Equal(t, int64(dogStatsDNoAggregationInterval), series[0].Interval)
+	require.Equal(t, metrics.TimestampedDogStatsDNormalizationInterval, series[0].Interval)
 	require.Equal(t, float64(2), series[0].Points[0].Value)
 }
 

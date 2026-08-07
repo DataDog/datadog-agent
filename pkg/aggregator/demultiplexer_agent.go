@@ -84,7 +84,8 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	FlushInterval time.Duration
+	FlushInterval                time.Duration
+	DogStatsDAggregationInterval time.Duration
 
 	NoAggregationPipelineWorkersCount int
 
@@ -100,10 +101,18 @@ type AgentDemultiplexerOptions struct {
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
 func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
-		FlushInterval: DefaultFlushInterval,
+		FlushInterval:                DefaultFlushInterval,
+		DogStatsDAggregationInterval: defaultDogStatsDAggregationInterval,
 		// the different agents/binaries enable it on a per-need basis
 		NoAggregationPipelineWorkersCount: 0,
 	}
+}
+
+func dogStatsDAggregationIntervalSeconds(interval time.Duration) int64 {
+	if interval < time.Second || interval%time.Second != 0 {
+		panic(fmt.Sprintf("invalid DogStatsD aggregation interval %s: must be a whole-second duration of at least 1s", interval))
+	}
+	return int64(interval / time.Second)
 }
 
 type statsd struct {
@@ -161,6 +170,8 @@ func initAgentDemultiplexer(log log.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
 	hostname string) *AgentDemultiplexer {
+	dogStatsDIntervalSeconds := dogStatsDAggregationIntervalSeconds(options.DogStatsDAggregationInterval)
+
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
@@ -195,7 +206,7 @@ func initAgentDemultiplexer(log log.Component,
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), dogStatsDIntervalSeconds, tagsStore, tagger, agg.hostname)
 		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
 
 		// its worker (process loop + flush/serialization mechanism)

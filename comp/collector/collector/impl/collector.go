@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -175,8 +176,17 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
+	experiment, err := metricresolution.Read(c.config)
+	if err != nil {
+		return err
+	}
+
 	run := runner.NewRunner(c.senderManager, c.haAgent)
-	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
+	var schedulerOptions []scheduler.SchedulerOption
+	if experiment.Enabled {
+		schedulerOptions = append(schedulerOptions, scheduler.WithNormalCheckIntervalOverride(experiment.CheckInterval))
+	}
+	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan(), schedulerOptions...)
 
 	// let the runner some visibility into the scheduler
 	run.SetScheduler(sched)

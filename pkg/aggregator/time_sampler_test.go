@@ -11,6 +11,7 @@ import (
 	"math"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,6 +119,27 @@ func testBucketSampling(t *testing.T, store *tags.Store) {
 }
 func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
+}
+
+func TestOneSecondBucketSampling(t *testing.T) {
+	sampler := NewTimeSampler(TimeSamplerID(0), 1, tags.NewStore(false, "test"), nooptagger.NewComponent(), "host")
+	matcher := filterlist.NewNoopTagMatcher()
+
+	for _, timestamp := range []float64{100.1, 101.1} {
+		sampler.sample(&metrics.MetricSample{Name: "test.gauge", Value: timestamp, Mtype: metrics.GaugeType, SampleRate: 1}, timestamp, matcher)
+		sampler.sample(&metrics.MetricSample{Name: "test.count", Value: 1, Mtype: metrics.CountType, SampleRate: 1}, timestamp, matcher)
+		sampler.sample(&metrics.MetricSample{Name: "test.distribution", Value: timestamp, Mtype: metrics.DistributionType, SampleRate: 1}, timestamp, matcher)
+	}
+
+	series, sketches := flushSerie(sampler, 102, false)
+	require.Len(t, series, 2)
+	for _, serie := range series {
+		require.Equal(t, int64(1), serie.Interval)
+		require.Equal(t, []float64{100, 101}, []float64{serie.Points[0].Ts, serie.Points[1].Ts})
+	}
+	require.Len(t, sketches, 1)
+	require.Equal(t, int64(1), sketches[0].Interval)
+	require.Equal(t, []int64{100, 101}, []int64{sketches[0].Points[0].Ts, sketches[0].Points[1].Ts})
 }
 
 func TestTimeSamplerDogStatsDLookbackReceivesSelectedResolvedContext(t *testing.T) {
@@ -481,7 +503,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 			exp  = &quantile.Sketch{}
 		)
 
-		for i := 0; i < bucketSize; i++ {
+		for i := 0; i < int(defaultDogStatsDAggregationInterval/time.Second); i++ {
 			v := float64(i)
 			insert(t, now, name, tags, host, v)
 			exp.Insert(quantile.Default(), v)

@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "status": "selected_not_executed",
+  "purpose": "Plumbing-only proof of custom Agent deployment, one-second ordinary DogStatsD aggregation, normal-backend timestamp preservation, and fine-interval Bits querying.",
+  "dataset_membership": false,
+  "app": {
+    "name": "pharmacy-replicaepoch-store",
+    "repository_revision": "01cf1863321359982ddeaa38e341024440526f1f",
+    "episode_path": "pharmacy-replicaepoch-store/episodes/prescription-read-serves-prior-epoch.episode.yml",
+    "episode_description": "Prescription readback serves an epoch older than the committed dispense authority.",
+    "warmup_seconds": 75,
+    "observation_seconds": 660,
+    "cooldown_seconds": 180,
+    "total_seconds": 915,
+    "historical_seed_scenario_uuid": null
+  },
+  "selection_rationale": {
+    "maintained_app": true,
+    "unchanged_existing_episode": true,
+    "app_local_datadog_dependency": "chart/Chart.yaml uses Datadog chart 3.82.0 guarded by datadog.enabled",
+    "bounded_topology": "pharmacy API, PostgreSQL, and continuous Locust ingress workload",
+    "fault_mechanism": "single application-control pod exec with explicit cleanup",
+    "continuous_workload": "12 default Locust users, constant 0.5 second wait, dispense task weight 4 of 7",
+    "expected_dogstatsd_timing_samples": "well above one timing sample per second while dispenses continue",
+    "managed_lifecycle_required": true
+  },
+  "metric_contract": {
+    "primary_fixture": {
+      "metric": "metric_resolution.smoke.sequence",
+      "producer_type": "smoke-only Agent custom check injected through app-local Helm values",
+      "collection_interval": "1s",
+      "value_contract": "monotonically increasing integer sequence",
+      "duration": "60-120s during the managed episode",
+      "required_tags": [
+        "smoke_run_id:<execution-specific-id>",
+        "service:datadog-agent",
+        "env:<execution-env>"
+      ],
+      "dataset_membership": false,
+      "implementation_status": "pending"
+    },
+    "ordinary_dogstatsd_fixture": {
+      "input_metric": "pharmacy.replica_epoch.apply_ms",
+      "producer_type": "DogStatsD timing",
+      "producer_code": "pharmacy-replicaepoch-store/pharmacy-api/main.go",
+      "producer_call": "metrics.Timing on each dispense application",
+      "producer_client": "github.com/DataDog/datadog-go/v5 v5.6.0",
+      "client_aggregation": "The app calls statsd.New without extended aggregation. Datadog-go v5.6.0 default client aggregation covers gauges, counts, and sets; extended aggregation is false, so timing samples are sent to the Agent without timing aggregation.",
+      "required_tags": [
+        "service:pharmacy-epoch-api",
+        "env:<execution-env>"
+      ],
+      "backend_series_names": [],
+      "backend_series_discovery_required": true
+    },
+    "secondary_scenario_metric": "pharmacy.replica_epoch.lag",
+    "secondary_metric_note": "Gauge is useful for scenario state but is not a one-second proof because default client-side gauge aggregation flushes every two seconds."
+  },
+  "agent_contract": {
+    "shared_datadog_mode": false,
+    "source_commit": "f2da1471bb748fb5108f89f36f7b83cab305ca79",
+    "patch_path": null,
+    "patch_sha256": "c5d25981ea72ac1340bf2d0bf241d10935da44ea7b6821ba56a07a73d4e29e09",
+    "implementation_status": "tests_build_lint_passed_image_not_published",
+    "image_repository": null,
+    "image_digest": null,
+    "architecture": "amd64",
+    "experiment_enabled": true,
+    "check_interval": "1s",
+    "dogstatsd_aggregation_interval": "1s",
+    "serializer_flush_interval": "1s"
+  },
+  "local_runtime_preflight": {
+    "status": "passed",
+    "evidence_scope": "author_local_not_committed_or_reviewable_repository_attestation",
+    "config_path": null,
+    "sink": "local HTTP server accepting and decoding zlib-compressed v1 series payloads",
+    "summary_path": null,
+    "agent_log_path": null,
+    "agent_exit_code": 0,
+    "series_request_gap_median_seconds": 1.0,
+    "scheduled_check_proof": "cpu and uptime logged a 1s scheduler interval; system.cpu.user had 11 and system.uptime had 12 consecutive one-second timestamps",
+    "ordinary_dogstatsd_proof": "gauge, count, and timing-derived series had distinct one-second timestamps and interval 1",
+    "timestamped_dogstatsd_proof": "three exact producer timestamp/value pairs survived with interval 10",
+    "limitations": "This is a local v1 JSON intake sink, not fakeintake, a packaged container, the normal metrics backend, or Bits. The local development build lacked installed datadog_checks Python dependencies, so the scheduled-check runtime proof used built-in core cpu and uptime checks rather than the smoke-only Python check."
+  },
+  "execution_outputs": {
+    "gs_admin_execution_id": null,
+    "gs_flow_job_id": null,
+    "sims_archiver_workflow_id": null,
+    "scenario_store_uuid": null,
+    "ddeval_workflow_id": null,
+    "ddeval_run_id": null,
+    "llmobs_trace_id": null,
+    "retention_deadline": null
+  },
+  "pass_gates": [
+    "Running Agent PodSpec image uses the selected repository and digest.",
+    "Running Pod imageID resolves to the same immutable digest.",
+    "Filtered agent config and agent status prove the effective one-second experiment settings.",
+    "The smoke-only custom check emits the exact monotonic sequence for 60-120 seconds without serializer errors.",
+    "Pharmacy timing samples arrive without sustained DogStatsD drops or serializer errors.",
+    "Direct normal-backend queries preserve distinct one-second timestamps and exact values/tags for metric_resolution.smoke.sequence.",
+    "Direct normal-backend queries discover the emitted pharmacy timing-series names and preserve distinct one-second timestamps for at least one timing series.",
+    "Returned treatment points meet the expected count, gap, ordering, tag, and value-change checks.",
+    "Managed archival and Scenario Store projection complete for the same execution.",
+    "Bits queries the same org, tags, and historical window with an interval fine enough to return the one-second points.",
+    "The Bits trace records the metric request, requested interval or rollup, returned timestamp spacing, and use of metric evidence.",
+    "No interpolation, timestamp rewriting, wrong-scope query, unexplained point loss, restart, or OOM occurs."
+  ],
+  "stop_conditions": [
+    "Custom image or effective config cannot be proven from the running workload.",
+    "The custom-check sequence is incomplete or the pharmacy producer does not emit enough timing samples for a one-second proof.",
+    "The normal backend returns only coarse points despite a fine query interval.",
+    "Bits requests or receives a coarse rollup.",
+    "The telemetry org, tags, or incident window do not match the managed execution.",
+    "Managed archival or Scenario Store lineage is incomplete."
+  ]
+}

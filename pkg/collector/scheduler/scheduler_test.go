@@ -182,6 +182,50 @@ func TestTinyInterval(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestNormalCheckIntervalOverride(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+	chk := &TestCheck{intl: 30 * time.Second}
+
+	assert.NoError(t, s.Enter(chk))
+	assert.Contains(t, s.jobQueues, time.Second)
+	assert.NotContains(t, s.jobQueues, chk.intl)
+	assert.Same(t, s.jobQueues[time.Second], s.checkToQueue[chk.ID()])
+}
+
+func TestNormalCheckIntervalOverridePreservesOneShot(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+
+	assert.NoError(t, s.Enter(&TestCheck{intl: 0}))
+	assert.Empty(t, s.jobQueues)
+}
+
+func TestNormalCheckIntervalOverridePreservesInvalidNegativeInterval(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+
+	err := s.Enter(&TestCheck{intl: -time.Second})
+	assert.ErrorContains(t, err, "schedule interval must be greater than")
+	assert.Empty(t, s.jobQueues)
+}
+
+func TestNormalCheckIntervalOverrideCancellation(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+	chk := &TestCheck{intl: 30 * time.Second}
+
+	assert.NoError(t, s.Enter(chk))
+	assert.NoError(t, s.Cancel(chk.ID()))
+	assert.Empty(t, s.jobQueues[time.Second].buckets[0].jobs)
+	assert.NotContains(t, s.checkToQueue, chk.ID())
+}
+
+func TestNormalCheckIntervalOverridePreservesShadowInterval(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+	shadow := check.NewShadowCheck(&TestCheck{intl: 30 * time.Second}, 5*time.Second)
+
+	assert.NoError(t, s.Enter(shadow))
+	assert.Contains(t, s.shadowJobQueues, 5*time.Second)
+	assert.NotContains(t, s.shadowJobQueues, time.Second)
+}
+
 // Test that stopping the scheduler while one-time checks are still being enqueued works
 func TestStopOneTimeSchedule(t *testing.T) {
 	c := &TestCheck{}

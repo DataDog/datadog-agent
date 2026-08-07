@@ -46,12 +46,6 @@ const (
 	// name for check-originated metric series. The numeric Source field still
 	// carries the more specific source/origin metadata for v2 payloads.
 	checkSeriesSourceTypeName = "System"
-
-	// dogStatsDNoAggregationInterval matches the fixed aggregator bucket interval
-	// used by the no-aggregation serializer for rate-like DogStatsD samples.
-	// Keep this package independent from pkg/aggregator so the retention substrate
-	// can remain outside the hot aggregation package.
-	dogStatsDNoAggregationInterval = 10
 )
 
 // SourceKind identifies the retention producer. It is provenance for lookback
@@ -471,7 +465,7 @@ func sourceMatchesAny(queries []Source, actual Source) bool {
 
 func recordValue(source Source, sample metrics.MetricSample) float64 {
 	if source.Kind == SourceDogStatsDNoAggregation && isDogStatsDNoAggRate(sample.Mtype) {
-		return sample.Value / dogStatsDNoAggregationInterval
+		return sample.Value / float64(metrics.TimestampedDogStatsDNormalizationInterval)
 	}
 	return sample.Value
 }
@@ -500,7 +494,7 @@ func apiMetricType(source Source, mtype metrics.MetricType) metrics.APIMetricTyp
 
 func apiInterval(source Source, _ metrics.MetricType) int64 {
 	if source.Kind == SourceDogStatsDNoAggregation {
-		return dogStatsDNoAggregationInterval
+		return metrics.TimestampedDogStatsDNormalizationInterval
 	}
 	return 0
 }

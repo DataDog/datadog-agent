@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -59,7 +60,7 @@ type TimeSampler struct {
 // NewTimeSampler returns a newly initialized TimeSampler
 func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string) *TimeSampler {
 	if interval == 0 {
-		interval = bucketSize
+		interval = int64(defaultDogStatsDAggregationInterval / time.Second)
 	}
 
 	idString := strconv.Itoa(int(id))

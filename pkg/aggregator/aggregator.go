@@ -40,9 +40,10 @@ import (
 )
 
 const (
-	// DefaultFlushInterval aggregator default flush interval
-	DefaultFlushInterval = 15 * time.Second // flush interval
-	bucketSize           = 10               // fixed for now
+	// DefaultFlushInterval aggregator default flush interval.
+	DefaultFlushInterval = 15 * time.Second
+	// defaultDogStatsDAggregationInterval is the default ordinary DogStatsD bucket width.
+	defaultDogStatsDAggregationInterval = 10 * time.Second
 	// MetricSamplePoolBatchSize is the batch size of the metric sample pool.
 	MetricSamplePoolBatchSize = 32
 )

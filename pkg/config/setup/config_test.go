@@ -20,6 +20,7 @@ import (
 
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -102,6 +103,35 @@ func TestProcessManagerEnabledEnvOverride(t *testing.T) {
 func TestProcessManagerEnabledYAML(t *testing.T) {
 	cfg := confFromYAML(t, "process_manager:\n  enabled: false\n")
 	assert.False(t, cfg.GetBool("process_manager.enabled"))
+}
+
+func TestMetricResolutionExperimentEnvOverride(t *testing.T) {
+	t.Setenv("DD_METRIC_RESOLUTION_EXPERIMENT_ENABLED", "true")
+	t.Setenv("DD_METRIC_RESOLUTION_EXPERIMENT_CHECK_INTERVAL", "2s")
+	t.Setenv("DD_METRIC_RESOLUTION_EXPERIMENT_DOGSTATSD_AGGREGATION_INTERVAL", "3s")
+	t.Setenv("DD_METRIC_RESOLUTION_EXPERIMENT_SERIALIZER_FLUSH_INTERVAL", "4s")
+
+	config := newTestConf(t)
+
+	assert.True(t, config.GetBool(metricresolution.EnabledKey))
+	assert.Equal(t, 2*time.Second, config.GetDuration(metricresolution.CheckIntervalKey))
+	assert.Equal(t, 3*time.Second, config.GetDuration(metricresolution.DogStatsDAggregationIntervalKey))
+	assert.Equal(t, 4*time.Second, config.GetDuration(metricresolution.SerializerFlushIntervalKey))
+}
+
+func TestMetricResolutionExperimentYAML(t *testing.T) {
+	config := confFromYAML(t, `
+metric_resolution_experiment:
+  enabled: true
+  check_interval: 2s
+  dogstatsd_aggregation_interval: 3s
+  serializer_flush_interval: 4s
+`)
+
+	assert.True(t, config.GetBool(metricresolution.EnabledKey))
+	assert.Equal(t, 2*time.Second, config.GetDuration(metricresolution.CheckIntervalKey))
+	assert.Equal(t, 3*time.Second, config.GetDuration(metricresolution.DogStatsDAggregationIntervalKey))
+	assert.Equal(t, 4*time.Second, config.GetDuration(metricresolution.SerializerFlushIntervalKey))
 }
 
 func TestMetricLookbackDefaults(t *testing.T) {
