@@ -839,8 +839,6 @@ new-e2e-apm:
     - deploy_agent_oci
     - deploy_ddot_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TEAM: fleet
     E2E_USE_AWS_PROFILE: "false"
@@ -929,8 +927,6 @@ new-e2e-installer:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
-    - job: qa_installer_script_windows
-      optional: true
     - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
@@ -957,8 +953,6 @@ new-e2e-installer-ansible:
       optional: true
     - deploy_installer_oci
     - deploy_agent_oci
-    - job: qa_installer_script_windows
-      optional: true
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet

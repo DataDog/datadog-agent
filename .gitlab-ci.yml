@@ -266,7 +266,6 @@ variables:
   # Symbols for release builds are handled by agent-release-management.
   WINDOWS_SYMBOLS_S3_BUCKET: pipelines/windows-symbols
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
