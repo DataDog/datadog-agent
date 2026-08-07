@@ -74,7 +74,10 @@ pkg_filegroup(
             ":base_checks_files",
         ],
     }) + select({
-        "@platforms//os:macos": [":macos_files", ":macos_checks_files"],
+        "@platforms//os:macos": [
+            ":macos_checks_files",
+            ":macos_files",
+        ],
         "@platforms//os:windows": [":windows_checks_files"],
         "//conditions:default": [],
     }),
