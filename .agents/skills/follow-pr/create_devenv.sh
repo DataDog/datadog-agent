@@ -13,4 +13,4 @@ ID=follow-pr-attach-$(uuidgen | cut -d'-' -f1)
 # But the CWD is changed appropriately when doing this way, so it's fine
 dda env dev start --no-pull --repo "${REPO}" --id "${ID}"
 
-echo "Created env: ${ID}"
+echo "Created env to use for the PR attach task: ${ID}"
