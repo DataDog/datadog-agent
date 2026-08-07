@@ -55,6 +55,10 @@ func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
 }
 
+func (c testComponent) SendOTLPStatsPayload(payload []byte) {
+	c.Agent.StatsWriter.SendOTLPIntakePayload(payload)
+}
+
 func (c testComponent) GetHTTPHandler(endpoint string) http.Handler {
 	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
 		return v

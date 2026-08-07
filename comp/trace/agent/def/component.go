@@ -27,6 +27,8 @@ type Component interface {
 	ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error)
 	// SendStatsPayload sends a stats payload to the Datadog backend.
 	SendStatsPayload(p *pb.StatsPayload)
+	// SendOTLPStatsPayload sends a V4 OTLP stats payload to the Datadog backend.
+	SendOTLPStatsPayload(payload []byte)
 	// GetHTTPHandler returns the HTTP handler for the given endpoint.
 	GetHTTPHandler(endpoint string) http.Handler
 }

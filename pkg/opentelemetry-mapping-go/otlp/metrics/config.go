@@ -46,6 +46,10 @@ type translatorConfig struct {
 	// withRuntimeRemapping reports whether runtime metrics should be mapped to Datadog counterparts.
 	withRuntimeRemapping bool
 
+	// withSDKTraceMetrics reports whether the SDK trace metric is converted to APM stats.
+	// It is independent of unrelated host and container metric remapping.
+	withSDKTraceMetrics bool
+
 	// cache configuration
 	sweepInterval int64
 	deltaTTL      int64
@@ -53,6 +57,8 @@ type translatorConfig struct {
 	fallbackSourceProvider source.Provider
 	// statsOut is the channel where the translator will send its APM statsPayload bytes
 	statsOut chan<- []byte
+	// otlpStatsOut carries protobuf-encoded V4 APM stats payloads.
+	otlpStatsOut chan<- []byte
 
 	// customMapper allows overriding the default metric mapping behavior.
 	// If nil, the Translator uses itself as the mapper.
@@ -77,6 +83,14 @@ func WithRemapping() TranslatorOption {
 		// to maintain backward compatibility with the old remapping logic
 		// withRemapping must rename some otel metrics
 		t.withOTelPrefix = true
+		return nil
+	}
+}
+
+// WithoutSDKTraceMetricsRemapping disables converting the SDK trace metric to APM stats.
+func WithoutSDKTraceMetricsRemapping() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withSDKTraceMetrics = false
 		return nil
 	}
 }
@@ -213,6 +227,14 @@ func WithNumberMode(mode NumberMode) TranslatorOption {
 func WithStatsOut(statsOut chan<- []byte) TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.statsOut = statsOut
+		return nil
+	}
+}
+
+// WithOTLPStatsOut sets the channel for protobuf-encoded V4 APM stats payloads.
+func WithOTLPStatsOut(statsOut chan<- []byte) TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.otlpStatsOut = statsOut
 		return nil
 	}
 }

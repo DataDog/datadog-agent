@@ -261,7 +261,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
@@ -378,7 +378,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -429,7 +429,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+	}, nil, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -495,7 +495,7 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 			attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
 			require.NoError(t, err)
 			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
-			tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil, nil)
 			require.NoError(t, err)
 
 			createConsumer := func([]string, string, component.BuildInfo) SerializerConsumer {
@@ -639,7 +639,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, otel.NewDisabledGatewayUsage(), store, nil)
+	}, nil, nil, otel.NewDisabledGatewayUsage(), store, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -710,7 +710,7 @@ func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, 
 
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, gwUsage, store, nil)
+	}, nil, nil, gwUsage, store, nil)
 
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
@@ -841,7 +841,7 @@ func TestMetricRemapping(t *testing.T) {
 			rec := &metricRecorder{}
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				t.Context(),
@@ -918,7 +918,7 @@ func TestDeltaSumAsRateAttribute(t *testing.T) {
 			rec := &metricRecorder{}
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				t.Context(),

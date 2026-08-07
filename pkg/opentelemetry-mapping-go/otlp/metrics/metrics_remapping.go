@@ -29,7 +29,7 @@ const (
 
 var emptyAttributesMapping = attributesMapping{}
 
-// remapMetrics extracts any Datadog specific metrics from m and appends them to all.
+// remapMetrics extracts Datadog-specific metrics from m and appends them to all.
 func remapMetrics(all pmetric.MetricSlice, m pmetric.Metric) {
 	remapSystemMetrics(all, m)
 	remapContainerMetrics(all, m)

@@ -216,21 +216,23 @@ func (f *factory) createMetricsExporter(
 
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
+	otlpStatsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
-	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
+	f.consumeStatsPayload(ctx, &wg, statsIn, otlpStatsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, otlpStatsIn, f.gatewayUsage, f.store, f.reporter)
 	ex := buildMetricsExporterConfig(cfg, func(context.Context) error {
 		cancel()  // first cancel context
 		wg.Wait() // then wait for shutdown
 		close(statsIn)
+		close(otlpStatsIn)
 		return nil
 	})
 	return sf.CreateMetrics(ctx, set, ex)
 }
 
-func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
+func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, statsIn, otlpStatsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
 	for i := 0; i < runtime.NumCPU(); i++ {
 		wg.Add(1)
 		go func() {
@@ -255,6 +257,8 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 					// The DD Connector doesn't set the agent version, so we'll set it here
 					sp.AgentVersion = agentVersion
 					f.traceagentcmp.SendStatsPayload(sp)
+				case msg := <-otlpStatsIn:
+					f.traceagentcmp.SendOTLPStatsPayload(msg)
 				}
 			}
 		}()

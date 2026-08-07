@@ -127,6 +127,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		fallbackSourceProvider:               &noSourceProvider{},
 		originProduct:                        OriginProductUnknown,
 		withRuntimeRemapping:                 true,
+		withSDKTraceMetrics:                  true,
 	}
 
 	for _, opt := range options {
@@ -575,12 +576,16 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 						}
 					}
 				}
-				if !isRuntimeMetric(md.Name()) {
-					// If we are here, we have a non-APM metric:
-					// it is not a stats metric, nor a runtime metric.
+				if isSDKTraceMetric(md.Name()) && t.cfg.withSDKTraceMetrics {
+					remapSDKTraceMetrics(t.logger, consumer, t.cfg.otlpStatsOut, host, rattrs, md)
+					continue
+				}
+				// A non-APM metric (not a stats, runtime, or SDK trace metric) marks the host
+				// billable. The SDK trace metric is APM-only, so it never bills — even opted out,
+				// when it passes through as a raw sketch.
+				if !isRuntimeMetric(md.Name()) && !isSDKTraceMetric(md.Name()) {
 					seenNonAPMMetrics = true
 				}
-
 				if t.cfg.withRemapping {
 					remapMetrics(newMetrics, md)
 				}

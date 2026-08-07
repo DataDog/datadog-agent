@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -19,12 +18,9 @@ import (
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
-	"github.com/tinylib/msgp/msgp"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -94,7 +90,7 @@ type serializerConsumer struct {
 	extraTags       []string
 	series          metrics.Series
 	sketches        metrics.SketchSeriesList
-	apmstats        []io.Reader
+	otlpstats       [][]byte
 	apmReceiverAddr string
 	ipath           ingestionPath
 	hosts           map[string]struct{}
@@ -118,15 +114,8 @@ func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, _ *o
 	// TODO noop for now
 }
 
-func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
-	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
-	ss.Tags = append(ss.Tags, c.extraTags...)
-	body := new(bytes.Buffer)
-	if err := msgp.Encode(body, ss); err != nil {
-		log.Errorf("Error encoding ClientStatsPayload: %v", err)
-		return
-	}
-	c.apmstats = append(c.apmstats, body)
+func (c *serializerConsumer) ConsumeOTLPStats(payload []byte) {
+	c.otlpstats = append(c.otlpstats, bytes.Clone(payload))
 }
 
 func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
@@ -298,23 +287,30 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
 	)
-	apmErr := c.sendAPMStats()
+	apmErr := c.sendOTLPStats()
 	return multierr.Combine(serieErr, sketchesErr, apmErr)
 }
 
-func (c *serializerConsumer) sendAPMStats() error {
-	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
-	for _, body := range c.apmstats {
-		resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)
+func (c *serializerConsumer) sendOTLPStats() error {
+	log.Debugf("Exporting %d OTLP APM stats payloads", len(c.otlpstats))
+	for _, payload := range c.otlpstats {
+		req, err := http.NewRequest(http.MethodPost, c.apmReceiverAddr, bytes.NewReader(payload))
 		if err != nil {
-			return fmt.Errorf("could not flush StatsPayload: %v", err)
+			return fmt.Errorf("could not create OTLP stats request: %v", err)
 		}
-		defer resp.Body.Close()
+		req.Header.Set("Content-Type", "application/x-protobuf")
+		req.Header.Set("Dd-Protocol", "otlp")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("could not flush OTLP stats payload: %v", err)
+		}
 		if resp.StatusCode != http.StatusOK {
 			peek := make([]byte, 1024)
 			n, _ := resp.Body.Read(peek)
-			return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
+			_ = resp.Body.Close()
+			return fmt.Errorf("could not flush OTLP stats payload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
 		}
+		_ = resp.Body.Close()
 	}
 	return nil
 }
