@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "entrypoint.go",
         "rollback_config.go",
+        "run_command.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement",
     visibility = ["//visibility:public"],
