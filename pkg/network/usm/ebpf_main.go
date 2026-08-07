@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
+	connutil "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -84,6 +85,7 @@ type ebpfProgram struct {
 	cfg                   *config.Config
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
+	tlsDiagUSMCounters    *ebpf.Map
 
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
@@ -91,7 +93,7 @@ type ebpfProgram struct {
 	buildMode buildmode.Type
 }
 
-func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap, tlsDiagUSMCounters *ebpf.Map) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -143,6 +145,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
+		tlsDiagUSMCounters:    tlsDiagUSMCounters,
 	}
 
 	if err := program.initProtocols(c); err != nil {
@@ -426,6 +429,15 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	}
 
+	// Share the TLS-misclassification counter map so the two is_redis() call sites in usm.c
+	// increment the same map the tracer reads, rather than usm.o's private copy.
+	if e.tlsDiagUSMCounters != nil {
+		if options.MapEditors == nil {
+			options.MapEditors = make(map[string]*ebpf.Map)
+		}
+		options.MapEditors[probes.TLSDiagUSMCountersMap] = e.tlsDiagUSMCounters
+	}
+
 	begin, end := network.EphemeralRange()
 	options.ConstantEditors = append(options.ConstantEditors,
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
@@ -438,6 +450,14 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	// Some parts of USM (https capturing, and part of the classification) use `read_conn_tuple`, and has some if
 	// clauses that handled IPV6, for USM we care (ATM) only from TCP connections, so adding the sole config about tcpv6.
 	utils.AddBoolConst(&options, e.cfg.CollectTCPv6Conns, "tcpv6_enabled")
+
+	// TLS-misclassification diagnostics (jmw/tls-misclassification). usm.c contains two of the
+	// three is_redis() call sites, and both write PROTOCOL_REDIS into the shared
+	// connection_protocol stack. This constant MUST be supplied here as well as by the tracer
+	// managers: if it is missing the value stays 0, the verifier prunes the counting branches, and
+	// the counters read zero — indistinguishable from "the site never fired", which is precisely
+	// the ambiguity these counters exist to resolve.
+	utils.AddBoolConst(&options, connutil.TLSDiagnosticsSupported(), "tls_diag_enabled")
 
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
