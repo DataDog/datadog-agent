@@ -84,7 +84,9 @@ while [ ! -f /configfilesdiscovery/start ]; do
   sleep 1
 done
 
-exec redis-server /configfilesdiscovery/redis-explicit.conf
+# Redis rewrites its process title by default, which can hide the startup
+# arguments before workloadmeta's periodic process scan observes them.
+exec redis-server /configfilesdiscovery/redis-explicit.conf --set-proc-title no
 `
 
 const redisDefaultStartScript = `#!/bin/sh

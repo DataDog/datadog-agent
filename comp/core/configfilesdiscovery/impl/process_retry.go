@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build docker || (cri && containerd) || test
+
 package configfilesdiscoveryimpl
 
 import (
@@ -19,6 +21,34 @@ import (
 // and is removed when the first usable matching event is consumed or the config
 // is unscheduled.
 type processFallbackRegistry map[string]struct{}
+
+// startProcessFallbackListener subscribes to process events used to trigger
+// the one-shot recollection for container-backed configs.
+func (c *component) startProcessFallbackListener() {
+	if c.store == nil {
+		return
+	}
+
+	filter := workloadmeta.NewFilterBuilder().
+		SetEventType(workloadmeta.EventTypeSet).
+		AddKindWithEntityFilter(workloadmeta.KindProcess, func(entity workloadmeta.Entity) bool {
+			process, ok := entity.(*workloadmeta.Process)
+			return ok && process.ContainerID != "" && len(process.Cmdline) > 0
+		}).
+		Build()
+	c.processEvents = c.store.Subscribe(schedulerName, workloadmeta.NormalPriority, filter)
+	c.scheduler.startProcessEventListener(c.processEvents)
+}
+
+// stopProcessFallbackListener removes the process-event subscription, if one
+// was created when the component started.
+func (c *component) stopProcessFallbackListener() {
+	if c.processEvents == nil {
+		return
+	}
+	c.store.Unsubscribe(c.processEvents)
+	c.processEvents = nil
+}
 
 // registerProcessFallbackLocked adds process fallback work for a newly
 // scheduled container watch. The caller must hold s.mu.
