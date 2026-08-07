@@ -6110,6 +6110,10 @@ properties:
                 node_type: setting
                 type: integer
                 default: 50
+              max_reported_items:
+                node_type: setting
+                type: integer
+                default: 16
           saturation_k:
             node_type: setting
             type: number
