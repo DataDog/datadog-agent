@@ -72,6 +72,7 @@ func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
 type bareDetectorForValidator struct{}
 
 func (*bareDetectorForValidator) Name() string { return "bare-detector" }
+func (*bareDetectorForValidator) Ready() bool  { return true }
 func (*bareDetectorForValidator) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
