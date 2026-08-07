@@ -4,15 +4,20 @@
 // Copyright 2026-present Datadog, Inc.
 
 //! Local-socket client transport shared by the process-manager and executor
-//! gRPC clients. par-control is a pure client, so this only needs to dial an
-//! existing Unix domain socket (Windows named-pipe support is a follow-up, per
-//! the PRD's out-of-scope note on Windows transport details).
+//! gRPC clients: a Unix domain socket on Linux, a named pipe on Windows.
+//! par-control is a pure client, so this only ever dials an existing endpoint.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-/// Placeholder URI for the tonic Endpoint when connecting over UDS. The actual
-/// address is irrelevant because `connect_with_connector` bypasses it.
+/// Placeholder URI for the tonic Endpoint when connecting over a local socket.
+/// The actual address is irrelevant because `connect_with_connector` bypasses it.
 const DUMMY_ENDPOINT: &str = "http://[::]:50051";
+
+/// Bounds the dial itself. A local socket either answers promptly or is broken,
+/// and on Windows a named pipe whose every instance is busy would otherwise
+/// block indefinitely.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Build a lazily-connecting gRPC channel to a server on the given Unix domain
 /// socket. Lazy connection matters for the executor, whose socket does not exist
@@ -20,12 +25,12 @@ const DUMMY_ENDPOINT: &str = "http://[::]:50051";
 /// first RPC and re-dialed after the executor is restarted.
 pub fn connect_lazy(path: &Path) -> tonic::transport::Channel {
     let path: PathBuf = path.to_path_buf();
-    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT).connect_with_connector_lazy(
-        tower::service_fn(move |_| {
+    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .connect_with_connector_lazy(tower::service_fn(move |_| {
             let p = path.clone();
             async move { connect_stream(p).await.map(hyper_util::rt::TokioIo::new) }
-        }),
-    )
+        }))
 }
 
 /// Like [`connect_lazy`] but wraps the Unix-socket stream in mTLS using the agent
@@ -42,8 +47,9 @@ pub fn connect_lazy(path: &Path) -> tonic::transport::Channel {
 pub fn connect_lazy_tls(path: &Path, ipc_cert_file: &Path) -> tonic::transport::Channel {
     let path: PathBuf = path.to_path_buf();
     let ipc_cert_file: PathBuf = ipc_cert_file.to_path_buf();
-    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT).connect_with_connector_lazy(
-        tower::service_fn(move |_| {
+    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .connect_with_connector_lazy(tower::service_fn(move |_| {
             let p = path.clone();
             let cert = ipc_cert_file.clone();
             async move {
@@ -58,8 +64,7 @@ pub fn connect_lazy_tls(path: &Path, ipc_cert_file: &Path) -> tonic::transport::
                     .map_err(std::io::Error::other)?;
                 Ok::<_, std::io::Error>(hyper_util::rt::TokioIo::new(tls))
             }
-        }),
-    )
+        }))
 }
 
 #[cfg(unix)]
@@ -75,7 +80,7 @@ async fn connect_stream(
 }
 
 #[cfg(windows)]
-const PIPE_BUSY_RETRIES: u32 = 5;
+const PIPE_BUSY_RETRIES: u32 = 4;
 #[cfg(windows)]
 const PIPE_BUSY_BACKOFF_MS: u64 = 50;
 
@@ -96,20 +101,18 @@ async fn open_pipe_with_retry(
     use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
 
     let mut backoff = PIPE_BUSY_BACKOFF_MS;
-    for attempt in 0..PIPE_BUSY_RETRIES {
+    // One attempt per retry, then a final attempt whose error is propagated.
+    for _ in 0..PIPE_BUSY_RETRIES {
         match ClientOptions::new().open(name) {
             Ok(client) => return Ok(client),
-            Err(error)
-                if error.raw_os_error() == Some(ERROR_PIPE_BUSY as i32)
-                    && attempt + 1 < PIPE_BUSY_RETRIES =>
-            {
-                tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
+                tokio::time::sleep(Duration::from_millis(backoff)).await;
                 backoff *= 2;
             }
             Err(error) => return Err(error),
         }
     }
-    unreachable!("the last attempt either returns a client or propagates its error")
+    ClientOptions::new().open(name)
 }
 
 #[cfg(test)]
