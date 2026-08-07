@@ -21,10 +21,8 @@ var goELFSections = map[string]struct{}{
 // isGoELFBinary reports whether the file at path is an ELF binary built by the
 // Go toolchain.
 //
-// A file that cannot be opened or parsed is reported as an error rather than as
-// a negative answer, because the answer is cached and a file that happened to be
-// unreadable at one instant must not be written off for the lifetime of the
-// cache entry.
+// A file that can't be opened or parsed is reported as an error because
+// the answer is cached and an error shouldn't exclude it forever.
 func isGoELFBinary(path string) (bool, error) {
 	elfFile, err := object.OpenMMappingElfFile(path)
 	if err != nil {
