@@ -1,7 +1,7 @@
 """core checks and some configuration files"""
 
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
-load("//cmd/agent/dist:core_checks.bzl", "AGENT_CORECHECKS", "IOT_AGENT_CORECHECKS", "WINDOWS_CORECHECKS")
+load("//cmd/agent/dist:core_checks.bzl", "AGENT_CORECHECKS", "IOT_AGENT_CORECHECKS", "MACOS_CORECHECKS", "WINDOWS_CORECHECKS")
 load("//packages/agent:defs.bzl", "CONF_DIR_SELECTOR")
 
 pkg_files(
@@ -54,6 +54,17 @@ pkg_files(
     strip_prefix = strip_prefix.from_pkg(),
 )
 
+# Additional macos checks. You also need the code checks.
+pkg_files(
+    name = "macos_checks_files",
+    srcs = glob(
+        ["%s.d/**" % check for check in MACOS_CORECHECKS],
+        exclude = ["BUILD.bazel"],
+    ),
+    attributes = pkg_attributes(mode = "0644"),
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = select({
@@ -63,7 +74,7 @@ pkg_filegroup(
             ":base_checks_files",
         ],
     }) + select({
-        "@platforms//os:macos": [":macos_files"],
+        "@platforms//os:macos": [":macos_files", ":macos_checks_files"],
         "@platforms//os:windows": [":windows_checks_files"],
         "//conditions:default": [],
     }),
