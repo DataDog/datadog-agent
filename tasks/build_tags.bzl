@@ -84,6 +84,7 @@ GAZELLE_EXTRA_TAGS = set([
     "functionaltests",
     "manualtest",
     "private_runner_experimental",
+    "anomalydetectiontestbench",  # used to analyze anomaly-detection testbench-only packages
 ])
 
 # Tags in ALL_TAGS that we deliberately keep out of Gazelle's set, typically
