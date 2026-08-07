@@ -8,6 +8,7 @@ package queryactionsimpl
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
@@ -70,6 +71,136 @@ func TestMatchesIdentifier_HostOnly(t *testing.T) {
 		dbID := &DBIdentifier{Type: "self-hosted", Host: "otherhost"}
 		assert.False(t, matchesIdentifier(instance, dbID))
 	})
+
+	t.Run("default identifier uses agent hostname for local host", func(t *testing.T) {
+		dbID := &DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-postgres-staging",
+			AgentHostname: "do-test-postgres-staging",
+		}
+		assert.True(t, matchesIdentifier(instance, dbID))
+	})
+}
+
+func TestMatchesIdentifier_DatabaseIdentifierTemplate(t *testing.T) {
+	instance := map[string]any{
+		"host": "localhost",
+		"port": 5432,
+		"database_identifier": map[string]any{
+			"template": "$resolved_hostname:$port",
+		},
+	}
+
+	t.Run("uses agent hostname for local host", func(t *testing.T) {
+		dbID := &DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-postgres-staging:5432",
+			AgentHostname: "do-test-postgres-staging",
+		}
+		assert.True(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("does not match a different port", func(t *testing.T) {
+		dbID := &DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-postgres-staging:5433",
+			AgentHostname: "do-test-postgres-staging",
+		}
+		assert.False(t, matchesIdentifier(instance, dbID))
+	})
+
+	t.Run("uses default Postgres port", func(t *testing.T) {
+		instanceWithoutPort := map[string]any{
+			"host": "localhost",
+			"database_identifier": map[string]any{
+				"template": "$resolved_hostname:$port",
+			},
+		}
+		dbID := &DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-postgres-staging:5432",
+			AgentHostname: "do-test-postgres-staging",
+		}
+		assert.True(t, matchesIdentifier(instanceWithoutPort, dbID))
+	})
+}
+
+func TestMatchesIdentifier_DatabaseIdentifierTemplateUsesTags(t *testing.T) {
+	instance := map[string]any{
+		"host": "db.internal",
+		"port": 5432,
+		"tags": []any{"env:staging", "env:prod", "team:data-observability"},
+		"database_identifier": map[string]any{
+			"template": "${team}-$env-$host:$port",
+		},
+	}
+	dbID := &DBIdentifier{Type: "self-hosted", Host: "data-observability-prod,staging-db.internal:5432"}
+
+	assert.True(t, matchesIdentifier(instance, dbID))
+}
+
+func TestInstanceMatchesIdentifier_SapHanaDoesNotRenderDatabaseIdentifier(t *testing.T) {
+	instance := map[string]any{
+		"server": "sap.internal",
+		"port":   39041,
+		"database_identifier": map[string]any{
+			"template": "rendered-sap-identifier",
+		},
+	}
+
+	assert.False(t, instanceMatchesIdentifier(
+		instance,
+		DBIdentifier{Host: "rendered-sap-identifier"},
+		"sap_hana",
+	))
+	assert.True(t, instanceMatchesIdentifier(
+		instance,
+		DBIdentifier{Host: "sap.internal:39041"},
+		"sap_hana",
+	))
+}
+
+func TestRenderDatabaseIdentifier_UsesAgentHostnameForSameResolvedIPv4(t *testing.T) {
+	instance := map[string]any{
+		"host": "postgres.internal",
+		"database_identifier": map[string]any{
+			"template": "$resolved_hostname:$port",
+		},
+	}
+	lookup := func(host string) ([]string, error) {
+		addresses := map[string][]string{
+			"postgres.internal": {"10.20.30.40"},
+			"agent.internal":    {"10.20.30.40"},
+		}
+		return addresses[host], nil
+	}
+
+	identifier, ok := renderDatabaseIdentifierWithLookup(
+		instance,
+		"agent.internal",
+		"$resolved_hostname",
+		defaultPostgresPort,
+		lookup,
+	)
+
+	require.True(t, ok)
+	assert.Equal(t, "agent.internal:5432", identifier)
+}
+
+func TestRenderDatabaseIdentifier_UsesDefaultPostgresTemplate(t *testing.T) {
+	identifier, ok := renderDatabaseIdentifierWithLookup(
+		map[string]any{"host": "localhost"},
+		"agent.internal",
+		"$resolved_hostname:$port",
+		defaultPostgresPort,
+		func(string) ([]string, error) {
+			t.Fatal("local database hosts should not require a DNS lookup")
+			return nil, nil
+		},
+	)
+
+	require.True(t, ok)
+	assert.Equal(t, "agent.internal:5432", identifier)
 }
 
 func TestMatchesIdentifier_RDS(t *testing.T) {
@@ -386,9 +517,9 @@ func TestRemoveActiveConfig_Found(t *testing.T) {
 	doCheckConfig := integration.Config{Name: "postgres", Provider: "do_query_actions"}
 	c := newTestComponent(t)
 	c.activeConfigs["my-config"] = activeConfigEntry{
-		checkConfig: doCheckConfig,
-		baseCfg:     baseCfg,
-		matchHost:   "localhost",
+		checkConfig:   doCheckConfig,
+		baseCfg:       baseCfg,
+		matchInstance: identifyInstanceConfig(integration.Data("host: localhost\n")),
 	}
 	changes := integration.ConfigChanges{}
 
@@ -611,12 +742,10 @@ func TestBuildRemainder_SapHanaServerKey(t *testing.T) {
 			integration.Data(fmt.Sprintf("server: %s\nport: %d\n", siblingServer, port)),
 		},
 	}
-	// matchedHosts holds DBIdentifier.Host verbatim: the "host:port" form for sap_hana.
-	targetedHostPort := fmt.Sprintf("%s:%d", targetedServer, port)
-	siblingHostPort := fmt.Sprintf("%s:%d", siblingServer, port)
-
 	t.Run("targeted server excluded, sibling kept", func(t *testing.T) {
-		remainder := buildRemainder(base, map[string]bool{targetedHostPort: true})
+		remainder := buildRemainder(base, map[instanceConfigIdentity]bool{
+			identifyInstanceConfig(base.Instances[0]): true,
+		})
 		require.NotNil(t, remainder, "sibling instance must keep the remainder alive")
 		require.Len(t, remainder.Instances, 1, "targeted server must be excluded from the remainder")
 		var instance map[string]any
@@ -625,9 +754,55 @@ func TestBuildRemainder_SapHanaServerKey(t *testing.T) {
 	})
 
 	t.Run("all servers targeted yields nil remainder", func(t *testing.T) {
-		remainder := buildRemainder(base, map[string]bool{targetedHostPort: true, siblingHostPort: true})
+		remainder := buildRemainder(base, map[instanceConfigIdentity]bool{
+			identifyInstanceConfig(base.Instances[0]): true,
+			identifyInstanceConfig(base.Instances[1]): true,
+		})
 		assert.Nil(t, remainder, "no instances should remain when every sap_hana server is DO-managed")
 	})
+}
+
+func TestFindMatchingConfig_TemplatedIdentifiersDistinguishPorts(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\nport: 5432\ndatabase_identifier:\n  template: '$resolved_hostname:$port'\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: localhost\nport: 5433\ndatabase_identifier:\n  template: '$resolved_hostname:$port'\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	for _, port := range []int{5432, 5433} {
+		t.Run(strconv.Itoa(port), func(t *testing.T) {
+			_, instance, _, err := c.findMatchingConfig(&DBIdentifier{
+				Type:          "self-hosted",
+				Host:          fmt.Sprintf("do-test-postgres-staging:%d", port),
+				AgentHostname: "do-test-postgres-staging",
+			})
+			require.NoError(t, err)
+			assert.Equal(t, port, instance["port"])
+		})
+	}
+}
+
+func TestBuildRemainder_TemplatedIdentifierExcludesOnlyTargetPort(t *testing.T) {
+	base := &integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: localhost\nport: 5432\ndatabase_identifier:\n  template: '$resolved_hostname:$port'\n"),
+			integration.Data("host: localhost\nport: 5433\ndatabase_identifier:\n  template: '$resolved_hostname:$port'\n"),
+		},
+	}
+	remainder := buildRemainder(base, map[instanceConfigIdentity]bool{
+		identifyInstanceConfig(base.Instances[0]): true,
+	})
+	require.NotNil(t, remainder)
+	require.Len(t, remainder.Instances, 1)
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &instance))
+	assert.Equal(t, 5433, instance["port"])
 }
 
 // TestOnRCUpdate_SapHana_ExcludesTargetedInstanceFromRemainder is the end-to-end regression test
@@ -764,6 +939,48 @@ func TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder(t *testin
 
 	assert.Equal(t, []int{targetedPort}, portsOf(*doCfg), "DO check should carry only the targeted port")
 	assert.Equal(t, []int{siblingPort}, portsOf(*remainder), "remainder must keep the untargeted sibling port")
+}
+
+// Two instances can share host and port while custom templates and tags give them distinct
+// database identifiers. Selecting one must not prune the other from the base remainder.
+func TestOnRCUpdate_SameEndpointDifferentIdentifiers_KeepsSiblingInRemainder(t *testing.T) {
+	const sharedHost = "dbhost"
+	postgresCfg := integration.Config{
+		Name:     "postgres",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: dbhost\nport: 5432\ntags:\n  - env:staging\ndatabase_identifier:\n  template: '$env-$host:$port'\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: dbhost\nport: 5432\ntags:\n  - env:prod\ndatabase_identifier:\n  template: '$env-$host:$port'\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+	payloadJSON, err := json.Marshal(DOQueryPayload{
+		ConfigID:     "cfg-prod",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "prod-" + sharedHost + ":5432"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	})
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-prod": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-prod"].State)
+	require.Len(t, changes.Schedule, 2)
+
+	var remainder *integration.Config
+	for i := range changes.Schedule {
+		var instance map[string]any
+		require.NoError(t, yaml.Unmarshal(changes.Schedule[i].Instances[0], &instance))
+		if _, hasQueries := instance["data_observability"].(map[string]any)["queries"]; !hasQueries {
+			remainder = &changes.Schedule[i]
+		}
+	}
+	require.NotNil(t, remainder)
+	require.Len(t, remainder.Instances, 1)
+	var sibling map[string]any
+	require.NoError(t, yaml.Unmarshal(remainder.Instances[0], &sibling))
+	assert.Equal(t, []any{"env:staging"}, sibling["tags"])
 }
 
 // TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder is a regression test for a
