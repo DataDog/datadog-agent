@@ -183,9 +183,10 @@ func Parse(line []byte) (SyslogMessage, error) {
 	// shape when EMBLEM is enabled. The colon carries nothing, so step over it —
 	// but only when a timestamp follows, so that CONTENT which merely begins
 	// with a colon is still treated as MSG per RFC 3164 §4.3.2.
-	if line[pos] == ':' && pos+1 < len(line) &&
-		(bsdTimestampLen(line[pos+1:]) > 0 || isoTimestampLen(line[pos+1:]) > 0) {
-		pos++
+	if pos+1 < len(line) && line[pos] == ':' {
+		if n, _ := timestampLen(line[pos+1:]); n > 0 {
+			pos++
+		}
 	}
 
 	b := line[pos]
@@ -197,17 +198,15 @@ func Parse(line []byte) (SyslogMessage, error) {
 		// Only dispatch to the RFC 5424 parser when the bytes actually form a
 		// VERSION token (1-3 digits) followed by SP; otherwise treat the
 		// remainder as MSG CONTENT per RFC 3164 §4.3.2.
+		digitTS, _ := timestampLen(line[pos:])
 		switch {
-		case isValidBSDTimestampYearFirst(line[pos:]):
-			// Cisco NX-OS: "YYYY Mmm DD HH:MM:SS host %FAC-SEV-MNEMONIC:", which
-			// is the platform default. The leading year also matches the RFC 5424
-			// VERSION-SP shape, so this must be tested first or the year is read
-			// as a VERSION.
-			msg, err = parseBSD(line, pri, pos)
-		case isoTimestampLen(line[pos:]) > 0:
-			// Cisco ASA and FTD emit an ISO 8601 timestamp straight after the
-			// PRI, with no RFC 5424 VERSION, under "logging timestamp rfc5424";
-			// Picus does the same.
+		case digitTS > 0:
+			// Two layouts lead with a digit, and both must be tested before
+			// isRFC5424Header or their leading digits are read as a VERSION:
+			// the year-first BSD form "YYYY Mmm DD HH:MM:SS host
+			// %FAC-SEV-MNEMONIC:" that is the NX-OS default, and the bare ISO
+			// 8601 timestamp that Cisco ASA and FTD send under "logging
+			// timestamp rfc5424" (as does Picus) with no VERSION at all.
 			msg, err = parseBSD(line, pri, pos)
 		case isRFC5424Header(line, pos):
 			msg, err = parseRFC5424(line, pri, pos)
@@ -350,43 +349,24 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 
 	// --- Best-effort: extract available header fields in order ---
 
-	if found < 1 {
-		// Only VERSION; remainder is MSG.
-		if nextStart < len(line) {
-			msg.Msg = line[nextStart:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	// Take whichever fields the header actually carried; the rest keep the
+	// nilvalue default. A header that ran out early is Partial, and everything
+	// from the first unparsed byte becomes MSG.
+	if found > 0 {
+		msg.Timestamp = toHeaderString(fields[0])
 	}
-	msg.Timestamp = toHeaderString(fields[0])
-
-	if found < 2 {
-		if nextStart < len(line) {
-			msg.Msg = line[nextStart:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	if found > 1 {
+		msg.Hostname = toHeaderString(fields[1])
 	}
-	msg.Hostname = toHeaderString(fields[1])
-
-	if found < 3 {
-		if nextStart < len(line) {
-			msg.Msg = line[nextStart:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	if found > 2 {
+		msg.AppName = toHeaderString(fields[2])
 	}
-	msg.AppName = toHeaderString(fields[2])
-
-	if found < 4 {
-		if nextStart < len(line) {
-			msg.Msg = line[nextStart:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	if found > 3 {
+		msg.ProcID = toHeaderString(fields[3])
 	}
-	msg.ProcID = toHeaderString(fields[3])
-
+	if found > 4 {
+		msg.MsgID = toHeaderString(fields[4])
+	}
 	if found < 5 {
 		if nextStart < len(line) {
 			msg.Msg = line[nextStart:]
@@ -394,7 +374,6 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 		msg.Partial = true
 		return msg, errHeaderTooShort
 	}
-	msg.MsgID = toHeaderString(fields[4])
 
 	// --- Parse STRUCTURED-DATA ---
 	rest := line[nextStart:]
@@ -465,15 +444,7 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// Cisco ASA/FTD and Picus send in place of the BSD form. The ISO layout also
 	// turns up in tailed files regardless of sender, because rsyslog's default
 	// file template renders the timestamp as RFC 3339 and drops the PRI.
-	tsLen := bsdTimestampLen(line[pos:])
-	isISOTimestamp := false
-	if tsLen == 0 {
-		if n := isoTimestampLen(line[pos:]); n > 0 {
-			tsLen = n
-			isISOTimestamp = true
-		}
-	}
-
+	tsLen, isISOTimestamp := timestampLen(line[pos:])
 	if tsLen == 0 {
 		if pos < len(line) && pri >= 0 {
 			// RFC 3164 §4.3.2: valid PRI, content present but no valid
@@ -764,8 +735,6 @@ func isValidBSDTimestampWithYear(b []byte) bool {
 // The non-padded form is common enough in the field that syslog-ng carries a
 // dedicated detector for it and grok, Fluentd, and Vector all accept one or two
 // spaces; it shows up here in Infoblox, Cisco ISE, and NX-OS samples.
-// Structural checks: valid month at [0:3], space at [3], a digit day at [4],
-// space at [5], colons at [8] and [11].
 func isValidBSDTimestampSingleSpaceDay(b []byte) bool {
 	if len(b) < 14 {
 		return false
@@ -786,10 +755,6 @@ func isValidBSDTimestampSingleSpaceDay(b []byte) bool {
 //	RFC 3164:    "Apr  4 08:05:06"      (15 bytes)
 //	With year:   "Apr 04 2024 08:05:06" (20 bytes)
 //	Year first:  "2024 Apr 04 08:05:06" (20 bytes)
-//
-// Structural checks: four digits at [0:4], space at [4], valid month at [5:8],
-// space at [8], a two-character day at [9:11], space at [11], and colons at
-// [14] and [17].
 func isValidBSDTimestampYearFirst(b []byte) bool {
 	if len(b) < 20 {
 		return false
@@ -814,6 +779,23 @@ func isValidBSDTimestampYearFirst(b []byte) bool {
 // RFC 3164 form is tested before the 14-byte non-padded form so a conformant
 // timestamp is never matched by the looser pattern.
 func bsdTimestampLen(b []byte) int {
+	// 14 bytes is the shortest accepted layout.
+	if len(b) < 14 {
+		return 0
+	}
+	// Year-first is the only layout that opens with a digit; every other one
+	// opens with a month abbreviation. One look at the first byte therefore
+	// picks the family, and the abbreviation is validated once rather than
+	// once per layout.
+	if isDigit(b[0]) {
+		if isValidBSDTimestampYearFirst(b) {
+			return 20
+		}
+		return 0
+	}
+	if !isValidMonthAbbrev(b) {
+		return 0
+	}
 	switch {
 	case isValidBSDTimestamp(b):
 		return 15
@@ -821,10 +803,24 @@ func bsdTimestampLen(b []byte) int {
 		return 14
 	case isValidBSDTimestampWithYear(b):
 		return 20
-	case isValidBSDTimestampYearFirst(b):
-		return 20
 	}
 	return 0
+}
+
+// timestampLen returns the length of the TIMESTAMP at the start of b and
+// whether it is the ISO 8601 form rather than one of the BSD layouts, or 0 if
+// b does not begin with a timestamp at all. Callers that only need to know
+// whether a timestamp is present should use this rather than consulting the
+// two detectors separately, so that dispatch and parsing cannot disagree about
+// where a header starts.
+func timestampLen(b []byte) (int, bool) {
+	if n := bsdTimestampLen(b); n > 0 {
+		return n, false
+	}
+	if n := isoTimestampLen(b); n > 0 {
+		return n, true
+	}
+	return 0, false
 }
 
 // isoTimestampLen returns the length of an ISO 8601 / RFC 3339 timestamp at the
@@ -990,6 +986,12 @@ func isTagShapedToken(tok []byte) bool {
 //
 // When this pattern appears in the TAG position, no real TAG is present and the
 // entire remainder should be treated as MSG.
+//
+// The four-digit-and-dash prefix is all this checks, which is deliberately
+// weaker than isoTimestampLen: the embedded timestamp is never consumed, only
+// recognized, so a relay writing a date-only or otherwise non-conformant second
+// header still keeps its remainder out of APP-NAME. Use isoTimestampLen instead
+// wherever the match decides how many bytes to advance.
 func looksLikeISOTimestamp(b []byte) bool {
 	if len(b) < 5 {
 		return false

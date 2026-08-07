@@ -38,19 +38,13 @@ import (
 //	documentation   a published vendor format example; "source" cites the section
 //	synthesized     constructed here to model a documented shape, not copied
 //
-// A format with no sample available from those repositories is covered from the
-// vendor's published documentation instead.
+// The pins are not a dependency — nothing here fetches them — so they only need
+// refreshing when messages are added or rechecked.
 //
-// Pinning a commit keeps a repository "source" resolvable after upstream edits
-// the file. The pins record when the samples were taken and are not a dependency:
-// nothing here fetches them, so they only need refreshing when messages are added
-// or rechecked.
-//
-// Two mechanical differences from the upstream fixture are worth knowing when
-// comparing. Pipeline YAML folds long samples over several physical lines, and
-// "source" points at the first of them while "line" holds the joined result.
-// Octet-counted samples appear upstream with their RFC 6587 MSG-LEN prefix, which
-// is stored stripped here because the framer removes it before the parser runs.
+// A message will not always match its upstream fixture byte for byte. Pipeline
+// YAML folds long samples across physical lines, so "source" points at the first
+// and "line" holds the joined result; octet-counted samples are stored without
+// the RFC 6587 MSG-LEN prefix the framer strips before the parser runs.
 //
 // To adopt new output after an intentional parser change:
 //
