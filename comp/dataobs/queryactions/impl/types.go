@@ -14,8 +14,8 @@ type DOQueryPayload struct {
 }
 
 // DBIdentifier identifies a database cluster to target.
-// Type describes the hosting kind (e.g. "self-hosted", "rds"). Instance matching
-// is by host only; per-query dbname fields handle database routing.
+// Type describes the hosting kind (e.g. "self-hosted", "rds"). Host contains the resolved
+// database_instance identifier. Per-query dbname fields handle database routing.
 type DBIdentifier struct {
 	Type          string `json:"type"`
 	Host          string `json:"host"`
