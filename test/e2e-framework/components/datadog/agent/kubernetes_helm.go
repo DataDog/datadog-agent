@@ -1124,8 +1124,6 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 
 	// Configure the Private Action Runner sidecar to route OPMS calls through fakeintake.
 	// This is a no-op when PAR is not deployed — the Helm chart ignores unknown container configs.
-	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION bypasses signed-envelope validation so PAR can talk
-	// to fakeintake over plain HTTP instead of the real OPMS backend.
 	if agents, ok := values["agents"].(pulumi.Map); ok {
 		containers, ok := agents["containers"].(pulumi.Map)
 		if !ok {
@@ -1143,7 +1141,6 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			par["envDict"] = parEnvDict
 		}
 		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fi.URL)
-		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
 	}
 
 	return nil

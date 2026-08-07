@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	privateActionRunnerStartedLogLine = "Private action runner starting"
+	privateActionRunnerStartedLogLine     = "Private action runner starting"
+	privateActionRunnerKeysManagerLogLine = "Keys manager ready"
 )
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
@@ -37,9 +38,8 @@ func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	t.Parallel()
 	config := generateTestPrivateActionRunnerConfig(t)
 	e2e.Run(t, &linuxPrivateActionRunnerEnabledSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoFakeIntake(
+		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithoutFakeIntake(),
 				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
 			),
 		),
@@ -50,6 +50,8 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 	host := s.Env().RemoteHost
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
+
+	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	// Start the private action runner service
 	_, err := svcManager.Start(privateActionRunnerServiceName)
@@ -78,12 +80,23 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
+
+	// Readiness depends on the KeysManager receiving its first AP_RUNNER_KEYS
+	// remote-config update. The backend director's first fetch of a brand-new
+	// product can take well over 2 minutes regardless of the client's poll
+	// interval (observed ~2m10s in CI), so this needs a longer budget than the
+	// other checks in this test.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", privateActionRunnerKeysManagerLogLine, privateActionRunnerLogFile))
+	}, 5*time.Minute, 5*time.Second, "private action runner log should report the keys manager ready")
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerServiceRestart() {
 	host := s.Env().RemoteHost
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
+
+	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
 	// Ensure service is started
 	_, err := svcManager.Start(privateActionRunnerServiceName)

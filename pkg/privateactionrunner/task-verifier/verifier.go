@@ -9,50 +9,20 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewTaskVerifier returns a TaskVerifier appropriate for the current environment.
-// When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op verifier is returned for e2e tests.
+// NewTaskVerifier returns a TaskVerifier that validates the signed envelope on every task.
 func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
-	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" {
-		log.Warn("task verification disabled")
-		return &noOpTaskVerifier{}
-	}
 	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
-}
-
-// noOpTaskVerifier passes tasks through without signature validation.
-// Used only when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
-type noOpTaskVerifier struct{}
-
-func (n *noOpTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
-	if task == nil || task.Data.Attributes == nil {
-		return task, nil
-	}
-
-	envelope := task.Data.Attributes.SignedEnvelope
-	if envelope == nil || len(envelope.Data) == 0 {
-		return task, nil
-	}
-
-	var pbTask privateactionspb.PrivateActionTask
-	err := proto.Unmarshal(envelope.Data, &pbTask)
-	if err != nil {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("failed to unmarshal task"))
-	}
-	return mapPbTaskToStruct(&pbTask), nil
 }
 
 type signedEnvelopeTaskVerifier struct {
