@@ -13,7 +13,23 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+func TestSplitDeploymentEnabled(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest(privateactionrunner.PARSplitEnabled, true)
+
+	assert.True(t, splitDeploymentEnabled(cfg, "linux"))
+	assert.True(t, splitDeploymentEnabled(cfg, "windows"))
+	assert.False(t, splitDeploymentEnabled(cfg, "darwin"))
+
+	cfg.SetInTest(privateactionrunner.PARSplitEnabled, false)
+	assert.False(t, splitDeploymentEnabled(cfg, "linux"))
+	assert.False(t, splitDeploymentEnabled(cfg, "windows"))
+}
 
 func TestStopCleansUpMetricsClient(t *testing.T) {
 	tests := []struct {
