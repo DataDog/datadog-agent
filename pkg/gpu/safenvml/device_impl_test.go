@@ -141,3 +141,16 @@ func TestDeviceSafeMethodSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testutil.DefaultGpuCores, cores)
 }
+
+func TestGetGpuFabricInfoRequiresVersionedAPISymbol(t *testing.T) {
+	symbols := maps.Clone(allSymbols)
+	delete(symbols, toNativeName("GetGpuFabricInfoV"))
+
+	device := &safeDeviceImpl{
+		lib: &safeNvml{capabilities: symbols},
+	}
+
+	_, err := device.GetGpuFabricInfo()
+	require.Error(t, err)
+	require.True(t, IsUnsupported(err))
+}

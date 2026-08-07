@@ -54,16 +54,44 @@ type adScheduler struct {
 	clock                  clock.Clock
 	jitter                 func(time.Duration) time.Duration
 
-	ctx             context.Context
-	cancel          context.CancelFunc
-	collectionQueue chan *watchedConfig
-	mu              sync.Mutex
-	watches         map[string]*watchedConfig
-	stopOnce        sync.Once
-	workerDone      sync.WaitGroup
+	ctx                     context.Context
+	cancel                  context.CancelFunc
+	collectionQueue         chan *watchedConfig
+	mu                      sync.Mutex
+	watches                 map[string]*watchedConfig
+	pendingProcessFallbacks processFallbackRegistry
+	stopOnce                sync.Once
+	workerDone              sync.WaitGroup
 }
 
 var _ scheduler.Scheduler = (*adScheduler)(nil)
+
+// configCollectionState tracks one watch from its next scheduled attempt
+// through collection, batching, and successful delivery.
+type configCollectionState uint8
+
+const (
+	configScheduled configCollectionState = iota
+	configCollecting
+	configRecollectAfterCollection
+	configCollected
+	configRecollectAfterSend
+	configSent
+)
+
+// configCollectionEvent tells the state machine what happened to a watched
+// config so it can choose the next configCollectionState.
+type configCollectionEvent uint8
+
+const (
+	collectionRequested configCollectionEvent = iota
+	collectionCompleted
+	collectionDeferred
+	sendSucceeded
+	sendFailed
+	recollectionRequested
+	watchUnscheduled
+)
 
 // watchedConfig holds the durable state needed to recollect one scheduled AD
 // config until it is unscheduled. Collectors and reader factories remain in the
@@ -77,10 +105,10 @@ type watchedConfig struct {
 	serviceID string
 	// target identifies the runtime and entity to inspect on each collection.
 	target target
+	// state tracks the asynchronous collection and send lifecycle.
+	state configCollectionState
 	// nextCollection is the startup, heartbeat, or retry deadline.
 	nextCollection time.Time
-	// inFlight covers both collection and the subsequent batched send.
-	inFlight bool
 }
 
 // pendingCollectedConfig holds a collected payload until its batch has been
@@ -264,6 +292,8 @@ func (s *adScheduler) Schedule(configs []integration.Config) {
 	}
 }
 
+// trackAndEnqueue creates or refreshes a watch and starts its initial
+// collection once the shared startup delay has elapsed.
 func (s *adScheduler) trackAndEnqueue(config integration.Config, target target) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -278,22 +308,26 @@ func (s *adScheduler) trackAndEnqueue(config integration.Config, target target) 
 	}
 	if !ok {
 		watch = &watchedConfig{
-			key: key,
+			key:   key,
+			state: configScheduled,
 		}
 		s.watches[key] = watch
 	}
 	watch.integration = config.Name
 	watch.serviceID = config.ServiceID
 	watch.target = target
+	if !ok {
+		s.registerProcessFallbackLocked(watch)
+	}
 	if !ok && s.clock.Now().Before(s.startupNotBefore) {
 		watch.nextCollection = s.startupNotBefore
 		return
 	}
 
-	if ok && (watch.inFlight || !watch.nextCollection.IsZero()) {
+	if ok && (watch.state != configScheduled || !watch.nextCollection.IsZero()) {
 		return
 	}
-	s.enqueueCollectionLocked(watch)
+	s.transitionWatchLocked(watch, collectionRequested, time.Time{})
 }
 
 func watchKey(config integration.Config) string {
@@ -304,30 +338,132 @@ func (s *adScheduler) isActiveWatchLocked(watch *watchedConfig) bool {
 	return watch != nil && s.watches[watch.key] == watch
 }
 
-func (s *adScheduler) isActiveWatch(watch *watchedConfig) bool {
+// transitionWatchLocked is the config collection state machine. Asynchronous
+// workers report events here; this function validates and applies every state
+// transition:
+//
+//	Scheduled/ConfigSent      --collectionRequested----> Collecting
+//	Collecting                --collectionCompleted----> ConfigCollected
+//	Collecting                --collectionDeferred-----> Scheduled
+//	ConfigCollected           --sendSucceeded----------> ConfigSent
+//	ConfigCollected           --sendFailed-------------> Scheduled
+//	Scheduled/ConfigSent      --recollectionRequested--> Collecting
+//	Collecting                --recollectionRequested--> RecollectAfterCollection
+//	RecollectAfterCollection  --collectionCompleted----> RecollectAfterSend
+//	RecollectAfterCollection  --collectionDeferred-----> Collecting
+//	ConfigCollected           --recollectionRequested--> RecollectAfterSend
+//	RecollectAfterSend        --sendSucceeded/Failed----> Collecting
+//	Any                       --watchUnscheduled-------> removed
+//
+// A recollection request starts immediately from a resting state. During
+// collection or while awaiting send it is coalesced into a transient state so
+// the current collection reaches a send attempt before recollection starts.
+// Returns true when the event is represented by the resulting state, including
+// a coalesced recollection or a scheduled retry, and false when it is ignored.
+// The caller must hold s.mu.
+func (s *adScheduler) transitionWatchLocked(watch *watchedConfig, event configCollectionEvent, nextCollection time.Time) bool {
+	if !s.isActiveWatchLocked(watch) {
+		return false
+	}
+
+	switch event {
+	case collectionRequested:
+		if watch.state != configScheduled && watch.state != configSent {
+			return false
+		}
+		watch.state = configCollecting
+		watch.nextCollection = time.Time{}
+		select {
+		case <-s.ctx.Done():
+			watch.state = configScheduled
+			return false
+		case s.collectionQueue <- watch:
+		default:
+			watch.state = configScheduled
+			watch.nextCollection = s.clock.Now().Add(s.nextRetryDelay())
+			log.Warnf("config files discovery collection queue is full, retrying integration %q service %q runtime %q later", watch.integration, watch.serviceID, watch.target.runtime)
+		}
+
+	case collectionCompleted:
+		switch watch.state {
+		case configCollecting:
+			watch.state = configCollected
+		case configRecollectAfterCollection:
+			watch.state = configRecollectAfterSend
+		default:
+			return false
+		}
+
+	case collectionDeferred:
+		switch watch.state {
+		case configCollecting:
+			watch.state = configScheduled
+			watch.nextCollection = nextCollection
+		case configRecollectAfterCollection:
+			watch.state = configScheduled
+			watch.nextCollection = nextCollection
+			return s.transitionWatchLocked(watch, collectionRequested, time.Time{})
+		default:
+			return false
+		}
+
+	case sendSucceeded, sendFailed:
+		if watch.state != configCollected && watch.state != configRecollectAfterSend {
+			return false
+		}
+		recollect := watch.state == configRecollectAfterSend
+		if event == sendSucceeded {
+			watch.state = configSent
+		} else {
+			watch.state = configScheduled
+		}
+		watch.nextCollection = nextCollection
+		if recollect {
+			return s.transitionWatchLocked(watch, collectionRequested, time.Time{})
+		}
+
+	case recollectionRequested:
+		switch watch.state {
+		case configCollecting:
+			watch.state = configRecollectAfterCollection
+		case configCollected:
+			watch.state = configRecollectAfterSend
+		case configRecollectAfterCollection, configRecollectAfterSend:
+			return true
+		case configScheduled:
+			if !s.startupNotBefore.IsZero() && s.clock.Now().Before(s.startupNotBefore) {
+				// The initial collection is already scheduled for the end of startup
+				// jitter. Do not record this as the one-shot fallback yet: returning
+				// false keeps that fallback available for a process event after the
+				// initial collection.
+				return false
+			}
+			return s.transitionWatchLocked(watch, collectionRequested, time.Time{})
+		case configSent:
+			return s.transitionWatchLocked(watch, collectionRequested, time.Time{})
+		default:
+			return false
+		}
+
+	case watchUnscheduled:
+		delete(s.watches, watch.key)
+
+	default:
+		return false
+	}
+	return true
+}
+
+// transitionWatch reports an asynchronous worker result to the state machine.
+func (s *adScheduler) transitionWatch(watch *watchedConfig, event configCollectionEvent, nextCollection time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.isActiveWatchLocked(watch)
+	return s.transitionWatchLocked(watch, event, nextCollection)
 }
 
-func (s *adScheduler) enqueueCollectionLocked(watch *watchedConfig) {
-	if watch.inFlight {
-		return
-	}
-
-	watch.inFlight = true
-
-	select {
-	case <-s.ctx.Done():
-		watch.inFlight = false
-	case s.collectionQueue <- watch:
-	default:
-		watch.inFlight = false
-		watch.nextCollection = s.clock.Now().Add(s.nextRetryDelay())
-		log.Warnf("config files discovery collection queue is full, retrying integration %q service %q runtime %q later", watch.integration, watch.serviceID, watch.target.runtime)
-	}
-}
-
+// runCollectionWorker serializes collection and delivery. Configs remain in
+// the collected state while waiting in a batch, then finishSend records either
+// a successful heartbeat deadline or a retry deadline.
 func (s *adScheduler) runCollectionWorker() {
 	defer s.workerDone.Done()
 
@@ -362,7 +498,10 @@ func (s *adScheduler) runCollectionWorker() {
 			return true
 		}
 		stopFlushTimer()
-		pendingConfigs := batch.takeConfigs()
+		pendingConfigs := s.activePendingConfigs(batch.takeConfigs())
+		if len(pendingConfigs) == 0 {
+			return true
+		}
 		configs := collectedConfigsFromPending(pendingConfigs)
 		if err := s.sender.SendCollectedConfigs(configs); err != nil {
 			select {
@@ -414,6 +553,21 @@ func collectedConfigsFromPending(pendingConfigs []pendingCollectedConfig) []Coll
 	return configs
 }
 
+// activePendingConfigs removes configs whose watch was unscheduled or replaced
+// before its batch started sending.
+func (s *adScheduler) activePendingConfigs(pendingConfigs []pendingCollectedConfig) []pendingCollectedConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	active := pendingConfigs[:0]
+	for _, pendingConfig := range pendingConfigs {
+		if s.isActiveWatchLocked(pendingConfig.watch) && pendingConfig.watch.hasCollectedConfig() {
+			active = append(active, pendingConfig)
+		}
+	}
+	return active
+}
+
 func (s *adScheduler) runHeartbeatWorker() {
 	defer s.workerDone.Done()
 
@@ -430,21 +584,37 @@ func (s *adScheduler) runHeartbeatWorker() {
 	}
 }
 
+// enqueueDueCollections starts every scheduled or sent watch whose collection
+// deadline has elapsed.
 func (s *adScheduler) enqueueDueCollections() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	now := s.clock.Now()
 	for _, watch := range s.watches {
-		if watch.inFlight || !watch.hasDueCollection(now) {
+		if !watch.hasDueCollection(now) {
 			continue
 		}
-		s.enqueueCollectionLocked(watch)
+		s.transitionWatchLocked(watch, collectionRequested, time.Time{})
 	}
 }
 
+// hasDueCollection returns whether a resting watch has reached a non-zero
+// collection deadline.
 func (w *watchedConfig) hasDueCollection(now time.Time) bool {
-	return !w.nextCollection.IsZero() && !w.nextCollection.After(now)
+	return (w.state == configScheduled || w.state == configSent) && !w.nextCollection.IsZero() && !w.nextCollection.After(now)
+}
+
+// isCollecting returns whether a collection is running, including when another
+// collection has been requested afterward.
+func (w *watchedConfig) isCollecting() bool {
+	return w.state == configCollecting || w.state == configRecollectAfterCollection
+}
+
+// hasCollectedConfig returns whether collected data is waiting to be sent,
+// including when another collection has been requested afterward.
+func (w *watchedConfig) hasCollectedConfig() bool {
+	return w.state == configCollected || w.state == configRecollectAfterSend
 }
 
 // runCollection executes one queued config collection. Returns a pending config
@@ -460,7 +630,7 @@ func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfi
 	reader, err := readerFactory(target)
 	if err != nil {
 		log.Warnf("failed to build config reader for integration %q service %q runtime %q: %v", integration, serviceID, target.runtime, err)
-		s.finishCollectionWithError(watch)
+		s.transitionWatch(watch, collectionDeferred, s.clock.Now().Add(s.nextRetryDelay()))
 		return pendingCollectedConfig{}, false
 	}
 	defer reader.Close()
@@ -473,16 +643,16 @@ func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfi
 			return pendingCollectedConfig{}, false
 		default:
 			log.Warnf("failed to collect config data for integration %q service %q: %v", integration, serviceID, err)
-			s.finishCollectionWithError(watch)
+			s.transitionWatch(watch, collectionDeferred, s.clock.Now().Add(s.nextRetryDelay()))
 			return pendingCollectedConfig{}, false
 		}
 	}
 
 	if len(collected.ConfigFiles) == 0 && len(collected.EnvVars) == 0 {
-		s.finishCollection(watch, s.clock.Now().Add(s.nextHeartbeatDelay()))
+		s.transitionWatch(watch, collectionDeferred, s.clock.Now().Add(s.nextHeartbeatDelay()))
 		return pendingCollectedConfig{}, false
 	}
-	if !s.isActiveWatch(watch) {
+	if !s.transitionWatch(watch, collectionCompleted, time.Time{}) {
 		return pendingCollectedConfig{}, false
 	}
 
@@ -500,39 +670,30 @@ func (s *adScheduler) runCollection(watch *watchedConfig) (pendingCollectedConfi
 	return pendingConfig, true
 }
 
+// snapshotWatch returns the immutable inputs for an active collection. It
+// rejects queued work for watches that were unscheduled or replaced.
 func (s *adScheduler) snapshotWatch(watch *watchedConfig) (string, string, target, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.isActiveWatchLocked(watch) {
+	if !s.isActiveWatchLocked(watch) || !watch.isCollecting() {
 		return "", "", target{}, false
 	}
 	return watch.integration, watch.serviceID, watch.target, true
 }
 
-func (s *adScheduler) finishCollection(watch *watchedConfig, nextCollection time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if !s.isActiveWatchLocked(watch) {
-		return
-	}
-	watch.nextCollection = nextCollection
-	watch.inFlight = false
-}
-
-func (s *adScheduler) finishCollectionWithError(watch *watchedConfig) {
-	s.finishCollection(watch, s.clock.Now().Add(s.nextRetryDelay()))
-}
-
-// finishSend assigns every active watch in a batch the same heartbeat or retry
-// deadline so subsequent collections can remain batched.
+// finishSend transitions every active watch in a batch to sent on success or
+// scheduled on failure. Watches share the same heartbeat or retry deadline so
+// subsequent collections can remain batched.
 func (s *adScheduler) finishSend(pendingConfigs []pendingCollectedConfig, success bool) {
 	now := s.clock.Now()
+	var event configCollectionEvent
 	var nextDelay time.Duration
 	if success {
+		event = sendSucceeded
 		nextDelay = s.nextHeartbeatDelay()
 	} else {
+		event = sendFailed
 		nextDelay = s.nextRetryDelay()
 	}
 	nextCollection := now.Add(nextDelay)
@@ -541,13 +702,7 @@ func (s *adScheduler) finishSend(pendingConfigs []pendingCollectedConfig, succes
 	defer s.mu.Unlock()
 
 	for _, pendingConfig := range pendingConfigs {
-		watch := pendingConfig.watch
-		if !s.isActiveWatchLocked(watch) {
-			continue
-		}
-
-		watch.nextCollection = nextCollection
-		watch.inFlight = false
+		s.transitionWatchLocked(pendingConfig.watch, event, nextCollection)
 	}
 }
 
@@ -585,7 +740,10 @@ func (s *adScheduler) Unschedule(configs []integration.Config) {
 	defer s.mu.Unlock()
 
 	for _, config := range configs {
-		delete(s.watches, watchKey(config))
+		if watch := s.watches[watchKey(config)]; watch != nil {
+			s.removeProcessFallbackLocked(watch)
+			s.transitionWatchLocked(watch, watchUnscheduled, time.Time{})
+		}
 	}
 }
 
