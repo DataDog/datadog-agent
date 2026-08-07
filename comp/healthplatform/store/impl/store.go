@@ -29,6 +29,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -44,9 +45,13 @@ type Requires struct {
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
 	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
-	// selfident). Every binary that wires this bundle also wires
-	// workloadmeta's fx module, so this is a mandatory dependency, not optional.
-	Workloadmeta workloadmeta.Component `optional:"true"` // set to optional for non-Kubernetes agents. TODO create a new comp with no-op selfident.
+	// selfident). Optional because only selfident's kubeapiserver build reads
+	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
+	// agent, serverless-init) selfident is a no-op that ignores it entirely, so
+	// requiring it would make those binaries depend on a component they have no
+	// use for. Every binary that wires this bundle happens to provide it today,
+	// so in practice it is non-nil wherever it is actually read.
+	Workloadmeta workloadmeta.Component `optional:"true"`
 }
 
 // Provides defines the output of the health-platform component
@@ -543,9 +548,12 @@ func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []st
 }
 
 // IssueDiscriminator returns the identifier issue ids should be scoped by;
-// see the Component interface doc for the collapse rationale.
+// see the Component interface doc for the collapse rationale. selfIdent only
+// reports this agent's DaemonSet uid, or "" when there is none, so the per-host
+// fallback lives in issuesmod.IssueDiscriminator — shared with the issue
+// modules that scope their own ids.
 func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
-	return h.selfIdent.IssueDiscriminator(hostID)
+	return issuesmod.IssueDiscriminator(h.selfIdent, hostID)
 }
 
 // ============================================================================

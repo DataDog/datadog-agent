@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -83,7 +84,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 // them into a single case.
 //
 // The discriminator is this agent's owning DaemonSet uid when resolvable
-// (selfIdent.IssueDiscriminator), so that a config file distributed by that
+// (issues.IssueDiscriminator), so that a config file distributed by that
 // DaemonSet to every node agent collapses into one case instead of one per
 // host — a deliberate inversion of the default per-host scoping, since the
 // underlying cause and fix are shared across the whole DaemonSet. It falls
@@ -97,7 +98,8 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 // is ~2.7e-12 at the same fleet size — negligible at any realistic scale.
 func (c *checker) instanceIssueID() string {
 	h := fnv.New64a()
-	fmt.Fprintf(h, "%s\x00%s", c.selfIdent.IssueDiscriminator(c.hostname.GetSafe(context.Background())), c.cfg.ConfigFileUsed())
+	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
+	fmt.Fprintf(h, "%s\x00%s", discriminator, c.cfg.ConfigFileUsed())
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 

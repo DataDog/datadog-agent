@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package selfident resolves the agent's own Kubernetes DaemonSet identity,
-// so issues caused by a cluster-distributed template (a bad cluster check,
-// a cluster-distributed config file) share one discriminator across every
-// node agent, letting the backend collapse them into a single issue.
+//go:build kubeapiserver
+
 package selfident
 
 import (
@@ -102,21 +100,12 @@ func (s *SelfIdent) DeploymentID() string {
 	return id
 }
 
-// IssueDiscriminator returns DeploymentID() when non-empty, so all agents in
-// the same DaemonSet emit identical issue ids for the same template-induced
-// problem. Otherwise it falls back to hostID, or the OS hostname if hostID
-// is empty, preserving today's per-host behavior for non-Kubernetes agents.
-func (s *SelfIdent) IssueDiscriminator(hostID string) string {
-	if deploymentID := s.DeploymentID(); deploymentID != "" {
-		return deploymentID
-	}
-	if hostID != "" {
-		return hostID
-	}
-	if osHostname, err := os.Hostname(); err == nil {
-		return osHostname
-	}
-	return ""
+// IssueDiscriminator returns DeploymentID(), so all agents in the same
+// DaemonSet emit identical issue ids for the same template-induced problem.
+// It is empty when this agent is not owned by a DaemonSet; callers apply the
+// per-host fallback on that empty result — see issues.IssueDiscriminator.
+func (s *SelfIdent) IssueDiscriminator() string {
+	return s.DeploymentID()
 }
 
 // ClusterID returns the best-effort Kubernetes cluster id for payload

@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "issues",
     srcs = [
+        "discriminator.go",
         "module.go",
         "registry.go",
     ],
@@ -21,10 +22,29 @@ go_library(
 
 dd_agent_go_test(
     name = "issues_test",
-    srcs = ["registry_test.go"],
+    srcs = [
+        "discriminator_kubeapiserver_test.go",
+        "discriminator_test.go",
+        "registry_test.go",
+    ],
     embed = [":issues"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/impl",
+        "//comp/def",
+        "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/runner/def",
+        "//pkg/config/env",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

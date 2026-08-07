@@ -70,15 +70,28 @@ the shared source. `comp/healthplatform/issueregistry/utils/selfident.SelfIdent`
 - `SelfIdent.DeploymentID()` resolves the UID of the Kubernetes DaemonSet that owns the agent's own
   pod (via workloadmeta), cached for the process lifetime. Empty when not running under a DaemonSet
   (non-Kubernetes, or no DaemonSet owner).
-- `SelfIdent.IssueDiscriminator(hostID string)` returns `DeploymentID()` when non-empty, else
-  `hostID` (falling back further to `os.Hostname()` if `hostID` is also empty). All agents owned by
-  the same DaemonSet therefore compute the same discriminator, so `id`s built from it collapse into
-  one backend issue instead of one per host; non-Kubernetes agents keep today's per-host behavior.
-- `healthplatformstore.Component.IssueDiscriminator` (implemented in `store/impl`) wraps a
-  process-shared `SelfIdent` for Path-B reporters that hold the store component. Path-A modules that
-  don't (`invalidconfig`, `invalidsysprobeconfig`) get their own `*selfident.SelfIdent` via
-  `issues.ModuleDeps.SelfIdent` instead — a second, independently-cached instance is harmless since
-  both resolve the same deterministic value.
+- `SelfIdent.IssueDiscriminator()` returns `DeploymentID()`, or `""` when no DaemonSet owns this
+  agent. It deliberately does *not* invent a per-host id, so that it behaves identically to the no-op
+  build (see below).
+- `issues.IssueDiscriminator(selfIdent, hostID)` is the function callers actually use: it takes
+  `SelfIdent.IssueDiscriminator()` when non-empty, else `hostID`, else `os.Hostname()`. All agents
+  owned by the same DaemonSet therefore compute the same discriminator, so `id`s built from it
+  collapse into one backend issue instead of one per host; every other agent keeps per-host
+  behavior. It tolerates a nil `selfIdent` (`ModuleDeps` is a plain struct).
+- `healthplatformstore.Component.IssueDiscriminator(hostID)` (implemented in `store/impl`) delegates
+  to that function with a process-shared `SelfIdent`, for Path-B reporters that hold the store
+  component. Path-A modules that don't (`invalidconfig`, `invalidsysprobeconfig`) call it directly
+  with their own `*selfident.SelfIdent` from `issues.ModuleDeps.SelfIdent` — a second,
+  independently-cached instance is harmless since both resolve the same deterministic value.
+- **`selfident` is behind the `kubeapiserver` build tag.** `selfident_noop.go` provides the same API
+  returning `""` everywhere for flavors built without it — the iot and heroku agents,
+  `cluster-agent-cloudfoundry`, and `serverless-init`. None of them can run as a Kubernetes
+  DaemonSet, and every binary that both wires this bundle and can (`cmd/agent` base flavor,
+  `cmd/cluster-agent`) has the tag. This keeps the resolver, and its retry loop, out of binaries
+  where it could never succeed — `env.IsFeaturePresent(env.Kubernetes)` is not tag-gated, so a
+  package-installed agent on a Kubernetes node would otherwise retry a lookup that cannot resolve
+  without the kubelet workloadmeta collector. It also matters for the iot static quality gate, which
+  has almost no headroom. If you add anything to `selfident`, keep both variants in sync.
 - `cluster_id` (`SelfIdent.ClusterID()`) rides along in issue `Extra`/`Tags` for UI identification
   only — it is never part of the `id` itself. Unlike `DeploymentID()`, it resolves in a background
   goroutine and returns `""` until resolved: `clustername.GetClusterID()` usually requires a
@@ -86,7 +99,7 @@ the shared source. `comp/healthplatform/issueregistry/utils/selfident.SelfIdent`
   Helm chart/Operator deployments), and `cluster_id` is best-effort metadata that must never block
   issue reporting on Cluster Agent availability.
 
-**When adding or scoping a new module's `id`:** use `IssueDiscriminator(hostID)` instead of a bare
+**When adding or scoping a new module's `id`:** use `issues.IssueDiscriminator` instead of a bare
 hostname/host ID whenever the module's failure mode can plausibly originate from a cluster-distributed
 template (config validation, cluster check load/exec failures). Keep using a bare per-host id for
 failures that are inherently host-local (e.g. filesystem permissions, local Docker socket access).

@@ -16,6 +16,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
@@ -41,7 +42,8 @@ func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Compone
 // one per host, while still keeping distinct config files distinct.
 func (c *checker) instanceIssueID() string {
 	h := fnv.New64a()
-	fmt.Fprintf(h, "%s\x00%s", c.selfIdent.IssueDiscriminator(c.hostname.GetSafe(context.Background())), c.cfg.ConfigFileUsed())
+	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
+	fmt.Fprintf(h, "%s\x00%s", discriminator, c.cfg.ConfigFileUsed())
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 

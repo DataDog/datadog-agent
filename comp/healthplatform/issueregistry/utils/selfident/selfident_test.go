@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build kubeapiserver
+
 package selfident
 
 import (
@@ -175,7 +177,7 @@ func TestDeploymentID_TransientMissIsNotCachedPermanently(t *testing.T) {
 	assert.Equal(t, "daemonset-uid-123", s.DeploymentID(), "a later call must retry rather than replay the stale empty result")
 }
 
-func TestIssueDiscriminator_PrefersDeploymentID(t *testing.T) {
+func TestIssueDiscriminator_ReportsDeploymentID(t *testing.T) {
 	t.Setenv(podNameEnvVar, testPodName)
 	mockStore := newMockStore(t)
 	setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{
@@ -184,13 +186,16 @@ func TestIssueDiscriminator_PrefersDeploymentID(t *testing.T) {
 
 	s := New(mockStore)
 
-	assert.Equal(t, "daemonset-uid-123", s.IssueDiscriminator("some-host-id"))
+	assert.Equal(t, "daemonset-uid-123", s.IssueDiscriminator())
 }
 
-func TestIssueDiscriminator_FallsBackToHostID(t *testing.T) {
+// IssueDiscriminator must report nothing rather than invent a per-host id when
+// no DaemonSet owns this agent — the per-host fallback is the caller's job, so
+// that it stays identical on flavors where selfident is a no-op.
+func TestIssueDiscriminator_EmptyWithoutDaemonSet(t *testing.T) {
 	s := New(nil)
 
-	assert.Equal(t, "some-host-id", s.IssueDiscriminator("some-host-id"))
+	assert.Empty(t, s.IssueDiscriminator())
 }
 
 func TestNew_NoopOutsideKubernetes(t *testing.T) {

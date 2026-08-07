@@ -66,6 +66,7 @@ type Component interface {
 	// IssueDiscriminator returns the identifier issue ids should be scoped by:
 	// this agent's Kubernetes DaemonSet UID when resolvable, so that per-host
 	// issues caused by the same cluster-distributed template collapse into one
-	// backend issue, or hostID as a fallback for non-Kubernetes agents.
+	// backend issue, or hostID as a fallback for non-Kubernetes agents. It never
+	// returns "" unless hostID is empty and the OS hostname is unavailable.
 	IssueDiscriminator(hostID string) string
 }
