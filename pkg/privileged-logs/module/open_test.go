@@ -16,14 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// isRootUser reports whether the test is running with an effective UID of 0.
-// Root bypasses directory read/search permission checks entirely (via
-// CAP_DAC_OVERRIDE), so tests relying on those checks being enforced must
-// skip rather than pass vacuously.
-func isRootUser() bool {
-	return os.Geteuid() == 0
-}
-
 // openPathWithoutSymlinksAndCheckFDs wraps openPathWithoutSymlinks and verifies
 // that no file descriptors are leaked. For success cases, it checks that exactly
 // one FD is opened. For error cases, it checks that no FDs are leaked.
@@ -109,7 +101,7 @@ func TestOpenPathWithoutSymlinks(t *testing.T) {
 		// Root bypasses the directory read-permission check below via
 		// CAP_DAC_OVERRIDE, so this test would pass vacuously without
 		// actually exercising the permission check.
-		if isRootUser() {
+		if os.Geteuid() == 0 {
 			t.Skip("test requires a non-root effective UID")
 		}
 
