@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -28,10 +29,12 @@ const (
 	parContainerName = "private-action-runner"
 	agentNamespace   = "datadog"
 
-	// testDataFile is planted on the Kind node by the provisioner at /var/log/,
-	// accessible inside the PAR container at /host/var/log/ via the host volume mount.
-	testDataFile    = "/host/var/log/par-e2e-testdata.txt"
-	testDataContent = "PAR_E2E_VALUE=hello_from_rshell"
+	// The provisioner plants both files on the Kind node. The operator policy
+	// admits only the allowed subtree under the PAR container's /host mount.
+	testDataFile           = "/host/var/log/par-e2e-allowed/testdata.txt"
+	testDataContent        = "PAR_E2E_VALUE=hello_from_rshell"
+	operatorBlockedFile    = "/host/var/log/par-e2e-blocked/testdata.txt"
+	operatorBlockedContent = "PAR_E2E_BLOCKED_VALUE=operator_path_must_block"
 )
 
 type parK8sSuite struct {
@@ -60,9 +63,8 @@ func (s *parK8sSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
-// TestRshellHappyFlow verifies PAR can execute a simple rshell command that reads the
-// planted test file. allowedCommands must include "rshell:cat" because rshell blocks
-// all commands unless explicitly listed. allowedPaths is a flat signed-task path list.
+// TestRshellHappyFlow verifies the deployed operator and backend policies overlap.
+// The backend path is broader than the operator's allowed test-data subtree.
 func (s *parK8sSuite) TestRshellHappyFlow() {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
@@ -73,8 +75,78 @@ func (s *parK8sSuite) TestRshellHappyFlow() {
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().Equal(0, rshellExitCode(result), "unexpected PAR rshell result: %+v", result)
+	s.Require().Equal(taskID, result.TaskID)
+	s.Require().True(result.Success, "unexpected PAR rshell result: %+v", result)
+	s.Require().Zero(result.ErrorCode)
+	s.Require().Empty(result.ErrorDetails)
+	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected PAR rshell result: %+v", result)
 	assert.Contains(s.T(), result.Outputs["stdout"], testDataContent)
+	assert.Equal(s.T(), "", result.Outputs["stderr"])
+	assert.NotContains(s.T(), result.Outputs, "sandboxWarnings")
+}
+
+// TestRshellOperatorCommandPolicyNarrowsBackendPolicy verifies the backend can
+// admit a command that the deployed operator policy still rejects.
+func (s *parK8sSuite) TestRshellOperatorCommandPolicyNarrowsBackendPolicy() {
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "ls " + testDataFile,
+		"allowedCommands": []string{"rshell:ls"},
+		"allowedPaths":    []string{"/host/var/log"},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().True(result.Success, "rshell policy rejection should be a completed PAR task")
+	assert.Equal(s.T(), 127, rshellExitCode(s.T(), result))
+	assert.Contains(s.T(), result.Outputs["stderr"], "command not allowed")
+	assert.NotContains(s.T(), result.Outputs["stdout"], testDataContent)
+}
+
+// TestRshellOperatorPathPolicyNarrowsBackendPolicy verifies the backend can
+// admit a path that the deployed operator policy still rejects.
+func (s *parK8sSuite) TestRshellOperatorPathPolicyNarrowsBackendPolicy() {
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "cat " + operatorBlockedFile,
+		"allowedCommands": []string{"rshell:cat"},
+		"allowedPaths":    []string{"/host/var/log"},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().True(result.Success, "rshell policy rejection should be a completed PAR task")
+	assert.Equal(s.T(), 1, rshellExitCode(s.T(), result))
+	assert.Contains(s.T(), result.Outputs["stderr"], "permission denied")
+	assert.NotContains(s.T(), result.Outputs["stdout"], operatorBlockedContent)
+}
+
+// TestRshellSystemServicePolicyIntersection verifies the signed backend service
+// grants are narrowed by the deployed operator policy without contacting systemd.
+func (s *parK8sSuite) TestRshellSystemServicePolicyIntersection() {
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "help",
+		"allowedCommands": []string{"rshell:help"},
+		"systemServices": map[string]interface{}{
+			systemServiceOverlap:     []string{"read", "restart"},
+			systemServiceBackendOnly: []string{"read"},
+		},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().Equal(taskID, result.TaskID)
+	s.Require().True(result.Success, "unexpected PAR rshell result: %+v", result)
+	s.Require().Zero(result.ErrorCode)
+	s.Require().Empty(result.ErrorDetails)
+	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected PAR rshell result: %+v", result)
+	assert.Contains(s.T(), result.Outputs["stdout"], "Allowed systemd units:\n  "+systemServiceOverlap+":read\n")
+	assert.NotContains(s.T(), result.Outputs["stdout"], systemServiceOverlap+":read+restart")
+	assert.NotContains(s.T(), result.Outputs["stdout"], systemServiceBackendOnly)
+	assert.NotContains(s.T(), result.Outputs["stdout"], systemServiceOperatorOnly)
+	assert.Equal(s.T(), "", result.Outputs["stderr"])
+	assert.NotContains(s.T(), result.Outputs, "sandboxWarnings")
 }
 
 // TestRshellBlockedPath verifies rshell blocks access to paths outside restricted_shell.allowed_paths.
@@ -87,7 +159,7 @@ func (s *parK8sSuite) TestRshellBlockedPath() {
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	assert.NotEqual(s.T(), 0, rshellExitCode(result), "expected non-zero exit code for blocked path")
+	assert.NotEqual(s.T(), 0, rshellExitCode(s.T(), result), "expected non-zero exit code for blocked path")
 	assert.NotEmpty(s.T(), result.Outputs["stderr"], "expected error message in stderr")
 }
 
@@ -97,12 +169,16 @@ func (s *parK8sSuite) TestRshellBlockedCommand() {
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":         "grep PAR_E2E_VALUE " + testDataFile,
 		"allowedCommands": []string{"rshell:echo", "rshell:cat"},
+		"allowedPaths":    []string{"/host/var/log"},
 	})
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	assert.NotEqual(s.T(), 0, rshellExitCode(result), "expected non-zero exit code for blocked command")
-	assert.NotEmpty(s.T(), result.Outputs["stderr"], "expected error message in stderr")
+	s.Require().True(result.Success, "rshell policy rejection should be a completed PAR task")
+	s.Require().Zero(result.ErrorCode)
+	s.Require().Empty(result.ErrorDetails)
+	assert.Equal(s.T(), 127, rshellExitCode(s.T(), result))
+	assert.Contains(s.T(), result.Outputs["stderr"], "command not allowed")
 }
 
 // TestRshellBlockedExecCmd verifies rshell blocks the command inside -exec when it is not
@@ -112,11 +188,45 @@ func (s *parK8sSuite) TestRshellBlockedExecCmd() {
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":         fmt.Sprintf("find %s -exec rm {} \\;", testDataFile),
 		"allowedCommands": []string{"rshell:find"},
+		"allowedPaths":    []string{"/host/var/log"},
 	})
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	assert.NotEqual(s.T(), 0, rshellExitCode(result), "expected non-zero exit code: rm not in allowedCommands so -exec should be blocked")
+	assert.Equal(s.T(), 1, rshellExitCode(s.T(), result))
+	assert.Contains(s.T(), result.Outputs["stderr"], "command not allowed")
+}
+
+// TestRshellSandboxWarningsPublishedSeparatelyFromStderr verifies sandbox
+// diagnostics survive the PAR result wire format without becoming command stderr.
+func (s *parK8sSuite) TestRshellSandboxWarningsPublishedSeparatelyFromStderr() {
+	missingPath := "/host/var/log/par-e2e-allowed/missing-" + uuid.New().String()
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo hello",
+		"allowedCommands": []string{"rshell:echo"},
+		"allowedPaths":    []string{missingPath},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().Equal(taskID, result.TaskID)
+	s.Require().True(result.Success, "sandbox warnings should not fail the PAR task")
+	s.Require().Zero(result.ErrorCode)
+	s.Require().Empty(result.ErrorDetails)
+	s.Require().Equal(0, rshellExitCode(s.T(), result))
+	assert.Equal(s.T(), "hello\n", result.Outputs["stdout"])
+	assert.Equal(s.T(), "", result.Outputs["stderr"])
+
+	rawWarnings, ok := result.Outputs["sandboxWarnings"]
+	s.Require().True(ok, "expected sandboxWarnings in result outputs")
+	warnings, ok := rawWarnings.([]interface{})
+	s.Require().True(ok, "unexpected sandboxWarnings type %T", rawWarnings)
+	s.Require().Len(warnings, 1)
+	warning, ok := warnings[0].(string)
+	s.Require().True(ok, "unexpected sandbox warning type %T", warnings[0])
+	assert.Contains(s.T(), warning, "AllowedPaths: skipping")
+	assert.Contains(s.T(), warning, missingPath)
 }
 
 // TestRshellRemediationWriteFile verifies that the runRemediationCommand action runs
@@ -140,8 +250,42 @@ func (s *parK8sSuite) TestRshellRemediationWriteFile() {
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().Equal(0, rshellExitCode(result), "unexpected PAR rshell result: %+v", result)
+	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected PAR rshell result: %+v", result)
 	assert.Contains(s.T(), result.Outputs["stdout"], content)
+}
+
+// TestRshellRemediationReadOnlyPathBlocksWrite verifies remediation mode does
+// not upgrade a signed read-only path to read-write access.
+func (s *parK8sSuite) TestRshellRemediationReadOnlyPathBlocksWrite() {
+	target := "/var/tmp/par-e2e-remediation-ro-" + uuid.New().String() + ".txt"
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runRemediationCommandAction, map[string]interface{}{
+		"command":         "echo should_not_write > " + target,
+		"allowedCommands": []string{"rshell:echo"},
+		"allowedPaths":    []string{"/var/tmp:ro"},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().True(result.Success, "rshell path rejection should be a completed PAR task")
+	assert.Equal(s.T(), 1, rshellExitCode(s.T(), result))
+	assert.Equal(s.T(), "", result.Outputs["stdout"])
+	assert.Contains(s.T(), result.Outputs["stderr"], "permission denied")
+	assert.NotContains(s.T(), result.Outputs, "sandboxWarnings")
+
+	verifyTaskID := uuid.New().String()
+	err = s.Env().FakeIntake.Client().EnqueuePARTask(verifyTaskID, runCommandAction, map[string]interface{}{
+		"command":         "cat " + target,
+		"allowedCommands": []string{"rshell:cat"},
+		"allowedPaths":    []string{"/var/tmp:ro"},
+	})
+	s.Require().NoError(err)
+
+	verifyResult := s.pollResult(verifyTaskID, 2*time.Minute)
+	assert.Equal(s.T(), 1, rshellExitCode(s.T(), verifyResult))
+	assert.Equal(s.T(), "", verifyResult.Outputs["stdout"])
+	assert.Contains(s.T(), verifyResult.Outputs["stderr"], "no such file or directory")
+	assert.NotContains(s.T(), verifyResult.Outputs, "sandboxWarnings")
 }
 
 // TestRshellRunCommandBlocksWrite verifies that the read-only runCommand action rejects
@@ -157,7 +301,7 @@ func (s *parK8sSuite) TestRshellRunCommandBlocksWrite() {
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	assert.NotEqual(s.T(), 0, rshellExitCode(result), "read-only runCommand must reject file-target redirections")
+	assert.NotEqual(s.T(), 0, rshellExitCode(s.T(), result), "read-only runCommand must reject file-target redirections")
 }
 
 // --- helpers ---
@@ -168,22 +312,18 @@ func (s *parK8sSuite) pollResult(taskID string, timeout time.Duration) *api.PART
 	return result
 }
 
-// rshellExitCode extracts the integer exit code from a task result's outputs.
+// rshellExitCode requires and extracts the integer exit code from a task result.
 // rshell reports all outcomes (including blocked commands) as successful PAR tasks
 // with a non-zero exit code, so tests check exitCode rather than result.Success.
-func rshellExitCode(result *api.PARTaskResult) int {
-	if result.Outputs == nil {
-		return -1
-	}
-	v, ok := result.Outputs["exitCode"]
-	if !ok {
-		return -1
-	}
-	f, ok := v.(float64) // JSON numbers decode as float64
-	if !ok {
-		return -1
-	}
-	return int(f)
+func rshellExitCode(t *testing.T, result *api.PARTaskResult) int {
+	t.Helper()
+	require.NotNil(t, result, "result is nil")
+	require.NotNil(t, result.Outputs, "result has no outputs: %+v", result)
+	value, ok := result.Outputs["exitCode"]
+	require.True(t, ok, "result has no exitCode output: %+v", result)
+	exitCode, ok := value.(float64) // JSON numbers decode as float64
+	require.True(t, ok, "unexpected exitCode type %T", value)
+	return int(exitCode)
 }
 
 // waitForPARReady waits until the private-action-runner container is Ready
