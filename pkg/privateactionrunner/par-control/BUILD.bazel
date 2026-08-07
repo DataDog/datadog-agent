@@ -1,5 +1,7 @@
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 load(":version.bzl", "par_control_agent_version")
 
@@ -83,6 +85,10 @@ rust_binary(
     name = "par-control",
     srcs = ["src/bins/par-control.rs"],
     edition = "2024",
+    link_deps = select({
+        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
@@ -130,4 +136,31 @@ rust_test(
         "@crates//:tokio",
         "@crates//:tokio-stream",
     ],
+)
+
+pkg_files(
+    name = "all_files_linux",
+    srcs = [":par-control"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "all_files_windows",
+    srcs = [":par-control"],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = select({
+        "@platforms//os:linux": [":all_files_linux"],
+        "@platforms//os:windows": [":all_files_windows"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = _LINUX_OR_WINDOWS,
 )
