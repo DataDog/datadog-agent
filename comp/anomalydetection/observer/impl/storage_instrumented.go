@@ -142,6 +142,10 @@ func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []obse
 	return result
 }
 
+func (s *instrumentedStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.SeriesMeta {
+	return s.inner.GetSeriesMeta(ref)
+}
+
 func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter, dst []observerdef.SeriesRef) []observerdef.SeriesRef {
 	s.readCount++
 	result := listSeriesRefs(s.inner, filter, dst)

@@ -256,6 +256,52 @@ func (b *topAnomalyBuffer) reset() {
 	b.entries = b.entries[:0]
 }
 
+// contributors returns the highest-weight metrics represented in the retained
+// anomaly occurrences. Shares are normalized across the returned top items.
+func (b *topAnomalyBuffer) contributors(maxItems int) []observerdef.ScorerContributor {
+	if maxItems <= 0 || len(b.entries) == 0 {
+		return nil
+	}
+
+	totals := make(map[observerdef.QueryHandle]float64, len(b.entries))
+	var total float64
+	for _, entry := range b.entries {
+		totals[entry.handle] += entry.weight
+		total += entry.weight
+	}
+	if total == 0 {
+		return nil
+	}
+
+	contributors := make([]observerdef.ScorerContributor, 0, len(totals))
+	for handle, weight := range totals {
+		contributors = append(contributors, observerdef.ScorerContributor{
+			Handle: handle,
+			Weight: weight,
+		})
+	}
+	sort.Slice(contributors, func(i, j int) bool {
+		if contributors[i].Weight != contributors[j].Weight {
+			return contributors[i].Weight > contributors[j].Weight
+		}
+		if contributors[i].Handle.Ref != contributors[j].Handle.Ref {
+			return contributors[i].Handle.Ref < contributors[j].Handle.Ref
+		}
+		return contributors[i].Handle.Aggregate < contributors[j].Handle.Aggregate
+	})
+	if len(contributors) > maxItems {
+		contributors = contributors[:maxItems]
+	}
+	var selectedTotal float64
+	for _, contributor := range contributors {
+		selectedTotal += contributor.Weight
+	}
+	for i := range contributors {
+		contributors[i].Share = contributors[i].Weight / selectedTotal
+	}
+	return contributors
+}
+
 // secState is the per-second scorer state emitted after each Advance step.
 type secState struct {
 	sec   int64
@@ -624,6 +670,7 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 				Correlation:    *s.openEpisode,
 				FromLevel:      evt.FromLevel,
 				ToLevel:        evt.ToLevel,
+				Contributors:   s.topAnomalies.contributors(s.config.MaxReportedItems),
 			})
 		} else if evt.FromLevel >= threshold && evt.ToLevel < threshold && s.openEpisode != nil {
 			ep := *s.openEpisode
