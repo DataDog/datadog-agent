@@ -38,7 +38,6 @@ func TestRunnerLifecycle(t *testing.T) {
 }
 
 func TestRunnerRealtime(t *testing.T) {
-
 	enableProcessAgent(t)
 
 	t.Run("rt allowed", func(t *testing.T) {
