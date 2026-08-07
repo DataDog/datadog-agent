@@ -6,6 +6,7 @@
 package prometheus
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -47,7 +48,7 @@ container_memory_usage_bytes{pod="",container="empty"} 500
 container_memory_usage_bytes{pod="other-pod",container="sidecar"} 750`
 
 	t.Run("filter pod_name empty", func(t *testing.T) {
-		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod_name=""`})
+		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod_name=""`}, "")
 		require.NoError(t, err)
 
 		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds_total")
@@ -56,7 +57,7 @@ container_memory_usage_bytes{pod="other-pod",container="sidecar"} 750`
 	})
 
 	t.Run("filter pod empty", func(t *testing.T) {
-		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod=""`})
+		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod=""`}, "")
 		require.NoError(t, err)
 
 		memFamily := findFamily(metrics, "container_memory_usage_bytes")
@@ -65,7 +66,7 @@ container_memory_usage_bytes{pod="other-pod",container="sidecar"} 750`
 	})
 
 	t.Run("filter both empty labels", func(t *testing.T) {
-		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod_name=""`, `pod=""`})
+		metrics, err := ParseMetricsWithFilter([]byte(testData), []string{`pod_name=""`, `pod=""`}, "")
 		require.NoError(t, err)
 
 		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds_total")
@@ -78,7 +79,7 @@ container_memory_usage_bytes{pod="other-pod",container="sidecar"} 750`
 	})
 
 	t.Run("no filter", func(t *testing.T) {
-		metrics, err := ParseMetricsWithFilter([]byte(testData), nil)
+		metrics, err := ParseMetricsWithFilter([]byte(testData), nil, "")
 		require.NoError(t, err)
 
 		cpuFamily := findFamily(metrics, "container_cpu_usage_seconds_total")
@@ -128,18 +129,21 @@ func TestMetricTypeUppercase(t *testing.T) {
 		name         string
 		data         string
 		expectedType string
+		expectedName string
 	}{
 		{
 			name: "counter",
 			data: `# TYPE http_requests_total counter
 http_requests_total 100`,
 			expectedType: "COUNTER",
+			expectedName: "http_requests_total",
 		},
 		{
 			name: "gauge",
 			data: `# TYPE temperature gauge
 temperature 23.5`,
 			expectedType: "GAUGE",
+			expectedName: "temperature",
 		},
 		{
 			name: "histogram",
@@ -148,6 +152,7 @@ request_latency_bucket{le="0.1"} 10
 request_latency_sum 5.5
 request_latency_count 10`,
 			expectedType: "HISTOGRAM",
+			expectedName: "request_latency",
 		},
 		{
 			name: "summary",
@@ -156,11 +161,13 @@ latency{quantile="0.5"} 0.05
 latency_sum 100
 latency_count 200`,
 			expectedType: "SUMMARY",
+			expectedName: "latency",
 		},
 		{
 			name:         "untyped",
 			data:         `some_metric 42`,
 			expectedType: "UNTYPED",
+			expectedName: "some_metric",
 		},
 	}
 
@@ -170,6 +177,7 @@ latency_count 200`,
 			require.NoError(t, err)
 			require.Len(t, metrics, 1)
 			assert.Equal(t, tc.expectedType, metrics[0].Type)
+			assert.Equal(t, tc.expectedName, metrics[0].Name)
 		})
 	}
 }
@@ -241,6 +249,171 @@ func TestMetricsWithLeadingWhitespace(t *testing.T) {
 	}
 }
 
+func TestParseMetricsToJSON(t *testing.T) {
+	testData := `# TYPE http_requests_total counter
+http_requests_total{method="GET",status="200"} 1234
+http_requests_total{method="POST",status="500"} 5
+# TYPE temperature gauge
+temperature 23.5`
+
+	jsonStr, err := ParseMetricsToJSON([]byte(testData), "")
+	require.NoError(t, err)
+
+	var families []MetricFamily
+	err = json.Unmarshal([]byte(jsonStr), &families)
+	require.NoError(t, err)
+
+	require.Len(t, families, 2)
+	assert.Equal(t, "http_requests", families[0].Name) // _total stripped for counters
+	assert.Equal(t, "COUNTER", families[0].Type)
+	require.Len(t, families[0].Samples, 2)
+	assert.Equal(t, 1234.0, families[0].Samples[0].Value)
+	assert.Equal(t, "GET", families[0].Samples[0].Metric["method"])
+
+	assert.Equal(t, "temperature", families[1].Name)
+	assert.Equal(t, "GAUGE", families[1].Type)
+	require.Len(t, families[1].Samples, 1)
+	assert.Equal(t, 23.5, families[1].Samples[0].Value)
+}
+
+func TestParseMetricsToJSONEmpty(t *testing.T) {
+	jsonStr, err := ParseMetricsToJSON([]byte(""), "")
+	require.NoError(t, err)
+	assert.Equal(t, "null", jsonStr)
+}
+
+func TestOpenMetricsCounterTotal(t *testing.T) {
+	// OpenMetrics counters use _total suffix on series but the TYPE line uses the base name.
+	// The parser should group foo_total series under the "foo" family.
+	testData := `# TYPE foo counter
+foo_total 17.0
+foo_total{a="b"} 42.0
+# EOF
+`
+	metrics, err := ParseMetricsWithFilter([]byte(testData), nil, "application/openmetrics-text")
+	require.NoError(t, err)
+
+	fooFamily := findFamily(metrics, "foo")
+	require.NotNil(t, fooFamily, "should find family named 'foo'")
+	assert.Equal(t, "COUNTER", fooFamily.Type)
+	assert.Len(t, fooFamily.Samples, 2, "both foo_total series should be in the foo family")
+}
+
+func TestOpenMetricsGaugeAndHistogram(t *testing.T) {
+	testData := `# TYPE temperature gauge
+temperature 23.5
+# TYPE request_latency histogram
+request_latency_bucket{le="0.1"} 10
+request_latency_bucket{le="+Inf"} 35
+request_latency_sum 50.5
+request_latency_count 35
+# EOF
+`
+	metrics, err := ParseMetricsWithFilter([]byte(testData), nil, "application/openmetrics-text")
+	require.NoError(t, err)
+
+	tempFamily := findFamily(metrics, "temperature")
+	require.NotNil(t, tempFamily)
+	assert.Equal(t, "GAUGE", tempFamily.Type)
+	assert.Len(t, tempFamily.Samples, 1)
+
+	histFamily := findFamily(metrics, "request_latency")
+	require.NotNil(t, histFamily)
+	assert.Equal(t, "HISTOGRAM", histFamily.Type)
+	assert.Len(t, histFamily.Samples, 4)
+}
+
+func TestOpenMetricsContentTypeSelection(t *testing.T) {
+	// Same counter data, but with Prometheus content type should use PromParser.
+	// In Prometheus format, the TYPE line includes _total in the name; the raw
+	// family name is preserved here — stripping only happens in the Python bridge.
+	promData := `# TYPE http_requests_total counter
+http_requests_total{method="GET"} 100
+`
+	metrics, err := ParseMetricsWithFilter([]byte(promData), nil, "text/plain")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, "http_requests_total", metrics[0].Name)
+	assert.Equal(t, "COUNTER", metrics[0].Type)
+
+	// Empty content type should default to Prometheus parser
+	metrics2, err := ParseMetricsWithFilter([]byte(promData), nil, "")
+	require.NoError(t, err)
+	require.Len(t, metrics2, 1)
+	assert.Equal(t, "http_requests_total", metrics2[0].Name)
+}
+
+func TestParseMetricsToJSONOpenMetrics(t *testing.T) {
+	testData := `# TYPE http_requests counter
+http_requests_total{method="GET"} 100
+# EOF
+`
+	jsonStr, err := ParseMetricsToJSON([]byte(testData), "application/openmetrics-text; version=1.0.0")
+	require.NoError(t, err)
+
+	var families []MetricFamily
+	err = json.Unmarshal([]byte(jsonStr), &families)
+	require.NoError(t, err)
+	require.Len(t, families, 1)
+	assert.Equal(t, "http_requests", families[0].Name)
+	assert.Equal(t, "COUNTER", families[0].Type)
+}
+
+func TestParseMetricsToJSON_NaNInfFiltered(t *testing.T) {
+	testData := `# TYPE test gauge
+test{a="1"} 1.0
+test{a="2"} NaN
+test{a="3"} +Inf
+test{a="4"} -Inf
+test{a="5"} 2.0`
+
+	jsonStr, err := ParseMetricsToJSON([]byte(testData), "")
+	require.NoError(t, err)
+
+	var families []MetricFamily
+	err = json.Unmarshal([]byte(jsonStr), &families)
+	require.NoError(t, err)
+	require.Len(t, families, 1)
+	assert.Len(t, families[0].Samples, 2, "NaN and Inf samples should be filtered out")
+	assert.Equal(t, 1.0, families[0].Samples[0].Value)
+	assert.Equal(t, 2.0, families[0].Samples[1].Value)
+}
+
+func TestCounterTotalStripped(t *testing.T) {
+	// ParseMetrics preserves the raw Prometheus family name (including _total).
+	// _total stripping only happens in the Python bridge (ParseMetricsToJSON).
+	testData := `# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 2.012275711e+09`
+
+	metrics, err := ParseMetrics([]byte(testData))
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, "go_memstats_frees_total", metrics[0].Name, "raw family name should be preserved")
+	assert.Equal(t, "COUNTER", metrics[0].Type)
+	require.Len(t, metrics[0].Samples, 1)
+	assert.Equal(t, "go_memstats_frees_total", metrics[0].Samples[0].Metric["__name__"])
+
+	// ParseMetricsToJSON (Python bridge) strips _total to match Python prometheus_client behavior.
+	jsonStr, err := ParseMetricsToJSON([]byte(testData), "")
+	require.NoError(t, err)
+	var families []MetricFamily
+	require.NoError(t, json.Unmarshal([]byte(jsonStr), &families))
+	require.Len(t, families, 1)
+	assert.Equal(t, "go_memstats_frees", families[0].Name, "Python bridge should strip _total")
+}
+
+func TestCounterWithoutTotalSuffix(t *testing.T) {
+	// A counter whose TYPE line doesn't end in _total
+	testData := `# TYPE http_requests counter
+http_requests 100`
+
+	metrics, err := ParseMetrics([]byte(testData))
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, "http_requests", metrics[0].Name, "name without _total should not be modified")
+	assert.Equal(t, "COUNTER", metrics[0].Type)
+}
+
 func findFamily(families []MetricFamily, name string) *MetricFamily {
 	for i := range families {
 		if families[i].Name == name {
@@ -281,7 +454,7 @@ func BenchmarkParseMetricsWithFilter(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		metrics, err = ParseMetricsWithFilter(data, filter)
+		metrics, err = ParseMetricsWithFilter(data, filter, "")
 	}
 	b.StopTimer()
 

@@ -159,6 +159,8 @@ void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t);
 void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t);
 void _set_report_issue_cb(cb_report_issue_t);
 void _set_resolve_issue_cb(cb_resolve_issue_t);
+void _set_parse_prometheus_metrics_cb(cb_parse_prometheus_metrics_t);
+void _set_process_prometheus_metrics_cb(cb_process_prometheus_metrics_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);
 
