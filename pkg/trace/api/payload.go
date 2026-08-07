@@ -58,6 +58,25 @@ func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
 	p.TracerPayload.Chunks[i] = chunk
 }
 
+// ToV1 converts a legacy pb-based Payload into a PayloadV1 by converting its
+// TracerPayload to the internal idx (V1) format via ConvertToIdx. The remaining
+// fields are copied verbatim. originPayloadVersion is recorded on the converted
+// spans (via the _dd.convertedv1 attribute) for debugging; see ConvertToIdx.
+//
+// This is used at the OTLP and serverless boundaries to feed the V1 processing
+// path when the convert-traces feature is enabled, mirroring the HTTP receiver.
+func (p *Payload) ToV1(originPayloadVersion string) *PayloadV1 {
+	return &PayloadV1{
+		Source:                 p.Source,
+		TracerPayload:          ConvertToIdx(p.TracerPayload, originPayloadVersion),
+		ClientComputedTopLevel: p.ClientComputedTopLevel,
+		ClientComputedStats:    p.ClientComputedStats,
+		ClientDroppedP0s:       p.ClientDroppedP0s,
+		ProcessTags:            p.ProcessTags,
+		ContainerTags:          p.ContainerTags,
+	}
+}
+
 // PayloadV1 specifies information about a set of traces received by the V1 API.
 type PayloadV1 struct {
 	// Source specifies information about the source of these traces, such as:
