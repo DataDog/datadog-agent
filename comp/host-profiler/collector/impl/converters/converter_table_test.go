@@ -164,11 +164,6 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-apikey/out.yaml",
 		},
 		{
-			name:     "converts-non-string-app-key",
-			provided: "no_agent/conv-nonstr-appkey/in.yaml",
-			expected: "no_agent/conv-nonstr-appkey/out.yaml",
-		},
-		{
 			name:     "adds-profiling-to-pipeline",
 			provided: "no_agent/add-prof-to-pipe/in.yaml",
 			expected: "no_agent/add-prof-to-pipe/out.yaml",

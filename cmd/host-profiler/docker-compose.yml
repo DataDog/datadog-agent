@@ -41,7 +41,6 @@ services:
       - agent-ipc:/etc/datadog-agent:ro
     secrets:
       - dd-api-key
-      - dd-app-key
 
 volumes:
   agent-ipc:
@@ -49,5 +48,3 @@ volumes:
 secrets:
   dd-api-key:
     environment: DD_API_KEY
-  dd-app-key:
-    environment: DD_APP_KEY
