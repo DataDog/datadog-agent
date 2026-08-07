@@ -39,8 +39,14 @@ func NewYamlFileToken(segments []string, path string) *privateactionspb.Connecti
 }
 
 func ExtractConnectionDetails(connInfo *privateactionspb.ConnectionInfo) ([]*privateactionspb.ConnectionToken, HttpDetails) {
-	group := connlib.GroupTokens(connInfo.Tokens)
-	tokens := group[RootTokenGroupName]
+	return ExtractConnectionDetailsFromTokens(connInfo.Tokens)
+}
+
+// ExtractConnectionDetailsFromTokens separates action credentials from the
+// connection metadata consumed by HTTP actions.
+func ExtractConnectionDetailsFromTokens(tokens []*privateactionspb.ConnectionToken) ([]*privateactionspb.ConnectionToken, HttpDetails) {
+	group := connlib.GroupTokens(tokens)
+	credentialTokens := group[RootTokenGroupName]
 	details := HttpDetails{
 		Headers:       getHttpHeaders(group[http.HeadersGroupName]),
 		Body:          getHttpBody(group[http.BodyGroupName]),
@@ -48,7 +54,7 @@ func ExtractConnectionDetails(connInfo *privateactionspb.ConnectionInfo) ([]*pri
 		UrlParameters: getHttpUrlParams(group[http.UrlParametersGroupName]),
 		Testing:       getHttpDetailsTesting(group[http.TestingName]),
 	}
-	return tokens, details
+	return credentialTokens, details
 }
 
 func getHttpHeaders(tokens []*privateactionspb.ConnectionToken) []PrivateCredentialsToken {

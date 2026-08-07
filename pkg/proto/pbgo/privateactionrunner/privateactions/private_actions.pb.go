@@ -126,6 +126,9 @@ const (
 	CredentialsType_TOKEN_AUTH  CredentialsType = 1
 	CredentialsType_BASIC_AUTH  CredentialsType = 2
 	CredentialsType_OAUTH2      CredentialsType = 3
+	// The authoritative connection-token representation. Unlike the legacy
+	// credential types above, each token carries its own resolution source.
+	CredentialsType_CONNECTION_TOKENS CredentialsType = 5
 )
 
 // Enum value maps for CredentialsType.
@@ -135,12 +138,14 @@ var (
 		1: "TOKEN_AUTH",
 		2: "BASIC_AUTH",
 		3: "OAUTH2",
+		5: "CONNECTION_TOKENS",
 	}
 	CredentialsType_value = map[string]int32{
-		"UNSPECIFIED": 0,
-		"TOKEN_AUTH":  1,
-		"BASIC_AUTH":  2,
-		"OAUTH2":      3,
+		"UNSPECIFIED":       0,
+		"TOKEN_AUTH":        1,
+		"BASIC_AUTH":        2,
+		"OAUTH2":            3,
+		"CONNECTION_TOKENS": 5,
 	}
 )
 
@@ -548,13 +553,17 @@ func (x *RemoteAction) GetSystemServices() map[string]*structpb.ListValue {
 }
 
 type ConnectionInfo struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ConnectionId    string                 `protobuf:"bytes,1,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
-	Tokens          []*ConnectionToken     `protobuf:"bytes,2,rep,name=tokens,proto3" json:"tokens,omitempty"`
-	CredentialsType CredentialsType        `protobuf:"varint,3,opt,name=credentials_type,json=credentialsType,proto3,enum=datadog.privateactionrunner.privateactions.CredentialsType" json:"credentials_type,omitempty"`
-	RunnerId        string                 `protobuf:"bytes,4,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ConnectionId string                 `protobuf:"bytes,1,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
+	// Legacy credential payload. File-backed credentials remain here for
+	// backwards compatibility with existing private action runners.
+	Tokens          []*ConnectionToken `protobuf:"bytes,2,rep,name=tokens,proto3" json:"tokens,omitempty"`
+	CredentialsType CredentialsType    `protobuf:"varint,3,opt,name=credentials_type,json=credentialsType,proto3,enum=datadog.privateactionrunner.privateactions.CredentialsType" json:"credentials_type,omitempty"`
+	RunnerId        string             `protobuf:"bytes,4,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`
+	// Credential payload used only with CONNECTION_TOKENS.
+	ConnectionTokenCredentials *ConnectionTokenCredentials `protobuf:"bytes,5,opt,name=connection_token_credentials,json=connectionTokenCredentials,proto3" json:"connection_token_credentials,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *ConnectionInfo) Reset() {
@@ -615,6 +624,15 @@ func (x *ConnectionInfo) GetRunnerId() string {
 	return ""
 }
 
+func (x *ConnectionInfo) GetConnectionTokenCredentials() *ConnectionTokenCredentials {
+	if x != nil {
+		return x.ConnectionTokenCredentials
+	}
+	return nil
+}
+
+// Legacy private-action token representation.
+//
 // The ConnectionToken is similar to connectionpb.ConnectionToken, but is specifically limited to data pertinent to private actions.
 // As mentioned in the comment at the top of this file, this is designed to constrain the dependencies of private actions
 // and prevent changes to the connections API from directly affecting the PAR task.
@@ -727,6 +745,52 @@ func (*ConnectionToken_FileSecret_) isConnectionToken_TokenValue() {}
 
 func (*ConnectionToken_YamlFile_) isConnectionToken_TokenValue() {}
 
+// Structurally constrained credential payload for CONNECTION_TOKENS. It
+// deliberately has no file-backed token variant.
+type ConnectionTokenCredentials struct {
+	state         protoimpl.MessageState              `protogen:"open.v1"`
+	Tokens        []*ConnectionTokenCredentials_Token `protobuf:"bytes,1,rep,name=tokens,proto3" json:"tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionTokenCredentials) Reset() {
+	*x = ConnectionTokenCredentials{}
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionTokenCredentials) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionTokenCredentials) ProtoMessage() {}
+
+func (x *ConnectionTokenCredentials) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionTokenCredentials.ProtoReflect.Descriptor instead.
+func (*ConnectionTokenCredentials) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ConnectionTokenCredentials) GetTokens() []*ConnectionTokenCredentials_Token {
+	if x != nil {
+		return x.Tokens
+	}
+	return nil
+}
+
 type ConnectionToken_PlainText struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
@@ -736,7 +800,7 @@ type ConnectionToken_PlainText struct {
 
 func (x *ConnectionToken_PlainText) Reset() {
 	*x = ConnectionToken_PlainText{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[8]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -748,7 +812,7 @@ func (x *ConnectionToken_PlainText) String() string {
 func (*ConnectionToken_PlainText) ProtoMessage() {}
 
 func (x *ConnectionToken_PlainText) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[8]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -780,7 +844,7 @@ type ConnectionToken_FileSecret struct {
 
 func (x *ConnectionToken_FileSecret) Reset() {
 	*x = ConnectionToken_FileSecret{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[9]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -792,7 +856,7 @@ func (x *ConnectionToken_FileSecret) String() string {
 func (*ConnectionToken_FileSecret) ProtoMessage() {}
 
 func (x *ConnectionToken_FileSecret) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[9]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -824,7 +888,7 @@ type ConnectionToken_YamlFile struct {
 
 func (x *ConnectionToken_YamlFile) Reset() {
 	*x = ConnectionToken_YamlFile{}
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[10]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -836,7 +900,7 @@ func (x *ConnectionToken_YamlFile) String() string {
 func (*ConnectionToken_YamlFile) ProtoMessage() {}
 
 func (x *ConnectionToken_YamlFile) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[10]
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -855,6 +919,246 @@ func (*ConnectionToken_YamlFile) Descriptor() ([]byte, []int) {
 func (x *ConnectionToken_YamlFile) GetPath() string {
 	if x != nil {
 		return x.Path
+	}
+	return ""
+}
+
+type ConnectionTokenCredentials_Token struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	NameSegments []string               `protobuf:"bytes,1,rep,name=name_segments,json=nameSegments,proto3" json:"name_segments,omitempty"`
+	// Types that are valid to be assigned to TokenValue:
+	//
+	//	*ConnectionTokenCredentials_Token_PlainText_
+	//	*ConnectionTokenCredentials_Token_EnvironmentVariable_
+	//	*ConnectionTokenCredentials_Token_DatadogAgentSecret_
+	TokenValue    isConnectionTokenCredentials_Token_TokenValue `protobuf_oneof:"token_value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionTokenCredentials_Token) Reset() {
+	*x = ConnectionTokenCredentials_Token{}
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionTokenCredentials_Token) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionTokenCredentials_Token) ProtoMessage() {}
+
+func (x *ConnectionTokenCredentials_Token) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionTokenCredentials_Token.ProtoReflect.Descriptor instead.
+func (*ConnectionTokenCredentials_Token) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{7, 0}
+}
+
+func (x *ConnectionTokenCredentials_Token) GetNameSegments() []string {
+	if x != nil {
+		return x.NameSegments
+	}
+	return nil
+}
+
+func (x *ConnectionTokenCredentials_Token) GetTokenValue() isConnectionTokenCredentials_Token_TokenValue {
+	if x != nil {
+		return x.TokenValue
+	}
+	return nil
+}
+
+func (x *ConnectionTokenCredentials_Token) GetPlainText() *ConnectionTokenCredentials_Token_PlainText {
+	if x != nil {
+		if x, ok := x.TokenValue.(*ConnectionTokenCredentials_Token_PlainText_); ok {
+			return x.PlainText
+		}
+	}
+	return nil
+}
+
+func (x *ConnectionTokenCredentials_Token) GetEnvironmentVariable() *ConnectionTokenCredentials_Token_EnvironmentVariable {
+	if x != nil {
+		if x, ok := x.TokenValue.(*ConnectionTokenCredentials_Token_EnvironmentVariable_); ok {
+			return x.EnvironmentVariable
+		}
+	}
+	return nil
+}
+
+func (x *ConnectionTokenCredentials_Token) GetDatadogAgentSecret() *ConnectionTokenCredentials_Token_DatadogAgentSecret {
+	if x != nil {
+		if x, ok := x.TokenValue.(*ConnectionTokenCredentials_Token_DatadogAgentSecret_); ok {
+			return x.DatadogAgentSecret
+		}
+	}
+	return nil
+}
+
+type isConnectionTokenCredentials_Token_TokenValue interface {
+	isConnectionTokenCredentials_Token_TokenValue()
+}
+
+type ConnectionTokenCredentials_Token_PlainText_ struct {
+	PlainText *ConnectionTokenCredentials_Token_PlainText `protobuf:"bytes,2,opt,name=plain_text,json=plainText,proto3,oneof"`
+}
+
+type ConnectionTokenCredentials_Token_EnvironmentVariable_ struct {
+	EnvironmentVariable *ConnectionTokenCredentials_Token_EnvironmentVariable `protobuf:"bytes,3,opt,name=environment_variable,json=environmentVariable,proto3,oneof"`
+}
+
+type ConnectionTokenCredentials_Token_DatadogAgentSecret_ struct {
+	DatadogAgentSecret *ConnectionTokenCredentials_Token_DatadogAgentSecret `protobuf:"bytes,4,opt,name=datadog_agent_secret,json=datadogAgentSecret,proto3,oneof"`
+}
+
+func (*ConnectionTokenCredentials_Token_PlainText_) isConnectionTokenCredentials_Token_TokenValue() {}
+
+func (*ConnectionTokenCredentials_Token_EnvironmentVariable_) isConnectionTokenCredentials_Token_TokenValue() {
+}
+
+func (*ConnectionTokenCredentials_Token_DatadogAgentSecret_) isConnectionTokenCredentials_Token_TokenValue() {
+}
+
+type ConnectionTokenCredentials_Token_PlainText struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionTokenCredentials_Token_PlainText) Reset() {
+	*x = ConnectionTokenCredentials_Token_PlainText{}
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionTokenCredentials_Token_PlainText) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionTokenCredentials_Token_PlainText) ProtoMessage() {}
+
+func (x *ConnectionTokenCredentials_Token_PlainText) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionTokenCredentials_Token_PlainText.ProtoReflect.Descriptor instead.
+func (*ConnectionTokenCredentials_Token_PlainText) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{7, 0, 0}
+}
+
+func (x *ConnectionTokenCredentials_Token_PlainText) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+type ConnectionTokenCredentials_Token_EnvironmentVariable struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionTokenCredentials_Token_EnvironmentVariable) Reset() {
+	*x = ConnectionTokenCredentials_Token_EnvironmentVariable{}
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionTokenCredentials_Token_EnvironmentVariable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionTokenCredentials_Token_EnvironmentVariable) ProtoMessage() {}
+
+func (x *ConnectionTokenCredentials_Token_EnvironmentVariable) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionTokenCredentials_Token_EnvironmentVariable.ProtoReflect.Descriptor instead.
+func (*ConnectionTokenCredentials_Token_EnvironmentVariable) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{7, 0, 1}
+}
+
+func (x *ConnectionTokenCredentials_Token_EnvironmentVariable) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type ConnectionTokenCredentials_Token_DatadogAgentSecret struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Handle        string                 `protobuf:"bytes,1,opt,name=handle,proto3" json:"handle,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionTokenCredentials_Token_DatadogAgentSecret) Reset() {
+	*x = ConnectionTokenCredentials_Token_DatadogAgentSecret{}
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionTokenCredentials_Token_DatadogAgentSecret) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionTokenCredentials_Token_DatadogAgentSecret) ProtoMessage() {}
+
+func (x *ConnectionTokenCredentials_Token_DatadogAgentSecret) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_privateactionrunner_private_actions_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionTokenCredentials_Token_DatadogAgentSecret.ProtoReflect.Descriptor instead.
+func (*ConnectionTokenCredentials_Token_DatadogAgentSecret) Descriptor() ([]byte, []int) {
+	return file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP(), []int{7, 0, 2}
+}
+
+func (x *ConnectionTokenCredentials_Token_DatadogAgentSecret) GetHandle() string {
+	if x != nil {
+		return x.Handle
 	}
 	return ""
 }
@@ -898,12 +1202,13 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\x0fsystem_services\x18\x03 \x03(\v2L.datadog.privateactionrunner.privateactions.RemoteAction.SystemServicesEntryR\x0fsystem_services\x1a]\n" +
 	"\x13SystemServicesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x120\n" +
-	"\x05value\x18\x02 \x01(\v2\x1a.google.protobuf.ListValueR\x05value:\x028\x01\"\x8f\x02\n" +
+	"\x05value\x18\x02 \x01(\v2\x1a.google.protobuf.ListValueR\x05value:\x028\x01\"\x9a\x03\n" +
 	"\x0eConnectionInfo\x12#\n" +
 	"\rconnection_id\x18\x01 \x01(\tR\fconnectionId\x12S\n" +
 	"\x06tokens\x18\x02 \x03(\v2;.datadog.privateactionrunner.privateactions.ConnectionTokenR\x06tokens\x12f\n" +
 	"\x10credentials_type\x18\x03 \x01(\x0e2;.datadog.privateactionrunner.privateactions.CredentialsTypeR\x0fcredentialsType\x12\x1b\n" +
-	"\trunner_id\x18\x04 \x01(\tR\brunnerId\"\xe2\x03\n" +
+	"\trunner_id\x18\x04 \x01(\tR\brunnerId\x12\x88\x01\n" +
+	"\x1cconnection_token_credentials\x18\x05 \x01(\v2F.datadog.privateactionrunner.privateactions.ConnectionTokenCredentialsR\x1aconnectionTokenCredentials\"\xe8\x03\n" +
 	"\x0fConnectionToken\x12#\n" +
 	"\rname_segments\x18\x01 \x03(\tR\fnameSegments\x12f\n" +
 	"\n" +
@@ -918,6 +1223,21 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x1a\x1e\n" +
 	"\bYamlFile\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04pathB\r\n" +
+	"\vtoken_valueJ\x04\b\x05\x10\x06\"\xe3\x05\n" +
+	"\x1aConnectionTokenCredentials\x12d\n" +
+	"\x06tokens\x18\x01 \x03(\v2L.datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.TokenR\x06tokens\x1a\xde\x04\n" +
+	"\x05Token\x12#\n" +
+	"\rname_segments\x18\x01 \x03(\tR\fnameSegments\x12w\n" +
+	"\n" +
+	"plain_text\x18\x02 \x01(\v2V.datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.PlainTextH\x00R\tplainText\x12\x95\x01\n" +
+	"\x14environment_variable\x18\x03 \x01(\v2`.datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.EnvironmentVariableH\x00R\x13environmentVariable\x12\x93\x01\n" +
+	"\x14datadog_agent_secret\x18\x04 \x01(\v2_.datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.DatadogAgentSecretH\x00R\x12datadogAgentSecret\x1a!\n" +
+	"\tPlainText\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x1a)\n" +
+	"\x13EnvironmentVariable\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x1a,\n" +
+	"\x12DatadogAgentSecret\x12\x16\n" +
+	"\x06handle\x18\x01 \x01(\tR\x06handleB\r\n" +
 	"\vtoken_value*:\n" +
 	"\aKeyType\x12\x14\n" +
 	"\x10KEY_TYPE_UNKNOWN\x10\x00\x12\f\n" +
@@ -926,7 +1246,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\bHashType\x12\x15\n" +
 	"\x11HASH_TYPE_UNKNOWN\x10\x00\x12\n" +
 	"\n" +
-	"\x06SHA256\x10\x01*N\n" +
+	"\x06SHA256\x10\x01*e\n" +
 	"\x0fCredentialsType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -934,7 +1254,8 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\n" +
 	"BASIC_AUTH\x10\x02\x12\n" +
 	"\n" +
-	"\x06OAUTH2\x10\x03BTZRgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactionsb\x06proto3"
+	"\x06OAUTH2\x10\x03\x12\x15\n" +
+	"\x11CONNECTION_TOKENS\x10\x05BTZRgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactionsb\x06proto3"
 
 var (
 	file_datadog_privateactionrunner_private_actions_proto_rawDescOnce sync.Once
@@ -949,50 +1270,60 @@ func file_datadog_privateactionrunner_private_actions_proto_rawDescGZIP() []byte
 }
 
 var file_datadog_privateactionrunner_private_actions_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_datadog_privateactionrunner_private_actions_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_datadog_privateactionrunner_private_actions_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_datadog_privateactionrunner_private_actions_proto_goTypes = []any{
-	(KeyType)(0),                          // 0: datadog.privateactionrunner.privateactions.KeyType
-	(HashType)(0),                         // 1: datadog.privateactionrunner.privateactions.HashType
-	(CredentialsType)(0),                  // 2: datadog.privateactionrunner.privateactions.CredentialsType
-	(*RemoteConfigSignatureEnvelope)(nil), // 3: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope
-	(*Signature)(nil),                     // 4: datadog.privateactionrunner.privateactions.Signature
-	(*PrivateActionTask)(nil),             // 5: datadog.privateactionrunner.privateactions.PrivateActionTask
-	(*SystemInputs)(nil),                  // 6: datadog.privateactionrunner.privateactions.SystemInputs
-	(*RemoteAction)(nil),                  // 7: datadog.privateactionrunner.privateactions.RemoteAction
-	(*ConnectionInfo)(nil),                // 8: datadog.privateactionrunner.privateactions.ConnectionInfo
-	(*ConnectionToken)(nil),               // 9: datadog.privateactionrunner.privateactions.ConnectionToken
-	nil,                                   // 10: datadog.privateactionrunner.privateactions.RemoteAction.SystemServicesEntry
-	(*ConnectionToken_PlainText)(nil),     // 11: datadog.privateactionrunner.privateactions.ConnectionToken.PlainText
-	(*ConnectionToken_FileSecret)(nil),    // 12: datadog.privateactionrunner.privateactions.ConnectionToken.FileSecret
-	(*ConnectionToken_YamlFile)(nil),      // 13: datadog.privateactionrunner.privateactions.ConnectionToken.YamlFile
-	(*timestamppb.Timestamp)(nil),         // 14: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),               // 15: google.protobuf.Struct
-	(actionsclient.Client)(0),             // 16: datadog.privateactionrunner.actionsclient.Client
-	(*structpb.ListValue)(nil),            // 17: google.protobuf.ListValue
+	(KeyType)(0),                                       // 0: datadog.privateactionrunner.privateactions.KeyType
+	(HashType)(0),                                      // 1: datadog.privateactionrunner.privateactions.HashType
+	(CredentialsType)(0),                               // 2: datadog.privateactionrunner.privateactions.CredentialsType
+	(*RemoteConfigSignatureEnvelope)(nil),              // 3: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope
+	(*Signature)(nil),                                  // 4: datadog.privateactionrunner.privateactions.Signature
+	(*PrivateActionTask)(nil),                          // 5: datadog.privateactionrunner.privateactions.PrivateActionTask
+	(*SystemInputs)(nil),                               // 6: datadog.privateactionrunner.privateactions.SystemInputs
+	(*RemoteAction)(nil),                               // 7: datadog.privateactionrunner.privateactions.RemoteAction
+	(*ConnectionInfo)(nil),                             // 8: datadog.privateactionrunner.privateactions.ConnectionInfo
+	(*ConnectionToken)(nil),                            // 9: datadog.privateactionrunner.privateactions.ConnectionToken
+	(*ConnectionTokenCredentials)(nil),                 // 10: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials
+	nil,                                                // 11: datadog.privateactionrunner.privateactions.RemoteAction.SystemServicesEntry
+	(*ConnectionToken_PlainText)(nil),                  // 12: datadog.privateactionrunner.privateactions.ConnectionToken.PlainText
+	(*ConnectionToken_FileSecret)(nil),                 // 13: datadog.privateactionrunner.privateactions.ConnectionToken.FileSecret
+	(*ConnectionToken_YamlFile)(nil),                   // 14: datadog.privateactionrunner.privateactions.ConnectionToken.YamlFile
+	(*ConnectionTokenCredentials_Token)(nil),           // 15: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token
+	(*ConnectionTokenCredentials_Token_PlainText)(nil), // 16: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.PlainText
+	(*ConnectionTokenCredentials_Token_EnvironmentVariable)(nil), // 17: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.EnvironmentVariable
+	(*ConnectionTokenCredentials_Token_DatadogAgentSecret)(nil),  // 18: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.DatadogAgentSecret
+	(*timestamppb.Timestamp)(nil),                                // 19: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                                      // 20: google.protobuf.Struct
+	(actionsclient.Client)(0),                                    // 21: datadog.privateactionrunner.actionsclient.Client
+	(*structpb.ListValue)(nil),                                   // 22: google.protobuf.ListValue
 }
 var file_datadog_privateactionrunner_private_actions_proto_depIdxs = []int32{
 	1,  // 0: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.hash_type:type_name -> datadog.privateactionrunner.privateactions.HashType
-	14, // 1: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.expiration_time:type_name -> google.protobuf.Timestamp
+	19, // 1: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.expiration_time:type_name -> google.protobuf.Timestamp
 	4,  // 2: datadog.privateactionrunner.privateactions.RemoteConfigSignatureEnvelope.signatures:type_name -> datadog.privateactionrunner.privateactions.Signature
 	0,  // 3: datadog.privateactionrunner.privateactions.Signature.key_type:type_name -> datadog.privateactionrunner.privateactions.KeyType
-	15, // 4: datadog.privateactionrunner.privateactions.PrivateActionTask.inputs:type_name -> google.protobuf.Struct
+	20, // 4: datadog.privateactionrunner.privateactions.PrivateActionTask.inputs:type_name -> google.protobuf.Struct
 	8,  // 5: datadog.privateactionrunner.privateactions.PrivateActionTask.connection_info:type_name -> datadog.privateactionrunner.privateactions.ConnectionInfo
-	14, // 6: datadog.privateactionrunner.privateactions.PrivateActionTask.expiration_time:type_name -> google.protobuf.Timestamp
-	16, // 7: datadog.privateactionrunner.privateactions.PrivateActionTask.client:type_name -> datadog.privateactionrunner.actionsclient.Client
+	19, // 6: datadog.privateactionrunner.privateactions.PrivateActionTask.expiration_time:type_name -> google.protobuf.Timestamp
+	21, // 7: datadog.privateactionrunner.privateactions.PrivateActionTask.client:type_name -> datadog.privateactionrunner.actionsclient.Client
 	6,  // 8: datadog.privateactionrunner.privateactions.PrivateActionTask.system_inputs:type_name -> datadog.privateactionrunner.privateactions.SystemInputs
 	7,  // 9: datadog.privateactionrunner.privateactions.SystemInputs.remote_action:type_name -> datadog.privateactionrunner.privateactions.RemoteAction
-	10, // 10: datadog.privateactionrunner.privateactions.RemoteAction.system_services:type_name -> datadog.privateactionrunner.privateactions.RemoteAction.SystemServicesEntry
+	11, // 10: datadog.privateactionrunner.privateactions.RemoteAction.system_services:type_name -> datadog.privateactionrunner.privateactions.RemoteAction.SystemServicesEntry
 	9,  // 11: datadog.privateactionrunner.privateactions.ConnectionInfo.tokens:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken
 	2,  // 12: datadog.privateactionrunner.privateactions.ConnectionInfo.credentials_type:type_name -> datadog.privateactionrunner.privateactions.CredentialsType
-	11, // 13: datadog.privateactionrunner.privateactions.ConnectionToken.plain_text:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.PlainText
-	12, // 14: datadog.privateactionrunner.privateactions.ConnectionToken.file_secret:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.FileSecret
-	13, // 15: datadog.privateactionrunner.privateactions.ConnectionToken.yaml_file:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.YamlFile
-	17, // 16: datadog.privateactionrunner.privateactions.RemoteAction.SystemServicesEntry.value:type_name -> google.protobuf.ListValue
-	17, // [17:17] is the sub-list for method output_type
-	17, // [17:17] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	10, // 13: datadog.privateactionrunner.privateactions.ConnectionInfo.connection_token_credentials:type_name -> datadog.privateactionrunner.privateactions.ConnectionTokenCredentials
+	12, // 14: datadog.privateactionrunner.privateactions.ConnectionToken.plain_text:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.PlainText
+	13, // 15: datadog.privateactionrunner.privateactions.ConnectionToken.file_secret:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.FileSecret
+	14, // 16: datadog.privateactionrunner.privateactions.ConnectionToken.yaml_file:type_name -> datadog.privateactionrunner.privateactions.ConnectionToken.YamlFile
+	15, // 17: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.tokens:type_name -> datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token
+	22, // 18: datadog.privateactionrunner.privateactions.RemoteAction.SystemServicesEntry.value:type_name -> google.protobuf.ListValue
+	16, // 19: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.plain_text:type_name -> datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.PlainText
+	17, // 20: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.environment_variable:type_name -> datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.EnvironmentVariable
+	18, // 21: datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.datadog_agent_secret:type_name -> datadog.privateactionrunner.privateactions.ConnectionTokenCredentials.Token.DatadogAgentSecret
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_datadog_privateactionrunner_private_actions_proto_init() }
@@ -1008,13 +1339,18 @@ func file_datadog_privateactionrunner_private_actions_proto_init() {
 		(*ConnectionToken_FileSecret_)(nil),
 		(*ConnectionToken_YamlFile_)(nil),
 	}
+	file_datadog_privateactionrunner_private_actions_proto_msgTypes[12].OneofWrappers = []any{
+		(*ConnectionTokenCredentials_Token_PlainText_)(nil),
+		(*ConnectionTokenCredentials_Token_EnvironmentVariable_)(nil),
+		(*ConnectionTokenCredentials_Token_DatadogAgentSecret_)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_privateactionrunner_private_actions_proto_rawDesc), len(file_datadog_privateactionrunner_private_actions_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   11,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

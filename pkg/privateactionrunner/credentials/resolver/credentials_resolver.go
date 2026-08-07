@@ -14,6 +14,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"go.yaml.in/yaml/v2"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
@@ -28,7 +29,14 @@ const (
 type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
+
+// SecretResolver resolves Datadog Agent secret-backend handles.
+type SecretResolver interface {
+	Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error)
+}
+
 type privateCredentialResolver struct {
+	secretResolver SecretResolver
 }
 
 type PrivateConnectionConfig struct {
@@ -43,17 +51,17 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver() PrivateCredentialResolver {
-	return &privateCredentialResolver{}
+func NewPrivateCredentialResolver(secretResolver SecretResolver) PrivateCredentialResolver {
+	return &privateCredentialResolver{secretResolver: secretResolver}
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
 	if connInfo == nil {
 		return nil, nil
 	}
-	tokens, details := privateconnection.ExtractConnectionDetails(connInfo)
 	switch connInfo.CredentialsType {
 	case privateactionspb.CredentialsType_TOKEN_AUTH:
+		tokens, details := privateconnection.ExtractConnectionDetails(connInfo)
 		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
@@ -64,6 +72,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_BASIC_AUTH:
+		tokens, details := privateconnection.ExtractConnectionDetails(connInfo)
 		credentialTokens, err := resolveBasicAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
@@ -73,8 +82,120 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			Type:        privateconnection.BasicAuthType,
 			HttpDetails: details,
 		}, nil
+	case privateactionspb.CredentialsType_CONNECTION_TOKENS:
+		resolvedTokens, err := p.resolveConnectionTokens(connInfo)
+		if err != nil {
+			return nil, err
+		}
+		tokens, details := privateconnection.ExtractConnectionDetailsFromTokens(resolvedTokens)
+		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
+		if err != nil {
+			return nil, err
+		}
+		return &privateconnection.PrivateCredentials{
+			Tokens:      credentialTokens,
+			Type:        privateconnection.TokenAuthType,
+			HttpDetails: details,
+		}, nil
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
+}
+
+func (p *privateCredentialResolver) resolveConnectionTokens(connInfo *privateactionspb.ConnectionInfo) ([]*privateactionspb.ConnectionToken, error) {
+	credentials := connInfo.GetConnectionTokenCredentials()
+	if credentials == nil {
+		return nil, errors.New("connection token credentials are missing")
+	}
+
+	tokens := credentials.GetTokens()
+	resolvedValues := make([]string, len(tokens))
+	secretHandles := make([]string, 0)
+	secretTokenIndexes := make([]int, 0)
+	for i, token := range tokens {
+		if token == nil {
+			return nil, fmt.Errorf("connection token at index %d is nil", i)
+		}
+		if len(token.GetNameSegments()) == 0 {
+			return nil, fmt.Errorf("connection token at index %d has no name segments", i)
+		}
+
+		switch tokenValue := token.GetTokenValue().(type) {
+		case *privateactionspb.ConnectionTokenCredentials_Token_PlainText_:
+			resolvedValues[i] = tokenValue.PlainText.GetValue()
+		case *privateactionspb.ConnectionTokenCredentials_Token_EnvironmentVariable_:
+			name := tokenValue.EnvironmentVariable.GetName()
+			if name == "" {
+				return nil, fmt.Errorf("environment variable name is empty for token %q", connlib.GetName(token))
+			}
+			var found bool
+			resolvedValues[i], found = os.LookupEnv(name)
+			if !found {
+				return nil, fmt.Errorf("environment variable %q for token %q is not set", name, connlib.GetName(token))
+			}
+		case *privateactionspb.ConnectionTokenCredentials_Token_DatadogAgentSecret_:
+			handle := tokenValue.DatadogAgentSecret.GetHandle()
+			if handle == "" {
+				return nil, fmt.Errorf("Agent secret handle is empty for token %q", connlib.GetName(token))
+			}
+			secretHandles = append(secretHandles, handle)
+			secretTokenIndexes = append(secretTokenIndexes, i)
+		default:
+			return nil, fmt.Errorf("unsupported connection token kind for token %q: %T", connlib.GetName(token), token.GetTokenValue())
+		}
+	}
+
+	if len(secretHandles) > 0 {
+		secretValues, err := p.resolveAgentSecrets(secretHandles, connInfo.GetConnectionId())
+		if err != nil {
+			return nil, fmt.Errorf("could not resolve Agent secrets: %w", err)
+		}
+		for i, tokenIndex := range secretTokenIndexes {
+			resolvedValues[tokenIndex] = secretValues[i]
+		}
+	}
+
+	resolvedTokens := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
+	for i, token := range tokens {
+		resolvedTokens = append(resolvedTokens, privateconnection.NewPlainTextToken(token.GetNameSegments(), resolvedValues[i]))
+	}
+	return resolvedTokens, nil
+}
+
+func (p *privateCredentialResolver) resolveAgentSecrets(handles []string, connectionID string) ([]string, error) {
+	if p.secretResolver == nil {
+		return nil, errors.New("Agent secret resolver is unavailable")
+	}
+
+	encodedValues := make([]string, 0, len(handles))
+	for _, handle := range handles {
+		encodedValues = append(encodedValues, "ENC["+handle+"]")
+	}
+	data, err := yaml.Marshal(encodedValues)
+	if err != nil {
+		return nil, fmt.Errorf("could not encode secret handles: %w", err)
+	}
+	origin := "private-action-runner"
+	if connectionID != "" {
+		origin += "/connection/" + connectionID
+	}
+	resolvedData, err := p.secretResolver.Resolve(data, origin, "", "", false)
+	if err != nil {
+		return nil, err
+	}
+
+	var resolvedValues []string
+	if err := yaml.Unmarshal(resolvedData, &resolvedValues); err != nil {
+		return nil, fmt.Errorf("could not decode resolved secrets: %w", err)
+	}
+	if len(resolvedValues) != len(encodedValues) {
+		return nil, fmt.Errorf("secret resolver returned %d values for %d handles", len(resolvedValues), len(encodedValues))
+	}
+	for i, resolvedValue := range resolvedValues {
+		if resolvedValue == encodedValues[i] {
+			return nil, fmt.Errorf("secret handle %q was not resolved", handles[i])
+		}
+	}
+	return resolvedValues, nil
 }
 
 func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {

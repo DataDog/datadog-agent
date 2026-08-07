@@ -48,12 +48,13 @@ func NewWorkflowTaskExecutor(
 	ipcClient ipc.HTTPClient,
 	encryptionStore *encryptioncontext.Store,
 	ha helmactions.Component,
+	secretResolver resolver.SecretResolver,
 ) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
 		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha),
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(),
+		resolver:     resolver.NewPrivateCredentialResolver(secretResolver),
 	}
 }
 
