@@ -83,7 +83,10 @@ You may see:
 ## Step 4: Act on the outcome
 
 - **Pipeline Success:** stop monitoring and report the pipeline succeeded.
-- **Some job failed, but the pipeline is still running**: Ask the user whether to continue monitoring, or if this job failure is already a problem. If it is, move to [Step 5](#step-5-follow-up-on-failures)
+- **Some job failed, but the pipeline is still running**: 
+    Note that most jobs on `datadog-agent` CI have at least one retry for combating flakiness - especially jobs running e2e tests, kmt etc.
+    Unit test, linter or build failures are less likely to be flakes. If you think it is likely the job's failure is just a flake, continue monitoring - gitlab will retry the job once automatically.
+    Otherwise, ask the user whether to continue monitoring, or if this job failure is already a problem. In the latter case, move to [Step 5](#step-5-follow-up-on-failures)
 - **Pipeline failed or canceled:** Stop monitoring, report the status, and move to [Step 5](#step-5-follow-up-on-failures).
 - **Timeout `[FINAL]`:** re-invoke `ddgl attach` as in Step 2; this is not a true terminal outcome.
 - **Unexpected error** (from `ddgl` itself, or from the monitoring tool): report what happened. Do not attempt a recovery action.
