@@ -246,6 +246,33 @@ func (i *InventoryPayload) RefreshTriggered() bool {
 	return i.forceRefresh.Load()
 }
 
+// ForceCollect immediately collects and sends one inventory payload, bypassing
+// the firstRunDelay and MinInterval/MaxInterval gates. It is intended for use
+// by serverless-init, which calls it once synchronously at container startup so
+// that the payload is queued in the forwarder before the wrapped process begins.
+// Combined with the forwarder's shutdown drain (forwarder_stop_timeout), this
+// guarantees that at least one inventory payload lands even when the container
+// lifetime is shorter than the normal firstRunDelay + MinInterval window.
+//
+// ForceCollect is safe to call concurrently with the runner's periodic collect
+// loop; it holds the same mutex. It does NOT update LastCollect or forceRefresh,
+// so the periodic loop continues on its normal schedule after this call.
+func (i *InventoryPayload) ForceCollect() error {
+	if !i.Enabled {
+		return nil
+	}
+	i.m.Lock()
+	defer i.m.Unlock()
+	if i.serializer == nil {
+		return nil
+	}
+	p := i.getPayload()
+	if p == nil {
+		return nil
+	}
+	return i.serializer.SendMetadata(p)
+}
+
 // GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
 func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 	if !i.Enabled {

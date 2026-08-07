@@ -1,0 +1,70 @@
+# Reference YAML for the Azure Container App sidecar deployment.
+# Not used directly by deploy.sh (which builds the JSON body inline via Python
+# and calls az rest PUT). Kept as readable documentation of the minimum viable
+# configuration.
+#
+# Substituted variables: AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP,
+#   AZURE_CONTAINER_ENV, ACR_REGISTRY, ACR_USER, ACR_PASS, DD_SITE,
+#   DD_API_KEY, IMAGE_TAG
+
+location: eastus
+name: nina-containerapp-sidecar
+properties:
+  environmentId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AZURE_RESOURCE_GROUP}/providers/Microsoft.App/managedEnvironments/${AZURE_CONTAINER_ENV}
+  configuration:
+    ingress:
+      external: true
+      targetPort: 8080
+      traffic:
+        - latestRevision: true
+          weight: 100
+    registries:
+      - server: ${ACR_REGISTRY}
+        username: ${ACR_USER}
+        passwordSecretRef: acr-password
+    secrets:
+      - name: acr-password
+        value: ${ACR_PASS}
+      - name: dd-api-key
+        value: ${DD_API_KEY}
+  template:
+    containers:
+      # ── Ingress container ────────────────────────────────────────────────
+      - name: app
+        image: ${ACR_REGISTRY}/plain-app:${IMAGE_TAG}
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: DD_SERVICE
+            value: nina-containerapp-sidecar
+          - name: DD_ENV
+            value: nina
+
+      # ── dd-agent sidecar (no args → sidecar mode in serverless-init) ────
+      - name: dd-agent
+        image: ${ACR_REGISTRY}/serverless-init:${IMAGE_TAG}
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: DD_SITE
+            value: ${DD_SITE}
+          - name: DD_SERVICE
+            value: nina-containerapp-sidecar
+          - name: DD_ENV
+            value: nina
+          - name: DD_APM_NON_LOCAL_TRAFFIC
+            value: "true"
+          - name: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
+            value: "true"
+          - name: DD_SERVERLESS_DIAGNOSTIC_INFO
+            value: "true"
+          - name: DD_HEALTH_PORT
+            value: "5555"
+          - name: DD_AZURE_SUBSCRIPTION_ID
+            value: ${AZURE_SUBSCRIPTION_ID}
+          - name: DD_AZURE_RESOURCE_GROUP
+            value: ${AZURE_RESOURCE_GROUP}
+          - name: DD_API_KEY
+            secretRef: dd-api-key

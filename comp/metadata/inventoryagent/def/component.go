@@ -15,4 +15,10 @@ type Component interface {
 	Set(name string, value interface{})
 	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 	Get() map[string]interface{}
+	// ForceCollect immediately collects and sends one inventory payload, bypassing
+	// the normal firstRunDelay and MinInterval gates. It is intended for serverless-init,
+	// which calls it once at container startup to guarantee the payload reaches the
+	// forwarder queue before the wrapped process begins. Returns nil if inventory is
+	// disabled or the serializer is not available.
+	ForceCollect() error
 }
