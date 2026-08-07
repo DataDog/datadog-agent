@@ -37,6 +37,22 @@ ssh_user: str = "The user to use for ssh connection (default will be selected de
 os_version: str = "The version of the OS to use (default will be selected depending on the OS family). See https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/main/components/os/linux_descriptors.go for a list of version available for a given OS (https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/main/components/os/windows_descriptors.go for Windows)"
 full_image_path: str = "The full image path (registry:tag) of the Agent image to deploy"
 cluster_agent_full_image_path: str = "The full image path (registry:tag) of the Cluster Agent image to deploy"
+baseline_version: str = "The container version of the baseline Agent variant (benchmarkeks)"
+baseline_full_image_path: str = (
+    "The full image path (registry:tag) of the baseline Agent image to deploy (benchmarkeks)"
+)
+baseline_cluster_agent_version: str = "The container version of the baseline Cluster Agent variant (benchmarkeks)"
+baseline_cluster_agent_full_image_path: str = (
+    "The full image path (registry:tag) of the baseline Cluster Agent image to deploy (benchmarkeks)"
+)
+comparison_version: str = "The container version of the comparison Agent variant (benchmarkeks)"
+comparison_full_image_path: str = (
+    "The full image path (registry:tag) of the comparison Agent image to deploy (benchmarkeks)"
+)
+comparison_cluster_agent_version: str = "The container version of the comparison Cluster Agent variant (benchmarkeks)"
+comparison_cluster_agent_full_image_path: str = (
+    "The full image path (registry:tag) of the comparison Cluster Agent image to deploy (benchmarkeks)"
+)
 add_known_host: str = "Add the host to the known_hosts file (default True)"
 agent_flavor: str = "Use a specific Agent flavor (such as datadog-fips-agent, see PackageFlavor https://github.com/DataDog/agent-release-management/blob/main/generator/const.py)"
 agent_config_path: str = "Agent config to merge with default config from a file at this location"

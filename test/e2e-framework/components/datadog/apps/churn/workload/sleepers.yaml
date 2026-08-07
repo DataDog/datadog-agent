@@ -1,0 +1,63 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workload-sleepers
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sleeper-{{i}}
+  namespace: workload-sleepers
+  labels:
+    app: sleeper-{{i}}
+  annotations:
+    churn.datadoghq.com/instances: "10"
+    churn.datadoghq.com/lifetime: 1m
+spec:
+  selector:
+    matchLabels:
+      app: sleeper-{{i}}
+  template:
+    metadata:
+      labels:
+        app: sleeper-{{i}}
+      annotations:
+        ad.datadoghq.com/sleeper-a.checks: |
+          {
+            "simple_check": {
+              "instances": [
+                {
+                  "tags": ["foo:foo"]
+                }
+              ]
+            }
+          }
+    spec:
+      containers:
+        - name: sleeper-a
+          image: busybox
+          command:
+            - sleep
+            - infinity
+        - name: sleeper-b
+          image: busybox
+          command:
+            - sleep
+            - infinity
+        - name: sleeper-c
+          image: busybox
+          command:
+            - sleep
+            - infinity
+      nodeSelector:
+        benchmark.datadoghq.com/agent: node-agent
+      tolerations:
+        - key: benchmark.datadoghq.com/agent
+          operator: Equal
+          value: node-agent
+          effect: NoSchedule
+        - key: benchmark.datadoghq.com/variant
+          operator: Exists
+          effect: NoSchedule
+      terminationGracePeriodSeconds: 1
