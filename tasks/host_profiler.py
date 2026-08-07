@@ -87,6 +87,7 @@ def build(ctx):
         ctx,
         f"{REPO_PATH}/cmd/host-profiler",
         mod="readonly",
+        race=True,
         build_tags=build_tags,
         ldflags=ldflags,
         gcflags=gcflags,
