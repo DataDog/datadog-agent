@@ -17,12 +17,15 @@ path = "src/bins/par-control.rs"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 dd-agent-log.workspace = true
 hyper-util.workspace = true
 log.workspace = true
 native-tls.workspace = true
 openssl.workspace = true
+p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
 reqwest.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -40,6 +43,7 @@ tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }
 tonic-prost.workspace = true
 tower.workspace = true
+uuid = { workspace = true, features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-registry.workspace = true

@@ -10,6 +10,8 @@ pub mod bootstrap;
 pub mod config;
 pub mod executor;
 pub mod identity;
+pub mod jwt;
+pub mod opms;
 pub mod platform;
 pub mod procmgr;
 pub mod proto;
