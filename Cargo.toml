@@ -37,7 +37,9 @@ protoc-gen-prost = "0.5"
 protoc-gen-tonic = "0.5"
 lru = { version = "0.18.0", default-features = false }
 memchr = "2.7.6"
+native-tls = { version = "0.2", features = ["alpn"] }
 nom = "8.0"
+openssl = "0.10"
 normalize-path = "0.2"
 phf = { version = "0.14", features = ["macros"] }
 rawzip = "0.5.0"
@@ -52,6 +54,7 @@ time = { version = "0.3", features = ["formatting", "macros"] }
 thiserror = "2.0.12"
 tokio = "1"
 tokio-stream = "0.1"
+tokio-native-tls = "0.3"
 tonic = "0.14"
 tonic-build = "0.14"
 tonic-prost = "0.14"
