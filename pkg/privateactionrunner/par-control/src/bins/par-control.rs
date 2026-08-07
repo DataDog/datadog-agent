@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! par-control installation and executor-lifecycle scaffold.
+//! par-control installation, configuration, and executor-lifecycle scaffold.
 
 use anyhow::Result;
 use clap::Parser;
-use par_control::config::Config;
+use par_control::bootstrap;
+use par_control::config::{LaunchGate, log_level_from_yaml_file};
 use par_control::platform;
 use par_control::procmgr::ProcmgrLifecycle;
 use std::path::PathBuf;
@@ -18,6 +19,16 @@ use std::process::ExitCode;
 struct Cli {
     #[arg(short = 'c', long, default_value = platform::default_config_path())]
     config: PathBuf,
+
+    /// Existing Go Private Action Runner binary used to resolve the Agent's
+    /// effective configuration, including secret-backend values.
+    #[arg(long = "config-helper")]
+    config_helper: PathBuf,
+
+    /// Go one-shot enrollment command. Must be the last option because it
+    /// consumes all remaining arguments.
+    #[arg(long = "enroll-command", num_args = 1.., allow_hyphen_values = true)]
+    enroll_command: Vec<String>,
 }
 
 #[tokio::main]
@@ -38,29 +49,31 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<()> {
     let cli = Cli::parse();
-    let config = Config::from_yaml_file(&cli.config);
 
-    let log_level = config
-        .as_ref()
-        .map_or(log::LevelFilter::Info, |c| c.log_level);
     if let Err(error) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
-        // The logger API requires a Level. Use Error for Off during
-        // initialization, then apply the exact filter below.
-        level: log_level.to_level().unwrap_or(log::Level::Error),
+        level: log_level_from_yaml_file(&cli.config),
         log_file: platform::default_log_file(),
     }) {
         eprintln!("par-control: could not initialize the logger: {error}");
     }
-    log::set_max_level(log_level);
-    let config = config?;
 
-    if !config.split_mode {
+    // The process definition is installed unconditionally; inactive hosts exit 0.
+    let gate = LaunchGate::from_yaml_file(&cli.config)?;
+    if !gate.split_mode {
         log::info!("private_action_runner split mode is disabled; par-control is exiting");
         return Ok(());
     }
 
-    let lifecycle = ProcmgrLifecycle::from_env();
+    let config = bootstrap::load_config_with_bootstrap(
+        &cli.config,
+        &cli.config_helper,
+        &cli.enroll_command,
+        gate.self_enroll,
+    )?;
+
+    let lifecycle =
+        ProcmgrLifecycle::new(&config.procmgr_socket, config.executor_process_name.clone());
     lifecycle.ensure_started().await?;
 
     tokio::select! {

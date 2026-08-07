@@ -9,16 +9,10 @@ use crate::proto::procmgr;
 use crate::proto::procmgr::process_manager_client::ProcessManagerClient;
 use crate::transport;
 use anyhow::{Context, Result, bail};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 use tonic::transport::Channel;
 
-#[cfg(unix)]
-const DEFAULT_PROCMGR_SOCKET: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
-#[cfg(windows)]
-const DEFAULT_PROCMGR_SOCKET: &str = r"\\.\pipe\datadog-procmgrd";
-
-const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Bounds each process-manager RPC. dd-procmgrd serializes every command
@@ -28,17 +22,6 @@ const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// healthy while the executor is gone.
 const PROCMGR_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Resolve dd-procmgrd's listening socket the same way the daemon does:
-/// `DD_PM_SOCKET_PATH` when set, else the platform default. Mirrors `ipc_path`
-/// in `pkg/procmgr/rust/src/transport/{uds,named_pipe}.rs` — without this, a
-/// daemon started with a non-default socket is unreachable.
-pub fn default_socket_path() -> PathBuf {
-    std::env::var_os("DD_PM_SOCKET_PATH")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_PROCMGR_SOCKET))
-}
-
 pub struct ProcmgrLifecycle {
     client: ProcessManagerClient<Channel>,
     process_name: String,
@@ -47,13 +30,7 @@ pub struct ProcmgrLifecycle {
 }
 
 impl ProcmgrLifecycle {
-    /// Build a client for the executor process, resolving dd-procmgrd's socket
-    /// from the environment exactly as the daemon does.
-    pub fn from_env() -> Self {
-        Self::with_socket(&default_socket_path(), EXECUTOR_PROCESS_NAME.to_string())
-    }
-
-    pub fn with_socket(socket: &Path, process_name: String) -> Self {
+    pub fn new(socket: &Path, process_name: String) -> Self {
         Self {
             client: ProcessManagerClient::new(transport::connect_lazy(socket)),
             process_name,
@@ -242,17 +219,16 @@ impl std::error::Error for RpcError {}
 mod tests {
     use super::*;
     use crate::test_support::{FakeProcmgr, serve_procmgr};
+    use std::sync::Arc;
     use tonic::Status;
 
     const TEST_PROCESS_NAME: &str = "datadog-agent-action-executor";
 
     #[cfg(unix)]
-    async fn lifecycle_for(
-        fake: std::sync::Arc<FakeProcmgr>,
-    ) -> (ProcmgrLifecycle, tempfile::TempDir) {
+    async fn lifecycle_for(fake: Arc<FakeProcmgr>) -> (ProcmgrLifecycle, tempfile::TempDir) {
         let (socket, dir) = serve_procmgr(fake).await;
         (
-            ProcmgrLifecycle::with_socket(&socket, TEST_PROCESS_NAME.to_string()),
+            ProcmgrLifecycle::new(&socket, TEST_PROCESS_NAME.to_string()),
             dir,
         )
     }
@@ -261,7 +237,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_started_starts_the_executor_by_name() {
         let fake = FakeProcmgr::in_state(procmgr::ProcessState::Created);
-        let (lifecycle, _dir) = lifecycle_for(std::sync::Arc::clone(&fake)).await;
+        let (lifecycle, _dir) = lifecycle_for(Arc::clone(&fake)).await;
 
         lifecycle.ensure_started().await.unwrap();
 
@@ -286,8 +262,6 @@ mod tests {
             .expect("an already-running executor is not an error");
     }
 
-    /// Any other Start failure must surface: a missing process definition means
-    /// the packaging is broken and par-control cannot do its job.
     #[cfg(unix)]
     #[tokio::test]
     async fn ensure_started_propagates_other_failures() {
@@ -341,26 +315,5 @@ mod tests {
 
         let rendered = format!("{:#}", lifecycle.describe_state().await.unwrap_err());
         assert!(rendered.contains("did not respond within"), "{rendered}");
-    }
-
-    #[test]
-    fn socket_path_prefers_the_daemon_environment_override() {
-        // Guarded: `default_socket_path` reads process-wide state.
-        let previous = std::env::var_os("DD_PM_SOCKET_PATH");
-        unsafe { std::env::set_var("DD_PM_SOCKET_PATH", "/tmp/custom-procmgrd.sock") };
-        assert_eq!(
-            default_socket_path(),
-            PathBuf::from("/tmp/custom-procmgrd.sock")
-        );
-
-        unsafe { std::env::set_var("DD_PM_SOCKET_PATH", "") };
-        assert_eq!(default_socket_path(), PathBuf::from(DEFAULT_PROCMGR_SOCKET));
-
-        unsafe { std::env::remove_var("DD_PM_SOCKET_PATH") };
-        assert_eq!(default_socket_path(), PathBuf::from(DEFAULT_PROCMGR_SOCKET));
-
-        if let Some(value) = previous {
-            unsafe { std::env::set_var("DD_PM_SOCKET_PATH", value) };
-        }
     }
 }
