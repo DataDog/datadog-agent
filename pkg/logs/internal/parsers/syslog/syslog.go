@@ -215,6 +215,11 @@ func Parse(line []byte) (SyslogMessage, error) {
 		}
 	case (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z'):
 		msg, err = parseBSD(line, pri, pos)
+	case b == '*':
+		// Cisco IOS marks an unsynchronized clock with '*' before the
+		// TIMESTAMP. parseBSD steps over it; if no timestamp follows it falls
+		// back to treating the remainder as MSG.
+		msg, err = parseBSD(line, pri, pos)
 	default:
 		// RFC 3164 §4.3.2: valid PRI, but what follows is neither a digit
 		// (RFC 5424 VERSION) nor a letter (BSD TIMESTAMP month). Treat the
@@ -444,7 +449,29 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// Cisco ASA/FTD and Picus send in place of the BSD form. The ISO layout also
 	// turns up in tailed files regardless of sender, because rsyslog's default
 	// file template renders the timestamp as RFC 3339 and drops the PRI.
+	// Cisco IOS writes '*' ahead of the TIMESTAMP when the system clock has
+	// never synchronized to a reliable source. It is a marker rather than part
+	// of the time, so step over it and record the timestamp itself; the '*'
+	// stays visible in the content, which is transmitted verbatim. Only skip it
+	// when a timestamp actually follows, so a body opening with '*' is left as
+	// MSG.
+	if pos < len(line) && line[pos] == '*' {
+		if n, _ := timestampLen(line[pos+1:]); n > 0 {
+			pos++
+		}
+	}
+
 	tsLen, isISOTimestamp := timestampLen(line[pos:])
+	if !isISOTimestamp && tsLen > 0 {
+		// "show-timezone" appends the zone name to the BSD layouts. It belongs
+		// to the timestamp, not to the TAG position it occupies. A zone opens
+		// with an uppercase letter and an ordinary HOSTNAME almost never does,
+		// so that byte is tested before the call rather than inside it.
+		if end := pos + tsLen; end+1 < len(line) &&
+			line[end] == ' ' && line[end+1] >= 'A' && line[end+1] <= 'Z' {
+			tsLen += bsdZoneSuffixLen(line[end:])
+		}
+	}
 	if tsLen == 0 {
 		if pos < len(line) && pri >= 0 {
 			// RFC 3164 §4.3.2: valid PRI, content present but no valid
@@ -787,24 +814,90 @@ func bsdTimestampLen(b []byte) int {
 	// opens with a month abbreviation. One look at the first byte therefore
 	// picks the family, and the abbreviation is validated once rather than
 	// once per layout.
+	n := 0
 	if isDigit(b[0]) {
-		if isValidBSDTimestampYearFirst(b) {
-			return 20
+		if !isValidBSDTimestampYearFirst(b) {
+			return 0
 		}
+		n = 20
+	} else {
+		if !isValidMonthAbbrev(b) {
+			return 0
+		}
+		switch {
+		case isValidBSDTimestamp(b):
+			n = 15
+		case isValidBSDTimestampSingleSpaceDay(b):
+			n = 14
+		case isValidBSDTimestampWithYear(b):
+			n = 20
+		default:
+			return 0
+		}
+	}
+	// Every layout ends in seconds, so an optional fraction attaches the same
+	// way to all of them. The '.' is tested here so the common case of a
+	// timestamp without one costs a single comparison.
+	if len(b) > n && b[n] == '.' {
+		n += bsdFractionLen(b[n:])
+	}
+	return n
+}
+
+// bsdFractionLen returns the length of a fractional-seconds suffix — '.' and at
+// least one digit — at the start of b, or 0 if there is none. Cisco IOS appends
+// one under "service timestamps log datetime msec" ("Mar 18 14:52:10.039"),
+// which its own documentation uses throughout. Every BSD layout ends in seconds,
+// so the suffix attaches the same way to all of them, and isoTimestampLen
+// already accepts the equivalent on the ISO layouts.
+func bsdFractionLen(b []byte) int {
+	if len(b) < 2 || b[0] != '.' || !isDigit(b[1]) {
 		return 0
 	}
-	if !isValidMonthAbbrev(b) {
+	i := 2
+	for i < len(b) && isDigit(b[i]) {
+		i++
+	}
+	return i
+}
+
+// maxZoneAbbrevLen bounds a timezone abbreviation. Four letters covers the
+// longest in common use ("AEDT", "CEST"); five leaves room to spare.
+const maxZoneAbbrevLen = 5
+
+// bsdZoneSuffixLen returns the length of a " ZONE" suffix following a BSD
+// TIMESTAMP, or 0 if there is none. Cisco IOS appends the zone name under
+// "service timestamps log datetime show-timezone", putting it exactly where a
+// TAG would sit:
+//
+//	Mar  1 18:46:11 UTC: %LINK-3-UPDOWN: Interface Serial0 up
+//
+// Read as a TAG it becomes the APP-NAME, which then drives service routing from
+// a timezone. A bare uppercase token is far too weak a signal to act on, so the
+// suffix only counts when a Cisco mnemonic follows the colon that ends it —
+// leaving a genuine uppercase TAG ("GW: session opened") alone. The colon itself
+// is left in place for skipCiscoSeparator.
+func bsdZoneSuffixLen(b []byte) int {
+	// A lowercase byte here is the overwhelmingly common case — an ordinary
+	// HOSTNAME — so it is rejected before anything else runs.
+	if len(b) < 2 || b[0] != ' ' || b[1] < 'A' || b[1] > 'Z' {
 		return 0
 	}
-	switch {
-	case isValidBSDTimestamp(b):
-		return 15
-	case isValidBSDTimestampSingleSpaceDay(b):
-		return 14
-	case isValidBSDTimestampWithYear(b):
-		return 20
+	i := 1
+	for i < len(b) && i-1 < maxZoneAbbrevLen && b[i] >= 'A' && b[i] <= 'Z' {
+		i++
 	}
-	return 0
+	if i-1 < 2 || i >= len(b) || b[i] != ':' {
+		return 0
+	}
+	rest := b[i+1:]
+	for len(rest) > 0 && rest[0] == ' ' {
+		rest = rest[1:]
+	}
+	if !startsWithCiscoMnemonic(rest) {
+		return 0
+	}
+	return i
 }
 
 // timestampLen returns the length of the TIMESTAMP at the start of b and
