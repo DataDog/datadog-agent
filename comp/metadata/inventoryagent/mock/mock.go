@@ -42,6 +42,9 @@ func (m *inventoryagentMock) Get() map[string]interface{} {
 	return nil
 }
 
+// ForceCollect is a mocked function
+func (m *inventoryagentMock) ForceCollect() error { return nil }
+
 // Refresh is a mocked function
 func (m *inventoryagentMock) Refresh() {}
 
