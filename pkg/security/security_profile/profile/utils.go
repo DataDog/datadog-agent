@@ -10,6 +10,7 @@ package profile
 
 import (
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
+
+// maxDecompressedSize is the maximum number of bytes unzip will write to disk when
+// decompressing a security-profile gzip file. It guards against decompression bombs;
+// exceeding it is an error, not a silent truncation.
+const maxDecompressedSize = 2 << 30 // 2 GiB
 
 func unzip(inputFile string, ext string) (string, error) {
 	// uncompress the file first
@@ -39,9 +45,12 @@ func unzip(inputFile string, ext string) (string, error) {
 	}
 	defer outputFile.Close()
 
-	_, err = io.Copy(outputFile, gzipReader)
-	if err != nil {
+	n, err := io.CopyN(outputFile, gzipReader, maxDecompressedSize+1)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return "", fmt.Errorf("couldn't unzip %s: %w", inputFile, err)
+	}
+	if n > maxDecompressedSize {
+		return "", fmt.Errorf("couldn't unzip %s: decompressed size exceeds maximum allowed size of %d bytes", inputFile, maxDecompressedSize)
 	}
 
 	if err = outputFile.Close(); err != nil {
