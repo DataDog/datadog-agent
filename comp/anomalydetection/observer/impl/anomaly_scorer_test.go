@@ -259,6 +259,30 @@ func TestTopAnomalyBuffer_CapacityTracksDisplayCount(t *testing.T) {
 	}
 }
 
+func TestTopAnomalyBuffer_ContributorsAggregateSharesAndLimitResults(t *testing.T) {
+	buffer := newTopAnomalyBuffer(10)
+	average := observer.QueryHandle{Ref: 10, Aggregate: observer.AggregateAverage}
+	count := observer.QueryHandle{Ref: 20, Aggregate: observer.AggregateCount}
+	maximum := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateMax}
+	buffer.entries = []topAnomaly{
+		{handle: average, weight: 3},
+		{handle: average, weight: 2},
+		{handle: count, weight: 3},
+		{handle: maximum, weight: 2},
+	}
+
+	contributors := buffer.contributors(2)
+	if len(contributors) != 2 {
+		t.Fatalf("expected two contributors, got %+v", contributors)
+	}
+	if contributors[0].Handle != average || contributors[0].Weight != 5 || math.Abs(contributors[0].Share-0.625) > 1e-9 {
+		t.Errorf("first contributor = %+v, want average with weight 5 and 62.5%% share", contributors[0])
+	}
+	if contributors[1].Handle != count || contributors[1].Weight != 3 || math.Abs(contributors[1].Share-0.375) > 1e-9 {
+		t.Errorf("second contributor = %+v, want count with weight 3 and 37.5%% share", contributors[1])
+	}
+}
+
 func TestTopAnomalyBuffer_EnabledOnlyForCorrelationEvents(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
 	if scorer := newAnomalyScorerBase(cfg); scorer.topAnomalies != nil {
@@ -1312,6 +1336,35 @@ func TestPendingEvents_EpisodeStarted(t *testing.T) {
 	// Drain is idempotent — second call returns nil.
 	if got := s.PendingEvents(); got != nil {
 		t.Fatalf("expected nil on second PendingEvents call (already drained), got %v", got)
+	}
+}
+
+func TestPendingEvents_EpisodeStartedIncludesContributors(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.MaxReportedItems = 1
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000) // seed at Low
+	handle := observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
+	s.ProcessAnomaly(observer.Anomaly{
+		SourceRef:    &handle,
+		DetectorName: "holt_residual",
+		Timestamp:    1001,
+		Score:        scorePtr(40),
+	})
+	s.Advance(1001)
+
+	events := s.PendingEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected one episode-start event, got %+v", events)
+	}
+	contributors := events[0].Contributors
+	if len(contributors) != 1 {
+		t.Fatalf("expected one contributor, got %+v", contributors)
+	}
+	if contributors[0].Handle != handle || contributors[0].Weight != 3 || contributors[0].Share != 1 {
+		t.Errorf("unexpected contributor: %+v", contributors[0])
 	}
 }
 

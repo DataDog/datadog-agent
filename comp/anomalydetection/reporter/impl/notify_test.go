@@ -20,7 +20,8 @@ import (
 // sumRangeStorage is a minimal StorageReader that answers SumRange calls via a
 // user-supplied function and panics on all other methods (they are unused here).
 type sumRangeStorage struct {
-	fn func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	fn    func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	metas map[observerdef.SeriesRef]observerdef.SeriesMeta
 }
 
 func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64 {
@@ -28,6 +29,30 @@ func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int6
 }
 func (s *sumRangeStorage) ListSeries(_ observerdef.SeriesFilter) []observerdef.SeriesMeta {
 	panic("not implemented")
+}
+func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.SeriesMeta {
+	meta, ok := s.metas[ref]
+	if !ok {
+		return nil
+	}
+	return &meta
+}
+
+func TestFormatScorerContributorMessage(t *testing.T) {
+	storage := &sumRangeStorage{metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
+		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Tags: []string{"host:web-1", "env:prod"}},
+		7:  {Ref: 7, Namespace: "dogstatsd", Name: "nginx.requests", Tags: []string{"service:api"}},
+	}}
+
+	message := formatScorerContributorMessage([]observerdef.ScorerContributor{
+		{Handle: observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}, Weight: 4.2, Share: 0.42},
+		{Handle: observerdef.QueryHandle{Ref: 99, Aggregate: observerdef.AggregateSum}, Weight: 3.3, Share: 0.33}, // evicted
+		{Handle: observerdef.QueryHandle{Ref: 7, Aggregate: observerdef.AggregateCount}, Weight: 2.5, Share: 0.25},
+	}, storage)
+
+	assert.Equal(t, "Top contributing metrics:\n1. system.cpu.user:avg{host:web-1,env:prod} — 42%\n2. nginx.requests:count{service:api} — 25%", message)
+	assert.NotContains(t, message, "4.2")
+	assert.NotContains(t, message, "weight")
 }
 func (s *sumRangeStorage) GetSeriesRange(_ observerdef.SeriesRef, _, _ int64, _ observerdef.Aggregate) *observerdef.Series {
 	panic("not implemented")
