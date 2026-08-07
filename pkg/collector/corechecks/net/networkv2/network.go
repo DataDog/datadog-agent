@@ -21,7 +21,7 @@ const (
 )
 
 // NetworkCheck represents a network check. networkStats and networkInstanceConfig are
-// declared per-platform (network_linux.go, network_windows.go, network_aix.go).
+// declared per-platform.
 type NetworkCheck struct {
 	core.CheckBase
 	net    networkStats
