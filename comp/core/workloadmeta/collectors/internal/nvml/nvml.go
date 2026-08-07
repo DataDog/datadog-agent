@@ -45,6 +45,7 @@ type collector struct {
 	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
+	gpuMonitoringEnabled               bool
 	lastCollectionTimestamp            time.Time
 }
 
@@ -232,6 +233,7 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		seenPIDsToGPUs:          make(map[int][]string),
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
+		gpuMonitoringEnabled:    config.GetBool("gpu.enabled"),
 	}
 
 	if config != nil {
@@ -257,6 +259,10 @@ func GetFxOptions() fx.Option {
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
 		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
+	}
+
+	if !c.gpuMonitoringEnabled {
+		return dderrors.NewDisabled(componentName, "GPU monitoring is disabled")
 	}
 
 	c.store = store
