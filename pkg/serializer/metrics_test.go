@@ -565,6 +565,9 @@ func TestBuildPipelinesShadowSkippedWhenV3Authoritative(t *testing.T) {
 	}
 }
 
+// TestBuildPipelinesShadowSkippedForSketches verifies that the series shadow
+// knob is scoped to series: turning it fully on must not shadow sketches,
+// which carry their own shadow_sample_rate (default 0).
 func TestBuildPipelinesShadowSkippedForSketches(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
@@ -709,6 +712,214 @@ func TestBuildPipelinesShadowSkippedWhenVectorConfigured(t *testing.T) {
 		dest := ctx.Destinations[0]
 		assert.False(t, conf.V3)
 		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
+
+// TestBuildPipelinesSketchShadowFires is the sketches analogue of
+// TestBuildPipelinesShadowFires: the sketches shadow knob produces a v2
+// pipeline plus a correlated v3beta sketches shadow.
+func TestBuildPipelinesSketchShadowFires(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0.4})
+
+	batchID := ""
+outer:
+	for _, ctx := range pipelines {
+		for _, d := range ctx.Destinations {
+			if d.ValidationBatchID != "" {
+				batchID = d.ValidationBatchID
+				break outer
+			}
+		}
+	}
+	require.NotEmpty(t, batchID)
+
+	testutil.ElementsMatchFn(t, maps.All(pipelines),
+		// v2 (authoritative) pipeline carries the batchID for correlation.
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.False(t, conf.V3, "V3")
+			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			require.Len(t, ctx.Destinations, 1)
+			dest := ctx.Destinations[0]
+			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
+			require.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
+			require.Equal(t, batchID, dest.ValidationBatchID)
+		},
+		// v3beta sketches shadow pipeline carries the same batchID.
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.True(t, conf.V3, "V3")
+			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			require.Len(t, ctx.Destinations, 1)
+			dest := ctx.Destinations[0]
+			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
+			require.Equal(t, "/api/intake/metrics/v3beta/sketches", dest.Endpoint.Route)
+			require.Equal(t, endpoints.V3BetaSketchSeriesEndpoint.Name, dest.Endpoint.Name)
+			require.Equal(t, batchID, dest.ValidationBatchID)
+		},
+	)
+}
+
+// TestBuildPipelinesSketchShadowCustomRoute verifies the sketches shadow honours
+// its own beta_route rather than the series one.
+func TestBuildPipelinesSketchShadowCustomRoute(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.beta_route", "/api/intake/metrics/custom/sketches")
+	config.SetInTest("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/custom/series")
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0.4})
+
+	testutil.ElementsMatchFn(t, maps.All(pipelines),
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.False(t, conf.V3, "V3")
+			require.Len(t, ctx.Destinations, 1)
+			require.Equal(t, endpoints.SketchSeriesEndpoint, ctx.Destinations[0].Endpoint)
+		},
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.True(t, conf.V3, "V3")
+			require.Len(t, ctx.Destinations, 1)
+			dest := ctx.Destinations[0]
+			require.Equal(t, "/api/intake/metrics/custom/sketches", dest.Endpoint.Route)
+			require.Equal(t, endpoints.V3BetaSketchSeriesEndpoint.Name, dest.Endpoint.Name)
+		},
+	)
+}
+
+// TestBuildPipelinesSketchShadowSkippedWhenV3Authoritative verifies the sketches
+// shadow does not fire when sketches already ship over v3.
+func TestBuildPipelinesSketchShadowSkippedWhenV3Authoritative(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.endpoints", []string{"https://app.datadoghq.com"})
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0})
+	require.Len(t, pipelines, 1)
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.True(t, conf.V3)
+		assert.Equal(t, endpoints.V3SketchSeriesEndpoint, dest.Endpoint)
+		assert.Empty(t, dest.ValidationBatchID, "shadow must not fire when v3 is authoritative")
+	}
+}
+
+// TestBuildPipelinesSketchShadowSitesKnobOptsInNonUS1 verifies the sketches
+// shadow_sites knob is honoured independently of the series one, and that the
+// site gate resolves the sketches v2 endpoint.
+func TestBuildPipelinesSketchShadowSitesKnobOptsInNonUS1(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sites", []string{"us3.datadoghq.com"})
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0})
+	require.Len(t, pipelines, 2, "us3 must shadow sketches when included in sketches shadow_sites")
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		require.NotEmpty(t, dest.ValidationBatchID)
+		if conf.V3 {
+			assert.Equal(t, "/api/intake/metrics/v3beta/sketches", dest.Endpoint.Route)
+			assert.Equal(t, endpoints.V3BetaSketchSeriesEndpoint.Name, dest.Endpoint.Name)
+		} else {
+			assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
+		}
+	}
+}
+
+// TestBuildPipelinesSketchShadowSkippedForNonShadowSite verifies the sketches
+// shadow respects the default US1-only allow list.
+func TestBuildPipelinesSketchShadowSkippedForNonShadowSite(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0})
+	require.Len(t, pipelines, 1, "non-US1 site must not produce a v3beta sketches shadow pipeline")
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.False(t, conf.V3)
+		assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
+		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
+
+// TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured verifies that
+// sketches diverted to a vector/OPW endpoint do not shadow, mirroring the
+// series behaviour.
+func TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("vector.metrics.enabled", true)
+	config.SetInTest("vector.metrics.url", "https://vector.example.test:8080")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0})
+	require.Len(t, pipelines, 1, "vector-diverted sketches must not produce a v3beta shadow pipeline")
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.False(t, conf.V3)
+		assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
 		assert.Empty(t, dest.ValidationBatchID)
 	}
 }
