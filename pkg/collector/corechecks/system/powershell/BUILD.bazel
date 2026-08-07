@@ -16,13 +16,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/powershell",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/util/log",
-        "@com_github_ghodss_yaml//:yaml",
-        "@com_github_swaggest_jsonschema_go//:jsonschema-go",
-        "@com_github_xeipuuv_gojsonschema//:gojsonschema",
-        "@in_yaml_go_yaml_v2//:yaml",
-    ] + select({
+    deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/collector/check",
             "//pkg/util/option",
@@ -88,8 +82,13 @@ go_library(
             "//pkg/aggregator/sender",
             "//pkg/collector/check",
             "//pkg/collector/corechecks",
+            "//pkg/util/log",
             "//pkg/util/option",
             "//pkg/util/winutil",
+            "@com_github_ghodss_yaml//:yaml",
+            "@com_github_swaggest_jsonschema_go//:jsonschema-go",
+            "@com_github_xeipuuv_gojsonschema//:gojsonschema",
+            "@in_yaml_go_yaml_v2//:yaml",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
@@ -103,11 +102,16 @@ dd_agent_go_test(
         "command_test.go",
         "config_test.go",
         "mapping_test.go",
+        "powershell_test.go",
         "schema_test.go",
     ],
     embed = [":powershell"],
-    deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

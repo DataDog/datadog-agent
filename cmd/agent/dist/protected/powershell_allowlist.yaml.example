@@ -32,7 +32,7 @@ allowed_cmdlets:
   Get-Service:
     module: Microsoft.PowerShell.Management
     parameters:
-      Name: { required: false, pattern: '^[A-Za-z0-9 _.*-]+$' }
+      Name: { required: false, pattern: '[A-Za-z0-9 _.*-]+' }
   Get-Certificate:
     module: PKI
     parameters:
