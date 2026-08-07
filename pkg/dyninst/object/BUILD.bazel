@@ -18,6 +18,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/object",
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/dwarf/dwarfutil",
