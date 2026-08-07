@@ -32,6 +32,7 @@ rust_library(
         "src/jwt.rs",
         "src/lib.rs",
         "src/opms.rs",
+        "src/orchestrator.rs",
         "src/platform.rs",
         "src/procmgr.rs",
         "src/proto.rs",
@@ -126,6 +127,7 @@ rust_test(
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:tempfile",
+        "@crates//:tokio",
         "@crates//:tokio-stream",
     ],
 )
