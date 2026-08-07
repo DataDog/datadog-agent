@@ -68,13 +68,27 @@ function Test-InstallerIntegrity($installer) {
       Write-Host "Skipping code signing check"
       return $true
    }
-   $signature = Get-AuthenticodeSignature -FilePath $installer
 
-   # We don't expect this value to be localized, it is an enum name
-   # https://learn.microsoft.com/en-us/dotnet/api/system.management.automation.signaturestatus
-   if ($signature.Status -ne "Valid") {
-      throw "Installer signature is not valid: $($signature.StatusMessage)"
+   $maxAttempts = 3
+   for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+      $signature = Get-AuthenticodeSignature -FilePath $installer
+      if ($signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid) {
+         break
+      }
+
+      # UnknownError and NotTrusted may be transient while Windows updates its trusted roots.
+      $isRetryableTrustError = $signature.Status -in @(
+         [System.Management.Automation.SignatureStatus]::UnknownError,
+         [System.Management.Automation.SignatureStatus]::NotTrusted
+      )
+      if (-Not $isRetryableTrustError -or $attempt -eq $maxAttempts) {
+         throw "Installer signature is not valid: $($signature.StatusMessage)"
+      }
+
+      Write-Host "Installer signature status is $($signature.Status), retrying..."
+      Start-Sleep -Seconds 5
    }
+
    # CN may vary by authority so we can't check for a specific value
    # refer to the docs for valid fingerprints: https://docs.datadoghq.com/data_security/agent/
    if (-Not ($signature.SignerCertificate.Subject.Contains('Datadog'))) {
