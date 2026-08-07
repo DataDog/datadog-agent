@@ -61,6 +61,10 @@ The payload is a JSON dict with the following fields
      (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
+  - `feature_network_path_remote_config_enabled` - **bool**: True if Remote Config is enabled for Network Path (see:
+    `network_path.remote_config.enabled` config option).
+  - `feature_network_path_connections_monitoring_enabled` - **bool**: True if connections monitoring is enabled for Network Path (see:
+    `network_path.connections_monitoring.enabled` config option).
   - `feature_traceroute_enabled` - **bool**: True if the Traceroute module is enabled in the System Probe (see: `traceroute.enabled` config option in `system-probe.yaml`).
   - `feature_oom_kill_enabled` - **bool**: True if the OOM Kill check is enabled for System Probe (see: `system_probe_config.enable_oom_kill` config option in `system-probe.yaml`).
   - `feature_synthetics_collector_enabled` - **bool**: True if Synthetics Test module is enabled.
@@ -162,6 +166,8 @@ Here an example of an inventory payload:
         "feature_cws_enabled": false,
         "feature_logs_enabled": true,
         "feature_networks_enabled": false,
+        "feature_network_path_remote_config_enabled": false,
+        "feature_network_path_connections_monitoring_enabled": false,
         "feature_traceroute_enabled": false,
         "feature_synthetics_collector_enabled": false,
         "feature_process_enabled": false,

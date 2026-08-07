@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -30,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -3843,10 +3847,12 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor:   "nvidia",
-				Device:   "tesla-v100",
-				GPUType:  "v100",
-				PCIBusID: "0000:00:1e.0",
+				Vendor:            "nvidia",
+				Device:            "tesla-v100",
+				GPUType:           "v100",
+				PCIBusID:          "0000:00:1e.0",
+				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
+				FabricCliqueID:    7,
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3862,6 +3868,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
+						"gpu_fabric_clique_id:7",
 					},
 					StandardTags: []string{},
 				},
@@ -4078,6 +4086,153 @@ func TestHandleDelete(t *testing.T) {
 	assert.Empty(t, collector.children)
 }
 
+func TestHandleDeleteKubernetesNode(t *testing.T) {
+	nodeEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNode,
+		ID:   "node-foobar",
+	}
+	node := &workloadmeta.KubernetesNode{
+		EntityID: nodeEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "node-foobar",
+		},
+	}
+
+	nodeTaggerEntityID := types.NewEntityID(types.KubernetesNode, nodeEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	expected := []*types.TagInfo{
+		{
+			Source:       nodeSource,
+			EntityID:     nodeTaggerEntityID,
+			DeleteEntity: true,
+		},
+	}
+
+	actual := collector.handleDelete(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: node,
+	})
+
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeNode(t *testing.T) {
+	const nodeName = "node-foobar"
+
+	nodeEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNode,
+		ID:   nodeName,
+	}
+
+	nodeTaggerEntityID := types.NewEntityID(types.KubernetesNode, nodeEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	tests := []struct {
+		name                          string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		node                          workloadmeta.KubernetesNode
+		expected                      []*types.TagInfo
+	}{
+		{
+			name: "node with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_tier": "node_tier",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_env": "node_env",
+				},
+			},
+			node: workloadmeta.KubernetesNode{
+				EntityID: nodeEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: nodeName,
+					Labels: map[string]string{
+						"a": "dev",
+					},
+					Annotations: map[string]string{
+						"b": "some_tier",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "node with generic labels/annotations as tags",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_tier": "node_tier",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_env": "node_env",
+				},
+			},
+			node: workloadmeta.KubernetesNode{
+				EntityID: nodeEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: nodeName,
+					Labels: map[string]string{
+						"node_env": "dev",
+						"foo":      "bar",
+					},
+					Annotations: map[string]string{
+						"node_tier":     "some_tier",
+						"node_security": "critical",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               nodeSource,
+					EntityID:             nodeTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"node_env:dev",
+						"node_tier:some_tier",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
+
+			actual := collector.handleKubeNode(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.node,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
 type fakeProcessor struct {
 	ch chan []*types.TagInfo
 }
@@ -4218,6 +4373,136 @@ func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
 	require.NotNil(t, actualStaticSourceEvent)
 	assert.Equal(t, types.GetGlobalEntityID(), actualStaticSourceEvent.EntityID)
 	assert.True(t, actualStaticSourceEvent.IsComplete)
+}
+
+// findStaticSourceEvent returns the staticSource TagInfo out of a batch, failing the test if absent.
+func findStaticSourceEvent(t *testing.T, tagInfos []*types.TagInfo) *types.TagInfo {
+	t.Helper()
+	for _, event := range tagInfos {
+		if event.Source == staticSource {
+			return event
+		}
+	}
+	t.Fatal("no staticSource event found")
+	return nil
+}
+
+func hasOrchClusterIDTag(tagInfo *types.TagInfo, value string) bool {
+	want := tags.OrchClusterID + ":" + value
+	for _, tag := range tagInfo.LowCardTags {
+		if tag == want {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRefreshGlobalTags verifies the orch cluster ID tag gets corrected once it becomes available.
+func TestRefreshGlobalTags(t *testing.T) {
+	recordFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+	flavor.SetFlavor(flavor.ClusterAgent)
+
+	clusterIDCacheKey := cache.BuildAgentKey("orchestratorClusterID")
+	cache.Cache.Delete(clusterIDCacheKey)
+	t.Cleanup(func() { cache.Cache.Delete(clusterIDCacheKey) })
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "")
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("tags", []string{"some:tag"})
+	collectorCh := make(chan []*types.TagInfo, 10)
+
+	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
+
+	firstTagInfos := <-collectorCh
+	firstEvent := findStaticSourceEvent(t, firstTagInfos)
+	assert.False(t, hasOrchClusterIDTag(firstEvent, "87654321-4321-4321-4321-210987654321"))
+	assert.Contains(t, firstEvent.LowCardTags, "some:tag")
+
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "87654321-4321-4321-4321-210987654321")
+	collector.collectStaticGlobalTags(context.Background(), mockConfig)
+
+	secondTagInfos := <-collectorCh
+	secondEvent := findStaticSourceEvent(t, secondTagInfos)
+	assert.True(t, hasOrchClusterIDTag(secondEvent, "87654321-4321-4321-4321-210987654321"))
+	assert.Contains(t, secondEvent.LowCardTags, "some:tag", "previously collected static tags must not be lost on refresh")
+}
+
+// TestRefreshGlobalTags_ConcurrentWithEventProcessing must not race, deadlock, or panic under -race.
+func TestRefreshGlobalTags_ConcurrentWithEventProcessing(t *testing.T) {
+	recordFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+	flavor.SetFlavor(flavor.ClusterAgent)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("tags", []string{"some:tag"})
+
+	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	collectorCh := make(chan []*types.TagInfo, 1000)
+	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, fakeStore, &fakeProcessor{collectorCh})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go collector.Run(ctx)
+
+	stopDrain := make(chan struct{})
+	t.Cleanup(func() { close(stopDrain) })
+	go func() {
+		for {
+			select {
+			case <-collectorCh:
+			case <-stopDrain:
+				return
+			}
+		}
+	}()
+
+	// Drive processEvents directly so it reliably overlaps with RefreshGlobalTags below.
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "refresh-race-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "refresh-race-container",
+		},
+	}
+
+	// refreshDone stops the reader loop once the refresh side is done.
+	refreshDone := make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-refreshDone:
+				return
+			default:
+				collector.processEvents(workloadmeta.EventBundle{
+					Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: container}},
+					Ch:     make(chan struct{}),
+				})
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		defer close(refreshDone)
+		for i := 0; i < 20; i++ {
+			collector.RefreshGlobalTags(context.Background())
+		}
+	}()
+
+	wg.Wait()
 }
 
 func TestParseJSONValue(t *testing.T) {

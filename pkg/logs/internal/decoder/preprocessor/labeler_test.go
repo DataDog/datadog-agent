@@ -40,7 +40,7 @@ func TestLabelerProceedNextHeuristic(t *testing.T) {
 	}, []Heuristic{})
 
 	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
-	assert.Equal(t, noAggregate, labeler.Label(msg.GetContent(), nil, nil))
+	assert.Equal(t, noAggregate, labeler.Label(msg.GetContent(), BorrowedTokens{}))
 }
 
 func TestLabelerProceedFirstHeuristicWins(t *testing.T) {
@@ -61,7 +61,7 @@ func TestLabelerProceedFirstHeuristicWins(t *testing.T) {
 	}, []Heuristic{})
 
 	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
-	assert.Equal(t, startGroup, labeler.Label(msg.GetContent(), nil, nil))
+	assert.Equal(t, startGroup, labeler.Label(msg.GetContent(), BorrowedTokens{}))
 }
 
 func TestLabelerDefaultLabel(t *testing.T) {
@@ -75,7 +75,7 @@ func TestLabelerDefaultLabel(t *testing.T) {
 	}, []Heuristic{})
 
 	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
-	assert.Equal(t, aggregate, labeler.Label(msg.GetContent(), nil, nil))
+	assert.Equal(t, aggregate, labeler.Label(msg.GetContent(), BorrowedTokens{}))
 }
 
 func TestLabelerPassesAlongMessageContext(t *testing.T) {
@@ -90,5 +90,5 @@ func TestLabelerPassesAlongMessageContext(t *testing.T) {
 	}, []Heuristic{})
 
 	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
-	labeler.Label(msg.GetContent(), nil, nil)
+	labeler.Label(msg.GetContent(), BorrowedTokens{})
 }

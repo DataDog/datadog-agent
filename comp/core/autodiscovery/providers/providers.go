@@ -17,13 +17,13 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RegisterProvider adds a loader to the providers catalog
 func RegisterProvider(name string,
-	factory func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error),
+	factory func(providerConfig *constants.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error),
 	providerCatalog map[string]types.ConfigProviderFactory) {
 	if factory == nil {
 		log.Infof("ConfigProvider factory %s does not exist.", name)
@@ -32,7 +32,7 @@ func RegisterProvider(name string,
 
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, telemetryStore)
 		},
 		providerCatalog,
@@ -43,7 +43,7 @@ func RegisterProvider(name string,
 // It is used by providers that report Autodiscovery misconfigurations (e.g. malformed annotations) to the health platform
 // but do not need the other components passed to a full ConfigProviderFactory.
 func RegisterProviderWithHealthPlatform(name string,
-	factory func(providerConfig *pkgconfigsetup.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error),
+	factory func(providerConfig *constants.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error),
 	providerCatalog map[string]types.ConfigProviderFactory) {
 	if factory == nil {
 		log.Infof("ConfigProvider factory %s does not exist.", name)
@@ -52,7 +52,7 @@ func RegisterProviderWithHealthPlatform(name string,
 
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, hp, telemetryStore)
 		},
 		providerCatalog,

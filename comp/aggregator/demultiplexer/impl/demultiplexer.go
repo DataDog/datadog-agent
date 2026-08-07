@@ -42,19 +42,20 @@ func Module(params Params) fxutil.Module {
 // Dependencies defines the dependencies required by the demultiplexer component.
 type Dependencies struct {
 	compdef.In
-	Lc                       compdef.Lifecycle
-	Config                   config.Component
-	Log                      log.Component
-	SharedForwarder          defaultforwarder.Component
-	OrchestratorForwarder    orchestratorforwarder.Component
-	EventPlatformForwarder   eventplatform.Component
-	HaAgent                  haagent.Component
-	Compressor               compression.Component
-	Tagger                   tagger.Component
-	Hostname                 hostnameinterface.Component
-	FilterList               filterlist.Component
-	Observer                 observer.Component                  `optional:"true"`
-	DogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory `optional:"true"`
+	Lc                           compdef.Lifecycle
+	Config                       config.Component
+	Log                          log.Component
+	SharedForwarder              defaultforwarder.Component
+	OrchestratorForwarder        orchestratorforwarder.Component
+	EventPlatformForwarder       eventplatform.Component
+	HaAgent                      haagent.Component
+	Compressor                   compression.Component
+	Tagger                       tagger.Component
+	Hostname                     hostnameinterface.Component
+	FilterList                   filterlist.Component
+	Observer                     observer.Component                       `optional:"true"`
+	DogStatsDLookbackFactory     aggregator.DogStatsDLookbackFactory      `optional:"true"`
+	FinalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver `group:"dogstatsd_final_serie_observers"`
 
 	Params Params
 }
@@ -84,10 +85,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-	options, err := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory)
-	if err != nil {
-		return Provides{}, err
-	}
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory, deps.FinalDogStatsDSerieObservers)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
@@ -119,7 +117,12 @@ func NewComponent(deps Dependencies) (Provides, error) {
 	}, nil
 }
 
-func createAgentDemultiplexerOptions(config config.Component, params Params, dogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory) (aggregator.AgentDemultiplexerOptions, error) {
+func createAgentDemultiplexerOptions(
+	config config.Component,
+	params Params,
+	dogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory,
+	finalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver,
+) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
 		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
@@ -131,6 +134,7 @@ func createAgentDemultiplexerOptions(config config.Component, params Params, dog
 	}
 
 	options.DogStatsDLookbackFactory = dogStatsDLookbackFactory
+	options.FinalDogStatsDSerieObservers = finalDogStatsDSerieObservers
 
 	// Component parameters override defaults. A zero flush interval is a sentinel
 	// used by one-shot commands to disable automatic flushing and must survive the
@@ -147,5 +151,5 @@ func createAgentDemultiplexerOptions(config config.Component, params Params, dog
 			options.FlushInterval = time.Second
 		}
 	}
-	return options, nil
+	return options
 }

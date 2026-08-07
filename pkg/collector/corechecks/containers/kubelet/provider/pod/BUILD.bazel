@@ -34,11 +34,15 @@ dd_agent_go_test(
     ],
     data = ["//pkg/collector/corechecks/containers/kubelet:testdata"],  # keep
     embed = [":pod"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",
@@ -62,7 +66,6 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes/kubelet",
-        "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",

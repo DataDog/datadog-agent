@@ -120,6 +120,7 @@ log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
 
 log "Creating required runtime directories"
 mkdir -p "$STAGING/var/log/datadog"
+chmod 750 "$STAGING/var/log/datadog"
 mkdir -p "$STAGING/var/run/datadog"
 mkdir -p "$STAGING/opt/datadog-agent/run"
 mkdir -p "$STAGING/opt/datadog-agent/checks.d"

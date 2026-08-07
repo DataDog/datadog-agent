@@ -13,8 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/vishvananda/netlink"
 )
 
 // QueuedNetworkDeviceError is used to indicate that the new network Device was queued until its namespace handle is
@@ -52,7 +50,8 @@ func (tcr *Resolver) PushNewTCClassifierRequest(request TcClassifierRequest) {
 	case tcr.tcRequests <- request:
 		// do nothing
 	default:
-		seclog.Errorf("failed to slot new tc classifier request: %+v", request)
+		tcr.countError(errorClassQueueFull)
+		seclog.Debugf("failed to slot new tc classifier request: %+v", request)
 	}
 }
 
@@ -68,21 +67,12 @@ func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 
 			if err := tcr.setupNewTCClassifier(request.Device); err != nil {
 				var qnde QueuedNetworkDeviceError
-				var linkNotFound netlink.LinkNotFoundError
-
 				if errors.As(err, &qnde) {
 					seclog.Debugf("%v", err)
-				} else if errors.As(err, &linkNotFound) {
-					seclog.Debugf("link not found while setting up new tc classifier: %v", err)
-				} else if errors.Is(err, manager.ErrIdentificationPairInUse) {
-					if request.RequestType != TcDeviceUpdateRequestType {
-						seclog.Errorf("tc classifier already exists: %v", err)
-					} else {
-						seclog.Debugf("tc classifier already exists: %v", err)
-					}
-				} else {
-					seclog.Errorf("error setting up new tc classifier on %+v: %v", request.Device, err)
+					continue
 				}
+
+				tcr.reportTCClassifierError(err, request.Device)
 			}
 		}
 	}

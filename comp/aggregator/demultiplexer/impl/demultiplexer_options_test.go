@@ -15,14 +15,13 @@ import (
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 func requireOptions(t *testing.T, cfg configmock.Component, params Params, factory aggregator.DogStatsDLookbackFactory) aggregator.AgentDemultiplexerOptions {
 	t.Helper()
-	options, err := createAgentDemultiplexerOptions(cfg, params, factory)
-	require.NoError(t, err)
-	return options
+	return createAgentDemultiplexerOptions(cfg, params, factory, nil)
 }
 
 func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountNotReadWithoutConfigOption(t *testing.T) {
@@ -46,7 +45,9 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountFromConfig(t *testing.T)
 }
 
 func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountDefaultsToOneWhenEnabled(t *testing.T) {
-	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{"dogstatsd_no_aggregation_pipeline": true})
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"dogstatsd_no_aggregation_pipeline": true,
+	})
 
 	options := requireOptions(t, cfg, NewDefaultParams(WithDogstatsdNoAggregationPipelineConfig()), nil)
 	require.Equal(t, 1, options.NoAggregationPipelineWorkersCount)
@@ -78,7 +79,9 @@ func TestCreateAgentDemultiplexerOptionsNoAggWorkerCountFallsBackToOne(t *testin
 
 func TestCreateAgentDemultiplexerOptionsStoresLookbackFactory(t *testing.T) {
 	cfg := configmock.NewMock(t)
-	factory := aggregator.DogStatsDLookbackFactory(func(serializer.MetricSerializer) aggregator.DogStatsDLookback { return nil })
+	factory := aggregator.DogStatsDLookbackFactory(func(serializer.MetricSerializer) aggregator.DogStatsDLookback {
+		return nil
+	})
 
 	options := requireOptions(t, cfg, NewDefaultParams(), factory)
 	require.NotNil(t, options.DogStatsDLookbackFactory)
@@ -114,4 +117,17 @@ func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentPreservesZeroF
 	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(WithFlushInterval(0)), nil)
 	require.Zero(t, options.FlushInterval)
 	require.True(t, options.UseOneSecondDogStatsDAggregation)
+}
+
+type recordingFinalDogStatsDSerieObserver struct{}
+
+func (*recordingFinalDogStatsDSerieObserver) ObserveFinalDogStatsDSerie(*metrics.Serie) {}
+
+func TestCreateAgentDemultiplexerOptionsStoresFinalDogStatsDSerieObservers(t *testing.T) {
+	cfg := configmock.NewMock(t)
+	observers := []aggregator.FinalDogStatsDSerieObserver{&recordingFinalDogStatsDSerieObserver{}}
+
+	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), nil, observers)
+
+	require.Equal(t, observers, options.FinalDogStatsDSerieObservers)
 }

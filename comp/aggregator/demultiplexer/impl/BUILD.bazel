@@ -94,6 +94,7 @@ dd_agent_go_test(
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/config/metricresolution",
+        "//pkg/metrics",
         "//pkg/serializer",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",

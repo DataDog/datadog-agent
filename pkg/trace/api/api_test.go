@@ -403,6 +403,156 @@ func TestLegacyReceiver(t *testing.T) {
 	}
 }
 
+// TestHandleTracesNilSpanDoesNotPanic verifies that a v0.4 JSON body carrying a
+// nil span (`[[null]]`) is sanitized before it leaves the decoder. Covers both
+// the legacy (pb) and converted (idx) handler paths.
+func TestHandleTracesNilSpanDoesNotPanic(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		delete(conf.Features, "convert-traces") // exercise the legacy pb path
+		r := newTestReceiverFromConfig(conf)
+		server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+		defer server.Close()
+
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBufferString("[[null]]"))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := (&http.Client{}).Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		select {
+		case p := <-r.out:
+			assert.Empty(t, p.TracerPayload.Chunks)
+		case <-time.After(5 * time.Second):
+			t.Fatal("no data received on r.out")
+		}
+	})
+
+	t.Run("converted", func(t *testing.T) {
+		conf := newTestReceiverConfig() // convert-traces enabled by default
+		r := newTestReceiverFromConfig(conf)
+		server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+		defer server.Close()
+
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBufferString("[[null]]"))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := (&http.Client{}).Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		// The converted path must respond without the handler panicking; the
+		// all-nil chunk is dropped during conversion so no payload is enqueued.
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}
+
+func TestHandleTracesAttributesServiceAfterNilSpan(t *testing.T) {
+	conf := newTestReceiverConfig()
+	delete(conf.Features, "convert-traces") // exercise the legacy pb path
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+	defer server.Close()
+
+	body, err := json.Marshal(pb.Traces{{nil, {Service: "svc"}}})
+	require.NoError(t, err)
+	req, err := http.NewRequest("POST", server.URL, bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := (&http.Client{}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	r.Stats.RLock()
+	defer r.Stats.RUnlock()
+	found := false
+	for tags := range r.Stats.Stats {
+		if tags.EndpointVersion == string(v04) && tags.Service == "svc" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "receiver stats should be attributed to the first non-nil span's service")
+}
+
+func TestLegacyDecoderSanitizesV07Payload(t *testing.T) {
+	conf := newTestReceiverConfig()
+	delete(conf.Features, "convert-traces")
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(V07, r.handleTraces))
+	defer server.Close()
+
+	wire, err := (&pb.TracerPayload{Chunks: []*pb.TraceChunk{
+		nil,
+		{Spans: []*pb.Span{nil, {Service: "svc", TraceID: 1, SpanID: 2}}},
+		nil,
+	}}).MarshalMsg(nil)
+	require.NoError(t, err)
+	req, err := http.NewRequest("POST", server.URL, bytes.NewReader(wire))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	resp, err := (&http.Client{}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	select {
+	case p := <-r.out:
+		require.Len(t, p.TracerPayload.Chunks, 1)
+		require.Len(t, p.TracerPayload.Chunks[0].Spans, 1)
+		assert.Equal(t, "svc", p.TracerPayload.Chunks[0].Spans[0].Service)
+	case <-time.After(5 * time.Second):
+		t.Fatal("no data received on r.out")
+	}
+}
+
+func TestSanitizeTracerPayload(t *testing.T) {
+	arrayValue := &pb.AttributeAnyValue{
+		Type: pb.AttributeAnyValue_ARRAY_VALUE,
+		ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+			nil,
+			{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "keep"},
+			nil,
+		}},
+	}
+	span := &pb.Span{
+		SpanLinks: []*pb.SpanLink{nil, {TraceID: 1}, nil},
+		SpanEvents: []*pb.SpanEvent{
+			nil,
+			{
+				Name: "event",
+				Attributes: map[string]*pb.AttributeAnyValue{
+					"drop":  nil,
+					"array": arrayValue,
+				},
+			},
+			nil,
+		},
+	}
+	payload := &pb.TracerPayload{Chunks: []*pb.TraceChunk{
+		nil,
+		{Spans: []*pb.Span{nil, span, nil}},
+		{Spans: []*pb.Span{nil}},
+	}}
+
+	removeNilEntries(payload)
+
+	require.Len(t, payload.Chunks, 1)
+	require.Len(t, payload.Chunks[0].Spans, 1)
+	assert.Same(t, span, payload.Chunks[0].Spans[0])
+	require.Len(t, span.SpanLinks, 1)
+	require.Len(t, span.SpanEvents, 1)
+	assert.NotContains(t, span.SpanEvents[0].Attributes, "drop")
+	require.Len(t, arrayValue.ArrayValue.Values, 1)
+	assert.Equal(t, "keep", arrayValue.ArrayValue.Values[0].StringValue)
+}
+
 func TestReceiverJSONDecoder(t *testing.T) {
 	// testing traces without content-type in agent endpoints, it should use JSON decoding
 	assert := assert.New(t)
@@ -2077,7 +2227,6 @@ func TestGetProcessTags(t *testing.T) {
 			header: http.Header{header.ProcessTags: []string{"header-value"}},
 			payload: &pb.TracerPayload{
 				Chunks: []*pb.TraceChunk{
-					nil,
 					{},
 				},
 			},

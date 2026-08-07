@@ -387,6 +387,9 @@ type RuntimeSecurityConfig struct {
 	// HashResolverReplace is used to apply specific hash to specific file path
 	HashResolverReplace map[string]string
 
+	// TagsResolverQueueSize defines the size of the queue of workloads waiting for their tags to be resolved
+	TagsResolverQueueSize int
+
 	// SysCtlEnabled defines if the sysctl event should be enabled
 	SysCtlEnabled bool
 	// SysCtlEBPFEnabled defines if the sysctl eBPF collection should be enabled
@@ -617,6 +620,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverMaxHashRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
+
+		// Tags resolver
+		TagsResolverQueueSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.tags_resolver.queue_size"),
 
 		// SysCtl config parameter
 		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
