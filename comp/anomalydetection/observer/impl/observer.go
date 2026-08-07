@@ -196,6 +196,30 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	return settings
 }
 
+func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
+	config := DefaultLogCountBucketConfig()
+	if cfg == nil {
+		return config
+	}
+	config.Enabled = cfg.GetBool("anomaly_detection.logs.time_buckets.enabled")
+	if width := cfg.GetDuration("anomaly_detection.logs.time_buckets.bucket_width"); width > 0 {
+		config.BucketSeconds = int64(width.Seconds())
+	} else if config.Enabled {
+		pkglog.Warnf("anomaly_detection.logs.time_buckets.bucket_width must be > 0, got %s; using 5s", width)
+	}
+	if ttl := cfg.GetDuration("anomaly_detection.logs.time_buckets.idle_ttl"); ttl >= 0 {
+		config.IdleTTLSeconds = int64(ttl.Seconds())
+	} else if config.Enabled {
+		pkglog.Warnf("anomaly_detection.logs.time_buckets.idle_ttl must be >= 0, got %s; using 5m", ttl)
+	}
+	if retention := cfg.GetDuration("anomaly_detection.logs.time_buckets.retention"); retention >= 0 {
+		config.RetentionSeconds = int64(retention.Seconds())
+	} else if config.Enabled {
+		pkglog.Warnf("anomaly_detection.logs.time_buckets.retention must be >= 0, got %s; using 10m", retention)
+	}
+	return config
+}
+
 // disabledObserver is the zero-overhead stub returned when config is absent.
 // It allocates nothing and starts no goroutines.
 type disabledObserver struct{}
@@ -275,13 +299,14 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorageWith(storageCfg),
-		extractors:  extractors,
-		detectors:   detectors,
-		correlators: correlators,
-		scorer:      scorer,
-		scheduler:   &currentBehaviorPolicy{},
-		baseline:    settings.Baseline,
+		storage:         newTimeSeriesStorageWith(storageCfg),
+		extractors:      extractors,
+		detectors:       detectors,
+		correlators:     correlators,
+		scorer:          scorer,
+		scheduler:       &currentBehaviorPolicy{},
+		baseline:        settings.Baseline,
+		logCountBuckets: logCountBucketConfigFromAgent(cfg),
 	})
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
@@ -594,6 +619,9 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 		a.lastVisibleCount[ref] = visibleCount
 
 		for _, agg := range a.aggregations {
+			if !supportsSeriesAggregate(storage, ref, agg) {
+				continue
+			}
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
