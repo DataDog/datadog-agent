@@ -1,8 +1,4 @@
 ---
 fixes:
   - |
-    Fix ``bind_host`` being ignored by UDP log listeners. A UDP log source
-    configured with ``bind_host`` previously always listened on all
-    interfaces; it now binds to the configured address, matching the
-    behavior of TCP log listeners. Sources that do not set ``bind_host``
-    keep listening on all interfaces.
+    Add new ``bind_host`` configuration option to TCP and UDP log listeners.
