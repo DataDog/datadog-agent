@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "trietest",
@@ -10,18 +11,15 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "trietest_test",
     srcs = [
         "hash_set_test.go",
         "trie_test.go",
     ],
     embed = [":trietest"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
     deps = [
         "@com_github_stretchr_testify//require",
         "@net_pgregory_rapid//:rapid",

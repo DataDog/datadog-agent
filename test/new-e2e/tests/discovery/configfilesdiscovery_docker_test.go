@@ -25,13 +25,17 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
 	agentDiscoveryEndpoint                    = "/api/v2/agentdiscovery"
 	configFilesDiscoveryRedisConfigDir        = "/tmp/configfilesdiscovery-redis"
+	configFilesDiscoveryRedisContainerName    = "redis-configfilesdiscovery"
 	configFilesDiscoveryRedisContainerPath    = "/usr/local/etc/redis/redis.conf"
 	configFilesDiscoveryRedisConfigFileName   = "redis.conf"
+	configFilesDiscoveryRedisStartFileName    = "start"
+	configFilesDiscoveryRedisStartScriptName  = "start-redis.sh"
 	configFilesDiscoveryRedisConfigSentinel   = "configfilesdiscovery-e2e-sentinel"
 	configFilesDiscoveryRedisIntegrationName  = "redisdb"
 	configFilesDiscoveryRedisContainerRuntime = "docker"
@@ -43,14 +47,26 @@ maxmemory-policy allkeys-lru
 # configfilesdiscovery-e2e-sentinel
 `
 
+const configFilesDiscoveryRedisStartScript = `#!/bin/sh
+set -eu
+
+while [ ! -f /configfilesdiscovery/start ]; do
+  sleep 1
+done
+
+# Redis rewrites its process title by default, which can hide the startup
+# arguments before workloadmeta's periodic process scan observes them.
+exec redis-server /usr/local/etc/redis/redis.conf --set-proc-title no
+`
+
 const configFilesDiscoveryRedisCompose = `version: "3.9"
 services:
   redis-configfilesdiscovery:
     image: ghcr.io/datadog/redis:{APPS_VERSION}
     container_name: redis-configfilesdiscovery
     command:
-      - redis-server
-      - /usr/local/etc/redis/redis.conf
+      - /bin/sh
+      - /configfilesdiscovery/start-redis.sh
     labels:
       com.datadoghq.ad.checks: |
         {
@@ -64,6 +80,7 @@ services:
           }
         }
     volumes:
+      - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}:/configfilesdiscovery:ro
       - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}/redis.conf:/usr/local/etc/redis/redis.conf:ro
 `
 
@@ -112,19 +129,65 @@ func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host
 	if err != nil {
 		return nil, err
 	}
-	return configFile, nil
+
+	startScriptPath := path.Join(configFilesDiscoveryRedisConfigDir, configFilesDiscoveryRedisStartScriptName)
+	startScript, err := fileManager.CopyInlineFile(
+		pulumi.String(configFilesDiscoveryRedisStartScript),
+		startScriptPath,
+		utils.PulumiDependsOn(configFile),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return startScript, nil
 }
 
-func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilePayloadAndHeartbeatSentToEventPlatform() {
+func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFileDiscoveredAfterProcessStartsAndHeartbeatSentToEventPlatform() {
 	t := s.T()
+	host := s.Env().RemoteHost
+	startFilePath := path.Join(configFilesDiscoveryRedisConfigDir, configFilesDiscoveryRedisStartFileName)
 
-	var payloads []*aggregator.AgentDiscoveryPayload
+	t.Cleanup(func() {
+		if _, cleanupErr := host.Execute("sudo rm -f " + startFilePath); cleanupErr != nil {
+			t.Logf("failed to remove redis start file: %v", cleanupErr)
+		}
+		if _, cleanupErr := host.Execute("sudo docker restart " + configFilesDiscoveryRedisContainerName); cleanupErr != nil {
+			t.Logf("failed to return redis container to its waiting state: %v", cleanupErr)
+		}
+	})
+	_, err := host.Execute("sudo docker stop " + configFilesDiscoveryRedisContainerName)
+	require.NoError(t, err)
+	_, err = host.Execute("sudo rm -f " + startFilePath)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return !strings.Contains(s.Env().Agent.Client.ConfigCheck(), configFilesDiscoveryRedisIntegrationName)
+	}, time.Minute, time.Second, "redis AD config remained scheduled after the container stopped")
+	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
+	_, err = host.Execute("sudo docker start " + configFilesDiscoveryRedisContainerName)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		// Docker needs the PID column to map the ps output back to container processes,
+		// even though this assertion only inspects the command arguments.
+		processes, processErr := host.Execute("sudo docker top " + configFilesDiscoveryRedisContainerName + " -eo pid,args")
+		if !assert.NoError(c, processErr) {
+			return
+		}
+		assert.Contains(c, processes, configFilesDiscoveryRedisStartScriptName)
+		assert.NotContains(c, processes, "redis-server")
+		assert.Contains(c, s.Env().Agent.Client.ConfigCheck(), configFilesDiscoveryRedisIntegrationName)
+	}, 2*time.Minute, 2*time.Second, "redis AD config was not scheduled while the wrapper was waiting")
+
+	_, err = host.Execute("sudo touch " + startFilePath)
+	require.NoError(t, err)
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
-		assert.NoError(c, err)
-		assert.NotEmpty(c, payloads, "no Agent Discovery payloads on %s", agentDiscoveryEndpoint)
-		if err != nil || len(payloads) == 0 {
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotEmpty(c, payloads, "no Agent Discovery payloads on %s", agentDiscoveryEndpoint) {
 			return
 		}
 

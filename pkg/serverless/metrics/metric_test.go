@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -107,6 +108,10 @@ func (f *countingForwarder) SubmitSketchSeries(_ transaction.BytesPayloads, _ ht
 // flush before the sample is incorporated — a race that drops ~50% of samples
 // in practice. 100 iterations exercise that race.
 func TestStopDrainsBeforeFlush(t *testing.T) {
+	synctest.Test(t, testStopDrainsBeforeFlush)
+}
+
+func testStopDrainsBeforeFlush(t *testing.T) {
 	mockConfig := configmock.New(t)
 	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
 	// Gate Stop()'s per-worker sample drain (and the incomplete-bucket flush),

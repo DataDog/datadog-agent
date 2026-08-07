@@ -402,6 +402,11 @@ var (
 	// lonely network namespaces.
 	// Tags: -
 	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
+	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
+	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
+	// Tags: error_type ('link_not_found', 'no_such_device', 'classifier_exists', 'queue_full', 'netlink_socket',
+	// 'link_list', 'unknown')
+	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
 
