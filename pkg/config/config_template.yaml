@@ -2296,7 +2296,7 @@ api_key:
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
 #     # Filters are applied sequentially, the last matching filter takes precedence.
-#     # In end_user_device infrastructure mode, user-defined filters are appended to the default SaaS filters below.
+#     # No filters are added automatically in end_user_device infrastructure mode; configure filters explicitly when needed.
 #
 #     filters:
 #
@@ -4364,6 +4364,14 @@ api_key:
 #     # Devices with these IP addresses will be skipped during default scan.
 #
 #     excluded_ips: []
+
+#     # @param bulk_batch_size - integer - optional - default: 20
+#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_BULK_BATCH_SIZE - integer - optional - default: 20
+#     # Starting number of values requested per GetBulk call during the automatic
+#     # device scan. The scan adjusts this down on failures and back up on
+#     # successes, so this is the ceiling it works toward.
+#
+#     bulk_batch_size: 20
 
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.

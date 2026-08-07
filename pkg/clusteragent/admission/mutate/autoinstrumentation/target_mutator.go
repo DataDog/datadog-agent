@@ -310,9 +310,12 @@ func (m *TargetMutator) IsNamespaceEligible(namespace string) bool {
 	for _, target := range m.targets {
 		matches, err := target.matchesNamespaceSelector(namespace)
 		if err != nil {
-			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
-			return false
-
+			// Match the policy evaluator's behavior: a target whose namespace-label
+			// facts are unavailable cannot be evaluated, but it must not prevent a
+			// later namespace-name, pod-only, or catch-all target from making the
+			// namespace eligible.
+			log.Debugf("namespace metadata unavailable for target %q in namespace %q, skipping target: %v", target.name, namespace, err)
+			continue
 		}
 		if matches {
 			log.Debugf("Namespace %q matched target %q", namespace, target.name)
@@ -419,11 +422,7 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 
 	// The matcher and targets are aligned by index, so the first matching
 	// policy resolves directly to its injection config (first match wins).
-	idx, err := m.matcher.matchIndex(pod)
-	if err != nil {
-		log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
-		return nil
-	}
+	idx := m.matcher.matchIndex(pod)
 	if idx < 0 || idx >= len(m.targets) {
 		return nil
 	}
