@@ -176,15 +176,10 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	experiment, err := metricresolution.Read(c.config)
-	if err != nil {
-		return err
-	}
-
 	run := runner.NewRunner(c.senderManager, c.haAgent)
 	var schedulerOptions []scheduler.SchedulerOption
-	if experiment.Enabled {
-		schedulerOptions = append(schedulerOptions, scheduler.WithNormalCheckIntervalOverride(experiment.CheckInterval))
+	if metricresolution.Enabled() {
+		schedulerOptions = append(schedulerOptions, scheduler.WithOneSecondNormalCheckIntervals())
 	}
 	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan(), schedulerOptions...)
 

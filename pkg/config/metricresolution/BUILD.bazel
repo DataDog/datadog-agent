@@ -6,7 +6,6 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/metricresolution",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/config/model"],
 )
 
 dd_agent_go_test(
@@ -14,8 +13,6 @@ dd_agent_go_test(
     srcs = ["config_test.go"],
     deps = [
         ":metricresolution",
-        "//pkg/config/mock",
-        "//pkg/config/model",
         "@com_github_stretchr_testify//require",
     ],
 )

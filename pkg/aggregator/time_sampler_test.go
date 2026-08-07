@@ -11,7 +11,6 @@ import (
 	"math"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,11 +134,15 @@ func TestOneSecondBucketSampling(t *testing.T) {
 	require.Len(t, series, 2)
 	for _, serie := range series {
 		require.Equal(t, int64(1), serie.Interval)
-		require.Equal(t, []float64{100, 101}, []float64{serie.Points[0].Ts, serie.Points[1].Ts})
+		timestamps := []float64{serie.Points[0].Ts, serie.Points[1].Ts}
+		sort.Float64s(timestamps)
+		require.Equal(t, []float64{100, 101}, timestamps)
 	}
 	require.Len(t, sketches, 1)
 	require.Equal(t, int64(1), sketches[0].Interval)
-	require.Equal(t, []int64{100, 101}, []int64{sketches[0].Points[0].Ts, sketches[0].Points[1].Ts})
+	timestamps := []int{int(sketches[0].Points[0].Ts), int(sketches[0].Points[1].Ts)}
+	sort.Ints(timestamps)
+	require.Equal(t, []int{100, 101}, timestamps)
 }
 
 func TestTimeSamplerDogStatsDLookbackReceivesSelectedResolvedContext(t *testing.T) {
@@ -503,7 +506,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 			exp  = &quantile.Sketch{}
 		)
 
-		for i := 0; i < int(defaultDogStatsDAggregationInterval/time.Second); i++ {
+		for i := 0; i < bucketSize; i++ {
 			v := float64(i)
 			insert(t, now, name, tags, host, v)
 			exp.Insert(quantile.Default(), v)

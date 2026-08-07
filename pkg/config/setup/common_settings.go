@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
-	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
@@ -31,11 +30,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
-
-	config.BindEnvAndSetDefault(metricresolution.EnabledKey, false)
-	config.BindEnvAndSetDefault(metricresolution.CheckIntervalKey, time.Second)
-	config.BindEnvAndSetDefault(metricresolution.DogStatsDAggregationIntervalKey, time.Second)
-	config.BindEnvAndSetDefault(metricresolution.SerializerFlushIntervalKey, time.Second)
 
 	config.BindEnvAndSetDefault("metric_lookback.enabled", false)
 	config.BindEnvAndSetDefault("metric_lookback.enabled_checks", []string{})

@@ -182,8 +182,8 @@ func TestTinyInterval(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestNormalCheckIntervalOverride(t *testing.T) {
-	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+func TestOneSecondNormalCheckIntervals(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithOneSecondNormalCheckIntervals())
 	chk := &TestCheck{intl: 30 * time.Second}
 
 	assert.NoError(t, s.Enter(chk))
@@ -192,23 +192,23 @@ func TestNormalCheckIntervalOverride(t *testing.T) {
 	assert.Same(t, s.jobQueues[time.Second], s.checkToQueue[chk.ID()])
 }
 
-func TestNormalCheckIntervalOverridePreservesOneShot(t *testing.T) {
-	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+func TestOneSecondNormalCheckIntervalsPreservesOneShot(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithOneSecondNormalCheckIntervals())
 
 	assert.NoError(t, s.Enter(&TestCheck{intl: 0}))
 	assert.Empty(t, s.jobQueues)
 }
 
-func TestNormalCheckIntervalOverridePreservesInvalidNegativeInterval(t *testing.T) {
-	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+func TestOneSecondNormalCheckIntervalsPreservesInvalidNegativeInterval(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithOneSecondNormalCheckIntervals())
 
 	err := s.Enter(&TestCheck{intl: -time.Second})
 	assert.ErrorContains(t, err, "schedule interval must be greater than")
 	assert.Empty(t, s.jobQueues)
 }
 
-func TestNormalCheckIntervalOverrideCancellation(t *testing.T) {
-	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+func TestOneSecondNormalCheckIntervalsCancellation(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithOneSecondNormalCheckIntervals())
 	chk := &TestCheck{intl: 30 * time.Second}
 
 	assert.NoError(t, s.Enter(chk))
@@ -217,8 +217,8 @@ func TestNormalCheckIntervalOverrideCancellation(t *testing.T) {
 	assert.NotContains(t, s.checkToQueue, chk.ID())
 }
 
-func TestNormalCheckIntervalOverridePreservesShadowInterval(t *testing.T) {
-	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithNormalCheckIntervalOverride(time.Second))
+func TestOneSecondNormalCheckIntervalsPreservesShadowInterval(t *testing.T) {
+	s := NewScheduler(make(chan check.Check), make(chan check.Check), WithOneSecondNormalCheckIntervals())
 	shadow := check.NewShadowCheck(&TestCheck{intl: 30 * time.Second}, 5*time.Second)
 
 	assert.NoError(t, s.Enter(shadow))

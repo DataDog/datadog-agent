@@ -215,9 +215,9 @@ func (w *noAggregationStreamWorker) run() {
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
-							// Timestamped rate-like samples retain the existing fixed ten-second normalization.
+							// if the value is a rate, we have to account for the 10s interval
 							if mtype == metrics.APIRateType {
-								sample.Value /= float64(metrics.TimestampedDogStatsDNormalizationInterval)
+								sample.Value /= bucketSize
 							}
 
 							// turns this metric sample into a serie
@@ -227,7 +227,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
 							serie.MType = mtype
-							serie.Interval = metrics.TimestampedDogStatsDNormalizationInterval
+							serie.Interval = bucketSize
 							if w.lookback != nil {
 								w.lookback.AppendDogStatsDNoAggSerie(&serie)
 							}

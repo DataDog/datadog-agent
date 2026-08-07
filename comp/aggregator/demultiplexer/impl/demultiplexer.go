@@ -8,6 +8,7 @@ package demultiplexerimpl
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -140,14 +141,10 @@ func createAgentDemultiplexerOptions(config config.Component, params Params, dog
 		preserveZeroFlushInterval = v == 0
 	}
 
-	experiment, err := metricresolution.Read(config)
-	if err != nil {
-		return aggregator.AgentDemultiplexerOptions{}, err
-	}
-	if experiment.Enabled {
-		options.DogStatsDAggregationInterval = experiment.DogStatsDAggregationInterval
+	if metricresolution.Enabled() {
+		options.UseOneSecondDogStatsDAggregation = true
 		if !preserveZeroFlushInterval {
-			options.FlushInterval = experiment.SerializerFlushInterval
+			options.FlushInterval = time.Second
 		}
 	}
 	return options, nil

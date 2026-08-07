@@ -159,22 +159,13 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 		require.Equal(mockSerializer.series[i].Tags.UnsafeToReadOnlySliceString(), lookback.series[i].Tags.UnsafeToReadOnlySliceString())
 		require.Equal(mockSerializer.series[i].MType, lookback.series[i].MType)
 		require.Equal(mockSerializer.series[i].Interval, lookback.series[i].Interval)
-		require.Equal(metrics.TimestampedDogStatsDNormalizationInterval, mockSerializer.series[i].Interval)
+		require.Equal(int64(bucketSize), mockSerializer.series[i].Interval)
 		if batch[i].Mtype == metrics.CounterType {
-			require.Equal(batch[i].Value/float64(metrics.TimestampedDogStatsDNormalizationInterval), mockSerializer.series[i].Points[0].Value)
+			require.Equal(batch[i].Value/float64(bucketSize), mockSerializer.series[i].Points[0].Value)
 		} else {
 			require.Equal(batch[i].Value, mockSerializer.series[i].Points[0].Value)
 		}
 	}
-}
-
-func TestDogStatsDAggregationIntervalSeconds(t *testing.T) {
-	require.Equal(t, int64(1), dogStatsDAggregationIntervalSeconds(time.Second))
-	require.PanicsWithValue(
-		t,
-		"invalid DogStatsD aggregation interval 500ms: must be a whole-second duration of at least 1s",
-		func() { dogStatsDAggregationIntervalSeconds(500 * time.Millisecond) },
-	)
 }
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {

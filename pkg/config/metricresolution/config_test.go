@@ -7,62 +7,27 @@ package metricresolution_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func TestDefaults(t *testing.T) {
-	cfg := configmock.New(t)
-
-	got, err := metricresolution.Read(cfg)
-	require.NoError(t, err)
-	require.False(t, got.Enabled)
-	require.Equal(t, time.Second, got.CheckInterval)
-	require.Equal(t, time.Second, got.DogStatsDAggregationInterval)
-	require.Equal(t, time.Second, got.SerializerFlushInterval)
-}
-
 func TestEnabled(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set(metricresolution.EnabledKey, true, pkgconfigmodel.SourceFile)
-
-	got, err := metricresolution.Read(cfg)
-	require.NoError(t, err)
-	require.True(t, got.Enabled)
-}
-
-func TestRejectsInvalidEnabledIntervals(t *testing.T) {
-	for _, test := range []struct {
-		name  string
-		key   string
-		value time.Duration
+	tests := []struct {
+		name     string
+		value    string
+		expected bool
 	}{
-		{name: "zero", key: metricresolution.CheckIntervalKey, value: 0},
-		{name: "negative", key: metricresolution.DogStatsDAggregationIntervalKey, value: -time.Second},
-		{name: "sub-second", key: metricresolution.SerializerFlushIntervalKey, value: 500 * time.Millisecond},
-		{name: "fractional-second", key: metricresolution.CheckIntervalKey, value: 1500 * time.Millisecond},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			cfg.Set(metricresolution.EnabledKey, true, pkgconfigmodel.SourceFile)
-			cfg.Set(test.key, test.value, pkgconfigmodel.SourceFile)
+		{name: "enabled", value: "true", expected: true},
+		{name: "disabled", value: "false", expected: false},
+		{name: "invalid", value: "not-a-bool", expected: false},
+	}
 
-			_, err := metricresolution.Read(cfg)
-			require.ErrorContains(t, err, test.key)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(metricresolution.EnabledEnvVar, test.value)
+			require.Equal(t, test.expected, metricresolution.Enabled())
 		})
 	}
-}
-
-func TestIgnoresDormantInvalidIntervals(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set(metricresolution.CheckIntervalKey, 500*time.Millisecond, pkgconfigmodel.SourceFile)
-
-	got, err := metricresolution.Read(cfg)
-	require.NoError(t, err)
-	require.False(t, got.Enabled)
 }

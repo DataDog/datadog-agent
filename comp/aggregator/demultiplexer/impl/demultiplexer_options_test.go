@@ -85,62 +85,33 @@ func TestCreateAgentDemultiplexerOptionsStoresLookbackFactory(t *testing.T) {
 }
 
 func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentDisabledParity(t *testing.T) {
-	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
-		metricresolution.EnabledKey: false,
-	})
+	t.Setenv(metricresolution.EnabledEnvVar, "false")
 
-	options := requireOptions(t, cfg, NewDefaultParams(), nil)
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(), nil)
 	require.Equal(t, aggregator.DefaultFlushInterval, options.FlushInterval)
-	require.Equal(t, 10*time.Second, options.DogStatsDAggregationInterval)
+	require.False(t, options.UseOneSecondDogStatsDAggregation)
 }
 
 func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentEnabled(t *testing.T) {
-	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
-		metricresolution.EnabledKey:                      true,
-		metricresolution.CheckIntervalKey:                time.Second,
-		metricresolution.DogStatsDAggregationIntervalKey: time.Second,
-		metricresolution.SerializerFlushIntervalKey:      time.Second,
-	})
+	t.Setenv(metricresolution.EnabledEnvVar, "true")
 
-	options := requireOptions(t, cfg, NewDefaultParams(), nil)
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(), nil)
 	require.Equal(t, time.Second, options.FlushInterval)
-	require.Equal(t, time.Second, options.DogStatsDAggregationInterval)
+	require.True(t, options.UseOneSecondDogStatsDAggregation)
 }
 
 func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentOverridesParams(t *testing.T) {
-	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
-		metricresolution.EnabledKey:                      true,
-		metricresolution.CheckIntervalKey:                time.Second,
-		metricresolution.DogStatsDAggregationIntervalKey: time.Second,
-		metricresolution.SerializerFlushIntervalKey:      time.Second,
-	})
+	t.Setenv(metricresolution.EnabledEnvVar, "true")
 
-	options := requireOptions(t, cfg, NewDefaultParams(WithFlushInterval(5*time.Second)), nil)
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(WithFlushInterval(5*time.Second)), nil)
 	require.Equal(t, time.Second, options.FlushInterval)
-	require.Equal(t, time.Second, options.DogStatsDAggregationInterval)
+	require.True(t, options.UseOneSecondDogStatsDAggregation)
 }
 
 func TestCreateAgentDemultiplexerOptionsMetricResolutionExperimentPreservesZeroFlushInterval(t *testing.T) {
-	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
-		metricresolution.EnabledKey:                      true,
-		metricresolution.CheckIntervalKey:                time.Second,
-		metricresolution.DogStatsDAggregationIntervalKey: time.Second,
-		metricresolution.SerializerFlushIntervalKey:      time.Second,
-	})
+	t.Setenv(metricresolution.EnabledEnvVar, "true")
 
-	options := requireOptions(t, cfg, NewDefaultParams(WithFlushInterval(0)), nil)
+	options := requireOptions(t, configmock.NewMock(t), NewDefaultParams(WithFlushInterval(0)), nil)
 	require.Zero(t, options.FlushInterval)
-	require.Equal(t, time.Second, options.DogStatsDAggregationInterval)
-}
-
-func TestCreateAgentDemultiplexerOptionsRejectsInvalidMetricResolutionExperiment(t *testing.T) {
-	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
-		metricresolution.EnabledKey:                      true,
-		metricresolution.CheckIntervalKey:                time.Second,
-		metricresolution.DogStatsDAggregationIntervalKey: 500 * time.Millisecond,
-		metricresolution.SerializerFlushIntervalKey:      time.Second,
-	})
-
-	_, err := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), nil)
-	require.ErrorContains(t, err, metricresolution.DogStatsDAggregationIntervalKey)
+	require.True(t, options.UseOneSecondDogStatsDAggregation)
 }

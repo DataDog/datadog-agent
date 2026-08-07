@@ -16,10 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// TimestampedDogStatsDNormalizationInterval is the fixed interval metadata and
-// count/rate normalization used for timestamped DogStatsD series.
-const TimestampedDogStatsDNormalizationInterval int64 = 10
-
 const (
 	// internalResourceTagPrefix is the tag name used for propagating resources to be emitted on metrics.
 	// The format for the tag is dd.internal.resource:resource_type,resource_name. Resource names

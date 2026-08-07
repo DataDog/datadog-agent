@@ -84,8 +84,8 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	FlushInterval                time.Duration
-	DogStatsDAggregationInterval time.Duration
+	FlushInterval                    time.Duration
+	UseOneSecondDogStatsDAggregation bool
 
 	NoAggregationPipelineWorkersCount int
 
@@ -101,18 +101,10 @@ type AgentDemultiplexerOptions struct {
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
 func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
-		FlushInterval:                DefaultFlushInterval,
-		DogStatsDAggregationInterval: defaultDogStatsDAggregationInterval,
+		FlushInterval: DefaultFlushInterval,
 		// the different agents/binaries enable it on a per-need basis
 		NoAggregationPipelineWorkersCount: 0,
 	}
-}
-
-func dogStatsDAggregationIntervalSeconds(interval time.Duration) int64 {
-	if interval < time.Second || interval%time.Second != 0 {
-		panic(fmt.Sprintf("invalid DogStatsD aggregation interval %s: must be a whole-second duration of at least 1s", interval))
-	}
-	return int64(interval / time.Second)
 }
 
 type statsd struct {
@@ -170,7 +162,10 @@ func initAgentDemultiplexer(log log.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
 	hostname string) *AgentDemultiplexer {
-	dogStatsDIntervalSeconds := dogStatsDAggregationIntervalSeconds(options.DogStatsDAggregationInterval)
+	dogStatsDIntervalSeconds := int64(bucketSize)
+	if options.UseOneSecondDogStatsDAggregation {
+		dogStatsDIntervalSeconds = 1
+	}
 
 	// prepare the multiple forwarders
 	// -------------------------------

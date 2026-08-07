@@ -44,7 +44,6 @@ go_library(
         "//pkg/config/create",
         "//pkg/config/env",
         "//pkg/config/helper",
-        "//pkg/config/metricresolution",
         "//pkg/config/model",
         "//pkg/config/setup/constants",
         "//pkg/config/structure",
@@ -78,7 +77,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",
-        "//pkg/config/metricresolution",
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",
         "//pkg/util/defaultpaths",

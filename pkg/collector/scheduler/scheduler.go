@@ -41,11 +41,11 @@ func init() {
 // SchedulerOption configures a Scheduler.
 type SchedulerOption func(*Scheduler)
 
-// WithNormalCheckIntervalOverride forces positive intervals for normal checks to interval.
+// WithOneSecondNormalCheckIntervals forces positive intervals for normal checks to one second.
 // One-shot and shadow checks keep their original intervals.
-func WithNormalCheckIntervalOverride(interval time.Duration) SchedulerOption {
+func WithOneSecondNormalCheckIntervals() SchedulerOption {
 	return func(s *Scheduler) {
-		s.normalCheckIntervalOverride = interval
+		s.normalCheckIntervalOverride = time.Second
 	}
 }
 
