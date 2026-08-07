@@ -16,9 +16,19 @@ type TaskVerifier interface {
 	UnwrapTask(task *types.Task) (*types.Task, error)
 }
 
+// SigningKey is the transport-safe form of a public verification key.
+// Key retains the PEM bytes delivered by verified Remote Config.
+type SigningKey struct {
+	ID      string
+	KeyType types.KeyType
+	Key     []byte
+}
+
 // KeysManager manages the signing keys used to verify task envelopes.
 type KeysManager interface {
 	Start(ctx context.Context)
-	GetKey(keyId string) types.DecodedKey
-	WaitForReady()
+	GetKey(keyID string) types.DecodedKey
+	WaitForReady(ctx context.Context) error
+	Seed(keys []SigningKey) error
+	Snapshot() []SigningKey
 }
