@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows && !darwin
-
 package common
 
+import "github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+
 // DefaultLogFile returns the default path to the system-probe log file
-// (empty on unsupported platforms)
 func DefaultLogFile() string {
-	return ""
+	return defaultpaths.GetDefaultSystemProbeLogFile()
 }
