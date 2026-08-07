@@ -113,32 +113,39 @@ func seriesUseV3(r resolver.DomainResolver, config config.Component, logger log.
 
 // metricsShadowSampleRate returns the per-flush probability of also sending
 // this kind of metrics to v3beta as a validation shadow when v3 is not the
-// authoritative endpoint. Only series are supported today.
+// authoritative endpoint.
 func metricsShadowSampleRate(config config.Component, kind metricsKind) float64 {
-	if kind != metricsKindSeries {
-		return 0
-	}
-	return config.GetFloat64("serializer_experimental_use_v3_api.series.shadow_sample_rate")
+	return config.GetFloat64(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sample_rate", kind))
 }
 
-func v3BetaShadowEndpoint(config config.Component) transaction.Endpoint {
-	route := config.GetString("serializer_experimental_use_v3_api.series.beta_route")
-	return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSeriesEndpoint.Name}
+// v3BetaShadowEndpoint returns the v3beta shadow endpoint for a metrics kind,
+// with the route overridable per kind via beta_route.
+func v3BetaShadowEndpoint(config config.Component, kind metricsKind) transaction.Endpoint {
+	switch kind {
+	case metricsKindSeries:
+		route := config.GetString("serializer_experimental_use_v3_api.series.beta_route")
+		return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSeriesEndpoint.Name}
+	case metricsKindSketches:
+		route := config.GetString("serializer_experimental_use_v3_api.sketches.beta_route")
+		return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSketchSeriesEndpoint.Name}
+	default:
+		panic("invalid metricsKind value")
+	}
 }
 
 // metricsShadowSites returns the list of Datadog sites for which v3beta shadow
-// sampling is enabled. Sites are matched against the resolved v2 series
+// sampling is enabled for this kind. Sites are matched against the resolved v2
 // destination via configutils.ExtractSiteFromURL. Defaults to US1 only.
-func metricsShadowSites(config config.Component) []string {
-	return config.GetStringSlice("serializer_experimental_use_v3_api.series.shadow_sites")
+func metricsShadowSites(config config.Component, kind metricsKind) []string {
+	return config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sites", kind))
 }
 
 // metricsShadowAllowed reports whether the resolver targets a site that opts
-// into v3beta shadowing. It resolves the v2 series endpoint so that when v2
+// into v3beta shadowing. It resolves the kind's v2 endpoint so that when v2
 // metrics are diverted to a non-Datadog destination (e.g. vector/OPW), the
 // resolved domain falls outside the allow list and shadowing is skipped.
-func metricsShadowAllowed(r resolver.DomainResolver, sites []string) bool {
-	site := configutils.ExtractSiteFromURL(r.Resolve(endpoints.SeriesEndpoint))
+func metricsShadowAllowed(r resolver.DomainResolver, kind metricsKind, sites []string) bool {
+	site := configutils.ExtractSiteFromURL(r.Resolve(metricsEndpointFor(kind, false)))
 	if site == "" {
 		return false
 	}
@@ -183,7 +190,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	mrfFilter := s.getFailoverAllowlist()
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
 	shadowRate := metricsShadowSampleRate(s.config, kind)
-	shadowSites := metricsShadowSites(s.config)
+	shadowSites := metricsShadowSites(s.config, kind)
 
 	zlib := s.zlibForcesV2()
 	if zlib {
@@ -224,7 +231,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 			}
 
 		default:
-			shadowV3 := !useV3 && metricsShadowAllowed(resolver, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
+			shadowV3 := !useV3 && metricsShadowAllowed(resolver, kind, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
 			if shadowV3 {
 				dest.ValidationBatchID = s.genUUID()
 			}
@@ -244,7 +251,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 				}
 				sdest := metrics.PipelineDestination{
 					Resolver:          resolver,
-					Endpoint:          v3BetaShadowEndpoint(s.config),
+					Endpoint:          v3BetaShadowEndpoint(s.config, kind),
 					ValidationBatchID: dest.ValidationBatchID,
 				}
 				pipelines.Add(sconf, sdest)
