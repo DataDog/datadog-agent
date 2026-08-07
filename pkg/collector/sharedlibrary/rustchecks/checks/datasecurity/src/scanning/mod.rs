@@ -53,6 +53,12 @@ impl Scanner {
     }
 }
 
+/// Frees dd-sds' global regex caches. Call after the `Scanner` is dropped, as
+/// regexes referenced by a live scanner are not reclaimed.
+pub fn clear_caches() {
+    dd_sds::clear_all_caches();
+}
+
 /// Groups hits into `(column, rule)` pairs and counts matched rows and total
 /// matches.
 fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Match>> {
