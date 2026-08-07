@@ -16,6 +16,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -123,7 +124,11 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
 	}
 	for _, repoTag := range img.RepoTags {
-		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+		// Split on the last colon (after the last slash) so registries that
+		// include a port (e.g. `myregistry.local:5000/foo/bar:1.2.3`) are
+		// parsed correctly.
+		repoName, _ := pkgimage.SplitRepoTag(repoTag)
+		repos[repoName] = struct{}{}
 	}
 
 	for repo := range repos {
@@ -138,8 +143,9 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 
 		repoTags := make([]string, 0, len(img.RepoTags))
 		for _, repoTag := range img.RepoTags {
-			if strings.HasPrefix(repoTag, repo+":") {
-				repoTags = append(repoTags, strings.SplitN(repoTag, ":", 2)[1])
+			repoName, tag := pkgimage.SplitRepoTag(repoTag)
+			if repoName == repo && tag != "" {
+				repoTags = append(repoTags, tag)
 			}
 		}
 

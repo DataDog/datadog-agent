@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a bug in container image reporting where image references whose
+    registry host included a port (for example
+    ``myregistry.local:5000/foo/bar:1.2.3``) were split on the first colon
+    instead of the tag separator. This caused the ``image_name`` and
+    ``image_tag`` tags, as well as the values shown in the Container Images
+    view, to be incorrect for such images. The repo and tag are now parsed
+    using the last colon following the last slash, matching standard image
+    reference rules.
