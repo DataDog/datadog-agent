@@ -551,6 +551,7 @@ type StandaloneAnomalyScorer interface {
 	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
+	PendingEvents() []observerdef.CorrelatorEvent
 	LastScore() float64
 	ScoreState() observerdef.AnomalyScoreState
 	Reset()
@@ -587,10 +588,13 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 }
 
 // NewAnomalyScorer creates a new anomalyScorer with the given config.
-// The watcher (telemetry gauges, logs, episodes) is not active.
-// Used by the testbench replay path.
+// When correlation events are enabled, it also installs the internal watcher
+// so standalone consumers such as the testbench can inspect episode events.
 // Invalid EWMA parameter values are clamped to safe defaults.
 func NewAnomalyScorer(cfg AnomalyScorerConfig) StandaloneAnomalyScorer {
+	if cfg.CorrelationEvents {
+		return newAnomalyScorerWithTelemetry(cfg, nil, nil)
+	}
 	return newAnomalyScorerBase(cfg)
 }
 
