@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -57,10 +58,16 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 	}
 }
 
-func newPendingFileEventsResolver() *Resolver {
-	return &Resolver{
-		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[string]pendingFileEvent] {
+	events, err := simplelru.NewLRU[containerutils.ContainerID, map[string]pendingFileEvent](maxSBOMEntries, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
 	}
+	return events
+}
+
+func newPendingFileEventsResolver(t *testing.T) *Resolver {
+	return &Resolver{pendingFileEvents: newPendingFileEvents(t)}
 }
 
 // TestDeleteReleasesPendingFileEventsWithoutSBOM checks that a container leaving
@@ -72,13 +79,13 @@ func TestDeleteReleasesPendingFileEventsWithoutSBOM(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLRU: %v", err)
 	}
-	r := newPendingFileEventsResolver()
+	r := newPendingFileEventsResolver(t)
 	r.sboms = sboms
 
 	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
 	r.Delete("container-id")
 
-	if len(r.pendingFileEvents) != 0 {
+	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("queued file accesses were not released")
 	}
 }
@@ -87,7 +94,7 @@ func TestDeleteReleasesPendingFileEventsWithoutSBOM(t *testing.T) {
 // a workload are released when its SBOM leaves the cache, whether it is removed
 // explicitly or evicted to make room.
 func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
-	r := newPendingFileEventsResolver()
+	r := newPendingFileEventsResolver(t)
 	sboms, err := simplelru.NewLRU(1, r.onSBOMEvicted)
 	if err != nil {
 		t.Fatalf("NewLRU: %v", err)
@@ -100,13 +107,13 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 	sboms.Add("container-id", NewSBOM("container-id", nil, "image:tag"))
 	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
 
-	if _, ok := r.pendingFileEvents["evicted-container-id"]; ok {
+	if _, ok := r.pendingFileEvents.Get("evicted-container-id"); ok {
 		t.Errorf("queued file accesses of the evicted SBOM were not released")
 	}
 
 	r.Delete("container-id")
 
-	if len(r.pendingFileEvents) != 0 {
+	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("queued file accesses of the removed SBOM were not released")
 	}
 }
@@ -125,7 +132,7 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 		// long enough that the forwarding debouncer cannot fire during the test
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
 		dataCache:         dataCache,
-		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		pendingFileEvents: newPendingFileEvents(t),
 		sbomsCacheHit:     atomic.NewUint64(0),
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
@@ -146,7 +153,7 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 	if !sbom.IsComputed() {
 		t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
 	}
-	if len(r.pendingFileEvents) != 0 {
+	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("queued file accesses were not drained")
 	}
 	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() {
@@ -172,7 +179,7 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 	r := &Resolver{
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
 		dataCache:         dataCache,
-		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		pendingFileEvents: newPendingFileEvents(t),
 		sbomsCacheHit:     atomic.NewUint64(0),
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
@@ -211,7 +218,7 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 	r := &Resolver{
 		dataCache:         dataCache,
 		scanChan:          make(chan *SBOM, 1),
-		pendingFileEvents: make(map[containerutils.ContainerID][]pendingFileEvent),
+		pendingFileEvents: newPendingFileEvents(t),
 		sbomsCacheHit:     atomic.NewUint64(0),
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
@@ -230,10 +237,88 @@ func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
 	if !sbom.IsComputed() {
 		t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
 	}
-	if len(r.pendingFileEvents) != 0 {
+	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("queued file accesses were not applied")
 	}
 	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+	}
+}
+
+// TestPendingFileEventsAreDeduplicatedPerPath checks that repeated accesses to the
+// same file collapse into a single entry with the sticky properties merged. The
+// snapshot replay emits one open event per (process, mapped file) pair and runs again
+// on every ruleset reload, so the shared libraries mapped by every process of a
+// workload would otherwise crowd out the distinct paths worth keeping.
+func TestPendingFileEventsAreDeduplicatedPerPath(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	for range 3 {
+		r.queuePendingFileEvent("container-id", "/usr/lib/libc.so.6", 0644, 1000)
+	}
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 1000)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, 0)
+
+	events, _ := r.pendingFileEvents.Get("container-id")
+	if len(events) != 2 {
+		t.Fatalf("queued %d distinct events, want 2", len(events))
+	}
+	if event := events["/usr/lib/libc.so.6"]; event.suidBit || event.accessedByRoot {
+		t.Errorf("libc event = %+v, want no sticky property set", event)
+	}
+	if event := events["/usr/bin/su"]; !event.suidBit || !event.accessedByRoot {
+		t.Errorf("su event = %+v, want both sticky properties merged", event)
+	}
+}
+
+// TestPendingFileEventsBoundDistinctPathsPerContainer checks that a container holds
+// at most maxPendingFileEvents distinct paths, and that an access to an already
+// queued path is still merged once that bound is reached.
+func TestPendingFileEventsBoundDistinctPathsPerContainer(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	for i := range maxPendingFileEvents {
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/lib%d.so", i), 0644, 1000)
+	}
+	r.queuePendingFileEvent("container-id", "/usr/lib/overflow.so", 0644, 1000)
+	r.queuePendingFileEvent("container-id", "/usr/lib/lib0.so", 0644, 0)
+
+	events, _ := r.pendingFileEvents.Get("container-id")
+	if len(events) != maxPendingFileEvents {
+		t.Fatalf("queued %d distinct events, want %d", len(events), maxPendingFileEvents)
+	}
+	if _, ok := events["/usr/lib/overflow.so"]; ok {
+		t.Errorf("path queued past the maximum number of pending events")
+	}
+	if !events["/usr/lib/lib0.so"].accessedByRoot {
+		t.Errorf("access to an already queued path was not merged")
+	}
+}
+
+// TestProcessPendingFileEventsEnrichesPackages checks that draining the queue applies
+// the queued accesses to the packages owning the files and marks the SBOM for
+// forwarding.
+func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}}, false)
+
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, 1000)
+
+	r.processPendingFileEvents(sbom)
+
+	if r.pendingFileEvents.Len() != 0 {
+		t.Errorf("pending events were not drained")
+	}
+	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+	}
+	if !sbom.invalidated {
+		t.Errorf("sbom was not marked for forwarding")
 	}
 }
