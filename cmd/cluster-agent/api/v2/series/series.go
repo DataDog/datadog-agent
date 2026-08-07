@@ -38,6 +38,11 @@ var bufferPool = sync.Pool{
 	},
 }
 
+// maxDecompressedBodySize is the maximum number of bytes handle will read from a
+// (possibly compressed) request body. It guards against decompression bombs sent by a
+// node agent; exceeding it is a request error, not a silent truncation.
+const maxDecompressedBodySize = 100 << 20 // 100 MiB
+
 // InstallNodeMetricsEndpoints register handler for node metrics collection
 func InstallNodeMetricsEndpoints(ctx context.Context, r *http.ServeMux, cfg config.Component) {
 	leaderHander := newSeriesHandler(ctx)
@@ -96,10 +101,15 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
 	buf.Reset() // Reset the buffer before using it
-	_, err = io.Copy(buf, rc)
-	if err != nil {
+	n, err := io.CopyN(buf, rc, maxDecompressedBodySize+1)
+	if err != nil && !errors.Is(err, io.EOF) {
 		api.SetSpanError(w, fmt.Errorf("failed to read request body: %w", err))
 		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if n > maxDecompressedBodySize {
+		api.SetSpanError(w, fmt.Errorf("request body exceeds maximum allowed decompressed size of %d bytes", maxDecompressedBodySize))
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return
 	}
 
