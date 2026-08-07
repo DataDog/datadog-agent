@@ -14,4 +14,3 @@ ID=babysit-pr-attach-$(uuidgen | cut -d'-' -f1)
 dda env dev start --no-pull --repo "${REPO}" --id "${ID}"
 
 echo "Created env: ${ID}"
-export ATTACH_DEVENV_ID="${ID}"

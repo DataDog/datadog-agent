@@ -23,12 +23,12 @@ Otherwise, check for the existence of a dev env by using `dda env dev show`.
 - Check the current state of that dev env.
 
 If the environment is already started and contains the right repo, move to [the next step](#using-a-dev-env).
-Otherwise, create one by using `./create_devenv.sh`, the ID will be automatically exported as `ATTACH_DEVENV_ID`
+Otherwise, create one by using `./create_devenv.sh`, then use the environment ID printed by the script in subsequent commands.
 
 ### Using a dev env
 To run commands inside a dev env, use the following template:
 ```bash
-dda env dev run --id ${ATTACH_DEVENV_ID} -- [command]
+dda env dev run --id <dev-env-id> -- [command]
 ```
 Watch out for space-splitting. For example:
 ```bash
