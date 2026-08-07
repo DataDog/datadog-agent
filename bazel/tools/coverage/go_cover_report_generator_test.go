@@ -8,6 +8,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,11 +48,42 @@ end_of_record
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `mode: atomic
+	// foo.go:1.1 is covered by both inputs (2 and 3): unioned to 1, not summed to 5.
+	want := `mode: set
 example.com/bar.go:1.1,1.5 1 1
-example.com/foo.go:1.1,1.5 1 5
+example.com/foo.go:1.1,1.5 1 1
 example.com/foo.go:2.1,2.5 1 0
 `
+	if string(got) != want {
+		t.Fatalf("unexpected merged profile:\n%s", got)
+	}
+}
+
+// TestGenerateReportUnionsLargeCounts guards the invariant behind unionCount: no
+// merged block ever exceeds 1, however many targets covered it or how hot it was.
+// Summing here is what drove a real block to 3x10^8 executions in CI.
+func TestGenerateReportUnionsLargeCounts(t *testing.T) {
+	dir := t.TempDir()
+	reports := filepath.Join(dir, "reports.txt")
+	output := filepath.Join(dir, "merged.out")
+
+	var paths []string
+	for i, count := range []string{"1000000", "2000000", "3000000"} {
+		path := filepath.Join(dir, "profile"+string(rune('a'+i))+".out")
+		writeTestFile(t, path, "mode: atomic\nexample.com/hot.go:1.1,1.5 1 "+count+"\n")
+		paths = append(paths, path)
+	}
+	writeTestFile(t, reports, strings.Join(paths, "\n")+"\n")
+
+	if err := generateReport(reports, output); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "mode: set\nexample.com/hot.go:1.1,1.5 1 1\n"
 	if string(got) != want {
 		t.Fatalf("unexpected merged profile:\n%s", got)
 	}
@@ -74,7 +106,7 @@ func TestGenerateBaselineReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `mode: atomic
+	want := `mode: set
 example.com/foo.go:1.0,1.1 1 0
 `
 	if string(got) != want {
@@ -101,7 +133,7 @@ func TestGenerateBaselineFromSourceFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `mode: atomic
+	want := `mode: set
 ` + source + `:1.0,1.1 1 0
 ` + source + `:3.0,3.1 1 0
 `
@@ -133,7 +165,7 @@ end_of_record
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `mode: atomic
+	want := `mode: set
 example.com/covered.go:1.1,1.5 1 1
 example.com/uncovered.go:1.0,1.1 1 0
 `
@@ -176,9 +208,9 @@ example.com/bar.go:1.1,1.5 1 1
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `mode: atomic
+	want := `mode: set
 example.com/bar.go:1.1,1.5 1 1
-example.com/foo.go:1.1,1.5 1 2
+example.com/foo.go:1.1,1.5 1 1
 `
 	if string(got) != want {
 		t.Fatalf("unexpected merged profile:\n%s", got)
@@ -208,7 +240,7 @@ end_of_record
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != "mode: atomic\n" {
+	if string(got) != "mode: set\n" {
 		t.Fatalf("unexpected merged profile:\n%s", got)
 	}
 }
