@@ -22,6 +22,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const defaultTestIntegration = "postgres"
+
 // mockAutodiscovery wraps a noop autodiscovery Component and overrides GetUnresolvedConfigs
 // to return a fixed set of configs. This follows the same pattern as kafka_actions_test.go.
 type mockAutodiscovery struct {
@@ -48,6 +50,20 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 		ac:            newMockAutodiscovery(t, configs),
 		activeConfigs: make(map[string]activeConfigEntry),
 		managedBases:  make(map[string]*managedBaseEntry),
+	}
+}
+
+func TestIsSupportedIntegration(t *testing.T) {
+	for _, integrationName := range []string{"mysql", defaultTestIntegration, "sap_hana", "sqlserver"} {
+		t.Run(integrationName, func(t *testing.T) {
+			assert.True(t, isSupportedIntegration(integrationName))
+		})
+	}
+
+	for _, integrationName := range []string{"", "redis"} {
+		t.Run(integrationName, func(t *testing.T) {
+			assert.False(t, isSupportedIntegration(integrationName))
+		})
 	}
 }
 
@@ -80,6 +96,38 @@ func TestMatchesIdentifier_HostOnly(t *testing.T) {
 		}
 		assert.True(t, matchesIdentifier(instance, dbID))
 	})
+}
+
+func TestInstanceMatchesIdentifier_MySQL(t *testing.T) {
+	t.Run("host", func(t *testing.T) {
+		instance := map[string]any{"host": "mysql.internal", "port": 3306}
+		identifier := DBIdentifier{Type: "self-hosted", Host: "mysql.internal"}
+		assert.True(t, instanceMatchesIdentifier(instance, identifier, "mysql"))
+	})
+
+	t.Run("host and port", func(t *testing.T) {
+		instance := map[string]any{"host": "mysql.internal", "port": 3307}
+		identifier := DBIdentifier{Type: "self-hosted", Host: "mysql.internal:3307"}
+		assert.True(t, instanceMatchesIdentifier(instance, identifier, "mysql"))
+	})
+
+	t.Run("database identifier uses MySQL default port", func(t *testing.T) {
+		instance := map[string]any{
+			"host": "localhost",
+			"database_identifier": map[string]any{
+				"template": "$resolved_hostname:$port",
+			},
+		}
+		identifier := DBIdentifier{
+			Type:          "self-hosted",
+			Host:          "do-test-mysql:3306",
+			AgentHostname: "do-test-mysql",
+		}
+
+		assert.True(t, instanceMatchesIdentifier(instance, identifier, "mysql"))
+		assert.False(t, instanceMatchesIdentifier(instance, identifier, defaultTestIntegration))
+	})
+
 }
 
 func TestMatchesIdentifier_DatabaseIdentifierTemplate(t *testing.T) {
@@ -126,17 +174,29 @@ func TestMatchesIdentifier_DatabaseIdentifierTemplate(t *testing.T) {
 }
 
 func TestMatchesIdentifier_DatabaseIdentifierTemplateUsesTags(t *testing.T) {
-	instance := map[string]any{
-		"host": "db.internal",
-		"port": 5432,
-		"tags": []any{"env:staging", "env:prod", "team:data-observability"},
-		"database_identifier": map[string]any{
-			"template": "${team}-$env-$host:$port",
-		},
+	testCases := []struct {
+		name string
+		tags any
+	}{
+		{name: "YAML-decoded tags", tags: []any{"env:staging", "env:prod", "team:data-observability"}},
+		{name: "typed tags", tags: []string{"env:staging", "env:prod", "team:data-observability"}},
 	}
-	dbID := &DBIdentifier{Type: "self-hosted", Host: "data-observability-prod,staging-db.internal:5432"}
 
-	assert.True(t, matchesIdentifier(instance, dbID))
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			instance := map[string]any{
+				"host": "db.internal",
+				"port": 5432,
+				"tags": testCase.tags,
+				"database_identifier": map[string]any{
+					"template": "${team}-$env-$host:$port",
+				},
+			}
+			dbID := &DBIdentifier{Type: "self-hosted", Host: "data-observability-prod,staging-db.internal:5432"}
+
+			assert.True(t, matchesIdentifier(instance, dbID))
+		})
+	}
 }
 
 func TestInstanceMatchesIdentifier_SapHanaDoesNotRenderDatabaseIdentifier(t *testing.T) {
@@ -228,7 +288,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 				IntervalSeconds: 60,
 				TimeoutSeconds:  10,
 				Entity: EntityMetadata{
-					Platform: "postgres",
+					Platform: defaultTestIntegration,
 					Account:  "my-account",
 					Database: "shop",
 					Schema:   "public",
@@ -242,7 +302,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 				IntervalSeconds: 300,
 				TimeoutSeconds:  30,
 				Entity: EntityMetadata{
-					Platform: "postgres",
+					Platform: defaultTestIntegration,
 					Account:  "my-account",
 					Database: "shop",
 					Schema:   "public",
@@ -253,7 +313,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	}
 
 	baseCfg := &integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		NodeName: "node1",
 	}
@@ -271,7 +331,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id-1")
 	require.NoError(t, err)
 
-	assert.Equal(t, "postgres", checkCfg.Name)
+	assert.Equal(t, defaultTestIntegration, checkCfg.Name)
 	assert.Equal(t, "file", checkCfg.Provider)
 	assert.Equal(t, "node1", checkCfg.NodeName)
 	require.Len(t, checkCfg.Instances, 1)
@@ -307,7 +367,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 
 	entity1, ok := q1["entity"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "postgres", entity1["platform"])
+	assert.Equal(t, defaultTestIntegration, entity1["platform"])
 	assert.Equal(t, "my-account", entity1["account"])
 	assert.Equal(t, "shop", entity1["database"])
 	assert.Equal(t, "public", entity1["schema"])
@@ -330,7 +390,7 @@ func TestBuildCheckConfig_CustomSQLSelectFields(t *testing.T) {
 				Query:           "SELECT dd_value FROM my_custom_metric",
 				IntervalSeconds: 60,
 				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Account: "acct", Database: "db", Schema: "s", Table: "t"},
+				Entity:          EntityMetadata{Platform: defaultTestIntegration, Account: "acct", Database: "db", Schema: "s", Table: "t"},
 				CustomSQLSelectFields: &CustomSQLSelectFields{
 					MetricConfigID: 42,
 					EntityID:       "entity-abc",
@@ -339,7 +399,7 @@ func TestBuildCheckConfig_CustomSQLSelectFields(t *testing.T) {
 		},
 	}
 
-	baseCfg := &integration.Config{Name: "postgres"}
+	baseCfg := &integration.Config{Name: defaultTestIntegration}
 	pgInstance := map[string]any{"host": "localhost", "port": 5432, "data_observability": map[string]any{"enabled": true}}
 
 	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id-custom")
@@ -374,12 +434,12 @@ func TestBuildCheckConfig_NoCustomSQLSelectFields(t *testing.T) {
 				Query:           "SELECT count(*) FROM orders",
 				IntervalSeconds: 60,
 				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Account: "acct", Database: "db", Schema: "s", Table: "t"},
+				Entity:          EntityMetadata{Platform: defaultTestIntegration, Account: "acct", Database: "db", Schema: "s", Table: "t"},
 			},
 		},
 	}
 
-	baseCfg := &integration.Config{Name: "postgres"}
+	baseCfg := &integration.Config{Name: defaultTestIntegration}
 	pgInstance := map[string]any{"host": "localhost", "port": 5432, "data_observability": map[string]any{"enabled": true}}
 
 	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-id")
@@ -441,7 +501,7 @@ func TestOnRCUpdate_EmptyConfigID(t *testing.T) {
 
 func TestOnRCUpdate_EmptyQueriesDisables(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Provider:  "file",
 		NodeName:  "node1",
 		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
@@ -473,7 +533,7 @@ func TestOnRCUpdate_EmptyQueriesDisables(t *testing.T) {
 
 func TestOnRCUpdate_ReconcileDisablesStaleConfigs(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Provider:  "file",
 		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
@@ -513,8 +573,8 @@ func TestRemoveActiveConfig_NotFound(t *testing.T) {
 }
 
 func TestRemoveActiveConfig_Found(t *testing.T) {
-	baseCfg := &integration.Config{Name: "postgres", Provider: "file"}
-	doCheckConfig := integration.Config{Name: "postgres", Provider: "do_query_actions"}
+	baseCfg := &integration.Config{Name: defaultTestIntegration, Provider: "file"}
+	doCheckConfig := integration.Config{Name: defaultTestIntegration, Provider: "do_query_actions"}
 	c := newTestComponent(t)
 	c.activeConfigs["my-config"] = activeConfigEntry{
 		checkConfig:   doCheckConfig,
@@ -534,72 +594,82 @@ func TestRemoveActiveConfig_Found(t *testing.T) {
 // --- Happy-path integration tests (require mocked autodiscovery) ---
 
 // TestOnRCUpdate_ValidConfig_SchedulesCheck verifies the primary use-case: a valid RC config
-// whose db_identifier matches a configured postgres instance results in a scheduled check.
+// whose db_identifier matches a configured integration instance results in a scheduled check.
 func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
-	postgresCfg := integration.Config{
-		Name:     "postgres",
-		Provider: "file",
-		NodeName: "node1",
-		Instances: []integration.Data{
-			integration.Data("host: localhost\nport: 5432\nusername: datadog\npassword: secret\ndbname: mydb\ndata_observability:\n  enabled: true\n"),
-		},
+	for _, testCase := range []struct {
+		integrationName string
+		port            int
+	}{
+		{integrationName: defaultTestIntegration, port: 5432},
+		{integrationName: "mysql", port: 3306},
+	} {
+		t.Run(testCase.integrationName, func(t *testing.T) {
+			integrationCfg := integration.Config{
+				Name:     testCase.integrationName,
+				Provider: "file",
+				NodeName: "node1",
+				Instances: []integration.Data{
+					integration.Data(fmt.Sprintf("host: localhost\nport: %d\nusername: datadog\npassword: secret\ndbname: mydb\ndata_observability:\n  enabled: true\n", testCase.port)),
+				},
+			}
+			c := newTestComponentWithAC(t, []integration.Config{integrationCfg})
+
+			payload := DOQueryPayload{
+				ConfigID:     "cfg-happy",
+				DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+				Queries: []QuerySpec{
+					{
+						MonitorID:       42,
+						Type:            "run_query",
+						Query:           "SELECT count(*) FROM orders",
+						IntervalSeconds: 60,
+						TimeoutSeconds:  10,
+						Entity:          EntityMetadata{Platform: testCase.integrationName, Database: "mydb", Table: "orders"},
+					},
+				},
+			}
+			payloadJSON, err := json.Marshal(payload)
+			require.NoError(t, err)
+
+			updates := map[string]state.RawConfig{
+				"path/cfg-happy": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-id-happy"}},
+			}
+			statuses, changes := collectStatuses(c, updates)
+
+			require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-happy"].State)
+			require.Len(t, changes.Schedule, 1, "expected one scheduled DO check")
+			require.Len(t, changes.Unschedule, 1, "should unschedule base file-provider config to prevent duplicate")
+			assert.Equal(t, testCase.integrationName, changes.Schedule[0].Name)
+			assert.Equal(t, "file", changes.Schedule[0].Provider)
+			assert.Equal(t, "node1", changes.Schedule[0].NodeName)
+
+			require.Len(t, changes.Schedule[0].Instances, 1)
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+			assert.Equal(t, "localhost", instance["host"])
+			assert.Equal(t, "datadog", instance["username"])
+
+			doConfig, ok := instance["data_observability"].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, true, doConfig["enabled"])
+			assert.Equal(t, "rc-id-happy", doConfig["config_id"])
+
+			queries, ok := doConfig["queries"].([]any)
+			require.True(t, ok)
+			require.Len(t, queries, 1)
+			q := queries[0].(map[string]any)
+			assert.Equal(t, "SELECT count(*) FROM orders", q["query"])
+
+			require.Contains(t, c.activeConfigs, "cfg-happy")
+		})
 	}
-	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
-
-	payload := DOQueryPayload{
-		ConfigID:     "cfg-happy",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
-		Queries: []QuerySpec{
-			{
-				MonitorID:       42,
-				Type:            "run_query",
-				Query:           "SELECT count(*) FROM orders",
-				IntervalSeconds: 60,
-				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Database: "mydb", Table: "orders"},
-			},
-		},
-	}
-	payloadJSON, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	updates := map[string]state.RawConfig{
-		"path/cfg-happy": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-id-happy"}},
-	}
-	statuses, changes := collectStatuses(c, updates)
-
-	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-happy"].State)
-	require.Len(t, changes.Schedule, 1, "expected one scheduled DO check")
-	require.Len(t, changes.Unschedule, 1, "should unschedule base file-provider config to prevent duplicate")
-	assert.Equal(t, "postgres", changes.Schedule[0].Name)
-	assert.Equal(t, "file", changes.Schedule[0].Provider)
-	assert.Equal(t, "node1", changes.Schedule[0].NodeName)
-
-	require.Len(t, changes.Schedule[0].Instances, 1)
-	var instance map[string]any
-	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
-	assert.Equal(t, "localhost", instance["host"])
-	assert.Equal(t, "datadog", instance["username"])
-
-	doConfig, ok := instance["data_observability"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, true, doConfig["enabled"])
-	assert.Equal(t, "rc-id-happy", doConfig["config_id"])
-
-	queries, ok := doConfig["queries"].([]any)
-	require.True(t, ok)
-	require.Len(t, queries, 1)
-	q := queries[0].(map[string]any)
-	assert.Equal(t, "SELECT count(*) FROM orders", q["query"])
-
-	require.Contains(t, c.activeConfigs, "cfg-happy")
 }
 
 // TestOnRCUpdate_UpdateReplacesExistingCheck verifies that two sequential onRCUpdate calls
 // with the same config_id correctly unschedule the previous check and schedule the updated one.
 func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
@@ -676,7 +746,7 @@ func findScheduledWithHost(t *testing.T, changes integration.ConfigChanges, host
 func TestOnRCUpdate_PreservesUnrelatedInstances(t *testing.T) {
 	const rdsHost = "iceberg-test-postgres-demo-rds.c0lma4q6o85w.us-east-1.rds.amazonaws.com"
 	postgresCfg := integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		Instances: []integration.Data{
 			integration.Data("host: localhost\nport: 5432\ndbname: testdb\ndata_observability:\n  enabled: true\ntags:\n  - env:demo\n"),
@@ -764,7 +834,7 @@ func TestBuildRemainder_SapHanaServerKey(t *testing.T) {
 
 func TestFindMatchingConfig_TemplatedIdentifiersDistinguishPorts(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		Instances: []integration.Data{
 			integration.Data("host: localhost\nport: 5432\ndatabase_identifier:\n  template: '$resolved_hostname:$port'\ndata_observability:\n  enabled: true\n"),
@@ -788,7 +858,7 @@ func TestFindMatchingConfig_TemplatedIdentifiersDistinguishPorts(t *testing.T) {
 
 func TestBuildRemainder_TemplatedIdentifierExcludesOnlyTargetPort(t *testing.T) {
 	base := &integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		Instances: []integration.Data{
 			integration.Data("host: localhost\nport: 5432\ndatabase_identifier:\n  template: '$resolved_hostname:$port'\n"),
@@ -886,7 +956,7 @@ func TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder(t *testin
 	const targetedPort = 5432
 	const siblingPort = 5433
 	postgresCfg := integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		Instances: []integration.Data{
 			integration.Data(fmt.Sprintf("host: %s\nport: %d\ndata_observability:\n  enabled: true\n", sharedHost, targetedPort)),
@@ -946,7 +1016,7 @@ func TestOnRCUpdate_SameHostDifferentPorts_KeepsSiblingPortInRemainder(t *testin
 func TestOnRCUpdate_SameEndpointDifferentIdentifiers_KeepsSiblingInRemainder(t *testing.T) {
 	const sharedHost = "dbhost"
 	postgresCfg := integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		Instances: []integration.Data{
 			integration.Data("host: dbhost\nport: 5432\ntags:\n  - env:staging\ndatabase_identifier:\n  template: '$env-$host:$port'\ndata_observability:\n  enabled: true\n"),
@@ -994,7 +1064,7 @@ func TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder(t *tes
 	const sharedHost = "dbhost"
 	const siblingPort = 5433
 	postgresCfg := integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		Instances: []integration.Data{
 			integration.Data(fmt.Sprintf("host: %s\ndata_observability:\n  enabled: true\n", sharedHost)),
@@ -1108,7 +1178,7 @@ func TestOnRCUpdate_DuplicateLocalInstances_RejectsAmbiguousMatch(t *testing.T) 
 func TestOnRCUpdate_MultipleDOConfigsSameBase(t *testing.T) {
 	const rdsHost = "rds.example.com"
 	postgresCfg := integration.Config{
-		Name:     "postgres",
+		Name:     defaultTestIntegration,
 		Provider: "file",
 		Instances: []integration.Data{
 			integration.Data("host: localhost\ndata_observability:\n  enabled: true\n"),
@@ -1178,7 +1248,7 @@ func TestOnRCUpdate_NoMatchingPostgres_ReportsError(t *testing.T) {
 // by host only, with per-query dbname routing to different databases.
 func TestOnRCUpdate_HostOnlyMatching(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Provider:  "file",
 		Instances: []integration.Data{integration.Data("host: localhost\ndbname: testdb\ndata_observability:\n  enabled: true\n")},
 	}
@@ -1225,7 +1295,7 @@ func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
 				Query:           "SELECT count(*) AS dd_value FROM shop.orders",
 				IntervalSeconds: 60,
 				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Database: "testdb", Schema: "shop", Table: "orders"},
+				Entity:          EntityMetadata{Platform: defaultTestIntegration, Database: "testdb", Schema: "shop", Table: "orders"},
 			},
 			{
 				DBName:          "analyticsdb",
@@ -1234,12 +1304,12 @@ func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
 				Query:           "SELECT count(*) AS dd_value FROM events.clicks",
 				IntervalSeconds: 60,
 				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Database: "analyticsdb", Schema: "events", Table: "clicks"},
+				Entity:          EntityMetadata{Platform: defaultTestIntegration, Database: "analyticsdb", Schema: "events", Table: "clicks"},
 			},
 		},
 	}
 
-	baseCfg := &integration.Config{Name: "postgres"}
+	baseCfg := &integration.Config{Name: defaultTestIntegration}
 	pgInstance := map[string]any{"host": "localhost", "dbname": "testdb", "data_observability": map[string]any{"enabled": true}}
 
 	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-multidb")
@@ -1268,7 +1338,7 @@ func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
 // the parse failure, not just "identifier not found".
 func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Instances: []integration.Data{integration.Data("not: [valid: yaml")},
 	}
 	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
@@ -1297,7 +1367,7 @@ func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 // and no interval_seconds passes validation and flows through to the scheduled check.
 func TestValidateQuerySpec_ValidScheduleOnly(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Provider:  "file",
 		NodeName:  "node1",
 		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
@@ -1314,7 +1384,7 @@ func TestValidateQuerySpec_ValidScheduleOnly(t *testing.T) {
 				Query:          "SELECT count(*) FROM orders",
 				Schedule:       "20 * * * *",
 				TimeoutSeconds: 10,
-				Entity:         EntityMetadata{Platform: "postgres", Database: "shop", Table: "orders"},
+				Entity:         EntityMetadata{Platform: defaultTestIntegration, Database: "shop", Table: "orders"},
 			},
 		},
 	}
@@ -1347,7 +1417,7 @@ func TestValidateQuerySpec_ValidScheduleOnly(t *testing.T) {
 // interval_seconds are set, the config flows through (cron wins downstream in Python).
 func TestValidateQuerySpec_BothScheduleAndInterval(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Provider:  "file",
 		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
 	}
@@ -1364,7 +1434,7 @@ func TestValidateQuerySpec_BothScheduleAndInterval(t *testing.T) {
 				IntervalSeconds: 300,
 				Schedule:        "*/15 * * * *",
 				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+				Entity:          EntityMetadata{Platform: defaultTestIntegration, Database: "db", Table: "t"},
 			},
 		},
 	}
@@ -1396,7 +1466,7 @@ func TestValidateQuerySpec_BothScheduleAndInterval(t *testing.T) {
 // a positive interval_seconds is rejected with ApplyStateError and no check is scheduled.
 func TestValidateQuerySpec_NeitherSetRejected(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
 	}
 	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
@@ -1411,7 +1481,7 @@ func TestValidateQuerySpec_NeitherSetRejected(t *testing.T) {
 				Query:           "SELECT 1",
 				IntervalSeconds: 0, // zero — invalid when no schedule
 				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+				Entity:          EntityMetadata{Platform: defaultTestIntegration, Database: "db", Table: "t"},
 			},
 		},
 	}
@@ -1444,7 +1514,7 @@ func TestValidateQuerySpec_InvalidCronRejected(t *testing.T) {
 				Query:          "SELECT 1",
 				Schedule:       "not-a-cron",
 				TimeoutSeconds: 10,
-				Entity:         EntityMetadata{Platform: "postgres", Database: "db", Table: "t"},
+				Entity:         EntityMetadata{Platform: defaultTestIntegration, Database: "db", Table: "t"},
 			},
 		},
 	}
@@ -1466,7 +1536,7 @@ func TestValidateQuerySpec_InvalidCronRejected(t *testing.T) {
 // does not inject a schedule field into the YAML.
 func TestValidateQuerySpec_ValidIntervalOnly(t *testing.T) {
 	postgresCfg := integration.Config{
-		Name:      "postgres",
+		Name:      defaultTestIntegration,
 		Provider:  "file",
 		Instances: []integration.Data{integration.Data("host: localhost\ndata_observability:\n  enabled: true\n")},
 	}
@@ -1482,7 +1552,7 @@ func TestValidateQuerySpec_ValidIntervalOnly(t *testing.T) {
 				Query:           "SELECT count(*) FROM orders",
 				IntervalSeconds: 60,
 				TimeoutSeconds:  10,
-				Entity:          EntityMetadata{Platform: "postgres", Database: "shop", Table: "orders"},
+				Entity:          EntityMetadata{Platform: defaultTestIntegration, Database: "shop", Table: "orders"},
 			},
 		},
 	}
