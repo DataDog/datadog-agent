@@ -15,7 +15,9 @@ The appropriate tool for this usecase is `ddgl`, and more specifically `ddgl att
 Check if `ddgl` is available - `which ddgl`. If so, move to [Step 1](#step-1-determine-the-target). Otherwise, use a dev env as specified below.
 
 ### Ensuring a dev env
-Check for the existence of a previous dev env by using `dda env dev show`.
+First, check if you are running in a dev env: `test -f /.started` will exit 0 if so. If you are in an outdated devenv without `ddgl`, stop and notify the user to recreate his dev env.
+Otherwise, check for the existence of a dev env by using `dda env dev show`.
+
 **If there are existing dev envs**:
 - Check if the current repo is properly mounted into that env (`repos` and `extra_(mount|volume)_specs` fields)
 - Check the current state of that dev env.
