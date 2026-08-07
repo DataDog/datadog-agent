@@ -847,7 +847,6 @@
 /tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
 /tasks/unit_tests/macos_tests.py        @DataDog/windows-products
 /tasks/unit_tests/winbuild_tests.py     @DataDog/windows-products
-/tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                      @DataDog/agent-devx @DataDog/container-platform
