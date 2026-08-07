@@ -26,6 +26,17 @@ type HostOutput struct {
 	OSFlavor     os.Flavor       `json:"osFlavor"`
 	OSVersion    string          `json:"osVersion"`
 	Architecture os.Architecture `json:"architecture"`
+
+	// Pool* are set only when the host is a macOS EC2 pool member (see
+	// resources/aws/ec2/pool). BaseSuite reads them at teardown to revert and release
+	// the instance. An empty PoolLeaseToken with a set PoolInstanceID means the member
+	// was just created and still needs its first lease published.
+	PoolInstanceID      string `json:"poolInstanceId,omitempty"`
+	PoolLeaseToken      string `json:"poolLeaseToken,omitempty"`
+	PoolRegion          string `json:"poolRegion,omitempty"`
+	PoolProfile         string `json:"poolProfile,omitempty"`
+	PoolBaselineImageID string `json:"poolBaselineImageId,omitempty"`
+	PoolStackID         string `json:"poolStackId,omitempty"`
 }
 
 // Host represents a remote host (for instance, a VM)
@@ -44,6 +55,13 @@ type Host struct {
 	OSFlavor      pulumi.IntOutput    `pulumi:"osFlavor"`
 	OSVersion     pulumi.StringOutput `pulumi:"osVersion"`
 	CloudProvider pulumi.StringOutput `pulumi:"cloudProvider"`
+
+	PoolInstanceID      pulumi.StringOutput `pulumi:"poolInstanceId"`
+	PoolLeaseToken      pulumi.StringOutput `pulumi:"poolLeaseToken"`
+	PoolRegion          pulumi.StringOutput `pulumi:"poolRegion"`
+	PoolProfile         pulumi.StringOutput `pulumi:"poolProfile"`
+	PoolBaselineImageID pulumi.StringOutput `pulumi:"poolBaselineImageId"`
+	PoolStackID         pulumi.StringOutput `pulumi:"poolStackId"`
 }
 
 func (h *Host) Export(ctx *pulumi.Context, out *HostOutput) error {
