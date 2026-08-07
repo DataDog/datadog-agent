@@ -153,7 +153,8 @@ properties:
     platform_default:
       windows: \\.\pipe\datadog-procmgrd
       other: /var/run/datadog-procmgrd/dd-procmgrd.sock
-    comment: Control-plane settings consumed by par-control.
+    comment: Control-plane settings consumed by par-control. When unset, the
+      process manager's own DD_PM_SOCKET_PATH is honored before this default.
   restricted_shell:
     node_type: section
     type: object
