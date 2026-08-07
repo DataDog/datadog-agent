@@ -16,6 +16,8 @@
 package metrics
 
 import (
+	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -40,7 +42,9 @@ func isSDKTraceMetric(name string) bool {
 // defaultSDKBucketDuration matches the 10s trace-stats bucket window.
 const defaultSDKBucketDuration = 10 * time.Second
 
-func remapSDKTraceMetrics(logger *zap.Logger, consumer Consumer, statsOut chan<- []byte, host string, rattrs pcommon.Map, m pmetric.Metric) {
+const sdkTraceStatsSource = "otlp-intake-metrics-sdk"
+
+func remapSDKTraceMetrics(logger *zap.Logger, consumer Consumer, otlpStatsOut chan<- []byte, host string, rattrs pcommon.Map, m pmetric.Metric) {
 	if m.Type() != pmetric.MetricTypeHistogram {
 		return
 	}
@@ -49,69 +53,60 @@ func remapSDKTraceMetrics(logger *zap.Logger, consumer Consumer, statsOut chan<-
 		logger.Debug("Skipping non-delta SDK trace metric", zap.String(metricName, m.Name()))
 		return
 	}
-	apmConsumer, hasAPMConsumer := consumer.(APMStatsConsumer)
-	if statsOut == nil && !hasAPMConsumer {
+	otlpConsumer, hasOTLPConsumer := consumer.(OTLPStatsConsumer)
+	if otlpStatsOut == nil && !hasOTLPConsumer {
 		logger.Debug("No APM stats destination configured; dropping SDK trace metric", zap.String(metricName, m.Name()))
 		return
 	}
 
 	unit := m.Unit()
 	service := attributes.GetService(rattrs, true)
-	// A blank (but valid) sketch fills the non-matching ok/error slot on every row.
-	blankSketch, err := sdkDurationSketch(nil, unit)
-	if err != nil {
-		logger.Debug("Failed to build empty SDK trace duration sketch", zap.Error(err))
-	}
+	env := attributes.GetEnv(rattrs)
+	version := attributes.GetVersion(rattrs)
 
 	dps := m.Histogram().DataPoints()
-	buckets := make([]*pb.ClientStatsBucket, 0, dps.Len())
+	buckets := make([]*pb.StatsBucketV3, 0, dps.Len())
 	for i := 0; i < dps.Len(); i++ {
 		dp := dps.At(i)
 		if dp.Flags().NoRecordedValue() {
 			continue
 		}
+		groupedStats, err := sdkGroupedStats(service, env, version, &dp, unit)
+		if err != nil {
+			logger.Debug("Failed to build SDK trace duration stats", zap.Error(err))
+			continue
+		}
 		start, duration := sdkBucketWindow(dp.StartTimestamp(), dp.Timestamp())
-		buckets = append(buckets, &pb.ClientStatsBucket{
-			Start:    start,
-			Duration: duration,
-			Stats:    []*pb.ClientGroupedStats{sdkGroupedStats(logger, service, blankSketch, &dp, unit)},
+		buckets = append(buckets, &pb.StatsBucketV3{
+			Start:    int64(start),
+			Duration: int64(duration),
+			Stats:    []*pb.StatsBucketV3_GroupedStats{groupedStats},
 		})
 	}
 	if len(buckets) == 0 {
 		return
 	}
 
-	clientPayload := &pb.ClientStatsPayload{
-		Hostname:      host,
-		Env:           attributes.GetEnv(rattrs),
-		Version:       attributes.GetVersion(rattrs),
-		Service:       service,
-		ContainerID:   attributes.GetContainerID(rattrs),
-		Lang:          attributes.GetOTelAttrVal(rattrs, false, "telemetry.sdk.language"),
-		TracerVersion: attributes.GetOTelAttrVal(rattrs, false, "telemetry.sdk.version"),
-		RuntimeID:     attributes.GetOTelAttrVal(rattrs, false, "datadog.runtime_id"),
-		ProcessTags:   sdkProcessTags(rattrs),
-		Stats:         buckets,
-	}
-	if statsOut == nil {
-		apmConsumer.ConsumeAPMStats(clientPayload)
-		return
-	}
-
-	raw, err := proto.Marshal(&pb.StatsPayload{
-		AgentHostname:  host,
-		AgentEnv:       attributes.GetEnv(rattrs),
-		ClientComputed: false,
-		Stats:          []*pb.ClientStatsPayload{clientPayload},
+	raw, err := proto.Marshal(&pb.OTLPIntakeStatsPayload{
+		HostName:    host,
+		Stats:       buckets,
+		HostTags:    attributes.TagsFromAttributes(rattrs),
+		Source:      sdkTraceStatsSource,
+		Aggregate:   true,
+		ContainerId: attributes.GetContainerID(rattrs),
 	})
 	if err != nil {
 		logger.Debug("Failed to marshal SDK trace stats payload", zap.Error(err))
 		return
 	}
-	statsOut <- raw
+	if otlpStatsOut != nil {
+		otlpStatsOut <- raw
+		return
+	}
+	otlpConsumer.ConsumeOTLPStats(raw)
 }
 
-func sdkGroupedStats(logger *zap.Logger, service string, blankSketch []byte, dp *pmetric.HistogramDataPoint, unit string) *pb.ClientGroupedStats {
+func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoint, unit string) (*pb.StatsBucketV3_GroupedStats, error) {
 	attrs := dp.Attributes()
 	hits := dp.Count()
 
@@ -136,49 +131,132 @@ func sdkGroupedStats(logger *zap.Logger, service string, blankSketch []byte, dp 
 		synthetics = true
 	}
 
-	gs := &pb.ClientGroupedStats{
-		Service:              service,
-		Name:                 sdkOperationName(attrs),
-		Resource:             resource,
-		SpanKind:             strings.ToLower(spanKindFromAttr(attrs).String()),
-		HTTPStatusCode:       attributes.GetStatusCode(attrs),
-		GRPCStatusCode:       sdkGRPCStatusCode(attrs),
-		HTTPMethod:           attributes.GetOTelAttrVal(attrs, false, "http.request.method"),
-		HTTPEndpoint:         attributes.GetOTelAttrVal(attrs, false, "http.route"),
-		IsTraceRoot:          sdkIsTraceRoot(attrs),
-		Hits:                 hits,
-		TopLevelHits:         topLevelHits,
-		Duration:             sdkDurationNanos(dp, unit),
-		Synthetics:           synthetics,
-		AdditionalMetricTags: sdkAdditionalMetricTags(attrs),
+	duration := sdkDurationNanos(dp, unit)
+	gs := &pb.StatsBucketV3_GroupedStats{
+		Service:        service,
+		Env:            env,
+		Version:        version,
+		Name:           sdkOperationName(attrs),
+		Resource:       resource,
+		SpanKind:       spanKindFromAttr(attrs).String(),
+		HttpStatusCode: int32(attributes.GetStatusCode(attrs)),
+		GrpcStatusCode: sdkGRPCStatusCode(attrs),
+		IsTraceRoot:    sdkIsTraceRoot(attrs),
+		Hits:           hits,
+		HasHits:        hits > 0,
+		TopLevelHits:   topLevelHits,
+		Duration:       duration,
+		HasDuration:    duration > 0,
+		Synthetics:     synthetics,
+		OtherTags:      sdkOtherTags(attrs),
 	}
 	if isError {
 		gs.Errors = hits
-	}
-	if v := attributes.GetOTelAttrVal(attrs, false, "datadog.span.type"); v != "" {
-		gs.Type = v
+		gs.HasErrors = hits > 0
 	}
 
 	sketch, err := sdkDurationSketch(dp, unit)
 	if err != nil {
-		logger.Debug("Failed to build SDK trace duration sketch",
-			zap.String(metricName, gs.Name), zap.Error(err))
-		sketch = blankSketch
+		return nil, err
 	}
 	if isError {
-		gs.OkSummary, gs.ErrorSummary = blankSketch, sketch
+		gs.ErrorSparseSketch = sketch
 	} else {
-		gs.OkSummary, gs.ErrorSummary = sketch, blankSketch
+		gs.OkSparseSketch = sketch
 	}
-	return gs
+	return gs, nil
 }
 
 func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, error) {
-	sketch, err := CreateDDSketchFromHistogramOfDuration(dp, unit)
-	if err != nil {
-		return nil, err
+	if dp == nil || dp.Count() == 0 {
+		return nil, fmt.Errorf("count cannot be zero")
 	}
-	return proto.Marshal(sketch.ToProto())
+
+	minimum, maximum, sum := math.NaN(), math.NaN(), math.NaN()
+	scale := getTimeUnitScaleToNanos(unit) / float64(time.Second)
+	if dp.HasMin() {
+		minimum = dp.Min() * scale
+	}
+	if dp.HasMax() {
+		maximum = dp.Max() * scale
+	}
+	if dp.HasSum() {
+		sum = dp.Sum() * scale
+	}
+	if dp.HasMin() && math.IsNaN(minimum) {
+		return nil, fmt.Errorf("histogram minimum is NaN")
+	}
+	if dp.HasMax() && math.IsNaN(maximum) {
+		return nil, fmt.Errorf("histogram maximum is NaN")
+	}
+	if dp.HasSum() && math.IsNaN(sum) {
+		return nil, fmt.Errorf("histogram sum is NaN")
+	}
+	if dp.HasMin() && dp.HasMax() && minimum > maximum {
+		return nil, fmt.Errorf("min %g is greater than max %g", minimum, maximum)
+	}
+
+	bounds := dp.ExplicitBounds().AsRaw()
+	counts := dp.BucketCounts().AsRaw()
+	if len(bounds) > 64 {
+		return nil, fmt.Errorf("bounds length %d is too high, maximum 64", len(bounds))
+	}
+	if len(bounds) > 0 || len(counts) > 0 {
+		if len(counts) != len(bounds)+1 {
+			return nil, fmt.Errorf("counts length %d must be 1 greater than bounds length %d", len(counts), len(bounds))
+		}
+		var total uint64
+		for _, count := range counts {
+			total += count
+		}
+		if total != dp.Count() {
+			return nil, fmt.Errorf("count %d mismatch total bins %d", dp.Count(), total)
+		}
+	}
+
+	sketch := &pb.SparseSketch{
+		K: []int32{-32768},
+		N: []uint32{2},
+		Basic: &pb.SparseSketchBasic{
+			Min: minimum, Max: maximum, Sum: sum, Count: int64(dp.Count()),
+		},
+	}
+	var previous float64
+	var previousF32 float32
+	for i, bound := range bounds {
+		bound *= scale
+		boundF32 := float32(bound)
+		if math.IsNaN(bound) || math.IsInf(bound, 0) || math.IsInf(float64(boundF32), 0) {
+			return nil, fmt.Errorf("bound must be a finite float32, got %v", bound)
+		}
+		if i > 0 && (previous >= bound || !(previousF32 < boundF32)) {
+			return nil, fmt.Errorf("bound %v must stay strictly increasing after float32 conversion", bound)
+		}
+		sketch.K = append(sketch.K, int32(i))
+		sketch.N = append(sketch.N, math.Float32bits(boundF32))
+		previous, previousF32 = bound, boundF32
+	}
+	for i, count := range counts {
+		appendSparseBin(sketch, int32(len(bounds)+i), count)
+	}
+	return proto.Marshal(sketch)
+}
+
+func appendSparseBin(sketch *pb.SparseSketch, key int32, count uint64) {
+	if count <= math.MaxUint32 {
+		sketch.K = append(sketch.K, key)
+		sketch.N = append(sketch.N, uint32(count))
+		return
+	}
+	if remainder := count % math.MaxUint32; remainder != 0 {
+		sketch.K = append(sketch.K, key)
+		sketch.N = append(sketch.N, uint32(remainder))
+	}
+	for count >= math.MaxUint32 {
+		sketch.K = append(sketch.K, key)
+		sketch.N = append(sketch.N, math.MaxUint32)
+		count -= math.MaxUint32
+	}
 }
 
 // sdkDurationNanos is the total duration in nanoseconds, guarding against out-of-range sums.
@@ -200,32 +278,14 @@ func sdkBucketWindow(startTS, endTS pcommon.Timestamp) (start, duration uint64) 
 	return uint64(startTS), uint64(endTS - startTS)
 }
 
-func sdkProcessTags(attrs pcommon.Map) string {
-	return strings.Join(sdkTagList(attrs, "datadog.process_tags"), ",")
-}
-
-// sdkTagList reads an arrayValue attribute of colon-joined "key:value" strings.
-func sdkTagList(attrs pcommon.Map, key string) []string {
-	v, ok := attrs.Get(key)
-	if !ok || v.Type() != pcommon.ValueTypeSlice {
-		return nil
-	}
-	slice := v.Slice()
-	tags := make([]string, 0, slice.Len())
-	for i := 0; i < slice.Len(); i++ {
-		tags = append(tags, slice.At(i).AsString())
-	}
-	return tags
-}
-
-func sdkIsTraceRoot(attrs pcommon.Map) pb.Trilean {
+func sdkIsTraceRoot(attrs pcommon.Map) pb.OTLPTrilean {
 	switch attributes.GetOTelAttrVal(attrs, false, "datadog.is_trace_root") {
 	case "true", "1":
-		return pb.Trilean_TRUE
+		return pb.OTLPTrilean_OTLP_TRUE
 	case "false", "0":
-		return pb.Trilean_FALSE
+		return pb.OTLPTrilean_OTLP_FALSE
 	default:
-		return pb.Trilean_NOT_SET
+		return pb.OTLPTrilean_OTLP_NOT_SET
 	}
 }
 
@@ -285,6 +345,22 @@ func sdkAdditionalMetricTags(attrs pcommon.Map) []string {
 	}
 	sort.Strings(tags)
 	return tags
+}
+
+func sdkOtherTags(attrs pcommon.Map) []*pb.StatsTag {
+	tags := sdkAdditionalMetricTags(attrs)
+	if spanType := attributes.GetOTelAttrVal(attrs, false, "datadog.span.type"); spanType != "" {
+		tags = append(tags, "span.type:"+spanType)
+		sort.Strings(tags)
+	}
+	otherTags := make([]*pb.StatsTag, 0, len(tags))
+	for _, tag := range tags {
+		name, value, ok := strings.Cut(tag, ":")
+		if ok {
+			otherTags = append(otherTags, &pb.StatsTag{Name: name, Value: value})
+		}
+	}
+	return otherTags
 }
 
 func sdkOperationName(attrs pcommon.Map) string {

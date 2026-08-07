@@ -577,7 +577,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					}
 				}
 				if isSDKTraceMetric(md.Name()) && t.cfg.withSDKTraceMetrics {
-					remapSDKTraceMetrics(t.logger, consumer, t.cfg.statsOut, host, rattrs, md)
+					remapSDKTraceMetrics(t.logger, consumer, t.cfg.otlpStatsOut, host, rattrs, md)
 					continue
 				}
 				// A non-APM metric (not a stats, runtime, or SDK trace metric) marks the host

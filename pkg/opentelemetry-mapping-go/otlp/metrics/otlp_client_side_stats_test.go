@@ -16,10 +16,9 @@ package metrics
 
 import (
 	"context"
+	"math"
 	"testing"
 
-	"github.com/DataDog/sketches-go/ddsketch"
-	sketchpb "github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -49,25 +48,23 @@ func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]str
 	return m
 }
 
-// remapSDK runs the SDK-trace remap and returns the single emitted client stats payload, or nil.
-func remapSDK(t testing.TB, m pmetric.Metric) *pb.ClientStatsPayload {
+// remapSDK runs the SDK-trace remap and returns the emitted V4 stats payload, or nil.
+func remapSDK(t testing.TB, m pmetric.Metric) *pb.OTLPIntakeStatsPayload {
 	t.Helper()
 	statsOut := make(chan []byte, 8)
 	consumer := newTestConsumer()
 	remapSDKTraceMetrics(zap.NewNop(), &consumer, statsOut, "", pcommon.NewMap(), m)
 	close(statsOut)
-	return drainSingleClientStats(t, statsOut)
+	return drainSingleOTLPStats(t, statsOut)
 }
 
-// drainSingleClientStats decodes the channel and returns the single client stats payload, or nil.
-func drainSingleClientStats(t testing.TB, statsOut <-chan []byte) *pb.ClientStatsPayload {
+func drainSingleOTLPStats(t testing.TB, statsOut <-chan []byte) *pb.OTLPIntakeStatsPayload {
 	t.Helper()
-	var payloads []*pb.ClientStatsPayload
+	var payloads []*pb.OTLPIntakeStatsPayload
 	for raw := range statsOut {
-		var sp pb.StatsPayload
+		var sp pb.OTLPIntakeStatsPayload
 		require.NoError(t, proto.Unmarshal(raw, &sp))
-		require.False(t, sp.ClientComputed) // agent-computed: routed through the non-serverless pipeline
-		payloads = append(payloads, sp.Stats...)
+		payloads = append(payloads, &sp)
 	}
 	if len(payloads) == 0 {
 		return nil
@@ -77,7 +74,7 @@ func drainSingleClientStats(t testing.TB, statsOut <-chan []byte) *pb.ClientStat
 }
 
 // groupedByName returns the grouped-stats row whose operation Name matches, or nil.
-func groupedByName(p *pb.ClientStatsPayload, name string) *pb.ClientGroupedStats {
+func groupedByName(p *pb.OTLPIntakeStatsPayload, name string) *pb.StatsBucketV3_GroupedStats {
 	if p == nil {
 		return nil
 	}
@@ -91,30 +88,35 @@ func groupedByName(p *pb.ClientStatsPayload, name string) *pb.ClientGroupedStats
 	return nil
 }
 
-// sketchCount decodes a ddsketch-proto summary and returns its total count.
-func sketchCount(t testing.TB, data []byte) float64 {
+func sparseSketch(t testing.TB, data []byte) *pb.SparseSketch {
 	t.Helper()
-	require.NotEmpty(t, data, "summary must be a valid (possibly empty) sketch")
-	var sk sketchpb.DDSketch
+	require.NotEmpty(t, data)
+	var sk pb.SparseSketch
 	require.NoError(t, proto.Unmarshal(data, &sk))
-	decoded, err := ddsketch.FromProto(&sk)
-	require.NoError(t, err)
-	return decoded.GetCount()
+	return &sk
+}
+
+func statsTags(tags []*pb.StatsTag) []string {
+	values := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		values = append(values, tag.Name+":"+tag.Value)
+	}
+	return values
 }
 
 // TestSDKTraceMetric_EmitsAPMStats drives one rich datapoint end-to-end and asserts the full
 // mapping: grouped-stats fields, payload identity, no trace.* metric leak, non-billable host,
-// and the agent-computed outer StatsPayload.
+// and the V4 outer payload.
 func TestSDKTraceMetric_EmitsAPMStats(t *testing.T) {
 	statsOut := make(chan []byte, 8)
-	translator := NewTestTranslator(t, WithRemapping(), WithStatsOut(statsOut))
+	translator := NewTestTranslator(t, WithRemapping(), WithOTLPStatsOut(statsOut))
 
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
 	rattrs := rm.Resource().Attributes()
 	for k, v := range map[string]string{
 		"service.name": "checkout-svc", "deployment.environment.name": "staging",
-		"service.version": "1.2.3",
+		"service.version":    "1.2.3",
 		"datadog.runtime_id": "abc-123", "host.name": "my-host",
 	} {
 		rattrs.PutStr(k, v)
@@ -142,38 +144,49 @@ func TestSDKTraceMetric_EmitsAPMStats(t *testing.T) {
 	}
 	assert.Empty(t, consumer.data.Hosts, "SDK-trace-only payload must not consume a billable host")
 
-	// Outer StatsPayload is agent-computed, carrying AgentEnv from the resource.
-	var sp pb.StatsPayload
+	// The payload uses the V4 wire contract consumed by the OTLP intake stats path.
+	var sp pb.OTLPIntakeStatsPayload
 	require.NoError(t, proto.Unmarshal(mustDrainRaw(t, statsOut), &sp))
-	assert.Equal(t, "staging", sp.AgentEnv)
-	assert.False(t, sp.ClientComputed)
+	assert.Equal(t, "otlp-intake-metrics-sdk", sp.Source)
+	assert.True(t, sp.Aggregate)
 	require.Len(t, sp.Stats, 1)
-	p := sp.Stats[0]
-	assert.Equal(t, "checkout-svc", p.Service)
-	assert.Equal(t, "staging", p.Env)
-	assert.Equal(t, "1.2.3", p.Version)
-	assert.Equal(t, "abc-123", p.RuntimeID)
-	assert.Equal(t, "entrypoint.name:server", p.ProcessTags)
 
-	gs := groupedByName(p, "http.request")
+	gs := groupedByName(&sp, "http.request")
 	require.NotNil(t, gs)
+	assert.Equal(t, "checkout-svc", gs.Service)
+	assert.Equal(t, "staging", gs.Env)
+	assert.Equal(t, "1.2.3", gs.Version)
 	assert.Equal(t, "checkout", gs.Resource)
-	assert.Equal(t, "server", gs.SpanKind) // lowercased for Datadog APM
-	assert.Equal(t, "web", gs.Type)
+	assert.Equal(t, "Server", gs.SpanKind)
 	assert.True(t, gs.Synthetics) // datadog.origin = synthetics
 	assert.Equal(t, uint64(5), gs.Hits)
-	assert.Equal(t, uint64(5), gs.Errors)       // status.code = STATUS_CODE_ERROR
+	assert.True(t, gs.HasHits)
+	assert.Equal(t, uint64(5), gs.Errors) // status.code = STATUS_CODE_ERROR
+	assert.True(t, gs.HasErrors)
 	assert.Equal(t, uint64(5), gs.TopLevelHits) // datadog.span.top_level = true
 	assert.Equal(t, uint64(2e9), gs.Duration)   // 2s scaled to nanoseconds
-	assert.Equal(t, uint32(500), gs.HTTPStatusCode)
-	assert.Equal(t, "5", gs.GRPCStatusCode) // NOT_FOUND
-	assert.Equal(t, "POST", gs.HTTPMethod)
-	assert.Equal(t, "/users/:id", gs.HTTPEndpoint)
-	assert.Equal(t, pb.Trilean_TRUE, gs.IsTraceRoot)
-	assert.Subset(t, gs.AdditionalMetricTags, []string{"origin:synthetics", "peer.service:users-db"})
-	// Error datapoint: population lands in ErrorSummary; OkSummary is the blank sketch.
-	assert.Positive(t, sketchCount(t, gs.ErrorSummary))
-	assert.Zero(t, sketchCount(t, gs.OkSummary))
+	assert.True(t, gs.HasDuration)
+	assert.Equal(t, int32(500), gs.HttpStatusCode)
+	assert.Equal(t, "5", gs.GrpcStatusCode) // NOT_FOUND
+	assert.Equal(t, pb.OTLPTrilean_OTLP_TRUE, gs.IsTraceRoot)
+	assert.Subset(t, statsTags(gs.OtherTags), []string{"origin:synthetics", "peer.service:users-db", "span.type:web"})
+	assert.Empty(t, gs.OkSparseSketch)
+	assert.Equal(t, int64(5), sparseSketch(t, gs.ErrorSparseSketch).Basic.Count)
+}
+
+func TestSDKTraceMetric_PreservesExplicitHistogram(t *testing.T) {
+	m := sdkTraceMetric("ms", 6, 500, map[string]string{"datadog.operation.name": "op"})
+	dp := m.Histogram().DataPoints().At(0)
+	dp.ExplicitBounds().FromRaw([]float64{10, 100})
+	dp.BucketCounts().FromRaw([]uint64{1, 2, 3})
+
+	gs := groupedByName(remapSDK(t, m), "op")
+	require.NotNil(t, gs)
+	sketch := sparseSketch(t, gs.OkSparseSketch)
+	assert.Equal(t, []int32{-32768, 0, 1, 2, 3, 4}, sketch.K)
+	assert.Equal(t, []uint32{2, math.Float32bits(0.01), math.Float32bits(0.1), 1, 2, 3}, sketch.N)
+	assert.Equal(t, int64(6), sketch.Basic.Count)
+	assert.InDelta(t, 0.5, sketch.Basic.Sum, 1e-12)
 }
 
 // AgentHostname is set from the host argument on the outer StatsPayload.
@@ -183,9 +196,9 @@ func TestRemapSDKTraceMetric_AgentHostname(t *testing.T) {
 	remapSDKTraceMetrics(zap.NewNop(), &consumer, statsOut, "host", pcommon.NewMap(),
 		sdkTraceMetric("s", 1, 1.0, map[string]string{"datadog.operation.name": "op"}))
 	close(statsOut)
-	var sp pb.StatsPayload
+	var sp pb.OTLPIntakeStatsPayload
 	require.NoError(t, proto.Unmarshal(mustDrainRaw(t, statsOut), &sp))
-	assert.Equal(t, "host", sp.AgentHostname)
+	assert.Equal(t, "host", sp.HostName)
 }
 
 // A cumulative datapoint is dropped rather than mishandled as delta (no state to diff against).
@@ -216,14 +229,17 @@ func TestSDKTraceMetric_OptOut(t *testing.T) {
 
 type apmStatsTestConsumer struct {
 	testConsumer
-	payloads []*pb.ClientStatsPayload
+	payloads []*pb.OTLPIntakeStatsPayload
 }
 
-func (c *apmStatsTestConsumer) ConsumeAPMStats(payload *pb.ClientStatsPayload) {
-	c.payloads = append(c.payloads, payload)
+func (c *apmStatsTestConsumer) ConsumeOTLPStats(raw []byte) {
+	var payload pb.OTLPIntakeStatsPayload
+	if proto.Unmarshal(raw, &payload) == nil {
+		c.payloads = append(c.payloads, &payload)
+	}
 }
 
-// With no statsOut but an APMStatsConsumer, the payload is delivered via ConsumeAPMStats.
+// With no output channel, the payload is delivered through OTLPStatsConsumer.
 func TestSDKTraceMetric_AgentConsumerFallback(t *testing.T) {
 	translator := NewTestTranslator(t)
 	md := pmetric.NewMetrics()
@@ -237,9 +253,9 @@ func TestSDKTraceMetric_AgentConsumerFallback(t *testing.T) {
 	_, err := translator.MapMetrics(context.Background(), md, consumer, nil)
 	require.NoError(t, err)
 	require.Len(t, consumer.payloads, 1)
-	assert.Equal(t, "agent-svc", consumer.payloads[0].Service)
 	gs := groupedByName(consumer.payloads[0], "op")
 	require.NotNil(t, gs)
+	assert.Equal(t, "agent-svc", gs.Service)
 	assert.Equal(t, uint64(2), gs.Hits)
 	assert.Empty(t, consumer.data.Metrics.Sketches)
 	assert.Empty(t, consumer.data.Metrics.TimeSeries)

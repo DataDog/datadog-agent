@@ -91,6 +91,10 @@ func (c component) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
 }
 
+func (c component) SendOTLPStatsPayload(payload []byte) {
+	c.Agent.StatsWriter.SendOTLPIntakePayload(payload)
+}
+
 func (c component) GetHTTPHandler(endpoint string) http.Handler {
 	c.Agent.Receiver.BuildHandlers()
 	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {

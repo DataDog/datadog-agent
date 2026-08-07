@@ -230,6 +230,11 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	return agnt
 }
 
+// ProcessOTLPStats forwards a protobuf-encoded V4 stats payload to the backend.
+func (a *Agent) ProcessOTLPStats(payload []byte) {
+	a.StatsWriter.SendOTLPIntakePayload(payload)
+}
+
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
 	defer close(a.stopped)

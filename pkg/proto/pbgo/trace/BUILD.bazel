@@ -71,6 +71,15 @@ write_pb_go(
     },
 )
 
+write_pb_go(
+    name = "write_otlp_stats_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace:otlp_stats_go_proto": [
+            "otlp_stats.pb.go",
+        ],
+    },
+)
+
 go_library(
     name = "trace",
     srcs = [
@@ -80,6 +89,7 @@ go_library(
         "agent_payload_vtproto.pb.go",
         "decoder_bytes.go",
         "decoder_v05.go",
+        "otlp_stats.pb.go",
         "span.pb.go",
         "span_gen.go",
         "span_utils.go",

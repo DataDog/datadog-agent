@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package datadog.trace;
+
+option go_package = "pkg/proto/pbgo/trace";
+
+// OTLPIntakeStatsPayload is the V4 payload consumed by the APM stats pipeline.
+// Field numbers match the backend's StatsPayloadV3 wire contract.
+message OTLPIntakeStatsPayload {
+  string host_name = 2;
+  repeated StatsBucketV3 stats = 4;
+  repeated string host_tags = 5;
+  repeated string languages = 7;
+  string source = 11;
+  bool aggregate = 12;
+  string container_id = 13;
+}
+
+message StatsBucketV3 {
+  int64 start = 1;
+  int64 duration = 2;
+  repeated GroupedStats stats = 3;
+
+  message GroupedStats {
+    string name = 1;
+    string env = 2;
+    string service = 3;
+    string resource = 4;
+    string version = 5;
+    int32 http_status_code = 6;
+    bool synthetics = 7;
+    repeated StatsTag other_tags = 8;
+
+    bool has_hits = 9;
+    bool has_errors = 10;
+    bool has_duration = 11;
+
+    uint64 hits = 12;
+    uint64 errors = 13;
+    uint64 duration = 14;
+    uint64 top_level_hits = 15;
+
+    string span_kind = 27;
+    repeated string peer_tags = 28;
+    OTLPTrilean is_trace_root = 30;
+    string grpc_status_code = 32;
+
+    bytes ok_sparse_sketch = 33;
+    bytes error_sparse_sketch = 34;
+  }
+}
+
+enum OTLPTrilean {
+  OTLP_NOT_SET = 0;
+  OTLP_TRUE = 1;
+  OTLP_FALSE = 2;
+}
+
+message StatsTag {
+  string name = 1;
+  string value = 2;
+}
+
+// SparseSketch is the wire representation of a lossless OTel histogram.
+message SparseSketch {
+  repeated sint32 k = 1 [packed = true];
+  repeated uint32 n = 2 [packed = true];
+  SparseSketchBasic basic = 3;
+}
+
+message SparseSketchBasic {
+  double sum = 1;
+  double avg = 2;
+  int64 count = 3;
+  double min = 4;
+  double max = 5;
+}

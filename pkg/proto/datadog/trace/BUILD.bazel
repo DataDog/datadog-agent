@@ -1,4 +1,5 @@
 # gazelle:go_proto_compilers @rules_go//proto:go_proto,//bazel/rules/go_proto_compiler:go_vtproto_serde
+# gazelle:exclude otlp_stats.proto
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 load("//bazel/rules/protoc_go_inject_tag:defs.bzl", "protoc_go_inject_tag")
@@ -16,6 +17,14 @@ proto_library(
     deps = ["//pkg/proto/datadog/trace/idx:idx_proto"],
 )
 
+# keep: otlp_stats intentionally uses the standard Go protobuf compiler without vtproto.
+proto_library(
+    name = "otlp_stats_proto",
+    srcs = ["otlp_stats.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
 go_proto_library(
     name = "trace_go_proto",
     compilers = [
@@ -26,6 +35,15 @@ go_proto_library(
     proto = ":trace_proto",
     visibility = ["//visibility:public"],
     deps = ["//pkg/proto/datadog/trace/idx:idx_go_proto"],
+)
+
+# keep: paired with otlp_stats_proto above.
+go_proto_library(
+    name = "otlp_stats_go_proto",
+    compilers = ["@rules_go//proto:go_proto"],
+    importpath = "pkg/proto/pbgo/trace",
+    proto = ":otlp_stats_proto",
+    visibility = ["//visibility:public"],
 )
 
 protoc_go_inject_tag(

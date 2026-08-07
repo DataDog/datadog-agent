@@ -255,6 +255,31 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 	sendPayloads(w.senders, req, w.syncMode)
 }
 
+// SendOTLPIntakePayload sends a protobuf-encoded V4 stats payload to the Datadog backend.
+func (w *DatadogStatsWriter) SendOTLPIntakePayload(payload []byte) {
+	req := newPayload(map[string]string{
+		headerLanguages:    strings.Join(info.Languages(), "|"),
+		"Content-Type":     "application/x-protobuf",
+		"Content-Encoding": "gzip",
+		"Dd-Protocol":      "otlp",
+	})
+	gz, err := gzip.NewWriterLevel(req.body, gzip.BestSpeed)
+	if err != nil {
+		log.Errorf("OTLP stats encoding error: %v", err)
+		return
+	}
+	if _, err := gz.Write(payload); err != nil {
+		_ = gz.Close()
+		log.Errorf("OTLP stats encoding error: %v", err)
+		return
+	}
+	if err := gz.Close(); err != nil {
+		log.Errorf("OTLP stats encoding error: %v", err)
+		return
+	}
+	sendPayloads(w.senders, req, w.syncMode)
+}
+
 func (w *DatadogStatsWriter) sendPayloads() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
