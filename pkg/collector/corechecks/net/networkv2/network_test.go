@@ -2168,7 +2168,7 @@ func TestConntrackMonotonicCount(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: "/usr/bin/conntrack"
+conntrack_path: "/usr/sbin/conntrack"
 `)
 
 	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
@@ -2199,6 +2199,37 @@ conntrack_path: "/usr/bin/conntrack"
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
 }
 
+func TestConntrackPathAllowlist(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{"empty path is allowed", "", ""},
+		{"default usr sbin path is allowed", "/usr/sbin/conntrack", "/usr/sbin/conntrack"},
+		{"default sbin path is allowed", "/sbin/conntrack", "/sbin/conntrack"},
+		{"nix store path is allowed", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack"},
+		{"arbitrary path is rejected", "/usr/bin/conntrack", ""},
+		{"path traversal is rejected", "/nix/store/../../etc/passwd", ""},
+		{"command injection attempt is rejected", "/usr/sbin/conntrack; cat /etc/passwd", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+			networkCheck := createTestNetworkCheck(net)
+
+			rawInstanceConfig := []byte(`conntrack_path: "` + tt.path + `"`)
+			mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+
+			err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+			assert.Nil(t, err)
+
+			assert.Equal(t, tt.expected, networkCheck.config.instance.ConntrackPath)
+		})
+	}
+}
+
 func TestConntrackGaugeBlacklist(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
 	networkCheck := createTestNetworkCheck(net)
@@ -2206,7 +2237,7 @@ func TestConntrackGaugeBlacklist(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: "/usr/bin/conntrack"
+conntrack_path: "/usr/sbin/conntrack"
 whitelist_conntrack_metrics: ["max", "count"]
 blacklist_conntrack_metrics: ["count", "entries", "max"]
 `)
@@ -2248,7 +2279,7 @@ func TestConntrackGaugeWhitelist(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: "/usr/bin/conntrack"
+conntrack_path: "/usr/sbin/conntrack"
 whitelist_conntrack_metrics: ["max", "include"]
 `)
 
