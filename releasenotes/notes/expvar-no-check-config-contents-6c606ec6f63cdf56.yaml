@@ -1,6 +1,6 @@
 ---
-security:
+fixes:
   - |
-    The content of check config files is no longer shown in the ``inventories`` expvar, which is
-    served without authentication on the expvar port. The content is still sent to Datadog and is
+    The Agent no longer shows the content of check config files on its local expvar page.
+    This includes the configuration of JMX checks. The content is still sent to Datadog and
     still included in the flare.

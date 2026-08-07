@@ -249,7 +249,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		}
 	}
 
-	jmxMetadata := ic.getJMXChecksMetadata()
+	jmxMetadata := ic.getJMXChecksMetadata(withConfigs)
 	for checkName, checks := range jmxMetadata {
 		if _, ok := payloadData[checkName]; !ok {
 			payloadData[checkName] = []metadata{}
