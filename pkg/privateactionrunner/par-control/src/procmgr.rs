@@ -185,111 +185,15 @@ impl ExecutorLifecycle for ProcmgrLifecycle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use procmgr::process_manager_server::{ProcessManager, ProcessManagerServer};
-    use std::sync::{Arc, Mutex};
-    use tonic::{Request, Response, Status};
+    use crate::test_support::{FakeProcmgr, serve_procmgr};
+    use std::sync::Arc;
+    use tonic::Status;
 
     const TEST_PROCESS_NAME: &str = "datadog-agent-action-executor";
 
-    #[derive(Default)]
-    struct FakeProcmgr {
-        state: Mutex<Option<i32>>,
-        start_result: Mutex<Option<Status>>,
-        starts: Mutex<u32>,
-        stops: Mutex<u32>,
-        hang: bool,
-    }
-
-    /// Newtype so the trait impl has a local self type: under Bazel the generated
-    /// bindings live in a foreign crate, so implementing a foreign trait for
-    /// `Arc<FakeProcmgr>` would break the orphan rule even though it compiles
-    /// under `cargo`, where `include_proto!` generates the trait locally.
-    #[derive(Clone)]
-    struct FakeService(Arc<FakeProcmgr>);
-
-    #[tonic::async_trait]
-    impl ProcessManager for FakeService {
-        async fn describe(
-            &self,
-            _: Request<procmgr::DescribeRequest>,
-        ) -> Result<Response<procmgr::DescribeResponse>, Status> {
-            if self.0.hang {
-                tokio::time::sleep(Duration::from_secs(3600)).await;
-            }
-            let state = *self.0.state.lock().unwrap();
-            Ok(Response::new(procmgr::DescribeResponse {
-                detail: state.map(|state| procmgr::ProcessDetail {
-                    name: TEST_PROCESS_NAME.to_string(),
-                    state,
-                    ..Default::default()
-                }),
-            }))
-        }
-
-        async fn start(
-            &self,
-            _: Request<procmgr::StartRequest>,
-        ) -> Result<Response<procmgr::StartResponse>, Status> {
-            *self.0.starts.lock().unwrap() += 1;
-            if let Some(status) = self.0.start_result.lock().unwrap().clone() {
-                return Err(status);
-            }
-            Ok(Response::new(procmgr::StartResponse::default()))
-        }
-
-        async fn stop(
-            &self,
-            _: Request<procmgr::StopRequest>,
-        ) -> Result<Response<procmgr::StopResponse>, Status> {
-            *self.0.stops.lock().unwrap() += 1;
-            Ok(Response::new(procmgr::StopResponse::default()))
-        }
-
-        async fn list(
-            &self,
-            _: Request<procmgr::ListRequest>,
-        ) -> Result<Response<procmgr::ListResponse>, Status> {
-            Err(Status::unimplemented("list"))
-        }
-        async fn get_status(
-            &self,
-            _: Request<procmgr::GetStatusRequest>,
-        ) -> Result<Response<procmgr::GetStatusResponse>, Status> {
-            Err(Status::unimplemented("get_status"))
-        }
-        async fn create(
-            &self,
-            _: Request<procmgr::CreateRequest>,
-        ) -> Result<Response<procmgr::CreateResponse>, Status> {
-            Err(Status::unimplemented("create"))
-        }
-        async fn reload_config(
-            &self,
-            _: Request<procmgr::ReloadConfigRequest>,
-        ) -> Result<Response<procmgr::ReloadConfigResponse>, Status> {
-            Err(Status::unimplemented("reload_config"))
-        }
-        async fn get_config(
-            &self,
-            _: Request<procmgr::GetConfigRequest>,
-        ) -> Result<Response<procmgr::GetConfigResponse>, Status> {
-            Err(Status::unimplemented("get_config"))
-        }
-    }
-
     #[cfg(unix)]
-    async fn serve(fake: Arc<FakeProcmgr>) -> (ProcmgrLifecycle, tempfile::TempDir) {
-        use tokio_stream::wrappers::UnixListenerStream;
-
-        let dir = tempfile::tempdir().unwrap();
-        let socket = dir.path().join("dd-procmgrd.sock");
-        let listener = tokio::net::UnixListener::bind(&socket).unwrap();
-        tokio::spawn(async move {
-            let _ = tonic::transport::Server::builder()
-                .add_service(ProcessManagerServer::new(FakeService(fake)))
-                .serve_with_incoming(UnixListenerStream::new(listener))
-                .await;
-        });
+    async fn lifecycle_for(fake: Arc<FakeProcmgr>) -> (ProcmgrLifecycle, tempfile::TempDir) {
+        let (socket, dir) = serve_procmgr(fake).await;
         (
             ProcmgrLifecycle::new(&socket, TEST_PROCESS_NAME.to_string()),
             dir,
@@ -308,19 +212,15 @@ mod tests {
             procmgr::ProcessState::Running,
             procmgr::ProcessState::Stopping,
         ] {
-            let fake = Arc::new(FakeProcmgr {
-                state: Mutex::new(Some(state as i32)),
-                ..Default::default()
-            });
-            let (lifecycle, _dir) = serve(Arc::clone(&fake)).await;
+            let fake = FakeProcmgr::in_state(state);
+            let (lifecycle, _dir) = lifecycle_for(Arc::clone(&fake)).await;
 
             lifecycle
                 .ensure_started()
                 .await
                 .unwrap_or_else(|e| panic!("state {state:?} should be adopted: {e:#}"));
-            assert_eq!(
-                *fake.starts.lock().unwrap(),
-                0,
+            assert!(
+                fake.started().is_empty(),
                 "state {state:?} is alive; Start must not be issued"
             );
         }
@@ -330,29 +230,26 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn ensure_started_tolerates_a_start_race() {
-        let fake = Arc::new(FakeProcmgr {
-            state: Mutex::new(Some(procmgr::ProcessState::Exited as i32)),
-            start_result: Mutex::new(Some(Status::failed_precondition("already running"))),
-            ..Default::default()
-        });
-        let (lifecycle, _dir) = serve(Arc::clone(&fake)).await;
+        let fake = FakeProcmgr::failing_start(
+            procmgr::ProcessState::Exited,
+            Status::failed_precondition("already running"),
+        );
+        let (lifecycle, _dir) = lifecycle_for(Arc::clone(&fake)).await;
 
         lifecycle.ensure_started().await.expect("race is not fatal");
-        assert_eq!(*fake.starts.lock().unwrap(), 1);
+        assert_eq!(fake.started().len(), 1);
     }
 
     #[cfg(unix)]
     #[tokio::test]
     async fn ensure_started_propagates_other_failures() {
-        let fake = Arc::new(FakeProcmgr {
-            state: Mutex::new(Some(procmgr::ProcessState::Exited as i32)),
-            start_result: Mutex::new(Some(Status::not_found("no such process"))),
-            ..Default::default()
-        });
-        let (lifecycle, _dir) = serve(fake).await;
+        let fake = FakeProcmgr::failing_start(
+            procmgr::ProcessState::Exited,
+            Status::not_found("no such process"),
+        );
+        let (lifecycle, _dir) = lifecycle_for(fake).await;
 
-        let error = lifecycle.ensure_started().await.unwrap_err();
-        let rendered = format!("{error:#}");
+        let rendered = format!("{:#}", lifecycle.ensure_started().await.unwrap_err());
         assert!(rendered.contains("Start failed"), "{rendered}");
         assert!(rendered.contains("no such process"), "{rendered}");
     }
@@ -363,15 +260,10 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn rpcs_time_out_against_an_unresponsive_daemon() {
-        let fake = Arc::new(FakeProcmgr {
-            hang: true,
-            ..Default::default()
-        });
-        let (mut lifecycle, _dir) = serve(fake).await;
+        let (mut lifecycle, _dir) = lifecycle_for(FakeProcmgr::unresponsive()).await;
         lifecycle.rpc_timeout = Duration::from_millis(50);
 
-        let error = lifecycle.is_running().await.unwrap_err();
-        let rendered = format!("{error:#}");
+        let rendered = format!("{:#}", lifecycle.is_running().await.unwrap_err());
         assert!(rendered.contains("did not respond within"), "{rendered}");
     }
 
@@ -379,8 +271,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn reports_a_vanished_process_as_exited() {
-        let fake = Arc::new(FakeProcmgr::default());
-        let (lifecycle, _dir) = serve(fake).await;
+        let (lifecycle, _dir) = lifecycle_for(FakeProcmgr::vanished()).await;
 
         assert!(lifecycle.has_exited().await.unwrap());
         assert!(!lifecycle.is_running().await.unwrap());
