@@ -161,8 +161,8 @@
 /.gitlab/build/package_deps_build/package_deps_build.yml   @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/build/source_test/golang_deps_diff.yml            @DataDog/agent-runtimes
 /.gitlab/build/source_test/*                               @DataDog/agent-devx
-/.gitlab/build/source_test/linux.yml                       @DataDog/agent-devx
-/.gitlab/build/source_test/macos.yml                       @DataDog/agent-devx @DataDog/windows-products
+/.gitlab/build/source_test/linux.yml                       @DataDog/agent-devx @Datadog/agent-build
+/.gitlab/build/source_test/macos.yml                       @DataDog/agent-devx @Datadog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/notify.yml                      @DataDog/agent-devx
 /.gitlab/build/source_test/slack.yml                       @DataDog/agent-devx
 /.gitlab/build/source_test/tooling_unit_tests.yml          @DataDog/agent-devx
@@ -223,7 +223,7 @@
 /.gitlab/.pre/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-delivery
 
 /.gitlab/build/source_test/ebpf.yml                        @DataDog/ebpf-platform @DataDog/agent-devx
-/.gitlab/windows/build/source_test/windows.yml             @DataDog/agent-devx @DataDog/windows-products
+/.gitlab/windows/build/source_test/windows.yml             @DataDog/agent-devx @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/go_generate_check.yml           @DataDog/agent-security
 
 /.gitlab/build/package_build/                              @DataDog/agent-build
@@ -838,6 +838,7 @@
 /tasks/unit_tests/anomalydetection*.py  @DataDog/q-branch
 /tasks/loader.py                        @DataDog/agent-runtimes
 /tasks/go_deps.py                       @DataDog/agent-runtimes
+/tasks/gotest.py                        @DataDog/agent-devx @DataDog/agent-build
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
 /tasks/update_go.py                     @DataDog/agent-runtimes
 /tasks/python_version.py                @DataDog/agent-integrations
