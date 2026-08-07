@@ -123,6 +123,27 @@ func TestAnomalyLevel(t *testing.T) {
 	}
 }
 
+func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+
+	below := makeAnomaly("holt_residual", 1000, scorePtr(-1))
+	if got := contributorWeight(below, cfg); got != 0.2 {
+		t.Fatalf("weight below range = %g, want 0.2", got)
+	}
+
+	// 16 is halfway between holt_residual's medium (12) and high (20)
+	// thresholds, producing a severity of 2.5 rather than a discrete bucket.
+	middle := makeAnomaly("holt_residual", 1000, scorePtr(16))
+	if got := contributorWeight(middle, cfg); math.Abs(got-1.95) > 1e-9 {
+		t.Fatalf("weight at normalized severity 2.5 = %g, want 1.95", got)
+	}
+
+	above := makeAnomaly("holt_residual", 1000, scorePtr(100))
+	if got := contributorWeight(above, cfg); got != 3.0 {
+		t.Fatalf("weight above range = %g, want 3.0", got)
+	}
+}
+
 func TestTopAnomalyBuffer_OnlyTracksStorageBackedMetrics(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
 	buffer := newTopAnomalyBuffer()
@@ -171,7 +192,9 @@ func TestTopAnomalyBuffer_UsesScorerWeightsAndDeterministicOrder(t *testing.T) {
 	if buffer.entries[1].handle.Ref != 7 || buffer.entries[1].weight != levelWeights[4] {
 		t.Fatalf("unexpected second entry: %+v", buffer.entries[1])
 	}
-	if buffer.entries[2].handle.Ref != 42 || buffer.entries[2].weight != levelWeights[3] {
+	if buffer.entries[2].handle.Ref != 42 || buffer.entries[2].weight != contributorWeight(
+		observer.Anomaly{DetectorName: "holt_residual", Score: scorePtr(20)}, cfg,
+	) {
 		t.Fatalf("unexpected third entry: %+v", buffer.entries[2])
 	}
 }
