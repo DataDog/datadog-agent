@@ -548,6 +548,19 @@ workflow:
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
     - <<: *if_mergequeue
+    # ADP is shipped in every Agent package and exercised across several test suites.
+    # Treat an ADP version bump like a full pipeline so platform-specific regressions
+    # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
+    - changes:
+        paths:
+          - deps/agent_data_plane/agent_data_plane.MODULE.bazel
+        compare_to: $COMPARE_TO_BRANCH
+      variables:
+        RUN_ALL_BUILDS: "true"
+        RUN_E2E_TESTS: "on"
+        RUN_KMT_TESTS: "on"
+        RUN_UNIT_TESTS: "on"
+        SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path
         compare_to: main
