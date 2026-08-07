@@ -176,6 +176,13 @@ type Reader interface {
 	// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
 	AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64)
 
+	// GetHash returns a fingerprint of the effective configuration content. The
+	// result is cached and only recomputed when the config changes (tracked via
+	// the same sequence ID as AllFlattenedSettingsWithSequenceID), so it is safe
+	// to call frequently, and it reflects changes from any source, including
+	// Remote Config.
+	GetHash() string
+
 	// SetTestOnlyDynamicSchema is used by tests to disable validation of the config schema
 	// This lets tests use the config is more flexible ways (can add to the schema at any point,
 	// can modify env vars and the config will rebuild itself, etc)
