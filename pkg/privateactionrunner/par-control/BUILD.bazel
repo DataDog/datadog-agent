@@ -32,6 +32,7 @@ rust_library(
         "src/jwt.rs",
         "src/lib.rs",
         "src/opms.rs",
+        "src/orchestrator.rs",
         "src/platform.rs",
         "src/procmgr.rs",
         "src/proto.rs",
@@ -123,9 +124,12 @@ rust_test(
     }),
     rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    # Linux-only: on Windows, Bazel does not stage the Agent OpenSSL DLLs next
+    # to the rust_test executable, so it fails to load before main().
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "@crates//:tempfile",
+        "@crates//:tokio",
         "@crates//:tokio-stream",
     ],
 )
