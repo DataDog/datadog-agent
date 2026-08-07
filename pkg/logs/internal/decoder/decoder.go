@@ -265,6 +265,29 @@ func buildIsSourceDisabled(source *sources.ReplaceableSource) func() bool {
 	}
 }
 
+// buildSourceTag builds a closure resolving the low-cardinality `log_source`
+// telemetry tag for the adaptive sampler.
+//
+// This deliberately reads Config.Source rather than LogSource.Name: Name is a
+// per-tailer identifier (e.g. "<namespace>/<pod>/<container>" for Kubernetes pod
+// files) whose cardinality is unbounded, while Config.Source is the same value the
+// agent ships as ddsource — see message.Origin.Source().
+//
+// Origin.Source() resolves three tiers; only Config.Source is reachable here:
+//   - mappedSource (remap_source rule) is applied in the processor, downstream of
+//     the tailer, so logs remapped by that rule are attributed to their pre-remap
+//     source in sampler telemetry.
+//   - the parser-derived source is only ever set by the journald tailer, which runs
+//     a noop decoder and therefore never has a sampler.
+//
+// The value is read per-message through ReplaceableSource so a source swap (e.g. on
+// file rotation) is picked up.
+func buildSourceTag(source *sources.ReplaceableSource) func() string {
+	return func() string {
+		return source.Config().Source
+	}
+}
+
 type samplerMode int
 
 const (
@@ -405,11 +428,11 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	case samplerAdaptiveSampling:
 		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
-		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	case samplerNoisyLogDetection:
 		cfg := resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
-		sampler = preprocessor.NewAdaptiveSampler(cfg, source.UnderlyingSource().Name, baseBytesEstimate)
+		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	default:
 		sampler = preprocessor.NewNoopSampler()
 	}
