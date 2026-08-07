@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    gpu: Add NVLink fabric cluster UUID and clique ID to GPU tags (``gpu_fabric_cluster_uuid`` and ``gpu_fabric_clique_id``).
