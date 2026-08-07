@@ -344,7 +344,6 @@ variables:
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
   ATLASSIAN_WRITE: atlassian-write # agent-delivery
-  CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
