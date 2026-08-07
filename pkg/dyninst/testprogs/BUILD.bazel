@@ -25,7 +25,6 @@ dd_agent_go_test(
     embed = [":testprogs"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/ir",
         "@com_github_stretchr_testify//require",
