@@ -6,6 +6,7 @@
 package listeners
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -280,7 +281,7 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 			Name:          "openmetrics",
 			Provider:      names.File,
 			ADIdentifiers: []string{"redis"},
-			Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://%%host%%:9121/metrics")},
+			Instances:     []integration.Data{[]byte("namespace: redis\nopenmetrics_endpoint: http://%%host%%:9121/metrics")},
 			Source:        "file:openmetrics/conf.yaml",
 		}
 		configs := map[string]integration.Config{
@@ -290,15 +291,18 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		}
 		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
 		assert.NotContains(t, configs, discoveryTpl.Digest(),
-			"discovery template should be dropped when an openmetrics config matches the same service, even under a different Name")
+			"discovery template should be dropped when an openmetrics config matching its namespace matches the same service, even under a different Name")
 		assert.Contains(t, configs, openmetricsSibling.Digest(), "openmetrics config should be kept")
-		assert.NotContains(t, configs, unrelatedDiscoveryTpl.Digest(),
-			"unrelated discovery template should also be dropped: a generic integration match covers every integration")
+		assert.Contains(t, configs, unrelatedDiscoveryTpl.Digest(),
+			"unrelated discovery template should be kept: the match is scoped to the redis namespace, not every integration")
 	})
 
-	t.Run("discovery dropped when generic integration is configured host-wide", func(t *testing.T) {
+	t.Run("discovery dropped when generic integration is configured host-wide with a matching namespace root", func(t *testing.T) {
+		// Simulates a static prometheus config with `namespace: redis`,
+		// whose root ("redis") the config manager would add to the same
+		// staticConfigIndex used for name-based matching.
 		idx := NewStaticConfigIndex()
-		idx.Add("prometheus")
+		idx.Add("redis")
 
 		configs := map[string]integration.Config{
 			discoveryTpl.Digest():          discoveryTpl,
@@ -306,9 +310,9 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		}
 		mkSvc(idx).FilterTemplates(configs)
 		assert.NotContains(t, configs, discoveryTpl.Digest(),
-			"discovery template should be dropped when a prometheus config is scheduled host-wide")
-		assert.NotContains(t, configs, unrelatedDiscoveryTpl.Digest(),
-			"unrelated discovery template should also be dropped: a generic integration match covers every integration")
+			"discovery template should be dropped when a prometheus config with a matching namespace root is scheduled host-wide")
+		assert.Contains(t, configs, unrelatedDiscoveryTpl.Digest(),
+			"unrelated discovery template should be kept: the match is scoped to the redis namespace, not every integration")
 	})
 
 	t.Run("instrumentation check overrides matched file check", func(t *testing.T) {
@@ -356,6 +360,163 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
 		assert.Contains(t, configs, fileTpl.Digest(), "file template should be kept when instrumentation check does not match the service")
 		assert.NotContains(t, configs, instrTpl.Digest(), "non-matching instrumentation template should be dropped")
+	})
+
+	krakendDiscoveryTpl := integration.Config{
+		Name:          "krakend",
+		Provider:      names.File,
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:krakend/auto_conf.yaml",
+	}
+
+	genericSiblingWithNamespace := func(namespace string) integration.Config {
+		cfg := integration.Config{
+			Name:          "openmetrics",
+			Provider:      names.KubeContainer,
+			ADIdentifiers: []string{"container-1"},
+			Instances:     []integration.Data{[]byte(fmt.Sprintf("namespace: %s\nopenmetrics_endpoint: http://1.2.3.4:9091/metrics", namespace))},
+			Source:        "container:docker://container-1",
+		}
+		return cfg
+	}
+
+	t.Run("discovery dropped when sibling generic integration matches expected namespace", func(t *testing.T) {
+		sibling := genericSiblingWithNamespace("krakend.api")
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+			sibling.Digest():             sibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be dropped when a sibling openmetrics config claims a rooted-in namespace")
+		assert.Contains(t, configs, sibling.Digest(), "sibling should be kept")
+	})
+
+	t.Run("discovery kept when sibling generic integration namespace does not match", func(t *testing.T) {
+		sibling := genericSiblingWithNamespace("myapp")
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+			sibling.Digest():             sibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be kept when the sibling's namespace doesn't match")
+	})
+
+	t.Run("discovery kept when generic sibling sets no namespace at all", func(t *testing.T) {
+		sibling := integration.Config{
+			Name:          "openmetrics",
+			Provider:      names.KubeContainer,
+			ADIdentifiers: []string{"container-1"},
+			Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://1.2.3.4:9091/metrics")},
+			Source:        "container:docker://container-1",
+		}
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+			sibling.Digest():             sibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be kept when the sibling has no explicit namespace to compare")
+	})
+
+	t.Run("discovery dropped when sibling has no namespace but renames a metric to the fully-qualified name", func(t *testing.T) {
+		// With no namespace set, an explicit metrics: rename target is
+		// submitted completely unprefixed, so a rename to
+		// "krakend.api...." collides with krakend's own metrics exactly the
+		// same way a matching namespace: field would.
+		sibling := integration.Config{
+			Name:          "openmetrics",
+			Provider:      names.KubeContainer,
+			ADIdentifiers: []string{"container-1"},
+			Instances: []integration.Data{[]byte(
+				"openmetrics_endpoint: http://1.2.3.4:9091/metrics\n" +
+					"metrics:\n  - krakend_requests_total: krakend.api.requests_total",
+			)},
+			Source: "container:docker://container-1",
+		}
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+			sibling.Digest():             sibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be dropped when a namespace-less sibling renames a metric to krakend's own namespace")
+	})
+
+	t.Run("discovery kept when sibling has a namespace and also renames a metric to a matching name", func(t *testing.T) {
+		// The rename target only matters when namespace is unset -- when
+		// namespace is set, it's prepended on top of the rename target
+		// regardless, so this isn't a real collision.
+		sibling := integration.Config{
+			Name:          "openmetrics",
+			Provider:      names.KubeContainer,
+			ADIdentifiers: []string{"container-1"},
+			Instances: []integration.Data{[]byte(
+				"namespace: myapp\nopenmetrics_endpoint: http://1.2.3.4:9091/metrics\n" +
+					"metrics:\n  - krakend_requests_total: krakend.api.requests_total",
+			)},
+			Source: "container:docker://container-1",
+		}
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+			sibling.Digest():             sibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be kept: sibling's namespace is prepended regardless of the rename target")
+	})
+
+	t.Run("discovery dropped when static config index has a rooted-in namespace match", func(t *testing.T) {
+		// The config manager adds the *root* of a static generic-integration
+		// config's namespace (see listeners.NamespaceRoot) to the same
+		// StaticConfigIndex used for name-based matching, so simulate that
+		// here by adding the root directly rather than the raw "krakend.api".
+		idx := NewStaticConfigIndex()
+		idx.Add("krakend")
+
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be dropped when a host-wide static generic-integration config claims a rooted-in namespace")
+	})
+
+	t.Run("discovery kept when static config index has no matching namespace root", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("myapp")
+
+		configs := map[string]integration.Config{
+			krakendDiscoveryTpl.Digest(): krakendDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.Contains(t, configs, krakendDiscoveryTpl.Digest(),
+			"discovery template should be kept when no tracked namespace root matches")
+	})
+
+	t.Run("known gap: namespace divergent from check name is not detected without a map", func(t *testing.T) {
+		// zk's own metrics use the "zookeeper" namespace, not "zk". Without a
+		// hard-coded check-name-to-namespace override map (deliberately
+		// dropped in favor of assuming an integration's namespace root equals
+		// its check name), this divergence isn't detected: it's an accepted,
+		// documented gap rather than a silent regression.
+		zkDiscoveryTpl := integration.Config{
+			Name:          "zk",
+			Provider:      names.File,
+			ADIdentifiers: []string{"zk"},
+			Discovery:     &integration.DiscoveryConfig{},
+			Source:        "file:zk/auto_conf.yaml",
+		}
+		sibling := genericSiblingWithNamespace("zookeeper")
+		configs := map[string]integration.Config{
+			zkDiscoveryTpl.Digest(): zkDiscoveryTpl,
+			sibling.Digest():        sibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, zkDiscoveryTpl.Digest(),
+			"zk's discovery template is kept even though a sibling claims the 'zookeeper' namespace, since 'zk' != 'zookeeper' without an override map")
 	})
 }
 
