@@ -56,7 +56,7 @@ type RollbackConfigOutputs struct {
 	Success        bool                 `json:"success,omitempty"`
 	CommandResults *ncmtypes.PushResult `json:"command_results"`
 	Error          string               `json:"error,omitempty"`
-	ErrorCode      string               `json:"error_code"`
+	ErrorCode      string               `json:"error_code,omitempty"`
 	FinishedAt     *time.Time           `json:"finished_at,omitempty"`
 }
 
