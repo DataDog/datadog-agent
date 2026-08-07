@@ -42,7 +42,7 @@ impl Config {
         let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
         let fleet_policies_dir =
             env_string(env, "DD_FLEET_POLICIES_DIR", raw.fleet_policies_dir.clone())
-                .or_else(platform_fleet_policies_dir);
+                .or_else(crate::platform::fleet_policies_dir);
         let fleet = fleet_policies_dir
             .as_deref()
             .map(read_fleet_policy)
@@ -80,27 +80,6 @@ impl Config {
 /// Load the Fleet Automation policy layered over the local configuration.
 /// A missing policy file is equivalent to an empty policy, matching the Agent
 /// config component's `MergeFleetPolicy` behavior.
-#[cfg(windows)]
-fn platform_fleet_policies_dir() -> Option<String> {
-    use windows_registry::LOCAL_MACHINE;
-    use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
-
-    LOCAL_MACHINE
-        .options()
-        .read()
-        .access(KEY_WOW64_64KEY)
-        .open(r"SOFTWARE\Datadog\Datadog Agent")
-        .ok()?
-        .get_string("fleet_policies_dir")
-        .ok()
-        .filter(|value| !value.is_empty())
-}
-
-#[cfg(not(windows))]
-fn platform_fleet_policies_dir() -> Option<String> {
-    None
-}
-
 fn read_fleet_policy(dir: &str) -> Result<Option<RawConfig>> {
     if dir.is_empty() {
         return Ok(None);

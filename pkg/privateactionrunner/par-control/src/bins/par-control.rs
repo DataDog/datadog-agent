@@ -5,27 +5,35 @@
 
 //! par-control installation and executor-lifecycle scaffold.
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use clap::Parser;
 use par_control::config::Config;
+use par_control::platform;
 use par_control::procmgr::ProcmgrLifecycle;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::process::ExitCode;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    #[arg(short = 'c', long, default_value = "/etc/datadog-agent/datadog.yaml")]
+    #[arg(short = 'c', long, default_value = platform::default_config_path())]
     config: PathBuf,
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let result = run().await;
-    if let Err(error) = &result {
-        log::error!("par-control failed: {error:#}");
-    }
+async fn main() -> ExitCode {
+    // Report the failure through the logger only. Returning `Err` from `main`
+    // would also have anyhow print it to stderr, which dd-procmgrd captures
+    // alongside the log, duplicating every failure.
+    let code = match run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            log::error!("par-control failed: {error:#}");
+            ExitCode::FAILURE
+        }
+    };
     log::logger().flush();
-    result
+    code
 }
 
 async fn run() -> Result<()> {
@@ -40,7 +48,7 @@ async fn run() -> Result<()> {
         // The logger API requires a Level. Use Error for Off during
         // initialization, then apply the exact filter below.
         level: log_level.to_level().unwrap_or(log::Level::Error),
-        log_file: log_file_for_config(&cli.config),
+        log_file: platform::default_log_file(),
     }) {
         eprintln!("par-control: could not initialize the logger: {error}");
     }
@@ -52,18 +60,26 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
-    let lifecycle = ProcmgrLifecycle::new();
+    let lifecycle = ProcmgrLifecycle::from_env();
     lifecycle.ensure_started().await?;
 
     tokio::select! {
         _ = shutdown_signal() => {
-            // dd-procmgrd may be synchronously waiting for par-control to exit, so
-            // don't call back into it. It owns the executor and stops both processes.
+            // Do not call back into dd-procmgrd here. It serializes every RPC
+            // through the loop in `ProcessManager::run`, and by the time we get
+            // a stop signal that loop is either gone (daemon shutdown stops the
+            // gRPC server before stopping processes) or blocked holding the
+            // process write lock inside `handle_stop`, waiting for this very
+            // process to exit. Either way an RPC would deadlock until
+            // `stop_timeout` expires and the job object kills us. dd-procmgrd
+            // owns both processes and stops the executor itself.
             log::info!("par-control is exiting");
             Ok(())
         }
-        state = lifecycle.wait_for_exit() => {
-            bail!("executor exited unexpectedly with state {:?}", state?);
+        state = lifecycle.wait_for_failure() => {
+            // Only a genuine failure lands here; a clean exit or an explicit stop
+            // is the on-demand executor's normal idle path.
+            Err(anyhow::anyhow!("executor failed with state {:?}", state?))
         }
     }
 }
@@ -82,20 +98,6 @@ async fn shutdown_signal() {
             let _ = tokio::signal::ctrl_c().await;
         }
     }
-}
-
-// Windows services normally have no inheritable stdout/stderr handles. Persist
-// control-plane diagnostics next to the other Agent logs instead of letting
-// dd-procmgrd redirect them to the null device.
-#[cfg(windows)]
-fn log_file_for_config(config_path: &Path) -> Option<PathBuf> {
-    let config_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
-    Some(config_dir.join("logs").join("par-control.log"))
-}
-
-#[cfg(not(windows))]
-fn log_file_for_config(_config_path: &Path) -> Option<PathBuf> {
-    None
 }
 
 /// dd-procmgrd stops children with `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`
