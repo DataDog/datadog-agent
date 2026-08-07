@@ -31,10 +31,16 @@ func TestWritePARProcmgrConfigs(t *testing.T) {
 	control := readProcmgrConfig(t, installRoot, parControlProcmgrConfigName)
 	assert.Contains(t, control, "${DD_CONF_DIR}/datadog.yaml")
 	assert.Contains(t, control, filepath.Join(installRoot, "embedded", "bin", "par-control"))
+	// Split mode cannot rely on the monolithic runner to resolve effective config
+	// or self-enroll, so both bootstrap commands must remain packaged.
+	assert.Contains(t, control, "--config-helper")
+	assert.Contains(t, control, "--enroll-command")
+	assert.Contains(t, control, filepath.Join(installRoot, "embedded", "bin", "privateactionrunner"))
+	assert.Contains(t, control, "DD_FLEET_POLICIES_DIR:")
 	// The control plane is always on: procmgr starts it with the Agent and restarts
 	// it on crash. on-failure ignores the clean exit taken when split mode is off.
 	assert.Contains(t, control, "auto_start: true")
-	assert.Contains(t, control, "stop_timeout: 30")
+	assert.Contains(t, control, "stop_timeout: 180")
 	assert.Contains(t, control, "restart: on-failure")
 	assert.NotContains(t, control, "/opt/datadog-agent/")
 }

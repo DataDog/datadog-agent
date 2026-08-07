@@ -23,10 +23,11 @@ import (
 // to receive tasks; tests use /fakeintake/par/* control endpoints to enqueue tasks and
 // read back results without needing a real OPMS backend.
 type parServerState struct {
-	mu           sync.Mutex
-	queue        []parQueuedTask
-	results      map[string]*api.PARTaskResult
-	dequeueCalls int // counts how many times PAR has called the dequeue endpoint
+	mu               sync.Mutex
+	queue            []parQueuedTask
+	results          map[string]*api.PARTaskResult
+	dequeueCalls     int // counts how many times PAR has called the dequeue endpoint
+	healthCheckCalls int // counts how many times PAR has reported runner liveness
 }
 
 type parQueuedTask struct {
@@ -264,6 +265,10 @@ func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {
 }
 
 func (fi *Server) handlePARHealthCheck(w http.ResponseWriter, _ *http.Request) {
+	fi.par.mu.Lock()
+	fi.par.healthCheckCalls++
+	fi.par.mu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"data": map[string]interface{}{
@@ -326,16 +331,21 @@ func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 	fi.par.queue = nil
 	fi.par.results = make(map[string]*api.PARTaskResult)
 	fi.par.dequeueCalls = 0
+	fi.par.healthCheckCalls = 0
 	fi.par.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
 
 func (fi *Server) handlePARStats(w http.ResponseWriter, _ *http.Request) {
 	fi.par.mu.Lock()
-	calls := fi.par.dequeueCalls
+	dequeueCalls := fi.par.dequeueCalls
+	healthCheckCalls := fi.par.healthCheckCalls
 	fi.par.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]int{"dequeue_calls": calls})
+	_ = json.NewEncoder(w).Encode(map[string]int{
+		"dequeue_calls":      dequeueCalls,
+		"health_check_calls": healthCheckCalls,
+	})
 }
 
 // parSplitFQN splits "com.foo.bar.actionName" into ("com.foo.bar", "actionName").
