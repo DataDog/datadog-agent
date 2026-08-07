@@ -146,6 +146,37 @@ func logRatePart(a observerdef.Anomaly, storage observerdef.StorageReader) strin
 	return fmt.Sprintf("\n\trate: %.1flog/s", curr)
 }
 
+// formatScorerContributorMessage resolves a scorer episode's compact handles
+// only when rendering the report. Entries whose backing series was evicted are
+// omitted without affecting the shares captured at episode start.
+func formatScorerContributorMessage(contributors []observerdef.ScorerContributor, storage observerdef.StorageReader) string {
+	if storage == nil || len(contributors) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("Top contributing metrics:")
+	position := 0
+	for _, contributor := range contributors {
+		meta := storage.GetSeriesMeta(contributor.Handle.Ref)
+		if meta == nil {
+			continue
+		}
+		position++
+		display := observerdef.SeriesDescriptor{
+			Namespace: meta.Namespace,
+			Name:      meta.Name,
+			Tags:      meta.Tags,
+			Aggregate: contributor.Handle.Aggregate,
+		}.DisplayName()
+		fmt.Fprintf(&b, "\n%d. %s — %.0f%%", position, display, contributor.Share*100)
+	}
+	if position == 0 {
+		return ""
+	}
+	return b.String()
+}
+
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	msg := BuildChangeMessage(c, s.storage)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
@@ -188,8 +219,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
-	msg := fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
-		evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+	msg := formatScorerContributorMessage(evt.Contributors, s.storage)
 
 	var host string
 	if s.hostname != nil {
