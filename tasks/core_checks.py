@@ -62,6 +62,7 @@ AIX_CORECHECKS = [
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "battery",
     "sbom",
     "thermal",
     "windows_registry",
@@ -70,6 +71,7 @@ WINDOWS_CORECHECKS = [
     "windows_certificate",
     "winproc",
     "win32_event_log",
+    "wlan",
 ]
 
 MACOS_CORECHECKS = [
