@@ -24,7 +24,6 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
 
@@ -41,10 +40,10 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 }
 
 // newTestClient builds a client wired to the given httptest server.
-// It sets DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION so endpointURL uses plain HTTP.
+// srv.URL is an http:// address, which endpointURL uses directly instead of
+// the default https://<DDApiHost>.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
-	t.Setenv(app.InternalSkipTaskVerificationEnvVar, "true")
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{

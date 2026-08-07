@@ -18,7 +18,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testRunnerURN = "urn:dd:apps:on-prem-runner:us1:123456:test-runner-e2e"
+const (
+	testRunnerURN = "urn:dd:apps:on-prem-runner:us1:123456:test-runner-e2e"
+
+	// testRunnerOrgID and testRunnerRunnerID are the org/runner ID segments encoded in
+	// testRunnerURN, exposed separately for callers (e.g. fakeintake task signing) that
+	// need to match the identity without parsing the URN themselves.
+	testRunnerOrgID    int64 = 123456
+	testRunnerRunnerID       = "test-runner-e2e"
+)
 
 // GenerateTestRunnerIdentity generates a fresh ECDSA key pair and returns the
 // runner URN and base64-encoded private JWK for agent config or Helm values.

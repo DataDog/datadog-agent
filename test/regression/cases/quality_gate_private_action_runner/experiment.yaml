@@ -19,9 +19,6 @@ target:
     ENTRYPOINT: privateactionrunner
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
-    # Internal test-only switch used by PAR e2e tests. It lets the runner use
-    # the local HTTP dd_url for OPMS polling instead of the real HTTPS API host.
-    DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION: "true"
     # Expose /telemetry so SMP can capture Go runtime metrics for the runner.
     DD_INTERNAL_PAR_ENABLE_TELEMETRY: "true"
 
