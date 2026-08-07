@@ -35,9 +35,8 @@ const (
 	rcMaxReconnectDelay     = 30 * time.Second
 
 	// defaultScanInterval is the delay between the end of one process scan and
-	// the start of the next, so how long a scan took never feeds back into when
-	// the following one starts. It is also the delay before the first retry of
-	// a process whose tracer metadata could not be read, so that retry lands on
+	// the start of the next. It is also the delay before the first retry of a
+	// process whose tracer metadata could not be read, so that retry lands on
 	// the next scan.
 	//
 	// Every process on the host costs a stat read on every scan, which is
@@ -45,6 +44,20 @@ const (
 	// seconds. Five buys most of that back for two extra seconds of discovery
 	// latency.
 	defaultScanInterval = 5 * time.Second
+
+	// minScanRestMultiple floors the delay after a scan at this multiple of how
+	// long that scan took, bounding the loop at roughly one twentieth of a core
+	// however slow a scan becomes. Nothing else bounds it: a scan reads every
+	// process' start time and searches the open descriptors of those due for a
+	// retry, and neither the number of processes on a host nor the number of
+	// descriptors any one of them holds is under the scanner's control.
+	//
+	// This is a safety valve, not a schedule. A scan at two thousand processes
+	// takes tens of milliseconds, so twenty times that is well inside
+	// defaultScanInterval and the delay is exactly that constant. The floor
+	// engages only once a scan is slow enough that resting the interval would
+	// cost more than the budget.
+	minScanRestMultiple = 20
 )
 
 type config struct {
@@ -235,9 +248,10 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 		} else if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("process subscriber: onScanUpdate: no changes")
 		}
+		took := s.clk.Since(start)
 		s.stats.scans.Add(1)
-		s.stats.scanDurationMillis.Store(s.clk.Since(start).Milliseconds())
-		next = s.scanInterval
+		s.stats.scanDurationMillis.Store(took.Milliseconds())
+		next = max(s.scanInterval, minScanRestMultiple*took)
 	}
 }
 

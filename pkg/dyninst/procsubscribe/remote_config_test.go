@@ -571,16 +571,19 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 }
 
 // Scans happen on a fixed interval. How long a scan took does not feed back
-// into when the next one starts, so a slow scan cannot delay discovery for
-// everything else on the host.
+// into when the next one starts, so an ordinary scan cannot delay discovery for
+// everything else on the host. TestSlowScansAreThrottled covers the one case
+// where the duration does feed back.
 func TestScanIntervalIsFixed(t *testing.T) {
 	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	mockClock := clock.NewMock()
-	// A scan slow enough that any duration-derived penalty would be obvious.
+	// Slow enough that a penalty proportional to the scan would be obvious, and
+	// far enough inside the rest budget that the floor does not engage.
+	scanDuration := procsubscribe.DefaultScanInterval / procsubscribe.MinScanRestMultiple / 10
 	scanner := procsubscribe.ProcessScannerFunc(
 		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
-			mockClock.Add(time.Second)
+			mockClock.Add(scanDuration)
 			return nil, nil, nil
 		},
 	)
@@ -599,9 +602,43 @@ func TestScanIntervalIsFixed(t *testing.T) {
 	w1.Close()
 	w2.Close()
 	<-streams
-	// Two intervals, to show the delay does not creep as slow scans accumulate.
+	// Two intervals, to show the delay does not creep as scans accumulate.
 	waitRequests.expect(t, procsubscribe.DefaultScanInterval).Close()
 	waitRequests.expect(t, procsubscribe.DefaultScanInterval)
+}
+
+// A scan slow enough that resting the fixed interval would spend more than the
+// loop's share of a core rests a multiple of its own duration instead, so
+// scanning stays bounded however slow a scan gets.
+func TestSlowScansAreThrottled(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	scanDuration := procsubscribe.DefaultScanInterval
+	scanner := procsubscribe.ProcessScannerFunc(
+		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
+			mockClock.Add(scanDuration)
+			return nil, nil, nil
+		},
+	)
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	waitRequests := make(waitRequestChan)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithWaitFunc(waitRequests.Wait),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Start()
+
+	w1, w2 := waitRequests.expect(t, 0), waitRequests.expect(t, 0)
+	w1.Close()
+	w2.Close()
+	<-streams
+	rest := procsubscribe.MinScanRestMultiple * scanDuration
+	waitRequests.expect(t, rest).Close()
+	waitRequests.expect(t, rest)
 }
 
 func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
