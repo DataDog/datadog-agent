@@ -156,14 +156,10 @@ type stdRand struct{}
 
 func (stdRand) Float64() float64 { return rand.Float64() }
 
-func metricsEndpointFor(kind metricsKind, useV3 bool, config config.Component) transaction.Endpoint {
+func metricsEndpointFor(kind metricsKind, useV3 bool) transaction.Endpoint {
 	switch kind {
 	case metricsKindSeries:
 		if useV3 {
-			if config.GetBool("serializer_experimental_use_v3_api.series.use_beta") {
-				route := config.GetString("serializer_experimental_use_v3_api.series.beta_route")
-				return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSeriesEndpoint.Name}
-			}
 			return endpoints.V3SeriesEndpoint
 		}
 		return endpoints.SeriesEndpoint
@@ -203,13 +199,13 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 
 		dest := metrics.PipelineDestination{
 			Resolver: resolver,
-			Endpoint: metricsEndpointFor(kind, useV3, s.config),
+			Endpoint: metricsEndpointFor(kind, useV3),
 		}
 
 		switch {
 		case resolver.IsLocal():
 			// Cluster agent only speaks v2
-			dest.Endpoint = metricsEndpointFor(kind, false, s.config)
+			dest.Endpoint = metricsEndpointFor(kind, false)
 
 			if autoscalingFilter != nil && kind == metricsKindSeries {
 				conf := metrics.PipelineConfig{

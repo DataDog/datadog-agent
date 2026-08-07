@@ -393,64 +393,6 @@ func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 	}
 }
 
-func TestBuildPipelinesWithV3Beta(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "http://example.test")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
-	config.SetInTest("serializer_experimental_use_v3_api.series.use_beta", true)
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelines(metricsKindSeries)
-	require.Len(t, pipelines, 1)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-		assert.True(t, conf.V3)
-		assert.Equal(t, endpoints.V3BetaSeriesEndpoint, dest.Endpoint)
-	}
-}
-
-func TestBuildPipelinesWithV3BetaCustomRoute(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "http://example.test")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
-	config.SetInTest("serializer_experimental_use_v3_api.series.use_beta", true)
-	config.SetInTest("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/custom/series")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelines(metricsKindSeries)
-	require.Len(t, pipelines, 1)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-		assert.True(t, conf.V3)
-		assert.Equal(t, "/api/intake/metrics/custom/series", dest.Endpoint.Route)
-		assert.Equal(t, endpoints.V3BetaSeriesEndpoint.Name, dest.Endpoint.Name)
-	}
-}
-
 // fixedRand is a deterministic prng that returns a fixed value, used to make
 // shadow-sampling decisions reproducible in tests.
 type fixedRand struct{ v float64 }
@@ -532,6 +474,40 @@ outer:
 			require.Equal(t, "/api/intake/metrics/v3beta/series", dest.Endpoint.Route)
 			require.Equal(t, endpoints.V3BetaSeriesEndpoint.Name, dest.Endpoint.Name)
 			require.Equal(t, batchID, dest.ValidationBatchID)
+		},
+	)
+}
+
+func TestBuildPipelinesShadowCustomRoute(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0.5)
+	config.SetInTest("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/custom/series")
+	config.SetInTest("use_v3_api.series.enabled", "false")
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0.4})
+
+	testutil.ElementsMatchFn(t, maps.All(pipelines),
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.False(t, conf.V3, "V3")
+			require.Len(t, ctx.Destinations, 1)
+			require.Equal(t, endpoints.SeriesEndpoint, ctx.Destinations[0].Endpoint)
+		},
+		// the shadow route follows beta_route, not the v3beta default.
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.True(t, conf.V3, "V3")
+			require.Len(t, ctx.Destinations, 1)
+			dest := ctx.Destinations[0]
+			require.Equal(t, "/api/intake/metrics/custom/series", dest.Endpoint.Route)
+			require.Equal(t, endpoints.V3BetaSeriesEndpoint.Name, dest.Endpoint.Name)
 		},
 	)
 }
