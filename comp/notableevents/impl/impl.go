@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows || darwin
+//go:build windows
 
 // Package notableeventsimpl implements the notable events component
 package notableeventsimpl
@@ -14,7 +14,6 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	notableevents "github.com/DataDog/datadog-agent/comp/notableevents/def"
@@ -23,12 +22,11 @@ import (
 
 // Requires defines the dependencies for the notable events component
 type Requires struct {
-	Lc             compdef.Lifecycle
-	Config         configcomp.Component
-	Log            logcomp.Component
-	SysprobeConfig sysprobeconfig.Component
-	EventPlatform  eventplatform.Component
-	Hostname       hostname.Component
+	Lc            compdef.Lifecycle
+	Config        configcomp.Component
+	Log           logcomp.Component
+	EventPlatform eventplatform.Component
+	Hostname      hostname.Component
 }
 
 // Provides defines what this component provides
@@ -64,7 +62,7 @@ func NewComponent(reqs Requires) Provides {
 	eventChan := make(chan eventPayload)
 
 	// Create collector and submitter
-	collector, err := newPlatformCollector(eventChan, reqs.SysprobeConfig)
+	collector, err := newCollector(eventChan)
 	if err != nil {
 		log.Errorf("Failed to create notable events collector: %v", err)
 		return Provides{

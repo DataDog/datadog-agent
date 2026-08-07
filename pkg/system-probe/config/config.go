@@ -41,7 +41,6 @@ const (
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
-	NotableEventsModule          types.ModuleName = "notable_events"
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
@@ -214,9 +213,6 @@ func load() (*types.Config, error) {
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
-		}
-		if runtime.GOOS == "darwin" && coreCfg.GetBool("notable_events.enabled") {
-			c.EnabledModules[NotableEventsModule] = struct{}{}
 		}
 
 		// injector telemetry is enabled by default, disable only if explicitly configured by the user
