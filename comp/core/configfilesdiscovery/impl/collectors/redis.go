@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
@@ -23,6 +25,17 @@ const (
 
 type redisConfigCollector struct{}
 
+var redisEnvAllow = []*regexp.Regexp{
+	regexp.MustCompile(`^REDIS_[A-Z0-9_]+$`),
+}
+
+var redisEnvDeny = []*regexp.Regexp{
+	// Option bags can contain arbitrary Redis arguments and inline credentials.
+	regexp.MustCompile(`^REDIS(_[A-Z0-9]+)*_(ARGS|OPTS|FLAGS)$`),
+	// Connection strings can contain usernames and passwords.
+	regexp.MustCompile(`^REDIS(_[A-Z0-9]+)*_(URL|URI|DSN|CONNECTION_STRING)$`),
+}
+
 func NewRedis() configfilesdiscoveryimpl.ConfigCollector {
 	return redisConfigCollector{}
 }
@@ -33,10 +46,32 @@ func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdis
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read redis command line: %w", err)
 	}
 
+	env, envErr := reader.ReadEnvVars(ctx, includeRedisEnvVar)
+	if envErr != nil {
+		log.Debugf("config files discovery skipped redis env var collection: %v", envErr)
+		env = nil
+	}
+	envVars := redisBuildEnvVars(env)
+
 	configPath, ok := redisGetConfigPath(commandline)
 	if !ok {
-		log.Debugf("config files discovery skipped redis config collection: no explicit config file path detected")
-		return configfilesdiscoveryimpl.CollectedConfig{}, nil
+		configPath, ok = resolveConfigPath(env["REDIS_CONF_FILE"], commandline.WorkingDir)
+	}
+	if !ok {
+		// Without a config file path, env vars are the only Redis config source.
+		// Return the error so the scheduler retries.
+		if envErr != nil {
+			return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read redis env vars: %w", envErr)
+		}
+		if len(envVars) == 0 {
+			log.Debugf("config files discovery skipped redis config collection: no explicit config file path or selected env vars detected")
+			return configfilesdiscoveryimpl.CollectedConfig{}, nil
+		}
+
+		log.Debugf("config files discovery collected redis env vars without an explicit config file path")
+		return configfilesdiscoveryimpl.CollectedConfig{
+			EnvVars: envVars,
+		}, nil
 	}
 
 	file, err := reader.ReadFile(ctx, configPath)
@@ -47,7 +82,53 @@ func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdis
 
 	return configfilesdiscoveryimpl.CollectedConfig{
 		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
+		EnvVars:     envVars,
 	}, nil
+}
+
+func redisBuildEnvVars(env map[string]string) []configfilesdiscoveryimpl.ConfigEnvVar {
+	if len(env) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(env))
+	for name := range env {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	envVars := make([]configfilesdiscoveryimpl.ConfigEnvVar, 0, len(env))
+	for _, name := range names {
+		envVars = append(envVars, configfilesdiscoveryimpl.ConfigEnvVar{
+			Name:  name,
+			Value: env[name],
+		})
+	}
+	return envVars
+}
+
+func includeRedisEnvVar(name string) bool {
+	if configfilesdiscoveryimpl.IsSecretEnvVarName(name) || denyRedisEnvVar(name) {
+		return false
+	}
+	if name == "OPENSSL_FIPS" {
+		return true
+	}
+	for _, re := range redisEnvAllow {
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func denyRedisEnvVar(name string) bool {
+	for _, re := range redisEnvDeny {
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
 }
 
 // redisGetConfigPath returns the explicit config file path passed to

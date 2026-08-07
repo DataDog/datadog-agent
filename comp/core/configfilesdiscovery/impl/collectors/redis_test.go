@@ -126,6 +126,46 @@ func TestRedisGetConfigPath(t *testing.T) {
 	}
 }
 
+func TestIncludeRedisEnvVar(t *testing.T) {
+	tests := []struct {
+		name    string
+		envName string
+		want    bool
+	}{
+		{name: "bitnami config", envName: "REDIS_AOF_ENABLED", want: true},
+		{name: "config file", envName: "REDIS_CONF_FILE", want: true},
+		{name: "cluster config", envName: "REDIS_CLUSTER_ANNOUNCE_HOSTNAME", want: true},
+		{name: "read only image config", envName: "REDIS_DEFAULT_CONF_DIR", want: true},
+		{name: "fips config", envName: "OPENSSL_FIPS", want: true},
+		{name: "unrelated", envName: "UNREQUESTED"},
+		{name: "lowercase", envName: "REDIS_port"},
+		{name: "password", envName: "REDIS_PASSWORD"},
+		{name: "password file", envName: "REDIS_MASTER_PASSWORD_FILE"},
+		{name: "allow empty password", envName: "ALLOW_EMPTY_PASSWORD"},
+		{name: "tls key file", envName: "REDIS_TLS_KEY_FILE"},
+		{name: "redis cli auth", envName: "REDISCLI_AUTH"},
+		{name: "redis args", envName: "REDIS_ARGS"},
+		{name: "extra flags", envName: "REDIS_EXTRA_FLAGS"},
+		{name: "custom opts", envName: "REDIS_CUSTOM_OPTS"},
+		{name: "redis search args", envName: "REDISEARCH_ARGS"},
+		{name: "redis json args", envName: "REDISJSON_ARGS"},
+		{name: "redis time series args", envName: "REDISTIMESERIES_ARGS"},
+		{name: "redis bloom args", envName: "REDISBLOOM_ARGS"},
+		{name: "redis url", envName: "REDIS_URL"},
+		{name: "sentinel uri", envName: "REDIS_SENTINEL_URI"},
+		{name: "cluster dsn", envName: "REDIS_CLUSTER_DSN"},
+		{name: "connection string", envName: "REDIS_CONNECTION_STRING"},
+		{name: "valkey", envName: "VALKEY_PORT"},
+		{name: "dragonfly", envName: "DFLY_PORT"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, includeRedisEnvVar(tt.envName))
+		})
+	}
+}
+
 func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	reader := &redisCollectorTestReader{
 		commandline: configfilesdiscoveryimpl.TargetCommandline{
@@ -136,12 +176,18 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 			Content:   []byte("port 6379\n"),
 			Truncated: true,
 		},
+		env: map[string]string{
+			"REDIS_PORT_NUMBER": "6379",
+			"REDIS_AOF_ENABLED": "yes",
+			"UNREQUESTED":       "value",
+		},
 	}
 	collector := NewRedis()
 
 	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
+	requireRedisEnvVarPredicate(t, reader)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
 	require.Len(t, collected.ConfigFiles, 1)
 	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
@@ -150,7 +196,162 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 		Truncated:     true,
 		PayloadFormat: redisConfigPayloadFormat,
 	}, collected.ConfigFiles[0])
-	assert.Empty(t, collected.EnvVars)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "REDIS_AOF_ENABLED", Value: "yes"},
+		{Name: "REDIS_PORT_NUMBER", Value: "6379"},
+	}, collected.EnvVars)
+}
+
+func TestRedisCollectorCollectsEnvOnly(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"redis-server", "--save", "60", "1"},
+		},
+		env: map[string]string{
+			"REDIS_PORT_NUMBER": "6379",
+			"REDIS_AOF_ENABLED": "yes",
+		},
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	requireRedisEnvVarPredicate(t, reader)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "REDIS_AOF_ENABLED", Value: "yes"},
+		{Name: "REDIS_PORT_NUMBER", Value: "6379"},
+	}, collected.EnvVars)
+}
+
+func TestRedisCollectorDoesNotUseMetadataPathsAsConfigFiles(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"redis-server", "--save", "60", "1"},
+		},
+		env: map[string]string{
+			"REDIS_CONF_DIR":       "/opt/bitnami/redis/etc",
+			"REDIS_OVERRIDES_FILE": "/opt/bitnami/redis/mounted-etc/overrides.conf",
+		},
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "REDIS_CONF_DIR", Value: "/opt/bitnami/redis/etc"},
+		{Name: "REDIS_OVERRIDES_FILE", Value: "/opt/bitnami/redis/mounted-etc/overrides.conf"},
+	}, collected.EnvVars)
+}
+
+func TestRedisCollectorUsesEnvConfigFile(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/opt/bitnami/scripts/redis/run.sh"},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/opt/bitnami/redis/etc/redis.conf",
+			Content: []byte("port 6379\n"),
+		},
+		env: map[string]string{
+			"REDIS_CONF_FILE":   "/opt/bitnami/redis/etc/redis.conf",
+			"REDIS_AOF_ENABLED": "yes",
+		},
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/opt/bitnami/redis/etc/redis.conf"}, reader.readFileCalls)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "REDIS_AOF_ENABLED", Value: "yes"},
+		{Name: "REDIS_CONF_FILE", Value: "/opt/bitnami/redis/etc/redis.conf"},
+	}, collected.EnvVars)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, redisConfigPayloadFormat, collected.ConfigFiles[0].PayloadFormat)
+}
+
+func TestRedisCollectorResolvesRelativeEnvConfigFile(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args:       []string{"/opt/bitnami/scripts/redis/run.sh"},
+			WorkingDir: "/opt/bitnami/redis/etc",
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path: "/opt/bitnami/redis/etc/redis.conf",
+		},
+		env: map[string]string{
+			"REDIS_CONF_FILE": "redis.conf",
+		},
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/opt/bitnami/redis/etc/redis.conf"}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, redisConfigPayloadFormat, collected.ConfigFiles[0].PayloadFormat)
+}
+
+func TestRedisCollectorPrefersCommandlineConfigFile(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"redis-server", "/etc/redis/redis.conf"},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path: "/etc/redis/redis.conf",
+		},
+		env: map[string]string{
+			"REDIS_CONF_FILE": "/opt/bitnami/redis/etc/redis.conf",
+		},
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, redisConfigPayloadFormat, collected.ConfigFiles[0].PayloadFormat)
+}
+
+func TestRedisCollectorDoesNotCollectSensitiveEnvVars(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"redis-server", "--save", "60", "1"},
+		},
+		env: map[string]string{
+			"REDIS_AOF_ENABLED":          "yes",
+			"REDIS_PASSWORD":             "secret",
+			"REDIS_MASTER_PASSWORD_FILE": "/run/secrets/master-password",
+			"REDIS_TLS_KEY_FILE":         "/run/secrets/redis.key",
+			"REDIS_ARGS":                 "--requirepass secret",
+			"REDIS_EXTRA_FLAGS":          "--masterauth secret",
+			"REDIS_URL":                  "redis://user:secret@redis:6379",
+			"ALLOW_EMPTY_PASSWORD":       "yes",
+		},
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	predicate := requireRedisEnvVarPredicate(t, reader)
+	assert.False(t, predicate("REDIS_PASSWORD"))
+	assert.False(t, predicate("REDIS_TLS_KEY_FILE"))
+	assert.False(t, predicate("REDIS_ARGS"))
+	assert.False(t, predicate("REDIS_EXTRA_FLAGS"))
+	assert.False(t, predicate("REDIS_URL"))
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "REDIS_AOF_ENABLED", Value: "yes"},
+	}, collected.EnvVars)
 }
 
 func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
@@ -164,6 +365,7 @@ func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
 	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
+	requireRedisEnvVarPredicate(t, reader)
 	assert.Empty(t, reader.readFileCalls)
 	assert.Empty(t, collected.ConfigFiles)
 	assert.Empty(t, collected.EnvVars)
@@ -177,6 +379,52 @@ func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
 	collected, err := collector.Collect(context.Background(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
+	assert.Empty(t, reader.readEnvVarPredicates)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
+}
+
+func TestRedisCollectorReadsDetectedConfigWhenEnvVarsFail(t *testing.T) {
+	expectedErr := errors.New("env unavailable")
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"redis-server", "/etc/redis/redis.conf"},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/etc/redis/redis.conf",
+			Content: []byte("port 6379\n"),
+		},
+		readEnvVarsErr: expectedErr,
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigFile{
+		{
+			Path:          "/etc/redis/redis.conf",
+			Content:       []byte("port 6379\n"),
+			PayloadFormat: redisConfigPayloadFormat,
+		},
+	}, collected.ConfigFiles)
+	assert.Empty(t, collected.EnvVars)
+}
+
+func TestRedisCollectorReturnsEnvVarErrorsWithoutConfigPath(t *testing.T) {
+	expectedErr := errors.New("env unavailable")
+	reader := &redisCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"redis-server", "--save", "60", "1"},
+		},
+		readEnvVarsErr: expectedErr,
+	}
+	collector := NewRedis()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Empty(t, reader.readFileCalls)
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
@@ -198,11 +446,14 @@ func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 }
 
 type redisCollectorTestReader struct {
-	commandline    configfilesdiscoveryimpl.TargetCommandline
-	commandlineErr error
-	readFileCalls  []string
-	file           configfilesdiscoveryimpl.ConfigFile
-	readFileErr    error
+	commandline          configfilesdiscoveryimpl.TargetCommandline
+	commandlineErr       error
+	readFileCalls        []string
+	file                 configfilesdiscoveryimpl.ConfigFile
+	readFileErr          error
+	env                  map[string]string
+	readEnvVarPredicates []configfilesdiscoveryimpl.ConfigEnvVarPredicate
+	readEnvVarsErr       error
 }
 
 func (r *redisCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
@@ -219,8 +470,23 @@ func (r *redisCollectorTestReader) ReadFile(_ context.Context, path string) (con
 	return r.file, nil
 }
 
-func (r *redisCollectorTestReader) ReadEnvVars(context.Context, configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
-	return nil, errors.New("not implemented")
+func (r *redisCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
+	r.readEnvVarPredicates = append(r.readEnvVarPredicates, predicate)
+	if r.readEnvVarsErr != nil {
+		return nil, r.readEnvVarsErr
+	}
+
+	env := make(map[string]string)
+	for name, value := range r.env {
+		if configfilesdiscoveryimpl.IsSecretEnvVarName(name) {
+			continue
+		}
+		if predicate != nil && !predicate(name) {
+			continue
+		}
+		env[name] = value
+	}
+	return env, nil
 }
 
 func (r *redisCollectorTestReader) ReadCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
@@ -228,4 +494,11 @@ func (r *redisCollectorTestReader) ReadCommandline(context.Context) (configfiles
 		return configfilesdiscoveryimpl.TargetCommandline{}, r.commandlineErr
 	}
 	return r.commandline, nil
+}
+
+func requireRedisEnvVarPredicate(t *testing.T, reader *redisCollectorTestReader) configfilesdiscoveryimpl.ConfigEnvVarPredicate {
+	t.Helper()
+	require.Len(t, reader.readEnvVarPredicates, 1)
+	require.NotNil(t, reader.readEnvVarPredicates[0])
+	return reader.readEnvVarPredicates[0]
 }
