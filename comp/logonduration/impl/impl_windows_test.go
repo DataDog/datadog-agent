@@ -9,6 +9,8 @@ package logondurationimpl
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -227,7 +229,7 @@ func TestBuildCustomPayload(t *testing.T) {
 			DesktopVisibleStart: boot.Add(90 * time.Second),
 		}
 
-		custom := buildCustomPayload(tl)
+		custom := buildCustomPayload(tl, nil)
 
 		durations, ok := custom["durations"].(map[string]interface{})
 		require.True(t, ok)
@@ -249,7 +251,7 @@ func TestBuildCustomPayload(t *testing.T) {
 			LoginUIStart: boot.Add(10 * time.Second),
 		}
 
-		custom := buildCustomPayload(tl)
+		custom := buildCustomPayload(tl, nil)
 
 		durations, ok := custom["durations"].(map[string]interface{})
 		require.True(t, ok)
@@ -265,7 +267,7 @@ func TestBuildCustomPayload(t *testing.T) {
 			DesktopVisibleStart: boot.Add(90 * time.Second),
 		}
 
-		custom := buildCustomPayload(tl)
+		custom := buildCustomPayload(tl, nil)
 
 		durations := custom["durations"].(map[string]interface{})
 		assert.Equal(t, int64(60000), durations["logon_duration_ms"])
@@ -277,7 +279,7 @@ func TestBuildCustomPayload(t *testing.T) {
 			LoginUIStart: boot.Add(8 * time.Second),
 		}
 
-		custom := buildCustomPayload(tl)
+		custom := buildCustomPayload(tl, nil)
 
 		durations, ok := custom["durations"].(map[string]interface{})
 		require.True(t, ok)
@@ -290,7 +292,7 @@ func TestBuildCustomPayload(t *testing.T) {
 			SessionLogon: boot.Add(30 * time.Second),
 		}
 
-		custom := buildCustomPayload(tl)
+		custom := buildCustomPayload(tl, nil)
 
 		if durations, ok := custom["durations"].(map[string]interface{}); ok {
 			_, hasLogon := durations["logon_duration_ms"]
@@ -304,7 +306,7 @@ func TestBuildCustomPayload(t *testing.T) {
 			// no end timestamps set
 		}
 
-		custom := buildCustomPayload(tl)
+		custom := buildCustomPayload(tl, nil)
 
 		_, hasDurations := custom["durations"]
 		assert.False(t, hasDurations)
@@ -313,12 +315,198 @@ func TestBuildCustomPayload(t *testing.T) {
 	t.Run("always includes boot_timeline key", func(t *testing.T) {
 		tl := BootTimeline{}
 
-		custom := buildCustomPayload(tl)
+		custom := buildCustomPayload(tl, nil)
 
 		_, hasTimeline := custom["boot_timeline"]
 		assert.True(t, hasTimeline)
 	})
 
+}
+
+// newPayloadTestComponent builds a component wired to a no-op forwarder, whose
+// Purge returns the exact bytes sendEvent marshalled.
+func newPayloadTestComponent(t *testing.T) (*logonDurationComponent, eventplatform.Forwarder) {
+	t.Helper()
+	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
+	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
+	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+
+	return &logonDurationComponent{
+		hostname:               hostname,
+		eventPlatformForwarder: forwarder,
+	}, forwarder
+}
+
+// submitAndDecodeCustom submits a result and returns the custom attribute bag
+// as it appears on the wire.
+func submitAndDecodeCustom(t *testing.T, result *AnalysisResult) (map[string]interface{}, int) {
+	t.Helper()
+	comp, forwarder := newPayloadTestComponent(t)
+	require.NoError(t, comp.submitEvent(result))
+
+	msgs := forwarder.Purge()[eventplatform.EventTypeEventManagement]
+	require.Len(t, msgs, 1)
+	content := msgs[0].GetContent()
+
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(content, &payload))
+
+	attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
+	custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
+	return custom, len(content)
+}
+
+func TestBuildCustomPayload_GroupPolicyAbsentWhenNil(t *testing.T) {
+	// A trace with no Group Policy events at all omits the block entirely, so
+	// existing consumers see exactly what they saw before.
+	custom := buildCustomPayload(fullBootTimeline(time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)), nil)
+	assert.NotContains(t, custom, "group_policy")
+	assert.Contains(t, custom, "boot_timeline")
+	assert.Contains(t, custom, "durations")
+}
+
+func TestBuildCustomPayload_ExistingKeysUnchanged(t *testing.T) {
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	tl := fullBootTimeline(boot)
+
+	withoutGP := buildCustomPayload(tl, nil)
+	withGP := buildCustomPayload(tl, &GroupPolicyPayload{Version: groupPolicyPayloadVersion})
+
+	// Adding the block must not perturb either existing key.
+	for _, key := range []string{"boot_timeline", "durations"} {
+		before, err := json.Marshal(withoutGP[key])
+		require.NoError(t, err)
+		after, err := json.Marshal(withGP[key])
+		require.NoError(t, err)
+		assert.JSONEq(t, string(before), string(after), "%s must be unaffected", key)
+	}
+
+	// submitEvent formats this value with %d, so its Go type is load-bearing.
+	durations := withGP["durations"].(map[string]interface{})
+	_, isInt64 := durations["total_boot_duration_ms"].(int64)
+	assert.True(t, isInt64, "total_boot_duration_ms must stay an int64")
+}
+
+func TestSubmitEvent_GroupPolicyReachesTheWire(t *testing.T) {
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	duration := int64(1250)
+	elapsed := uint32(1248)
+	code := "0x00000000"
+
+	gp := &GroupPolicyPayload{Version: groupPolicyPayloadVersion}
+	gp.Passes.Computer = GPPass{
+		Observed: true,
+		CSEInvocations: []CSEInvocation{{
+			CSEGUID:           "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}",
+			CSEName:           "Registry",
+			Start:             boot.Add(12500 * time.Millisecond).Format(timestampFormat),
+			End:               boot.Add(13750 * time.Millisecond).Format(timestampFormat),
+			DurationMs:        &duration,
+			ReportedElapsedMs: &elapsed,
+			Result:            cseResultSuccess,
+			ErrorCode:         &code,
+			Complete:          true,
+			ApplicableGPOIDs:  []string{"{31B2F340-016D-11D2-945F-00C04FB984F9}"},
+		}},
+	}
+	gp.Passes.User = GPPass{CSEInvocations: []CSEInvocation{}}
+	gp.GPOs = []GPO{{
+		ID:   "{31B2F340-016D-11D2-945F-00C04FB984F9}",
+		Name: "Default Domain Policy",
+		SOM:  "DC=corp,DC=example",
+	}}
+
+	custom, _ := submitAndDecodeCustom(t, &AnalysisResult{
+		Timeline:    BootTimeline{BootStart: boot},
+		GroupPolicy: gp,
+	})
+
+	block, ok := custom["group_policy"].(map[string]interface{})
+	require.True(t, ok, "group_policy should be present under custom")
+	assert.Equal(t, float64(1), block["version"])
+
+	passes := block["passes"].(map[string]interface{})
+	computer := passes["computer"].(map[string]interface{})
+	user := passes["user"].(map[string]interface{})
+
+	// The coverage signal: user scope is affirmatively reported as unobserved.
+	assert.Equal(t, true, computer["observed"])
+	assert.Equal(t, false, user["observed"])
+	assert.Equal(t, []interface{}{}, user["cse_invocations"])
+
+	invocations := computer["cse_invocations"].([]interface{})
+	require.Len(t, invocations, 1)
+	inv := invocations[0].(map[string]interface{})
+	assert.Equal(t, "Registry", inv["cse_name"])
+	assert.Equal(t, float64(1250), inv["duration_ms"])
+	assert.Equal(t, float64(1248), inv["reported_elapsed_ms"])
+	assert.Equal(t, "success", inv["result"])
+	assert.Equal(t, "0x00000000", inv["error_code"])
+	assert.Equal(t, []interface{}{"{31B2F340-016D-11D2-945F-00C04FB984F9}"}, inv["applicable_gpo_ids"])
+	assert.NotContains(t, inv, "scope", "the enclosing pass carries the scope")
+
+	gpos := block["gpos"].([]interface{})
+	require.Len(t, gpos, 1)
+	assert.Equal(t, "{31B2F340-016D-11D2-945F-00C04FB984F9}", gpos[0].(map[string]interface{})["id"])
+	assert.NotContains(t, gpos[0].(map[string]interface{}), "applied",
+		"applicability is per pass, so it is not modelled on the GPO")
+
+	// The existing keys still ride alongside.
+	assert.Contains(t, custom, "boot_timeline")
+}
+
+func TestSubmitEvent_PayloadSizeStaysUnderWarnThreshold(t *testing.T) {
+	// Saturate every bound so a future field addition that blows the byte
+	// budget fails here rather than as an invisible intake rejection.
+	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
+	gp := &GroupPolicyPayload{Version: groupPolicyPayloadVersion}
+
+	gpoIDs := make([]string, maxApplicableGPOIDsPerCSE)
+	for i := range gpoIDs {
+		gpoIDs[i] = fmt.Sprintf("{%08X-016D-11D2-945F-00C04FB984F9}", i)
+	}
+
+	saturatedPass := func() GPPass {
+		invs := make([]CSEInvocation, 0, maxCSEInvocationsPerPass)
+		for i := 0; i < maxCSEInvocationsPerPass; i++ {
+			d := int64(i)
+			e := uint32(i)
+			c := "0x8000000A"
+			invs = append(invs, CSEInvocation{
+				CSEGUID:           fmt.Sprintf("{%08X-683F-11D2-A89A-00C04FBBCFA2}", i),
+				CSEName:           strings.Repeat("N", maxCSENameBytes),
+				Start:             boot.Add(time.Duration(i) * time.Second).Format(timestampFormat),
+				End:               boot.Add(time.Duration(i+1) * time.Second).Format(timestampFormat),
+				DurationMs:        &d,
+				ReportedElapsedMs: &e,
+				Result:            cseResultSuccess,
+				ErrorCode:         &c,
+				Complete:          true,
+				ApplicableGPOIDs:  gpoIDs,
+			})
+		}
+		return GPPass{Observed: true, CSEInvocations: invs}
+	}
+	gp.Passes.Computer = saturatedPass()
+	gp.Passes.User = saturatedPass()
+
+	gp.GPOs = make([]GPO, 0, maxGPOsTotal)
+	for i := 0; i < maxGPOsTotal; i++ {
+		gp.GPOs = append(gp.GPOs, GPO{
+			ID:      fmt.Sprintf("{%08X-016D-11D2-945F-00C04FB984F9}", i),
+			Name:    strings.Repeat("G", maxGPONameBytes),
+			SOM:     strings.Repeat("S", maxGPOSOMBytes),
+			Version: "65539",
+		})
+	}
+
+	_, size := submitAndDecodeCustom(t, &AnalysisResult{
+		Timeline:    fullBootTimeline(boot),
+		GroupPolicy: gp,
+	})
+
+	assert.Less(t, size, payloadSizeWarnBytes,
+		"a fully saturated payload must stay under the size warning threshold (was %d bytes)", size)
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {
