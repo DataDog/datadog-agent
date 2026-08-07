@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "fx-testbench",
     srcs = ["fx.go"],
+    gotags = ["anomalydetectiontestbench"],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench",
     visibility = ["//visibility:public"],
     deps = [
