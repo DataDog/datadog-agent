@@ -554,7 +554,7 @@ workflow:
     - changes:
         paths:
           - deps/agent_data_plane/agent_data_plane.MODULE.bazel
-        compare_to: main
+        compare_to: $COMPARE_TO_BRANCH
       variables:
         RUN_ALL_BUILDS: "true"
         RUN_E2E_TESTS: "on"
