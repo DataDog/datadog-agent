@@ -207,7 +207,9 @@ func (h *HostAgent) updateCoreAgentConfig(
 		}
 
 		if !skipAPIKeyInConfig {
-			extraConfigs = append(extraConfigs, fmt.Sprintf("api_key: %s", apiKey))
+			// Use %q, not %s: fmt.Sprintf("api_key: %s", "00000000000000000000000000000000") writes an
+			// unquoted YAML value that parsers treat as integer 0; %q emits a quoted string.
+			extraConfigs = append(extraConfigs, fmt.Sprintf("api_key: %q", apiKey))
 		}
 
 		var err error
