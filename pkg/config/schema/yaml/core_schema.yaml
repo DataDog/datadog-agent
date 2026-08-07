@@ -10065,10 +10065,6 @@ properties:
             - datadoghq.com
             items:
               type: string
-          use_beta:
-            node_type: setting
-            type: boolean
-            default: false
       sketches:
         node_type: section
         type: object
