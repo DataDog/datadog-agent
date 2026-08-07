@@ -317,10 +317,20 @@ export interface SeverityEvent {
   to_level: number;
 }
 
+/** Contributor report captured when the scorer opens an episode. */
+export interface ScorerReport {
+  timestamp: number;
+  contributors: Array<{
+    name: string;
+    share: number;
+  }>;
+}
+
 /** Full snapshot of the scorer's state — what /api/scores returns. */
 export interface ScoreState {
   buckets: ScoreBucket[];
   events: SeverityEvent[];
+  reports?: ScorerReport[];
   config: ScorerConfig;
 }
 
