@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -64,6 +65,28 @@ func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
 		},
 	}
 	require.NoError(t, cat.validateDetectorTeardownContract())
+}
+
+func TestApplyTestbenchDetectorDefaults(t *testing.T) {
+	settings := ApplyTestbenchDetectorDefaults(ComponentSettings{})
+
+	require.Equal(t, 40, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	holt := settings.configs["holt_residual"].(HoltResidualConfig)
+	require.Equal(t, 15, holt.WarmupPoints)
+	require.Equal(t, 25, holt.ResidualWindow)
+	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
+	require.Equal(t, 40, tukey.WindowSize)
+	require.Equal(t, 40, tukey.MinPoints)
+}
+
+func TestApplyTestbenchDetectorDefaults_PreservesExplicitConfig(t *testing.T) {
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		"bocpd": json.RawMessage(`{"warmup_points": 42}`),
+	})
+	require.NoError(t, err)
+
+	settings = ApplyTestbenchDetectorDefaults(settings)
+	require.Equal(t, 42, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
 }
 
 // bareDetectorForValidator is a minimal observerdef.Detector that
