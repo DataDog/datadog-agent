@@ -20,14 +20,18 @@ const (
 	kafkaConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
 )
 
-// kafkaDefaultConfigPaths contains final config paths passed to Kafka by known
-// distribution image startup scripts. Apache and Confluent images also ship
-// example configs, but their startup scripts do not pass those files to Kafka.
-var kafkaDefaultConfigPaths = []string{
-	"/opt/kafka/config/server.properties",
-	"/etc/kafka/kafka.properties",
-	"/opt/bitnami/kafka/config/server.properties",
-	"/tmp/strimzi.properties",
+// kafkaDefaultConfigPathGroups contains final config paths passed to Kafka by
+// known distribution image startup scripts, ordered by priority. Strimzi's
+// generated config takes precedence over the packaged Apache config that its
+// image also contains. Apache and Confluent images ship other example configs,
+// but their startup scripts do not pass those files to Kafka.
+var kafkaDefaultConfigPathGroups = [][]string{
+	{"/tmp/strimzi.properties"},
+	{
+		"/opt/kafka/config/server.properties",
+		"/etc/kafka/kafka.properties",
+		"/opt/bitnami/kafka/config/server.properties",
+	},
 }
 
 type kafkaConfigCollector struct{}
@@ -48,7 +52,7 @@ func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscove
 }
 
 func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, kafkaDefaultConfigPaths)
+	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, kafkaDefaultConfigPathGroups...)
 	if err != nil {
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
 	}

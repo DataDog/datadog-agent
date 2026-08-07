@@ -27,6 +27,7 @@ func TestReadConfigFile(t *testing.T) {
 		commandlines            []configfilesdiscoveryimpl.TargetCommandline
 		files                   map[string]configfilesdiscoveryimpl.ConfigFile
 		readErrors              map[string]error
+		defaultPathGroups       [][]string
 		cancelContext           bool
 		wantFile                configfilesdiscoveryimpl.ConfigFile
 		wantOK                  bool
@@ -122,6 +123,21 @@ func TestReadConfigFile(t *testing.T) {
 			wantProcessCommandCalls: 1,
 		},
 		{
+			name: "higher priority default group wins",
+			defaultPathGroups: [][]string{
+				{"/preferred/config.conf"},
+				defaultPaths,
+			},
+			files: map[string]configfilesdiscoveryimpl.ConfigFile{
+				"/preferred/config.conf": {Path: "/preferred/config.conf"},
+				"/default/one.conf":      {Path: "/default/one.conf"},
+			},
+			wantFile:                configfilesdiscoveryimpl.ConfigFile{Path: "/preferred/config.conf"},
+			wantOK:                  true,
+			wantReadFileCalls:       []string{"/preferred/config.conf"},
+			wantProcessCommandCalls: 1,
+		},
+		{
 			name:           "unique default path recovers command line error",
 			commandlineErr: commandlineErr,
 			files: map[string]configfilesdiscoveryimpl.ConfigFile{
@@ -187,7 +203,11 @@ func TestReadConfigFile(t *testing.T) {
 				readErrors:     tt.readErrors,
 			}
 
-			file, ok, err := readConfigFile(ctx, reader, getTestConfigArg, matchesTestCommandline, defaultPaths)
+			defaultPathGroups := tt.defaultPathGroups
+			if defaultPathGroups == nil {
+				defaultPathGroups = [][]string{defaultPaths}
+			}
+			file, ok, err := readConfigFile(ctx, reader, getTestConfigArg, matchesTestCommandline, defaultPathGroups...)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)

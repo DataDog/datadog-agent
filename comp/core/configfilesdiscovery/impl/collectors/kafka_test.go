@@ -8,6 +8,7 @@ package collectors
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
@@ -243,7 +244,7 @@ func TestKafkaCollectorReadsDefaultConfig(t *testing.T) {
 	collected, err := NewKafka().Collect(context.Background(), reader)
 
 	require.NoError(t, err)
-	assert.Equal(t, kafkaDefaultConfigPaths, reader.readFileCalls)
+	assert.Equal(t, slices.Concat(kafkaDefaultConfigPathGroups...), reader.readFileCalls)
 	require.Len(t, collected.ConfigFiles, 1)
 	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
 		Path:          "/opt/bitnami/kafka/config/server.properties",
@@ -252,12 +253,13 @@ func TestKafkaCollectorReadsDefaultConfig(t *testing.T) {
 	}, collected.ConfigFiles[0])
 }
 
-func TestKafkaCollectorIgnoresPackagedExampleConfigs(t *testing.T) {
+func TestKafkaCollectorSelectsActiveDistributionConfig(t *testing.T) {
 	tests := []struct {
 		name               string
 		runtimeCommandline configfilesdiscoveryimpl.TargetCommandline
 		activeConfig       configfilesdiscoveryimpl.ConfigFile
 		exampleConfigs     map[string]configfilesdiscoveryimpl.ConfigFile
+		wantReadFileCalls  []string
 	}{
 		{
 			name: "apache",
@@ -295,6 +297,23 @@ func TestKafkaCollectorIgnoresPackagedExampleConfigs(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "strimzi",
+			runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+				Args: []string{"/opt/kafka/kafka_run.sh"},
+			},
+			activeConfig: configfilesdiscoveryimpl.ConfigFile{
+				Path:    "/tmp/strimzi.properties",
+				Content: []byte("node.id=1\n"),
+			},
+			exampleConfigs: map[string]configfilesdiscoveryimpl.ConfigFile{
+				"/opt/kafka/config/server.properties": {
+					Path:    "/opt/kafka/config/server.properties",
+					Content: []byte("broker.id=0\n"),
+				},
+			},
+			wantReadFileCalls: []string{"/tmp/strimzi.properties"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -309,7 +328,11 @@ func TestKafkaCollectorIgnoresPackagedExampleConfigs(t *testing.T) {
 			collected, err := NewKafka().Collect(context.Background(), reader)
 
 			require.NoError(t, err)
-			assert.Equal(t, kafkaDefaultConfigPaths, reader.readFileCalls)
+			wantReadFileCalls := tt.wantReadFileCalls
+			if wantReadFileCalls == nil {
+				wantReadFileCalls = slices.Concat(kafkaDefaultConfigPathGroups...)
+			}
+			assert.Equal(t, wantReadFileCalls, reader.readFileCalls)
 			require.Len(t, collected.ConfigFiles, 1)
 			expectedConfig := tt.activeConfig
 			expectedConfig.PayloadFormat = kafkaConfigPayloadFormat

@@ -93,14 +93,15 @@ func findConfigPath(
 }
 
 // readConfigFile discovers and reads an explicit config file, or falls back to
-// default paths when no command line for the service is found. Returns the file
-// and whether exactly one file was selected.
+// ordered groups of default paths when no command line for the service is
+// found. The first group with readable files wins, and exactly one file must be
+// readable within that group. Returns the file and whether one was selected.
 func readConfigFile(
 	ctx context.Context,
 	reader configfilesdiscoveryimpl.ConfigReader,
 	findConfigArg func([]string) (string, bool),
 	matchesCommandline func([]string) bool,
-	defaultPaths []string,
+	defaultPathGroups ...[]string,
 ) (configfilesdiscoveryimpl.ConfigFile, bool, error) {
 	configPath, commandMatched, commandlineErr := findConfigPath(ctx, reader, findConfigArg, matchesCommandline)
 	if configPath != "" {
@@ -114,24 +115,28 @@ func readConfigFile(
 		return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
 	}
 
-	files := make([]configfilesdiscoveryimpl.ConfigFile, 0, len(defaultPaths))
-	for _, path := range defaultPaths {
-		file, err := reader.ReadFile(ctx, path)
-		if err != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return configfilesdiscoveryimpl.ConfigFile{}, false, ctxErr
+	for _, defaultPaths := range defaultPathGroups {
+		files := make([]configfilesdiscoveryimpl.ConfigFile, 0, len(defaultPaths))
+		for _, path := range defaultPaths {
+			file, err := reader.ReadFile(ctx, path)
+			if err != nil {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return configfilesdiscoveryimpl.ConfigFile{}, false, ctxErr
+				}
+				continue
 			}
-			continue
+			files = append(files, file)
 		}
-		files = append(files, file)
+
+		switch len(files) {
+		case 0:
+			continue
+		case 1:
+			return files[0], true, nil
+		default:
+			return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+		}
 	}
 
-	switch len(files) {
-	case 0:
-		return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
-	case 1:
-		return files[0], true, nil
-	default:
-		return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
-	}
+	return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
 }
