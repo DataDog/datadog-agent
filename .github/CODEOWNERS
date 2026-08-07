@@ -27,6 +27,7 @@
 /.agents/skills/auto-jira/                       @DataDog/agent-devx
 /.agents/skills/create-component/                @DataDog/agent-runtimes
 /.agents/skills/create-core-check/               @DataDog/agent-runtimes
+/.agents/skills/create-epic-recap/               @DataDog/opentelemetry-agent
 /.agents/skills/create-go-module/                @DataDog/agent-runtimes
 /.agents/skills/create-invoke-task/              @DataDog/agent-devx
 /.agents/skills/create-pr/                       @DataDog/agent-devx
