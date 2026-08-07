@@ -6,6 +6,8 @@
 package autodiscoveryimpl
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -20,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/ad-misconfiguration"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -121,6 +124,31 @@ type ConfigManagerSuite struct {
 	cm      configManager
 }
 
+type retrySecretResolver struct {
+	failuresRemaining int
+}
+
+var _ secrets.Component = (*retrySecretResolver)(nil)
+
+func (r *retrySecretResolver) Configure(_ secrets.ConfigParams) {}
+
+func (r *retrySecretResolver) Resolve(data []byte, _ string, _ string, _ string, _ bool) ([]byte, error) {
+	if len(data) == 0 || !bytes.Contains(data, []byte("ENC[bar]")) {
+		return data, nil
+	}
+	if r.failuresRemaining > 0 {
+		r.failuresRemaining--
+		return data, errors.New("temporary secret backend error")
+	}
+	return []byte("foo: barDecoded"), nil
+}
+
+func (r *retrySecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {}
+func (r *retrySecretResolver) Refresh() bool                                     { return false }
+func (r *retrySecretResolver) RefreshNow() (string, error)                       { return "", nil }
+func (r *retrySecretResolver) IsValueFromSecret(_ string) bool                   { return false }
+func (r *retrySecretResolver) RemoveOrigin(_ string)                             {}
+
 func (suite *ConfigManagerSuite) SetupTest() {
 	suite.cm = suite.factory()
 }
@@ -176,6 +204,28 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
 	assertConfigsMatch(suite.T(), changes.Unschedule, matchName(nonTemplateConfigWithSecrets.Name))
 	assertConfigsMatch(suite.T(), changes.Unschedule, matchDigest(newConfigDigest))
 	require.True(suite.T(), strings.Contains(string(changes.Unschedule[0].Instances[0]), "barDecoded"))
+}
+
+func (suite *ConfigManagerSuite) TestFailedNonTemplateSecretResolutionRetried() {
+	inputNewConfig := deepcopy.Copy(nonTemplateConfigWithSecrets).(integration.Config)
+	resolver := &retrySecretResolver{failuresRemaining: 1}
+	cm := newReconcilingConfigManager(resolver, nil, nil, nil, nil).(*reconcilingConfigManager)
+
+	changes, changedIDs := cm.processNewConfig(inputNewConfig)
+	assert.Empty(suite.T(), changedIDs)
+	assertConfigsMatch(suite.T(), changes.Schedule)
+	assertConfigsMatch(suite.T(), changes.Unschedule)
+	assert.Contains(suite.T(), cm.failedSecretConfigs, inputNewConfig.Digest())
+	assertLoadedConfigsMatch(suite.T(), cm)
+
+	changes, changedIDs = cm.retryFailedSecretConfigs()
+	assert.Empty(suite.T(), changedIDs)
+	assertConfigsMatch(suite.T(), changes.Schedule, matchName(nonTemplateConfigWithSecrets.Name))
+	assertConfigsMatch(suite.T(), changes.Unschedule)
+	require.Len(suite.T(), changes.Schedule, 1)
+	require.True(suite.T(), strings.Contains(string(changes.Schedule[0].Instances[0]), "barDecoded"))
+	assert.NotContains(suite.T(), cm.failedSecretConfigs, inputNewConfig.Digest())
+	assertLoadedConfigsMatch(suite.T(), cm, matchName(nonTemplateConfigWithSecrets.Name))
 }
 
 func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {
