@@ -103,6 +103,7 @@ func (s *Server) SyncKeys(ctx context.Context, req *pb.SyncKeysRequest) (*pb.Syn
 			Key:     append([]byte(nil), key.GetKey()...),
 		})
 	}
+	s.touch()
 	if err := s.keysManager.Seed(seed); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid signing-key seed: %v", err)
 	}
