@@ -52,10 +52,6 @@ dd_agent_go_test(
         "rollback_deployment_test.go",
     ],
     embed = [":impl"],
-    flavors = [
-        "base",
-        "fips",
-    ],
     gotags_sets = [[
         "cel",
         "clusterchecks",
