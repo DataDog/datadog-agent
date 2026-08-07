@@ -6,7 +6,7 @@ use crate::config::{CheckConfig, SubTask};
 use crate::constants::SDS_RESULT_EVENT_TYPE;
 use crate::proto::{self, Status as ScanStatus};
 use crate::result::{ScanOutcome, build_sds_result};
-use crate::scanning::Scanner;
+use crate::scanning::{Scanner, clear_caches};
 
 /// Check entrypoint.
 ///
@@ -31,9 +31,16 @@ fn run(check: &AgentCheck) -> Result<()> {
 
     let scanner = Scanner::new(&config.scanning_rules).context("failed to create sds scanner")?;
 
-    for sub_task in &config.scan_data {
-        run_sub_task(check, &config, &scanner, sub_task)?;
-    }
+    let result = config
+        .scan_data
+        .iter()
+        .try_for_each(|sub_task| run_sub_task(check, &config, &scanner, sub_task));
+
+    // Drop the scanner, then free dd-sds' caches (even on error).
+    drop(scanner);
+    clear_caches();
+
+    result?;
 
     check.log(LogLevel::Info, "datasecurity: check completed");
     Ok(())
