@@ -252,7 +252,7 @@ const (
 // RFC 6587 §3.4.1 carries RFC 5424 messages. buf[0] is known to be '1'-'9'.
 //
 // This is the same signature isSyslogFrameStart requires when resynchronizing,
-// so frame detection now agrees on entry and on resync. Without the full
+// so frame detection agrees on entry and on resync. Without the full
 // signature a line that merely starts with digits and a space would have its
 // digits consumed as a length, and the declared body would then swallow every
 // following frame (MSG-LEN being the authoritative boundary, the body is never

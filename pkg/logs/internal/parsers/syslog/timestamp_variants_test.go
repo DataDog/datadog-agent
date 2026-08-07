@@ -14,9 +14,9 @@ import (
 
 // Each sample below is quoted from the log-pipeline test fixtures of the
 // integration named in the case, except where a comment says otherwise, so these
-// are formats real appliances emit. Before these layouts were recognized, every
-// header field came back as the nilvalue and source routing on
-// syslog.appname/hostname could not work.
+// are formats real appliances emit. A layout that goes unrecognized costs the
+// message every header field — they all come back as the nilvalue — and source
+// routing on syslog.appname/hostname stops working.
 //
 // A sample carrying a PRI was captured off the wire and goes through Parse; one
 // without a PRI is a file rendering and goes through ParseBSDLine. That says
@@ -60,27 +60,29 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			msg:       "payload",
 		},
 		{
-			// Cisco documents this PRI-less form as what NX-OS writes to its own
-			// logfile and console, separately from the wire format below.
+			// Header and hostname as printed in Cisco's Nexus 9000 system message
+			// logging guide, which shows this PRI-less form as what NX-OS writes
+			// to its own logfile and console, separately from the wire format
+			// below.
 			name:      "cisco nx-os year first header, logfile form",
-			line:      "2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
-			timestamp: "2024 Apr 04 08:05:06",
-			hostname:  "MDS9148S-S4",
-			appname:   nilvalue, // "%MODULE-..." is not a TAG
+			line:      "2019 Mar 11 13:42:44 Cisco-customer %ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface Ethernet3/1 is down (Administratively down)",
+			timestamp: "2019 Mar 11 13:42:44",
+			hostname:  "Cisco-customer",
+			appname:   nilvalue, // "%ETHPORT-..." is not a TAG
 			procid:    nilvalue,
-			msg:       "%MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
+			msg:       "%ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface Ethernet3/1 is down (Administratively down)",
 		},
 		{
 			// Header shape from Cisco's MDS 9000 system management guide, which
 			// documents "<189>:2025 Mar 27 16:22:24 switch %SYSLOG-..." as the
 			// default format sent to a remote server. Note the colon after PRI.
 			name:      "cisco nx-os year first header, remote logging wire format",
-			line:      "<189>:2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
-			timestamp: "2024 Apr 04 08:05:06",
-			hostname:  "MDS9148S-S4",
+			line:      "<189>:2019 Mar 11 13:42:44 Cisco-customer %ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface Ethernet3/1 is down (Administratively down)",
+			timestamp: "2019 Mar 11 13:42:44",
+			hostname:  "Cisco-customer",
 			appname:   nilvalue,
 			procid:    nilvalue,
-			msg:       "%MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
+			msg:       "%ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface Ethernet3/1 is down (Administratively down)",
 		},
 		{
 			name:      "cisco asa iso timestamp then colon, no host or tag",
@@ -101,11 +103,14 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			msg:       "%FTD-6-113039: Group RemoteUsers User harper.green IP 8.8.4.4",
 		},
 		{
-			name:      "picus iso timestamp with host and tag",
-			line:      `<6>2025-02-17T06:46:46Z app.picussecurity.com PICUS[1]: {"common":{"unique_id":"609249cb"}}`,
+			// The ISO variant with a full HOSTNAME and a TAG[PID], which several
+			// appliances emit under an rfc5424-style timestamp setting. Values
+			// are synthetic; only the header shape is under test.
+			name:      "iso timestamp with host and tag",
+			line:      `<6>2025-02-17T06:46:46Z app.example.com APPLIANCE[1]: {"common":{"unique_id":"609249cb"}}`,
 			timestamp: "2025-02-17T06:46:46Z",
-			hostname:  "app.picussecurity.com",
-			appname:   "PICUS",
+			hostname:  "app.example.com",
+			appname:   "APPLIANCE",
 			procid:    "1",
 			msg:       `{"common":{"unique_id":"609249cb"}}`,
 		},
@@ -179,22 +184,24 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 		},
 		{
 			// ASA under "logging timestamp" writes the legacy MMM dd yyyy
-			// HH:mm:ss form and terminates it with a colon, with no Device-ID.
-			// The existing colon skip only covered the ISO timestamp, so this
-			// variant used to fail with "BSD: missing hostname".
+			// HH:mm:ss form and terminates it with a colon, with no Device-ID,
+			// so separator handling has to cover the BSD layouts too, not only
+			// the ISO timestamp the same appliance emits under rfc5424.
+			// Message body follows the 302013 template in Cisco's ASA syslog
+			// messages guide, with documentation addresses.
 			name:      "cisco asa legacy timestamp then colon, no host or tag",
-			line:      "<166>May 17 2023 03:04:28: %ASA-6-302013: Built outbound TCP connection 704117",
+			line:      "<166>May 17 2023 03:04:28: %ASA-6-302013: Built outbound TCP connection 1 for outside:192.0.2.1/80 to inside:198.51.100.2/1024",
 			timestamp: "May 17 2023 03:04:28",
 			hostname:  nilvalue,
 			appname:   nilvalue,
 			procid:    nilvalue,
-			msg:       "%ASA-6-302013: Built outbound TCP connection 704117",
+			msg:       "%ASA-6-302013: Built outbound TCP connection 1 for outside:192.0.2.1/80 to inside:198.51.100.2/1024",
 		},
 		{
 			// Legacy timestamp with the Device-ID still enabled, quoted from the
-			// FTD syslog guide. The Device-ID is a real hostname and must keep
-			// being read as one. The separating " : " is left in MSG exactly as it
-			// was before mnemonic detection existed.
+			// FTD syslog guide. The Device-ID is a real hostname and must be read
+			// as one; only the separator that stands in for an absent Device-ID
+			// is consumed, so the " : " that follows a present one stays in MSG.
 			name:      "cisco ftd with device id keeps hostname",
 			line:      "Apr 10 18:52:47 labuser-ftdv : %FTD-6-305012: Teardown dynamic UDP translation",
 			timestamp: "Apr 10 18:52:47",
@@ -235,9 +242,9 @@ func TestColonAfterPRIWithoutTimestamp(t *testing.T) {
 }
 
 // Formats that place something other than a HOSTNAME in the HOSTNAME position.
-// Each of these used to parse without error while attributing fields wrongly,
-// which is worse than failing: syslog.hostname and syslog.appname drive source
-// and service routing, so a bogus value silently misroutes the log.
+// Each of these parses without error, so a misattribution here is worse than a
+// failure: syslog.hostname and syslog.appname drive source and service routing,
+// and a bogus value misroutes the log with nothing to signal it.
 func TestNoHostnameInHostnamePosition(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -250,8 +257,8 @@ func TestNoHostnameInHostnamePosition(t *testing.T) {
 	}{
 		{
 			// BIND with print-category/print-severity emits
-			// "<category>: <severity>: <message>" and no hostname at all.
-			// "network:" was being read as the HOSTNAME and "info" as the TAG.
+			// "<category>: <severity>: <message>" and no hostname at all, so
+			// the category is the TAG and the severity belongs to the body.
 			name:      "bind9 category in hostname position",
 			line:      "2024-09-20T10:20:26.751Z network: info: no longer listening on 10.10.10.10#50",
 			timestamp: "2024-09-20T10:20:26.751Z",
@@ -261,9 +268,8 @@ func TestNoHostnameInHostnamePosition(t *testing.T) {
 			msg:       "info: no longer listening on 10.10.10.10#50",
 		},
 		{
-			// A yum transaction line tailed by Wazuh. This previously produced
-			// hostname="Erased:", appname="libhugetlbfs-lib" and an empty MSG,
-			// dropping the body outright.
+			// A yum transaction line tailed by Wazuh: the action sits in the
+			// HOSTNAME position and the package name is the whole body.
 			name:      "yum action in hostname position",
 			line:      "Aug 20 12:51:21 Erased: libhugetlbfs-lib",
 			timestamp: "Aug 20 12:51:21",
@@ -301,44 +307,44 @@ func TestNoHostnameInHostnamePosition(t *testing.T) {
 // mined for an APP-NAME.
 func TestRelayDoubleHeader(t *testing.T) {
 	t.Run("bsd timestamp in tag position", func(t *testing.T) {
-		line := "May 31 14:06:58 10.50.3.134 May 31 08:36:58 ISELAB CISE_System_Statistics 0000000718"
+		line := "May 31 14:06:58 10.50.3.134 May 31 08:36:58 ise CISE_System_Statistics 0000000718"
 		msg, err := ParseBSDLine([]byte(line))
 		require.NoError(t, err)
 
 		assert.Equal(t, "May 31 14:06:58", msg.Timestamp)
 		assert.Equal(t, "10.50.3.134", msg.Hostname)
 		assert.Equal(t, nilvalue, msg.AppName, "the month abbrev is not an appname")
-		assert.Equal(t, "May 31 08:36:58 ISELAB CISE_System_Statistics 0000000718", string(msg.Msg))
+		assert.Equal(t, "May 31 08:36:58 ise CISE_System_Statistics 0000000718", string(msg.Msg))
 	})
 
 	t.Run("bsd timestamp in tag position after year-first header", func(t *testing.T) {
-		line := "2009 Oct 11 08:05:22 MDS9148S-S4 Oct 11 08:05:22 %KERN-3-SYSTEM_MSG: TOTAL PORTS = 48"
+		line := "2019 Mar 11 13:42:44 Cisco-customer Mar 11 13:42:44 %KERN-3-SYSTEM_MSG: TOTAL PORTS = 48"
 		msg, err := ParseBSDLine([]byte(line))
 		require.NoError(t, err)
 
-		assert.Equal(t, "2009 Oct 11 08:05:22", msg.Timestamp)
-		assert.Equal(t, "MDS9148S-S4", msg.Hostname)
+		assert.Equal(t, "2019 Mar 11 13:42:44", msg.Timestamp)
+		assert.Equal(t, "Cisco-customer", msg.Hostname)
 		assert.Equal(t, nilvalue, msg.AppName)
-		assert.Equal(t, "Oct 11 08:05:22 %KERN-3-SYSTEM_MSG: TOTAL PORTS = 48", string(msg.Msg))
+		assert.Equal(t, "Mar 11 13:42:44 %KERN-3-SYSTEM_MSG: TOTAL PORTS = 48", string(msg.Msg))
 	})
 }
 
 // RFC 5424 mandates a single SP between HEADER fields. Padding must not shift
-// the fields along, which previously left TIMESTAMP as the empty string and
-// moved every other value one position to the right.
+// the fields along, leaving TIMESTAMP empty and moving every other value one
+// position to the right.
 func TestRFC5424PaddedHeaderSeparators(t *testing.T) {
-	line := "<134>1  2025-05-13T04:57:18Z EMC syslog-healthcheck-Central - - - CEF:0|Claroty|CTD|5.0.1.0|HealthCheck"
+	line := "<134>1  2025-05-13T04:57:18Z host01 syslog-healthcheck - - - CEF:0|Vendor|Product|1.0|HealthCheck"
 	msg, err := Parse([]byte(line))
 	require.NoError(t, err)
 
 	assert.Equal(t, 134, msg.Pri)
 	assert.Equal(t, "1", msg.Version)
 	assert.Equal(t, "2025-05-13T04:57:18Z", msg.Timestamp)
-	assert.Equal(t, "EMC", msg.Hostname)
-	assert.Equal(t, "syslog-healthcheck-Central", msg.AppName)
+	assert.Equal(t, "host01", msg.Hostname)
+	assert.Equal(t, "syslog-healthcheck", msg.AppName)
 	assert.Equal(t, nilvalue, msg.ProcID)
 	assert.Equal(t, nilvalue, msg.MsgID)
-	assert.Equal(t, "CEF:0|Claroty|CTD|5.0.1.0|HealthCheck", string(msg.Msg))
+	assert.Equal(t, "CEF:0|Vendor|Product|1.0|HealthCheck", string(msg.Msg))
 }
 
 // A TAG is only recognized by its terminator. Without one there is no TAG, and
@@ -366,9 +372,8 @@ func TestIPv6HostnameIsNotATag(t *testing.T) {
 }
 
 // Skipping the gap before a Cisco mnemonic must not turn into a general
-// tolerance for ragged whitespace: anything that is not a mnemonic is still
-// read as a HOSTNAME, and a run of spaces followed by a non-mnemonic still
-// fails exactly as it did before.
+// tolerance for ragged whitespace: anything that is not a mnemonic is read as
+// a HOSTNAME, and a run of spaces followed by a non-mnemonic is still an error.
 func TestCiscoMnemonicDoesNotOverCapture(t *testing.T) {
 	t.Run("padded gap before a non-mnemonic still fails", func(t *testing.T) {
 		_, err := ParseBSDLine([]byte("2024-01-05T05:45:16Z   somehost app: payload"))
@@ -428,7 +433,7 @@ func TestSkipCiscoSeparator(t *testing.T) {
 		{" : %FTD", 3},
 		{"  :  %FTD", 5},
 		{" :%FTD", 2},
-		{":%FTD", 1},  // ASA writes the colon with no preceding space
+		{":%FTD", 1}, // ASA writes the colon with no preceding space
 		{": %FTD", 2},
 		{"%FTD", 0},   // neither space nor colon, nothing consumed
 		{"::%FTD", 1}, // only one colon belongs to the separator
