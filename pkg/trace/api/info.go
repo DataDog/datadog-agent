@@ -108,6 +108,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 	var oconf reducedObfuscationConfig
+	obfuscationVersion := obfuscate.Version
 	if o := r.conf.Obfuscation; o != nil {
 		oconf.ElasticSearch = o.ES.Enabled
 		oconf.Mongo = o.Mongo.Enabled
@@ -119,6 +120,9 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Redis = o.Redis
 		oconf.Valkey = o.Valkey
 		oconf.Memcached = o.Memcached
+
+		// Hack: non default obfuscation config results in obfuscation_version = 2 to disabled client-side stats obfuscation
+		obfuscationVersion = 2
 	}
 
 	// We check that endpoints contains stats, even though we know this version of the
@@ -176,6 +180,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		ignoreResources = patterns
 	}
 
+
 	// staticPayload holds every field that does not change after startup.
 	staticPayload := infoPayload{
 		Version:                r.conf.AgentVersion,
@@ -188,7 +193,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		SpanEvents:             true,
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		SpanKindsStatsComputed: spanKindsStatsComputed,
-		ObfuscationVersion:     obfuscate.Version,
+		ObfuscationVersion:     obfuscationVersion,
 		FilterTags:             filtertags,
 		FilterTagsRegex:        filtertagsregex,
 		IgnoreResources:        ignoreResources,

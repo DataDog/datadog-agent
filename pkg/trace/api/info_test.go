@@ -594,3 +594,64 @@ func TestInfoHandler_CachedResponseBytes(t *testing.T) {
 	assert.Equal(t, string(updatedBytes), rec.Body.String(), "handler response body must match cached bytes")
 	assert.Equal(t, strconv.Itoa(len(updatedBytes)), rec.Header().Get("Content-Length"))
 }
+
+// TestInfoHandler_CustomObfuscationConfig ensures that when a custom obfuscation
+// config that affects the way stats are obfuscated is passed,
+// the obfuscation_version is set to 2 as a hacky way to force disable client-side stats obfuscation.
+//
+// see https://docs.google.com/document/d/1i-CQfkF-5B_8vLYepIJ6A16aRISH-Px7XIBSq0HKMaY/edit?tab=t.0 solution 2.
+func TestInfoHandler_CustomObfuscationConfig(t *testing.T) {
+	for _, tt := range []struct {
+		name                   string
+		obfuscationConfig      *config.ObfuscationConfig
+		wantObfuscationVersion int
+	}{
+		{
+			name:                   "Default obfuscation config has obfuscation_version = 1 (current obfuscate.Version)",
+			obfuscationConfig:      nil,
+			wantObfuscationVersion: obfuscate.Version,
+		},
+		{
+			name: "Custom obfuscation config has obfuscation_version = 2",
+			obfuscationConfig: &config.ObfuscationConfig{
+				HTTP: obfuscate.HTTPConfig{
+					RemoveQueryString: true,
+					RemovePathDigits:  true,
+				},
+				RemoveStackTraces: false,
+				Redis:             obfuscate.RedisConfig{Enabled: true},
+				Valkey:            obfuscate.ValkeyConfig{Enabled: true},
+				Memcached:         obfuscate.MemcachedConfig{Enabled: false},
+			},
+			wantObfuscationVersion: 2,
+		},
+		// {
+		// 	name: "Custom obfuscation config that doesn't affect stats has obfuscation_version = 1",
+		// 	obfuscationConfig: &config.ObfuscationConfig{
+		// 		HTTP: obfuscate.HTTPConfig{
+		// 			RemoveQueryString: true,
+		// 			RemovePathDigits:  true,
+		// 		},
+		// 		RemoveStackTraces: true,
+		// 		Memcached:         obfuscate.MemcachedConfig{Enabled: false},
+		// 	},
+		// 	wantObfuscationVersion: 1,
+		// },
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.New()
+			conf.Obfuscation = tt.obfuscationConfig
+			rcv := newTestReceiverFromConfig(conf)
+			_, h := rcv.makeInfoHandler()
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest("GET", "/info", nil)
+			req.Header.Add("Datadog-Container-ID", "id1")
+			h.ServeHTTP(rec, req)
+			var m map[string]any
+			require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
+
+			actual := int(m["obfuscation_version"].(float64))
+			assert.Equal(t, tt.wantObfuscationVersion, actual, "Unexpected obfuscation version")
+		})
+	}
+}
