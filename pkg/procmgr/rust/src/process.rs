@@ -516,7 +516,6 @@ impl ManagedProcess {
 
 fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig) -> Result<()> {
     cmd.env_clear();
-    #[cfg(windows)]
     platform::apply_child_baseline_env(cmd);
 
     if let Some(ref raw_path) = config.environment_file {
@@ -956,6 +955,20 @@ pub mod tests {
             "child should NOT see PROCMGRD_TEST_SECRET"
         );
         unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_spawn_has_baseline_path() {
+        let (sh, flag) = test_helpers::shell_cmd();
+        let script =
+            "test \"$PATH\" = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'";
+        let cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        let mut proc =
+            ManagedProcess::new_config("baseline-path".into(), test_helpers::test_uuid(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert_eq!(status.code(), Some(0), "child should have a baseline PATH");
     }
 
     #[tokio::test]
