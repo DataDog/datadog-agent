@@ -70,3 +70,8 @@ func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {
 func (s *NCMStub) RollbackEndpointHandler() http.HandlerFunc {
 	return s.GetConfigEndpointHandler()
 }
+
+// RunCommandEndpointHandler implements [networkconfigmanagement.Component].
+func (s *NCMStub) RunCommandEndpointHandler() http.HandlerFunc {
+	return s.GetConfigEndpointHandler()
+}
