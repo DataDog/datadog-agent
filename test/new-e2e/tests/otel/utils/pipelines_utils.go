@@ -407,6 +407,39 @@ func TestHosts(s OTelTestSuite) {
 	assert.Equal(s.T(), logHostname, metricHostname)
 }
 
+// TestCompression verifies that DDOT ships every signal to the intake with the
+// same compression algorithm — zstd. It asserts the Content-Encoding recorded by
+// fakeintake for metrics, traces, and logs is "zstd", guarding against per-signal
+// compression divergence on the wire (and confirming the v2 series intake accepts
+// zstd). APM stats are intentionally excluded: they are always gzip-compressed.
+func TestCompression(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	signals := []struct{ name, endpoint string }{
+		{"metrics", "/api/v2/series"},
+		{"traces", "/api/v0.2/traces"},
+		{"logs", "/api/v2/logs"},
+	}
+
+	s.T().Log("Waiting for zstd-compressed payloads on all signal endpoints")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for _, sig := range signals {
+			payloads, err := s.Env().FakeIntake.Client().GetRawPayloads(sig.endpoint)
+			if !assert.NoErrorf(c, err, "getting raw payloads for %s (%s)", sig.name, sig.endpoint) {
+				continue
+			}
+			if !assert.NotEmptyf(c, payloads, "no %s payloads received on %s yet", sig.name, sig.endpoint) {
+				continue
+			}
+			for _, p := range payloads {
+				assert.Equalf(c, "zstd", p.Encoding, "%s payloads must be zstd-compressed (endpoint %s)", sig.name, sig.endpoint)
+			}
+		}
+	}, 5*time.Minute, 10*time.Second)
+	s.T().Log("All signals (metrics, traces, logs) are zstd-compressed")
+}
+
 // TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")
