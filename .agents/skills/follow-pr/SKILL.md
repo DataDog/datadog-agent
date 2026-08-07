@@ -66,7 +66,7 @@ If the `[FINAL]` line reports a timeout (not a pipeline outcome), start an ident
 This is safe: `attach` is stateless and each invocation begins with a fresh snapshot of the pipeline.
 
 > NOTE: If the pipeline is already terminal or does not exist when you start monitoring, the user might have just pushed and the pipeline is still waiting to be created.
-> In this case, wait for a minute or two and then re-attempt monitoring. The `--follow` argument will make sure `ddgl attach` always monitors the latest pipeline for the ref.
+> In this case, wait for 60 seconds and then re-attempt monitoring. The `--follow` argument will make sure `ddgl attach` always monitors the latest pipeline for the ref.
 
 ## Step 3: Interpret the output
 
