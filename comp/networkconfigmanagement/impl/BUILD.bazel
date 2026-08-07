@@ -50,6 +50,7 @@ dd_agent_go_test(
         "devicemap_test.go",
         "networkdeviceconfig_test.go",
         "newcomponent_test.go",
+        "run_command_endpoint_test.go",
     ],
     embed = [":impl"],
     gotags_sets = [["ncm"]],
