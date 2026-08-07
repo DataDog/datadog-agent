@@ -6,6 +6,8 @@ go_library(
     srcs = [
         "analyzer.go",
         "autologger.go",
+        "grouppolicy.go",
+        "grouppolicy_xml.go",
         "impl.go",
         "impl_darwin.go",
         "impl_noop.go",
@@ -176,6 +178,7 @@ go_library(
             "//pkg/logs/message",
             "//pkg/persistentcache",
             "//pkg/util/log",
+            "//pkg/util/strings",
             "//pkg/util/winutil",
             "//pkg/util/winutil/etw",
             "@com_github_shirou_gopsutil_v4//host",
@@ -190,6 +193,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "analyzer_test.go",
+        "grouppolicy_test.go",
         "impl_darwin_test.go",
         "impl_windows_test.go",
     ],
