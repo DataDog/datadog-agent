@@ -7,7 +7,6 @@ package serializer
 
 import (
 	"maps"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -392,74 +391,6 @@ func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 			t.Fatal("unknown destination address")
 		}
 	}
-}
-
-func TestPipelinesWithV3Validate(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "http://example.test")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-	config.SetInTest("additional_endpoints", map[string][]string{
-		"http://another.test": {"alt_key"},
-	})
-	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
-	config.SetInTest("serializer_experimental_use_v3_api.series.validate", true)
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelines(metricsKindSeries)
-
-	batchID := ""
-outer:
-	for _, ctx := range pipelines {
-		for _, d := range ctx.Destinations {
-			if d.ValidationBatchID != "" {
-				batchID = d.ValidationBatchID
-				break outer
-			}
-		}
-	}
-	require.NotEmpty(t, batchID)
-
-	testutil.ElementsMatchFn(t, maps.All(pipelines),
-		// v3 pipeline has one destination...
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.True(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			testutil.ElementsMatchFn(t, slices.All(ctx.Destinations),
-				// ... to the default domain with validation headers
-				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
-					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
-					require.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
-					require.Equal(t, batchID, dest.ValidationBatchID)
-				})
-		},
-		// v2 pipeline has two destinations...
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.False(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			testutil.ElementsMatchFn(t, slices.All(ctx.Destinations),
-				// ... to the default domain with validation headers
-				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
-					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
-					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-					require.Equal(t, batchID, dest.ValidationBatchID)
-				},
-				// ... to the alternative domain without validation headers
-				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
-					require.Equal(t, "http://another.test", dest.Resolver.GetConfigName())
-					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-					require.Empty(t, dest.ValidationBatchID)
-				},
-			)
-		},
-	)
 }
 
 func TestBuildPipelinesWithV3Beta(t *testing.T) {

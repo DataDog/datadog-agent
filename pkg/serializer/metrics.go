@@ -111,10 +111,6 @@ func seriesUseV3(r resolver.DomainResolver, config config.Component, logger log.
 	return evalSeriesV3("use_v3_api.series.enabled", config.GetString("use_v3_api.series.enabled"), r, logger)
 }
 
-func metricsValidateV3(config config.Component, kind metricsKind) bool {
-	return config.GetBool(fmt.Sprintf("serializer_experimental_use_v3_api.%s.validate", kind))
-}
-
 // metricsShadowSampleRate returns the per-flush probability of also sending
 // this kind of metrics to v3beta as a validation shadow when v3 is not the
 // authoritative endpoint. Only series are supported today.
@@ -190,7 +186,6 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 
 	mrfFilter := s.getFailoverAllowlist()
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
-	validateV3 := metricsValidateV3(s.config, kind)
 	shadowRate := metricsShadowSampleRate(s.config, kind)
 	shadowSites := metricsShadowSites(s.config)
 
@@ -233,9 +228,8 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 			}
 
 		default:
-			validateV3 := useV3 && validateV3
 			shadowV3 := !useV3 && metricsShadowAllowed(resolver, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
-			if validateV3 || shadowV3 {
+			if shadowV3 {
 				dest.ValidationBatchID = s.genUUID()
 			}
 
@@ -244,20 +238,6 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 				V3:     useV3,
 			}
 			pipelines.Add(conf, dest)
-
-			// On a regular route if using v3 and validation is enabled, send a v2 payload too.
-			if validateV3 {
-				vconf := metrics.PipelineConfig{
-					Filter: metrics.AllowAllFilter{},
-					V3:     false,
-				}
-				vdest := metrics.PipelineDestination{
-					Resolver:          resolver,
-					Endpoint:          metricsEndpointFor(kind, false, s.config),
-					ValidationBatchID: dest.ValidationBatchID,
-				}
-				pipelines.Add(vconf, vdest)
-			}
 
 			// On a regular v2 route, send a sampled shadow copy to v3beta for
 			// intake-side validation. The same batchID correlates v2 and v3beta.
