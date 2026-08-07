@@ -8,7 +8,7 @@ from typing import NamedTuple
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.e2e_framework.tool import info, is_windows, restrict_file_to_owner, warn
+from tasks.e2e_framework.tool import ask_yesno, info, is_windows, restrict_file_to_owner, warn
 
 
 def ssh_fingerprint_to_bytes(fingerprint: str) -> bytes:
@@ -213,30 +213,32 @@ def discard_key_without_passphrase(
     ctx: Context,
     private_key_path: Path,
     public_key_path: Path,
-    generated_key_path: Path,
     recorded_passphrase: str | None,
 ) -> None:
     """
-    Remove a generated key whose passphrase never made it into the local config.
+    Offer to replace a key whose passphrase is not recorded in the local config.
 
-    A run interrupted between generating a key and saving that config leaves an encrypted
-    file nobody holds the passphrase for. Callers read the file's presence as proof of setup,
-    so left alone it would be reported as usable by every later run.
+    A run interrupted between generating a key and saving that config leaves a key nobody
+    holds the passphrase for, and callers read the file's presence as proof of setup, so
+    every later run would otherwise report it as usable.
 
-    A key the user supplied is never deleted: an unencrypted one needs no passphrase, and one
-    at a path they chose is theirs to replace.
+    The passphrase can outlive the config file, however: it may be restorable from a backup,
+    and on macOS add_key_to_ssh_agent keeps a copy in the Keychain. Any host already
+    provisioned with the public half also still trusts it. Deleting the key is therefore
+    offered rather than inferred.
     """
     if recorded_passphrase or not private_key_path.is_file():
         return
     if not is_key_encrypted(ctx, str(private_key_path)):
         return
-    if private_key_path != generated_key_path:
+
+    warn(f"{private_key_path} is encrypted, but no passphrase for it is recorded in the local config.")
+    if not ask_yesno("Delete it and generate a replacement? Hosts that trust the current key will reject the new one"):
         raise Exit(
-            f"{private_key_path} is encrypted but no passphrase is recorded in the local config, "
-            f"so it cannot be used. Record the passphrase, or delete the key to have setup "
-            f"generate a replacement."
+            f"Cannot use {private_key_path} without its passphrase. Restore the local config from a "
+            f"backup, set privateKeyPassword for this provider by hand, or delete the key to have "
+            f"setup generate a replacement."
         )
-    warn(f"Discarding {private_key_path}, which is encrypted with a passphrase that was never recorded")
     for stale in (private_key_path, public_key_path):
         with contextlib.suppress(OSError):
             os.remove(stale)

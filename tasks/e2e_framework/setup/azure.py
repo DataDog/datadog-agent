@@ -34,7 +34,7 @@ def setup_azure_config(ctx: Context, config: Config):
     private_path = Path(azure.privateKeyPath).expanduser()
     public_path = Path(azure.publicKeyPath).expanduser()
 
-    discard_key_without_passphrase(ctx, private_path, public_path, default_priv, azure.privateKeyPassword)
+    discard_key_without_passphrase(ctx, private_path, public_path, azure.privateKeyPassword)
 
     if not private_path.is_file():
         info(f"🔑 Generating Azure SSH keypair → {private_path}")
