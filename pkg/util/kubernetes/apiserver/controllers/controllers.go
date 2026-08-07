@@ -26,6 +26,7 @@ import (
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -82,20 +83,21 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 
 // ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
-	informers                   map[apiserver.InformerName]cache.SharedInformer
-	informersMutex              sync.Mutex
-	InformerFactory             informers.SharedInformerFactory
-	APIExentionsInformerFactory apiextentionsinformer.SharedInformerFactory
-	DynamicClient               dynamic.Interface
-	DynamicUpdateClient         dynamic.Interface
-	DynamicInformerFactory      dynamicinformer.DynamicSharedInformerFactory
-	Client                      kubernetes.Interface
-	IsLeaderFunc                func() bool
-	InstrumentationHandlers     []instrumentation.Handler
-	EventRecorder               record.EventRecorder
-	WorkloadMeta                workloadmeta.Component
-	DatadogClient               option.Option[datadogclient.Component]
-	StopCh                      chan struct{}
+	informers                       map[apiserver.InformerName]cache.SharedInformer
+	informersMutex                  sync.Mutex
+	InformerFactory                 informers.SharedInformerFactory
+	APIExentionsInformerFactory     apiextentionsinformer.SharedInformerFactory
+	DynamicClient                   dynamic.Interface
+	DynamicUpdateClient             dynamic.Interface
+	DynamicInformerFactory          dynamicinformer.DynamicSharedInformerFactory
+	Client                          kubernetes.Interface
+	IsLeaderFunc                    func() bool
+	InstrumentationHandlers         []instrumentation.Handler
+	InstrumentationCheckStatusStore *instrumentationhandlers.CheckStatusStore
+	EventRecorder                   record.EventRecorder
+	WorkloadMeta                    workloadmeta.Component
+	DatadogClient                   option.Option[datadogclient.Component]
+	StopCh                          chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is

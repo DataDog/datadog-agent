@@ -102,6 +102,11 @@ type Config struct {
 	// Source is the source of the configuration
 	Source string `json:"source"` // (include in digest: false)
 
+	// Instrumentation identifies the DatadogInstrumentation check that produced
+	// this configuration. It is propagated to the node Agent so runtime check
+	// failures can be attributed back to the originating resource.
+	Instrumentation *InstrumentationConfigOrigin `json:"instrumentation,omitempty"` // (include in digest: true)
+
 	// IgnoreAutodiscoveryTags is used to ignore tags coming from autodiscovery
 	IgnoreAutodiscoveryTags bool `json:"ignore_autodiscovery_tags"` // (include in digest: true)
 
@@ -131,6 +136,16 @@ type Config struct {
 
 // DiscoveryConfig holds per-template configuration-discovery options.
 type DiscoveryConfig struct{}
+
+// InstrumentationConfigOrigin identifies a check entry in a
+// DatadogInstrumentation resource.
+type InstrumentationConfigOrigin struct {
+	Namespace  string `json:"namespace"`
+	Name       string `json:"name"`
+	UID        string `json:"uid"`
+	Generation int64  `json:"generation"`
+	CheckIndex int    `json:"check_index"`
+}
 
 // MatchingProgram is an interface for matching objects against filter rules.
 type MatchingProgram interface {
@@ -483,6 +498,7 @@ func (c *Config) IntDigest() uint64 {
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery"))
 	}
+	writeInstrumentationOrigin(h, c.Instrumentation)
 
 	return h.Sum64()
 }
@@ -510,8 +526,24 @@ func (c *Config) FastDigest() uint64 {
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery"))
 	}
+	writeInstrumentationOrigin(h, c.Instrumentation)
 
 	return h.Sum64()
+}
+
+func writeInstrumentationOrigin(h interface{ Write([]byte) (int, error) }, origin *InstrumentationConfigOrigin) {
+	if origin == nil {
+		return
+	}
+	_, _ = h.Write([]byte(origin.Namespace))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(origin.Name))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(origin.UID))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(strconv.FormatInt(origin.Generation, 10)))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(strconv.Itoa(origin.CheckIndex)))
 }
 
 // Dump returns a string representing this Config value, for debugging purposes.  If multiline is true,

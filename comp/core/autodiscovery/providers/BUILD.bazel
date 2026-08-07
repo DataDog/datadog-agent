@@ -73,6 +73,7 @@ go_library(
         "//comp/healthplatform/store/def",
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/collector/corechecks/discovery",
+        "//pkg/collector/instrumentationstatus",
         "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/setup",

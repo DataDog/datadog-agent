@@ -2,11 +2,15 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "clusteragent",
-    srcs = ["servercontext.go"],
+    srcs = [
+        "instrumentation_check_status.go",
+        "servercontext.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/clusteragent/clusterchecks",
+        "//pkg/clusteragent/clusterchecks/types",
     ],
 )

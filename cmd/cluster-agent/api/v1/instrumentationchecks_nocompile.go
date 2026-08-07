@@ -14,4 +14,5 @@ import (
 )
 
 // installInstrumentationCheckEndpoints not implemented
-func installInstrumentationCheckEndpoints(_ *http.ServeMux, _ clusteragent.ConfigLister) {}
+func installInstrumentationCheckEndpoints(_ *http.ServeMux, _ clusteragent.ConfigLister, _ clusteragent.InstrumentationCheckStatusReceiver) {
+}

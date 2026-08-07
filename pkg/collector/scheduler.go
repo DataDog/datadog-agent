@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/instrumentationstatus"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
@@ -150,6 +151,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 					errorStats.setRunError(id, err.Error())
 				} else {
 					stopped[id] = struct{}{}
+					instrumentationstatus.UnregisterCheck(id)
 				}
 			} else {
 				log.Errorf("Collector not available, unable to stop check %s", id)
@@ -198,6 +200,9 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 	initConfig := commonInitConfig{}
 	err := yaml.Unmarshal(config.InitConfig, &initConfig)
 	if err != nil {
+		for instanceIndex := range config.Instances {
+			instrumentationstatus.ReportConfigureFailure(config.Instrumentation, instanceIndex, config.Name, fmt.Errorf("init_config: %w", err))
+		}
 		return nil, err
 	}
 	selectedLoader := initConfig.LoaderName
@@ -213,7 +218,8 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 
 		err := yaml.Unmarshal(instance, &instanceConfig)
 		if err != nil {
-			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
+			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, err)
+			instrumentationstatus.ReportConfigureFailure(config.Instrumentation, instanceIndex, config.Name, err)
 			continue
 		}
 
@@ -230,6 +236,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 
 		if result.check != nil {
 			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
+			instrumentationstatus.RegisterCheck(result.check.ID(), config.Instrumentation, instanceIndex, config.Name)
 			s.applyInfraTagger(s.senderManager, config.Name, result.check.ID())
 			checks = append(checks, result.check)
 			if includeShadowChecks {
@@ -263,6 +270,19 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
 		} else {
 			errorStats.removeLoaderErrors(config.Name)
+		}
+		if result.check == nil {
+			var concatErr strings.Builder
+			for loaderName, err := range result.loaderErrors {
+				concatErr.WriteString(loaderName)
+				concatErr.WriteString(": ")
+				concatErr.WriteString(err.Error())
+				concatErr.WriteString("; ")
+			}
+			if concatErr.Len() == 0 {
+				concatErr.WriteString("no compatible check loader")
+			}
+			instrumentationstatus.ReportConfigureFailure(config.Instrumentation, instanceIndex, config.Name, fmt.Errorf("%s", strings.TrimSuffix(concatErr.String(), "; ")))
 		}
 	}
 

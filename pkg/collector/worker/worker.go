@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/instrumentationstatus"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -279,6 +280,10 @@ func (w *Worker) Run(ctx context.Context) {
 				sStats, _ := check.GetSenderStats()
 				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
 			}
+		}
+
+		if !w.isShadowWorker {
+			instrumentationstatus.ReportRunResult(check.ID(), checkErr)
 		}
 
 		checkLogger.CheckFinished()

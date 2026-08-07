@@ -52,6 +52,11 @@ func updateStatusConditions(ctx context.Context, client dynamic.Interface, cr *d
 		if err := UnstructuredIntoDatadogInstrumentation(latestObj, latest); err != nil {
 			return err
 		}
+		// Do not attach a status computed for an older resource incarnation or
+		// generation to the latest CR after a concurrent spec update.
+		if latest.UID != cr.UID || latest.Generation != cr.Generation {
+			return nil
+		}
 
 		for _, status := range statuses {
 			if status.Type == "" {
@@ -77,4 +82,11 @@ func updateStatusConditions(ctx context.Context, client dynamic.Interface, cr *d
 		_, err = client.Resource(DatadogInstrumentationGVR).Namespace(latest.Namespace).UpdateStatus(ctx, unstructuredStatusObj, metav1.UpdateOptions{})
 		return err
 	})
+}
+
+// UpdateStatusConditions merges handler conditions into the resource status.
+// Product-specific status workers use this to share the controller's
+// conflict-retried status update behavior.
+func UpdateStatusConditions(ctx context.Context, client dynamic.Interface, cr *datadoghq.DatadogInstrumentation, statuses []HandlerStatus) error {
+	return updateStatusConditions(ctx, client, cr, statuses)
 }
