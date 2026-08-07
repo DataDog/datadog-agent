@@ -1,8 +1,7 @@
-# par-control lifecycle scaffold
+# par-control
 
 `par-control` is the control-plane process for the split Private Action Runner.
-This slice covers configuration and executor process supervision on Linux and
-Windows without adding the binary to Agent packages.
+It runs under `dd-procmgrd` and supervises the on-demand executor.
 
 - `par-control` runs only when both `private_action_runner.enabled` and
   `private_action_runner.split_enabled` are true. Otherwise it exits cleanly.
@@ -11,15 +10,36 @@ Windows without adding the binary to Agent packages.
 - Graceful shutdown uses `SIGTERM` on Linux and `CTRL_BREAK` on Windows,
   matching the events sent by `dd-procmgrd`.
 
-This branch does not package or activate `par-control`, and it does not add a
-control-to-executor connection or action dispatch. OPMS polling,
-identity/bootstrap, key synchronization, idle shutdown, and the mTLS
-control-to-executor channel remain out of scope.
+## Relationship to dd-procmgrd
+
+`par-control` and the executor are **siblings** under `dd-procmgrd`, not parent
+and child. `par-control` asks the daemon to start and stop the executor over
+gRPC; the daemon owns both process trees (its own process group on Unix, its own
+job object on Windows). Consequences worth knowing:
+
+- `par-control` can be restarted underneath a running executor, so `Start`
+  returning `FAILED_PRECONDITION` ("already running") is a success case.
+- `par-control` must **never** call back into `dd-procmgrd` from its shutdown
+  path. The daemon serializes all RPCs through a single loop, which by then is
+  either gone or blocked waiting for `par-control` to exit; an RPC would
+  deadlock until `stop_timeout` expires and the job object kills the process.
+- The socket is resolved from `DD_PM_SOCKET_PATH` before falling back to the
+  platform default, matching the daemon's own `ipc_path()`.
+
+A clean executor exit is not a failure: the executor is on-demand and exits once
+idle. Only a genuine failure makes `par-control` exit non-zero and let
+`dd-procmgrd` restart it.
 
 ## Build and test
 
-The crate is Linux/Windows-only, so build it inside the Linux dev container on a
-macOS workstation:
+The crate is Linux/Windows-only. On a macOS workstation, run the Linux dev VM:
+
+```bash
+dda env dev run -- cargo test -p par-control
+dda env dev run -- bazel test //pkg/privateactionrunner/par-control:par-control_test
+```
+
+On Linux:
 
 ```bash
 bazel test //pkg/privateactionrunner/par-control:par-control_test

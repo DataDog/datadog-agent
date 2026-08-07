@@ -1938,6 +1938,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
