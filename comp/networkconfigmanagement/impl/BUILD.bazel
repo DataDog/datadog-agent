@@ -49,6 +49,7 @@ dd_agent_go_test(
     srcs = [
         "devicemap_test.go",
         "networkdeviceconfig_test.go",
+        "run_command_endpoint_test.go",
     ],
     embed = [":impl"],
     deps = [
