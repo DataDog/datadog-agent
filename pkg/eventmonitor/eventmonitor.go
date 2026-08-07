@@ -139,21 +139,33 @@ func (m *EventMonitor) Start() error {
 
 // Close the module
 func (m *EventMonitor) Close() {
+	defer seclog.StartPhase("EventMonitor.Close")()
+
 	// stop so that consumers won't receive events anymore
+	stop := seclog.StartPhase("EventMonitor.Close/Probe.Stop")
 	m.Probe.Stop()
+	stop()
 
 	// stop event consumers
+	stop = seclog.StartPhase("EventMonitor.Close/consumers.Stop")
 	for _, em := range m.eventConsumers {
+		emStop := seclog.StartPhase("EventMonitor.Close/consumers.Stop/" + em.ID())
 		em.Stop()
+		emStop()
 	}
+	stop()
 
+	stop = seclog.StartPhase("EventMonitor.Close/cancel+wait")
 	m.cancelFnc()
 	m.wg.Wait()
+	stop()
 
 	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
+	stop = seclog.StartPhase("EventMonitor.Close/Probe.Close")
 	if err := m.Probe.Close(); err != nil {
 		seclog.Errorf("failed to close event monitor probe: %v", err)
 	}
+	stop()
 }
 
 // SendStats send stats
