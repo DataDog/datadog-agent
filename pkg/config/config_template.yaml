@@ -2296,7 +2296,7 @@ api_key:
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
 #     # Filters are applied sequentially, the last matching filter takes precedence.
-#     # In end_user_device infrastructure mode, user-defined filters are appended to the default SaaS filters below.
+#     # No filters are added automatically in end_user_device infrastructure mode; configure filters explicitly when needed.
 #
 #     filters:
 #
@@ -4365,6 +4365,14 @@ api_key:
 #
 #     excluded_ips: []
 
+#     # @param bulk_batch_size - integer - optional - default: 20
+#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_BULK_BATCH_SIZE - integer - optional - default: 20
+#     # Starting number of values requested per GetBulk call during the automatic
+#     # device scan. The scan adjusts this down on failures and back up on
+#     # successes, so this is the ceiling it works toward.
+#
+#     bulk_batch_size: 20
+
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
 #   # Discovered devices can then be monitored with the SNMP integration by using
@@ -4611,7 +4619,7 @@ api_key:
 #             # @param authProtocol - string - optional
 #             # The authentication protocol to use when connecting to your SNMP devices.
 #             # Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-#             # Defaults to MD5 when `authentication_key` is specified.
+#             # Defaults to MD5 when `authentication_key` is specified, or SHA256 in FIPS mode.
 #             # SNMPv3 only.
 #
 #             authProtocol: <AUTHENTICATION_PROTOCOL>
@@ -4625,7 +4633,7 @@ api_key:
 #             # @param privProtocol - string - optional
 #             # The privacy protocol to use when connecting to your SNMP devices.
 #             # Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-#             # Defaults to DES when `privacy_key` is specified.
+#             # Defaults to DES when `privacy_key` is specified, or AES in FIPS mode.
 #             # SNMPv3 only.
 #
 #             privProtocol: <PRIVACY_PROTOCOL>

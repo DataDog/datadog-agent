@@ -198,6 +198,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 	for _, ref := range b.cachedRefs {
 		for _, agg := range b.config.Aggregations {
+			if !supportsSeriesAggregate(storage, ref, agg) {
+				continue
+			}
 			sk := bocpdStateKey{ref: ref, agg: agg}
 
 			state, exists := b.series[sk]

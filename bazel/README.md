@@ -49,9 +49,41 @@ bazel mod deps
 
 ### Remote cache (internal to Datadog)
 
-If you are on the Datadog internal network and want to take advantage of the remote cache, simply add the following line
-to a `user.bazelrc` file located at the root of the workspace, or to a `.bazelrc` file located in your home directory:
+The `tools/bazel` wrapper auto-selects the Buildbarn remote cache on local
+builds. Behavior is controlled by `DD_BAZEL_REMOTE_CACHE`:
 
+- `auto` (default): enable only when the frontend is reachable and a token
+  source exists (the Vault CLI on the host, or an injected `BUILDBARN_ID_TOKEN`).
+  Off-network contributors get a local build with no extra prompts.
+- `on`: always enable; a failing credential helper aborts the build.
+- `off`: never enable (disk cache stays active). Equivalent to passing
+  `--config=no-remote-cache`.
+
+To opt out persistently, either set `DD_BAZEL_REMOTE_CACHE=off` or add
+`common --config=no-remote-cache` to `user.bazelrc` (workspace root) or your
+`~/.bazelrc`: the wrapper detects an rc-level opt-out and skips injecting the
+cache config. An explicit `--config=cache` / `--config=no-remote-cache` on the
+command line always wins over auto-selection.
+
+#### Remote cache in containers
+
+Inside a container the credential helper cannot run an interactive Vault login
+(it needs a browser), so auto-selection stays off until a token is injected via
+the `BUILDBARN_ID_TOKEN` environment variable. Log in to Vault on the host (if
+you have not already), mint the token there, and pass it in:
+
+```sh
+export VAULT_ADDR=https://vault.us1.ddbuild.io
+export BUILDBARN_ID_TOKEN="$(
+  vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn \
+  || { vault login -address="$VAULT_ADDR" -method=oidc \
+       && vault read -address="$VAULT_ADDR" -field=token identity/oidc/token/buildbarn; }
+)"
+docker run --env BUILDBARN_ID_TOKEN ...          # or: docker exec -e BUILDBARN_ID_TOKEN -it <container> ...
 ```
-common --config=cache
-```
+
+Running Bazel once on the host also performs the Vault OIDC login via the
+credential helper, after which the `vault read` above succeeds without an extra
+login step.
+
+The OIDC token TTL is ~1h; re-mint it for long-lived shells.

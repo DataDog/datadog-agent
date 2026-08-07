@@ -59,7 +59,7 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.5.0")
+bazel_dep(name = "bazel_lib", version = "3.7.1")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
 bazel_dep(name = "gazelle", version = "0.52.2")
@@ -74,11 +74,10 @@ bazel_dep(name = "rules_go", version = "0.61.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_python", version = "2.2.0")
 bazel_dep(name = "rules_rs", version = "0.0.27")
-bazel_dep(name = "rules_rust", version = "0.71.3")
-bazel_dep(name = "rules_rust_prost", version = "0.71.3")
+bazel_dep(name = "rules_rust", version = "0.73.0")
+bazel_dep(name = "rules_rust_prost", version = "0.73.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
@@ -125,6 +124,30 @@ archive_override(
     sha256 = "addeebfa8fdcf9fbc1c339e451cbb285e1c0d4c078c3718e42bd1791d0d96d4e",
     strip_prefix = "toolchains_llvm-ffe407ca2423f4d171b7a0f3897c23bbb7e40310",
     urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
+)
+
+#################################
+## Tools that ship with the OS ##
+#################################
+
+find_macos_codesign = use_repo_rule("//bazel/toolchains/codesign:configure.bzl", "find_macos_codesign")
+
+find_macos_codesign(
+    name = "macos_codesign",
+    exec_compatible_with = ["@platforms//os:macos"],
+)
+
+find_macos_pkgbuild = use_repo_rule("//bazel/toolchains/pkgbuild:configure.bzl", "find_macos_pkgbuild")
+
+find_macos_pkgbuild(
+    name = "macos_pkgbuild",
+    exec_compatible_with = ["@platforms//os:macos"],
+)
+
+register_toolchains(
+    "@macos_codesign//:all",
+    "@macos_pkgbuild//:all",
+    dev_dependency = True,
 )
 
 #########################
@@ -246,6 +269,7 @@ archive_override(
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
+        "//bazel/patches:gcc-toolchain/0006-independent-exec-target-arch.patch",
     ],
     sha256 = "c7a6674abbf309d2ed5fb2cf6a03aca1e4f357a6f287de2cf21ace856a08f6c2",
     strip_prefix = "gcc-toolchain-cd3e7ee1027a3ecc8b89dc61eb485299ed833399",
@@ -255,7 +279,7 @@ archive_override(
 gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_x86_64",
-    binary_prefix = "x86_64-unknown-linux-gnu-",
+    binary_prefix = "x86_64-linux-gnu-",
     enable_fortran = False,
     extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "11.4.0",
@@ -263,14 +287,33 @@ gcc_toolchains.toolchain(
 )
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_aarch64",
-    binary_prefix = "aarch64-unknown-linux-gnu-",
+    binary_prefix = "aarch64-linux-gnu-",
     enable_fortran = False,
     extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "12.3.0",
     target_arch = "aarch64",
 )
+
+# Cross toolchain: runs on aarch64, targets armv7 (armhf). No native armv7 CI
+# runners exist, so unlike the other two entries this always cross-compiles.
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_armv7",
+    binary_prefix = "arm-linux-gnueabihf-",
+    enable_fortran = False,
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    gcc_version = "13.2.0",
+    gcc_versions = """{"13.2.0": {"armv7": {
+        "url": "https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/0cd6ae2749998d738188f10abfbdeb186d76a16d4c3f5c814d69bbc3c1757fea/aarch64/arm-linux-gnueabihf-gcc.tar.xz",
+        "sha256": "2f6171e4411c51626ecc857d85dcb25c1b886807272d5b951fac128d31e858d3"
+    }}}""",
+    target_arch = "armv7",
+)
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
+use_repo(gcc_toolchains, "gcc_toolchain_armv7")
 
 sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
 
@@ -322,6 +365,7 @@ winlibs_mingw_repository(
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
+    "@gcc_toolchain_armv7//:cc_toolchain",
     "@winlibs_mingw64//:mingw_cc_toolchain",
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
@@ -413,6 +457,9 @@ include("//deps:repos.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/agent_data_plane:agent_data_plane.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/cacerts:cacerts.MODULE.bazel")

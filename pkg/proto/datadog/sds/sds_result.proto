@@ -94,6 +94,7 @@ message SdsResultPayload {
     int64 table_row_count = 6;
     int64 scanned_row_count = 7;
     repeated ScannedColumn scanned_columns = 8;
+    string entity_id = 9;
 
     message ScannedColumn {
       string name = 1;
@@ -154,6 +155,7 @@ message SdsResultPayload {
     string column_name = 2;
     int64 count_matched_rows = 3;
     int64 count_total_rows = 4 [deprecated = true]; //  rely on ScanLocation.RdsTable.table_row_count
+    int64 count_matches = 5;
   }
 
   message ScanMetadata {

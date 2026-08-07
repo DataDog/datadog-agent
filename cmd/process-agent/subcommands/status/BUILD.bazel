@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "status",
@@ -16,6 +17,7 @@ go_library(
         "//comp/core/status",
         "//comp/process",
         "//pkg/collector/python",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/process/util/status",
         "//pkg/template/text",
@@ -25,17 +27,16 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "status_test",
     srcs = ["status_test.go"],
     embed = [":status"],
-    gotags = ["test"],
     deps = [
         "//cmd/process-agent/command",
         "//comp/core/ipc/mock",
         "//comp/metadata/host/impl/utils",
+        "//pkg/config/helper",
         "//pkg/config/mock",
-        "//pkg/config/setup",
         "//pkg/process/util/status",
         "//pkg/trace/log",
         "//pkg/util/fxutil",

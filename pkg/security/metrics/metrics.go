@@ -402,6 +402,11 @@ var (
 	// lonely network namespaces.
 	// Tags: -
 	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
+	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
+	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
+	// Tags: error_type ('link_not_found', 'no_such_device', 'classifier_exists', 'queue_full', 'netlink_socket',
+	// 'link_list', 'unknown')
+	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
 
@@ -499,12 +504,17 @@ var (
 	// Event Processing metrics
 
 	// MetricSecurityProfileV2EventsReceived is the name of the metric used to report events received by ProcessEvent (after filters)
-	// Tags: source (runtime or replay)
+	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsReceived = newRuntimeMetric(".security_profile_v2.events.received")
 
 	// MetricSecurityProfileV2EventsImmediate is the name of the metric used to report events processed immediately (tags already resolved)
-	// Tags: source (runtime or replay)
+	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
+
+	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
+	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
+	// Tags: event_type, error_type
+	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
 	// Tag Resolution metrics
 

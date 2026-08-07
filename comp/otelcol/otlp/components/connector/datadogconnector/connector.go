@@ -28,7 +28,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 )
 
@@ -50,6 +50,9 @@ type traceToMetricConnector struct {
 
 	// peerTagKeys are peer tag keys to group APM stats
 	peerTagKeys []string
+
+	// primaryTagKeys are span-derived primary tag keys appended to APM stats
+	primaryTagKeys []string
 
 	// translator specifies the translator used to transform APM Stats Payloads
 	// from the agent to OTLP Metrics.
@@ -106,6 +109,7 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 		tcfg:            tcfg,
 		ctagKeys:        cfg.(*datadogconfig.ConnectorComponentConfig).Traces.ResourceAttributesAsContainerTags,
 		peerTagKeys:     tcfg.ConfiguredPeerTags(),
+		primaryTagKeys:  tcfg.ConfiguredSpanDerivedPrimaryTagKeys(),
 		concentrator:    concentrator,
 		statsout:        statsout,
 		metricsConsumer: metricsConsumer,
@@ -124,6 +128,7 @@ func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfi
 	acfg.ComputeStatsBySpanKind = cfg.ComputeStatsBySpanKind
 	acfg.PeerTagsAggregation = cfg.PeerTagsAggregation
 	acfg.PeerTags = cfg.PeerTags
+	acfg.SpanDerivedPrimaryTagKeys = cfg.SpanDerivedPrimaryTags
 
 	// ==== START for DDOT
 	if hostname, found := hostnameOpt.Get(); found {
@@ -199,7 +204,7 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// _sample_rate (head-based sampling weight) is injected during OTel→DD span
 	// conversion in pkg/trace/transform, so the Concentrator scales stats by the
 	// head-sampling weight without any connector-local logic.
-	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.peerTagKeys, c.obfuscator)
+	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.peerTagKeys, c.primaryTagKeys, c.obfuscator)
 	for _, input := range inputs {
 		c.concentrator.Add(input)
 	}
