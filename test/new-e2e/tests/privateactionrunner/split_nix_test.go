@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -27,11 +29,11 @@ const (
 	procmgrSocket      = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 )
 
-type linuxPARSplitLifecycleSuite struct {
+type linuxPARSplitSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestLinuxPARSplitLifecycleSuite(t *testing.T) {
+func TestLinuxPARSplitSuite(t *testing.T) {
 	t.Parallel()
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	config := fmt.Sprintf(`private_action_runner:
@@ -40,28 +42,71 @@ func TestLinuxPARSplitLifecycleSuite(t *testing.T) {
   self_enroll: false
   urn: %s
   private_key: %s
-`, urn, privateKey)
+  idle_timeout_seconds: 5
+  actions_allowlist:
+    - %s
+`, urn, privateKey, runCommandAction)
 
-	e2e.Run(t, &linuxPARSplitLifecycleSuite{}, e2e.WithProvisioner(
+	e2e.Run(t, &linuxPARSplitSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(config),
+					agentparams.WithFile(
+						"/etc/datadog-agent/environment",
+						"DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true\n",
+						true,
+					),
+				),
 			),
 		),
 	))
 }
 
-// TestControlStartsExecutor proves the package ships both process definitions and
-// that dd-procmgrd starts par-control, which starts the on-demand executor.
-func (s *linuxPARSplitLifecycleSuite) TestControlStartsExecutor() {
-	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
-	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
-}
+// TestSplitControlPlaneEndToEnd exercises the complete split-runner path in one
+// ordered flow: OPMS polling and liveness, idle executor reclamation, on-demand
+// action execution and publication, and graceful control-plane shutdown. Keeping
+// the flow in one test avoids order dependencies between suite methods.
+func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
+	client := s.Env().FakeIntake.Client()
+	s.Require().NoError(client.FlushPAR(), "reset PAR state so same-host retries are independent")
 
-// TestControlStopsWithoutReenteringSupervisor proves par-control exits promptly on
-// SIGTERM instead of making a nested Stop RPC that would block behind dd-procmgrd's
-// in-progress stop. The supervisor keeps owning the executor.
-func (s *linuxPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervisor() {
+	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
+	// Exactly one process may poll OPMS in split mode. Confirm the monolithic
+	// runner has exited before attributing the requests below to par-control.
+	s.waitForProcessState(parMonolithProcess, "Exited", 2*time.Minute)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		count, err := client.GetPARDequeueCount()
+		require.NoError(c, err)
+		require.Greater(c, count, 0, "par-control should poll OPMS")
+	}, 2*time.Minute, 2*time.Second)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		count, err := client.GetPARHealthCheckCount()
+		require.NoError(c, err)
+		require.Greater(c, count, 0, "par-control should report runner liveness")
+	}, 90*time.Second, 5*time.Second)
+
+	// The initial pre-warmed executor should be reclaimed while no tasks exist.
+	s.waitForProcessState(parExecutorProcess, "Stopped", 2*time.Minute)
+
+	taskID := uuid.New().String()
+	s.Require().NoError(client.EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo par-split-e2e",
+		"allowedCommands": []string{"rshell:echo"},
+	}))
+
+	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
+	s.Require().NoError(err)
+	s.Require().True(result.Success, "split PAR action failed: %+v", result)
+	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
+	s.Require().Contains(result.Outputs["stdout"], "par-split-e2e")
+
+	// Successful execution proves the stopped executor was started on demand;
+	// verify it is reclaimed again after the configured idle timeout.
+	s.waitForProcessState(parExecutorProcess, "Stopped", 2*time.Minute)
+
+	// Stopping par-control through its supervisor must not deadlock on a nested
+	// process-manager Stop RPC. Restore it so a same-host retry starts cleanly.
 	defer func() {
 		s.Require().NoError(s.runProcmgr("start", parControlProcess))
 		s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
@@ -69,26 +114,25 @@ func (s *linuxPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSuperviso
 
 	started := time.Now()
 	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
-	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 30s timeout")
-
+	s.Require().Less(time.Since(started), 15*time.Second, "par-control should stop promptly")
 	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
-	s.waitForProcessState(parExecutorProcess, "Running", 10*time.Second)
+	s.waitForProcessState(parExecutorProcess, "Stopped", 10*time.Second)
 }
 
-func (s *linuxPARSplitLifecycleSuite) runProcmgr(command, name string) error {
+func (s *linuxPARSplitSuite) runProcmgr(command, name string) error {
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
 		"sudo %s --socket %s %s %s", procmgrCLI, procmgrSocket, command, name,
 	))
 	return err
 }
 
-func (s *linuxPARSplitLifecycleSuite) waitForProcessState(name, state string, timeout time.Duration) {
+func (s *linuxPARSplitSuite) waitForProcessState(name, state string, timeout time.Duration) {
 	s.T().Helper()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
 			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, name,
 		))
-		assert.NoError(c, err)
-		assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
+		require.NoError(c, err)
+		require.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
 	}, timeout, 2*time.Second, "%s should become %s", name, state)
 }

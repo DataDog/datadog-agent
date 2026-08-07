@@ -18,6 +18,42 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func TestPARStatsTrackRunnerRequestsAndFlush(t *testing.T) {
+	fi := NewServer()
+
+	for range 2 {
+		fi.handlePARDequeue(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodPost, "/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil),
+		)
+	}
+	for range 3 {
+		fi.handlePARHealthCheck(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodGet, "/api/v2/on-prem-management-service/runner/health-check", nil),
+		)
+	}
+
+	assertPARStats(t, fi, 2, 3)
+	fi.handlePARFlush(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/fakeintake/par/flush", nil))
+	assertPARStats(t, fi, 0, 0)
+}
+
+func assertPARStats(t *testing.T, fi *Server, wantDequeues, wantHealthChecks int) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	fi.handlePARStats(recorder, httptest.NewRequest(http.MethodGet, "/fakeintake/par/stats", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var stats struct {
+		DequeueCalls     int `json:"dequeue_calls"`
+		HealthCheckCalls int `json:"health_check_calls"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &stats))
+	assert.Equal(t, wantDequeues, stats.DequeueCalls)
+	assert.Equal(t, wantHealthChecks, stats.HealthCheckCalls)
+}
+
 func TestPARDequeueSurfacesRshellPolicyInSignedEnvelope(t *testing.T) {
 	fi := NewServer()
 	fi.par.queue = []parQueuedTask{{
