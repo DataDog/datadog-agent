@@ -249,7 +249,7 @@ new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
 new-e2e-gpu*                            @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
 # --- Action platform / discovery ---
-new-e2e-privateactionrunner             @DataDog/action-platform
+new-e2e-privateactionrunner*            @DataDog/action-platform
 new-e2e-discovery                       @DataDog/agent-discovery
 # --- Windows-only jobs (single owner: windows-products) ---
 new-e2e-windows-*                       @DataDog/windows-products
