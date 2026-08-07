@@ -62,7 +62,7 @@ type syslogFrameMatcher struct {
 //
 // When the leading byte is not a valid syslog frame start ('<' or digit),
 // the matcher scans forward for the next probable frame start — either a
-// PRI header (<[0-9]) or an octet-counting prefix (digit+ SP <digit).
+// PRI header (<[0-9]{1,3}>) or an octet-counting prefix (digit+ SP PRI).
 // Everything before that sync point is emitted as a single malformed frame
 // so the downstream parser can log it coherently rather than producing one
 // empty message per byte.
@@ -98,9 +98,8 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 		// omits the PRI produces them routinely — rsyslog's file templates drop
 		// it, so anything relaying such a rendering arrives as a bare timestamp
 		// — as do epoch prefixes and thread ids ("54 [main] INFO ...").
-		// Require the full MSG-LEN SP PRI signature before committing,
-		// otherwise the digits would be consumed as a length and the declared
-		// body would swallow every following frame.
+		// classifyOctetPrefix demands the full MSG-LEN SP PRI signature before
+		// any of those bytes are read as a length.
 		switch classifyOctetPrefix(buf) {
 		case octetPrefixYes:
 			return m.findOctetCounted(buf, seen)
@@ -124,13 +123,10 @@ func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool)
 
 // maxFrameStartLookbehind bounds how far scanMalformed rewinds behind the
 // already-scanned prefix (seen) before resuming its search for the next frame
-// start. It must cover the longest frame-start signature isSyslogFrameStart can
-// match across a read boundary so a signature whose tail only arrives in the
-// current read is still detected: up to 10 length digits (the cap enforced by
-// findOctetCounted) + SP + "<" + digit, i.e. ~13 bytes. 16 adds margin. Any
-// "octet header" longer than this is rejected as malformed anyway, so there is
-// no valid frame start beyond the look-behind to miss.
-const maxFrameStartLookbehind = 16
+// start, so a signature whose tail only arrives in the current read is still
+// found. It is the longest such signature: MSG-LEN SP PRI. Anything beginning
+// further back fitted entirely within the previous read and was decided then.
+const maxFrameStartLookbehind = maxOctetLenDigits + 1 + maxPRIDigits + 2
 
 // scanMalformed consumes bytes that do not start a valid syslog frame. buf[0]
 // is known malformed (the FindFrame dispatch handles frame starts and stray
@@ -202,29 +198,23 @@ func (m *syslogFrameMatcher) scanMalformed(buf []byte, seen int, continuation bo
 // isSyslogFrameStart returns true if buf[i] looks like the start of a valid
 // syslog frame. Two patterns are recognized:
 //
-//   - Non-transparent PRI header: <[0-9] (e.g. "<134>...")
-//   - Octet-counting prefix: [1-9][0-9]* SP <[0-9] (e.g. "62 <134>...")
+//   - Non-transparent PRI header: <[0-9]{1,3}> (e.g. "<134>...")
+//   - Octet-counting prefix: [1-9][0-9]* SP <[0-9]{1,3}> (e.g. "62 <134>...")
 //
-// The octet-counting check requires the full "digits SP <digit" signature
-// to avoid false positives on bare digits in non-syslog content (e.g.,
-// timestamps like "2026-04-20T12:00:00Z" or JSON values). Previously, any
-// digit 1-9 was treated as a sync point, which caused a single JSON line
-// to fragment into 13+ entries.
+// Both are delegated — to priLen and classifyOctetPrefix — so that
+// resynchronizing applies exactly the tests that admit a frame in the first
+// place, and a malformed run cannot be cut short at something the reader would
+// then reject. An incomplete signature is not a sync point: unlike the caller
+// that reads frames, a resync can wait for the scan to reach a later candidate
+// instead of having to decide on the bytes in hand.
 func isSyslogFrameStart(buf []byte, i int) bool {
 	b := buf[i]
-	if b == '<' && i+1 < len(buf) && buf[i+1] >= '0' && buf[i+1] <= '9' {
-		return true
+	if b == '<' {
+		n, _ := priLen(buf[i:])
+		return n > 0
 	}
 	if b >= '1' && b <= '9' {
-		j := i
-		for j < len(buf) && buf[j] >= '0' && buf[j] <= '9' {
-			j++
-		}
-		if j < len(buf) && buf[j] == ' ' &&
-			j+1 < len(buf) && buf[j+1] == '<' &&
-			j+2 < len(buf) && buf[j+2] >= '0' && buf[j+2] <= '9' {
-			return true
-		}
+		return classifyOctetPrefix(buf[i:]) == octetPrefixYes
 	}
 	return false
 }
@@ -232,6 +222,10 @@ func isSyslogFrameStart(buf []byte, i int) bool {
 // maxOctetLenDigits caps how many digits a MSG-LEN may have. A longer run is
 // not a plausible length, so the leading bytes are not an octet-counting header.
 const maxOctetLenDigits = 10
+
+// maxPRIDigits is the widest PRIVAL RFC 5424 §6.2.1 allows, "<191>" being the
+// largest valid PRI.
+const maxPRIDigits = 3
 
 // octetPrefixVerdict is the result of testing whether buf begins an RFC 6587
 // octet-counted frame. It is three-way rather than boolean: a TCP read can split
@@ -248,15 +242,10 @@ const (
 )
 
 // classifyOctetPrefix reports whether buf starts an octet-counted frame:
-// MSG-LEN SP SYSLOG-MSG, where SYSLOG-MSG begins with a PRI ("<" digit) because
+// MSG-LEN SP SYSLOG-MSG, where SYSLOG-MSG begins with a whole PRI because
 // RFC 6587 §3.4.1 carries RFC 5424 messages. buf[0] is known to be '1'-'9'.
 //
-// This is the same signature isSyslogFrameStart requires when resynchronizing,
-// so frame detection agrees on entry and on resync. Without the full
-// signature a line that merely starts with digits and a space would have its
-// digits consumed as a length, and the declared body would then swallow every
-// following frame (MSG-LEN being the authoritative boundary, the body is never
-// re-scanned for frame starts).
+// Nothing less than the whole signature will do; see priLen.
 func classifyOctetPrefix(buf []byte) octetPrefixVerdict {
 	i := 0
 	for i < len(buf) && buf[i] >= '0' && buf[i] <= '9' {
@@ -272,20 +261,47 @@ func classifyOctetPrefix(buf []byte) octetPrefixVerdict {
 	if buf[i] != ' ' {
 		return octetPrefixNo
 	}
-	// The two bytes after the SP must be "<" followed by a digit.
-	if i+1 >= len(buf) {
+	// What follows the SP must be a whole PRI.
+	n, needMore := priLen(buf[i+1:])
+	switch {
+	case needMore:
 		return octetPrefixNeedMore
-	}
-	if buf[i+1] != '<' {
-		return octetPrefixNo
-	}
-	if i+2 >= len(buf) {
-		return octetPrefixNeedMore
-	}
-	if buf[i+2] < '0' || buf[i+2] > '9' {
+	case n == 0:
 		return octetPrefixNo
 	}
 	return octetPrefixYes
+}
+
+// priLen returns the length of a complete PRI — "<", a 1-3 digit PRIVAL, ">" —
+// at the start of buf, or 0 if buf does not begin with one. needMore reports
+// that buf ended before the PRI could be decided, which only the caller knows
+// how to handle: a reader that must commit now has to wait, while a scan
+// looking for the next frame start can carry on and pick it up next read.
+//
+// The closing ">" is what makes this worth checking in full. "<" and a digit
+// alone also open ordinary prose ("54 <1 minute elapsed"), and accepting that
+// is enough for the digits ahead of it to be read as a MSG-LEN. Because
+// MSG-LEN is the authoritative frame boundary and the body it declares is
+// never re-scanned, that body then runs past the newline and swallows the
+// frames behind it.
+func priLen(buf []byte) (n int, needMore bool) {
+	if len(buf) == 0 {
+		return 0, true
+	}
+	if buf[0] != '<' {
+		return 0, false
+	}
+	i := 1
+	for i < len(buf) && i-1 < maxPRIDigits && buf[i] >= '0' && buf[i] <= '9' {
+		i++
+	}
+	if i == len(buf) {
+		return 0, true
+	}
+	if i == 1 || buf[i] != '>' {
+		return 0, false
+	}
+	return i + 1, false
 }
 
 // findOctetCounted parses MSG-LEN SP SYSLOG-MSG from the beginning of buf.
