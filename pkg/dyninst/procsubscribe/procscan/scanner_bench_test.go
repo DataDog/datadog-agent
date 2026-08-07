@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -373,8 +374,12 @@ func syntheticProcStat(pid uint32, startTime ticks) string {
 }
 
 // benchExeTargets returns real, readable binaries to point the fake exe links
-// at, since resolving an executable opens and stats the target.
+// at, since resolving an executable opens and stats the target. Candidates
+// that resolve to the same underlying file (e.g. several coreutils sharing one
+// busybox-style binary) are collapsed to one, since that is what the
+// scanner's executable cache, keyed on device and inode, will see.
 func benchExeTargets(tb testing.TB) (systemExes []string, selfExe string) {
+	seen := make(map[[2]uint64]struct{})
 	for _, candidate := range []string{
 		"/bin/sh", "/bin/cat", "/bin/ls", "/usr/bin/env", "/bin/true",
 	} {
@@ -382,7 +387,20 @@ func benchExeTargets(tb testing.TB) (systemExes []string, selfExe string) {
 		if err != nil {
 			continue
 		}
+		info, err := f.Stat()
 		f.Close()
+		if err != nil {
+			continue
+		}
+		statT, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			continue
+		}
+		key := [2]uint64{uint64(statT.Dev), statT.Ino}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
 		systemExes = append(systemExes, candidate)
 	}
 	if len(systemExes) == 0 {
