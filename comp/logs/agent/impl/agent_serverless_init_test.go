@@ -34,7 +34,7 @@ func TestServerlessLogsAgent(t *testing.T) {
 	hostnameService := hostnameimpl.NewHostnameService()
 	config := config.NewMock(t)
 
-	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService)
+	serverlessLogsAgent := NewServerlessLogsAgent(fakeTagger, fakeCompression, hostnameService, false)
 	logsAgent, ok := serverlessLogsAgent.(*logAgent)
 	assert.True(t, ok, "Expected NewServerlessLogsAgent to return *logAgent type")
 
