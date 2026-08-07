@@ -50,7 +50,6 @@ windows-sys = { workspace = true, features = [
 
 [dev-dependencies]
 tempfile.workspace = true
-tokio-stream = { workspace = true, features = ["net"] }
 
 [build-dependencies]
 tonic-prost-build.workspace = true
