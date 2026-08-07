@@ -1,0 +1,240 @@
+From 3b638ce7d7c0a5e507d16da27d060d6ca4995dc3 Mon Sep 17 00:00:00 2001
+From: Phil Lee <philip.lee@datadoghq.com>
+Date: Fri, 1 May 2026 14:26:44 -0400
+Subject: [PATCH] feat: add --test-cmd and --no-coverage flags for Bazel
+ support
+
+When --test-cmd is set, gremlins uses the provided command instead of
+'go test' for mutation execution, and applies mutations directly to
+the source files (PassthroughDealer) instead of temporary copies.
+This is required for build systems like Bazel that need source changes
+in the workspace to trigger a rebuild.
+
+When --no-coverage is set, gremlins skips the 'go test -cover' step
+and treats all mutation sites as testable. Required when --test-cmd
+is set since the coverage command also hardcodes 'go test'.
+---
+ cmd/unleash.go                          | 40 +++++++++++++++++++------
+ internal/configuration/configuration.go |  3 ++
+ internal/engine/engine.go               |  2 +-
+ internal/engine/executor.go             | 19 ++++++++++--
+ internal/engine/workdir/workdir.go      | 16 ++++++++++
+ 5 files changed, 67 insertions(+), 13 deletions(-)
+
+diff --git a/cmd/unleash.go b/cmd/unleash.go
+index d7eddb2..4a9cd8a 100644
+--- a/cmd/unleash.go
++++ b/cmd/unleash.go
+@@ -22,6 +22,7 @@ import (
+ 	"os"
+ 	"strings"
+ 	"sync"
++	"time"
+ 
+ 	"github.com/MakeNowJust/heredoc"
+ 	"github.com/spf13/cobra"
+@@ -59,6 +60,8 @@ const (
+ 	paramTestCPU            = "test-cpu"
+ 	paramWorkers            = "workers"
+ 	paramTimeoutCoefficient = "timeout-coefficient"
++	paramTestCmd            = "test-cmd"
++	paramNoCoverage         = "no-coverage"
+ 
+ 	// Thresholds.
+ 	paramThresholdEfficacy  = "threshold-efficacy"
+@@ -159,30 +162,47 @@ func cleanUp(wd string) {
+ }
+ 
+ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Results, error) {
++	noCoverage := configuration.Get[bool](configuration.UnleashNoCoverageKey)
++	testCmd := configuration.Get[string](configuration.UnleashTestCmdKey)
++
+ 	fDiff, err := diff.New()
+ 	if err != nil {
+ 		return report.Results{}, err
+ 	}
+ 
+-	c := coverage.New(workDir, mod)
+-
+ 	exclude, err := exclusion.New()
+ 	if err != nil {
+ 		return report.Results{}, err
+ 	}
+ 
+-	cProfile, err := c.Run()
+-	if err != nil {
+-		return report.Results{}, fmt.Errorf("failed to gather coverage: %w", err)
++	var covProfile coverage.Profile
++	var elapsed time.Duration
++
++	if noCoverage {
++		elapsed = 30 * time.Second
++	} else {
++		c := coverage.New(workDir, mod)
++		cProfile, err := c.Run()
++		if err != nil {
++			return report.Results{}, fmt.Errorf("failed to gather coverage: %w", err)
++		}
++		covProfile = cProfile.Profile
++		elapsed = cProfile.Elapsed
+ 	}
+ 
+-	wdDealer := workdir.NewCachedDealer(workDir, mod.Root)
+-	defer wdDealer.Clean()
++	var wdDealer workdir.Dealer
++	if testCmd != "" {
++		wdDealer = workdir.NewPassthroughDealer(mod.Root)
++	} else {
++		cached := workdir.NewCachedDealer(workDir, mod.Root)
++		defer cached.Clean()
++		wdDealer = cached
++	}
+ 
+-	jDealer := engine.NewExecutorDealer(mod, wdDealer, cProfile.Elapsed)
++	jDealer := engine.NewExecutorDealer(mod, wdDealer, elapsed)
+ 
+ 	codeData := engine.CodeData{
+-		Cov:       cProfile.Profile,
++		Cov:       covProfile,
+ 		Diff:      fDiff,
+ 		Exclusion: exclude,
+ 	}
+@@ -219,6 +239,8 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
+ 		{Name: paramWorkers, CfgKey: configuration.UnleashWorkersKey, DefaultV: 0, Usage: "the number of workers to use in mutation testing"},
+ 		{Name: paramTestCPU, CfgKey: configuration.UnleashTestCPUKey, DefaultV: 0, Usage: "the number of CPUs to allow each test run to use"},
+ 		{Name: paramTimeoutCoefficient, CfgKey: configuration.UnleashTimeoutCoefficientKey, DefaultV: 0, Usage: "the coefficient by which the timeout is increased"},
++		{Name: paramTestCmd, CfgKey: configuration.UnleashTestCmdKey, DefaultV: "", Usage: "custom test command replacing 'go test' (e.g. 'bazel test //pkg:target')"},
++		{Name: paramNoCoverage, CfgKey: configuration.UnleashNoCoverageKey, DefaultV: false, Usage: "skip coverage gathering; mutate all sites (required with --test-cmd)"},
+ 	}
+ 
+ 	for _, f := range fls {
+diff --git a/internal/configuration/configuration.go b/internal/configuration/configuration.go
+index be4a411..3c55d2b 100644
+--- a/internal/configuration/configuration.go
++++ b/internal/configuration/configuration.go
+@@ -47,6 +47,9 @@ const (
+ 	UnleashDiffRef               = "unleash.diff"
+ 	UnleashThresholdEfficacyKey  = "unleash.threshold.efficacy"
+ 	UnleashThresholdMCoverageKey = "unleash.threshold.mutant-coverage"
++
++	UnleashTestCmdKey    = "unleash.test-cmd"
++	UnleashNoCoverageKey = "unleash.no-coverage"
+ )
+ 
+ const (
+diff --git a/internal/engine/engine.go b/internal/engine/engine.go
+index df452f4..2cebd08 100644
+--- a/internal/engine/engine.go
++++ b/internal/engine/engine.go
+@@ -188,7 +188,7 @@ func normalisePkgPath(pkg string) string {
+ func (mu *Engine) mutationStatus(pos token.Position) mutator.Status {
+ 	var status mutator.Status
+ 
+-	if mu.codeData.Cov.IsCovered(pos) {
++	if mu.codeData.Cov == nil || mu.codeData.Cov.IsCovered(pos) {
+ 		status = mutator.Runnable
+ 	}
+ 
+diff --git a/internal/engine/executor.go b/internal/engine/executor.go
+index 1f182ad..7fd6cce 100644
+--- a/internal/engine/executor.go
++++ b/internal/engine/executor.go
+@@ -23,6 +23,7 @@ import (
+ 	"os"
+ 	"os/exec"
+ 	"path/filepath"
++	"strings"
+ 	"sync"
+ 	"time"
+ 
+@@ -56,6 +57,7 @@ type MutantExecutorDealer struct {
+ 	execContext       execContext
+ 	mod               gomodule.GoModule
+ 	buildTags         string
++	testCmd           string
+ 	testExecutionTime time.Duration
+ 	dryRun            bool
+ 	integrationMode   bool
+@@ -81,6 +83,7 @@ func NewExecutorDealer(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.D
+ 	integrationMode := configuration.Get[bool](configuration.UnleashIntegrationMode)
+ 	testCPU := configuration.Get[int](configuration.UnleashTestCPUKey)
+ 	tCoefficient := configuration.Get[int](configuration.UnleashTimeoutCoefficientKey)
++	testCmd := configuration.Get[string](configuration.UnleashTestCmdKey)
+ 
+ 	coefficient := DefaultTimeoutCoefficient
+ 	if tCoefficient != 0 {
+@@ -95,6 +98,7 @@ func NewExecutorDealer(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.D
+ 		mod:               mod,
+ 		wdDealer:          wdd,
+ 		buildTags:         buildTags,
++		testCmd:           testCmd,
+ 		dryRun:            dryRun,
+ 		integrationMode:   integrationMode,
+ 		testCPU:           testCPU,
+@@ -123,6 +127,7 @@ func (m MutantExecutorDealer) NewExecutor(mut mutator.Mutator, outCh chan<- muta
+ 		dryRun:            m.dryRun,
+ 		integrationMode:   m.integrationMode,
+ 		buildTags:         m.buildTags,
++		testCmd:           m.testCmd,
+ 		execContext:       m.execContext,
+ 		testCPU:           m.testCPU,
+ 		testExecutionTime: m.testExecutionTime,
+@@ -141,6 +146,7 @@ type mutantExecutor struct {
+ 	execContext       execContext
+ 	module            gomodule.GoModule
+ 	buildTags         string
++	testCmd           string
+ 	testExecutionTime time.Duration
+ 	dryRun            bool
+ 	integrationMode   bool
+@@ -195,10 +201,17 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
+ 	ctx, cancel := context.WithTimeout(context.Background(), m.testExecutionTime)
+ 	defer cancel()
+ 
+-	cmd := m.execContext(ctx, "go", m.getTestArgs(pkg)...)
+-	cmd.Dir = m.mutant.Workdir()
+-	if m.integrationMode {
++	var cmd *exec.Cmd
++	if m.testCmd != "" {
++		parts := strings.Fields(m.testCmd)
++		cmd = m.execContext(ctx, parts[0], parts[1:]...)
+ 		cmd.Dir = rootDir
++	} else {
++		cmd = m.execContext(ctx, "go", m.getTestArgs(pkg)...)
++		cmd.Dir = m.mutant.Workdir()
++		if m.integrationMode {
++			cmd.Dir = rootDir
++		}
+ 	}
+ 	cmd.Env = append(cmd.Env, os.Environ()...)
+ 	cmd.Env = append(cmd.Env, fmt.Sprintf("GOTMPDIR=%s", m.wdDealer.WorkDir()))
+diff --git a/internal/engine/workdir/workdir.go b/internal/engine/workdir/workdir.go
+index 6f479c5..44e0bfd 100644
+--- a/internal/engine/workdir/workdir.go
++++ b/internal/engine/workdir/workdir.go
+@@ -154,6 +154,22 @@ func copyPath(srcPath, dstPath string, info fs.FileInfo) error {
+ 	return nil
+ }
+ 
++// PassthroughDealer returns original source paths without copying. Mutations
++// are applied in-place, which is required for build systems like Bazel that
++// need source changes in the workspace to trigger a rebuild.
++type PassthroughDealer struct {
++	srcDir string
++}
++
++// NewPassthroughDealer creates a dealer that operates on original source files.
++func NewPassthroughDealer(srcDir string) *PassthroughDealer {
++	return &PassthroughDealer{srcDir: srcDir}
++}
++
++func (d *PassthroughDealer) Get(_ string) (string, error) { return d.srcDir, nil }
++func (d *PassthroughDealer) Clean()                        {}
++func (d *PassthroughDealer) WorkDir() string               { return d.srcDir }
++
+ func doCopy(srcPath, dstPath string, fileMode fs.FileMode) error {
+ 	//nolint:gosec // srcPath is internally controlled, not user input
+ 	s, err := os.Open(srcPath)
+-- 
+2.52.0
+
