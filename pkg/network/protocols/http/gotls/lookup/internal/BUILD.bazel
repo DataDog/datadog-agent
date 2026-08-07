@@ -1,23 +1,23 @@
-load("@rules_go//go:def.bzl", "go_binary")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
-# generate_luts.go had `//go:build ignore`, renamed to `//go:build generate_luts`
-# so gazelle's default tag set still skips it (it's a manual `go run` codegen
-# script) while gotags can select it here without reusing "ignore" — that tag
-# also gates //go:build ignore generator scripts inside the Go stdlib itself,
-# and activating it via gotags corrupts the stdlib build. linux-only because
-# bininspect only has buildable sources on linux. "generate_luts" isn't in
-# GAZELLE_BUILD_TAGS, so gazelle sees no buildable sources here and would
-# delete this whole rule as orphaned without the keep below.
 go_binary(
     name = "generate_luts",
-    srcs = ["generate_luts.go"],
-    gotags = ["generate_luts"],
+    embed = [":internal_lib"],
+    gotags = ["manual_luts_generator"],
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "internal_lib",
+    srcs = ["generate_luts.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup/internal",
+    visibility = ["//visibility:private"],
     deps = [
         "//pkg/network/go/bininspect",
         "//pkg/network/go/goversion",
         "//pkg/network/go/lutgen",
         "//pkg/util/safeelf",
     ],
-)  # keep
+)
