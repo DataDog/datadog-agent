@@ -16,14 +16,16 @@ use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
 use par_control::orchestrator::{Orchestrator, Params};
+use par_control::platform;
 use par_control::procmgr::ProcmgrLifecycle;
 use std::path::PathBuf;
+use std::process::ExitCode;
 use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    #[arg(short = 'c', long, default_value = "/etc/datadog-agent/datadog.yaml")]
+    #[arg(short = 'c', long, default_value = platform::default_config_path())]
     config: PathBuf,
 
     /// Existing Go Private Action Runner binary used to resolve the Agent's
@@ -38,7 +40,21 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> ExitCode {
+    // Report failures through the logger rather than by returning Err: anyhow
+    // prints to stderr, which dd-procmgrd sends to the null device when it runs
+    // as a Windows service, so a startup failure would leave no trace at all.
+    match run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            log::error!("par-control failed: {error:#}");
+            log::logger().flush();
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize logging before the launch gate so clean exits and config errors
@@ -46,7 +62,7 @@ async fn main() -> Result<()> {
     if let Err(e) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
         level: log_level_from_yaml_file(&cli.config),
-        log_file: None,
+        log_file: platform::default_log_file(),
     }) {
         eprintln!("par-control: could not initialize the logger: {e}");
     }
@@ -115,25 +131,42 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Resolves when the process receives Ctrl-C or (on Unix) SIGTERM.
+/// Resolves when dd-procmgrd asks par-control to stop: SIGTERM on Unix,
+/// CTRL_BREAK on Windows. Ctrl-C additionally covers interactive runs.
+#[cfg(unix)]
 async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        use tokio::signal::unix::{SignalKind, signal};
-        let mut term = match signal(SignalKind::terminate()) {
-            Ok(s) => s,
-            Err(_) => {
-                let _ = tokio::signal::ctrl_c().await;
-                return;
-            }
-        };
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = term.recv() => {},
+    use tokio::signal::unix::{SignalKind, signal};
+    let mut term = match signal(SignalKind::terminate()) {
+        Ok(s) => s,
+        Err(_) => {
+            let _ = tokio::signal::ctrl_c().await;
+            return;
         }
+    };
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {},
+        _ = term.recv() => {},
     }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
+}
+
+/// dd-procmgrd stops children with `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`
+/// (`send_graceful_stop` in `pkg/procmgr/rust/src/platform/windows.rs`), so
+/// CTRL_BREAK is the event that matters in production; CTRL_C only covers
+/// interactive runs. Missing CTRL_BREAK would mean never draining: par-control
+/// would sit until `stop_timeout` expired and then be killed with the job
+/// object, abandoning in-flight actions instead of publishing their outcomes.
+#[cfg(windows)]
+async fn shutdown_signal() {
+    match tokio::signal::windows::ctrl_break() {
+        Ok(mut ctrl_break) => {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {},
+                _ = ctrl_break.recv() => {},
+            }
+        }
+        Err(error) => {
+            log::warn!("could not listen for CTRL_BREAK, falling back to CTRL_C: {error}");
+            let _ = tokio::signal::ctrl_c().await;
+        }
     }
 }
