@@ -8,6 +8,7 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
+	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/controlconfig"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/runexecutor"
@@ -17,6 +18,7 @@ import (
 // PrivateActionRunnerSubcommands returns all subcommands for the private-action-runner command
 func PrivateActionRunnerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
+		controlconfig.Commands,
 		run.Commands,
 		runexecutor.Commands,
 		version.Commands,
