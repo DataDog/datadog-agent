@@ -38,4 +38,6 @@ type Component interface {
 	GetConfigEndpointHandler() http.HandlerFunc
 	// RollbackEndpointHandler returns an HTTP handler for getting configuration
 	RollbackEndpointHandler() http.HandlerFunc
+	// RunCommandEndpointHandler returns an HTTP handler for running a command on a device
+	RunCommandEndpointHandler() http.HandlerFunc
 }
