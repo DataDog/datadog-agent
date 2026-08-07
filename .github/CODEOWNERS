@@ -27,6 +27,7 @@
 /.agents/skills/auto-jira/                       @DataDog/agent-devx
 /.agents/skills/create-component/                @DataDog/agent-runtimes
 /.agents/skills/create-core-check/               @DataDog/agent-runtimes
+/.agents/skills/create-epic-recap/               @DataDog/opentelemetry-agent
 /.agents/skills/create-go-module/                @DataDog/agent-runtimes
 /.agents/skills/create-invoke-task/              @DataDog/agent-devx
 /.agents/skills/create-pr/                       @DataDog/agent-devx
@@ -847,7 +848,6 @@
 /tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
 /tasks/unit_tests/macos_tests.py        @DataDog/windows-products
 /tasks/unit_tests/winbuild_tests.py     @DataDog/windows-products
-/tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                      @DataDog/agent-devx @DataDog/container-platform
