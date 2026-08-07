@@ -76,6 +76,70 @@ func TestSyslogDigitPrefixIsNotAlwaysOctetCount(t *testing.T) {
 	})
 }
 
+// Digits and a space followed by "<" and a digit are still not an octet count
+// unless the PRI is complete. Prose supplies that shape readily — "<1 minute",
+// "<2 sec" — and without the closing ">" the digits ahead of it are read as a
+// MSG-LEN whose body runs past the newline and tears apart the frames behind
+// it, which is the corruption the length prefix is supposed to prevent.
+func TestSyslogPartialPRIIsNotOctetCount(t *testing.T) {
+	good := "<134>Feb 10 12:00:00 flushhost FLUSHTAG[1]: well_formed_message"
+
+	cases := []struct {
+		name string
+		line string
+	}{
+		{
+			// "54 " would be read as MSG-LEN=54, long enough to reach well
+			// into the frame that follows.
+			name: "elapsed time in angle brackets",
+			line: "54 <1 minute elapsed",
+		},
+		{
+			name: "countdown in angle brackets",
+			line: "100 <2 sec remaining until timeout occurs and the job is retried",
+		},
+		{
+			// A closing ">" is present but too far along to form a PRI.
+			name: "bracketed item count",
+			line: "12 <3 items> pending",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stream := tc.line + "\n" + good + "\n" + good + "\n"
+			got, _ := processSyslog(t, 262144, [][]byte{[]byte(stream)})
+
+			require.Len(t, got, 3, "each line is framed on its LF delimiter")
+			assert.Equal(t, tc.line, got[0], "emitted whole, not split at the '<'")
+			assert.Equal(t, good, got[1], "the following frame is neither swallowed nor truncated")
+			assert.Equal(t, good, got[2])
+		})
+	}
+}
+
+// Resynchronizing must accept exactly what the frame reader accepts, otherwise
+// a malformed run is cut short at a candidate that would then be rejected.
+func TestIsSyslogFrameStartRequiresCompletePRI(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"<134>x", true},
+		{"<0>", true},
+		{"<191>x", true},
+		{"62 <134>x", true},
+		{"<1 minute", false},
+		{"<1234>x", false}, // PRIVAL is at most 3 digits
+		{"<>", false},
+		{"<13", false}, // undecidable here; the look-behind re-examines it
+		{"54 <1 min", false},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, isSyslogFrameStart([]byte(tc.in), 0), "input %q", tc.in)
+	}
+}
+
 // Genuine octet-counted frames must keep working, including when the length
 // prefix is split across reads: an incomplete signature has to wait for more
 // bytes rather than be declared malformed.
@@ -122,10 +186,15 @@ func TestClassifyOctetPrefix(t *testing.T) {
 		{"2024-04-04T08:05:06", octetPrefixNo},
 		{"71 x134>", octetPrefixNo},
 		{"71 <x", octetPrefixNo},
+		{"71 <>", octetPrefixNo},
 		{"12345678901 <134>", octetPrefixNo}, // more digits than any plausible length
-		{"71", octetPrefixNeedMore},          // digit run may continue
-		{"71 ", octetPrefixNeedMore},         // need the byte after SP
-		{"71 <", octetPrefixNeedMore},        // need the digit after '<'
+		{"71 <1234>", octetPrefixNo},         // PRIVAL is at most 3 digits
+		{"54 <1 minute elapsed", octetPrefixNo},
+		{"71", octetPrefixNeedMore},    // digit run may continue
+		{"71 ", octetPrefixNeedMore},   // need the byte after SP
+		{"71 <", octetPrefixNeedMore},  // need the digit after '<'
+		{"71 <1", octetPrefixNeedMore}, // PRIVAL may continue
+		{"71 <134", octetPrefixNeedMore},
 	}
 	for _, tc := range cases {
 		assert.Equal(t, tc.want, classifyOctetPrefix([]byte(tc.in)), "input %q", tc.in)
