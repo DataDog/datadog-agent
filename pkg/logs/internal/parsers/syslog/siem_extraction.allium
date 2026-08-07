@@ -1,0 +1,315 @@
+-- allium: 3
+-- siem_extraction.allium
+
+-- Scope: Detection and parsing of CEF (ArcSight Common Event Format) and
+--   LEEF (IBM QRadar Log Event Extended Format) headers embedded in syslog
+--   message bodies, including extension key-value pair extraction.
+-- Includes: CEF 0/1 header splitting (7 pipe-delimited fields with escape
+--   handling), CEF extension parsing (space-separated key=value with embedded
+--   spaces in values), CEF escape handling (\|, \\, \=, \n, \r), LEEF 1.0
+--   (5 header fields, tab-delimited extension), LEEF 2.0 (6 header fields
+--   with custom delimiter, hex notation for delimiter), LEEF version
+--   detection and routing, output field construction, severity as string.
+-- Excludes:
+--   - Syslog envelope parsing (see syslog_parsing.allium)
+--   - Frame detection (see syslog_framing.allium)
+--   - Source remapping based on SIEM fields (see source_remapping.allium)
+--   - Agent telemetry and status page integration
+--   - Transport-level concerns
+
+use "./syslog_parsing.allium" as syslog
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value SIEMHeader {
+    format: SIEMFormat
+    version: String
+    device_vendor: String
+    device_product: String
+    device_version: String
+    event_id: String
+    name: String            -- CEF only; empty for LEEF
+    severity: String        -- CEF only (raw string); empty for LEEF
+}
+
+value Extension {
+    pairs: Map<String, String>
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum SIEMFormat { CEF | LEEF }
+
+enum LEEFVersion { v1 | v2 }
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- SIEM parsing is gated by the siem_parsing_enabled flag from the
+    -- syslog parsing layer. When disabled, message bodies are never
+    -- inspected for CEF/LEEF prefixes.
+    siem_parsing_enabled: Boolean = true
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract CefLeefDetector {
+    -- Detect whether a message body starts with "CEF:" or "LEEF:" and
+    -- dispatch to the appropriate parser.
+    detect_and_parse: (msg: String) -> DetectionResult
+
+    @invariant PrefixDetection
+        -- Messages starting with "CEF:" are parsed as CEF.
+        -- Messages starting with "LEEF:" are parsed as LEEF.
+        -- All other messages return not-detected.
+
+    @invariant Determinism
+        -- The same input always produces the same result. No global
+        -- state is consulted or mutated.
+}
+
+contract CefParser {
+    -- Parse: CEF:Version|Vendor|Product|DevVersion|SigID|Name|Severity|Extension
+    parse: (msg: String) -> ParseResult
+
+    @invariant SevenPipeDelimitedFields
+        -- Exactly 7 pipe-delimited fields are required after "CEF:".
+        -- Fewer than 7 pipes returns not-ok.
+
+    @invariant EscapeAwareHeaderSplitting
+        -- Within CEF headers, \| is treated as a literal pipe (not a
+        -- field separator). \\ is treated as a literal backslash.
+
+    @invariant HeaderFieldUnescaping
+        -- After splitting, each CEF header field has \| and \\ removed
+        -- (the character after the backslash is taken literally).
+
+    @invariant ExtensionKeyBoundaryDetection
+        -- Extension keys are identified by the pattern: start-of-string
+        -- or space, followed by one or more key characters ([a-zA-Z0-9_]),
+        -- followed by '='. Values run from after '=' until the space
+        -- before the next key boundary (or end of input for the last pair).
+
+    @invariant ExtensionValueEscaping
+        -- Extension values support: \\ → \, \= → =, \n → newline, \r → CR.
+        -- Unknown escape sequences are left as-is (backslash preserved).
+
+    @invariant SeverityAsString
+        -- The CEF severity field is always stored as a string,
+        -- regardless of whether the raw value is numeric (0-10) or a
+        -- text label (e.g. "High"). Downstream consumers are responsible
+        -- for numeric interpretation when needed.
+
+    @invariant TrailingSpaceTrimming
+        -- Extension values have trailing spaces trimmed. Intermediate
+        -- values (between key boundaries) also have trailing spaces
+        -- trimmed to handle double-space separators consistently.
+}
+
+contract LeefParser {
+    parse: (msg: String) -> ParseResult
+
+    @invariant VersionRouting
+        -- Bare "2" or any string starting with "2." is routed to
+        -- LEEF 2.x parsing (6 header fields + delimiter). All other
+        -- version strings (including "2a", "3.0", etc.) are routed
+        -- to LEEF 1.x (5 header fields, tab-delimited).
+
+    @invariant NonEscapeAwareHeaderSplitting
+        -- LEEF header pipes are literal separators. The LEEF spec does
+        -- not define header-level escape sequences. A backslash in a
+        -- LEEF header field is a literal backslash, not an escape prefix.
+
+    @invariant LEEFHeaderFieldsAreRaw
+        -- LEEF header fields are not unescaped. No backslash processing
+        -- is performed on vendor, product, version, or event ID fields.
+        -- This is consistent with the non-escape-aware splitting.
+
+    @invariant DelimiterParsing
+        -- The LEEF 2.0 delimiter field accepts:
+        --   Single literal character (e.g. "^", "\", "|")
+        --   Hex notation: "0xHH" or "xHH" (prefix and digits are
+        --     both case insensitive) with exactly 1-2 hex digits.
+        --     More than 2 hex digits is rejected (returns invalid).
+        -- Invalid or empty delimiter falls back to tab.
+
+    @invariant TabDelimitedExtension
+        -- LEEF 1.0 extensions are split on tab characters. Each token
+        -- is split at the first '=' into key and value. Empty tokens
+        -- and tokens without '=' are skipped.
+
+    @invariant LEEFValuesAreVerbatim
+        -- LEEF extension values are returned verbatim without any
+        -- unescaping. The LEEF spec is non-prescriptive about in-value
+        -- escaping, unlike CEF.
+}
+
+contract SIEMFieldBuilder {
+    -- Build the "siem" sub-map for structured content output.
+    build: (header: SIEMHeader, extension: Extension) -> Map
+
+    @invariant MandatoryHeaderFields
+        -- format, version, device_vendor, device_product,
+        -- device_version, and event_id are always emitted, even when
+        -- the source header contains empty values. This lets downstream
+        -- consumers distinguish "field was empty" from "field was absent".
+
+    @invariant ConditionalFields
+        -- name is emitted only when non-empty (CEF only).
+        -- severity is emitted only when non-empty (CEF only).
+        -- extension is emitted only when at least one key-value pair
+        -- was parsed.
+
+    @invariant ExtensionTypeConsistency
+        -- Extension values are always strings. The extension map is
+        -- typed as Map<String, String> within the surrounding
+        -- Map<String, interface> output.
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+rule DetectAndParseCEF {
+    when: MessageBodyAvailable(body)
+    requires: body.starts_with("CEF:")
+
+    ensures: SIEMExtracted(header, extension)
+
+    @guidance
+        -- After the "CEF:" prefix, 7 pipe-delimited fields are
+        -- extracted using escape-aware splitting (\| is literal pipe).
+        -- The extension after the 7th pipe is parsed for key=value
+        -- pairs using the key-boundary algorithm.
+}
+
+rule DetectAndParseLEEF {
+    when: MessageBodyAvailable(body)
+    requires: body.starts_with("LEEF:")
+
+    ensures: SIEMExtracted(header, extension)
+
+    @guidance
+        -- After the "LEEF:" prefix, the version is extracted by
+        -- scanning for the first pipe (not escape-aware — LEEF
+        -- versions never contain pipes). Version routing determines
+        -- the number of header fields (5 for v1, 6 for v2).
+}
+
+rule ClearMessageOnSIEMExtraction {
+    when: SIEMExtracted(header, extension)
+
+    ensures: MessageCleared
+
+    @guidance
+        -- When CEF/LEEF extraction succeeds, the "message" key in
+        -- the structured content is set to the empty string. All
+        -- meaningful data has been moved into the "siem" key. The
+        -- raw CEF/LEEF string has no body separate from its
+        -- structured fields.
+}
+
+rule CEFExtensionEscapeProcessing {
+    when: CEFExtensionParsed(raw_value)
+
+    ensures: UnescapedValueProduced(value)
+
+    @guidance
+        -- Recognized escape sequences in CEF extension values:
+        --   \\ → \
+        --   \= → =
+        --   \n → newline (0x0A)
+        --   \r → carriage return (0x0D)
+        -- All other escape sequences are left as-is (the backslash
+        -- is preserved). This is a deliberate design choice for
+        -- forward compatibility with future CEF versions.
+}
+
+rule LEEFDelimiterResolution {
+    when: LEEFv2HeaderParsed(delimiter_field)
+
+    ensures:
+        if delimiter_field.is_valid_single_char:
+            DelimiterResolved(literal_char)
+        else if delimiter_field.is_valid_hex:
+            DelimiterResolved(hex_to_byte)
+        else:
+            DelimiterResolved(tab)
+
+    @guidance
+        -- The LEEF 2.0 delimiter field (6th header position) specifies
+        -- the character used to separate extension key-value tokens.
+        -- Hex notation supports "0x" or "x" prefix with exactly 1-2
+        -- hex digits. More than 2 digits is rejected per QRadar spec.
+        -- Invalid or empty delimiter silently falls back to tab rather
+        -- than rejecting the message. This is a graceful degradation
+        -- choice for malformed v2 messages.
+}
+
+rule CEFInBSDEnvelope {
+    when: SyslogParsed(message)
+    requires: message.msg.starts_with("CEF:")
+
+    ensures: SIEMExtracted(header, extension)
+
+    @guidance
+        -- CEF messages commonly arrive wrapped in a BSD syslog envelope:
+        --   <PRI>Mmm dd hh:mm:ss hostname CEF:0|Vendor|Product|...
+        -- The syslog parser extracts the envelope fields. The CEF prefix
+        -- appears in the MSG body and triggers SIEM extraction. Both
+        -- syslog metadata and SIEM fields coexist in the output.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant CEFKeyCharacterSet {
+    -- CEF extension keys must consist of [a-zA-Z0-9_] characters only.
+    -- This is enforced during key-boundary detection. Any character
+    -- outside this set terminates the key scan.
+}
+
+invariant EmptyExtensionIsNil {
+    -- When the extension portion of a CEF or LEEF message is empty
+    -- (zero bytes after the last header pipe), the extension map is
+    -- nil (not an empty map). The "extension" key is omitted from
+    -- the SIEM output fields.
+}
+
+invariant NoPanicOnArbitraryInput {
+    -- The CEF/LEEF parser must not panic on any input, including:
+    --   Empty byte slices
+    --   Extremely long inputs
+    --   Inputs consisting entirely of pipe characters
+    --   Inputs with malformed escape sequences
+    --   Inputs with non-UTF-8 byte sequences
+    -- This is enforced by fuzz testing.
+}
+
+invariant DuplicateExtensionKeys {
+    -- When the same key appears multiple times in a CEF or LEEF
+    -- extension, the last occurrence wins. This is a consequence of
+    -- map insertion order: each subsequent key=value pair overwrites
+    -- the previous entry for the same key.
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "CEF severity: the ArcSight spec defines severity as 0-10 (numeric) but real-world vendors emit textual labels like 'High', 'Low', 'Unknown'. The parser always stores severity as a string. Should the spec formally define the textual labels that must be accepted, or is 'any non-empty string' sufficient?"
+
+open question "LEEF:2 (no dot) already routes to v2 semantics (6 fields + delimiter) via 'version == 2' check. QRadar documentation only codifies '1.0' and '2.0' as valid versions — is accepting bare '2' the desired forward-compatibility posture, or should it be rejected as non-conformant?"
+
+open question "LEEF delimiter field containing pipe: parseLEEFDelimiter('|') returns pipe as a valid single-character delimiter. But the header is split on pipes, so this value could never appear in fields[5] unless the header splitter interprets the subsequent pipe as a field separator rather than a delimiter declaration. Is this truly unreachable input, or can a specific byte sequence produce it?"
+
+open question "Empty CEF extension: when the extension is empty, the 'message' field in the structured content is set to empty string. Should the parser instead preserve the original syslog MSG body (which would be 'CEF:0|V|P|1.0|100|Name|5|') so the raw input is reconstructable? Currently the CEF header is not separately preserved as a string."
