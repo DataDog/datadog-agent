@@ -35,7 +35,6 @@ func TestBuildPipelines(t *testing.T) {
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "true")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -62,7 +61,6 @@ func TestBuildPipelinesWithAdditionalEndpoints(t *testing.T) {
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "true")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	config.SetInTest("additional_endpoints", map[string][]string{
 		"http://example.test": {"another_key"},
 		"http://another.test": {"test_key"},
@@ -96,7 +94,6 @@ func TestBuildPipelinesWithAutoscalingFailover(t *testing.T) {
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "true")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	config.SetInTest("autoscaling.failover.enabled", true)
 	config.SetInTest("cluster_agent.enabled", true)
 	config.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
@@ -139,7 +136,6 @@ func TestBuildPipelinesWithAutoscalingFailoverEmptyList(t *testing.T) {
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "true")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	config.SetInTest("autoscaling.failover.enabled", true)
 	config.SetInTest("autoscaling.failover.metrics", []string{})
 	config.SetInTest("cluster_agent.enabled", true)
@@ -171,7 +167,6 @@ func TestBuildPipelinesWithMRFInactive(t *testing.T) {
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "true")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	config.SetInTest("multi_region_failover.enabled", true)
 	config.SetInTest("multi_region_failover.dd_url", "http://mrf.example.test")
 
@@ -205,7 +200,6 @@ func TestBuildPipelinesWithMRFActive(t *testing.T) {
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "true")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	config.SetInTest("multi_region_failover.enabled", true)
 	config.SetInTest("multi_region_failover.failover_metrics", true)
 	config.SetInTest("multi_region_failover.dd_url", "http://mrf.example.test")
@@ -243,7 +237,6 @@ func TestBuildPipelinesWithMRFActiveFilter(t *testing.T) {
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "true")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	config.SetInTest("multi_region_failover.enabled", true)
 	config.SetInTest("multi_region_failover.failover_metrics", true)
 	config.SetInTest("multi_region_failover.metric_allowlist", []string{"datadog.agent.running"})
@@ -282,7 +275,6 @@ func TestBuildPipelinesSketches(t *testing.T) {
 
 	config.SetInTest("dd_url", "http://example.test")
 	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	config.SetInTest("autoscaling.failover.enabled", true)
 	config.SetInTest("cluster_agent.enabled", true)
 	config.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
@@ -305,416 +297,11 @@ func TestBuildPipelinesSketches(t *testing.T) {
 	}
 }
 
-func TestPipelinesWithV3AndAdditionalEndpoints(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "http://example.test")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-	config.SetInTest("additional_endpoints", map[string][]string{
-		"http://example.test": {"alt_key"},
-		// ensure protocol version setting works even when domain is rewritten by the forwarder
-		"http://app.us5.datadoghq.com": {"test_key"},
-	})
-	config.SetInTest(
-		"serializer_experimental_use_v3_api.series.endpoints",
-		[]string{"http://example.test"})
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelines(metricsKindSeries)
-	require.Len(t, pipelines, 2)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-
-		switch dest.Resolver.GetConfigName() {
-		case "http://example.test":
-			assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			assert.True(t, conf.V3)
-			assert.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
-		case "http://app.us5.datadoghq.com":
-			assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			assert.False(t, conf.V3)
-			assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-		default:
-			t.Fatal("unknown destination address")
-		}
-	}
-}
-
-func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "http://example.test")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-	config.SetInTest("additional_endpoints", map[string][]string{
-		"http://example.test": {"alt_key"},
-		// ensure protocol version setting works even when domain is rewritten by the forwarder
-		"http://app.us5.datadoghq.com": {"test_key"},
-	})
-	config.SetInTest(
-		"serializer_experimental_use_v3_api.series.endpoints",
-		[]string{"http://app.us5.datadoghq.com"})
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelines(metricsKindSeries)
-	require.Len(t, pipelines, 2)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-
-		switch dest.Resolver.GetConfigName() {
-		case "http://example.test":
-			assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			assert.False(t, conf.V3)
-			assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-		case "http://app.us5.datadoghq.com":
-			assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			assert.True(t, conf.V3)
-			assert.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
-		default:
-			t.Fatal("unknown destination address")
-		}
-	}
-}
-
 // fixedRand is a deterministic prng that returns a fixed value, used to make
 // shadow-sampling decisions reproducible in tests.
 type fixedRand struct{ v float64 }
 
 func (f fixedRand) Float64() float64 { return f.v }
-
-func TestBuildPipelinesShadowSampleRateZero(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
-	require.Len(t, pipelines, 1)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.False(t, conf.V3)
-		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-		assert.Empty(t, dest.ValidationBatchID)
-	}
-}
-
-func TestBuildPipelinesShadowFires(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0.5)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0.4})
-
-	batchID := ""
-outer:
-	for _, ctx := range pipelines {
-		for _, d := range ctx.Destinations {
-			if d.ValidationBatchID != "" {
-				batchID = d.ValidationBatchID
-				break outer
-			}
-		}
-	}
-	require.NotEmpty(t, batchID)
-
-	testutil.ElementsMatchFn(t, maps.All(pipelines),
-		// v2 (authoritative) pipeline carries the batchID for correlation.
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.False(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			require.Len(t, ctx.Destinations, 1)
-			dest := ctx.Destinations[0]
-			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
-			require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-			require.Equal(t, batchID, dest.ValidationBatchID)
-		},
-		// v3beta shadow pipeline carries the same batchID.
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.True(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			require.Len(t, ctx.Destinations, 1)
-			dest := ctx.Destinations[0]
-			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
-			require.Equal(t, "/api/intake/metrics/v3beta/series", dest.Endpoint.Route)
-			require.Equal(t, endpoints.V3BetaSeriesEndpoint.Name, dest.Endpoint.Name)
-			require.Equal(t, batchID, dest.ValidationBatchID)
-		},
-	)
-}
-
-func TestBuildPipelinesShadowCustomRoute(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0.5)
-	config.SetInTest("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/custom/series")
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0.4})
-
-	testutil.ElementsMatchFn(t, maps.All(pipelines),
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.False(t, conf.V3, "V3")
-			require.Len(t, ctx.Destinations, 1)
-			require.Equal(t, endpoints.SeriesEndpoint, ctx.Destinations[0].Endpoint)
-		},
-		// the shadow route follows beta_route, not the v3beta default.
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.True(t, conf.V3, "V3")
-			require.Len(t, ctx.Destinations, 1)
-			dest := ctx.Destinations[0]
-			require.Equal(t, "/api/intake/metrics/custom/series", dest.Endpoint.Route)
-			require.Equal(t, endpoints.V3BetaSeriesEndpoint.Name, dest.Endpoint.Name)
-		},
-	)
-}
-
-func TestBuildPipelinesShadowSkippedAboveRate(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0.5)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0.6})
-	require.Len(t, pipelines, 1)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.False(t, conf.V3)
-		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-		assert.Empty(t, dest.ValidationBatchID)
-	}
-}
-
-func TestBuildPipelinesShadowSkippedWhenV3Authoritative(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"https://app.datadoghq.com"})
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
-	require.Len(t, pipelines, 1)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.True(t, conf.V3)
-		assert.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
-		assert.Empty(t, dest.ValidationBatchID, "shadow must not fire when v3 is authoritative")
-	}
-}
-
-// TestBuildPipelinesShadowSkippedForSketches verifies that the series shadow
-// knob is scoped to series: turning it fully on must not shadow sketches,
-// which carry their own shadow_sample_rate (default 0).
-func TestBuildPipelinesShadowSkippedForSketches(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0})
-	require.Len(t, pipelines, 1)
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.False(t, conf.V3)
-		assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
-		assert.Empty(t, dest.ValidationBatchID)
-	}
-}
-
-// TestBuildPipelinesShadowSkippedForNonShadowSite verifies that the v3beta
-// shadow does not fire for resolvers whose site is not in shadow_sites
-// (default: only US1).
-func TestBuildPipelinesShadowSkippedForNonShadowSite(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
-	require.Len(t, pipelines, 1, "non-US1 site must not produce a v3beta shadow pipeline")
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.False(t, conf.V3)
-		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-		assert.Empty(t, dest.ValidationBatchID)
-	}
-}
-
-// TestBuildPipelinesShadowSitesKnobOptsInNonUS1 verifies that adding a site to
-// shadow_sites enables shadowing for that site, producing a v2 pipeline plus a
-// correlated v3beta shadow pipeline.
-func TestBuildPipelinesShadowSitesKnobOptsInNonUS1(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sites", []string{"us3.datadoghq.com"})
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
-	require.Len(t, pipelines, 2, "us3 must shadow when included in shadow_sites")
-
-	batchID := ""
-outer:
-	for _, ctx := range pipelines {
-		for _, d := range ctx.Destinations {
-			if d.ValidationBatchID != "" {
-				batchID = d.ValidationBatchID
-				break outer
-			}
-		}
-	}
-	require.NotEmpty(t, batchID)
-
-	testutil.ElementsMatchFn(t, maps.All(pipelines),
-		// v2 (authoritative) pipeline targets the us3 series endpoint and carries
-		// the batchID for correlation.
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.False(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			require.Len(t, ctx.Destinations, 1)
-			dest := ctx.Destinations[0]
-			require.Equal(t, "https://app.us3.datadoghq.com", dest.Resolver.GetConfigName())
-			require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-			require.Equal(t, batchID, dest.ValidationBatchID)
-		},
-		// v3beta shadow pipeline targets the same us3 resolver and carries the
-		// same batchID.
-		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
-			require.True(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
-			require.Len(t, ctx.Destinations, 1)
-			dest := ctx.Destinations[0]
-			require.Equal(t, "https://app.us3.datadoghq.com", dest.Resolver.GetConfigName())
-			require.Equal(t, "/api/intake/metrics/v3beta/series", dest.Endpoint.Route)
-			require.Equal(t, endpoints.V3BetaSeriesEndpoint.Name, dest.Endpoint.Name)
-			require.Equal(t, batchID, dest.ValidationBatchID)
-		},
-	)
-}
-
-// TestBuildPipelinesShadowSkippedWhenVectorConfigured verifies that when
-// metrics are diverted to a vector/OPW endpoint, the v3beta shadow does not
-// fire even though the resolver's base domain is in shadow_sites. The shadow
-// gate resolves the v2 series endpoint, so a non-Datadog destination falls
-// out of the allow list.
-func TestBuildPipelinesShadowSkippedWhenVectorConfigured(t *testing.T) {
-	logger := logmock.New(t)
-	config := configmock.New(t)
-
-	config.SetInTest("dd_url", "https://app.datadoghq.com")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("vector.metrics.enabled", true)
-	config.SetInTest("vector.metrics.url", "https://vector.example.test:8080")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.series.enabled", "false")
-
-	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
-	require.NoError(t, err)
-	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
-
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
-	require.Len(t, pipelines, 1, "vector-diverted metrics must not produce a v3beta shadow pipeline")
-
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		dest := ctx.Destinations[0]
-		assert.False(t, conf.V3)
-		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-		assert.Empty(t, dest.ValidationBatchID)
-	}
-}
 
 // TestBuildPipelinesSketchShadowFires is the sketches analogue of
 // TestBuildPipelinesShadowFires: the sketches shadow knob produces a v2
@@ -772,7 +359,7 @@ outer:
 }
 
 // TestBuildPipelinesSketchShadowCustomRoute verifies the sketches shadow honours
-// its own beta_route rather than the series one.
+// its own beta_route.
 func TestBuildPipelinesSketchShadowCustomRoute(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
@@ -781,7 +368,6 @@ func TestBuildPipelinesSketchShadowCustomRoute(t *testing.T) {
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.beta_route", "/api/intake/metrics/custom/sketches")
-	config.SetInTest("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/custom/series")
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -924,13 +510,10 @@ func TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured(t *testing.T) {
 	}
 }
 
-// newSeriesV3Serializer builds a serializer with a deterministic v2 baseline (no shadow
-// sampling) so the new use_v3_api.series tests can assert v2/v3 routing without the shadow
-// path adding a second pipeline.
+// newSeriesV3Serializer builds a serializer for the use_v3_api.series routing tests.
 func newSeriesV3Serializer(t *testing.T, config model.BuildableConfig) *Serializer {
 	t.Helper()
 	logger := logmock.New(t)
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
@@ -1069,27 +652,6 @@ func TestSeriesV3VectorOptIn(t *testing.T) {
 	}
 }
 
-// TestSeriesV3ExperimentalListWins covers the transition-period guarantee from the design
-// doc: customers who opted into v3 via the legacy serializer_experimental_use_v3_api.series.endpoints
-// keep their opt-in even if the global enabled=false says v2. The experimental list is a
-// hard "force v3" override for one release cycle.
-func TestSeriesV3ExperimentalListWins(t *testing.T) {
-	config := configmock.New(t)
-	config.SetInTest("dd_url", "http://example.test")
-	config.SetInTest("api_key", "test_key")
-	config.SetInTest("use_v3_api.series.enabled", "false")
-	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
-
-	s := newSeriesV3Serializer(t, config)
-	pipelines := s.buildPipelines(metricsKindSeries)
-	require.Len(t, pipelines, 1)
-	for conf, ctx := range pipelines {
-		require.Len(t, ctx.Destinations, 1)
-		assert.True(t, conf.V3, "experimental opt-in must keep working as a transition fallback")
-		assert.Equal(t, endpoints.V3SeriesEndpoint, ctx.Destinations[0].Endpoint)
-	}
-}
-
 // TestSeriesV3ForcedToV2WhenCompressorImplIsZlib covers the build-tag mismatch the old
 // config-string check missed: in a zlib-only build, serializer_compressor_kind="zstd" still
 // resolves to the zlib implementation (see pkg/util/compression/selector/zlib-no-zstd.go).
@@ -1100,7 +662,6 @@ func TestSeriesV3ForcedToV2WhenCompressorImplIsZlib(t *testing.T) {
 	config := configmock.New(t)
 	config.SetInTest("dd_url", "https://app.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0)
 	// Config says zstd, but the injected compressor is zlib, as a zlib-only build would resolve.
 	config.SetInTest("serializer_compressor_kind", "zstd")
 
@@ -1118,17 +679,16 @@ func TestSeriesV3ForcedToV2WhenCompressorImplIsZlib(t *testing.T) {
 	}
 }
 
-// TestSeriesV3BetaShadowSuppressedWhenCompressorImplIsZlib covers the shadow analogue of
+// TestSketchV3BetaShadowSuppressedWhenCompressorImplIsZlib covers the shadow analogue of
 // TestSeriesV3ForcedToV2WhenCompressorImplIsZlib: the v3beta shadow sends a v3-format
 // payload, so a zlib compressor must suppress it even when shadow sampling would otherwise
 // fire (rate=1, US1 site, fixedRand below the rate).
-func TestSeriesV3BetaShadowSuppressedWhenCompressorImplIsZlib(t *testing.T) {
+func TestSketchV3BetaShadowSuppressedWhenCompressorImplIsZlib(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 	config.SetInTest("dd_url", "https://app.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
-	config.SetInTest("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.series.enabled", "false")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
 	// Config says zstd, but the injected compressor is zlib, as a zlib-only build would resolve.
 	config.SetInTest("serializer_compressor_kind", "zstd")
 
@@ -1137,13 +697,13 @@ func TestSeriesV3BetaShadowSuppressedWhenCompressorImplIsZlib(t *testing.T) {
 	s := NewSerializer(f, nil, implzlib.New(), config, logger, "")
 	require.Equal(t, compression.ZlibEncoding, s.Strategy.ContentEncoding(), "test precondition: compressor must be zlib")
 
-	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0})
 	require.Len(t, pipelines, 1, "a zlib compressor must suppress the v3beta shadow pipeline")
 	for conf, ctx := range pipelines {
 		require.Len(t, ctx.Destinations, 1)
 		dest := ctx.Destinations[0]
 		assert.False(t, conf.V3)
-		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+		assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
 		assert.Empty(t, dest.ValidationBatchID)
 	}
 }

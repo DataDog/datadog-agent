@@ -10038,33 +10038,6 @@ properties:
         node_type: setting
         type: integer
         default: 0
-      series:
-        node_type: section
-        type: object
-        properties:
-          beta_route:
-            node_type: setting
-            type: string
-            default: /api/intake/metrics/v3beta/series
-          endpoints:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-          shadow_sample_rate:
-            node_type: setting
-            type: number
-            default: 0
-            tags:
-            - golang_type:float64
-          shadow_sites:
-            node_type: setting
-            type: array
-            default:
-            - datadoghq.com
-            items:
-              type: string
       sketches:
         node_type: section
         type: object

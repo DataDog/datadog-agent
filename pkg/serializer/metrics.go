@@ -43,18 +43,13 @@ func (k metricsKind) String() string {
 
 // metricsUseV3 decides whether a given resolver should ship the given metrics kind via the v3 intake.
 func metricsUseV3(r resolver.DomainResolver, config config.Component, logger log.Component, kind metricsKind) bool {
-	exp := slices.Contains(
-		config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.endpoints", kind)),
-		r.GetConfigName())
-	if exp {
-		return true
-	}
-
 	if kind == metricsKindSeries {
 		return seriesUseV3(r, config, logger)
 	}
 
-	return false
+	return slices.Contains(
+		config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.endpoints", kind)),
+		r.GetConfigName())
 }
 
 // zlibForcesV2 reports whether the active metrics compressor is zlib, which is incompatible
@@ -113,18 +108,21 @@ func seriesUseV3(r resolver.DomainResolver, config config.Component, logger log.
 
 // metricsShadowSampleRate returns the per-flush probability of also sending
 // this kind of metrics to v3beta as a validation shadow when v3 is not the
-// authoritative endpoint.
+// authoritative endpoint. Series shadowing is retired: the series rollout is
+// driven by use_v3_api.series, so it never samples.
 func metricsShadowSampleRate(config config.Component, kind metricsKind) float64 {
+	if kind == metricsKindSeries {
+		return 0
+	}
 	return config.GetFloat64(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sample_rate", kind))
 }
 
 // v3BetaShadowEndpoint returns the v3beta shadow endpoint for a metrics kind,
-// with the route overridable per kind via beta_route.
+// with the sketches route overridable via beta_route.
 func v3BetaShadowEndpoint(config config.Component, kind metricsKind) transaction.Endpoint {
 	switch kind {
 	case metricsKindSeries:
-		route := config.GetString("serializer_experimental_use_v3_api.series.beta_route")
-		return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSeriesEndpoint.Name}
+		return endpoints.V3BetaSeriesEndpoint
 	case metricsKindSketches:
 		route := config.GetString("serializer_experimental_use_v3_api.sketches.beta_route")
 		return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSketchSeriesEndpoint.Name}
@@ -137,6 +135,9 @@ func v3BetaShadowEndpoint(config config.Component, kind metricsKind) transaction
 // sampling is enabled for this kind. Sites are matched against the resolved v2
 // destination via configutils.ExtractSiteFromURL. Defaults to US1 only.
 func metricsShadowSites(config config.Component, kind metricsKind) []string {
+	if kind == metricsKindSeries {
+		return nil
+	}
 	return config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sites", kind))
 }
 
