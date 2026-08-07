@@ -3847,10 +3847,12 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor:   "nvidia",
-				Device:   "tesla-v100",
-				GPUType:  "v100",
-				PCIBusID: "0000:00:1e.0",
+				Vendor:            "nvidia",
+				Device:            "tesla-v100",
+				GPUType:           "v100",
+				PCIBusID:          "0000:00:1e.0",
+				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
+				FabricCliqueID:    7,
 			},
 			expected: []*types.TagInfo{
 				{
@@ -3866,6 +3868,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
+						"gpu_fabric_clique_id:7",
 					},
 					StandardTags: []string{},
 				},
@@ -4083,19 +4087,18 @@ func TestHandleDelete(t *testing.T) {
 }
 
 func TestHandleDeleteKubernetesNode(t *testing.T) {
-	// KubernetesNode entities carry no tags and are excluded from tagging in
-	// processEvents. Deleting one must not panic by falling through to
-	// common.BuildTaggerEntityID, which has no case for KindKubernetesNode.
-
+	nodeEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNode,
+		ID:   "node-foobar",
+	}
 	node := &workloadmeta.KubernetesNode{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesNode,
-			ID:   "node-foobar",
-		},
+		EntityID: nodeEntityID,
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "node-foobar",
 		},
 	}
+
+	nodeTaggerEntityID := types.NewEntityID(types.KubernetesNode, nodeEntityID.ID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -4106,19 +4109,128 @@ func TestHandleDeleteKubernetesNode(t *testing.T) {
 	cfg := configmock.New(t)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
-	eventBundle := workloadmeta.EventBundle{
-		Events: []workloadmeta.Event{
-			{
-				Type:   workloadmeta.EventTypeUnset,
-				Entity: node,
-			},
+	expected := []*types.TagInfo{
+		{
+			Source:       nodeSource,
+			EntityID:     nodeTaggerEntityID,
+			DeleteEntity: true,
 		},
-		Ch: make(chan struct{}),
 	}
 
-	assert.NotPanics(t, func() {
-		collector.processEvents(eventBundle)
+	actual := collector.handleDelete(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: node,
 	})
+
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleKubeNode(t *testing.T) {
+	const nodeName = "node-foobar"
+
+	nodeEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNode,
+		ID:   nodeName,
+	}
+
+	nodeTaggerEntityID := types.NewEntityID(types.KubernetesNode, nodeEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	tests := []struct {
+		name                          string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		node                          workloadmeta.KubernetesNode
+		expected                      []*types.TagInfo
+	}{
+		{
+			name: "node with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_tier": "node_tier",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_env": "node_env",
+				},
+			},
+			node: workloadmeta.KubernetesNode{
+				EntityID: nodeEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: nodeName,
+					Labels: map[string]string{
+						"a": "dev",
+					},
+					Annotations: map[string]string{
+						"b": "some_tier",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "node with generic labels/annotations as tags",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_tier": "node_tier",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"nodes": {
+					"node_env": "node_env",
+				},
+			},
+			node: workloadmeta.KubernetesNode{
+				EntityID: nodeEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: nodeName,
+					Labels: map[string]string{
+						"node_env": "dev",
+						"foo":      "bar",
+					},
+					Annotations: map[string]string{
+						"node_tier":     "some_tier",
+						"node_security": "critical",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               nodeSource,
+					EntityID:             nodeTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"node_env:dev",
+						"node_tier:some_tier",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
+
+			actual := collector.handleKubeNode(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.node,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
 }
 
 type fakeProcessor struct {

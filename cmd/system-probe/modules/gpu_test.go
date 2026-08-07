@@ -18,6 +18,7 @@ import (
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestGPUModuleOrder(t *testing.T) {
@@ -40,4 +41,17 @@ func TestGPUModuleRegistersPRMEndpointWhenEnabled(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestGetAgentPIDs(t *testing.T) {
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 1, Exe: "/opt/datadog-agent/bin/agent/agent"},
+		{Pid: 2, Exe: "/opt/datadog-agent/embedded/bin/trace-agent"},
+		{Pid: 3, Exe: "/opt/datadog-agent/bin/agent/agent"},
+	})
+
+	pids, err := getAgentPIDs(procRoot)
+
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []uint32{1, 3}, pids)
 }

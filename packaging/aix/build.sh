@@ -73,6 +73,7 @@ check_tool() {
 check_tool git        git
 check_tool curl       curl
 check_tool xz         xz
+check_tool zstd       zstd
 check_tool make       make
 check_tool cmake      cmake
 check_tool gcc        gcc

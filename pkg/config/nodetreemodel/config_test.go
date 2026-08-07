@@ -2042,6 +2042,21 @@ func TestClearEnvVars(t *testing.T) {
 	assert.Equal(t, "default-b", cfg.GetString("b"))
 }
 
+// TestSetDefaultAfterRevertToBuilder follows the sequence cmd/otel-agent runs: revert a built
+// config back to a builder, register more defaults, then build it again.
+func TestSetDefaultAfterRevertToBuilder(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("ns.existing", "v1")
+	cfg.BuildSchema()
+
+	cfg = cfg.RevertFinishedBackToBuilder() //nolint:forbidigo // testing behavior
+	cfg.SetDefault("ns.new", "v2")
+	cfg.BuildSchema()
+
+	assert.Equal(t, "v1", cfg.GetString("ns.existing"))
+	assert.Equal(t, "v2", cfg.GetString("ns.new"))
+}
+
 func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetTestOnlyDynamicSchema(true)

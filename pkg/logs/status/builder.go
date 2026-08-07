@@ -318,7 +318,7 @@ func (b *Builder) getIntegrations() []Integration {
 			sources = append(sources, Source{
 				Type:          source.Config.Type,
 				Configuration: b.toDictionary(source.Config),
-				Status:        b.toString(source.Status),
+				Status:        b.toString(source.Status()),
 				Inputs:        source.GetInputs(),
 				Messages:      source.Messages.GetMessages(),
 				Info:          source.GetInfoStatus(),
