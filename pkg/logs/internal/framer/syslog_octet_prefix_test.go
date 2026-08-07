@@ -16,9 +16,9 @@ import (
 )
 
 // A line that merely begins with digits and a space must not be taken for an
-// RFC 6587 octet-counted frame. Before the signature check, the digit run was
-// consumed as a MSG-LEN and the declared body swallowed every following frame,
-// because MSG-LEN is the authoritative boundary and the body is never re-scanned.
+// RFC 6587 octet-counted frame. Consuming the digit run as a MSG-LEN would let
+// the declared body swallow every following frame, because MSG-LEN is the
+// authoritative boundary and the body is never re-scanned for frame starts.
 func TestSyslogDigitPrefixIsNotAlwaysOctetCount(t *testing.T) {
 	good := "<134>Feb 10 12:00:00 flushhost FLUSHTAG[1]: well_formed_message"
 
@@ -28,9 +28,9 @@ func TestSyslogDigitPrefixIsNotAlwaysOctetCount(t *testing.T) {
 	}{
 		{
 			// Cisco NX-OS year-first header as rendered without a PRI, the form a
-			// file template produces; "2024 " would be read as MSG-LEN=2024.
+			// file template produces; "2019 " would be read as MSG-LEN=2019.
 			name: "cisco nx-os year first, no pri",
-			line: "2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active",
+			line: "2019 Mar 11 13:42:44 Cisco-customer %ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface Ethernet3/1 is down",
 		},
 		{
 			name: "barracuda secure edge year first",
@@ -62,8 +62,9 @@ func TestSyslogDigitPrefixIsNotAlwaysOctetCount(t *testing.T) {
 	}
 
 	t.Run("many following frames survive", func(t *testing.T) {
-		// The old misread declared a 2024-byte body, absorbing dozens of frames.
-		nxos := "2024 Apr 04 08:05:06 MDS9148S-S4 %MODULE-5-ACTIVE_SUP_OK: Supervisor 1 is active"
+		// Read as a MSG-LEN, "2019" declares a body long enough to absorb dozens
+		// of frames, so the count here is what proves none were absorbed.
+		nxos := "2019 Mar 11 13:42:44 Cisco-customer %ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface Ethernet3/1 is down"
 		stream := nxos + "\n" + strings.Repeat(good+"\n", 40)
 		got, _ := processSyslog(t, 262144, [][]byte{[]byte(stream)})
 

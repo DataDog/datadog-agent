@@ -305,11 +305,10 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// --- Split the 5 HEADER fields that follow VERSION ---
 	// Fields: TIMESTAMP SP HOSTNAME SP APP-NAME SP PROCID SP MSGID SP ...
 	//
-	// RFC 5424 §6 mandates exactly one SP between fields, but emitters pad:
-	// Claroty CTD sends "<134>1  2025-05-13T04:57:18Z EMC ...". No HEADER
-	// field may contain a space, so collapsing a run of them can never merge
-	// two fields — whereas counting single spaces shifts every field along by
-	// one and leaves TIMESTAMP empty.
+	// RFC 5424 §6 mandates exactly one SP between fields, but emitters pad,
+	// most often between VERSION and TIMESTAMP ("<134>1  2025-05-13T04:57:18Z
+	// host ..."). No HEADER field may contain a space, so a run of them can be
+	// collapsed without ever merging two fields.
 	//
 	// A field only counts as found once it is terminated by a space, which is
 	// what keeps the best-effort recovery below aligned with a truncated
@@ -566,9 +565,8 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// device header in place, so what follows the relay's HOSTNAME is another
 	// TIMESTAMP rather than a TAG — in ISO form (Cisco FTD:
 	// "YYYY-MM-DDThh:mm:ssZ hostname ...") or in BSD form (Cisco ISE:
-	// "May 31 08:36:58 ISELAB CISE_..."). Without this the TAG scan latches
-	// onto the month abbreviation and reports an APP-NAME of "May".
-	// No real TAG is present; treat the entire remainder as MSG.
+	// "Mmm dd hh:mm:ss hostname CISE_..."). No real TAG is present, so the
+	// entire remainder is MSG and the month abbreviation is not an APP-NAME.
 	if looksLikeISOTimestamp(rest) || bsdTimestampLen(rest) > 0 {
 		msg.Msg = rest
 		return msg, nil
@@ -618,8 +616,7 @@ func parseBSDTag(msg *SyslogMessage, rest []byte) {
 	if delimIdx < 0 {
 		// No delimiter, so nothing marks where a TAG would end. RFC 3164
 		// §4.3.3 only recognizes a TAG by its terminator; without one the
-		// remainder is CONTENT. Claiming it as APP-NAME instead would leave
-		// MSG empty and silently discard the body.
+		// remainder is CONTENT.
 		msg.Msg = rest
 		return
 	}
