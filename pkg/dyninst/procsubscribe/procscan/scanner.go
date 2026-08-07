@@ -8,7 +8,6 @@
 package procscan
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -18,53 +17,61 @@ import (
 	"time"
 
 	"github.com/google/btree"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	model "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessID is a unique identifier for a process.
 type ProcessID uint32
 
-// timeWindow represents a time range for process discovery based on how long
-// a process has been alive. The window advances with each scan, capturing
-// processes that have "aged into" the eligibility threshold.
-type timeWindow struct {
-	// startDelay is how long a process must be alive before being eligible.
-	startDelay ticks
+const (
+	DefaultRetryBackoffBase = 5 * time.Second
+	DefaultRetryBackoffCap  = 5 * time.Minute
+
+	defaultExecutableCacheSize = 1024
+)
+
+type procKey struct {
+	pid       uint32
+	startTime ticks
 }
 
-// contains checks if a process start time falls within this window for the
-// given current time.
-func (w *timeWindow) contains(startTime, now, lastScan ticks) bool {
-	lastWatermark := computeWatermark(lastScan, w.startDelay)
-	nextWatermark := computeWatermark(now, w.startDelay)
-	return startTime > lastWatermark && startTime <= nextWatermark
-}
-
-// computeNextWatermark calculates the upper bound of the current time window.
-func computeWatermark(now ticks, delay ticks) ticks {
-	if now < delay {
-		return 0
+func procKeyLess(a, b procKey) bool {
+	if a.pid != b.pid {
+		return a.pid < b.pid
 	}
-	return now - delay
+	return a.startTime < b.startTime
 }
 
-// Scanner discovers Go processes for instrumentation using a watermark-based
-// algorithm. Processes are analyzed exactly once when they've been alive for
-// at least the duration specified by one of the time windows. Processes that
-// exit before becoming eligible are never analyzed.
+// candidate is the retry state for a process that has not been instrumented
+// yet, whatever the reason.
+type candidate struct {
+	// startTime distinguishes this process from a later one that reuses its pid.
+	startTime ticks
+	// seenAt is the time of the last scan that observed the process.
+	seenAt ticks
+	// attempts is the number of scans that have looked at this process without
+	// instrumenting it.
+	attempts uint32
+	// nextAttempt is the earliest time of the next look at this process.
+	nextAttempt ticks
+}
+
+// Scanner reconciles the set of processes that should be instrumented against
+// the set that is, once per Scan.
 //
 // Thread-safety: Scan is not thread-safe, use from a single goroutine only.
 type Scanner struct {
-	// lastScan is the last scan time in ticks since boot.
-	lastScan ticks
-	// windows defines the time windows for process eligibility. A process is
-	// analyzed if its start time falls within any of these windows.
-	windows []timeWindow
+	// backoffBase and backoffCap bound the delay between two metadata reads for
+	// the same process.
+	backoffBase ticks
+	backoffCap  ticks
 
 	// nowTicks returns the current time in ticks since boot.
 	nowTicks func() (ticks, error)
@@ -72,7 +79,7 @@ type Scanner struct {
 	mu struct {
 		sync.Mutex
 		// live tracks discovered processes that have been reported as live.
-		live *btree.BTreeG[uint32]
+		live *btree.BTreeG[procKey]
 	}
 
 	// listPids returns an iterator over all PIDs in the system.
@@ -87,34 +94,52 @@ type Scanner struct {
 	// resolveExecutable resolves the executable metadata for a process.
 	resolveExecutable func(pid int32) (process.Executable, error)
 
-	// startTimeCache caches process start times keyed by PID.
-	startTimeCache startTimeCache
+	// checkGoExecutable reports whether the executable at the given path is a
+	// Go binary.
+	checkGoExecutable func(path string) (bool, error)
+
+	goExecutables *lru.Cache[process.FileKey, bool]
+
+	// candidates holds the retry state of processes that are not yet
+	// instrumented, keyed by pid.
+	candidates map[uint32]*candidate
+}
+
+type scannerConfig struct {
+	backoffBase         time.Duration
+	backoffCap          time.Duration
+	executableCacheSize int
+}
+
+var defaultScannerConfig = scannerConfig{
+	backoffBase:         DefaultRetryBackoffBase,
+	backoffCap:          DefaultRetryBackoffCap,
+	executableCacheSize: defaultExecutableCacheSize,
+}
+
+// Option configures a Scanner.
+type Option interface {
+	apply(*scannerConfig)
+}
+
+type optionFunc func(*scannerConfig)
+
+func (f optionFunc) apply(c *scannerConfig) { f(c) }
+
+// WithRetryBackoff sets the delay before the first retry of a tracer metadata
+// read and the cap that the doubling delay grows to.
+func WithRetryBackoff(base, maxDelay time.Duration) Option {
+	return optionFunc(func(c *scannerConfig) {
+		c.backoffBase, c.backoffCap = base, maxDelay
+	})
 }
 
 // NewScanner creates a new Scanner that discovers processes in the given
 // procfs root.
-//
-// Each processDelay defines a time window for discovering processes. A process
-// becomes eligible for discovery when it has been alive for at least the
-// specified delay. Multiple delays provide redundancy: if metadata isn't
-// available when the first window covers a process, a longer delay window may
-// still catch it later. Windows with smaller delays catch processes sooner but
-// have less time for metadata to become available.
-func NewScanner(
-	procfsRoot string,
-	processDelays ...time.Duration,
-) *Scanner {
-	windows := make([]timeWindow, 0, len(processDelays))
-	for _, delay := range processDelays {
-		windows = append(windows, timeWindow{
-			startDelay: ticks(
-				(delay.Nanoseconds() * int64(clkTck)) / time.Second.Nanoseconds(),
-			),
-		})
-	}
+func NewScanner(procfsRoot string, opts ...Option) *Scanner {
 	reader := newStartTimeReader(procfsRoot)
 	return newScanner(
-		windows,
+		opts,
 		nowTicks,
 		func() iter.Seq2[uint32, error] {
 			return listPids(procfsRoot, 512)
@@ -132,30 +157,51 @@ func NewScanner(
 		func(pid int32) (process.Executable, error) {
 			return process.ResolveExecutable(procfsRoot, pid)
 		},
+		isGoELFBinary,
 	)
 }
 
 // newScanner creates a Scanner with injected dependencies. Used by NewScanner
 // for production code and by tests for dependency injection.
 func newScanner(
-	windows []timeWindow,
+	opts []Option,
 	nowTicks func() (ticks, error),
 	listPids func() iter.Seq2[uint32, error],
 	readStartTime func(pid int32) (ticks, error),
 	tracerMetadataReader func(pid int32) (model.TracerMetadata, error),
 	resolveExecutable func(pid int32) (process.Executable, error),
+	checkGoExecutable func(path string) (bool, error),
 ) *Scanner {
+	cfg := defaultScannerConfig
+	for _, opt := range opts {
+		opt.apply(&cfg)
+	}
 	s := &Scanner{
-		windows:              windows,
+		backoffBase:          durationToTicks(cfg.backoffBase),
+		backoffCap:           durationToTicks(cfg.backoffCap),
 		nowTicks:             nowTicks,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
 		tracerMetadataReader: tracerMetadataReader,
 		resolveExecutable:    resolveExecutable,
-		startTimeCache:       makeStartTimeCache(defaultStartTimeCacheSize),
+		checkGoExecutable:    checkGoExecutable,
+		goExecutables: mustNewLRU[process.FileKey, bool](
+			cfg.executableCacheSize,
+		),
+		candidates: make(map[uint32]*candidate),
 	}
-	s.mu.live = btree.NewG(16, cmp.Less[uint32])
+	s.mu.live = btree.NewG(16, procKeyLess)
 	return s
+}
+
+// mustNewLRU panics if the cache creation fails, which only happens if the size
+// is non-positive.
+func mustNewLRU[K comparable, V any](size int) *lru.Cache[K, V] {
+	c, err := lru.New[K, V](size)
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 // DiscoveredProcess represents a newly discovered process that should be
@@ -191,11 +237,13 @@ func (p *Scanner) Scan() (
 	// Rate-limit logging about errors that are interesting.
 	maybeLogErr := func(prefix string, err error) {
 		if err == nil ||
-			// These errors are expected and not interesting (process may have
-			// exited, etc).
+			// These errors are expected and not interesting: the process may
+			// have exited, or it may simply not have published any tracer
+			// metadata, which is true of most processes on a host.
 			errors.Is(err, fs.ErrNotExist) ||
 			errors.Is(err, fs.ErrPermission) ||
-			errors.Is(err, syscall.ESRCH) {
+			errors.Is(err, syscall.ESRCH) ||
+			errors.Is(err, kernel.ErrMemFdFileNotFound) {
 			return
 		}
 		if scannerLogLimiter.Allow() {
@@ -218,39 +266,71 @@ func (p *Scanner) Scan() (
 			return nil, nil, fmt.Errorf("list pids: %w", err)
 		}
 
-		// Skip processes we've already discovered.
-		if _, ok := noLongerLive.Delete(pid); ok {
-			continue
-		}
-
-		// Only analyze processes whose start time falls within a time window.
-		startTime, ok := p.startTimeCache.getStartTime(pid)
-		if !ok {
-			if startTime, err = p.readStartTime(int32(pid)); err != nil {
-				maybeLogErr("read start time", err)
-				continue
-			}
-			p.startTimeCache.insert(pid, startTime)
-		}
-		if !p.matchesAnyWindow(startTime, now, p.lastScan) {
-			continue
-		}
-
-		// Only instrument Go processes.
-		tracerMetadata, err := p.tracerMetadataReader(int32(pid))
+		// The start time is read on every scan rather than cached by pid: it is
+		// the only thing that tells us whether this is still the same process,
+		// so a cached copy would be exactly as stale as the answer we need.
+		startTime, err := p.readStartTime(int32(pid))
 		if err != nil {
+			maybeLogErr("read start time", err)
+			// The process is here, we just could not confirm which one it is.
+			// Hold on to its retry state rather than let this scan look like
+			// the process exited and reset its backoff.
+			if c, ok := p.candidates[pid]; ok {
+				c.seenAt = now
+			}
 			continue
 		}
-		if tracerMetadata.TracerLanguage != "go" {
+		key := procKey{pid: pid, startTime: startTime}
+
+		// Skip processes that are already instrumented.
+		if _, ok := noLongerLive.Delete(key); ok {
 			continue
 		}
 
+		c := p.candidateFor(key, now)
+		if c != nil && now < c.nextAttempt {
+			continue
+		}
+
+		// Failing to identify the executable backs the process off like any
+		// other verdict. Every kernel thread fails here on every scan, and
+		// there are hundreds of them. Backing off costs nothing when the
+		// failure was really the process exiting, since the next scan will not
+		// see it and will forget it.
 		executable, err := p.resolveExecutable(int32(pid))
 		if err != nil {
 			maybeLogErr("resolve executable", err)
+			p.scheduleRetry(key, c, now)
 			continue
 		}
 
+		isGo, err := p.isGoExecutable(executable)
+		if err != nil {
+			maybeLogErr("analyze executable", err)
+			p.scheduleRetry(key, c, now)
+			continue
+		}
+		if !isGo {
+			p.scheduleRetry(key, c, now)
+			continue
+		}
+
+		tracerMetadata, err := p.tracerMetadataReader(int32(pid))
+		if err != nil {
+			maybeLogErr("read tracer metadata", err)
+			p.scheduleRetry(key, c, now)
+			continue
+		}
+		if tracerMetadata.TracerLanguage != "go" {
+			log.Tracef(
+				"scanner: pid %d reports tracer language %q",
+				pid, tracerMetadata.TracerLanguage,
+			)
+			p.scheduleRetry(key, c, now)
+			continue
+		}
+
+		delete(p.candidates, pid)
 		ret = append(ret, DiscoveredProcess{
 			PID:            pid,
 			StartTimeTicks: uint64(startTime),
@@ -260,33 +340,89 @@ func (p *Scanner) Scan() (
 	}
 
 	removed = make([]ProcessID, 0, noLongerLive.Len())
-	noLongerLive.Ascend(func(pid uint32) bool {
-		removed = append(removed, ProcessID(pid))
-		p.mu.live.Delete(pid)
+	p.mu.Lock()
+	noLongerLive.Ascend(func(key procKey) bool {
+		removed = append(removed, ProcessID(key.pid))
+		p.mu.live.Delete(key)
 		return true
 	})
-	noLongerLive.Clear(true)
-
-	p.mu.Lock()
 	for _, newProc := range ret {
-		p.mu.live.ReplaceOrInsert(newProc.PID)
+		p.mu.live.ReplaceOrInsert(procKey{
+			pid:       newProc.PID,
+			startTime: ticks(newProc.StartTimeTicks),
+		})
 	}
 	p.mu.Unlock()
+	noLongerLive.Clear(true)
 
-	p.lastScan = now
-	p.startTimeCache.sweep()
+	p.forgetExitedCandidates(now)
 	return ret, removed, nil
 }
 
-// matchesAnyWindow returns true if the given start time falls within any of
-// the scanner's time windows.
-func (p *Scanner) matchesAnyWindow(startTime, now, lastScan ticks) bool {
-	for i := range p.windows {
-		if p.windows[i].contains(startTime, now, lastScan) {
-			return true
+// candidateFor returns the retry state of the given process, or nil if it has
+// none. A candidate whose start time no longer matches belongs to a process
+// that died and whose pid was reused.
+func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
+	c, ok := p.candidates[key.pid]
+	if !ok || c.startTime != key.startTime {
+		return nil
+	}
+	c.seenAt = now
+	return c
+}
+
+// scheduleRetry records a look that did not instrument the process and pushes
+// the next one out, doubling the delay each time up to the cap.
+//
+// Every verdict short of a discovery lands here, and none of them is terminal.
+// A tracer can publish its metadata at any point in the life of a process, and
+// exec keeps a process' pid and start time, so a process that is not running a
+// Go binary now may be running one later. The backoff bounds what asking again
+// costs without ever ruling a process out.
+func (p *Scanner) scheduleRetry(key procKey, c *candidate, now ticks) {
+	if c == nil {
+		c = &candidate{startTime: key.startTime}
+	}
+	c.attempts++
+	c.seenAt = now
+	c.nextAttempt = now + p.retryDelay(c.attempts)
+	p.candidates[key.pid] = c
+}
+
+func (p *Scanner) retryDelay(attempts uint32) ticks {
+	delay := p.backoffBase
+	for i := uint32(1); i < attempts && delay < p.backoffCap; i++ {
+		delay *= 2
+	}
+	return min(delay, p.backoffCap)
+}
+
+// forgetExitedCandidates drops the retry state of processes that this scan did
+// not observe. Backoff bounds what retrying a live process costs; only this
+// sweep bounds the map.
+func (p *Scanner) forgetExitedCandidates(now ticks) {
+	for pid, c := range p.candidates {
+		if c.seenAt != now {
+			delete(p.candidates, pid)
 		}
 	}
-	return false
+}
+
+// isGoExecutable reports whether the given executable is a Go binary, parsing
+// each distinct executable at most once.
+//
+// Failures are not cached: the answer must not depend on whether a file happened
+// to be readable at the instant we first looked at it.
+func (p *Scanner) isGoExecutable(exe process.Executable) (bool, error) {
+	if isGo, ok := p.goExecutables.Get(exe.Key); ok {
+		return isGo, nil
+	}
+	isGo, err := p.checkGoExecutable(exe.Path)
+	if err != nil {
+		return false, err
+	}
+	p.goExecutables.Add(exe.Key, isGo)
+	return isGo, nil
 }
 
 // LiveProcesses returns the list of processes that were alive as of the last
@@ -295,8 +431,8 @@ func (p *Scanner) LiveProcesses() []ProcessID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	ret := make([]ProcessID, 0, p.mu.live.Len())
-	p.mu.live.Ascend(func(pid uint32) bool {
-		ret = append(ret, ProcessID(pid))
+	p.mu.live.Ascend(func(key procKey) bool {
+		ret = append(ret, ProcessID(key.pid))
 		return true
 	})
 	return ret
