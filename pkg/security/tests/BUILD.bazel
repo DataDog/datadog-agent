@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-
-# gazelle:dd_agent_go_test off
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "tests",
@@ -143,7 +142,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "tests_test",
     srcs = [
         "accept_test.go",
@@ -244,12 +243,12 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-    gotags = [
-        "test",
+    gotags_sets = [[
         "functionaltests",
         "linux_bpf",
-    ],  # keep
-    tags = ["manual"],  # keep
+    ]],  # keep: this one isn't a unit test and requires modprobe in PATH and access to /sys/kerne
+    include_default = False,
+    tags = ["manual"],
     deps = [
         "//pkg/security/secl/rules",
         "//pkg/util/log",

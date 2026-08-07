@@ -1,8 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
-
-# gazelle:dd_agent_go_test off
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files(["types_windows.go"])
 
@@ -47,11 +46,12 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "driver_test",
     srcs = ["driver_test.go"],
     embed = [":driver"],
-    gotags = ["test"],
+    gotags_sets = [["npm"]],
+    include_default = False,
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",

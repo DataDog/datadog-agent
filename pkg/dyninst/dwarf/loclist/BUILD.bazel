@@ -27,5 +27,4 @@ dd_agent_go_test(
     embed = [":loclist"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
 )

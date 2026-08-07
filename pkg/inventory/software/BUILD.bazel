@@ -68,7 +68,6 @@ dd_agent_go_test(
         },
         "//conditions:default": {},
     }),
-    tags = ["manual"],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
