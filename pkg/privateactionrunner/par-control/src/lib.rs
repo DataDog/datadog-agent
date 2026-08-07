@@ -6,6 +6,10 @@
 //! Process-lifecycle scaffold for the split Private Action Runner control plane.
 
 pub mod config;
+pub mod platform;
 pub mod procmgr;
 pub mod proto;
 pub mod transport;
+
+#[cfg(test)]
+pub mod test_support;
