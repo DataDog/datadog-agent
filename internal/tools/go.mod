@@ -2,6 +2,9 @@ module github.com/DataDog/datadog-agent/internal/tools
 
 go 1.26.0
 
+// Fix for AIX, remove once https://github.com/gotestyourself/gotestsum/pull/567 is merged
+replace github.com/gotestyourself/gotestyourself => github.com/pgimalac/gotestyourself v0.0.0-20260515163658-2222dd98bb9f
+
 require (
 	github.com/aarzilli/whydeadcode v0.0.0-20260303092945-8d908f77de3a
 	github.com/bazelbuild/bazelisk v1.29.0
