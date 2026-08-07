@@ -168,8 +168,8 @@ func seriesID(a observerdef.Anomaly) string {
 type windowEntry [5]int64
 
 const (
-	topAnomalyBufferSize = 64
-	topAnomalyWindowSecs = int64(5 * 60)
+	topAnomalyWindowSecs        = int64(5 * 60)
+	contributorBufferMultiplier = 10
 )
 
 // topAnomaly is one storage-backed anomaly occurrence retained for scorer
@@ -185,11 +185,16 @@ type topAnomaly struct {
 // the previous five minutes. Entries are maintained in rank order so the hot
 // path only does a bounded binary search and slice shift.
 type topAnomalyBuffer struct {
-	entries []topAnomaly
+	entries  []topAnomaly
+	capacity int
 }
 
-func newTopAnomalyBuffer() *topAnomalyBuffer {
-	return &topAnomalyBuffer{entries: make([]topAnomaly, 0, topAnomalyBufferSize)}
+func newTopAnomalyBuffer(displayCount int) *topAnomalyBuffer {
+	capacity := displayCount * contributorBufferMultiplier
+	return &topAnomalyBuffer{
+		entries:  make([]topAnomaly, 0, capacity),
+		capacity: capacity,
+	}
 }
 
 // update expires stale entries then considers each anomaly from a finalized
@@ -223,10 +228,10 @@ func (b *topAnomalyBuffer) insert(candidate topAnomaly) {
 	index := sort.Search(len(b.entries), func(i int) bool {
 		return topAnomalyBefore(candidate, b.entries[i])
 	})
-	if len(b.entries) == topAnomalyBufferSize && index == len(b.entries) {
+	if len(b.entries) == b.capacity && index == len(b.entries) {
 		return
 	}
-	if len(b.entries) < topAnomalyBufferSize {
+	if len(b.entries) < b.capacity {
 		b.entries = append(b.entries, topAnomaly{})
 	}
 	copy(b.entries[index+1:], b.entries[index:len(b.entries)-1])
@@ -282,6 +287,9 @@ type AnomalyScorerConfig struct {
 	// MaxEpisodeAnomalies caps the number of anomalies stored per episode.
 	// 0 means no cap.
 	MaxEpisodeAnomalies int `json:"max_episode_anomalies"`
+	// MaxReportedItems is the number of metrics shown in a scorer episode event.
+	// The top-anomaly buffer retains ten times this count.
+	MaxReportedItems int `json:"max_reported_items"`
 }
 
 // DefaultAnomalyScorerConfig returns calibrated defaults.
@@ -315,6 +323,7 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 		CorrelationEventThreshold: "high",
 		CooldownSecs:              300,
 		MaxEpisodeAnomalies:       50,
+		MaxReportedItems:          16,
 	}
 }
 
@@ -371,6 +380,12 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	}
 	cfg.CooldownSecs = int64(d.Seconds())
 	cfg.MaxEpisodeAnomalies = r.GetInt(outPrefix + "max_anomalies")
+	key = outPrefix + "max_reported_items"
+	cfg.MaxReportedItems = r.GetInt(key)
+	if cfg.MaxReportedItems <= 0 {
+		pkglog.Warnf("anomaly_scorer: %s must be > 0, got %d — using default %d", key, cfg.MaxReportedItems, defaults.MaxReportedItems)
+		cfg.MaxReportedItems = defaults.MaxReportedItems
+	}
 
 	return cfg
 }
@@ -520,7 +535,7 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 		windowMap: make(map[string]windowEntry),
 	}
 	if cfg.CorrelationEvents {
-		scorer.topAnomalies = newTopAnomalyBuffer()
+		scorer.topAnomalies = newTopAnomalyBuffer(cfg.MaxReportedItems)
 	}
 	return scorer
 }

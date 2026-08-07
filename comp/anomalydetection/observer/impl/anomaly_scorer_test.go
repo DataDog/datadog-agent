@@ -9,11 +9,23 @@ import (
 	"encoding/json"
 	"math"
 	"testing"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
+
+type scorerConfigReader struct {
+	ints map[string]int
+}
+
+func (r scorerConfigReader) GetBool(string) bool              { return false }
+func (r scorerConfigReader) GetInt(key string) int            { return r.ints[key] }
+func (r scorerConfigReader) GetFloat64(string) float64        { return 0 }
+func (r scorerConfigReader) GetString(string) string          { return "" }
+func (r scorerConfigReader) GetDuration(string) time.Duration { return 0 }
+func (r scorerConfigReader) IsConfigured(string) bool         { return false }
 
 // makeAnomaly is a test helper that creates an anomaly with the given detector,
 // timestamp, and optional score.
@@ -32,6 +44,22 @@ func makeAnomaly(detector string, ts int64, score *float64) observer.Anomaly {
 }
 
 func scorePtr(v float64) *float64 { return &v }
+
+func TestReadAnomalyScorerConfigMaxReportedItems(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+
+	cfg := readAnomalyScorerConfig(scorerConfigReader{
+		ints: map[string]int{prefix + "output.max_reported_items": 7},
+	}, prefix)
+	if cfg.MaxReportedItems != 7 {
+		t.Errorf("MaxReportedItems = %d, want 7", cfg.MaxReportedItems)
+	}
+
+	cfg = readAnomalyScorerConfig(scorerConfigReader{}, prefix)
+	if cfg.MaxReportedItems != DefaultAnomalyScorerConfig().MaxReportedItems {
+		t.Errorf("invalid MaxReportedItems = %d, want default %d", cfg.MaxReportedItems, DefaultAnomalyScorerConfig().MaxReportedItems)
+	}
+}
 
 func TestNormalizeCorrelationEventThreshold(t *testing.T) {
 	cases := []struct {
@@ -146,7 +174,7 @@ func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
 
 func TestTopAnomalyBuffer_OnlyTracksStorageBackedMetrics(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
-	buffer := newTopAnomalyBuffer()
+	buffer := newTopAnomalyBuffer(10)
 	handle := &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
 	buffer.update(1000, []observer.Anomaly{
 		{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(40)},
@@ -164,7 +192,7 @@ func TestTopAnomalyBuffer_OnlyTracksStorageBackedMetrics(t *testing.T) {
 
 func TestTopAnomalyBuffer_ExpiresAtFiveMinutes(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
-	buffer := newTopAnomalyBuffer()
+	buffer := newTopAnomalyBuffer(10)
 	handle := &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
 	buffer.update(1000, []observer.Anomaly{{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(40)}}, cfg)
 
@@ -176,7 +204,7 @@ func TestTopAnomalyBuffer_ExpiresAtFiveMinutes(t *testing.T) {
 
 func TestTopAnomalyBuffer_UsesScorerWeightsAndDeterministicOrder(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
-	buffer := newTopAnomalyBuffer()
+	buffer := newTopAnomalyBuffer(10)
 	buffer.update(1000, []observer.Anomaly{
 		{SourceRef: &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(20)},
 		{SourceRef: &observer.QueryHandle{Ref: 7, Aggregate: observer.AggregateAverage}, DetectorName: "holt_residual", Score: scorePtr(40)},
@@ -201,8 +229,8 @@ func TestTopAnomalyBuffer_UsesScorerWeightsAndDeterministicOrder(t *testing.T) {
 
 func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesTail(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
-	buffer := newTopAnomalyBuffer()
-	for i := 1; i <= topAnomalyBufferSize; i++ {
+	buffer := newTopAnomalyBuffer(2)
+	for i := 1; i <= buffer.capacity; i++ {
 		handle := &observer.QueryHandle{Ref: observer.SeriesRef(i), Aggregate: observer.AggregateAverage}
 		buffer.update(1000, []observer.Anomaly{{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(8)}}, cfg)
 	}
@@ -211,8 +239,8 @@ func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesTail(t *testing.T) {
 	strongHandle := &observer.QueryHandle{Ref: 100, Aggregate: observer.AggregateAverage}
 	buffer.update(1001, []observer.Anomaly{{SourceRef: strongHandle, DetectorName: "holt_residual", Score: scorePtr(40)}}, cfg)
 
-	if len(buffer.entries) != topAnomalyBufferSize {
-		t.Fatalf("expected capacity %d, got %d", topAnomalyBufferSize, len(buffer.entries))
+	if len(buffer.entries) != buffer.capacity {
+		t.Fatalf("expected capacity %d, got %d", buffer.capacity, len(buffer.entries))
 	}
 	for _, entry := range buffer.entries {
 		if entry.handle == *weakHandle {
@@ -221,6 +249,13 @@ func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesTail(t *testing.T) {
 	}
 	if buffer.entries[0].handle != *strongHandle || buffer.entries[0].weight != levelWeights[4] {
 		t.Fatalf("expected stronger anomaly at the head, got %+v", buffer.entries[0])
+	}
+}
+
+func TestTopAnomalyBuffer_CapacityTracksDisplayCount(t *testing.T) {
+	buffer := newTopAnomalyBuffer(7)
+	if buffer.capacity != 70 || cap(buffer.entries) != 70 {
+		t.Fatalf("expected capacity 70 for seven displayed contributors, got capacity=%d slice-capacity=%d", buffer.capacity, cap(buffer.entries))
 	}
 }
 

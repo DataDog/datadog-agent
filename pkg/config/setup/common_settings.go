@@ -2335,6 +2335,7 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.logs", false)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.cooldown", 5*time.Minute)
 	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.max_anomalies", 50)
+	config.BindEnvAndSetDefault("anomaly_detection.anomaly_scorer.output.max_reported_items", 16)
 
 	// Storage tuning. See storageConfig in the observer component.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
