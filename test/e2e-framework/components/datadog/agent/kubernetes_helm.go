@@ -1124,8 +1124,6 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 
 	// Configure the Private Action Runner sidecar to route OPMS calls through fakeintake.
 	// This is a no-op when PAR is not deployed — the Helm chart ignores unknown container configs.
-	// DD_DD_URL is an explicit http:// address, which PAR's OPMS client uses directly instead of
-	// the default https://api.<site> — signed-envelope verification still runs unconditionally.
 	if agents, ok := values["agents"].(pulumi.Map); ok {
 		containers, ok := agents["containers"].(pulumi.Map)
 		if !ok {

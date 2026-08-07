@@ -169,12 +169,9 @@ func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 	}
 }
 
-// endpointURL constructs a full URL for the given path.
-// Production always uses https://api.<site>. When DD_DD_URL is explicitly configured with an
-// http:// scheme (e2e tests only; real customer dd_url overrides are always https), that host
-// is used directly so PAR can reach an in-cluster or ECS-hosted fake OPMS over plain HTTP.
-// This only affects which host the request is sent to — signed-envelope verification of the
-// response is always enforced regardless.
+// endpointURL constructs a full URL for the given path. If DD_DD_URL is explicitly
+// http:// (e2e tests only; real dd_url overrides are always https), that host is used
+// directly so PAR can reach a fake OPMS over plain HTTP.
 func (c *client) endpointURL(path string) string {
 	scheme := "https"
 	host := c.config.DDApiHost

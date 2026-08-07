@@ -57,10 +57,8 @@ func (c *Client) GetPARTaskResult(taskID string, timeout time.Duration) (*api.PA
 }
 
 // SetPARSigningKey registers the private half of a signing identity with fakeintake so
-// handlePARDequeue can build genuinely signed task envelopes. keyID must match the
-// config ID the corresponding public key was pushed under as an AP_RUNNER_KEYS remote
-// config (see RCAddConfig), and orgID/runnerID must match the runner's own configured
-// identity so signedEnvelopeTaskVerifier's org/runner checks pass.
+// dequeued tasks carry a genuinely signed envelope. keyID must match the config ID the
+// public key was pushed under via RCAddConfig.
 func (c *Client) SetPARSigningKey(keyID string, privateKey ed25519.PrivateKey, orgID int64, runnerID string) error {
 	body, err := json.Marshal(map[string]interface{}{
 		"key_id":      keyID,

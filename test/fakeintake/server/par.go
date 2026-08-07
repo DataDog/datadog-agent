@@ -22,9 +22,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// parTaskTTL is how long a dequeued task's signed envelope remains valid. PAR rejects
-// tasks whose ExpirationTime has passed, so this only needs to outlast the time between
-// a fakeintake dequeue response and PAR's verification of it.
 const parTaskTTL = 5 * time.Minute
 
 // parServerState holds the in-memory task queue and result map for PAR e2e tests.
@@ -37,10 +34,8 @@ type parServerState struct {
 	results      map[string]*api.PARTaskResult
 	dequeueCalls int // counts how many times PAR has called the dequeue endpoint
 
-	// Signing identity registered via /fakeintake/par/signing-key, used to build
-	// genuinely signed envelopes matching the runner's configured org/runner ID and
-	// its AP_RUNNER_KEYS-verified public key. Left zero-valued, dequeued tasks carry
-	// an unsigned envelope, which real signature verification will reject.
+	// Signing identity registered via /fakeintake/par/signing-key. Left zero-valued,
+	// dequeued tasks carry an unsigned envelope.
 	signingKeyID string
 	signingKey   ed25519.PrivateKey
 	orgID        int64
@@ -354,9 +349,8 @@ func (fi *Server) handlePARResult(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(result)
 }
 
-// handlePARSetSigningKey registers the private half of a signing identity so
-// handlePARDequeue can sign task envelopes that PAR's real signature verification
-// will accept. Not reset by handlePARFlush: it's runner identity, not task/result state.
+// handlePARSetSigningKey registers a signing identity used by handlePARDequeue.
+// Not reset by handlePARFlush: it's runner identity, not task/result state.
 func (fi *Server) handlePARSetSigningKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

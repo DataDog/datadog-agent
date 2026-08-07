@@ -21,9 +21,7 @@ import (
 const (
 	testRunnerURN = "urn:dd:apps:on-prem-runner:us1:123456:test-runner-e2e"
 
-	// testRunnerOrgID and testRunnerRunnerID are the org/runner ID segments encoded in
-	// testRunnerURN, exposed separately for callers (e.g. fakeintake task signing) that
-	// need to match the identity without parsing the URN themselves.
+	// The org/runner ID segments encoded in testRunnerURN.
 	testRunnerOrgID    int64 = 123456
 	testRunnerRunnerID       = "test-runner-e2e"
 )

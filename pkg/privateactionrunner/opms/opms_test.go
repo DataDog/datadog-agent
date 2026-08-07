@@ -40,14 +40,12 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 }
 
 // newTestClient builds a client wired to the given httptest server.
-// srv.URL is an http:// address, which endpointURL uses directly instead of
-// the default https://<DDApiHost>.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{
-			DDHost:             srv.URL, // "http://127.0.0.1:PORT"
+			DDHost:             srv.URL,
 			OpmsRequestTimeout: 5000,
 			OrgId:              1,
 			RunnerId:           "test-runner",

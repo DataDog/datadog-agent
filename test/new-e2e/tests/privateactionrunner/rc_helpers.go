@@ -29,9 +29,8 @@ type rawRCKey struct {
 	Key     []byte `json:"key"`
 }
 
-// pushRunnerPublicKey generates a fresh ED25519 key pair and pushes its public key to
-// fakeintake as an AP_RUNNER_KEYS remote-config update under keyID, returning the
-// private half for callers that need to sign on the key's behalf.
+// pushRunnerPublicKey pushes a fresh ED25519 public key to fakeintake as an
+// AP_RUNNER_KEYS remote-config update, returning the private half.
 func pushRunnerPublicKey(t *testing.T, client *fakeintakeclient.Client, keyID string) ed25519.PrivateKey {
 	t.Helper()
 
@@ -52,18 +51,15 @@ func pushRunnerPublicKey(t *testing.T, client *fakeintakeclient.Client, keyID st
 	return priv
 }
 
-// PushFakeRunnerKeysConfig generates a fresh ED25519 key pair and pushes its
-// public key to fakeintake as an AP_RUNNER_KEYS remote-config update, letting
-// a PAR under test complete KeysManager startup without a real backend.
+// PushFakeRunnerKeysConfig lets a PAR under test complete KeysManager startup
+// without a real backend.
 func PushFakeRunnerKeysConfig(t *testing.T, client *fakeintakeclient.Client) {
 	t.Helper()
 	pushRunnerPublicKey(t, client, fakeRunnerKeyConfigID)
 }
 
-// SetupPARTaskSigning pushes a fresh ED25519 public key to fakeintake as an
-// AP_RUNNER_KEYS remote-config update and registers its private half with
-// fakeintake's PAR server, so dequeued tasks carry a genuinely signed envelope
-// that signedEnvelopeTaskVerifier will accept for the given org/runner identity.
+// SetupPARTaskSigning additionally registers the private key with fakeintake's PAR
+// server so dequeued tasks pass real signature verification.
 func SetupPARTaskSigning(t *testing.T, client *fakeintakeclient.Client, orgID int64, runnerID string) {
 	t.Helper()
 

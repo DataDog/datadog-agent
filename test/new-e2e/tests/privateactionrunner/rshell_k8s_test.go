@@ -49,9 +49,8 @@ func TestPARRshellK8sSuite(t *testing.T) {
 	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64)))
 }
 
-// SetupSuite registers a signing identity with fakeintake so it can build genuinely
-// signed task envelopes for this runner, then waits for PAR to be ready and actively
-// polling fakeintake.
+// SetupSuite registers a signing identity with fakeintake, then waits for PAR to be
+// ready and actively polling.
 func (s *parK8sSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()

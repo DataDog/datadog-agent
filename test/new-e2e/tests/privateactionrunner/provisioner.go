@@ -39,9 +39,8 @@ const (
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
 // Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
-// configureFakeintake when fakeintake is present. The test must separately register a
-// signing identity with fakeintake (see SetupPARTaskSigning) so dequeued tasks carry a
-// signed envelope real signature verification will accept.
+// configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
+// signing identity dequeued tasks need to pass verification.
 // %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
