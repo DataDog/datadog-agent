@@ -208,7 +208,7 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 	}
 }
 
-func TestKubernetesReaderReadEnvVarsSkipsSpecForEmptyWhitelist(t *testing.T) {
+func TestKubernetesReaderReadEnvVarsSkipsSpecForNilPredicate(t *testing.T) {
 	client := &fakeKubernetesClient{}
 	reader := newKubernetesConfigReaderWithClient("container-id", client)
 
@@ -219,16 +219,17 @@ func TestKubernetesReaderReadEnvVarsSkipsSpecForEmptyWhitelist(t *testing.T) {
 	assert.Empty(t, client.specCalls)
 }
 
-func TestKubernetesReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
+func TestKubernetesReaderReadEnvVarsFiltersWithPredicate(t *testing.T) {
 	client := &fakeKubernetesClient{
 		spec: &containerdoci.Spec{
 			Process: &specs.Process{
 				Env: []string{
-					"REDIS_PASSWORD=first",
+					"REDIS_PORT=6379",
 					"MALFORMED",
 					"WITH_EQUALS=a=b=c",
 					"EMPTY=",
-					"REDIS_PASSWORD=last",
+					"REDIS_PORT=6380",
+					"REDIS_PASSWORD=secret",
 					"UNREQUESTED=value",
 				},
 			},
@@ -236,18 +237,20 @@ func TestKubernetesReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
 	}
 	reader := newKubernetesConfigReaderWithClient("container-id", client)
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{
-		"REDIS_PASSWORD",
-		"WITH_EQUALS",
-		"EMPTY",
-		"MISSING",
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		switch name {
+		case "REDIS_PORT", "WITH_EQUALS", "EMPTY", "REDIS_PASSWORD", "MISSING":
+			return true
+		default:
+			return false
+		}
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
-		"REDIS_PASSWORD": "last",
-		"WITH_EQUALS":    "a=b=c",
-		"EMPTY":          "",
+		"REDIS_PORT":  "6380",
+		"WITH_EQUALS": "a=b=c",
+		"EMPTY":       "",
 	}, env)
 	assert.Equal(t, []string{"container-id"}, client.specCalls)
 }
@@ -257,7 +260,9 @@ func TestKubernetesReaderReadEnvVarsSurfacesSpecErrors(t *testing.T) {
 	client := &fakeKubernetesClient{specErr: expectedErr}
 	reader := newKubernetesConfigReaderWithClient("container-id", client)
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{"REDIS_PASSWORD"})
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "REDIS_PORT"
+	})
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, env)

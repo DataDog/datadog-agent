@@ -45,6 +45,9 @@ type ConfigEnvVar struct {
 	Value string
 }
 
+// ConfigEnvVarPredicate returns whether an environment variable should be read.
+type ConfigEnvVarPredicate func(name string) bool
+
 // CollectedConfig is the config data collected for one integration target.
 type CollectedConfig struct {
 	Integration string
@@ -64,7 +67,7 @@ type TargetCommandline struct {
 type ConfigReader interface {
 	Runtime() RuntimeType
 	ReadFile(context.Context, string) (ConfigFile, error)
-	ReadEnvVars(context.Context, []string) (map[string]string, error)
+	ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error)
 	ReadCommandline(context.Context) (TargetCommandline, error)
 	Close()
 }
