@@ -73,11 +73,17 @@ message RemoteAction {
 
 message ConnectionInfo {
   string connection_id = 1;
+  // Legacy credential payload. File-backed credentials remain here for
+  // backwards compatibility with existing private action runners.
   repeated ConnectionToken tokens = 2;
   CredentialsType credentials_type = 3;
   string runner_id = 4;
+  // Credential payload used only with CONNECTION_TOKENS.
+  ConnectionTokenCredentials connection_token_credentials = 5;
 }
 
+// Legacy private-action token representation.
+//
 // The ConnectionToken is similar to connectionpb.ConnectionToken, but is specifically limited to data pertinent to private actions.
 // As mentioned in the comment at the top of this file, this is designed to constrain the dependencies of private actions
 // and prevent changes to the connections API from directly affecting the PAR task.
@@ -93,6 +99,8 @@ message ConnectionToken {
     YamlFile yaml_file = 4;
   }
 
+  reserved 5;
+
   message PlainText {
     string value = 1;
   }
@@ -106,9 +114,40 @@ message ConnectionToken {
   }
 }
 
+// Structurally constrained credential payload for CONNECTION_TOKENS. It
+// deliberately has no file-backed token variant.
+message ConnectionTokenCredentials {
+  repeated Token tokens = 1;
+
+  message Token {
+    repeated string name_segments = 1;
+
+    oneof token_value {
+      PlainText plain_text = 2;
+      EnvironmentVariable environment_variable = 3;
+      DatadogAgentSecret datadog_agent_secret = 4;
+    }
+
+    message PlainText {
+      string value = 1;
+    }
+
+    message EnvironmentVariable {
+      string name = 1;
+    }
+
+    message DatadogAgentSecret {
+      string handle = 1;
+    }
+  }
+}
+
 enum CredentialsType {
   UNSPECIFIED = 0;
   TOKEN_AUTH = 1;
   BASIC_AUTH = 2;
   OAUTH2 = 3;
+  // The authoritative connection-token representation. Unlike the legacy
+  // credential types above, each token carries its own resolution source.
+  CONNECTION_TOKENS = 5;
 }
