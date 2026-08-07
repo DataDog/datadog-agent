@@ -1095,6 +1095,7 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("logon_duration.enabled", true, pkgconfigmodel.SourceInfraMode)
 	} else if infraMode == "none" {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
