@@ -21,18 +21,28 @@ import (
 )
 
 // Event represents a parsed ETW event from an ETL file.
-// ProviderID, EventID, and Timestamp are available directly.
+// ProviderID, EventID, ActivityID, and Timestamp are available directly.
 // Use EventProperties or GetEventPropertyString for event-specific data.
 // The Event is only valid during the ProcessETLFile callback; do not use it after the callback returns.
 type Event struct {
-	ProviderID  windows.GUID
-	EventID     uint16
+	ProviderID windows.GUID
+	EventID    uint16
+	// ActivityID correlates events belonging to the same logical operation.
+	// It is the zero GUID when the provider does not set one.
+	ActivityID  windows.GUID
 	Timestamp   time.Time
 	eventRecord C.PEVENT_RECORD
 }
 
 // EventProperties returns a map of property names to values for this event.
 // Uses TDH (Trace Data Helper) to parse the event schema and user data.
+//
+// On failure it returns the properties parsed so far alongside the error, so a
+// caller that only needs the leading fields of an event can still use them.
+// Parsing stops at the first failure and never skips ahead: parseSimpleType
+// advances a cursor shared by every property, so once a property fails to
+// decode its byte count is unknown and every later property would be garbage
+// rather than merely missing.
 func (e *Event) EventProperties() (map[string]interface{}, error) {
 	if e.eventRecord == nil {
 		return nil, errors.New("event record is nil or no longer valid")
@@ -48,7 +58,7 @@ func (e *Event) EventProperties() (map[string]interface{}, error) {
 		name := p.getPropertyName(i)
 		value, err := p.getPropertyValue(i)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse property [%d] %q: %w", i, name, err)
+			return props, fmt.Errorf("failed to parse property [%d] %q: %w", i, name, err)
 		}
 		props[name] = value
 	}
@@ -65,11 +75,13 @@ func (e *Event) GetPropertyByName(name string) (string, error) {
 
 // GetEventPropertyString returns the string value of a named property.
 // GetPropertyString on Event provides the same functionality as a method.
+//
+// A partial parse is still consulted: EventProperties returns everything it
+// decoded before failing, so a property that precedes the failure is returned
+// normally. Returns "" when the property is absent, which is indistinguishable
+// from a property whose value is legitimately the empty string.
 func GetEventPropertyString(e *Event, name string) string {
-	props, err := e.EventProperties()
-	if err != nil {
-		return ""
-	}
+	props, _ := e.EventProperties()
 	if v, ok := props[name]; ok {
 		return fmt.Sprintf("%v", v)
 	}
@@ -90,6 +102,13 @@ func (e *Event) GetProviderID() windows.GUID {
 // GetEventID returns the event's ID.
 func (e *Event) GetEventID() uint16 {
 	return e.EventID
+}
+
+// GetActivityID returns the event's activity GUID, used to correlate events
+// belonging to the same logical operation. Returns the zero GUID when the
+// provider does not populate one.
+func (e *Event) GetActivityID() windows.GUID {
+	return e.ActivityID
 }
 
 // GetTimestamp returns the event's timestamp.

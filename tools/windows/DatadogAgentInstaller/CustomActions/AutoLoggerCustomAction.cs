@@ -39,7 +39,12 @@ namespace Datadog.CustomActions
             // User Profiles Service: Operational/Diagnostic channel keywords | win:ResponseTime ->
             // profile load (1,2) and create (1001,1002).
             { "{89B1E9F0-5AFF-44A6-9B44-0A07A7CE5845}", 0x6001000000000000L },
-            // GroupPolicy: Operational channel keyword -> machine GP (4000,8000), user GP (4001,8001).
+            // GroupPolicy: this is the channel-wide Operational keyword, not a set of
+            // per-event bits - the provider declares no custom keywords, so every one of
+            // its Operational events shares this single mask. Consumed: machine GP
+            // (4000,8000), user GP (4001,8001), the non-boot activity starts (4002-4007),
+            // client-side extension invocations (4016, 5016/6016/7016), and the applicable
+            // GPO list (5312). Narrowing this mask would silently remove all of them.
             { "{AEA1B4FA-97D1-45F2-A64C-4D69FFFD92C9}", 0x4000000000000000L },
             // Shell-Core: StartupPerf | Shell -> explorer init (9601,9602), desktop create
             // (9611,9612), desktop steps (9648,9649).

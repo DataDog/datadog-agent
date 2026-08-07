@@ -60,6 +60,23 @@ const (
 	evtUserGPStart    uint16 = 4001
 	evtUserGPEnd      uint16 = 8001
 
+	// evtGPActivityStartMax is the last of the 4000-4007 activity-start range.
+	// The range covers boot (4000/4001), network state change (4002/4003),
+	// manual gpupdate (4004/4005), and periodic refresh (4006/4007), and
+	// alternates by parity: even is computer scope, odd is user scope.
+	evtGPActivityStartMax uint16 = 4007
+
+	// Group Policy client-side extensions. The three stop events share an
+	// identical template and differ only in severity.
+	evtCSEStart       uint16 = 4016
+	evtCSEStopSuccess uint16 = 5016
+	evtCSEStopWarning uint16 = 6016
+	evtCSEStopError   uint16 = 7016
+
+	// evtGPOListApplicable enumerates the Group Policy objects found applicable.
+	// Its counterpart 5313 lists the objects filtered out and is not collected.
+	evtGPOListApplicable uint16 = 5312
+
 	// Shell-Core
 	evtExplorerInitStart  uint16 = 9601
 	evtExplorerInitEnd    uint16 = 9602
@@ -127,14 +144,15 @@ type providerConfig struct {
 
 // collector accumulates events during ETL processing.
 type collector struct {
-	timeline  BootTimeline
-	providers map[windows.GUID]providerConfig
+	timeline    BootTimeline
+	groupPolicy *gpAccumulator
+	providers   map[windows.GUID]providerConfig
 }
 
 // buildProviders wires each provider's accepted event IDs together with
 // its parser, creating a single source of truth for both filtering and
 // dispatching.
-func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
+func buildProviders(timeline *BootTimeline, gp *gpAccumulator) map[windows.GUID]providerConfig {
 	return map[windows.GUID]providerConfig{
 		guidKernelGeneral: {
 			acceptedIDs: map[uint16]struct{}{evtBootStart: {}},
@@ -160,11 +178,22 @@ func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
 			parser: &userProfileParser{timeline: timeline},
 		},
 		guidGroupPolicy: {
+			// This map is a hard pre-parse gate: analyzeETL hands it to the ETW
+			// filter, so an ID missing here never reaches the parser at all.
+			// processEvent does not re-check it, which means no unit test that
+			// drives processEvent can catch an omission - see
+			// TestAcceptedIDsCoversGroupPolicySwitch.
 			acceptedIDs: map[uint16]struct{}{
 				evtMachineGPStart: {}, evtMachineGPEnd: {},
 				evtUserGPStart: {}, evtUserGPEnd: {},
+				// Non-boot activity starts, which seed the scope of any
+				// extension invocation correlated to them.
+				4002: {}, 4003: {}, 4004: {}, 4005: {}, 4006: {}, 4007: {},
+				evtCSEStart:       {},
+				evtCSEStopSuccess: {}, evtCSEStopWarning: {}, evtCSEStopError: {},
+				evtGPOListApplicable: {},
 			},
-			parser: &groupPolicyParser{timeline: timeline},
+			parser: &groupPolicyParser{timeline: timeline, gp: gp},
 		},
 		guidShellCore: {
 			acceptedIDs: map[uint16]struct{}{
@@ -180,6 +209,10 @@ func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
 // AnalysisResult holds the structured output from ETL analysis.
 type AnalysisResult struct {
 	Timeline BootTimeline
+	// GroupPolicy holds the client-side-extension invocations and Group Policy
+	// object metadata observed during the trace. It is nil when the trace
+	// contained no Group Policy events at all.
+	GroupPolicy *GroupPolicyPayload
 }
 
 // analyzeETL opens an ETL file, processes events, and returns a structured
@@ -198,8 +231,8 @@ func analyzeETL(_ context.Context, etlPath string) (*AnalysisResult, error) {
 
 	log.Debugf("Analyzing ETL file: %s", absPath)
 
-	coll := &collector{}
-	coll.providers = buildProviders(&coll.timeline)
+	coll := &collector{groupPolicy: newGPAccumulator()}
+	coll.providers = buildProviders(&coll.timeline, coll.groupPolicy)
 
 	var totalEvents atomic.Int64
 
@@ -231,15 +264,72 @@ func analyzeETL(_ context.Context, etlPath string) (*AnalysisResult, error) {
 	}
 
 	return &AnalysisResult{
-		Timeline: coll.timeline,
+		Timeline:    coll.timeline,
+		GroupPolicy: coll.groupPolicy.finalize(),
 	}, nil
 }
 
 // directPropertyLookup is optionally implemented by events that support
 // looking up a single property by name (via TdhGetProperty), bypassing
 // sequential parsing that can fail on schema-mismatched properties.
+//
+// It is only correct for string-typed properties: the underlying call returns
+// the property's raw bytes, which are then read as UTF-16. A GUID, boolean, or
+// integer property decodes to silent garbage this way.
 type directPropertyLookup interface {
 	GetPropertyByName(name string) (string, error)
+}
+
+// activityScoped is optionally implemented by events exposing the ETW activity
+// ID, which correlates events belonging to one instance of an operation.
+type activityScoped interface {
+	GetActivityID() windows.GUID
+}
+
+// bulkPropertyLookup is optionally implemented by events that can return every
+// property in one decode.
+type bulkPropertyLookup interface {
+	EventProperties() (map[string]interface{}, error)
+}
+
+// activityIDOf returns an event's ETW activity ID, or the zero GUID when the
+// event does not expose one. Safe on a nil event: a type assertion on a nil
+// interface simply reports false.
+func activityIDOf(e eventWithProperties) windows.GUID {
+	if scoped, ok := e.(activityScoped); ok {
+		return scoped.GetActivityID()
+	}
+	return windows.GUID{}
+}
+
+// eventPropertyReader returns a lookup function over an event's properties.
+//
+// Property access has no cache: each GetPropertyString call re-parses the whole
+// event schema and every property in it, so reading five fields the naive way
+// costs five full TDH decodes. When the event supports a bulk read, this does
+// one decode and serves every subsequent lookup from the result. A bulk read
+// that fails part-way still returns the properties preceding the failure, so
+// the partial result is used when it has anything in it.
+func eventPropertyReader(e eventWithProperties) func(string) string {
+	if e == nil {
+		return func(string) string { return "" }
+	}
+	if bulk, ok := e.(bulkPropertyLookup); ok {
+		props, err := bulk.EventProperties()
+		if err != nil {
+			log.Debugf("Logon duration: partial property decode (%d properties recovered): %v", len(props), err)
+		}
+		if len(props) > 0 {
+			return func(name string) string {
+				v, ok := props[name]
+				if !ok {
+					return ""
+				}
+				return fmt.Sprintf("%v", v)
+			}
+		}
+	}
+	return func(name string) string { return getEventPropString(e, name) }
 }
 
 // processEvent dispatches a filtered event to the appropriate provider parser.
@@ -345,17 +435,22 @@ func (p *userProfileParser) Parse(_ eventWithProperties, id uint16, ts time.Time
 	}
 }
 
-// groupPolicyParser processes Group Policy events (4000/4001: start, 8000/8001: end).
+// groupPolicyParser processes Group Policy events: the aggregate pass
+// milestones (4000/4001 start, 8000/8001 end), the client-side-extension
+// invocations within each pass (4016 start, 5016/6016/7016 stop), and the
+// applicable Group Policy object inventory (5312).
 type groupPolicyParser struct {
 	timeline *BootTimeline
+	gp       *gpAccumulator
 }
 
-func (p *groupPolicyParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
+func (p *groupPolicyParser) Parse(e eventWithProperties, id uint16, ts time.Time) {
 	switch id {
 	case evtMachineGPStart:
 		if p.timeline.MachineGPStart.IsZero() {
 			p.timeline.MachineGPStart = ts
 		}
+		p.gp.noteActivityStart(activityIDOf(e), id)
 	case evtMachineGPEnd:
 		if p.timeline.MachineGPEnd.IsZero() {
 			p.timeline.MachineGPEnd = ts
@@ -364,11 +459,102 @@ func (p *groupPolicyParser) Parse(_ eventWithProperties, id uint16, ts time.Time
 		if p.timeline.UserGPStart.IsZero() {
 			p.timeline.UserGPStart = ts
 		}
+		p.gp.noteActivityStart(activityIDOf(e), id)
 	case evtUserGPEnd:
 		if p.timeline.UserGPEnd.IsZero() {
 			p.timeline.UserGPEnd = ts
 		}
+	case 4002, 4003, 4004, 4005, 4006, 4007:
+		// Non-boot policy processing. These seed the scope of any extension
+		// invocation correlated to them but are not the boot pass reported by
+		// the timeline, so they do not mark the pass as observed.
+		p.gp.noteActivityStart(activityIDOf(e), id)
+	case evtCSEStart:
+		p.parseCSEStart(e, ts)
+	case evtCSEStopSuccess, evtCSEStopWarning, evtCSEStopError:
+		p.parseCSEStop(e, id, ts)
+	case evtGPOListApplicable:
+		p.parseGPOInventory(e)
 	}
+}
+
+// parseCSEStart handles event 4016, which opens an extension invocation and
+// carries the list of Group Policy objects feeding it.
+func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
+	prop := eventPropertyReader(e)
+
+	guid, guidString, ok := normalizeGUID(prop("CSEExtensionId"))
+	if !ok {
+		// Without an extension identity the invocation cannot be paired with
+		// its terminal event, so there is nothing meaningful to record.
+		log.Debugf("Logon duration: CSE start event has no usable CSEExtensionId")
+		p.gp.parseErrors++
+		return
+	}
+
+	// Absent or unrecognized, treat the extension as synchronous: that is the
+	// common case, and the flag only ever suppresses a duration.
+	isAsync, _ := parseETWBool(prop("IsExtensionAsyncProcessing"))
+
+	ids, gpos, degraded := parseApplicableGPOList(prop("ApplicableGPOList"))
+	if degraded {
+		p.gp.parseErrors++
+	}
+	// Register the referenced objects so every applicable_gpo_ids value
+	// resolves against the payload's GPO table even when no 5312 was observed.
+	p.gp.addGPOs(gpos)
+	p.gp.addGPOIDs(ids)
+
+	p.gp.startCSE(activityIDOf(e), observedCSEStart{
+		guid:             guid,
+		guidString:       guidString,
+		name:             prop("CSEExtensionName"),
+		isAsync:          isAsync,
+		applicableGPOIDs: ids,
+	}, ts)
+}
+
+// parseCSEStop handles events 5016, 6016, and 7016, which close an extension
+// invocation. Note the provider's own misspelling of the elapsed-time field.
+func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts time.Time) {
+	prop := eventPropertyReader(e)
+
+	guid, guidString, ok := normalizeGUID(prop("CSEExtensionId"))
+	if !ok {
+		log.Debugf("Logon duration: CSE stop event %d has no usable CSEExtensionId", id)
+		p.gp.parseErrors++
+		return
+	}
+
+	stop := observedCSEStop{
+		eventID:    id,
+		guid:       guid,
+		guidString: guidString,
+		name:       prop("CSEExtensionName"),
+	}
+	if elapsed, ok := parseUint32(prop("CSEElaspedTimeInMilliSeconds")); ok {
+		stop.elapsedMs = elapsed
+		stop.hasElapsed = true
+	}
+	if code, ok := formatErrorCode(prop("ErrorCode")); ok {
+		stop.errorCode = code
+	}
+
+	p.gp.finishCSE(activityIDOf(e), stop, ts)
+}
+
+// parseGPOInventory handles event 5312, the list of applicable Group Policy
+// objects. It carries no timing fields, so the objects are recorded as metadata
+// only.
+func (p *groupPolicyParser) parseGPOInventory(e eventWithProperties) {
+	prop := eventPropertyReader(e)
+
+	gpos, err := parseGPOList(prop("GPOInfoList"))
+	if err != nil {
+		log.Debugf("Logon duration: parsing GPOInfoList: %v", err)
+		p.gp.parseErrors++
+	}
+	p.gp.addGPOs(gpos)
 }
 
 // shellCoreParser processes Shell-Core events for Explorer startup tracking.

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
@@ -25,11 +26,19 @@ type property struct {
 }
 
 // mockEvent implements eventWithProperties for testing.
+//
+// It deliberately does not implement directPropertyLookup, so parsers that
+// probe for it exercise their fallback path. It does implement activityScoped
+// and bulkPropertyLookup, which the Group Policy parser relies on.
 type mockEvent struct {
 	providerID windows.GUID
 	eventID    uint16
+	activityID windows.GUID
 	timestamp  time.Time
 	props      map[string]interface{}
+	// propsErr simulates a partial TDH decode: EventProperties returns the
+	// properties gathered so far alongside an error.
+	propsErr error
 }
 
 func (m *mockEvent) GetPropertyString(name string) string {
@@ -42,6 +51,11 @@ func (m *mockEvent) GetPropertyString(name string) string {
 func (m *mockEvent) GetProviderID() windows.GUID { return m.providerID }
 func (m *mockEvent) GetEventID() uint16          { return m.eventID }
 func (m *mockEvent) GetTimestamp() time.Time     { return m.timestamp }
+func (m *mockEvent) GetActivityID() windows.GUID { return m.activityID }
+
+func (m *mockEvent) EventProperties() (map[string]interface{}, error) {
+	return m.props, m.propsErr
+}
 
 // makeEvent creates a synthetic event for testing.
 func makeEvent(providerGUID windows.GUID, eventID uint16, ts time.Time, eventData ...property) *mockEvent {
@@ -59,7 +73,8 @@ func makeEvent(providerGUID windows.GUID, eventID uint16, ts time.Time, eventDat
 
 func newCollector() *collector {
 	c := &collector{}
-	c.providers = buildProviders(&c.timeline)
+	c.groupPolicy = newGPAccumulator()
+	c.providers = buildProviders(&c.timeline, c.groupPolicy)
 	return c
 }
 
@@ -257,28 +272,28 @@ func TestParseGroupPolicy(t *testing.T) {
 
 	t.Run("event 4000 sets MachineGPStart", func(t *testing.T) {
 		tl := &BootTimeline{}
-		p := &groupPolicyParser{timeline: tl}
+		p := &groupPolicyParser{timeline: tl, gp: newGPAccumulator()}
 		p.Parse(nil, evtMachineGPStart, ts)
 		assert.Equal(t, ts, tl.MachineGPStart)
 	})
 
 	t.Run("event 8000 sets MachineGPEnd", func(t *testing.T) {
 		tl := &BootTimeline{}
-		p := &groupPolicyParser{timeline: tl}
+		p := &groupPolicyParser{timeline: tl, gp: newGPAccumulator()}
 		p.Parse(nil, evtMachineGPEnd, ts)
 		assert.Equal(t, ts, tl.MachineGPEnd)
 	})
 
 	t.Run("event 4001 sets UserGPStart", func(t *testing.T) {
 		tl := &BootTimeline{}
-		p := &groupPolicyParser{timeline: tl}
+		p := &groupPolicyParser{timeline: tl, gp: newGPAccumulator()}
 		p.Parse(nil, evtUserGPStart, ts)
 		assert.Equal(t, ts, tl.UserGPStart)
 	})
 
 	t.Run("event 8001 sets UserGPEnd (first-write-wins)", func(t *testing.T) {
 		tl := &BootTimeline{}
-		p := &groupPolicyParser{timeline: tl}
+		p := &groupPolicyParser{timeline: tl, gp: newGPAccumulator()}
 		ts2 := ts.Add(5 * time.Second)
 		p.Parse(nil, evtUserGPEnd, ts)
 		p.Parse(nil, evtUserGPEnd, ts2)
@@ -287,7 +302,7 @@ func TestParseGroupPolicy(t *testing.T) {
 
 	t.Run("event 4000 first-write-wins for MachineGPStart", func(t *testing.T) {
 		tl := &BootTimeline{}
-		p := &groupPolicyParser{timeline: tl}
+		p := &groupPolicyParser{timeline: tl, gp: newGPAccumulator()}
 		ts2 := ts.Add(5 * time.Second)
 		p.Parse(nil, evtMachineGPStart, ts)
 		p.Parse(nil, evtMachineGPStart, ts2)
@@ -451,6 +466,20 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(guidWinlogon, 103, boot.Add(8*time.Second)),
 		makeEvent(guidWinlogon, 104, boot.Add(10*time.Second)),
 		makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)),
+		// A client-side extension invoked inside the computer Group Policy pass,
+		// plus the applicable-object list for that pass.
+		makeEvent(guidGroupPolicy, 5312, boot.Add(13*time.Second),
+			property{Name: "GPOInfoList", Value: `<GPO ID="{31B2F340-016D-11D2-945F-00C04FB984F9}"><Name>Default Domain Policy</Name><SOM>DC=corp</SOM></GPO>`}),
+		makeEvent(guidGroupPolicy, 4016, boot.Add(14*time.Second),
+			property{Name: "CSEExtensionId", Value: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"},
+			property{Name: "CSEExtensionName", Value: "Registry"},
+			property{Name: "IsExtensionAsyncProcessing", Value: "false"},
+			property{Name: "ApplicableGPOList", Value: "{31B2F340-016D-11D2-945F-00C04FB984F9}"}),
+		makeEvent(guidGroupPolicy, 5016, boot.Add(17*time.Second),
+			property{Name: "CSEExtensionId", Value: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"},
+			property{Name: "CSEExtensionName", Value: "Registry"},
+			property{Name: "CSEElaspedTimeInMilliSeconds", Value: "2980"},
+			property{Name: "ErrorCode", Value: "0x0"}),
 		makeEvent(guidGroupPolicy, 8000, boot.Add(20*time.Second)),
 		makeEvent(guidWinlogon, 7001, boot.Add(29*time.Second)),
 		makeEvent(guidUserProfile, 1001, boot.Add(31*time.Second)),
@@ -494,9 +523,35 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot.Add(61*time.Second), tl.DesktopStartupAppsStart)
 	assert.Equal(t, boot.Add(65*time.Second), tl.DesktopStartupAppsEnd)
 
-	custom := buildCustomPayload(tl)
+	custom := buildCustomPayload(tl, coll.groupPolicy.finalize())
 	durations := custom["durations"].(map[string]interface{})
 	assert.Equal(t, int64(34000), durations["total_boot_duration_ms"])
 	assert.Equal(t, int64(8000), durations["boot_duration_ms"])
 	assert.Equal(t, int64(26000), durations["logon_duration_ms"])
+
+	// The aggregate milestones are unchanged by the Group Policy detail, which
+	// arrives as its own sibling key. This event set produces 8 of the 11
+	// candidates; the extension invocations must not add a 9th.
+	milestones := custom["boot_timeline"].([]Milestone)
+	require.Len(t, milestones, 8)
+	for _, m := range milestones {
+		assert.NotContains(t, m.ID, "cse", "extension detail must not leak into boot_timeline")
+	}
+
+	gp := custom["group_policy"].(*GroupPolicyPayload)
+	assert.True(t, gp.Passes.Computer.Observed)
+	assert.False(t, gp.Passes.User.Observed, "no user pass in this trace")
+
+	require.Len(t, gp.Passes.Computer.CSEInvocations, 1)
+	inv := gp.Passes.Computer.CSEInvocations[0]
+	assert.Equal(t, "Registry", inv.CSEName)
+	assert.True(t, inv.Complete)
+	require.NotNil(t, inv.DurationMs)
+	assert.Equal(t, int64(3000), *inv.DurationMs, "wall-clock 4016 -> 5016 interval")
+	require.NotNil(t, inv.ReportedElapsedMs)
+	assert.Equal(t, uint32(2980), *inv.ReportedElapsedMs, "the provider's own measurement stays separate")
+	assert.Equal(t, []string{"{31B2F340-016D-11D2-945F-00C04FB984F9}"}, inv.ApplicableGPOIDs)
+
+	require.Len(t, gp.GPOs, 1)
+	assert.Equal(t, "Default Domain Policy", gp.GPOs[0].Name)
 }

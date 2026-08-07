@@ -229,7 +229,6 @@ func durationBetween(start, end time.Time) time.Duration {
 // buildTimelineMilestones returns an ordered slice of boot milestones.
 // Only milestones with a non-zero timestamp are included.
 func buildTimelineMilestones(tl BootTimeline) []Milestone {
-	const tsFmt = "2006-01-02T15:04:05.000Z"
 	boot := tl.BootStart
 
 	candidates := []struct {
@@ -277,14 +276,14 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 			ID:         c.id,
 			Name:       c.name,
 			OffsetMs:   offset,
-			Timestamp:  c.ts.UTC().Format(tsFmt),
+			Timestamp:  c.ts.UTC().Format(timestampFormat),
 			DurationMs: float64(c.duration.Milliseconds()),
 		})
 	}
 	return milestones
 }
 
-func buildCustomPayload(tl BootTimeline) map[string]interface{} {
+func buildCustomPayload(tl BootTimeline, gp *GroupPolicyPayload) map[string]interface{} {
 	custom := make(map[string]interface{})
 
 	milestones := buildTimelineMilestones(tl)
@@ -328,6 +327,13 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 		custom["durations"] = durations
 	}
 
+	// Emitted whenever Group Policy was analyzed at all, even with no extension
+	// invocations: passes.user.observed answers whether the trace ever reached
+	// user logon, and that answer is worth more than the bytes it costs.
+	if gp != nil {
+		custom["group_policy"] = gp
+	}
+
 	return custom
 }
 
@@ -336,7 +342,7 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	tl := result.Timeline
 
-	custom := buildCustomPayload(tl)
+	custom := buildCustomPayload(tl, result.GroupPolicy)
 
 	eventTimestamp := tl.BootStart
 	if eventTimestamp.IsZero() {
@@ -349,11 +355,12 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	totalMs := getDurationMilliseconds(tl.BootStart, tl.LoginUIStart) + getDurationMilliseconds(tl.SessionLogon, tl.DesktopVisibleStart)
 	title := buildEventTitle(complete, totalMs)
 
+	// totalMs is used directly rather than read back out of the payload map:
+	// there it is an interface{}, and formatting it with %d only worked because
+	// the boxed value happened to be an int64.
 	msg := "Total boot duration analysis after reboot"
-	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
-			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
-		}
+	if complete {
+		msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 	}
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{
