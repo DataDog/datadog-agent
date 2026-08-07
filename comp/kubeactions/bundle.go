@@ -11,6 +11,7 @@ package kubeactions
 
 import (
 	helmactionsfx "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/fx"
+	kubeactionsfx "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,6 +21,6 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		helmactionsfx.Module(),
-		// TODO: add kubeactions as well when migrate to PAR
+		kubeactionsfx.Module(),
 	)
 }
