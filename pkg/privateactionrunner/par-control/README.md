@@ -21,7 +21,10 @@ In split mode, the control plane:
 - bounds concurrency, retries transient failures, shuts down an idle executor,
   and drains in-flight work during control-plane shutdown.
 
-Packaging and activation of the binary are handled separately from this crate.
+Non-FIPS Linux and Windows Agent packages install `par-control` and start it
+through the `processes.d/datadog-agent-par-control.yaml` process definition. The
+executor has its own non-auto-start definition and is launched only when the
+control plane needs it. FIPS packages continue to use the monolithic runner.
 
 ## Build and test
 
@@ -33,3 +36,8 @@ DLLs. On a macOS workstation, build and test it inside the Linux dev container:
 bazel test //pkg/privateactionrunner/par-control:par-control_test
 bazel build //pkg/privateactionrunner/par-control:par-control
 ```
+
+Omnibus installs the binary through
+`//pkg/privateactionrunner/par-control:install`. Linux and Windows E2E suites
+cover package installation, process startup, split-mode ownership, and graceful
+control-plane shutdown.
