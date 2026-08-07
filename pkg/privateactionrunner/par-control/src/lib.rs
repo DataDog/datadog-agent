@@ -9,6 +9,7 @@
 pub mod bootstrap;
 pub mod config;
 pub mod identity;
+pub mod platform;
 pub mod procmgr;
 pub mod proto;
 pub mod transport;

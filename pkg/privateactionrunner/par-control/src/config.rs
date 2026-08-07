@@ -328,6 +328,7 @@ impl Config {
             ),
             procmgr_socket: PathBuf::from(
                 par.procmgr_socket_path
+                    .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| DEFAULT_PROCMGR_SOCKET.to_string()),
             ),
             executor_process_name: par
@@ -461,7 +462,7 @@ pub fn log_level_from_yaml_file(path: &Path) -> log::Level {
         .ok()
         .filter(|value| !value.is_empty())
         .or(raw.fleet_policies_dir.clone())
-        .or_else(platform_fleet_policies_dir);
+        .or_else(crate::platform::fleet_policies_dir);
     let fleet_level = fleet_dir
         .as_deref()
         .and_then(|dir| read_fleet_policy(dir).ok().flatten())
@@ -511,7 +512,7 @@ impl LaunchGate {
         let fleet_dir = env("DD_FLEET_POLICIES_DIR")
             .filter(|value| !value.is_empty())
             .or(raw.fleet_policies_dir.clone())
-            .or_else(platform_fleet_policies_dir);
+            .or_else(crate::platform::fleet_policies_dir);
         let fleet = fleet_dir
             .as_deref()
             .map(read_fleet_policy)
@@ -545,27 +546,6 @@ impl LaunchGate {
             self_enroll: self_enroll.unwrap_or(true),
         })
     }
-}
-
-#[cfg(windows)]
-fn platform_fleet_policies_dir() -> Option<String> {
-    use windows_registry::LOCAL_MACHINE;
-    use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
-
-    LOCAL_MACHINE
-        .options()
-        .read()
-        .access(KEY_WOW64_64KEY)
-        .open(r"SOFTWARE\Datadog\Datadog Agent")
-        .ok()?
-        .get_string("fleet_policies_dir")
-        .ok()
-        .filter(|value| !value.is_empty())
-}
-
-#[cfg(not(windows))]
-fn platform_fleet_policies_dir() -> Option<String> {
-    None
 }
 
 fn read_fleet_policy(dir: &str) -> Result<Option<RawConfig>> {
@@ -671,8 +651,14 @@ fn apply_env_overrides(raw: &mut RawConfig, env: &impl Fn(&str) -> Option<String
         "DD_PRIVATE_ACTION_RUNNER_TASK_CONCURRENCY",
         env,
     )?;
-    par.procmgr_socket_path =
-        env("DD_PRIVATE_ACTION_RUNNER_PROCMGR_SOCKET_PATH").or(par.procmgr_socket_path.take());
+    // Precedence: the PAR-specific setting, then dd-procmgrd's own
+    // DD_PM_SOCKET_PATH, then the platform default applied later. Honoring the
+    // daemon's variable means relocating its socket does not also require
+    // setting a second, PAR-specific value for par-control to find it
+    // (`ipc_path` in `pkg/procmgr/rust/src/transport/{uds,named_pipe}.rs`).
+    par.procmgr_socket_path = env("DD_PRIVATE_ACTION_RUNNER_PROCMGR_SOCKET_PATH")
+        .or(par.procmgr_socket_path.take())
+        .or_else(|| env("DD_PM_SOCKET_PATH"));
     par.executor_process_name =
         env("DD_PRIVATE_ACTION_RUNNER_EXECUTOR_PROCESS_NAME").or(par.executor_process_name.take());
     par.idle_timeout_seconds = env_override(
@@ -903,6 +889,76 @@ private_action_runner:
         assert!(
             rest.contains('.'),
             "agent version {RUNNER_VERSION:?} must have major.minor.patch"
+        );
+    }
+
+    /// dd-procmgrd resolves its own socket from `DD_PM_SOCKET_PATH` before the
+    /// platform default. par-control must follow, or a daemon relocated with
+    /// that variable is unreachable unless the operator also sets a second,
+    /// PAR-specific setting.
+    #[test]
+    fn procmgr_socket_follows_the_daemon_environment_override() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg_path = dir.path().join("datadog.yaml");
+
+        let resolve = |yaml: &str, vars: &[(&str, &str)]| {
+            std::fs::write(&cfg_path, yaml).unwrap();
+            let vars: Vec<(String, String)> = vars
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                .collect();
+            Config::try_from_yaml_file_with_env(&cfg_path, |name: &str| {
+                vars.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone())
+            })
+            .unwrap()
+            .unwrap()
+            .procmgr_socket
+        };
+
+        // Unset: platform default.
+        assert_eq!(
+            resolve(MIN_YAML, &[]),
+            PathBuf::from(DEFAULT_PROCMGR_SOCKET)
+        );
+
+        // The daemon's own override wins over the default.
+        assert_eq!(
+            resolve(
+                MIN_YAML,
+                &[("DD_PM_SOCKET_PATH", "/run/custom/procmgrd.sock")]
+            ),
+            PathBuf::from("/run/custom/procmgrd.sock")
+        );
+
+        // Empty is treated as unset.
+        assert_eq!(
+            resolve(MIN_YAML, &[("DD_PM_SOCKET_PATH", "")]),
+            PathBuf::from(DEFAULT_PROCMGR_SOCKET)
+        );
+
+        // The PAR-specific setting still outranks the daemon's variable.
+        let explicit = format!("{MIN_YAML}  procmgr_socket_path: /explicit/procmgrd.sock\n");
+        assert_eq!(
+            resolve(
+                &explicit,
+                &[("DD_PM_SOCKET_PATH", "/run/custom/procmgrd.sock")]
+            ),
+            PathBuf::from("/explicit/procmgrd.sock")
+        );
+
+        // ...and so does the PAR-specific environment variable.
+        assert_eq!(
+            resolve(
+                MIN_YAML,
+                &[
+                    ("DD_PM_SOCKET_PATH", "/run/custom/procmgrd.sock"),
+                    (
+                        "DD_PRIVATE_ACTION_RUNNER_PROCMGR_SOCKET_PATH",
+                        "/par/procmgrd.sock"
+                    ),
+                ]
+            ),
+            PathBuf::from("/par/procmgrd.sock")
         );
     }
 
