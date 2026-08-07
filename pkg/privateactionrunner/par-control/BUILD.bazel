@@ -124,9 +124,7 @@ rust_test(
     }),
     rustc_env = _RUSTC_ENV,
     rustc_flags = ["--cfg=bazel"],
-    # Linux-only: on Windows, Bazel does not stage the Agent OpenSSL DLLs next
-    # to the rust_test executable, so it fails to load before main().
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:tempfile",
         "@crates//:tokio",
