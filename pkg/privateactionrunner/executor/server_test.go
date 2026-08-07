@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
+	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
@@ -63,6 +64,20 @@ func (f *fakeExecutor) RunPrepared(ctx context.Context, _ *runners.PreparedWorkf
 	}
 	return f.output, f.runErr
 }
+
+type fakeKeysManager struct {
+	seed     []taskverifier.SigningKey
+	snapshot []taskverifier.SigningKey
+}
+
+func (f *fakeKeysManager) Start(context.Context)              {}
+func (f *fakeKeysManager) GetKey(string) types.DecodedKey     { return nil }
+func (f *fakeKeysManager) WaitForReady(context.Context) error { return nil }
+func (f *fakeKeysManager) Seed(keys []taskverifier.SigningKey) error {
+	f.seed = keys
+	return nil
+}
+func (f *fakeKeysManager) Snapshot() []taskverifier.SigningKey { return f.snapshot }
 
 // startTestServer serves a real executor on a socket and returns a connected client.
 func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
@@ -116,12 +131,45 @@ func runAction(t *testing.T, client pb.ExecutorClient, taskBytes []byte) *pb.Act
 	return result
 }
 
+func TestServeSyncKeysSeedsAndReturnsCurrentSnapshot(t *testing.T) {
+	keysManager := &fakeKeysManager{snapshot: []taskverifier.SigningKey{{
+		ID:      "fresh",
+		KeyType: types.KeyTypeED25519,
+		Key:     []byte("fresh-pem"),
+	}}}
+	srv := NewServer(&fakeExecutor{}, "test-version", keysManager)
+	client := startTestServer(t, srv)
+
+	response, err := client.SyncKeys(context.Background(), &pb.SyncKeysRequest{
+		Keys: []*pb.SigningKey{{
+			Id:      "seed",
+			KeyType: string(types.KeyTypeED25519),
+			Key:     []byte("seed-pem"),
+		}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []taskverifier.SigningKey{{
+		ID:      "seed",
+		KeyType: types.KeyTypeED25519,
+		Key:     []byte("seed-pem"),
+	}}, keysManager.seed)
+	require.Equal(t, []*pb.SigningKey{{
+		Id:      "fresh",
+		KeyType: string(types.KeyTypeED25519),
+		Key:     []byte("fresh-pem"),
+	}}, response.GetKeys())
+
+	health, err := client.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	require.True(t, health.GetReady())
+}
+
 func TestServeRunActionStreamsOutputAndForwardsRawTask(t *testing.T) {
 	fake := &fakeExecutor{
 		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
 		output:   map[string]interface{}{"greeting": "hello"},
 	}
-	srv := NewServer(fake, "test-version")
+	srv := NewServer(fake, "test-version", nil)
 	srv.SetReady(true)
 
 	client := startTestServer(t, srv)
@@ -144,7 +192,7 @@ func TestServeRunActionReturnsStructuredErrorOnFailure(t *testing.T) {
 			errors.New("bad signature"),
 		),
 	}
-	srv := NewServer(fake, "test-version")
+	srv := NewServer(fake, "test-version", nil)
 	srv.SetReady(true)
 
 	client := startTestServer(t, srv)
@@ -180,7 +228,7 @@ func TestServeRunActionMapsStructuredErrorCodesOverTheWire(t *testing.T) {
 					runErr:   tc.err,
 				}
 			}
-			srv := NewServer(fake, "test-version")
+			srv := NewServer(fake, "test-version", nil)
 			srv.SetReady(true)
 			client := startTestServer(t, srv)
 
@@ -196,7 +244,7 @@ func TestServeRunActionWrapsPlainRunErrorAsActionError(t *testing.T) {
 		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
 		runErr:   errors.New("boom"),
 	}
-	srv := NewServer(fake, "test-version")
+	srv := NewServer(fake, "test-version", nil)
 	srv.SetReady(true)
 
 	client := startTestServer(t, srv)
@@ -209,7 +257,7 @@ func TestServeRunActionWrapsPlainRunErrorAsActionError(t *testing.T) {
 
 func TestServeRunActionRejectedWhenNotReady(t *testing.T) {
 	fake := &fakeExecutor{prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}}}
-	srv := NewServer(fake, "test-version")
+	srv := NewServer(fake, "test-version", nil)
 
 	client := startTestServer(t, srv)
 
@@ -221,7 +269,7 @@ func TestServeRunActionRejectedWhenNotReady(t *testing.T) {
 }
 
 func TestHealthReportsReadinessAndVersion(t *testing.T) {
-	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
 	client := startTestServer(t, srv)
 
 	resp, err := client.Health(context.Background(), &pb.HealthRequest{})
@@ -257,7 +305,7 @@ func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 		output:   map[string]interface{}{"drained": true},
 		runGate:  gate,
 	}
-	srv := NewServer(fake, "test-version")
+	srv := NewServer(fake, "test-version", nil)
 	srv.SetReady(true)
 
 	socketPath := testListenAddr(t)
@@ -352,7 +400,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    caPool,
 	}
-	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
 	srv.SetReady(true)
 
 	socketPath := testListenAddr(t)
@@ -392,4 +440,114 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	defer shortCancel()
 	_, err = anon.Health(shortCtx, &pb.HealthRequest{})
 	require.Error(t, err, "client without a valid cert must be rejected")
+}
+
+// An idle executor must exit on its own. The control plane normally stops it,
+// but the two are siblings under dd-procmgrd, so nothing would ever reap the
+// executor if the control plane were killed or stopped by itself.
+func TestServeExitsWhenIdle(t *testing.T) {
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  150 * time.Millisecond,
+		})
+	}()
+
+	select {
+	case err := <-served:
+		require.NoError(t, err, "an idle exit is a clean exit, so procmgr leaves it down")
+	case <-time.After(5 * time.Second):
+		t.Fatal("idle executor did not exit")
+	}
+}
+
+// Health is how the control plane checks whether the executor is usable, so it
+// must not keep an otherwise idle executor alive forever.
+func TestServeHealthDoesNotDeferIdleExit(t *testing.T) {
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  300 * time.Millisecond,
+		})
+	}()
+
+	client := dialTestExecutor(t, socketPath)
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_, _ = client.Health(context.Background(), &pb.HealthRequest{})
+				time.Sleep(20 * time.Millisecond)
+			}
+		}
+	}()
+	defer close(stop)
+
+	select {
+	case err := <-served:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("health polling kept an idle executor alive")
+	}
+}
+
+// A dispatched action resets the idle clock, so a busy executor is never reaped.
+func TestServeDoesNotExitWhileDispatching(t *testing.T) {
+	srv := NewServer(&fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   map[string]interface{}{"ok": true},
+	}, "test-version", nil)
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  250 * time.Millisecond,
+		})
+	}()
+
+	client := dialTestExecutor(t, socketPath)
+	deadline := time.Now().Add(700 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{
+			Task: []byte(`{"data":{"id":"t"}}`),
+		})
+		require.NoError(t, err, "executor exited while actions were still being dispatched")
+		for {
+			if _, err := stream.Recv(); err != nil {
+				break
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	select {
+	case err := <-served:
+		t.Fatalf("executor exited while busy: %v", err)
+	default:
+	}
 }
