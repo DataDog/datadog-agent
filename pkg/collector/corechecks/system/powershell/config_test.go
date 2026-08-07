@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build windows
+
 package powershell
 
 import (
@@ -128,6 +130,27 @@ func TestSelectPropertiesDedup(t *testing.T) {
 
 func TestParseInstanceConfigRejectsNonGetCmdlet(t *testing.T) {
 	_, err := parseInstanceConfig([]byte("cmdlet: Remove-Item\nmetrics:\n  - [X, x]\n"))
+	assert.Error(t, err)
+}
+
+func TestParseInstanceConfigAcceptsScalarFilterValues(t *testing.T) {
+	// string, number, and boolean scalars are all accepted.
+	inst, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nfilters:\n  - [Name, Spooler]\n  - [Depth, 3]\n  - [Recurse, true]\n"))
+	require.NoError(t, err)
+	require.Len(t, inst.Filters, 3)
+}
+
+func TestParseInstanceConfigRejectsNonScalarFilterValue(t *testing.T) {
+	// a list value would be validated as one string but executed as another, so
+	// it is rejected at parse time.
+	_, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nfilters:\n  - name: Name\n    value: [a, b]\n"))
+	assert.Error(t, err)
+
+	// a mapping value is likewise rejected.
+	_, err = parseInstanceConfig([]byte(
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nfilters:\n  - name: Name\n    value: {k: v}\n"))
 	assert.Error(t, err)
 }
 

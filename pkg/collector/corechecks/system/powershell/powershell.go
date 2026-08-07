@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -212,8 +213,10 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, filters []filterEntry, select
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.instance.Timeout)*time.Second)
 	defer cancel()
 
+	// RemoteSigned is set only so auto-loaded modules (PKI, FailoverClusters)
+	// import under a Restricted machine policy.
 	cmd := exec.CommandContext(ctx, "powershell.exe",
-		"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+		"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
 		"-Command", script)
 	cmd.Env = restrictedEnv()
 
@@ -229,12 +232,15 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, filters []filterEntry, select
 		return nil, fmt.Errorf("%w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
 	}
 
+	if stdout.truncated {
+		return nil, fmt.Errorf("output exceeded %d bytes", maxOutputBytes)
+	}
+
 	return parseRows(stdout.Bytes())
 }
 
 // parseRows decodes the compact JSON emitted by the dispatcher command into a
-// list of rows. Empty output (no results) yields an empty slice. A single
-// object (should not occur given the @() wrapper) is coerced into one row.
+// list of rows. Empty output (no results) yields an empty slice.
 func parseRows(out []byte) ([]map[string]interface{}, error) {
 	trimmed := bytes.TrimSpace(out)
 	if len(trimmed) == 0 || string(trimmed) == "null" {
@@ -253,20 +259,24 @@ func parseRows(out []byte) ([]map[string]interface{}, error) {
 	return []map[string]interface{}{single}, nil
 }
 
-// loadAllowlist resolves the fixed allowlist path, verifies it is owned by an
-// administrator, reads it, and parses it. Any failure is fatal (fail closed).
+// loadAllowlist opens the fixed allowlist path once, verifies admin ownership
+// and reads it through that same handle (so it can't be swapped mid-check), then
+// parses it. Any failure is fatal (fail closed).
 func loadAllowlist() (*allowlist, error) {
 	path, err := allowlistPath()
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("allowlist not found at %s: %w", path, err)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not open allowlist %s: %w", path, err)
 	}
-	if err := verifyAdminOwned(path); err != nil {
+	defer f.Close()
+
+	if err := verifyAdminOwned(f); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return nil, fmt.Errorf("could not read allowlist %s: %w", path, err)
 	}
@@ -283,26 +293,28 @@ func allowlistPath() (string, error) {
 	return filepath.Join(base, "protected", allowlistFileName), nil
 }
 
-// verifyAdminOwned fails unless the file is owned by the Administrators group or
-// the SYSTEM account — the integrity guard that the allowlist was placed by an
-// admin. (We check ownership rather than reuse filesystem.CheckRights because
-// files under protected\ carry inherited ACEs that CheckRights would reject.)
-func verifyAdminOwned(path string) error {
-	var owner *windows.SID
-	if err := winutil.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION,
-		&owner, nil, nil, nil, nil); err != nil {
-		return fmt.Errorf("could not read owner of %s: %w", path, err)
+// verifyAdminOwned fails unless the file's owner is Administrators or SYSTEM —
+// the guard that an admin placed the allowlist. It reads ownership from the
+// handle, not the path, so the check binds to the exact file being read.
+func verifyAdminOwned(f *os.File) error {
+	sd, err := windows.GetSecurityInfo(windows.Handle(f.Fd()), windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("could not read owner of %s: %w", f.Name(), err)
 	}
-	admins, err := windows.StringToSid("S-1-5-32-544")
+	owner, _, err := sd.Owner()
+	if err != nil {
+		return fmt.Errorf("could not read owner of %s: %w", f.Name(), err)
+	}
+	admins, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
 	if err != nil {
 		return err
 	}
-	system, err := windows.StringToSid("S-1-5-18")
+	system, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
 	if err != nil {
 		return err
 	}
 	if !windows.EqualSid(owner, admins) && !windows.EqualSid(owner, system) {
-		return fmt.Errorf("allowlist %s must be owned by Administrators or SYSTEM", path)
+		return fmt.Errorf("allowlist %s must be owned by Administrators or SYSTEM", f.Name())
 	}
 	return nil
 }

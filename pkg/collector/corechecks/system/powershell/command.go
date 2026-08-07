@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build windows
+
 package powershell
 
 import (
@@ -68,7 +70,12 @@ func buildCommand(cmdlet, module string, filters []filterEntry, selectProps []st
 	var b strings.Builder
 	b.WriteString("$ErrorActionPreference = 'Stop'\n")
 	// Defense in depth: resolve the command and re-check the verb at runtime.
-	fmt.Fprintf(&b, "$c = Get-Command -Name %s -ErrorAction Stop\n", singleQuote(cmdlet))
+	// Restrict to Cmdlet/Function (excludes aliases and native applications, but
+	// keeps CDXML/module function-cmdlets like Get-Net*) and require a single
+	// match, so the name can't resolve to an array of commands that would make
+	// the guards below behave unpredictably.
+	fmt.Fprintf(&b, "$c = Get-Command -Name %s -CommandType Cmdlet,Function -ErrorAction Stop\n", singleQuote(cmdlet))
+	b.WriteString("if (@($c).Count -ne 1) { throw 'powershell check: name resolved to multiple commands' }\n")
 	b.WriteString("if ($c.Verb -ne 'Get') { throw 'powershell check: not a read-only Get- cmdlet' }\n")
 	// The allowlist pins each cmdlet to a module; require it to resolve to that
 	// module, which rejects a same-named function shadowing the cmdlet from an

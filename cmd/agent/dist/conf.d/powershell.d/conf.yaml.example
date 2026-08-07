@@ -41,10 +41,9 @@
 #   ##   - Any cmdlet used in an instance's `tag_queries` must ALSO be allowlisted.
 #   ##     Join cmdlets are invoked with no user parameters, so only the name is checked.
 #   ##
-#   ## Note: `pattern` is matched as a SUBSTRING, so anchor it with ^...$ to constrain
-#   ## the whole value (e.g. '^[A-Za-z0-9 _.*-]+$'); otherwise a partial match passes.
-#   ## Values are always bound to the cmdlet as data (never interpolated), so this is
-#   ## a policy/scope control, not the injection defense.
+#   ## Note: `pattern` is auto-anchored to the WHOLE value (compiled as \A(?:...)\z),
+#   ## so a partial/substring match never passes. Values are always bound to the cmdlet as data (never
+#   ## interpolated).
 #   ##
 #   ## Example allowlist:
 #   ##
@@ -53,7 +52,7 @@
 #   ##     Get-Service:                       # any service name of the allowed shape
 #   ##       module: Microsoft.PowerShell.Management
 #   ##       parameters:
-#   ##         Name: { required: false, pattern: '^[A-Za-z0-9 _.*-]+$' }
+#   ##         Name: { required: false, pattern: '[A-Za-z0-9 _.*-]+' }
 #   ##     Get-Certificate:                   # only these two templates permitted
 #   ##       module: PKI
 #   ##       parameters:

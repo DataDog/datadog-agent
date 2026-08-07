@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build windows
+
 package powershell
 
 import (
@@ -20,6 +22,8 @@ func TestBuildCommandBasic(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, script, "Get-Command -Name 'Get-ClusterNode'")
+	assert.Contains(t, script, "-CommandType Cmdlet,Function")
+	assert.Contains(t, script, "if (@($c).Count -ne 1)")
 	assert.Contains(t, script, "if ($c.Verb -ne 'Get')")
 	assert.Contains(t, script, "$p = @{Cluster = 'PROD-CL01'}")
 	assert.Contains(t, script, "Select-Object Id,Name,NodeWeight")

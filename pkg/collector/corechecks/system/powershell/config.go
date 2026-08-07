@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build windows
+
 package powershell
 
 import (
@@ -130,6 +132,15 @@ func (f *filterEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (f *filterEntry) finalize() error {
 	if f.Name == "" {
 		return errors.New("filter is missing a parameter name")
+	}
+	// Values must be scalars. A value is validated against the allowlist as a
+	// string (scalarToString) and encoded into the command as a literal
+	// (powershellLiteral); those two encodings agree only for scalars, so
+	// rejecting lists/maps keeps validate == execute.
+	switch f.Value.(type) {
+	case nil, bool, string, int, int64, float64:
+	default:
+		return fmt.Errorf("filter %q value must be a scalar (string, number, or boolean)", f.Name)
 	}
 	return nil
 }
