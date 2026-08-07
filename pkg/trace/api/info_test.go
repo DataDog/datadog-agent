@@ -604,6 +604,7 @@ func TestInfoHandler_CustomObfuscationConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name                   string
 		obfuscationConfig      *config.ObfuscationConfig
+		sqlObfuscationMode     string
 		wantObfuscationVersion int
 	}{
 		{
@@ -612,35 +613,27 @@ func TestInfoHandler_CustomObfuscationConfig(t *testing.T) {
 			wantObfuscationVersion: obfuscate.Version,
 		},
 		{
-			name: "Custom obfuscation config has obfuscation_version = 2",
+			name: "Custom obfuscation config that changes the effective SQL obfuscation mode has obfuscation_version = 2",
+			sqlObfuscationMode:     string(obfuscate.ObfuscateOnly),
+			wantObfuscationVersion: 2,
+		},
+		{
+			name: "Custom obfuscation config that doesn't affect stats has obfuscation_version = 1 (current obfuscate.Version)",
 			obfuscationConfig: &config.ObfuscationConfig{
 				HTTP: obfuscate.HTTPConfig{
 					RemoveQueryString: true,
 					RemovePathDigits:  true,
 				},
-				RemoveStackTraces: false,
-				Redis:             obfuscate.RedisConfig{Enabled: true},
-				Valkey:            obfuscate.ValkeyConfig{Enabled: true},
+				RemoveStackTraces: true,
 				Memcached:         obfuscate.MemcachedConfig{Enabled: false},
 			},
-			wantObfuscationVersion: 2,
+			wantObfuscationVersion: obfuscate.Version,
 		},
-		// {
-		// 	name: "Custom obfuscation config that doesn't affect stats has obfuscation_version = 1",
-		// 	obfuscationConfig: &config.ObfuscationConfig{
-		// 		HTTP: obfuscate.HTTPConfig{
-		// 			RemoveQueryString: true,
-		// 			RemovePathDigits:  true,
-		// 		},
-		// 		RemoveStackTraces: true,
-		// 		Memcached:         obfuscate.MemcachedConfig{Enabled: false},
-		// 	},
-		// 	wantObfuscationVersion: 1,
-		// },
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := config.New()
 			conf.Obfuscation = tt.obfuscationConfig
+			conf.SQLObfuscationMode = tt.sqlObfuscationMode
 			rcv := newTestReceiverFromConfig(conf)
 			_, h := rcv.makeInfoHandler()
 			rec := httptest.NewRecorder()

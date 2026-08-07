@@ -161,16 +161,21 @@ func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
 	return obfuscationMode(c, c.HasFeature("sqllexer"))
 }
 
+// EffectiveSQLConfig returns the obfuscate.SQLConfig actually used by the agent's obfuscator.
+func (c *AgentConfig) EffectiveSQLConfig() obfuscate.SQLConfig {
+	return obfuscate.SQLConfig{
+		TableNames:       c.HasFeature("table_names"),
+		ReplaceDigits:    c.HasFeature("quantize_sql_tables") || c.HasFeature("replace_sql_digits"),
+		KeepSQLAlias:     c.HasFeature("keep_sql_alias"),
+		DollarQuotedFunc: c.HasFeature("dollar_quoted_func"),
+		ObfuscationMode:  c.EffectiveSQLObfuscationMode(),
+	}
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
-		SQL: obfuscate.SQLConfig{
-			TableNames:       conf.HasFeature("table_names"),
-			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
-			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
-			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
-		},
+		SQL:                  conf.EffectiveSQLConfig(),
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
 		Mongo:                o.Mongo,
