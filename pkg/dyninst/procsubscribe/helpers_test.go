@@ -16,7 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan"
 )
 
-const DefaultScanInterval = defaultScanInterval
+const (
+	DefaultScanInterval = defaultScanInterval
+	MinScanRestMultiple = minScanRestMultiple
+)
 
 // WithScanner overrides the scanner used to discover processes.
 func WithProcessScanner(scanner processScanner) Option {
