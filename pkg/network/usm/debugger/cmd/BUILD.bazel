@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_binary")
+
+# ebpf_bytecode.go embeds usm-debug.o and shared-libraries-debug.o by bare
+# filename (//go:embed), so the prebuilt eBPF program outputs from
+# //pkg/network/ebpf/c/prebuilt (a different package) must be copied into
+# this package under matching names before they can be embedded.
+genrule(
+    name = "copy_usm_debug_o",
+    srcs = ["//pkg/network/ebpf/c/prebuilt:usm-debug"],
+    outs = ["usm-debug.o"],
+    cmd = "cp $< $@",
+)
+
+genrule(
+    name = "copy_shared_libraries_debug_o",
+    srcs = ["//pkg/network/ebpf/c/prebuilt:shared-libraries-debug"],
+    outs = ["shared-libraries-debug.o"],
+    cmd = "cp $< $@",
+)
+
+# Both source files carry `//go:build usm_debugger`, invisible to gazelle's
+# default tag set (this is a manual debugging binary, not part of the
+# regular build). gotags selects it here without touching the source.
+# "usm_debugger" isn't in GAZELLE_BUILD_TAGS, so gazelle sees no buildable
+# sources here and would delete this whole rule as orphaned without the
+# keep below.
+go_binary(
+    name = "usm_debugger",
+    srcs = [
+        "ebpf_bytecode.go",
+        "usm_debugger.go",
+    ],
+    embedsrcs = [
+        ":copy_shared_libraries_debug_o",
+        ":copy_usm_debug_o",
+    ],
+    gotags = ["usm_debugger"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/network/config",
+        "//pkg/network/usm",
+        "//pkg/system-probe/config",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
+    ],
+)  # keep
