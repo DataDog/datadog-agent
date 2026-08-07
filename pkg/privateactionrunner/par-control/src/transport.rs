@@ -7,19 +7,25 @@
 //! Linux, a named pipe on Windows.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// Ignored by the custom connector, but tonic requires a well-formed URI.
 const DUMMY_ENDPOINT: &str = "http://[::]:50051";
 
+/// Bounds the dial itself. A local socket either answers promptly or is broken,
+/// and on Windows a named pipe whose every instance is busy would otherwise
+/// block indefinitely.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Build a channel that connects lazily to dd-procmgrd's local socket.
 pub fn connect_lazy(path: &Path) -> tonic::transport::Channel {
     let path = path.to_path_buf();
-    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT).connect_with_connector_lazy(
-        tower::service_fn(move |_| {
+    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .connect_with_connector_lazy(tower::service_fn(move |_| {
             let path = path.clone();
             async move { connect_stream(path).await.map(hyper_util::rt::TokioIo::new) }
-        }),
-    )
+        }))
 }
 
 #[cfg(unix)]
@@ -34,8 +40,9 @@ async fn connect_stream(
     open_pipe_with_retry(path.as_os_str()).await
 }
 
+/// Retries before the final attempt, whose error is returned to the caller.
 #[cfg(windows)]
-const PIPE_BUSY_RETRIES: u32 = 5;
+const PIPE_BUSY_RETRIES: u32 = 4;
 #[cfg(windows)]
 const PIPE_BUSY_BACKOFF_MS: u64 = 50;
 
@@ -56,20 +63,18 @@ async fn open_pipe_with_retry(
     use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
 
     let mut backoff = PIPE_BUSY_BACKOFF_MS;
-    for attempt in 0..PIPE_BUSY_RETRIES {
+    // One attempt per retry, then a final attempt whose error is propagated.
+    for _ in 0..PIPE_BUSY_RETRIES {
         match ClientOptions::new().open(name) {
             Ok(client) => return Ok(client),
-            Err(error)
-                if error.raw_os_error() == Some(ERROR_PIPE_BUSY as i32)
-                    && attempt + 1 < PIPE_BUSY_RETRIES =>
-            {
-                tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+            Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) => {
+                tokio::time::sleep(Duration::from_millis(backoff)).await;
                 backoff *= 2;
             }
             Err(error) => return Err(error),
         }
     }
-    unreachable!("the last attempt either returns a client or propagates its error")
+    ClientOptions::new().open(name)
 }
 
 #[cfg(test)]
