@@ -27,6 +27,7 @@ type ServerConfig struct {
 	CertFile   string
 	KeyFile    string
 	CAFile     string
+	CRLFile    string
 	ClientAuth tls.ClientAuthType
 	MinVersion uint16
 }
@@ -41,6 +42,11 @@ type ServerConfig struct {
 // and perform CA verification in VerifyConnection against the
 // dynamically-reloaded pool. This follows the pattern recommended by the Go
 // crypto team: https://go.dev/issue/64796
+//
+// When a CRL file is configured, the same VerifyConnection callback also
+// rejects clients whose certificate chain contains a revoked certificate. The
+// revocation lists are reloaded from disk on the same schedule as the CA
+// certificates, so publishing a new CRL takes effect without a restart.
 func (c *ServerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -67,8 +73,17 @@ func (c *ServerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, error) 
 		if _, err := caReloader.GetPool(); err != nil {
 			return nil, fmt.Errorf("failed to load TLS CA: %w", err)
 		}
+
+		var crlReloader *certreloader.CRLReloader
+		if c.CRLFile != "" {
+			crlReloader = certreloader.NewCRLReloader(ctx, c.CRLFile, certreloader.RealClock())
+			if _, err := crlReloader.GetCRLs(); err != nil {
+				return nil, fmt.Errorf("failed to load TLS CRL: %w", err)
+			}
+		}
+
 		tlsCfg.ClientAuth = clientAuthNoVerify(c.ClientAuth)
-		tlsCfg.VerifyConnection = buildCAVerifier(caReloader)
+		tlsCfg.VerifyConnection = buildCAVerifier(caReloader, crlReloader)
 	}
 
 	return tlsCfg, nil
@@ -90,6 +105,9 @@ func (c *ServerConfig) Validate() error {
 	}
 	if ClientAuthRequiresVerification(c.ClientAuth) && c.CAFile == "" {
 		return errors.New("tls client_auth requires ca_file to be set")
+	}
+	if c.CRLFile != "" && !ClientAuthRequiresVerification(c.ClientAuth) {
+		return errors.New("tls crl_file requires client_auth to be optional or required")
 	}
 	WarnKeyFilePermissions(c.KeyFile)
 	return nil
@@ -134,8 +152,10 @@ func clientAuthNoVerify(auth tls.ClientAuthType) tls.ClientAuthType {
 }
 
 // buildCAVerifier returns a VerifyConnection callback that verifies client
-// certificates against the CAReloader's current pool.
-func buildCAVerifier(caReloader *certreloader.CAReloader) func(tls.ConnectionState) error {
+// certificates against the CAReloader's current pool. When crlReloader is
+// non-nil, chains that verified against the trust store are additionally
+// checked against the current revocation lists.
+func buildCAVerifier(caReloader *certreloader.CAReloader, crlReloader *certreloader.CRLReloader) func(tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		if len(cs.PeerCertificates) == 0 {
 			return nil
@@ -150,11 +170,22 @@ func buildCAVerifier(caReloader *certreloader.CAReloader) func(tls.ConnectionSta
 			intermediates.AddCert(cert)
 		}
 
-		_, err = cs.PeerCertificates[0].Verify(x509.VerifyOptions{
+		chains, err := cs.PeerCertificates[0].Verify(x509.VerifyOptions{
 			Roots:         pool,
 			Intermediates: intermediates,
 			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		})
-		return err
+		if err != nil {
+			return err
+		}
+
+		if crlReloader == nil {
+			return nil
+		}
+		crls, err := crlReloader.GetCRLs()
+		if err != nil {
+			return fmt.Errorf("CRL unavailable: %w", err)
+		}
+		return checkChainsRevocation(chains, crls)
 	}
 }

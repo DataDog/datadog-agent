@@ -13,6 +13,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -213,6 +214,13 @@ func (p *testPKI) issueClientCert(t *testing.T) (certPath, keyPath string) {
 	return p.issueCert(t, "client", []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 }
 
+// issueNamedClientCert creates a client certificate under a caller-chosen file
+// prefix, so that a test can hold several distinct client identities at once.
+func (p *testPKI) issueNamedClientCert(t *testing.T, prefix string) (certPath, keyPath string) {
+	t.Helper()
+	return p.issueCert(t, prefix, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
+}
+
 // issueExpiredClientCert creates an already-expired client certificate signed
 // by the CA. The cert's NotAfter is in the past.
 func (p *testPKI) issueExpiredClientCert(t *testing.T) (certPath, keyPath string) {
@@ -225,6 +233,42 @@ func (p *testPKI) issueCert(t *testing.T, prefix string, extKeyUsage []x509.ExtK
 	t.Helper()
 	return p.issueCertWithValidity(t, prefix, extKeyUsage,
 		time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+}
+
+// writeCRL publishes a revocation list, signed by the CA, covering the client
+// certificates at the given cert paths. Returns the CRL file path.
+func (p *testPKI) writeCRL(t *testing.T, name string, revokedCertPaths ...string) string {
+	t.Helper()
+
+	entries := make([]x509.RevocationListEntry, 0, len(revokedCertPaths))
+	for _, path := range revokedCertPaths {
+		pemBytes, err := os.ReadFile(path)
+		require.NoError(t, err)
+		block, _ := pem.Decode(pemBytes)
+		require.NotNil(t, block)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		require.NoError(t, err)
+		entries = append(entries, x509.RevocationListEntry{
+			SerialNumber:   cert.SerialNumber,
+			RevocationTime: time.Now().Add(-time.Minute),
+		})
+	}
+
+	crlDER, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+		Number:                    big.NewInt(1),
+		ThisUpdate:                time.Now().Add(-time.Hour),
+		NextUpdate:                time.Now().Add(time.Hour),
+		RevokedCertificateEntries: entries,
+	}, p.caCert, p.caKey)
+	require.NoError(t, err)
+
+	crlPath := filepath.Join(p.dir, name)
+	out, err := os.Create(crlPath)
+	require.NoError(t, err)
+	require.NoError(t, pem.Encode(out, &pem.Block{Type: "X509 CRL", Bytes: crlDER}))
+	out.Close()
+
+	return crlPath
 }
 
 func (p *testPKI) issueCertWithValidity(t *testing.T, prefix string, extKeyUsage []x509.ExtKeyUsage, notBefore, notAfter time.Time) (certPath, keyPath string) {
@@ -824,4 +868,124 @@ func TestTCPMTLSRejectsExpiredClientCert(t *testing.T) {
 	assert.Equal(t, 0, len(listener.tailers), "no tailer should exist for an expired client cert")
 
 	listener.Stop()
+}
+
+func TestTCPMTLSRejectsRevokedClientCert(t *testing.T) {
+	pki := generateTestPKI(t)
+	serverCert, serverKey := pki.issueServerCert(t)
+	clientCert, clientKey := pki.issueClientCert(t)
+	crlPath := pki.writeCRL(t, "revoked.crl", clientCert)
+
+	pp := mock.NewMockProvider()
+
+	src := sources.NewLogSource("", &config.LogsConfig{
+		Port: tcpTestPort,
+		TLS: &config.TLSListenerConfig{
+			CertFile:   serverCert,
+			KeyFile:    serverKey,
+			CAFile:     pki.caPath,
+			CRLFile:    crlPath,
+			ClientAuth: "required",
+		},
+	})
+
+	listener, err := NewTCPListener(pp, src, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+	require.NotNil(t, listener.listener)
+
+	clientTLSCert, err := tls.LoadX509KeyPair(clientCert, clientKey)
+	require.NoError(t, err)
+
+	conn, dialErr := tls.Dial("tcp", listener.listener.Addr().String(), &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec
+		Certificates:       []tls.Certificate{clientTLSCert},
+	})
+
+	if dialErr == nil {
+		// TLS 1.3: the server rejects after the handshake completes, so the
+		// failure only surfaces on the first I/O. Closing the connection before
+		// the listener stops keeps a regression from hanging Stop().
+		defer conn.Close()
+		conn.SetDeadline(time.Now().Add(5 * time.Second)) //nolint:errcheck
+		_, writeErr := fmt.Fprint(conn, "should fail\n")
+		if writeErr == nil {
+			buf := make([]byte, 1)
+			_, readErr := conn.Read(buf)
+			require.Error(t, readErr, "server should reject a revoked client certificate")
+			// A read deadline would also produce an error, which would let this
+			// assertion pass on a server that quietly accepted the connection.
+			var netErr net.Error
+			if errors.As(readErr, &netErr) {
+				assert.False(t, netErr.Timeout(), "server left the connection open instead of rejecting the revoked certificate")
+			}
+		}
+	}
+
+	assert.Equal(t, 0, len(listener.tailers), "no tailer should exist for a revoked client cert")
+}
+
+func TestTCPMTLSAcceptsClientCertAbsentFromCRL(t *testing.T) {
+	pki := generateTestPKI(t)
+	serverCert, serverKey := pki.issueServerCert(t)
+	revokedCert, _ := pki.issueNamedClientCert(t, "revoked-client")
+	goodCert, goodKey := pki.issueNamedClientCert(t, "good-client")
+	crlPath := pki.writeCRL(t, "revoked.crl", revokedCert)
+
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+
+	src := sources.NewLogSource("", &config.LogsConfig{
+		Port: tcpTestPort,
+		TLS: &config.TLSListenerConfig{
+			CertFile:   serverCert,
+			KeyFile:    serverKey,
+			CAFile:     pki.caPath,
+			CRLFile:    crlPath,
+			ClientAuth: "required",
+		},
+	})
+
+	listener, err := NewTCPListener(pp, src, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	require.NotNil(t, listener.listener)
+
+	clientTLSCert, err := tls.LoadX509KeyPair(goodCert, goodKey)
+	require.NoError(t, err)
+
+	conn, err := dialTLSWithRetry(t, listener.listener.Addr().String(), &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec
+		Certificates:       []tls.Certificate{clientTLSCert},
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	fmt.Fprint(conn, "not revoked\n")
+	msg := <-msgChan
+	assert.Equal(t, "not revoked", string(msg.GetContent()))
+
+	listener.Stop()
+}
+
+func TestTCPTLSRefusesToStartOnUnreadableCRL(t *testing.T) {
+	pki := generateTestPKI(t)
+	serverCert, serverKey := pki.issueServerCert(t)
+
+	pp := mock.NewMockProvider()
+
+	src := sources.NewLogSource("", &config.LogsConfig{
+		Port: tcpTestPort,
+		TLS: &config.TLSListenerConfig{
+			CertFile:   serverCert,
+			KeyFile:    serverKey,
+			CAFile:     pki.caPath,
+			CRLFile:    "/nonexistent/revoked.crl",
+			ClientAuth: "required",
+		},
+	})
+
+	_, err := NewTCPListener(pp, src, 9000)
+	require.Error(t, err, "a configured but unusable CRL must not silently degrade to no revocation checking")
 }

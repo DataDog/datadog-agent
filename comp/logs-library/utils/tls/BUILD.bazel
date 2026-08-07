@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "tls",
-    srcs = ["server_config.go"],
+    srcs = [
+        "revocation.go",
+        "server_config.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/utils/tls",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,7 +17,13 @@ go_library(
 
 dd_agent_go_test(
     name = "tls_test",
-    srcs = ["server_config_test.go"],
+    srcs = [
+        "revocation_test.go",
+        "server_config_test.go",
+    ],
     embed = [":tls"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
