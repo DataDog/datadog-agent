@@ -21,6 +21,14 @@ impl CheckConfig {
                 .instance
                 .get("scan_data")
                 .context("failed to read scan_data from instance config")?,
+            debug_only_clear_caches: check
+                .instance
+                .get("debug_only_clear_caches")
+                .unwrap_or_default(),
+            debug_only_malloc_trim: check
+                .instance
+                .get("debug_only_malloc_trim")
+                .unwrap_or_default(),
         })
     }
 }
@@ -31,6 +39,12 @@ pub struct CheckConfig {
     pub task_id: String,
     pub scanning_rules: Vec<ScanningRule>,
     pub scan_data: Vec<SubTask>,
+    /// Clears scanner caches after a run. Temporary debugging option.
+    #[serde(default)]
+    pub debug_only_clear_caches: bool,
+    /// Returns unused native heap pages after a run. Temporary debugging option.
+    #[serde(default)]
+    pub debug_only_malloc_trim: bool,
 }
 
 /// A single scan sub task: a query to run against one data source.

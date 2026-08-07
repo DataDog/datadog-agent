@@ -59,6 +59,14 @@ pub fn clear_caches() {
     dd_sds::clear_all_caches();
 }
 
+/// Returns freed native heap pages to Linux.
+pub fn malloc_trim() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    unsafe {
+        libc::malloc_trim(0);
+    }
+}
+
 /// Groups hits into `(column, rule)` pairs and counts matched rows and total
 /// matches.
 fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Match>> {
