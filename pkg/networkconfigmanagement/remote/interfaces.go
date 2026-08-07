@@ -29,6 +29,8 @@ type Connection interface {
 	// commands fail, PushConfig returns an error but ALSO returns a PushResult
 	// with more details - calling code should not assume that the PushResult is
 	// nil just because there was an error.
-	PushConfig(ctx context.Context, config string) (*types.PushResult, types.RollbackError)
+	PushConfig(ctx context.Context, config string) (*types.PushResult, types.TypedError)
+	// ExecuteCommand
+	ExecuteCommand(ctx context.Context, command string) (*types.CommandResult, types.TypedError)
 	Close() error
 }
