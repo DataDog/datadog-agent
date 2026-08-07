@@ -210,6 +210,66 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			procid:    nilvalue,
 			msg:       ": %FTD-6-305012: Teardown dynamic UDP translation",
 		},
+		{
+			// Cisco documents the IOS header as
+			// "seq no:timestamp: %facility-severity-MNEMONIC:description", the
+			// part before the '%' varying with "service timestamps log". The
+			// msec option is what its own Embedded Syslog Manager guide prints:
+			// "000013: Mar 18 14:52:10.039:%LINK-5-CHANGED: ...". Without the
+			// fractional seconds the timestamp ends mid-token and the header
+			// fails to parse at all.
+			name:      "cisco ios datetime msec",
+			line:      "<187>Mar 18 14:52:10.039: %LINK-5-CHANGED: Interface Serial3/3, changed state to administratively down",
+			timestamp: "Mar 18 14:52:10.039",
+			hostname:  nilvalue,
+			appname:   nilvalue,
+			procid:    nilvalue,
+			msg:       "%LINK-5-CHANGED: Interface Serial3/3, changed state to administratively down",
+		},
+		{
+			// The same guide prints no space between the colon and the '%'.
+			name:      "cisco ios datetime msec, no space before mnemonic",
+			line:      "<187>Mar 18 14:52:10.039:%LINK-5-CHANGED: Interface Serial3/3, changed state",
+			timestamp: "Mar 18 14:52:10.039",
+			hostname:  nilvalue,
+			appname:   nilvalue,
+			procid:    nilvalue,
+			msg:       "%LINK-5-CHANGED: Interface Serial3/3, changed state",
+		},
+		{
+			// "service timestamps log datetime show-timezone" appends the zone
+			// name, which lands in the TAG position. Read as a TAG it becomes
+			// the APP-NAME, so every device in a given zone would route under
+			// a service named after its timezone.
+			name:      "cisco ios show-timezone",
+			line:      "<187>Mar  1 18:46:11 UTC: %LINK-3-UPDOWN: Interface Serial0, changed state to up",
+			timestamp: "Mar  1 18:46:11 UTC",
+			hostname:  nilvalue,
+			appname:   nilvalue,
+			procid:    nilvalue,
+			msg:       "%LINK-3-UPDOWN: Interface Serial0, changed state to up",
+		},
+		{
+			name:      "cisco ios msec and show-timezone together",
+			line:      "<187>Mar 18 14:52:10.039 CEST: %LINK-5-CHANGED: Interface Serial3/3, changed state",
+			timestamp: "Mar 18 14:52:10.039 CEST",
+			hostname:  nilvalue,
+			appname:   nilvalue,
+			procid:    nilvalue,
+			msg:       "%LINK-5-CHANGED: Interface Serial3/3, changed state",
+		},
+		{
+			// Cisco documents '*' before the time as meaning the system clock
+			// never synchronized to a reliable source. It is a marker, not part
+			// of the time, and the header behind it parses normally.
+			name:      "cisco ios unsynchronized clock marker",
+			line:      "<187>*Mar  1 18:46:11.000: %LINK-3-UPDOWN: Interface Serial0, changed state to up",
+			timestamp: "Mar  1 18:46:11.000",
+			hostname:  nilvalue,
+			appname:   nilvalue,
+			procid:    nilvalue,
+			msg:       "%LINK-3-UPDOWN: Interface Serial0, changed state to up",
+		},
 	}
 
 	for _, tc := range cases {
@@ -228,6 +288,87 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 			assert.Equal(t, tc.procid, msg.ProcID, "procid")
 			assert.Equal(t, tc.msg, string(msg.Msg), "msg")
 		})
+	}
+}
+
+// Absorbing a timezone name into the TIMESTAMP is only safe while it stays
+// narrow. An uppercase token after the time is otherwise indistinguishable from
+// a short TAG or a hostname, so nothing here may be given up to recognize a
+// zone: the Cisco mnemonic behind the colon is the whole justification.
+func TestTimezoneSuffixDoesNotEatTags(t *testing.T) {
+	cases := []struct {
+		name      string
+		line      string
+		timestamp string
+		hostname  string
+		appname   string
+		msg       string
+	}{
+		{
+			// Shaped exactly like the zone case but without a mnemonic, so the
+			// token is a TAG and has to stay one.
+			name:      "uppercase tag is not a timezone",
+			line:      "<134>Jan  1 00:00:00 GW: session opened for user root",
+			timestamp: "Jan  1 00:00:00",
+			hostname:  nilvalue,
+			appname:   "GW",
+			msg:       "session opened for user root",
+		},
+		{
+			// A zone-shaped token in the HOSTNAME position with no colon is a
+			// hostname, whatever it is named.
+			name:      "zone-shaped hostname is left alone",
+			line:      "<134>Feb 10 12:00:00 UTC sshd: not a mnemonic body",
+			timestamp: "Feb 10 12:00:00",
+			hostname:  "UTC",
+			appname:   "sshd",
+			msg:       "not a mnemonic body",
+		},
+		{
+			// Only the token directly after the timestamp can be a zone; once a
+			// HOSTNAME has been read, the next one is a TAG.
+			name:      "zone-shaped tag after a hostname",
+			line:      "<134>Feb 10 12:00:00 myhost UTC: still a tag",
+			timestamp: "Feb 10 12:00:00",
+			hostname:  "myhost",
+			appname:   "UTC",
+			msg:       "still a tag",
+		},
+		{
+			// Fractional seconds end at the digits and must not run into the
+			// HOSTNAME behind them.
+			name:      "fraction does not consume the hostname",
+			line:      "<134>Feb 10 12:00:00.5 myhost sshd: ok",
+			timestamp: "Feb 10 12:00:00.5",
+			hostname:  "myhost",
+			appname:   "sshd",
+			msg:       "ok",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			msg, err := Parse([]byte(tc.line))
+			require.NoError(t, err)
+			assert.Equal(t, tc.timestamp, msg.Timestamp, "timestamp")
+			assert.Equal(t, tc.hostname, msg.Hostname, "hostname")
+			assert.Equal(t, tc.appname, msg.AppName, "appname")
+			assert.Equal(t, tc.msg, string(msg.Msg), "msg")
+		})
+	}
+}
+
+// '*' is only a clock marker when a timestamp follows it. Anywhere else it is
+// ordinary content and must reach MSG intact.
+func TestAsteriskWithoutTimestampIsContent(t *testing.T) {
+	for _, line := range []string{
+		"<134>*** ALERT *** disk full on /var",
+		"<134>*not a timestamp at all",
+	} {
+		msg, err := Parse([]byte(line))
+		require.NoError(t, err)
+		assert.Equal(t, nilvalue, msg.Timestamp)
+		assert.Equal(t, line[len("<134>"):], string(msg.Msg), "input %q", line)
 	}
 }
 
@@ -519,8 +660,39 @@ func TestBSDTimestampLen(t *testing.T) {
 		{"Jan 9 03-47-40", 0},
 		{"2024-04-04T08:05:06Z", 0},
 		{"", 0},
+
+		// Fractional seconds attach to every layout.
+		{"Mar 18 14:52:10.039", 19},
+		{"Jan 9 03:47:40.5", 16},
+		{"Apr 04 2024 08:05:06.123456", 27},
+		{"2024 Apr 04 08:05:06.039", 24},
+		{"Mar 18 14:52:10.", 15},    // '.' with no digits is not a fraction
+		{"Mar 18 14:52:10.x", 15},   // nor is a non-digit
+		{"Mar 18 14:52:10 UTC", 15}, // the zone is not part of the bare layout
 	}
 	for _, tc := range cases {
 		assert.Equal(t, tc.want, bsdTimestampLen([]byte(tc.in)), "input %q", tc.in)
+	}
+}
+
+func TestBSDZoneSuffixLen(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{" UTC: %LINK-3-UPDOWN: up", 4},
+		{" CEST: %ASA-6-302013: built", 5},
+		{" AEDT:%FTD-1-430003: x", 5},
+		{" UTC:   %SYS-5-CONFIG_I: x", 4}, // Cisco allows spaces after the colon
+		{" GW: session opened", 0},        // no mnemonic: a TAG, not a zone
+		{" UTC %LINK-3-UPDOWN: up", 0},    // no colon terminating the zone
+		{" U: %LINK-3-UPDOWN: up", 0},     // too short to be a zone
+		{" TOOLONGZONE: %LINK-3-UPDOWN: up", 0},
+		{" utc: %LINK-3-UPDOWN: up", 0}, // zone names are uppercase
+		{"UTC: %LINK-3-UPDOWN: up", 0},  // must be preceded by SP
+		{"", 0},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, bsdZoneSuffixLen([]byte(tc.in)), "input %q", tc.in)
 	}
 }
