@@ -8,22 +8,17 @@
 package bytecode
 
 import (
-	"fmt"
-	"os"
 	"path"
 )
 
 // GetReader returns a new AssetReader for the specified file asset
 func GetReader(dir, name string) (AssetReader, error) {
 	assetPath := path.Join(dir, path.Base(name))
-	err := VerifyAssetPermissions(assetPath)
+	// Open and permission-check the same descriptor (O_NOFOLLOW) so there is no
+	// path re-resolution between the check and the returned reader.
+	asset, err := VerifyAssetPermissionsAndOpen(assetPath)
 	if err != nil {
 		return nil, err
-	}
-
-	asset, err := os.Open(assetPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not find asset: %w", err)
 	}
 
 	return asset, nil

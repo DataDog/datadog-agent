@@ -63,9 +63,17 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 	}
 
 	var result CompilationResult
-	if _, err := os.Stat(outputFile); err != nil {
-		if !os.IsNotExist(err) {
+	// Use Lstat and only treat a regular file as a valid cache entry; a
+	// non-regular entry (e.g. a symlink) is removed and recompiled so we never
+	// write through it or read its target.
+	if fi, err := os.Lstat(outputFile); err != nil || !fi.Mode().IsRegular() {
+		if err != nil && !os.IsNotExist(err) {
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
+		}
+		if err == nil {
+			if rmErr := os.Remove(outputFile); rmErr != nil {
+				return nil, outputFileErr, fmt.Errorf("error removing unexpected output file %s: %w", outputFile, rmErr)
+			}
 		}
 
 		kv, err := kernel.HostVersion()
@@ -101,14 +109,12 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		result = compiledOutputFound
 	}
 
-	err = bytecode.VerifyAssetPermissions(outputFile)
+	// Open the compiled object with O_NOFOLLOW and verify permissions on the
+	// resulting descriptor, then hand that same descriptor to the caller so the
+	// bytes we load are exactly the bytes we verified.
+	out, err := bytecode.VerifyAssetPermissionsAndOpen(outputFile)
 	if err != nil {
 		return nil, outputFileErr, err
-	}
-
-	out, err := os.Open(outputFile)
-	if err != nil {
-		return nil, resultReadErr, err
 	}
 	return out, result, nil
 }
