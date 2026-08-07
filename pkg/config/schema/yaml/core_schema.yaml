@@ -7349,6 +7349,16 @@ properties:
                     node_type: setting
                     type: boolean
                     default: true
+      preflight_mode:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: |-
+          Preflight mode enables a short pre-flight run of ADP at Agent startup to surface any environment-specific startup
+          problems before ADP is released o GA. The preflight process handles no customer data, listening only on a throwaway
+          UDS or named pipe under run_path, and only runs when data_plane.enabled has not been set at all.
+
+          See comp/dataplane/preflightmode for more details.
       remote_agent_enabled:
         node_type: setting
         type: boolean
