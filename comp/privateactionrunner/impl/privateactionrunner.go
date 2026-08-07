@@ -315,6 +315,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}
 	serveOpts := executor.ServeOptions{
 		DrainTimeout: drainTimeout,
+		IdleTimeout:  executorIdleTimeout(p.coreConfig),
 	}
 	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
 	tlsConfig := p.ipc.GetTLSServerConfig()
@@ -328,6 +329,26 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+// executorIdleTimeoutFactor keeps the executor's self-exit well behind the
+// control plane's own idle stop, so the watchdog only fires when the control
+// plane is gone rather than racing it.
+const executorIdleTimeoutFactor = 3
+
+// executorIdleTimeout is how long the executor tolerates having no work before
+// exiting on its own. It is derived from the same setting the control plane uses
+// to stop an idle executor, so operators have one knob.
+//
+// This is a backstop: the control plane and the executor are siblings under
+// dd-procmgrd, so if the control plane is killed or stopped on its own, nothing
+// else would ever stop the executor.
+func executorIdleTimeout(cfg model.Reader) time.Duration {
+	idle := cfg.GetInt("private_action_runner.idle_timeout_seconds")
+	if idle <= 0 {
+		return 0
+	}
+	return time.Duration(idle) * executorIdleTimeoutFactor * time.Second
 }
 
 // StopExecutor gracefully stops the executor gRPC server and releases resources.

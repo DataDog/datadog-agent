@@ -441,3 +441,113 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	_, err = anon.Health(shortCtx, &pb.HealthRequest{})
 	require.Error(t, err, "client without a valid cert must be rejected")
 }
+
+// An idle executor must exit on its own. The control plane normally stops it,
+// but the two are siblings under dd-procmgrd, so nothing would ever reap the
+// executor if the control plane were killed or stopped by itself.
+func TestServeExitsWhenIdle(t *testing.T) {
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  150 * time.Millisecond,
+		})
+	}()
+
+	select {
+	case err := <-served:
+		require.NoError(t, err, "an idle exit is a clean exit, so procmgr leaves it down")
+	case <-time.After(5 * time.Second):
+		t.Fatal("idle executor did not exit")
+	}
+}
+
+// Health is how the control plane checks whether the executor is usable, so it
+// must not keep an otherwise idle executor alive forever.
+func TestServeHealthDoesNotDeferIdleExit(t *testing.T) {
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  300 * time.Millisecond,
+		})
+	}()
+
+	client := dialTestExecutor(t, socketPath)
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_, _ = client.Health(context.Background(), &pb.HealthRequest{})
+				time.Sleep(20 * time.Millisecond)
+			}
+		}
+	}()
+	defer close(stop)
+
+	select {
+	case err := <-served:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("health polling kept an idle executor alive")
+	}
+}
+
+// A dispatched action resets the idle clock, so a busy executor is never reaped.
+func TestServeDoesNotExitWhileDispatching(t *testing.T) {
+	srv := NewServer(&fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   map[string]interface{}{"ok": true},
+	}, "test-version", nil)
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  250 * time.Millisecond,
+		})
+	}()
+
+	client := dialTestExecutor(t, socketPath)
+	deadline := time.Now().Add(700 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{
+			Task: []byte(`{"data":{"id":"t"}}`),
+		})
+		require.NoError(t, err, "executor exited while actions were still being dispatched")
+		for {
+			if _, err := stream.Recv(); err != nil {
+				break
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	select {
+	case err := <-served:
+		t.Fatalf("executor exited while busy: %v", err)
+	default:
+	}
+}
