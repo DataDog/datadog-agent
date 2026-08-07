@@ -1655,7 +1655,7 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 12, err
 	}
 
-	return 12 + int(sizeToRead), nil
+	return read + 12 + int(sizeToRead), nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

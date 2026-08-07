@@ -235,6 +235,7 @@ dd_agent_go_test(
         "user_nix_test.go",
     ],
     embed = [":checks"],
+    gotags_sets = [["systemprobechecks"]],
     deps = [
         "//comp/core",
         "//comp/core/hostname/hostnameimpl",

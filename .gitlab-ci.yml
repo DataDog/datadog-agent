@@ -474,12 +474,15 @@ variables:
 
 # fakeintake changes that rebuild the published image (server binary only).
 # Client/CLI/docs changes don't. Keep in sync with _is_server_file() in tasks/fakeintake.py.
+# Only `.go` files under the server paths matter: the image is built from the Go sources
+# via test/fakeintake/Dockerfile, so BUILD.bazel and test fixtures don't affect it
+# (rules:changes has no exclusion syntax, hence the extension in the glob).
 .fakeintake_server_paths: &fakeintake_server_paths
   paths:
-    - test/fakeintake/cmd/server/**/*
-    - test/fakeintake/server/**/*
-    - test/fakeintake/aggregator/**/*
-    - test/fakeintake/api/**/*
+    - test/fakeintake/cmd/server/**/*.go
+    - test/fakeintake/server/**/*.go
+    - test/fakeintake/aggregator/**/*.go
+    - test/fakeintake/api/**/*.go
     - test/fakeintake/go.mod
     - test/fakeintake/go.sum
     - test/fakeintake/Dockerfile
@@ -545,6 +548,19 @@ workflow:
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
     - <<: *if_mergequeue
+    # ADP is shipped in every Agent package and exercised across several test suites.
+    # Treat an ADP version bump like a full pipeline so platform-specific regressions
+    # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
+    - changes:
+        paths:
+          - deps/agent_data_plane/agent_data_plane.MODULE.bazel
+        compare_to: $COMPARE_TO_BRANCH
+      variables:
+        RUN_ALL_BUILDS: "true"
+        RUN_E2E_TESTS: "on"
+        RUN_KMT_TESTS: "on"
+        RUN_UNIT_TESTS: "on"
+        SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path
         compare_to: main
@@ -1120,6 +1136,8 @@ workflow:
   - changes:
       paths:
         - cmd/agent/dist/conf.d/discovery.d/*
+        - comp/core/autodiscovery/discoverer/**/*
+        - comp/core/autodiscovery/impl/configmgr*
         - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/discovery/**/*
