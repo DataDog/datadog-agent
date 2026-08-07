@@ -599,6 +599,19 @@ func (c *Client) GetLastAPIKey() (string, error) {
 	return strings.TrimSpace(string(body)), nil
 }
 
+// GetLastMetricPayloadAPIKey fetches fakeintake on `/api/v2/series` endpoint and returns
+// the API key of the last received metric payload
+func (c *Client) GetLastMetricPayloadAPIKey() (string, error) {
+	payloads, err := c.getFakePayloads(metricsEndpoint)
+	if err != nil {
+		return "", err
+	}
+	if len(payloads) == 0 {
+		return "", errors.New("no metric payloads found")
+	}
+	return payloads[len(payloads)-1].APIKey, nil
+}
+
 func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
 	if err := c.getMetrics(); err != nil {
 		return nil, err
