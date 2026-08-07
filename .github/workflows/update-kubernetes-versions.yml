@@ -146,4 +146,4 @@ jobs:
             ### Describe how you validated your changes
             CI will validate the new versions work correctly.
           team-reviewers: container-integrations
-          labels: team/container-integrations,qa/done,changelog/no-changelog,ask-review
+          labels: team/container-integrations,qa/done,changelog/no-changelog
