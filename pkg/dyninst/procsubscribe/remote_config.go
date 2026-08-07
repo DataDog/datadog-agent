@@ -34,9 +34,11 @@ const (
 	rcInitialReconnectDelay = 200 * time.Millisecond
 	rcMaxReconnectDelay     = 30 * time.Second
 
-	// defaultScanInterval is the fixed delay between two process scans. It is
-	// also the delay before the first retry of a process whose tracer metadata
-	// could not be read, so that retry lands on the next scan.
+	// defaultScanInterval is the delay between the end of one process scan and
+	// the start of the next, so how long a scan took never feeds back into when
+	// the following one starts. It is also the delay before the first retry of
+	// a process whose tracer metadata could not be read, so that retry lands on
+	// the next scan.
 	//
 	// Every process on the host costs a stat read on every scan, which is
 	// around 1% of a core at two thousand processes if we scan every three

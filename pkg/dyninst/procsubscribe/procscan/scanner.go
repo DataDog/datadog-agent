@@ -31,16 +31,9 @@ import (
 type ProcessID uint32
 
 const (
-	// DefaultRetryBackoffBase is the delay before the second attempt at reading
-	// a process' tracer metadata. It matches the subscriber's scan interval so
-	// that the first retry happens on the next scan.
 	DefaultRetryBackoffBase = 5 * time.Second
-	// DefaultRetryBackoffCap is the longest delay between two attempts at
-	// reading a process' tracer metadata.
-	DefaultRetryBackoffCap = 5 * time.Minute
+	DefaultRetryBackoffCap  = 5 * time.Minute
 
-	// defaultExecutableCacheSize bounds the number of distinct executables for
-	// which we remember whether they are Go binaries.
 	defaultExecutableCacheSize = 1024
 )
 
@@ -61,8 +54,7 @@ func procKeyLess(a, b procKey) bool {
 type candidate struct {
 	// startTime distinguishes this process from a later one that reuses its pid.
 	startTime ticks
-	// seenAt is the time of the last scan that observed the process. Candidates
-	// not observed by a scan have exited and are dropped.
+	// seenAt is the time of the last scan that observed the process.
 	seenAt ticks
 	// attempts is the number of scans that have looked at this process without
 	// instrumenting it.
