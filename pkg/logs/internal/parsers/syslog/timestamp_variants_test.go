@@ -231,6 +231,41 @@ func TestParseUnrecognizedTimestampLayouts(t *testing.T) {
 	}
 }
 
+// The colon ASA writes after an ISO timestamp is skipped whatever follows it,
+// not only a Cisco mnemonic. Every ASA and FTD sample happens to carry one, so
+// nothing else in the suite covers the general case: drop this handling and a
+// body the mnemonic check does not recognize is lost along with the message.
+func TestISOTimestampColonWithoutMnemonic(t *testing.T) {
+	cases := []struct {
+		name string
+		line string
+		msg  string
+	}{
+		{
+			name: "space after the colon",
+			line: "<190>2025-11-25T07:19:40Z: connection teardown, no mnemonic",
+			msg:  "connection teardown, no mnemonic",
+		},
+		{
+			name: "no space after the colon",
+			line: "<190>2025-11-25T07:19:40Z:connection teardown, no mnemonic",
+			msg:  "connection teardown, no mnemonic",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			msg, err := Parse([]byte(tc.line))
+			require.NoError(t, err)
+
+			assert.Equal(t, "2025-11-25T07:19:40Z", msg.Timestamp)
+			assert.Equal(t, nilvalue, msg.Hostname)
+			assert.Equal(t, nilvalue, msg.AppName)
+			assert.Equal(t, tc.msg, string(msg.Msg), "the body must reach MSG")
+		})
+	}
+}
+
 // A colon after the PRI is only skipped when a timestamp follows it, so content
 // that merely starts with a colon keeps its leading colon in MSG.
 func TestColonAfterPRIWithoutTimestamp(t *testing.T) {
