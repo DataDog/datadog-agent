@@ -553,6 +553,85 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
+			name:   "networkpolicy spec rule counts",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_networkpolicy_spec_ingress_rules": {
+					{
+						Type: "*networking.k8s.io/v1.NetworkPolicy",
+						Name: "kube_networkpolicy_spec_ingress_rules",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "networkpolicy": "deny-all"},
+								Val:    2,
+							},
+						},
+					},
+				},
+				"kube_networkpolicy_spec_egress_rules": {
+					{
+						Type: "*networking.k8s.io/v1.NetworkPolicy",
+						Name: "kube_networkpolicy_spec_egress_rules",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "kube-system", "networkpolicy": "allow-dns"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(nil),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.networkpolicy.spec_ingress_rules",
+					val:      2,
+					tags:     []string{"kube_namespace:default", "kube_networkpolicy:deny-all"},
+					hostname: "",
+				},
+				{
+					name:     "kubernetes_state.networkpolicy.spec_egress_rules",
+					val:      1,
+					tags:     []string{"kube_namespace:kube-system", "kube_networkpolicy:allow-dns"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "networkpolicy metrics with label joins",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_networkpolicy_spec_ingress_rules": {
+					{
+						Type: "*networking.k8s.io/v1.NetworkPolicy",
+						Name: "kube_networkpolicy_spec_ingress_rules",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "networkpolicy": "web"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_networkpolicy_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "networkpolicy": "web", "label_tags_datadoghq_com_env": "staging", "label_tags_datadoghq_com_service": "webapp", "label_tags_datadoghq_com_version": "v2"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(nil),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.networkpolicy.spec_ingress_rules",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_networkpolicy:web", "env:staging", "service:webapp", "version:v2"},
+					hostname: "",
+				},
+			},
+		},
+		{
 			name:   "node nvidia gpu capacity",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
@@ -1683,6 +1762,7 @@ var metadataMetrics = []string{
 	"kube_service_labels",
 	"kube_statefulset_labels",
 	"kube_verticalpodautoscaler_labels",
+	"kube_networkpolicy_labels",
 }
 
 func TestMetadataMetricsRegex(t *testing.T) {
@@ -1695,16 +1775,17 @@ func TestMetadataMetricsRegex(t *testing.T) {
 
 func TestResourceNameFromMetric(t *testing.T) {
 	testCases := map[string]string{
-		"kube_cronjob_info":               "cronjob",
-		"kube_job_info":                   "job",
-		"kube_pod_container_info":         "pod",
-		"kube_service_info":               "service",
-		"kube_persistentvolume_info":      "persistentvolume",
-		"kube_persistentvolumeclaim_info": "persistentvolumeclaim",
-		"kube_deployment_labels":          "deployment",
-		"foo_":                            "",
-		"foo":                             "",
-		"":                                "",
+		"kube_cronjob_info":                     "cronjob",
+		"kube_job_info":                         "job",
+		"kube_pod_container_info":               "pod",
+		"kube_service_info":                     "service",
+		"kube_persistentvolume_info":            "persistentvolume",
+		"kube_persistentvolumeclaim_info":       "persistentvolumeclaim",
+		"kube_deployment_labels":                "deployment",
+		"kube_networkpolicy_spec_ingress_rules": "networkpolicy",
+		"foo_":                                  "",
+		"foo":                                   "",
+		"":                                      "",
 	}
 	for k, v := range testCases {
 		assert.Equal(t, v, resourceNameFromMetric(k))
