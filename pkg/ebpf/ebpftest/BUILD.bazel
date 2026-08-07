@@ -11,6 +11,7 @@ go_library(
         "dumpmaps_helper.go",
         "fail_log.go",
         "log.go",
+        "rcu_linux.go",
         "trace_pipe.go",
         "trace_pipe_linux.go",
         "version_linux.go",
