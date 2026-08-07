@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:runtime_compilation.bzl", "runtime_compilation_bundle")
 
 _EBPF_HEADERS = ["//pkg/ebpf/c:ebpf_c_headers_files"]
@@ -141,4 +141,22 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode",
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "bytecode_test",
+    srcs = ["permissions_test.go"],
+    embed = [":bytecode"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -92,7 +92,10 @@ go_library(
 # of clang-bpf in the agent's installation path.
 go_test(
     name = "runtime_test",
-    srcs = ["helpers_test.go"],
+    srcs = [
+        "asset_test.go",
+        "helpers_test.go",
+    ],
     embed = [":runtime"],
     gotags = ["linux_bpf"],  # keep
     tags = ["manual"],  # keep
