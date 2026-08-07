@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Process-lifecycle scaffold for the split Private Action Runner control plane.
+//! Generated protobuf/gRPC bindings for dd-procmgrd.
 
-pub mod config;
-pub mod platform;
-pub mod procmgr;
-pub mod proto;
-pub mod transport;
+#[cfg(not(bazel))]
+pub mod procmgr {
+    tonic::include_proto!("datadog.procmgr");
+}
 
-#[cfg(test)]
-pub mod test_support;
+#[cfg(bazel)]
+pub mod procmgr {
+    pub use procmgr_proto::datadog::procmgr::*;
+}
