@@ -38,6 +38,7 @@ dd_agent_go_test(
         "docker_stream_test.go",
         "framer_test.go",
         "matcher_test.go",
+        "syslog_octet_prefix_test.go",
         "syslog_test.go",
     ],
     embed = [":framer"],
