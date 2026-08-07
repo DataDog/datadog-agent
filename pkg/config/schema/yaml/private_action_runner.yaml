@@ -105,6 +105,14 @@ properties:
         platform_default:
           windows: \\.\pipe\dd-par-executor
           other: ${run_path}/par-executor.sock
+  executor_process_name:
+    node_type: setting
+    type: string
+    default: datadog-agent-action-executor
+  heartbeat_interval_seconds:
+    node_type: setting
+    type: integer
+    default: 20
   identity_file_path:
     node_type: setting
     type: string
@@ -117,6 +125,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  idle_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
   log_file:
     node_type: setting
     type: string
@@ -131,6 +143,13 @@ properties:
     node_type: setting
     type: string
     default: ''
+  procmgr_socket_path:
+    node_type: setting
+    type: string
+    platform_default:
+      windows: \\.\pipe\datadog-procmgrd
+      other: /var/run/datadog-procmgrd/dd-procmgrd.sock
+    comment: Control-plane settings consumed by par-control.
   restricted_shell:
     node_type: section
     type: object
@@ -183,6 +202,11 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  split_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Enables the Rust control plane and on-demand Go executor on Linux.
   urn:
     node_type: setting
     type: string

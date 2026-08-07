@@ -3,83 +3,80 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! par-control installation and executor-lifecycle scaffold.
+//! par-control installation, configuration, and executor-lifecycle scaffold.
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::Parser;
-use par_control::config::Config;
-use par_control::platform;
+use par_control::bootstrap;
+use par_control::config::{LaunchGate, log_level_from_yaml_file};
 use par_control::procmgr::ProcmgrLifecycle;
-use std::path::PathBuf;
-use std::process::ExitCode;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    #[arg(short = 'c', long, default_value = platform::default_config_path())]
+    #[arg(short = 'c', long, default_value = "/etc/datadog-agent/datadog.yaml")]
     config: PathBuf,
+
+    /// Existing Go Private Action Runner binary used to resolve the Agent's
+    /// effective configuration, including secret-backend values.
+    #[arg(long = "config-helper")]
+    config_helper: PathBuf,
+
+    /// Go one-shot enrollment command. Must be the last option because it
+    /// consumes all remaining arguments.
+    #[arg(long = "enroll-command", num_args = 1.., allow_hyphen_values = true)]
+    enroll_command: Vec<String>,
 }
 
 #[tokio::main]
-async fn main() -> ExitCode {
-    // Report the failure through the logger only. Returning `Err` from `main`
-    // would also have anyhow print it to stderr, which dd-procmgrd captures
-    // alongside the log, duplicating every failure.
-    let code = match run().await {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            log::error!("par-control failed: {error:#}");
-            ExitCode::FAILURE
-        }
-    };
+async fn main() -> Result<()> {
+    let result = run().await;
+    if let Err(error) = &result {
+        log::error!("par-control failed: {error:#}");
+    }
     log::logger().flush();
-    code
+    result
 }
 
 async fn run() -> Result<()> {
     let cli = Cli::parse();
-    let config = Config::from_yaml_file(&cli.config);
 
-    let log_level = config
-        .as_ref()
-        .map_or(log::LevelFilter::Info, |c| c.log_level);
     if let Err(error) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
-        // The logger API requires a Level. Use Error for Off during
-        // initialization, then apply the exact filter below.
-        level: log_level.to_level().unwrap_or(log::Level::Error),
-        log_file: platform::default_log_file(),
+        level: log_level_from_yaml_file(&cli.config),
+        log_file: log_file_for_config(&cli.config),
     }) {
         eprintln!("par-control: could not initialize the logger: {error}");
     }
-    log::set_max_level(log_level);
-    let config = config?;
 
-    if !config.split_mode {
+    // The process definition is installed unconditionally; inactive hosts exit 0.
+    let gate = LaunchGate::from_yaml_file(&cli.config)?;
+    if !gate.split_mode {
         log::info!("private_action_runner split mode is disabled; par-control is exiting");
         return Ok(());
     }
 
-    let lifecycle = ProcmgrLifecycle::from_env();
+    let config = bootstrap::load_config_with_bootstrap(
+        &cli.config,
+        &cli.config_helper,
+        &cli.enroll_command,
+        gate.self_enroll,
+    )?;
+
+    let lifecycle =
+        ProcmgrLifecycle::new(&config.procmgr_socket, config.executor_process_name.clone());
     lifecycle.ensure_started().await?;
 
     tokio::select! {
         _ = shutdown_signal() => {
-            // Do not call back into dd-procmgrd here. It serializes every RPC
-            // through the loop in `ProcessManager::run`, and by the time we get
-            // a stop signal that loop is either gone (daemon shutdown stops the
-            // gRPC server before stopping processes) or blocked holding the
-            // process write lock inside `handle_stop`, waiting for this very
-            // process to exit. Either way an RPC would deadlock until
-            // `stop_timeout` expires and the job object kills us. dd-procmgrd
-            // owns both processes and stops the executor itself.
+            // dd-procmgrd may be synchronously waiting for par-control to exit, so
+            // don't call back into it. It owns the executor and stops both processes.
             log::info!("par-control is exiting");
             Ok(())
         }
-        state = lifecycle.wait_for_failure() => {
-            // Only a genuine failure lands here; a clean exit or an explicit stop
-            // is the on-demand executor's normal idle path.
-            Err(anyhow::anyhow!("executor failed with state {:?}", state?))
+        state = lifecycle.wait_for_exit() => {
+            bail!("executor exited unexpectedly with state {:?}", state?);
         }
     }
 }
@@ -98,6 +95,20 @@ async fn shutdown_signal() {
             let _ = tokio::signal::ctrl_c().await;
         }
     }
+}
+
+// Windows services normally have no inheritable stdout/stderr handles. Persist
+// control-plane diagnostics next to the other Agent logs instead of letting
+// dd-procmgrd redirect them to the null device.
+#[cfg(windows)]
+fn log_file_for_config(config_path: &Path) -> Option<PathBuf> {
+    let config_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
+    Some(config_dir.join("logs").join("par-control.log"))
+}
+
+#[cfg(not(windows))]
+fn log_file_for_config(_config_path: &Path) -> Option<PathBuf> {
+    None
 }
 
 /// dd-procmgrd stops children with `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`
