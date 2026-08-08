@@ -11,6 +11,7 @@ mod local_account;
 mod managed_service_account;
 mod pipe_caller;
 mod pipe_security;
+mod scm_service;
 mod sid;
 mod spawn;
 mod wide;
@@ -20,6 +21,7 @@ pub(crate) use legacy_scm_env::core_agent_scm_env_var;
 pub(crate) use legacy_scm_env::set_test_core_agent_scm_env;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
+pub use scm_service::run_as_service;
 pub(crate) use spawn::spawn_child_handle;
 
 use anyhow::Result;

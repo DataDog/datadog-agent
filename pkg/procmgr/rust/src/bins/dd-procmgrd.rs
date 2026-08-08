@@ -19,7 +19,7 @@ fn main() {
 
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
-    dd_procmgrd::service::run_as_service()
+    dd_procmgrd::platform::run_as_service()
 }
 
 #[cfg(not(windows))]
