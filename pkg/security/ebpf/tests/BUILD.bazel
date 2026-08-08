@@ -1,0 +1,37 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# All srcs carry `//go:build linux && ebpf_bindata` (some additionally require
+# `pcap` and/or `cgo`); "ebpf_bindata" isn't in GAZELLE_BUILD_TAGS so gazelle
+# treats this whole package as unbuildable and skips it. gotags_sets selects
+# the superset of tags the package's files need, in one variant, without
+# touching the sources; keep the whole rule hand-written so gazelle doesn't
+# strip it for looking unbuildable.
+dd_agent_go_test(
+    name = "tests",
+    srcs = [
+        "activity_dump_ratelimiter_test.go",
+        "discarders_test.go",
+        "helpers_test.go",
+        "path_id_test.go",
+        "raw_packet_test.go",
+        "socket_test.go",
+        "tc_test.go",
+    ],
+    gotags_sets = [[
+        "ebpf_bindata",
+        "pcap",
+    ]],  # keep
+    include_default = False,  # keep
+    target_compatible_with = ["@platforms//os:linux"],  # keep
+    deps = [
+        "//pkg/security/ebpf",
+        "//pkg/security/ebpf/probes",
+        "//pkg/security/ebpf/probes/rawpacket",
+        "//pkg/security/probe/config",
+        "//pkg/security/secl/model",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
+        "@com_github_safchain_baloum//pkg/baloum",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

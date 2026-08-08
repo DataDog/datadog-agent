@@ -123,7 +123,6 @@ exports_files(["go.mod"])
 # gazelle:exclude test/new-e2e/tests/windows/service-test
 # gazelle:exclude test/new-e2e/tests/windows/windows-certificate
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
-# gazelle:exclude tools/retry_file_dump
 # gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======

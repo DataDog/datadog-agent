@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+# main.go references the HttpTransactionProto types but can't import the real
+# package (comp/forwarder/defaultforwarder/internal/retry) because that library's
+# visibility is scoped to defaultforwarder subpackages. Rebuild the generated
+# pb.go as package main instead, mirroring the manual copy+rename step in README.md.
+genrule(
+    name = "gen_http_transaction_proto",
+    srcs = ["//comp/forwarder/defaultforwarder/internal/retry:HttpTransactionProto.pb.go"],
+    outs = ["http_transaction_proto.go"],
+    cmd = "sed 's/^package retry$$/package main/' $< > $@",
+)
+
+go_library(
+    name = "retry_file_dump_lib",
+    srcs = [
+        "main.go",
+        ":gen_http_transaction_proto",
+    ],  # keep
+    importpath = "github.com/DataDog/datadog-agent/tools/retry_file_dump",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],  # keep
+)
+
+go_binary(
+    name = "retry_file_dump",
+    embed = [":retry_file_dump_lib"],
+    visibility = ["//visibility:public"],
+)
