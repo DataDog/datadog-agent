@@ -61,7 +61,7 @@ fn load_core_agent_scm_environment() -> HashMap<String, String> {
 }
 
 #[cfg(test)]
-pub(super) fn set_test_core_agent_scm_env(env: Option<HashMap<String, String>>) {
+pub(crate) fn set_test_core_agent_scm_env(env: Option<HashMap<String, String>>) {
     let mut guard = TEST_CORE_AGENT_SCM_ENV
         .lock()
         .expect("test core agent scm env lock");
