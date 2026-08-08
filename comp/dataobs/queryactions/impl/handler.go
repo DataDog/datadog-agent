@@ -25,7 +25,10 @@ import (
 
 var databaseIdentifierVariablePattern = regexp.MustCompile(`\$\$|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*`)
 
-const defaultPostgresPort = 5432
+const (
+	defaultMySQLPort    = 3306
+	defaultPostgresPort = 5432
+)
 
 // A "base config" is a supported DB integration.Config emitted by another provider that a DO
 // query action matched against. A single base config can bundle several instances. Throughout
@@ -60,7 +63,7 @@ type managedBaseEntry struct {
 
 // isSupportedIntegration reports whether name is a supported DB integration.
 func isSupportedIntegration(name string) bool {
-	return name == "postgres" || name == "sap_hana" || name == "sqlserver"
+	return name == "mysql" || name == "postgres" || name == "sap_hana" || name == "sqlserver"
 }
 
 // instanceHost returns the host/server field for an integration instance,
@@ -468,6 +471,8 @@ func evaluateInstanceIdentifier(instance map[string]any, identifier DBIdentifier
 		return identifierMatchEvaluation{strategy: "empty_identifier"}
 	}
 	switch integrationName {
+	case "mysql":
+		return evaluateMySQLIdentifier(instance, identifier)
 	case "postgres":
 		return evaluatePostgresIdentifier(instance, identifier)
 	case "sap_hana":
@@ -480,7 +485,7 @@ func evaluateInstanceIdentifier(instance map[string]any, identifier DBIdentifier
 }
 
 func evaluateSQLServerIdentifier(instance map[string]any, targetHost string, queries []QuerySpec) identifierMatchEvaluation {
-	match := evaluateSapHanaIdentifier(instance, targetHost)
+	match := evaluateEndpointIdentifier(instance, targetHost)
 	if !match.matched {
 		match.strategy = "sqlserver_endpoint"
 		return match
@@ -489,57 +494,80 @@ func evaluateSQLServerIdentifier(instance map[string]any, targetHost string, que
 	if !isAzureSQLDatabase {
 		return match
 	}
+	match.strategy = "azure_sql_database"
 	if len(queries) == 0 {
-		return identifierMatchEvaluation{strategy: "azure_sql_database"}
+		match.matched = false
+		return match
 	}
 	for _, query := range queries {
 		if !strings.EqualFold(query.DBName, database) {
-			return identifierMatchEvaluation{strategy: "azure_sql_database"}
+			match.matched = false
+			return match
 		}
 	}
-	match.strategy = "azure_sql_database"
 	return match
 }
 
-func evaluatePostgresIdentifier(instance map[string]any, identifier DBIdentifier) identifierMatchEvaluation {
-	host := instanceHost(instance)
-	if host == identifier.Host {
-		return identifierMatchEvaluation{matched: true, strategy: "host"}
-	}
-	if port, ok := instancePort(instance); ok {
-		if fmt.Sprintf("%s:%d", host, port) == identifier.Host {
-			return identifierMatchEvaluation{matched: true, strategy: "host_port"}
-		}
+func evaluateMySQLIdentifier(instance map[string]any, identifier DBIdentifier) (match identifierMatchEvaluation) {
+	if match = evaluateEndpointIdentifier(instance, identifier.Host); match.matched {
+		return
 	}
 
-	databaseIdentifier, ok := renderDatabaseIdentifier(instance, identifier.AgentHostname, "$resolved_hostname", defaultPostgresPort)
-	return identifierMatchEvaluation{
-		matched:            ok && databaseIdentifier == identifier.Host,
-		strategy:           "database_identifier",
-		renderedIdentifier: databaseIdentifier,
-		renderable:         ok,
+	match.renderedIdentifier, match.renderable = renderDatabaseIdentifierWithLookup(
+		instance,
+		identifier.AgentHostname,
+		"$resolved_hostname",
+		defaultMySQLPort,
+		net.LookupHost,
+	)
+	match.matched = match.renderable && match.renderedIdentifier == identifier.Host
+	match.strategy = "database_identifier"
+	return
+}
+
+func evaluatePostgresIdentifier(instance map[string]any, identifier DBIdentifier) (match identifierMatchEvaluation) {
+	if match = evaluateEndpointIdentifier(instance, identifier.Host); match.matched {
+		return
 	}
+
+	match.renderedIdentifier, match.renderable = renderDatabaseIdentifierWithLookup(
+		instance,
+		identifier.AgentHostname,
+		"$resolved_hostname",
+		defaultPostgresPort,
+		net.LookupHost,
+	)
+	match.matched = match.renderable && match.renderedIdentifier == identifier.Host
+	match.strategy = "database_identifier"
+	return
 }
 
 func evaluateSapHanaIdentifier(instance map[string]any, targetHost string) identifierMatchEvaluation {
+	match := evaluateEndpointIdentifier(instance, targetHost)
+	if !match.matched {
+		match.strategy = "sap_hana_endpoint"
+	}
+	return match
+}
+
+// evaluateEndpointIdentifier contains only the host/port mechanics shared by database-specific
+// evaluators. Template and query matching remain owned by each integration's evaluator.
+func evaluateEndpointIdentifier(instance map[string]any, targetHost string) identifierMatchEvaluation {
 	host := instanceHost(instance)
 	if host == targetHost {
 		return identifierMatchEvaluation{matched: true, strategy: "host"}
 	}
 	if port, ok := instancePort(instance); ok {
-		if fmt.Sprintf("%s:%d", host, port) == targetHost {
+		if host+":"+strconv.Itoa(port) == targetHost {
 			return identifierMatchEvaluation{matched: true, strategy: "host_port"}
 		}
 	}
-	return identifierMatchEvaluation{strategy: "sap_hana_endpoint"}
+	return identifierMatchEvaluation{}
 }
 
-// renderDatabaseIdentifier renders a database_identifier template using the same inputs as the
-// Postgres check. Unknown variables stay in the result, matching Python's safe_substitute.
-func renderDatabaseIdentifier(instance map[string]any, agentHostname, defaultTemplate string, defaultPort int) (string, bool) {
-	return renderDatabaseIdentifierWithLookup(instance, agentHostname, defaultTemplate, defaultPort, net.LookupHost)
-}
-
+// renderDatabaseIdentifierWithLookup renders a database_identifier template using the shared
+// inputs exposed by the MySQL and Postgres checks. Unknown variables stay in the result, matching
+// Python's safe_substitute.
 func renderDatabaseIdentifierWithLookup(
 	instance map[string]any,
 	agentHostname, defaultTemplate string,
@@ -584,7 +612,7 @@ func renderDatabaseIdentifierWithLookup(
 	return safeSubstitute(template, values), true
 }
 
-// resolveDatabaseHostname mirrors the Postgres check's resolve_db_host behavior used to build
+// resolveDatabaseHostname mirrors the database checks' resolve_db_host behavior used to build
 // $resolved_hostname. Besides local and socket hosts, the check reports the Agent hostname when
 // the database host and Agent hostname resolve to the same IPv4 address.
 func resolveDatabaseHostname(host, agentHostname string, lookupHost func(string) ([]string, error)) string {
@@ -629,7 +657,7 @@ func firstIPv4Address(addresses []string) (string, bool) {
 }
 
 // templateTagValues exposes each key:value instance tag as a template variable. Duplicate keys
-// are sorted and joined with commas, matching the Postgres check.
+// are sorted and joined with commas, matching the database checks.
 func templateTagValues(instance map[string]any) map[string]string {
 	var tags []string
 	switch configuredTags := instance["tags"].(type) {
@@ -659,7 +687,7 @@ func templateTagValues(instance map[string]any) map[string]string {
 	return values
 }
 
-// isLocalDBHost matches the local-address cases handled by the Postgres check's host resolver.
+// isLocalDBHost matches the local-address cases handled by the database checks' host resolver.
 func isLocalDBHost(host string) bool {
 	if host == "" || host == "localhost" || strings.HasPrefix(host, "/") {
 		return true
