@@ -1763,7 +1763,7 @@ func TestMatchingSubExprReportedValues(t *testing.T) {
 		{Expr: `false || process.is_root`, Expected: []interface{}{true}},
 		// StringEquals, dynamic on both sides
 		{Expr: `true && process.name == process.name`, Expected: []interface{}{"ls", "ls"}},
-		// already correct, kept to guard the other branches of the same operators
+		// the mirrored branches of the same operators, which report from the other side
 		{Expr: `process.is_root || false`, Expected: []interface{}{true}},
 		{Expr: `true && process.name == "ls"`, Expected: []interface{}{"ls", "ls"}},
 		{Expr: `true && "ls" == process.name`, Expected: []interface{}{"ls", "ls"}},
@@ -1842,6 +1842,82 @@ func TestMatchingSubExprSingleEvaluation(t *testing.T) {
 
 			if event.isRootEvalCount > 1 {
 				t.Errorf("`process.is_root` evaluated %d times, expected at most once", event.isRootEvalCount)
+			}
+		})
+	}
+}
+
+// TestMatchingSubExprOperandSwap ensures that the operand reordering performed by `Or` and `And`,
+// which evaluates the cheaper operand first, doesn't attribute a match to the wrong operand.
+//
+// The evaluators are built by hand because the test model has no boolean field carrying a weight,
+// so the reordering can't be triggered from a SECL expression here.
+func TestMatchingSubExprOperandSwap(t *testing.T) {
+	newOperand := func(field string, offset int, weight int, res bool) *BoolEvaluator {
+		return &BoolEvaluator{
+			Field:   field,
+			Offset:  offset,
+			Weight:  weight,
+			EvalFnc: func(*Context) bool { return res },
+		}
+	}
+
+	tests := []struct {
+		Name           string
+		A, B           *BoolEvaluator
+		ExpectedField  string
+		ExpectedOffset int
+	}{
+		{
+			Name:           "heavier operand first, the cheaper one matches",
+			A:              newOperand("process.heavy", 0, RegexpWeight, false),
+			B:              newOperand("process.cheap", 20, 0, true),
+			ExpectedField:  "process.cheap",
+			ExpectedOffset: 20,
+		},
+		{
+			Name:           "heavier operand first, it is the one matching",
+			A:              newOperand("process.heavy", 0, RegexpWeight, true),
+			B:              newOperand("process.cheap", 20, 0, false),
+			ExpectedField:  "process.heavy",
+			ExpectedOffset: 0,
+		},
+		{
+			Name:           "cheaper operand first, no reordering",
+			A:              newOperand("process.cheap", 0, 0, true),
+			B:              newOperand("process.heavy", 20, RegexpWeight, false),
+			ExpectedField:  "process.cheap",
+			ExpectedOffset: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, "", nil))
+			if err != nil {
+				t.Fatalf("failed to build the `Or` evaluator: %s", err)
+			}
+
+			ctx := NewContext(&testEvent{})
+			if !evaluator.EvalFnc(ctx) {
+				t.Fatal("expected the expression to match")
+			}
+
+			subExprs := ctx.GetMatchingSubExprs()
+			if len(subExprs) != 1 {
+				t.Fatalf("expected a single matching sub expression, got %d", len(subExprs))
+			}
+
+			reported := subExprs[0].ValueA
+			if reported.Field == "" {
+				reported = subExprs[0].ValueB
+			}
+
+			if reported.Field != test.ExpectedField {
+				t.Errorf("expected field `%s` to be reported, got `%s`", test.ExpectedField, reported.Field)
+			}
+			if reported.Offset != test.ExpectedOffset {
+				t.Errorf("expected offset `%d` to be reported, got `%d`", test.ExpectedOffset, reported.Offset)
 			}
 		})
 	}
