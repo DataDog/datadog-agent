@@ -225,6 +225,10 @@ func TestEventsTagging(t *testing.T) {
 			expectedTags: []string{"source_component:cronjob-controller", "kube_kind:CronJob", "kubernetes_kind:CronJob", "kube_name:logger", "name:logger", "kube_cronjob:logger", "namespace:default", "kube_namespace:default", "reporting_controller:cronjob-controller", "orchestrator:kubernetes"},
 		},
 		{
+			// No kube_cronjob tag here: resolving it requires fetching the Job's
+			// ownerReferences from the API server, which is unreachable in unit
+			// tests. The resolution logic is covered by Test_getInvolvedObjectTags
+			// and Test_getCronJobForJobWithClient.
 			name:         "job",
 			k8sEvent:     createEvent(1, "default", "logger-1609783080", "Job", "8d8ae0d4-3e36-49be-94f5-786e823d7502", "job-controller", "job-controller", "", "SuccessfulCreate", "Created pod: logger-1609783080-5g2g4", "Normal", 709662600),
 			expectedTags: []string{"source_component:job-controller", "kube_kind:Job", "kubernetes_kind:Job", "kube_name:logger-1609783080", "name:logger-1609783080", "kube_job:logger-1609783080", "namespace:default", "kube_namespace:default", "reporting_controller:job-controller", "orchestrator:kubernetes"},
