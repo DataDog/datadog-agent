@@ -351,10 +351,10 @@ def eval_tp(
     build: bool = True,
 ):
     """
-    Runs TP metric scoring: replays scenarios with passthrough correlator and scores
+    Runs TP metric scoring: replays scenarios with the testbench passthrough adapter and scores
     each detected anomaly against ground truth metric labels in ground_truth.json.
 
-    passthrough correlator is auto-added if not specified (required for TP scoring).
+    The passthrough adapter is auto-added if not specified (required for TP scoring).
 
     Examples:
         dda inv anomalydetection.eval-tp --only scanmw              # scanmw + passthrough (auto)
