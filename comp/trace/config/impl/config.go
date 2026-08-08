@@ -18,6 +18,7 @@ import (
 	"html"
 	"net/http"
 	"strings"
+	"sync"
 
 	"go.yaml.in/yaml/v2"
 
@@ -39,6 +40,16 @@ import (
 const (
 	apiKeyConfigKey          = "api_key"
 	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
+
+	// apmAdditionalEndpointsConfigKey, profilingAdditionalEndpointsConfigKey, and
+	// evpAdditionalEndpointsConfigKey are the trace-relevant map-shape additional_endpoints config
+	// keys that support DELA(...) dual-shipping directives. A background delegated-auth resolution
+	// can succeed after this component's Endpoints/AdditionalEndpoints snapshot was already built
+	// at startup, so these keys need a config-update listener (see registerConfigUpdateListener)
+	// to avoid sending against a never-resolved DELA(...) string forever.
+	apmAdditionalEndpointsConfigKey       = "apm_config.additional_endpoints"
+	profilingAdditionalEndpointsConfigKey = "apm_config.profiling_additional_endpoints"
+	evpAdditionalEndpointsConfigKey       = "evp_proxy_config.additional_endpoints"
 )
 
 // Requires defines the trace config component deps.
@@ -72,6 +83,12 @@ type cfg struct {
 
 	// ipc is used to retrieve the auth_token to issue authenticated requests
 	ipc ipc.Component
+
+	// reloadMu guards concurrent writes from registerConfigUpdateListener's OnUpdate callback -
+	// core config can fire it for different settings from different goroutines, and without this,
+	// two settings that touch overlapping state (e.g. api_key rotation writing Endpoints[0].APIKey
+	// at the same time apm_config.additional_endpoints reassigns the whole Endpoints slice) race.
+	reloadMu sync.Mutex
 }
 
 // NewComponent is the default constructor for the component, it returns
@@ -92,35 +109,92 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ipc:         reqs.IPC,
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
-
-	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
-		log.Debugf("OnUpdate: %s", setting)
-		if setting != apiKeyConfigKey {
-			return
-		}
-
-		if c.coreConfig.IsConfigured(apmConfigAPIKeyConfigKey) {
-			// apm_config.api_key is deprecated. Since it overrides core api_key values during config setup,
-			// if used, core API Key refresh is skipped. TODO: check usage of apm_config.api_key and remove it.
-			log.Warn("cannot refresh api_key on trace-agent while `apm_config.api_key` is set. `apm_config.api_key` is deprecated, use core `api_key` instead")
-			return
-		}
-		oldAPIKey, ok1 := oldValue.(string)
-		newAPIKey, ok2 := newValue.(string)
-		if ok1 && ok2 {
-			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastChars(oldAPIKey), scrubber.HideKeyExceptLastChars(newAPIKey))
-			// Update API Key on config, and propagate the signal to registered listeners
-			newAPIKey = pkgconfigutils.SanitizeAPIKey(newAPIKey)
-			c.updateAPIKey(oldAPIKey, newAPIKey)
-		}
-	})
+	c.registerConfigUpdateListener()
 
 	return Provides{Comp: &c}, nil
 }
 
+// registerConfigUpdateListener wires up c.coreConfig.OnUpdate so runtime config changes (API key
+// rotation, and additional_endpoints reloads - see reloadAdditionalEndpoints) are reflected in the
+// live trace AgentConfig without a restart. Shared by NewComponent and NewMock.
+func (c *cfg) registerConfigUpdateListener() {
+	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
+		log.Debugf("OnUpdate: %s", setting)
+		switch setting {
+		case apiKeyConfigKey:
+			if c.coreConfig.IsConfigured(apmConfigAPIKeyConfigKey) {
+				// apm_config.api_key is deprecated. Since it overrides core api_key values during config setup,
+				// if used, core API Key refresh is skipped. TODO: check usage of apm_config.api_key and remove it.
+				log.Warn("cannot refresh api_key on trace-agent while `apm_config.api_key` is set. `apm_config.api_key` is deprecated, use core `api_key` instead")
+				return
+			}
+			oldAPIKey, ok1 := oldValue.(string)
+			newAPIKey, ok2 := newValue.(string)
+			if ok1 && ok2 {
+				log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastChars(oldAPIKey), scrubber.HideKeyExceptLastChars(newAPIKey))
+				// Update API Key on config, and propagate the signal to registered listeners
+				newAPIKey = pkgconfigutils.SanitizeAPIKey(newAPIKey)
+				c.updateAPIKey(oldAPIKey, newAPIKey)
+			}
+		case apmAdditionalEndpointsConfigKey, profilingAdditionalEndpointsConfigKey, evpAdditionalEndpointsConfigKey:
+			// The update doesn't tell us which entry changed, so reload the whole section instead
+			// of trying to patch one - same approach as the forwarder and logs-config equivalents.
+			c.reloadAdditionalEndpoints(setting)
+		}
+	})
+}
+
+// reloadAdditionalEndpoints re-derives the live trace AgentConfig field(s) backed by setting from
+// the current core config, so a change to a trace-relevant additional_endpoints-shaped value
+// takes effect without an agent restart.
+func (c *cfg) reloadAdditionalEndpoints(setting string) {
+	c.reloadMu.Lock()
+	defer c.reloadMu.Unlock()
+	switch setting {
+	case apmAdditionalEndpointsConfigKey:
+		// c.Endpoints[0] is the main endpoint, optionally followed by an MRF endpoint; rebuild only
+		// the tail so those two (and any API key rotation already applied to them) are preserved.
+		baseCount := 1
+		if c.coreConfig.GetBool("multi_region_failover.enabled") {
+			baseCount = 2
+		}
+		if len(c.Endpoints) < baseCount {
+			log.Warnf("Cannot reload '%s': trace-agent has fewer endpoints (%d) than expected (%d)", setting, len(c.Endpoints), baseCount)
+			return
+		}
+		base := make([]*pkgtraceconfig.Endpoint, baseCount)
+		copy(base, c.Endpoints[:baseCount])
+		c.Endpoints = appendEndpoints(base, apmAdditionalEndpointsConfigKey)
+
+		// appendEndpoints doesn't set NoProxy - applyDatadogConfig does that in a separate pass
+		// over the full slice - so repeat it here or these endpoints would silently ignore
+		// proxy.no_proxy.
+		if c.coreConfig.IsConfigured("proxy.no_proxy") {
+			noProxy := make(map[string]bool)
+			for _, host := range c.coreConfig.GetStringSlice("proxy.no_proxy") {
+				noProxy[host] = true
+			}
+			for _, e := range c.Endpoints {
+				e.NoProxy = noProxy[e.Host]
+			}
+		}
+		log.Infof("Reloaded '%s' for trace-agent (%d additional endpoint(s))", setting, len(c.Endpoints)-baseCount)
+	case profilingAdditionalEndpointsConfigKey:
+		c.ProfilingProxy.AdditionalEndpoints = c.coreConfig.GetStringMapStringSlice(setting)
+		log.Infof("Reloaded '%s' for trace-agent", setting)
+	case evpAdditionalEndpointsConfigKey:
+		c.EVPProxy.AdditionalEndpoints = c.coreConfig.GetStringMapStringSlice(setting)
+		log.Infof("Reloaded '%s' for trace-agent", setting)
+	}
+}
+
 func (c *cfg) updateAPIKey(oldKey, newKey string) {
-	// Update API Key on config, and propagate the signal to registered listeners
+	// Update API Key on config, and propagate the signal to registered listeners. Guarded by the
+	// same lock as reloadAdditionalEndpoints, since this mutates Endpoints[0].APIKey and a
+	// concurrent apm_config.additional_endpoints reload reassigns the whole Endpoints slice.
+	c.reloadMu.Lock()
 	c.UpdateAPIKey(newKey)
+	c.reloadMu.Unlock()
 	if c.updateAPIKeyFn != nil {
 		c.updateAPIKeyFn(oldKey, newKey)
 	}

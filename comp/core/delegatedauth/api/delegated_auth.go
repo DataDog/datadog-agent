@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -40,14 +41,34 @@ const (
 
 // domainURLRegexp matches and captures known Datadog domains with optional protocol and trailing characters
 // Captures: protocol (optional), subdomain (ignored), regional prefix + base domain, trailing dot (optional)
-// Examples: https://agent.datad0g.com., http://metrics.us1.datadoghq.com, agent.ddog-gov.com
-var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?[^./]+\.((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
+// Examples: https://agent.datad0g.com., http://metrics.us1.datadoghq.com, agent.ddog-gov.com,
+// trace.agent.datadoghq.com, agent-http-intake.logs.us3.datadoghq.com (multi-label subdomains).
+// The subdomain group is lazy (+?) so a regional prefix like "us3." is captured on its own rather
+// than swallowed as part of the subdomain.
+var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?(?:[^./]+\.)+?((?:[a-z]{2,}\d{1,2}\.)?)(?:(datadoghq|datad0g)\.(com|eu)|(ddog-gov\.com))(\.)?\/?$`)
 
-// getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., app.datad0g.com)
-// for known Datadog domains. This ensures API operations use the correct subdomain.
+// hostOnly extracts just the host from endpoint (which may be a bare hostname or a full URL,
+// e.g. apm_config.profiling_additional_endpoints uses full URLs as map keys) so domainURLRegexp,
+// which expects a bare hostname, can match it. Returns endpoint unchanged if it can't be parsed.
+func hostOnly(endpoint string) string {
+	raw := endpoint
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return endpoint
+	}
+	return u.Host
+}
+
+// getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., api.datad0g.com)
+// for known Datadog domains. This ensures API operations use the correct subdomain. endpoint may be
+// a bare hostname, a full URL, or a full URL with a path - only the host is matched against the
+// known Datadog domain pattern.
 // If the endpoint doesn't match a known Datadog domain pattern, it is returned unchanged with a debug log.
 func getAPIDomain(endpoint string) string {
-	matches := domainURLRegexp.FindStringSubmatch(endpoint)
+	matches := domainURLRegexp.FindStringSubmatch(hostOnly(endpoint))
 	if matches == nil {
 		// Not a known Datadog domain pattern - this could be a custom endpoint or unexpected format
 		log.Debugf("Endpoint '%s' does not match known Datadog domain pattern, using unchanged", endpoint)
@@ -77,15 +98,29 @@ func getAPIDomain(endpoint string) string {
 	return "https://api." + baseDomain
 }
 
-// GetAPIKey performs the cloud auth exchange and returns an API key.
-// The delegatedAuthProof contains the signed AWS request which includes the org id.
-func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string) (*string, error) {
-	var apiKey *string
-
-	site := utils.GetInfraEndpoint(cfg)
+// resolveTokenURL builds the intake-key exchange URL for a given targetSite, falling back to the
+// agent's configured primary site when targetSite is empty.
+func resolveTokenURL(cfg pkgconfigmodel.Reader, targetSite string) string {
+	site := targetSite
+	if site == "" {
+		site = utils.GetInfraEndpoint(cfg)
+	}
 	// Transform the endpoint to use the API subdomain (api.*)
 	site = getAPIDomain(site)
-	url := fmt.Sprintf(tokenURLEndpoint, site)
+	return fmt.Sprintf(tokenURLEndpoint, site)
+}
+
+// GetAPIKey performs the cloud auth exchange and returns an API key.
+// The delegatedAuthProof contains the signed AWS request which includes the org id.
+//
+// targetSite, if non-empty, is the site/domain to exchange the proof against (e.g. an
+// `additional_endpoints` domain for a dual-shipping DELA(...) instance targeting a different
+// site than the agent's primary `dd_url`/`site`). If empty, falls back to the agent's configured
+// primary site - the original, single-org behavior.
+func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string, targetSite string) (*string, error) {
+	var apiKey *string
+
+	url := resolveTokenURL(cfg, targetSite)
 	log.Infof("Getting API key from: %s with cloud auth proof", url)
 
 	transport := httputils.CreateHTTPTransport(cfg)

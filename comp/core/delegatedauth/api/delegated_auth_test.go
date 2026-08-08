@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -165,6 +166,21 @@ func TestGetAPIDomain(t *testing.T) {
 			endpoint: "https://metrics.eu1.datadoghq.com",
 			want:     "https://api.eu1.datadoghq.com",
 		},
+		{
+			name:     "multi-label subdomain (APM intake)",
+			endpoint: "https://trace.agent.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "multi-label subdomain (logs/EVP intake)",
+			endpoint: "https://agent-http-intake.logs.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "multi-label subdomain with regional prefix",
+			endpoint: "https://agent-http-intake.logs.us3.datadoghq.com",
+			want:     "https://api.us3.datadoghq.com",
+		},
 		// Staging/internal domains (datad0g.com)
 		{
 			name:     "staging intake domain",
@@ -224,6 +240,24 @@ func TestGetAPIDomain(t *testing.T) {
 			endpoint: "https://agent.datadoghq.com/",
 			want:     "https://api.datadoghq.com",
 		},
+		// Regression: map-shaped additional_endpoints entries can be full URLs with a path (e.g.
+		// apm_config.profiling_additional_endpoints uses the full intake URL, path included, as
+		// its map key). The regex must be matched against the host only, not the whole URL.
+		{
+			name:     "path-shaped endpoint (profiling intake URL)",
+			endpoint: "https://intake.profile.datadoghq.eu/api/v2/profile",
+			want:     "https://api.datadoghq.eu",
+		},
+		{
+			name:     "path-shaped endpoint with regional prefix",
+			endpoint: "https://agent-http-intake.logs.us3.datadoghq.com/v1/input",
+			want:     "https://api.us3.datadoghq.com",
+		},
+		{
+			name:     "custom domain with path unchanged",
+			endpoint: "https://custom.example.com/some/path",
+			want:     "https://custom.example.com/some/path",
+		},
 	}
 
 	for _, tt := range tests {
@@ -232,6 +266,24 @@ func TestGetAPIDomain(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestResolveTokenURL(t *testing.T) {
+	// Regression test: dual-shipping additional_endpoints instances must exchange their proof
+	// against their OWN target site, not the agent's primary dd_url/site - those are very often
+	// different sites (e.g. staging ships to datad0g.com + datadoghq.com, but dd_url only names
+	// one of them).
+	cfg := mock.NewFromYAML(t, `dd_url: "https://agent.datadoghq.com"`)
+
+	t.Run("empty targetSite falls back to the agent's primary site", func(t *testing.T) {
+		got := resolveTokenURL(cfg, "")
+		assert.Equal(t, "https://api.datadoghq.com/api/v2/intake-key", got)
+	})
+
+	t.Run("non-empty targetSite overrides the primary site", func(t *testing.T) {
+		got := resolveTokenURL(cfg, "https://agent.datad0g.com")
+		assert.Equal(t, "https://api.datad0g.com/api/v2/intake-key", got)
+	})
 }
 
 func TestErrorDetail(t *testing.T) {

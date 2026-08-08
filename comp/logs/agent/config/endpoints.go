@@ -112,6 +112,16 @@ type EndpointCompressionOptions struct {
 	CompressionLevel int
 }
 
+// delaAwareAPIKey returns "" for a pending DELA(...) directive (instead of sending it upstream as
+// a literal bogus API key) and apiKey unchanged otherwise. The delegatedauth component resolves
+// the directive asynchronously and writes the real key back into the same config slot.
+func delaAwareAPIKey(apiKey string) string {
+	if pkgconfigutils.IsDelaDirective(apiKey) {
+		return ""
+	}
+	return apiKey
+}
+
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
 func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, pathPrefix string, useSSL bool) Endpoint {
 	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
@@ -184,7 +194,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
+		newE := NewEndpoint(delaAwareAPIKey(e.APIKey), configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
@@ -229,7 +239,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
+		newE := NewEndpoint(delaAwareAPIKey(e.APIKey), configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
@@ -378,7 +388,7 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			return
 		}
 
-		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
+		newAPIKey := delaAwareAPIKey(newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey)
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,

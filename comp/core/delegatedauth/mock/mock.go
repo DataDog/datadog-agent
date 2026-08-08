@@ -16,6 +16,8 @@ import (
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
 	AddInstanceFunc func(context.Context, delegatedauth.InstanceParams) error
+	RefreshFunc     func() bool
+	IsManagedFunc   func(delegatedauth.Target) bool
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)
@@ -36,4 +38,20 @@ func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstancePar
 		return m.AddInstanceFunc(ctx, params)
 	}
 	return nil
+}
+
+// Refresh calls the mock function if set, otherwise returns false
+func (m *Mock) Refresh() bool {
+	if m.RefreshFunc != nil {
+		return m.RefreshFunc()
+	}
+	return false
+}
+
+// IsManaged calls the mock function if set, otherwise returns false
+func (m *Mock) IsManaged(target delegatedauth.Target) bool {
+	if m.IsManagedFunc != nil {
+		return m.IsManagedFunc(target)
+	}
+	return false
 }

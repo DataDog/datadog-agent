@@ -664,6 +664,44 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 	}
 }
 
+func (suite *EndpointsTestSuite) TestEndpointOnUpdateDelegatedAuthDirective() {
+	loadAdditionalEndpoints := map[string]func(Endpoint, *LogsConfigKeys) []Endpoint{
+		"http": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
+			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true)
+		},
+		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l, true) },
+	}
+
+	for endpointType, additionalEndpointsLoader := range loadAdditionalEndpoints {
+		suite.Run(endpointType, func() {
+			logsConfig := defaultLogsConfigKeys(suite.config)
+
+			// A pending DELA(...) directive must never be sent upstream as a literal (bogus) API
+			// key - delaAwareAPIKey swaps it to "" until delegated auth resolves it.
+			suite.config.SetInTest("logs_config.additional_endpoints", `[{
+			"api_key": "DELA(some-org-uuid, aws)",
+			"Host":    "localhost1",
+			"Port":    1234
+			}]`)
+
+			main := Endpoint{useSSL: true}
+			endpoints := additionalEndpointsLoader(main, logsConfig)
+			suite.Suite.Require().Len(endpoints, 1)
+			suite.Equal("", endpoints[0].GetAPIKey())
+
+			// Once delegated auth resolves the directive and writes the real key back into the
+			// same config slot, the endpoint's onConfigUpdate callback must rotate from "" to it.
+			suite.config.SetInTest("logs_config.additional_endpoints", `[{
+			"api_key": "resolved-real-key",
+			"Host":    "localhost1",
+			"Port":    1234
+			}]`)
+
+			suite.Equal("resolved-real-key", endpoints[0].GetAPIKey())
+		})
+	}
+}
+
 func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 	jsonString := `[{
 			"api_key":           "apiKey2",
