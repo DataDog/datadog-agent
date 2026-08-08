@@ -126,6 +126,29 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
+// isRunFilterFlag reports whether arg is a -test.run / -test.skip flag
+func isRunFilterFlag(arg string) bool {
+	name, _, _ := strings.Cut(strings.TrimLeft(arg, "-"), "=")
+	return name == "test.run" || name == "test.skip"
+}
+
+// hasRunFilters reports whether the configuration already narrows this package
+// with -test.run / -test.skip. A configured filter takes precedence over
+// grouping, which replaces rather than merges.
+func hasRunFilters(testConfig *testConfig, pkg string) bool {
+	for _, key := range []string{pkg, matchAllPackages} {
+		if config, ok := testConfig.PackagesRunConfig[key]; ok && (config.RunOnly != nil || config.Skip != nil) {
+			return true
+		}
+	}
+	for _, arg := range append(strings.Fields(testConfig.extraParams), testConfig.AdditionalTestArgs...) {
+		if isRunFilterFlag(arg) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig) []string {
 	verbosity := "testname"
 	if testConfig.verbose {
@@ -282,30 +305,54 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			return fmt.Errorf("could not get relative path for %s: %w", testsuite, err)
 		}
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
-		xmlpath := filepath.Join(xmlDir, junitfilePrefix+".xml")
-		jsonpath := filepath.Join(jsonDir, junitfilePrefix+".json")
 
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
 			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
 
-		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
-		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
-
-		cmd.Env = append(cmd.Environ(), envVars...)
-
-		cmd.Dir = filepath.Dir(testsuite)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			// log but do not return error
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
+		// The nameless zero group is a single unfiltered pass; a suite that
+		// reports config groups gets one pass per group instead.
+		passes := []testGroup{{}}
+		if !hasRunFilters(testConfig, pkg) {
+			if groups := discoverTestGroups(pkg, testsuiteArgs, envVars, filepath.Dir(testsuite)); len(groups) > 0 {
+				passes = groups
+			}
 		}
 
-		if err := addProperties(xmlpath, props); err != nil {
-			return fmt.Errorf("xml add props: %s", err)
+		for _, pass := range passes {
+			// The report paths are derived from the package alone, so without a
+			// per-pass suffix every pass but the last would be clobbered.
+			var suffix string
+			passConfig := testConfig
+			if pass.Name != "" {
+				suffix = "-" + pass.Name
+				// Copy: overwriting the filter map in place would outlive the
+				// pass and drop the filters of every package still to come.
+				cfg := *testConfig
+				cfg.PackagesRunConfig = map[string]packageRunConfiguration{pkg: pass.runConfig()}
+				passConfig = &cfg
+			}
+			xmlpath := filepath.Join(xmlDir, junitfilePrefix+suffix+".xml")
+			jsonpath := filepath.Join(jsonDir, junitfilePrefix+suffix+".json")
+
+			args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, passConfig)
+			cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
+
+			cmd.Env = append(cmd.Environ(), envVars...)
+
+			cmd.Dir = filepath.Dir(testsuite)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				// log but do not return error
+				fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
+			}
+
+			if err := addProperties(xmlpath, props); err != nil {
+				return fmt.Errorf("xml add props: %s", err)
+			}
 		}
 	}
 
