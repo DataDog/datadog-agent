@@ -157,10 +157,10 @@ fn env_bool_from_names(names: &[&str]) -> Option<bool> {
 
 /// Process environment first, then (Windows) core Agent SCM `Environment` overrides.
 fn env_var_value(name: &str) -> Option<String> {
-    if let Ok(value) = std::env::var(name) {
-        if !value.is_empty() {
-            return Some(value);
-        }
+    if let Ok(value) = std::env::var(name)
+        && !value.is_empty()
+    {
+        return Some(value);
     }
     agent_scm_env_var(name)
 }
