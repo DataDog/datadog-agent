@@ -5,10 +5,12 @@
 
 //! Managed-process spawn: config → [`SpawnRequest`] → platform backend.
 
+mod identity;
 mod profile;
 mod request;
 mod stdio_setting;
 
+pub(crate) use identity::spawn_user_for;
 #[cfg(windows)]
 pub(crate) use profile::DATADOG_AGENT_PROCESS;
 pub use profile::{SpawnProfile, profile_for};

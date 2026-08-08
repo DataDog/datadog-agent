@@ -262,6 +262,8 @@ fn test_cli_list_one_running() {
             "sleeper",
             &[
                 ("STATE", "Running"),
+                ("PROFILE", "agent"),
+                ("USER", &test_helpers::expected_spawn_user("sleeper")),
                 ("COMMAND", test_helpers::sleep_cmd(300).0),
             ],
         )
@@ -381,6 +383,8 @@ fn test_cli_list_json() {
     let entry = &arr[0];
     assert_eq!(entry["name"], "sleeper");
     assert_eq!(entry["state"], "Running");
+    assert_eq!(entry["profile"], "agent");
+    assert_eq!(entry["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(entry["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(entry["args"], test_helpers::sleep_args_json());
     assert_eq!(entry["restart_count"], 0);
@@ -497,6 +501,8 @@ fn test_cli_describe_shows_all_fields() {
     out.assert_success()
         .assert_field("Name", "full")
         .assert_field("State", "Running")
+        .assert_field("Profile", "agent")
+        .assert_field("User", &test_helpers::expected_spawn_user("full"))
         .assert_field("Command", test_helpers::sleep_cmd(300).0)
         .assert_field("Args", &test_helpers::sleep_args_display())
         .assert_field("Description", "a test process")
@@ -509,6 +515,10 @@ fn test_cli_describe_shows_all_fields() {
 
     let pid = out.pid_from_field("PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
+    out.assert_field(
+        "Runtime User",
+        &test_helpers::expected_runtime_user_for_pid(pid),
+    );
 }
 
 #[test]
@@ -524,6 +534,8 @@ fn test_cli_describe_after_exit() {
         .assert_field("Name", "quick")
         .assert_field("State", "Failed")
         .assert_field("PID", "-")
+        .assert_field("Profile", "agent")
+        .assert_field("User", &test_helpers::expected_spawn_user("quick"))
         .assert_field("Last Exit", "exit 1");
 }
 
@@ -572,11 +584,17 @@ fn test_cli_describe_json() {
 
     assert_eq!(json["name"], "sleeper");
     assert_eq!(json["state"], "Running");
+    assert_eq!(json["profile"], "agent");
+    assert_eq!(json["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(json["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(json["args"], test_helpers::sleep_args_json());
     assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
 
     let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
+    assert_eq!(
+        json["runtime_user"],
+        test_helpers::expected_runtime_user_for_pid(pid)
+    );
     assert!(pid > 0);
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }

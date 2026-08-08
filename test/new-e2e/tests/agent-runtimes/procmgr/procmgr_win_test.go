@@ -165,6 +165,33 @@ func (s *procmgrWindowsSuite) TestAgentProfileChildRunsAsAgentUser() {
 	}, 60*time.Second, 2*time.Second)
 }
 
+func (s *procmgrWindowsSuite) TestAgentProfileDescribeUserMatchesRuntimeUser() {
+	s.requireCLI()
+	host := s.Env().RemoteHost
+
+	_, agentUser, err := windowsagent.GetAgentUserFromRegistry(host)
+	require.NoError(s.T(), err)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-sleep"))
+		assertField(ct, desc, "State", "Running")
+		assertField(ct, desc, "Profile", "agent")
+		assertHasField(ct, desc, "User")
+		assertHasField(ct, desc, "Runtime User")
+
+		user := fieldValue(desc, "User")
+		runtimeUser := fieldValue(desc, "Runtime User")
+		assert.NotEmpty(ct, user)
+		assert.NotEmpty(ct, runtimeUser)
+		assert.Equal(ct, user, runtimeUser,
+			"describe User should match Runtime User for agent-profile children")
+		// MSI stores the machine name as installedDomain for local ddagentuser;
+		// procmgr display normalizes local SAM accounts to .\user.
+		assert.Equal(ct, `.\`+agentUser, user,
+			"local agent user should use registry-style .\\user display")
+	}, 60*time.Second, 2*time.Second)
+}
+
 func (s *procmgrWindowsSuite) TestAgentProfileChildHasUserProfileEnv() {
 	s.requireCLI()
 	host := s.Env().RemoteHost

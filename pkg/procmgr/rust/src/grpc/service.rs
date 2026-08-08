@@ -10,6 +10,7 @@ use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::caller_auth::require_privileged_pipe_client;
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
+use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
 use std::time::Instant;
@@ -48,11 +49,17 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name_or_uuid = request.into_inner().name_or_uuid;
-        let procs = self.mgr.processes().await;
-        let proc = resolve_process(&procs, &name_or_uuid)?;
+        let (mut detail, pid) = {
+            let procs = self.mgr.processes().await;
+            let proc = resolve_process(&procs, &name_or_uuid)?;
+            (process_detail_fields(proc), proc.pid())
+        };
+        detail.runtime_user = pid
+            .and_then(platform::runtime_user_for_pid)
+            .unwrap_or_default();
 
         Ok(Response::new(proto::DescribeResponse {
-            detail: Some(process_detail(proc)),
+            detail: Some(detail),
         }))
     }
 
@@ -222,6 +229,7 @@ impl From<ProcessState> for proto::ProcessState {
 
 fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
     let cfg = proc.config();
+    let (profile, user) = process_identity(proc);
     proto::Process {
         uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
@@ -232,6 +240,8 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         restart_count: proc.restart_count(),
         last_exit_code: proc.last_exit_code(),
         last_signal: proc.last_signal(),
+        profile,
+        user,
     }
 }
 
@@ -313,8 +323,9 @@ fn resolve_process<'a>(
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
+fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
+    let (profile, user) = process_identity(proc);
     proto::ProcessDetail {
         uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
@@ -335,7 +346,14 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         restart_count: proc.restart_count(),
         last_exit_code: proc.last_exit_code(),
         last_signal: proc.last_signal(),
+        profile,
+        user,
+        runtime_user: String::new(),
     }
+}
+
+fn process_identity(proc: &ManagedProcess) -> (String, String) {
+    (proc.profile().as_str().to_string(), proc.user().to_string())
 }
 
 #[cfg(test)]
@@ -410,13 +428,15 @@ mod tests {
         };
         let proc =
             ManagedProcess::new_config("detail-proc".to_string(), test_helpers::test_uuid(), cfg);
-        let detail = process_detail(&proc);
+        let detail = process_detail_fields(&proc);
         assert_eq!(detail.name, "detail-proc");
         assert_eq!(detail.description, "A test process");
         assert_eq!(detail.working_dir, "/tmp");
         assert!(!detail.auto_start);
         assert_eq!(detail.after, vec!["dep-a"]);
         assert_eq!(detail.before, vec!["dep-b"]);
+        assert_eq!(detail.profile, "agent");
+        assert!(!detail.user.is_empty());
     }
 
     #[tokio::test]
