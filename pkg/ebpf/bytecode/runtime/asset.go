@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -96,8 +97,8 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	}
 	defer f.Close()
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
+	if err := secureRuntimeDir(outputDir); err != nil {
+		return nil, err
 	}
 
 	diskProtectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, a.hash), outputDir, f)
@@ -158,6 +159,63 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	a.tm.compilationResult = result
 
 	return out, err
+}
+
+// secureRuntimeDir creates the runtime-compiler output directory (root-only,
+// 0700) and verifies that it, and every ancestor up to the filesystem root, is a
+// real directory owned by root and not writable by other users. The compiler
+// writes object files here and system-probe later re-reads them to load into the
+// kernel as root, so the whole path must be under root's control.
+//
+// It rejects the directory if any ancestor is a symlink, is not a directory, is
+// not owned by root, or is writable by group or other without the sticky bit
+// set. The sticky-bit exception permits the default location under /var/tmp
+// (root-owned, mode 1777): the sticky bit keeps other users from renaming or
+// deleting the datadog-agent directory that root creates beneath it.
+func secureRuntimeDir(outputDir string) error {
+	if err := os.MkdirAll(outputDir, 0700); err != nil {
+		return fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
+	}
+
+	abs, err := filepath.Abs(outputDir)
+	if err != nil {
+		return fmt.Errorf("unable to resolve compiler output directory %s: %w", outputDir, err)
+	}
+
+	// Collect every path component from outputDir up to the filesystem root.
+	var components []string
+	for p := filepath.Clean(abs); ; {
+		components = append(components, p)
+		parent := filepath.Dir(p)
+		if parent == p {
+			break
+		}
+		p = parent
+	}
+
+	for _, p := range components {
+		info, err := os.Lstat(p)
+		if err != nil {
+			return fmt.Errorf("unable to verify compiler output directory component %s: %w", p, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing to use compiler output directory: %s is a symlink", p)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("refusing to use compiler output directory: %s is not a directory", p)
+		}
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			return fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
+		}
+		if stat.Uid != 0 {
+			return fmt.Errorf("refusing to use compiler output directory: %s is not owned by root (uid=%d)", p, stat.Uid)
+		}
+		if info.Mode().Perm()&0022 != 0 && info.Mode()&os.ModeSticky == 0 {
+			return fmt.Errorf("refusing to use compiler output directory: %s is writable by non-root and not sticky (mode=%#o)", p, info.Mode().Perm())
+		}
+	}
+	return nil
 }
 
 // creates a ram backed file from the given reader. The file is made immutable
