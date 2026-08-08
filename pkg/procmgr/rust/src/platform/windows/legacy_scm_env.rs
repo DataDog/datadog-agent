@@ -152,8 +152,7 @@ fn parse_scm_environment_entries(entries: &[String]) -> Vec<(String, String)> {
     entries
         .iter()
         .filter_map(|entry| {
-            let entry = entry.trim();
-            if entry.is_empty() {
+            if entry.trim().is_empty() {
                 return None;
             }
             let (key, value) = entry.split_once('=')?;
@@ -190,6 +189,7 @@ mod tests {
             "DD_PROXY_HTTP=http://proxy.example.com".to_string(),
             "MALFORMED".to_string(),
             "".to_string(),
+            "   ".to_string(),
             "  DD_LOG_LEVEL=debug  ".to_string(),
         ];
         let parsed = parse_scm_environment_entries(&entries);
@@ -200,8 +200,21 @@ mod tests {
                     "DD_PROXY_HTTP".to_string(),
                     "http://proxy.example.com".to_string()
                 ),
-                ("DD_LOG_LEVEL".to_string(), "debug".to_string()),
+                ("  DD_LOG_LEVEL".to_string(), "debug  ".to_string()),
             ]
+        );
+    }
+
+    #[test]
+    fn parse_scm_environment_entries_preserves_value_whitespace() {
+        let entries = vec!["DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true ".to_string()];
+        let parsed = parse_scm_environment_entries(&entries);
+        assert_eq!(
+            parsed,
+            [(
+                "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED".to_string(),
+                "true ".to_string()
+            )]
         );
     }
 
