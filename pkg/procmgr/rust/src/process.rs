@@ -98,6 +98,8 @@ pub struct ManagedProcess {
     stop_requested: bool,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
+    /// Last observed `condition_config_any` result; used to detect gate transitions on reload.
+    last_config_gate_met: Option<bool>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
 }
@@ -127,6 +129,7 @@ impl ManagedProcess {
             stop_requested: false,
             origin,
             last_exit_status: None,
+            last_config_gate_met: None,
             #[cfg(windows)]
             job_object: None,
         }
@@ -195,6 +198,22 @@ impl ManagedProcess {
     }
 
     #[must_use]
+    pub fn config_gate_met(&self) -> bool {
+        if self.config.condition_config_any.is_empty() {
+            return true;
+        }
+        crate::config_gate::condition_config_any_met(&self.config.condition_config_any)
+    }
+
+    pub(crate) fn record_config_gate_met(&mut self) {
+        self.last_config_gate_met = Some(self.config_gate_met());
+    }
+
+    pub(crate) fn last_config_gate_met(&self) -> Option<bool> {
+        self.last_config_gate_met
+    }
+
+    #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
             info!("[{}] auto_start=false, skipping", self.name);
@@ -207,7 +226,7 @@ impl ManagedProcess {
                 return false;
             }
         }
-        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+        if !self.config_gate_met() {
             info!(
                 "[{}] condition_config_any not met: {}",
                 self.name,
