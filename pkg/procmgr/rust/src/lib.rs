@@ -13,8 +13,6 @@ pub mod manager;
 pub mod ordering;
 pub mod platform;
 pub mod process;
-#[cfg(windows)]
-pub mod service;
 pub mod shutdown;
 mod spawn;
 mod spawn_context;
