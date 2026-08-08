@@ -11,9 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,10 +23,6 @@ import (
 
 var (
 	configPath = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
-	// Pattern to extract policy ID from config path: datadog/\d+/<product>/<config_id>/<hash>
-	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
-	// Pattern to extract numeric prefix from policy ID: N.<name>
-	policyPrefixPattern = regexp.MustCompile(`^(\d+)\.`)
 
 	// getInstallPath is a variable that can be overridden in tests
 	getInstallPath = config.GetInstallPath
@@ -85,23 +79,13 @@ type policyConfig struct {
 // extractPolicyID extracts the policy ID from a config path
 // Path format: configs/\d+/<ID>/<gibberish>
 func extractPolicyID(path string) string {
-	matches := policyIDPattern.FindStringSubmatch(path)
-	if len(matches) > 1 {
-		return matches[1]
-	}
-	return ""
+	return state.DatadogConfigIDFromPath(path)
 }
 
 // extractOrderFromPolicyID extracts the numeric order from a policy ID
 // If policy ID is in format N.<name>, returns N. Otherwise returns 0.
 func extractOrderFromPolicyID(policyID string) int {
-	matches := policyPrefixPattern.FindStringSubmatch(policyID)
-	if len(matches) > 1 {
-		if order, err := strconv.Atoi(matches[1]); err == nil {
-			return order
-		}
-	}
-	return 0
+	return state.ConfigIDOrder(policyID)
 }
 
 // mergeConfigs merges multiple configs by concatenating their policies in order
@@ -152,11 +136,7 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 
 	// Sort configs by order, then alphabetically by path for deterministic ordering
 	sort.SliceStable(configs, func(i, j int) bool {
-		if configs[i].order != configs[j].order {
-			return configs[i].order < configs[j].order
-		}
-		// Secondary sort by path for deterministic ordering when order values are equal
-		return configs[i].path < configs[j].path
+		return state.DatadogConfigPathLess(configs[i].path, configs[j].path)
 	})
 
 	// Track error state and apply callbacks on function exit

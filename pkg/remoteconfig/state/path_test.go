@@ -6,6 +6,7 @@
 package state
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,4 +68,22 @@ func TestParseFilePath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDatadogConfigPathOrdering(t *testing.T) {
+	paths := []string{
+		"datadog/123/apm-policies/10.highest/hash",
+		"datadog/123/apm-policies/5.high/hash",
+		"datadog/123/apm-policies/1.low/hash",
+	}
+
+	sort.SliceStable(paths, func(i, j int) bool {
+		return DatadogConfigPathLess(paths[i], paths[j])
+	})
+
+	assert.Equal(t, []string{
+		"datadog/123/apm-policies/1.low/hash",
+		"datadog/123/apm-policies/5.high/hash",
+		"datadog/123/apm-policies/10.highest/hash",
+	}, paths)
 }

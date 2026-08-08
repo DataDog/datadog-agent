@@ -17,11 +17,48 @@ var (
 	// matches datadog/<int>/<string>/<string>/<string> for datadog/<org_id>/<product>/<config_id>/<file>
 	datadogPathRegexp       = regexp.MustCompile(`^datadog/(\d+)/([^/]+)/([^/]+)/([^/]+)$`)
 	datadogPathRegexpGroups = 4
+	configIDPrefixRegexp    = regexp.MustCompile(`^(\d+)\.`)
 
 	// matches employee/<string>/<string>/<string> for employee/<org_id>/<product>/<config_id>/<file>
 	employeePathRegexp       = regexp.MustCompile(`^employee/([^/]+)/([^/]+)/([^/]+)$`)
 	employeePathRegexpGroups = 3
 )
+
+// DatadogConfigIDFromPath returns the config ID from a Datadog remote-config path, or an empty string if the path is
+// invalid.
+func DatadogConfigIDFromPath(path string) string {
+	configPath, err := parseDatadogConfigPath(path)
+	if err != nil {
+		return ""
+	}
+	return configPath.ConfigID
+}
+
+// ConfigIDOrder returns the numeric ordering prefix from a config ID in the form N.<name>. IDs without a valid prefix
+// have order zero.
+func ConfigIDOrder(configID string) int {
+	matches := configIDPrefixRegexp.FindStringSubmatch(configID)
+	if len(matches) <= 1 {
+		return 0
+	}
+
+	order, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0
+	}
+	return order
+}
+
+// DatadogConfigPathLess orders Datadog remote-config paths by their config IDs' numeric prefixes, then by full path
+// for deterministic ordering when prefixes are equal or absent.
+func DatadogConfigPathLess(left, right string) bool {
+	leftOrder := ConfigIDOrder(DatadogConfigIDFromPath(left))
+	rightOrder := ConfigIDOrder(DatadogConfigIDFromPath(right))
+	if leftOrder != rightOrder {
+		return leftOrder < rightOrder
+	}
+	return left < right
+}
 
 type source uint
 
