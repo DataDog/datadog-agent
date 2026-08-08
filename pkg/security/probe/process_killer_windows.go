@@ -9,6 +9,7 @@ package probe
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -21,6 +22,12 @@ var (
 type killContext struct {
 	pid  int
 	path string
+}
+
+// cgroupKillTarget identifies a cgroup to kill in a single operation. Cgroups don't exist on
+// Windows, so the ID is never set and the one-shot kill path is never taken.
+type cgroupKillTarget struct {
+	id containerutils.CGroupID
 }
 
 // ProcessKillerWindows defines the process kill windows implementation
@@ -38,6 +45,16 @@ func (p *ProcessKillerWindows) Kill(sig uint32, pc *killContext) error {
 		return nil
 	}
 	return winutil.KillProcess(int(pc.pid), 0)
+}
+
+// KillCgroup is not supported on Windows
+func (p *ProcessKillerWindows) KillCgroup(_ cgroupKillTarget) error {
+	return errors.New("cgroups are not supported")
+}
+
+// getCgroupKillTarget always reports that killing a cgroup at once isn't possible on Windows
+func (p *ProcessKillerWindows) getCgroupKillTarget(_ string, _ *model.ProcessCacheEntry) (cgroupKillTarget, bool) {
+	return cgroupKillTarget{}, false
 }
 
 func (p *ProcessKillerWindows) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]killContext, error) {
