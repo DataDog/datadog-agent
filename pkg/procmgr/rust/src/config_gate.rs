@@ -953,7 +953,7 @@ process_config:
 
     #[cfg(windows)]
     #[test]
-    fn env_bool_prefers_process_env_over_core_agent_scm() {
+    fn env_bool_prefers_core_agent_scm_over_process_env() {
         use std::collections::HashMap;
 
         with_env_lock(|| {
@@ -967,7 +967,7 @@ process_config:
 
             assert_eq!(
                 env_bool_for_config_key("process_config.container_collection.enabled"),
-                Some(true)
+                Some(false)
             );
         });
     }

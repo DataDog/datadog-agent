@@ -13,9 +13,9 @@
 //! `pkg/config/setup/process_settings.go`, `pkg/config/setup/system_probe_settings.go`,
 //! and `pkg/config/setup/common_settings.go`.
 //!
-//! On Windows, when a bound `DD_*` var is unset in the dd-procmgr process environment,
-//! fall back to the core Agent service (`datadogagent`) SCM `Environment` registry value
-//! so service-local overrides match agent config resolution.
+//! On Windows, config gates resolve `DD_*` values from the core Agent service
+//! (`datadogagent`) SCM `Environment` registry first, then dd-procmgr's process
+//! environment, so service-local overrides match agent config resolution.
 
 struct EnvBinding {
     key: &'static str,
@@ -131,7 +131,7 @@ pub(super) fn env_string_for_config_key(key: &str) -> Option<String> {
     env_var_value(&auto_env_var_for_key(key))
 }
 
-/// Named env var with process env first, then (Windows) core Agent SCM fallback.
+/// Named env var with Agent SCM override first, then process env (Windows).
 pub(super) fn env_var_value_for_name(name: &str) -> Option<String> {
     env_var_value(name)
 }
@@ -160,14 +160,18 @@ fn env_bool_from_names(names: &[&str]) -> Option<bool> {
     None
 }
 
-/// Process environment first, then (Windows) core Agent SCM `Environment` overrides.
+/// Core Agent SCM `Environment` overrides, then dd-procmgr process env.
+/// SCM wins when present so config gates match agent service-local resolution.
 fn env_var_value(name: &str) -> Option<String> {
+    if let Some(value) = agent_scm_env_var(name) {
+        return Some(value);
+    }
     if let Ok(value) = std::env::var(name)
         && !value.is_empty()
     {
         return Some(value);
     }
-    agent_scm_env_var(name)
+    None
 }
 
 #[cfg(windows)]
