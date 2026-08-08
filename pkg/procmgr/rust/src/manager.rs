@@ -51,7 +51,11 @@ impl ProcessManager {
         }
     }
 
-    async fn start_configured_processes(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
+    async fn start_configured_processes(
+        &self,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+        restart_tx: &mpsc::Sender<String>,
+    ) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
@@ -59,7 +63,10 @@ impl ProcessManager {
             if proc.should_start() {
                 match proc.spawn() {
                     Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-                    Err(e) => warn!("{e:#}"),
+                    Err(e) => {
+                        warn!("{e:#}");
+                        queue_restart(proc, restart_tx);
+                    }
                 }
             }
             proc.record_config_gate_met();
@@ -73,7 +80,7 @@ impl ProcessManager {
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
         let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
-        self.start_configured_processes(&exit_tx).await;
+        self.start_configured_processes(&exit_tx, &restart_tx).await;
 
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
@@ -87,7 +94,7 @@ impl ProcessManager {
                     self.handle_exit(event, &restart_tx).await;
                 }
                 Some(name) = restart_rx.recv() => {
-                    self.complete_restart(&name, &exit_tx).await;
+                    self.complete_restart(&name, &exit_tx, &restart_tx).await;
                 }
                 Some(cmd) = cmd_rx.recv() => {
                     match cmd {
@@ -159,17 +166,15 @@ impl ProcessManager {
         }
         info!("[{}] exited with {}", proc.name(), event.status);
         proc.set_last_status(event.status);
-        if let Some(delay) = proc.handle_restart() {
-            let tx = restart_tx.clone();
-            let name = event.name.clone();
-            tokio::spawn(async move {
-                tokio::time::sleep(delay).await;
-                let _ = tx.send(name).await;
-            });
-        }
+        queue_restart(proc, restart_tx);
     }
 
-    pub(crate) async fn complete_restart(&self, name: &str, exit_tx: &mpsc::Sender<ExitEvent>) {
+    pub(crate) async fn complete_restart(
+        &self,
+        name: &str,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+        restart_tx: &mpsc::Sender<String>,
+    ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == name) else {
             warn!("restart for unknown process '{name}'");
@@ -186,7 +191,10 @@ impl ProcessManager {
         }
         match proc.spawn() {
             Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-            Err(e) => warn!("[{}] restart failed: {e:#}", proc.name()),
+            Err(e) => {
+                warn!("[{}] restart failed: {e:#}", proc.name());
+                queue_restart(proc, restart_tx);
+            }
         }
         proc.record_config_gate_met();
     }
@@ -469,6 +477,17 @@ async fn reconcile_process_after_reload(
     proc.record_config_gate_met();
 }
 
+fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<String>) {
+    if let Some(delay) = proc.handle_restart() {
+        let tx = restart_tx.clone();
+        let name = proc.name().to_owned();
+        tokio::spawn(async move {
+            tokio::time::sleep(delay).await;
+            let _ = tx.send(name).await;
+        });
+    }
+}
+
 /// Spawn a background task that awaits the child's exit and sends the result.
 fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     if let Some(mut handle) = proc.take_handle() {
@@ -608,6 +627,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(
+            loader(vec![ProcessDefinition {
+                name: "bad-spawn".to_string(),
+                config: ProcessConfig {
+                    command: "/nonexistent/dd-procmgr-spawn-fail".to_string(),
+                    restart: RestartPolicy::OnFailure,
+                    restart_sec: Some(0.05),
+                    ..Default::default()
+                },
+            }]),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
+
+        mgr.start_configured_processes(&exit_tx, &restart_tx).await;
+
+        assert!(!mgr.processes().await[0].is_running());
+        let name = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
+            .await
+            .expect("timed out waiting for restart after spawn failure");
+        assert_eq!(name.as_deref(), Some("bad-spawn"));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_complete_restart_skips_when_gate_closed() -> anyhow::Result<()> {
         let dir = tempfile::tempdir()?;
         let agent_yaml = write_agent_yaml(dir.path(), true);
@@ -617,6 +663,7 @@ mod tests {
         )]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, _restart_rx) = mpsc::channel::<String>(256);
 
         mgr.handle_start("svc-a", &exit_tx).await?;
         mgr.handle_stop("svc-a").await?;
@@ -627,7 +674,7 @@ mod tests {
         write_agent_yaml(dir.path(), false);
         mgr.handle_reload_config(&exit_tx).await?;
 
-        mgr.complete_restart("svc-a", &exit_tx).await;
+        mgr.complete_restart("svc-a", &exit_tx, &restart_tx).await;
         assert!(
             !mgr.processes().await[0].is_running(),
             "queued restart should not start process when config gates closed during delay"
@@ -639,6 +686,7 @@ mod tests {
     async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, _restart_rx) = mpsc::channel::<String>(256);
 
         mgr.handle_start("svc", &exit_tx).await?;
         {
@@ -646,7 +694,7 @@ mod tests {
             assert!(procs[0].is_running());
         }
 
-        mgr.complete_restart("svc", &exit_tx).await;
+        mgr.complete_restart("svc", &exit_tx, &restart_tx).await;
 
         let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
