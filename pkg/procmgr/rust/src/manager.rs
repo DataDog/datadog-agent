@@ -179,10 +179,16 @@ impl ProcessManager {
             info!("[{name}] already running, skipping queued restart");
             return;
         }
+        if !proc.should_start() {
+            info!("[{name}] not restarting: start conditions not met");
+            proc.record_config_gate_met();
+            return;
+        }
         match proc.spawn() {
             Ok(()) => spawn_watcher(proc, exit_tx.clone()),
             Err(e) => warn!("[{}] restart failed: {e:#}", proc.name()),
         }
+        proc.record_config_gate_met();
     }
 
     pub(crate) async fn handle_create(
@@ -527,7 +533,7 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{MutableConfigLoader, ProcessConfig, StaticConfigLoader};
+    use crate::config::{MutableConfigLoader, ProcessConfig, RestartPolicy, StaticConfigLoader};
     use crate::config_gate::ConditionConfigFile;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
@@ -581,6 +587,52 @@ mod tests {
         let mut file = std::fs::File::create(&path).unwrap();
         file.write_all(body.as_bytes()).unwrap();
         path.to_string_lossy().into_owned()
+    }
+
+    fn gated_on_failure_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        ProcessDefinition {
+            name: name.to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                restart: RestartPolicy::OnFailure,
+                restart_sec: Some(2.0),
+                condition_config_any: vec![ConditionConfigFile {
+                    path: agent_yaml.to_string(),
+                    keys: vec!["process_config.process_collection.enabled".into()],
+                }],
+                ..Default::default()
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn test_complete_restart_skips_when_gate_closed() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let agent_yaml = write_agent_yaml(dir.path(), true);
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_on_failure_sleep_def(
+            "svc-a",
+            &agent_yaml,
+        )]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await?;
+        mgr.handle_stop("svc-a").await?;
+        assert!(!mgr.processes().await[0].is_running());
+
+        // Seed gate state, then close the gate while a queued restart is pending.
+        mgr.handle_reload_config(&exit_tx).await?;
+        write_agent_yaml(dir.path(), false);
+        mgr.handle_reload_config(&exit_tx).await?;
+
+        mgr.complete_restart("svc-a", &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "queued restart should not start process when config gates closed during delay"
+        );
+        Ok(())
     }
 
     #[tokio::test]
