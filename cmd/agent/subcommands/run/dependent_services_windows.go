@@ -25,8 +25,6 @@ const (
 	ddotProcmgrDefinitionFile    = "datadog-agent-ddot.yaml"
 )
 
-type serviceInitFunc func() (err error)
-
 // Servicedef defines a service
 type Servicedef struct {
 	name       string
@@ -37,7 +35,6 @@ type Servicedef struct {
 	shouldShutdown        bool
 
 	serviceName string
-	serviceInit serviceInitFunc
 }
 
 func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef {
@@ -48,7 +45,6 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"apm_config.enabled": coreConf,
 			},
 			serviceName:    "datadog-trace-agent",
-			serviceInit:    apmInit,
 			shouldShutdown: false,
 		},
 		{
@@ -63,7 +59,6 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			},
 			procmgrDefinitionFile: processProcmgrDefinitionFile,
 			serviceName:           "datadog-process-agent",
-			serviceInit:           processInit,
 			shouldShutdown:        false,
 		},
 		{
@@ -77,7 +72,6 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"software_inventory.enabled":      coreConf,
 			},
 			serviceName:    "datadog-system-probe",
-			serviceInit:    sysprobeInit,
 			shouldShutdown: false,
 		},
 		{
@@ -86,7 +80,6 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"runtime_security_config.enabled": sysprobeConf,
 			},
 			serviceName:    "datadog-security-agent",
-			serviceInit:    securityInit,
 			shouldShutdown: false,
 		},
 		{
@@ -95,7 +88,6 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"remote_updates": coreConf,
 			},
 			serviceName:    "Datadog Installer",
-			serviceInit:    installerInit,
 			shouldShutdown: true,
 		},
 		{
@@ -105,7 +97,6 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			},
 			procmgrDefinitionFile: parProcmgrDefinitionFile,
 			serviceName:           "datadog-agent-action",
-			serviceInit:           parInit,
 			shouldShutdown:        true,
 		},
 		{
@@ -115,7 +106,6 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			},
 			procmgrDefinitionFile: ddotProcmgrDefinitionFile,
 			serviceName:           "datadog-otel-agent",
-			serviceInit:           otelInit,
 			shouldShutdown:        true, // NOTE: not really necessary with SCM dependency in place
 		},
 		{
@@ -124,54 +114,13 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"process_manager.enabled": coreConf,
 			},
 			serviceName:    "dd-procmgr-service",
-			serviceInit:    procmgrInit,
 			shouldShutdown: true,
 		},
 	}
 }
 
-func apmInit() error {
-	return nil
-}
-
-func processInit() error {
-	return nil
-}
-
-func sysprobeInit() error {
-	return nil
-}
-
-func securityInit() error {
-	return nil
-}
-
-func installerInit() error {
-	return nil
-}
-
-func otelInit() error {
-	return nil
-}
-
-func parInit() error {
-	return nil
-}
-
-func procmgrInit() error {
-	return nil
-}
-
 // Start starts the service
 func (s *Servicedef) Start() error {
-	// Initialize the service if it has an init function
-	if s.serviceInit != nil {
-		err := s.serviceInit()
-		if err != nil {
-			log.Warnf("Failed to initialize %s service: %s", s.name, err.Error())
-			return err
-		}
-	}
 	// we use the winutil StartService because it opens the service
 	// with the correct permissions for us and not the default of SC_MANAGER_ALL
 	// that the svc package uses
