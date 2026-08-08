@@ -54,9 +54,7 @@ fn load_core_agent_scm_environment() -> HashMap<String, String> {
             .into_iter()
             .collect(),
         Err(e) => {
-            log::warn!(
-                "failed to read core Agent SCM Environment for config gates: {e:#}"
-            );
+            log::warn!("failed to read core Agent SCM Environment for config gates: {e:#}");
             HashMap::new()
         }
     }
