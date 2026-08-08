@@ -202,17 +202,23 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			res := ea(ctx) && eb(ctx)
-			if res {
-				if a.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: ea(ctx), Offset: a.Offset}, MatchingValue{})
-				}
-				if b.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb(ctx), Offset: b.Offset})
-
-				}
+			va := ea(ctx)
+			if !va {
+				return false
 			}
-			return res
+
+			vb := eb(ctx)
+			if !vb {
+				return false
+			}
+
+			if a.Field != "" {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{})
+			}
+			if b.Field != "" {
+				ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+			}
+			return true
 		}
 
 		return &BoolEvaluator{
@@ -252,9 +258,10 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			res := ea(ctx) && eb
+			va := ea(ctx)
+			res := va && eb
 			if res && a.Field != "" {
-				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: ea(ctx), Offset: a.Offset}, MatchingValue{})
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{})
 			}
 			return res
 		}
@@ -286,11 +293,15 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		res := ea && eb(ctx)
-		if res && b.Field != "" {
-			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb(ctx), Offset: b.Offset})
+		if !ea {
+			return false
 		}
-		return res
+
+		vb := eb(ctx)
+		if vb && b.Field != "" {
+			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+		}
+		return vb
 	}
 
 	return &BoolEvaluator{

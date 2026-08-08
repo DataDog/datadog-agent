@@ -1800,6 +1800,53 @@ func TestMatchingSubExprReportedValues(t *testing.T) {
 	}
 }
 
+// TestMatchingSubExprSingleEvaluation ensures that reporting a matching sub expression doesn't
+// re-evaluate the operands it reports. Operands can be arbitrarily expensive (patterns, regexps,
+// iterators), so evaluating them twice on every match is not acceptable.
+func TestMatchingSubExprSingleEvaluation(t *testing.T) {
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		// `process.is_root` is a bare boolean field, so the `And` operator itself reports it
+		{Expr: `process.is_root && process.uid == 22`, Expected: true},
+		{Expr: `process.uid == 22 && process.is_root`, Expected: true},
+		{Expr: `process.is_root && true`, Expected: true},
+		{Expr: `true && process.is_root`, Expected: true},
+		{Expr: `process.is_root || process.uid == 22`, Expected: true},
+		{Expr: `false || process.is_root`, Expected: true},
+		{Expr: `process.is_root || false`, Expected: true},
+		// non matching rules, the operand still must not be evaluated more than once
+		{Expr: `process.is_root && process.uid == 33`, Expected: false},
+		{Expr: `process.uid == 33 || process.is_root == false`, Expected: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			event := &testEvent{
+				process: testProcess{
+					uid:    22,
+					isRoot: true,
+				},
+			}
+			ctx := NewContext(event)
+
+			res, _, err := eval(ctx, test.Expr)
+			if err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			if res != test.Expected {
+				t.Fatalf("expected result `%t`, got `%t`", test.Expected, res)
+			}
+
+			if event.isRootEvalCount > 1 {
+				t.Errorf("`process.is_root` evaluated %d times, expected at most once", event.isRootEvalCount)
+			}
+		})
+	}
+}
+
 func FuzzEval(f *testing.F) {
 	// Add SECL expressions from all test cases as seeds
 
