@@ -448,6 +448,21 @@ func IsServiceRunning(serviceName string) (running bool, err error) {
 	return (status.State == windows.SERVICE_RUNNING), nil
 }
 
+// GetServiceState returns the current SCM state for serviceName.
+func GetServiceState(serviceName string) (svc.State, error) {
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return 0, err
+	}
+	defer closeManagerService(manager, service)
+
+	status, err := service.Query()
+	if err != nil {
+		return 0, fmt.Errorf("could not retrieve status for %s: %w", serviceName, err)
+	}
+	return status.State, nil
+}
+
 // GetServiceUser returns the service user for the given service
 func GetServiceUser(serviceName string) (string, error) {
 	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_CONFIG)

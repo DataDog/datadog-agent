@@ -14,8 +14,8 @@
 //! `ERROR_FAILED_SERVICE_CONTROLLER_CONNECT` and falls back to console mode.
 //!
 //! The control handler bridges SCM stop events into the tokio runtime via
-//! [`crate::platform::shutdown_notify()`], so `ProcessManager::run()` shuts
-//! down without any API changes.
+//! [`super::shutdown_notify()`], so `ProcessManager::run()` shuts down without
+//! any API changes.
 
 use std::ffi::c_void;
 use std::path::PathBuf;
@@ -38,7 +38,6 @@ use windows_sys::Win32::System::Services::{
 
 use crate::config::YamlConfigLoader;
 use crate::manager::ProcessManager;
-use crate::platform;
 use crate::uuid_gen::V4UuidGenerator;
 
 const SERVICE_NAME: &str = "dd-procmgr-service";
@@ -104,7 +103,7 @@ unsafe extern "system" fn ctrl_handler(
                 NO_ERROR,
                 SCM_STOP_WAIT_HINT.as_millis() as u32,
             );
-            platform::shutdown_notify().notify_one();
+            super::shutdown_notify().notify_one();
             NO_ERROR
         }
         SERVICE_CONTROL_INTERROGATE => NO_ERROR,
@@ -141,7 +140,7 @@ unsafe extern "system" fn service_main(_argc: u32, _argv: *mut *mut u16) {
 /// Default log file path under the Windows program data root (registry `ConfigRoot` when set,
 /// else `%ProgramData%\Datadog`), matching other agent services.
 fn default_log_file() -> PathBuf {
-    crate::platform::program_data_root()
+    super::program_data_root()
         .join("logs")
         .join("dd-procmgr.log")
 }

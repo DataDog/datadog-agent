@@ -3,34 +3,41 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result};
+mod spawn;
+
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
+use tokio::process::Command;
+
+pub(crate) use spawn::spawn_child_handle;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
-pub fn setup_process_group(cmd: &mut tokio::process::Command) {
+pub fn setup_process_group(cmd: &mut Command) {
     cmd.process_group(0);
 }
 
 /// Negate a PID to produce the process group ID for `kill(2)`.
 /// Sending a signal to `-pgid` targets every process in the group.
-pub(crate) fn process_group_id(pid: u32) -> Result<Pid> {
+pub(crate) fn process_group_id(pid: u32) -> Result<Pid, anyhow::Error> {
+    use anyhow::Context;
     let raw = i32::try_from(pid).context("PID overflows i32")?;
     Ok(Pid::from_raw(-raw))
 }
 
 /// Send SIGTERM to the entire process group (graceful stop).
-pub fn send_graceful_stop(pid: u32) -> Result<()> {
+pub fn send_graceful_stop(pid: u32) -> Result<(), anyhow::Error> {
+    use anyhow::Context;
     signal::kill(process_group_id(pid)?, Signal::SIGTERM)
         .with_context(|| format!("failed to send SIGTERM to pgid {pid}"))?;
     Ok(())
 }
 
 /// Send SIGKILL to the entire process group (force kill).
-pub fn send_force_kill(pid: u32) -> Result<()> {
+pub fn send_force_kill(pid: u32) -> Result<(), anyhow::Error> {
+    use anyhow::Context;
     signal::kill(process_group_id(pid)?, Signal::SIGKILL)
         .with_context(|| format!("failed to send SIGKILL to pgid {pid}"))?;
     Ok(())
