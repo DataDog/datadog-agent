@@ -62,6 +62,7 @@ impl ProcessManager {
                     Err(e) => warn!("{e:#}"),
                 }
             }
+            proc.record_config_gate_met();
         }
     }
 
@@ -337,26 +338,24 @@ impl ProcessManager {
                             spawn_watcher(&mut proc, exit_tx.clone());
                         }
                     }
+                    proc.record_config_gate_met();
                     added.push(np.name);
                     procs.push(proc);
                 }
             }
         }
 
-        // Wait for modified processes that were running to stop, then restart
-        // with the new config.
+        let stopped_for_config_update: std::collections::HashSet<String> =
+            modified_running.into_iter().collect();
         {
             let mut procs = self.processes.write().await;
-            for name in &modified_running {
-                if let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) {
-                    proc.wait_for_stop().await;
-                    info!("[{name}] restarting with updated config");
-                    if let Err(e) = proc.spawn() {
-                        warn!("[{name}] failed to restart: {e:#}");
-                    } else {
-                        spawn_watcher(proc, exit_tx.clone());
-                    }
-                }
+            for proc in procs.iter_mut() {
+                reconcile_process_after_reload(
+                    proc,
+                    exit_tx,
+                    stopped_for_config_update.contains(proc.name()),
+                )
+                .await;
             }
         }
 
@@ -420,6 +419,48 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
         .iter()
         .position(|p| p.name() == name_or_uuid)
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
+}
+
+/// Reconcile a config-managed process after reload: restart after definition change,
+/// stop when config gates close, or start when gates open.
+async fn reconcile_process_after_reload(
+    proc: &mut ManagedProcess,
+    exit_tx: &mpsc::Sender<ExitEvent>,
+    stopped_for_config_update: bool,
+) {
+    if proc.origin() != ProcessOrigin::Config {
+        return;
+    }
+
+    let want_start = proc.should_start();
+    let gate_was = proc.last_config_gate_met();
+
+    if stopped_for_config_update {
+        proc.wait_for_stop().await;
+        if want_start {
+            info!("[{}] restarting with updated config", proc.name());
+            if let Err(e) = proc.spawn() {
+                warn!("[{}] failed to restart: {e:#}", proc.name());
+            } else {
+                spawn_watcher(proc, exit_tx.clone());
+            }
+        } else {
+            info!("[{}] not restarting: start conditions not met", proc.name());
+        }
+    } else if proc.is_running() && !want_start {
+        info!("[{}] start conditions no longer met, stopping", proc.name());
+        proc.request_stop();
+        proc.wait_for_stop().await;
+    } else if !proc.is_running() && want_start && gate_was == Some(false) {
+        info!("[{}] config gate now met, starting", proc.name());
+        if let Err(e) = proc.spawn() {
+            warn!("[{}] failed to start after gate opened: {e:#}", proc.name());
+        } else {
+            spawn_watcher(proc, exit_tx.clone());
+        }
+    }
+
+    proc.record_config_gate_met();
 }
 
 /// Spawn a background task that awaits the child's exit and sends the result.
@@ -487,8 +528,10 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
 mod tests {
     use super::*;
     use crate::config::{MutableConfigLoader, ProcessConfig, StaticConfigLoader};
+    use crate::config_gate::ConditionConfigFile;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
+    use std::io::Write;
 
     fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
         Arc::new(StaticConfigLoader::new(defs))
@@ -512,6 +555,32 @@ mod tests {
                 ..Default::default()
             },
         }
+    }
+
+    fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        ProcessDefinition {
+            name: name.to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                condition_config_any: vec![ConditionConfigFile {
+                    path: agent_yaml.to_string(),
+                    keys: vec!["process_config.process_collection.enabled".into()],
+                }],
+                ..Default::default()
+            },
+        }
+    }
+
+    fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
+        let path = dir.join("datadog.yaml");
+        let body = format!(
+            "process_config:\n  process_collection:\n    enabled: {process_collection_enabled}\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
+        );
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(body.as_bytes()).unwrap();
+        path.to_string_lossy().into_owned()
     }
 
     #[tokio::test]
@@ -608,6 +677,61 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_stops_unchanged_process_when_gate_closes() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let agent_yaml = write_agent_yaml(dir.path(), true);
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
+            "svc-a",
+            &agent_yaml,
+        )]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await?;
+        assert!(mgr.processes().await[0].is_running());
+
+        // Seed last_config_gate_met while the gate is still open.
+        mgr.handle_reload_config(&exit_tx).await?;
+
+        write_agent_yaml(dir.path(), false);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.unchanged.contains(&"svc-a".to_string()));
+
+        let procs = mgr.processes().await;
+        assert!(
+            !procs[0].is_running(),
+            "running process should stop when external gate YAML disables it"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_starts_unchanged_process_when_gate_opens() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let agent_yaml = write_agent_yaml(dir.path(), false);
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
+            "svc-a",
+            &agent_yaml,
+        )]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.unchanged.contains(&"svc-a".to_string()));
+        assert!(!mgr.processes().await[0].is_running());
+
+        write_agent_yaml(dir.path(), true);
+        mgr.handle_reload_config(&exit_tx).await?;
+        let procs = mgr.processes().await;
+        assert!(
+            procs[0].is_running(),
+            "process should start when external gate YAML enables it"
+        );
+        test_helpers::cleanup_process(procs[0].pid().unwrap());
         Ok(())
     }
 
