@@ -1573,6 +1573,25 @@ process_config:
         }
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn env_bool_scm_whitespace_padded_does_not_enable_process_gates() {
+        use std::collections::HashMap;
+
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([(
+                "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED".to_string(),
+                " true ".to_string(),
+            )])));
+            let _scm = CoreAgentScmEnvGuard;
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
     #[test]
     fn env_whitespace_padded_bool_does_not_enable_process_gates() {
         with_env_lock(|| {
