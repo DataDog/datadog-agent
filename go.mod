@@ -232,8 +232,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.34
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.33
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.318.1
-	github.com/aws/aws-sdk-go-v2/service/rds v1.120.1
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.124.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.3
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.73.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.3
 	github.com/aws/karpenter-provider-aws v1.9.0

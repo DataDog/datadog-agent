@@ -2794,10 +2794,14 @@ github.com/aws/aws-sdk-go-v2/service/pricing v1.40.11 h1:FBTRfFPRVua0y0izPAmUHOh
 github.com/aws/aws-sdk-go-v2/service/pricing v1.40.11/go.mod h1:XFV2Em3Hn/2xirmmjy0JNg0AB3dpdNLGzwsnJkJycKs=
 github.com/aws/aws-sdk-go-v2/service/rds v1.120.1 h1:5wsyc5K9vvSegxdkzsLAFo9WF1Jd2PF8c3TUoBhaLlc=
 github.com/aws/aws-sdk-go-v2/service/rds v1.120.1/go.mod h1:Ve7qHa8jBmStKNz/oaxs2yBuFnwyvN0k/8PpPZVxkEY=
+github.com/aws/aws-sdk-go-v2/service/rds v1.124.0 h1:VGrYY7725nq+LViSGHzVe9pzObQ+BB1mpdvM0thyqiY=
+github.com/aws/aws-sdk-go-v2/service/rds v1.124.0/go.mod h1:Ks1zrhQ17nZjVi5aDLQOwu7dggjWE+/BwvwNUKYWD48=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.105.0 h1:XptwLL+UHXgafYMIHTy59IRovLbhz3znkxY2uS/pbXU=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.105.0/go.mod h1:zdmCoFO/dSI7GlrwsPqFJI+WlFnSU4Tc8TJnlXrM1Do=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.0 h1:pFFG4fjjuxCrCnAQJg/O33h947MBR8dvQb+FX93Ed+k=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.0/go.mod h1:62iixi6C/4RcKklwtnn+LATl9ZyisVjf6ahGmITBpYA=
+github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.3 h1:SY5cfpu3y6/JU8R0ytvct4t+TMjUdeMrXQzngq4G6k4=
+github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.3/go.mod h1:AolM5DG9lyCovP0/4C097Fo/UxSxW3VTAusfIu5/xiw=
 github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.43.3 h1:Gg14pS7j7P3tkSTpt3cZvwl4uG783xNIfdz19h8rM5Y=
 github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.43.3/go.mod h1:h30o0iQ5EySbxKNtnh5TnxsnYarC2TbDOkIn/696Vys=
 github.com/aws/aws-sdk-go-v2/service/signin v1.5.3 h1:togAtAmgV5IGMnQDuBDJeM8z5Y5RN6G7xeOgphWz+Yc=
