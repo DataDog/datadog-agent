@@ -163,7 +163,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 		va, vb := ea, eb(ctx)
 		res := va || vb
 		if res && b.Field != "" {
-			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb, Offset: b.Offset})
+			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
 		}
 		return res
 	}
@@ -382,7 +382,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 			va, vb := ea(ctx), eb(ctx)
 			res := op(va, vb)
 			if res {
-				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: eb, Offset: b.Offset})
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
 			}
 			return res
 		}

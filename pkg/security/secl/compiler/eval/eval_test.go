@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
@@ -1737,6 +1738,63 @@ func TestMatchingSubExprs(t *testing.T) {
 			decorated, err := decorateRuleExprs(&subExprs, test.Expr, "<b>", "</b>")
 			if test.Expected != decorated {
 				t.Errorf("rule decoration error : %s vs %s => %v : %v", test.Expected, decorated, res, err)
+			}
+		})
+	}
+}
+
+// TestMatchingSubExprReportedValues ensures that the values reported along with the matching
+// sub expressions are the evaluated values, and not the evaluator functions themselves.
+func TestMatchingSubExprReportedValues(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name:   "ls",
+			argv0:  "-al",
+			uid:    22,
+			isRoot: true,
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected []interface{}
+	}{
+		// Or, static left hand side and dynamic right hand side
+		{Expr: `false || process.is_root`, Expected: []interface{}{true}},
+		// StringEquals, dynamic on both sides
+		{Expr: `true && process.name == process.name`, Expected: []interface{}{"ls", "ls"}},
+		// already correct, kept to guard the other branches of the same operators
+		{Expr: `process.is_root || false`, Expected: []interface{}{true}},
+		{Expr: `true && process.name == "ls"`, Expected: []interface{}{"ls", "ls"}},
+		{Expr: `true && "ls" == process.name`, Expected: []interface{}{"ls", "ls"}},
+		{Expr: `true && process.uid == 22`, Expected: []interface{}{22, 22}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			if _, _, err := eval(ctx, test.Expr); err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			var values []interface{}
+			for _, subExpr := range ctx.GetMatchingSubExprs() {
+				for _, value := range []MatchingValue{subExpr.ValueA, subExpr.ValueB} {
+					if value.Field == "" && value.Value == nil {
+						continue
+					}
+
+					if kind := reflect.ValueOf(value.Value).Kind(); kind == reflect.Func {
+						t.Errorf("reported an evaluator function instead of a value for `%s`", value.Field)
+						continue
+					}
+					values = append(values, value.Value)
+				}
+			}
+
+			if !reflect.DeepEqual(test.Expected, values) {
+				t.Errorf("expected reported values `%v`, got `%v`", test.Expected, values)
 			}
 		})
 	}
