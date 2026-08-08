@@ -195,9 +195,7 @@ pub(super) struct YamlCache(HashMap<String, serde_yaml::Value>);
 impl YamlCache {
     /// Mirrors `pkg/config/setup/config_windows.go` `FleetConfigOverride`: env → datadog.yaml → registry/default.
     fn fleet_policies_dir(&mut self, config_path: &str) -> anyhow::Result<Option<String>> {
-        if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
-            && !dir.is_empty()
-        {
+        if let Some(dir) = env_bindings::env_var_value_for_name("DD_FLEET_POLICIES_DIR") {
             return Ok(Some(dir));
         }
         let agent = agent_datadog_yaml(config_path);
@@ -1033,6 +1031,37 @@ process_config:
                 "process_config:\n  enabled: false\n  process_discovery:\n    enabled: false\n",
             );
             assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn fleet_policies_dir_reads_core_agent_scm_env() {
+        use std::collections::HashMap;
+
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([(
+                "DD_FLEET_POLICIES_DIR".to_string(),
+                fleet_dir.to_string_lossy().into_owned(),
+            )])));
+            let _scm = CoreAgentScmEnvGuard;
+
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
 

@@ -131,6 +131,11 @@ pub(super) fn env_string_for_config_key(key: &str) -> Option<String> {
     env_var_value(&auto_env_var_for_key(key))
 }
 
+/// Named env var with process env first, then (Windows) core Agent SCM fallback.
+pub(super) fn env_var_value_for_name(name: &str) -> Option<String> {
+    env_var_value(name)
+}
+
 #[cfg(test)]
 pub(super) fn all_bound_env_var_names() -> impl Iterator<Item = &'static str> {
     ENV_BINDINGS
