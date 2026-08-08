@@ -441,13 +441,29 @@ fn legacy_enabled_env_mode() -> Option<ProcessEnabledMode> {
 }
 
 fn legacy_enabled_mode(value: &serde_yaml::Value) -> Option<ProcessEnabledMode> {
+    legacy_enabled_scalar_as_string(value).map(|text| legacy_enabled_mode_from_string(&text))
+}
+
+/// Mirrors Go `GetString` for legacy `process_config.enabled` scalars (string, bool, number).
+fn legacy_enabled_scalar_as_string(value: &serde_yaml::Value) -> Option<String> {
     match value {
-        serde_yaml::Value::String(text) => Some(legacy_enabled_mode_from_string(text)),
-        serde_yaml::Value::Bool(enabled) => Some(if *enabled {
-            ProcessEnabledMode::ProcessesOnly
-        } else {
-            ProcessEnabledMode::ContainersOnly
-        }),
+        serde_yaml::Value::String(text) => Some(text.clone()),
+        serde_yaml::Value::Bool(enabled) => Some(enabled.to_string()),
+        serde_yaml::Value::Number(number) => {
+            if let Some(value) = number.as_i64() {
+                return Some(value.to_string());
+            }
+            if let Some(value) = number.as_u64() {
+                return Some(value.to_string());
+            }
+            number.as_f64().map(|value| {
+                if value.fract() == 0.0 && value.is_finite() {
+                    format!("{}", value as i64)
+                } else {
+                    value.to_string()
+                }
+            })
+        }
         _ => None,
     }
 }
@@ -816,6 +832,36 @@ process_config:
                 dir.path(),
                 "datadog.yaml",
                 "process_config:\n  enabled: true\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_enabled_numeric_one_enables_process_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: 1\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn legacy_enabled_numeric_zero_enables_container_collection() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: 0\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
             );
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
