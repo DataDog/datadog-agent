@@ -175,7 +175,7 @@ func (ia *inventoryagent) initData() {
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
 	// fleet-automation: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "none"}, infraMode) {
+	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "heroku", "none"}, infraMode) {
 		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
 		infraMode = "full"
 	}
