@@ -854,7 +854,6 @@ def run(
             env=env_vars,
             result_junit=partial_result_junit,
             result_json=partial_result_json,
-            test_profiler=None,
             recursive=recursive,
         )
         if test_res is None:
@@ -931,7 +930,6 @@ def run(
             env=env_vars,
             result_junit="",  # No need to store JUnit results for teardown-only runs
             result_json="",  # No need to store results for teardown-only runs
-            test_profiler=None,
         )
 
     # Merge all the partial result JSON files into the final result JSON
