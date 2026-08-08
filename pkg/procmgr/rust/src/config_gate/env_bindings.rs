@@ -12,6 +12,10 @@
 //! Keep in sync with `pkg/config/setup/process.go` (`procBindEnvAndSetDefault`),
 //! `pkg/config/setup/process_settings.go`, `pkg/config/setup/system_probe_settings.go`,
 //! and `pkg/config/setup/common_settings.go`.
+//!
+//! On Windows, when a bound `DD_*` var is unset in the dd-procmgr process environment,
+//! fall back to the core Agent service (`datadogagent`) SCM `Environment` registry value
+//! so service-local overrides match agent config resolution.
 
 struct EnvBinding {
     key: &'static str,
@@ -118,17 +122,13 @@ pub(super) fn env_string_for_config_key(key: &str) -> Option<String> {
     let names = env_vars_for_key(key);
     if !names.is_empty() {
         for name in names {
-            if let Ok(value) = std::env::var(name)
-                && !value.is_empty()
-            {
+            if let Some(value) = env_var_value(name) {
                 return Some(value);
             }
         }
         return None;
     }
-    std::env::var(auto_env_var_for_key(key))
-        .ok()
-        .filter(|value| !value.is_empty())
+    env_var_value(&auto_env_var_for_key(key))
 }
 
 #[cfg(test)]
@@ -143,19 +143,34 @@ fn auto_env_var_for_key(key: &str) -> String {
 }
 
 fn env_var_nonempty(name: &str) -> bool {
-    std::env::var(name)
-        .ok()
-        .is_some_and(|value| !value.is_empty())
+    env_var_value(name).is_some()
 }
 
 fn env_bool_from_names(names: &[&str]) -> Option<bool> {
     for name in names {
-        if let Ok(value) = std::env::var(name) {
-            if value.is_empty() {
-                continue;
-            }
+        if let Some(value) = env_var_value(name) {
             return Some(super::parse_agent_bool_string(&value).unwrap_or(false));
         }
     }
+    None
+}
+
+/// Process environment first, then (Windows) core Agent SCM `Environment` overrides.
+fn env_var_value(name: &str) -> Option<String> {
+    if let Ok(value) = std::env::var(name) {
+        if !value.is_empty() {
+            return Some(value);
+        }
+    }
+    agent_scm_env_var(name)
+}
+
+#[cfg(windows)]
+fn agent_scm_env_var(name: &str) -> Option<String> {
+    crate::platform::core_agent_scm_env_var(name)
+}
+
+#[cfg(not(windows))]
+fn agent_scm_env_var(_name: &str) -> Option<String> {
     None
 }

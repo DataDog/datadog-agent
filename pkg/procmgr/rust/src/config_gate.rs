@@ -882,6 +882,62 @@ process_config:
         });
     }
 
+    #[cfg(windows)]
+    struct CoreAgentScmEnvGuard;
+
+    #[cfg(windows)]
+    impl Drop for CoreAgentScmEnvGuard {
+        fn drop(&mut self) {
+            crate::platform::set_test_core_agent_scm_env(None);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn env_bool_reads_core_agent_scm_when_process_env_unset() {
+        use std::collections::HashMap;
+
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([
+                (
+                    "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED".to_string(),
+                    "false".to_string(),
+                ),
+                (
+                    "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED".to_string(),
+                    "false".to_string(),
+                ),
+            ])));
+            let _scm = CoreAgentScmEnvGuard;
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn env_bool_prefers_process_env_over_core_agent_scm() {
+        use std::collections::HashMap;
+
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([(
+                "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED".to_string(),
+                "false".to_string(),
+            )])));
+            let _scm = CoreAgentScmEnvGuard;
+            let _process = EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "true");
+
+            assert_eq!(
+                env_bool_for_config_key("process_config.container_collection.enabled"),
+                Some(true)
+            );
+        });
+    }
+
     #[test]
     fn legacy_enabled_env_ignores_empty_values() {
         with_env_lock(|| {
