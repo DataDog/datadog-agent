@@ -15,6 +15,9 @@ mod sid;
 mod spawn;
 mod wide;
 
+#[cfg(test)]
+pub(crate) use legacy_scm_env::set_test_core_agent_scm_env;
+pub(crate) use legacy_scm_env::core_agent_scm_env_var;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use spawn::spawn_child_handle;

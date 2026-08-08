@@ -12,8 +12,63 @@
 //! and merge into the child env block before `processes.d` overrides.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use super::merge_env_overrides;
+
+/// Core Agent SCM service whose `Environment` registry values drive agent config on Windows.
+const CORE_AGENT_SERVICE_NAME: &str = "datadogagent";
+
+static CORE_AGENT_SCM_ENV: OnceLock<HashMap<String, String>> = OnceLock::new();
+
+#[cfg(test)]
+static TEST_CORE_AGENT_SCM_ENV: std::sync::Mutex<Option<HashMap<String, String>>> =
+    std::sync::Mutex::new(None);
+
+/// Returns a `DD_*` value from the core Agent service SCM `Environment` registry key.
+///
+/// Used by config gates when dd-procmgr runs under a separate service account/env block
+/// and does not inherit datadogagent service-local overrides.
+pub(crate) fn core_agent_scm_env_var(name: &str) -> Option<String> {
+    #[cfg(test)]
+    if let Ok(guard) = TEST_CORE_AGENT_SCM_ENV.lock()
+        && let Some(map) = guard.as_ref()
+    {
+        return scm_env_lookup(map, name);
+    }
+
+    let env = CORE_AGENT_SCM_ENV.get_or_init(load_core_agent_scm_environment);
+    scm_env_lookup(env, name)
+}
+
+fn scm_env_lookup(env: &HashMap<String, String>, name: &str) -> Option<String> {
+    env.iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(name))
+        .map(|(_, value)| value.clone())
+        .filter(|value| !value.is_empty())
+}
+
+fn load_core_agent_scm_environment() -> HashMap<String, String> {
+    match read_service_environment(CORE_AGENT_SERVICE_NAME) {
+        Ok(entries) => parse_scm_environment_entries(&entries)
+            .into_iter()
+            .collect(),
+        Err(e) => {
+            log::warn!(
+                "failed to read core Agent SCM Environment for config gates: {e:#}"
+            );
+            HashMap::new()
+        }
+    }
+}
+
+#[cfg(test)]
+pub(super) fn set_test_core_agent_scm_env(env: Option<HashMap<String, String>>) {
+    let mut guard = TEST_CORE_AGENT_SCM_ENV
+        .lock()
+        .expect("test core agent scm env lock");
+    *guard = env;
+}
 
 /// Procmgr process name → legacy SCM service name (suppressed when procmgr owns the workload).
 fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
@@ -186,6 +241,21 @@ mod tests {
         );
         assert_eq!(vars.get("DD_CUSTOM").unwrap(), "from-yaml");
         assert_eq!(vars.get("BASE").unwrap(), "1");
+    }
+
+    #[test]
+    fn core_agent_scm_env_var_uses_case_insensitive_lookup() {
+        use std::collections::HashMap;
+
+        set_test_core_agent_scm_env(Some(HashMap::from([(
+            "dd_process_config_enabled".to_string(),
+            "false".to_string(),
+        )])));
+        assert_eq!(
+            core_agent_scm_env_var("DD_PROCESS_CONFIG_ENABLED"),
+            Some("false".to_string())
+        );
+        set_test_core_agent_scm_env(None);
     }
 
     #[test]
