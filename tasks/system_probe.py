@@ -591,11 +591,9 @@ def e2e_prepare(ctx, ci=False, packages=""):
                 binary = Path(target_path) / cbin
                 ctx.run(f"clang -static -o {binary} {source}")
 
-    gopath = os.getenv("GOPATH")
     copy_files = [
         "/opt/datadog-agent/embedded/bin/clang-bpf",
         "/opt/datadog-agent/embedded/bin/llc-bpf",
-        f"{gopath}/bin/gotestsum",
     ]
 
     files_dir = os.path.join(E2E_ARTIFACT_DIR, "..")
@@ -603,6 +601,7 @@ def e2e_prepare(ctx, ci=False, packages=""):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
+    bazel(ctx, "run", "//internal/tools:install_gotestsum", "--", f"--destdir={files_dir}")
     go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 

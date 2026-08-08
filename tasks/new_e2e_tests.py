@@ -760,7 +760,7 @@ def run(
         with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'a') as f:
             f.write("{}")
 
-    cmd = f"gotestsum --format {gotestsum_format} "
+    cmd = f"--format {gotestsum_format} "
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
