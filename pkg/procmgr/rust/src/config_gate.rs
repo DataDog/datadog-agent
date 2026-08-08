@@ -20,6 +20,7 @@
 
 mod env_bindings;
 mod system_probe;
+mod yaml_load;
 
 use env_bindings::{env_bool_for_config_key, env_configured_for_key, env_string_for_config_key};
 
@@ -333,7 +334,7 @@ impl YamlCache {
             Entry::Vacant(entry) => {
                 let contents = std::fs::read_to_string(path)
                     .map_err(|err| anyhow::anyhow!("read {path}: {err}"))?;
-                let root = serde_yaml::from_str(&contents)
+                let root = yaml_load::load_yaml(&contents)
                     .map_err(|err| anyhow::anyhow!("parse {path}: {err}"))?;
                 Ok(entry.insert(root))
             }
@@ -749,6 +750,21 @@ process_config:
                 dir.path(),
                 "datadog.yaml",
                 "process_config.process_collection.enabled: true\nprocess_config.container_collection.enabled: false\nprocess_config.process_discovery.enabled: false\n",
+            );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn duplicate_yaml_key_last_value_wins_for_config_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\nprocess_config:\n  process_collection:\n    enabled: true\n",
             );
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
