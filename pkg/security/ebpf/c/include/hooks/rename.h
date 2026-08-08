@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/approvers.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
@@ -213,7 +214,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_rename_exit, struct tracepoint_raw_syscalls_
     return sys_rename_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
+int __attribute__((always_inline)) dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;
@@ -225,29 +226,30 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
         return 0;
     }
 
-    struct rename_event_t event = {
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .old = syscall->rename.src_file,
-        .new = syscall->rename.target_file,
-    };
+    struct rename_event_t *event = SPAN_FILL_EVENT(struct rename_event_t, EVENT_RENAME);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->old = syscall->rename.src_file;
+    event->new = syscall->rename.target_file;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_RENAME, event);
+    span_fill_tail_call(ctx, prog_type);
 
     return 0;
 }
 
 TAIL_CALL_FNC(dr_rename_callback, ctx_t *ctx) {
-    return dr_rename_callback(ctx);
+    return dr_rename_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(dr_rename_callback, struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_rename_callback(args);
+    return dr_rename_callback(args, TRACEPOINT_TYPE);
 }
 
 #endif
