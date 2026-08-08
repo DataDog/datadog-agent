@@ -21,9 +21,7 @@
 mod env_bindings;
 mod system_probe;
 
-use env_bindings::{
-    env_bool_for_config_key, env_configured_for_key, env_string_for_config_key, env_vars_for_key,
-};
+use env_bindings::{env_bool_for_config_key, env_configured_for_key, env_string_for_config_key};
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -428,16 +426,8 @@ fn legacy_enabled_mode_from_file(
 }
 
 fn legacy_enabled_env_mode() -> Option<ProcessEnabledMode> {
-    for name in env_vars_for_key(LEGACY_PROCESS_ENABLED_KEY) {
-        let Ok(value) = std::env::var(name) else {
-            continue;
-        };
-        if value.is_empty() {
-            continue;
-        }
-        return Some(legacy_enabled_mode_from_string(&value));
-    }
-    None
+    env_string_for_config_key(LEGACY_PROCESS_ENABLED_KEY)
+        .map(|value| legacy_enabled_mode_from_string(&value))
 }
 
 fn legacy_enabled_mode(value: &serde_yaml::Value) -> Option<ProcessEnabledMode> {
@@ -981,6 +971,35 @@ process_config:
                 env_bool_for_config_key("process_config.container_collection.enabled"),
                 Some(true)
             );
+        });
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn legacy_enabled_env_reads_core_agent_scm_when_process_env_unset() {
+        use std::collections::HashMap;
+
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([
+                (
+                    "DD_PROCESS_CONFIG_ENABLED".to_string(),
+                    "disabled".to_string(),
+                ),
+                (
+                    "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED".to_string(),
+                    "false".to_string(),
+                ),
+                (
+                    "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED".to_string(),
+                    "false".to_string(),
+                ),
+            ])));
+            let _scm = CoreAgentScmEnvGuard;
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
+            assert!(!condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
 
