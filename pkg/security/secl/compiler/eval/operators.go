@@ -66,22 +66,27 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 			}
 		}
 
+		// the field and the offset describe the operand that the evaluator next to them
+		// evaluates, they have to be swapped along with the evaluators below
+		fieldA, offsetA := a.Field, a.Offset
+		fieldB, offsetB := b.Field, b.Offset
+
 		if a.Weight > b.Weight {
-			tmp := ea
-			ea = eb
-			eb = tmp
+			ea, eb = eb, ea
+			fieldA, fieldB = fieldB, fieldA
+			offsetA, offsetB = offsetB, offsetA
 		}
 
 		evalFnc := func(ctx *Context) bool {
 			if ea(ctx) {
-				if a.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: true, Offset: a.Offset}, MatchingValue{})
+				if fieldA != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{Field: fieldA, Value: true, Offset: offsetA}, MatchingValue{})
 				}
 				return true
 			}
 			if eb(ctx) {
-				if b.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: true, Offset: b.Offset})
+				if fieldB != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: fieldB, Value: true, Offset: offsetB})
 				}
 				return true
 			}
@@ -195,10 +200,15 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 			}
 		}
 
+		// the field and the offset describe the operand that the evaluator next to them
+		// evaluates, they have to be swapped along with the evaluators below
+		fieldA, offsetA := a.Field, a.Offset
+		fieldB, offsetB := b.Field, b.Offset
+
 		if a.Weight > b.Weight {
-			tmp := ea
-			ea = eb
-			eb = tmp
+			ea, eb = eb, ea
+			fieldA, fieldB = fieldB, fieldA
+			offsetA, offsetB = offsetB, offsetA
 		}
 
 		evalFnc := func(ctx *Context) bool {
@@ -212,11 +222,11 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 				return false
 			}
 
-			if a.Field != "" {
-				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{})
+			if fieldA != "" {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: fieldA, Value: va, Offset: offsetA}, MatchingValue{})
 			}
-			if b.Field != "" {
-				ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+			if fieldB != "" {
+				ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: fieldB, Value: vb, Offset: offsetB})
 			}
 			return true
 		}
