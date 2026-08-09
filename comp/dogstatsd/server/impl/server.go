@@ -20,6 +20,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	startupsequencer "github.com/DataDog/datadog-agent/comp/core/startupsequencer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -78,17 +79,18 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log             log.Component
-	Config          configComponent.Component
-	Debug           serverdebug.Component
-	Replay          replay.Component
-	PidMap          pidmap.Component
-	Params          server.Params
-	WMeta           option.Option[workloadmeta.Component]
-	Telemetry       telemetry.Component
-	Hostname        hostnameinterface.Component
-	FilterList      filterlist.Component
-	OfflineReporter offlinereporter.Component
+	Log              log.Component
+	Config           configComponent.Component
+	Debug            serverdebug.Component
+	Replay           replay.Component
+	PidMap           pidmap.Component
+	Params           server.Params
+	WMeta            option.Option[workloadmeta.Component]
+	Telemetry        telemetry.Component
+	Hostname         hostnameinterface.Component
+	FilterList       filterlist.Component
+	OfflineReporter  offlinereporter.Component
+	StartupSequencer startupsequencer.Component
 }
 
 // Provides defines the output of the dogstatsd server component.
@@ -214,9 +216,12 @@ func NewComponent(deps dependencies) Provides {
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
+		seq := deps.StartupSequencer
 		deps.Lc.Append(compdef.Hook{
-			OnStart: s.startHook,
-			OnStop:  s.stop,
+			OnStart: func(context.Context) error {
+				return seq.Defer(startupsequencer.StageIngest, "dogstatsd-server", s.startHook)
+			},
+			OnStop: s.stop,
 		})
 	}
 

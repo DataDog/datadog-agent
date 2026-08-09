@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"sync"
 	"time"
@@ -85,7 +87,29 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
-	for _, factory := range enabledModulesFactories {
+	// Staged startup: creating a module loads its eBPF assets, which allocates a
+	// large but transient amount of scratch (BTF parsing, bytecode, CO-RE
+	// relocations). Loading every module back-to-back stacks those transients
+	// into a single startup memory peak. When enabled, reclaim each module's
+	// scratch and pause briefly between modules so the peak stays close to the
+	// steady-state footprint. The total added delay is bounded by one stage
+	// interval regardless of how many modules are enabled.
+	stagedStart := deps.CoreConfig.GetBool("staged_start.enabled")
+	freeOSMemory := deps.CoreConfig.GetBool("staged_start.free_os_memory")
+	var moduleDelay time.Duration
+	if stagedStart && len(enabledModulesFactories) > 1 {
+		moduleDelay = deps.CoreConfig.GetDuration("staged_start.stage_interval") / time.Duration(len(enabledModulesFactories))
+	}
+
+	for i, factory := range enabledModulesFactories {
+		if stagedStart && i > 0 {
+			if freeOSMemory {
+				runtime.GC()
+				debug.FreeOSMemory()
+			}
+			time.Sleep(moduleDelay)
+		}
+
 		var err error
 		var module Module
 		withModule(factory.Name, func() {
