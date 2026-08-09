@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 type logLevel int
@@ -200,7 +201,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// (SourceDefault < SourceEnvVar). DDOT deliberately stays on the v2 metrics intake:
 	// zstd is v3-compatible, but moving to v3 is a separate effort, so v3 is disabled
 	// here regardless of the compressor.
-	pkgconfig.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("serializer_zstd_compressor_level", 3, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
 	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
@@ -224,7 +225,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// every log endpoint use zstd. Override with DD_LOGS_CONFIG_COMPRESSION_KIND=gzip
 	// if a non-Datadog log endpoint is ever added. The zstd level defaults to 3,
 	// overridable via DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL.
-	pkgconfig.Set("logs_config.compression_kind", pkgconfigsetup.DefaultLogCompressionKind, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.compression_kind", constants.DefaultLogCompressionKind, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.zstd_compression_level", 3, pkgconfigmodel.SourceDefault)
 
 	// APM & OTel trace configs
