@@ -80,7 +80,7 @@ func (s *completeTestSuite) TestOTLPLogs() {
 }
 
 func (s *completeTestSuite) TestOTLPCompression() {
-	utils.TestCompression(s)
+	utils.TestCompression(s, utils.DefaultDDOTCompression())
 }
 
 func (s *completeTestSuite) TestHosts() {

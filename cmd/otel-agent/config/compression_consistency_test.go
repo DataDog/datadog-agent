@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 // TestDDOTCompressionConsistency guards the invariant that the DDOT (otel-agent)
@@ -97,4 +98,65 @@ func TestDDOTHostMetadataCompression(t *testing.T) {
 		"host metadata shares the metrics compressor (serializer_compressor_kind); both must be zstd")
 	assert.Equal(t, 3, c.GetInt("serializer_zstd_compressor_level"),
 		"host metadata uses the metrics zstd level")
+}
+
+// TestDDOTSupportedCompressors covers every compression algorithm DDOT supports
+// per signal — not just the zstd default — on two axes:
+//
+//  1. Selectability: each supported algorithm can be chosen via the DDOT config
+//     surface (DD_* env override beats the SourceDefault/SourceFile the
+//     otel-agent sets), so operators are not locked into zstd.
+//  2. Wire encoding: the Content-Encoding each algorithm emits — the value
+//     fakeintake/the intake observe and the e2e utils.TestCompression asserts —
+//     is pinned here. Note zlib ships as "deflate" (not "zlib") and none ships
+//     as "identity"; those non-obvious mappings are the main regression risk.
+//
+// Metrics (serializer_compressor_kind, shared by series/sketches/host-metadata)
+// support zstd/zlib/gzip/none. Logs (logs_config.compression_kind) support
+// zstd/gzip, used verbatim as the Content-Encoding. Traces are compile-time
+// (the fx-zstd/fx-gzip module in command.go), not a runtime config key, so they
+// are out of scope for this config-level test; the OTLP integration test proves
+// traces actually ship valid zstd on the wire.
+func TestDDOTSupportedCompressors(t *testing.T) {
+	// Pin the on-the-wire Content-Encoding for each algorithm. These are the
+	// exact strings e2e/intake see; changing one would silently break the e2e
+	// compression assertions, so guard them here.
+	assert.Equal(t, "zstd", compression.ZstdEncoding, "zstd must ship Content-Encoding zstd")
+	assert.Equal(t, "deflate", compression.ZlibEncoding, "zlib must ship Content-Encoding deflate (not \"zlib\")")
+	assert.Equal(t, "gzip", compression.GzipEncoding, "gzip must ship Content-Encoding gzip")
+
+	// metrics: every supported serializer_compressor_kind must be selectable,
+	// and each maps to the wire encoding recorded above (none -> "identity").
+	metrics := []struct{ kind, wantEncoding string }{
+		{compression.ZstdKind, compression.ZstdEncoding},
+		{compression.ZlibKind, compression.ZlibEncoding},
+		{compression.GzipKind, compression.GzipEncoding},
+		{compression.NoneKind, "identity"},
+	}
+	for _, tc := range metrics {
+		t.Run("metrics/"+tc.kind, func(t *testing.T) {
+			configmock.New(t)
+			t.Setenv("DD_SERIALIZER_COMPRESSOR_KIND", tc.kind)
+			c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+			require.NoError(t, err)
+			assert.Equalf(t, tc.kind, c.GetString("serializer_compressor_kind"),
+				"operators must be able to select %q for metrics via DD_SERIALIZER_COMPRESSOR_KIND (wire encoding %q)", tc.kind, tc.wantEncoding)
+		})
+	}
+
+	// logs: only zstd and gzip are supported; the pipeline uses the kind
+	// verbatim as the Content-Encoding, so the kind is the wire value.
+	logs := []string{compression.ZstdKind, compression.GzipKind}
+	for _, kind := range logs {
+		t.Run("logs/"+kind, func(t *testing.T) {
+			configmock.New(t)
+			t.Setenv("DD_LOGS_CONFIG_COMPRESSION_KIND", kind)
+			c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+			require.NoError(t, err)
+			assert.Equalf(t, kind, c.GetString("logs_config.compression_kind"),
+				"operators must be able to select %q for logs via DD_LOGS_CONFIG_COMPRESSION_KIND", kind)
+			assert.Truef(t, c.IsConfigured("logs_config.compression_kind"),
+				"overriding logs_config.compression_kind to %q must keep it IsConfigured() so the additional_endpoints gzip fallback stays bypassed", kind)
+		})
+	}
 }
