@@ -9,6 +9,7 @@
 package metrics
 
 import (
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -67,10 +68,14 @@ func conditionTags(baseTags []string, conditionType string) []string {
 }
 
 // objectiveTags generates tags for autoscaler objective (target) metrics.
+// index is the 0-based position of the objective in spec.objectives[]; it guarantees a unique
+// tag-set per objective (so multiple objectives never collapse into the same timeseries), which
+// matters most for objectives that share the other tags — e.g. multiple custom query objectives,
+// or two container-resource objectives targeting the same container and resource.
 // resourceName and containerName are omitted from the tag set when empty
 // (e.g. custom query objectives have no resource, pod resource objectives have no container).
-func objectiveTags(baseTags []string, objectiveType, valueType, resourceName, containerName string) []string {
-	tags := append(baseTags, "objective_type:"+objectiveType, "value_type:"+valueType)
+func objectiveTags(baseTags []string, objectiveType, valueType, resourceName, containerName string, index int) []string {
+	tags := append(baseTags, "objective_type:"+objectiveType, "value_type:"+valueType, "objective_index:"+strconv.Itoa(index))
 	if resourceName != "" {
 		tags = append(tags, "resource_name:"+resourceName)
 	}
@@ -413,7 +418,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 
 	// 13. Autoscaling objectives (target values from spec)
 	if spec := internal.Spec(); spec != nil {
-		for _, objective := range spec.Objectives {
+		for idx, objective := range spec.Objectives {
 			switch objective.Type {
 			case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType:
 				if objective.PodResource == nil {
@@ -424,7 +429,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 						Name:  metricPrefix + ".objective.target",
 						Type:  metricsstore.MetricTypeGauge,
 						Value: value,
-						Tags:  objectiveTags(baseTags, "pod_resource", valueType, strings.ToLower(objective.PodResource.Name.String()), ""),
+						Tags:  objectiveTags(baseTags, "pod_resource", valueType, strings.ToLower(objective.PodResource.Name.String()), "", idx),
 					})
 				}
 			case datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType:
@@ -436,7 +441,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 						Name:  metricPrefix + ".objective.target",
 						Type:  metricsstore.MetricTypeGauge,
 						Value: value,
-						Tags:  objectiveTags(baseTags, "container_resource", valueType, strings.ToLower(objective.ContainerResource.Name.String()), objective.ContainerResource.Container),
+						Tags:  objectiveTags(baseTags, "container_resource", valueType, strings.ToLower(objective.ContainerResource.Name.String()), objective.ContainerResource.Container, idx),
 					})
 				}
 			case datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType:
@@ -448,7 +453,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 						Name:  metricPrefix + ".objective.target",
 						Type:  metricsstore.MetricTypeGauge,
 						Value: value,
-						Tags:  objectiveTags(baseTags, "custom_query", valueType, "", ""),
+						Tags:  objectiveTags(baseTags, "custom_query", valueType, "", "", idx),
 					})
 				}
 			}

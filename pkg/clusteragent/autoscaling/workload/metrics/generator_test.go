@@ -1132,6 +1132,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.Contains(t, m.Tags, "objective_type:pod_resource")
 						assert.Contains(t, m.Tags, "value_type:utilization")
 						assert.Contains(t, m.Tags, "resource_name:cpu")
+						assert.Contains(t, m.Tags, "objective_index:0")
 						for _, tag := range m.Tags {
 							assert.False(t, strings.HasPrefix(tag, "kube_container_name:"),
 								"pod resource objective should not carry a container tag")
@@ -1180,6 +1181,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.Contains(t, m.Tags, "value_type:utilization")
 						assert.Contains(t, m.Tags, "resource_name:cpu")
 						assert.Contains(t, m.Tags, "kube_container_name:webserver")
+						assert.Contains(t, m.Tags, "objective_index:0")
 					}
 				}
 				assert.True(t, found, "objective.target metric not found")
@@ -1221,6 +1223,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.InDelta(t, 5e8, m.Value, 1.0, "500M should be ~5e8 in query-native units")
 						assert.Contains(t, m.Tags, "objective_type:custom_query")
 						assert.Contains(t, m.Tags, "value_type:absolute_value")
+						assert.Contains(t, m.Tags, "objective_index:0")
 						for _, tag := range m.Tags {
 							assert.False(t, strings.HasPrefix(tag, "resource_name:"),
 								"custom query objective should not carry a resource tag")
@@ -1271,6 +1274,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.Contains(t, m.Tags, "value_type:absolute_value")
 						assert.Contains(t, m.Tags, "resource_name:cpu")
 						assert.Contains(t, m.Tags, "kube_container_name:app")
+						assert.Contains(t, m.Tags, "objective_index:0")
 					}
 				}
 				assert.True(t, found, "objective.target metric not found")
@@ -1313,6 +1317,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.Contains(t, m.Tags, "objective_type:pod_resource")
 						assert.Contains(t, m.Tags, "value_type:absolute_value")
 						assert.Contains(t, m.Tags, "resource_name:memory")
+						assert.Contains(t, m.Tags, "objective_index:0")
 					}
 				}
 				assert.True(t, found, "objective.target metric not found")
@@ -1367,16 +1372,76 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 						assert.Equal(t, 80.0, m.Value)
 						assert.Contains(t, m.Tags, "resource_name:cpu")
 						assert.Contains(t, m.Tags, "value_type:utilization")
+						assert.Contains(t, m.Tags, "objective_index:0")
 					}
 					if slices.Contains(m.Tags, "objective_type:container_resource") {
 						containerFound = true
 						assert.Equal(t, 55.0, m.Value)
 						assert.Contains(t, m.Tags, "resource_name:memory")
 						assert.Contains(t, m.Tags, "kube_container_name:sidecar")
+						assert.Contains(t, m.Tags, "objective_index:1")
 					}
 				}
 				assert.True(t, podFound, "pod_resource objective.target not found")
 				assert.True(t, containerFound, "container_resource objective.target not found")
+			},
+		},
+		{
+			// Multiple custom query objectives share every semantic tag (objective_type,
+			// value_type, and no resource/container), so objective_index is the only thing
+			// that keeps them as distinct timeseries instead of collapsing into one.
+			name: "multiple custom query objectives are disambiguated by index",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				q0 := resource.MustParse("100M")
+				q1 := resource.MustParse("200M")
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+								CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:          datadoghqcommon.DatadogPodAutoscalerAbsoluteValueObjectiveValueType,
+										AbsoluteValue: &q0,
+									},
+								},
+							},
+							{
+								Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+								CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
+									Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+										Type:          datadoghqcommon.DatadogPodAutoscalerAbsoluteValueObjectiveValueType,
+										AbsoluteValue: &q1,
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 15, // 2 objective.target + baseline(13)
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				byIndex := map[string]float64{}
+				for _, m := range metrics {
+					if m.Name != metricPrefix+".objective.target" {
+						continue
+					}
+					assert.Contains(t, m.Tags, "objective_type:custom_query")
+					for _, tag := range m.Tags {
+						if strings.HasPrefix(tag, "objective_index:") {
+							byIndex[tag] = m.Value
+						}
+					}
+				}
+				require.Len(t, byIndex, 2, "each custom query objective should produce a distinct objective_index series")
+				assert.InDelta(t, 1e8, byIndex["objective_index:0"], 1.0, "first custom query (100M) at index 0")
+				assert.InDelta(t, 2e8, byIndex["objective_index:1"], 1.0, "second custom query (200M) at index 1")
 			},
 		},
 		{

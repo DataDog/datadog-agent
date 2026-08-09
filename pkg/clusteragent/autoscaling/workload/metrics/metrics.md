@@ -188,8 +188,9 @@ value-unit table below.
 
 #### `datadog.cluster_agent.autoscaling.workload.objective.target`
 - **Type:** Gauge
-- **Tags:** base tags + `objective_type` + `value_type` + `resource_name` *(only for resource
-  objectives)* + `kube_container_name` *(only for container-resource objectives)*
+- **Tags:** base tags + `objective_type` + `value_type` + `objective_index` + `resource_name`
+  *(only for resource objectives)* + `kube_container_name` *(only for container-resource
+  objectives)*
 - **Description:** Target value the autoscaler aims to reach and maintain for the workload, as
   configured in `spec.objectives`. One point is emitted per objective. Objectives whose value
   pointer is unset are skipped.
@@ -198,6 +199,7 @@ value-unit table below.
 |-----|--------|---------|
 | `objective_type` | `pod_resource`, `container_resource`, `custom_query` | The objective kind (from `spec.objectives[*].type`). |
 | `value_type` | `utilization`, `absolute_value` | How the target is expressed (from `spec.objectives[*].*.value.type`). |
+| `objective_index` | `0`, `1`, … | 0-based position of the objective in `spec.objectives[]`. Guarantees a unique tag-set per objective so multiple objectives never collapse into one timeseries — this is the only distinguishing tag for multiple `custom_query` objectives, or for two objectives that share the same resource/container. Note it is **positional**: reordering or inserting an objective shifts the indices of those after it. |
 | `resource_name` | `cpu`, `memory` | The resource being targeted. Present for `pod_resource` and `container_resource` objectives; **omitted** for `custom_query`. |
 | `kube_container_name` | container name | The targeted container. Present **only** for `container_resource` objectives. |
 

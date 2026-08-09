@@ -13,4 +13,6 @@ enhancements:
     ``DatadogPodAutoscaler`` ``spec.objectives``. The metric is tagged with
     ``objective_type`` (``pod_resource``, ``container_resource`` or
     ``custom_query``), ``value_type`` (``utilization`` or ``absolute_value``),
-    and, for resource objectives, ``resource_name`` and ``kube_container_name``.
+    ``objective_index`` (the 0-based position in ``spec.objectives`` that keeps
+    each objective a distinct timeseries), and, for resource objectives,
+    ``resource_name`` and ``kube_container_name``.
