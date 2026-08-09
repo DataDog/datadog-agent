@@ -274,7 +274,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) flag_approver (struct u
     if (filter == NULL || !filter->is_set) {
         return DISCARDED;
     }
-    if (((1 << (value % 64)) & filter->flags) > 0) {
+    // the shift has to be done on a u64: flags is a 64 bit mask and value % 64
+    // reaches 63, so an int shift would truncate every bit above 31.
+    if ((((u64)1 << (value % 64)) & filter->flags) > 0) {
         monitor_event_approved(type, FLAG_APPROVER_TYPE);
         return APPROVED;
     }
