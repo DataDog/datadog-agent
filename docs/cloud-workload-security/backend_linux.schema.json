@@ -2355,6 +2355,20 @@
         "hostname"
       ]
     },
+    "UnshareEvent": {
+      "properties": {
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Namespace flags requested by the unshare call"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "UnshareEventSerializer serializes an unshare event"
+    },
     "UserContext": {
       "properties": {
         "id": {
@@ -2566,6 +2580,9 @@
     },
     "socket": {
       "$ref": "#/$defs/SocketEvent"
+    },
+    "unshare": {
+      "$ref": "#/$defs/UnshareEvent"
     }
   },
   "additionalProperties": false,

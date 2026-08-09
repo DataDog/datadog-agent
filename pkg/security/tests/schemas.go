@@ -183,6 +183,16 @@ func (tm *testModule) validateSetrlimitSchema(t *testing.T, event *model.Event) 
 }
 
 //nolint:unused
+func (tm *testModule) validateUnshareSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///unshare.schema.json")
+}
+
+//nolint:unused
 func (tm *testModule) validateLoadModuleSchema(t *testing.T, event *model.Event) bool {
 	if ebpfLessEnabled {
 		return true

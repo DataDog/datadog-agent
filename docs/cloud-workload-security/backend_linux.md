@@ -2366,6 +2366,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "hostname"
             ]
         },
+        "UnshareEvent": {
+            "properties": {
+                "flags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Namespace flags requested by the unshare call"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "UnshareEventSerializer serializes an unshare event"
+        },
         "UserContext": {
             "properties": {
                 "id": {
@@ -2577,6 +2591,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "socket": {
             "$ref": "#/$defs/SocketEvent"
+        },
+        "unshare": {
+            "$ref": "#/$defs/UnshareEvent"
         }
     },
     "additionalProperties": false,
@@ -2631,6 +2648,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
 | `socket` | $ref | Please see [SocketEvent](#socketevent) |
+| `unshare` | $ref | Please see [UnshareEvent](#unshareevent) |
 
 ## `AWSIMDSEvent`
 
@@ -6117,6 +6135,32 @@ version, or thread-local attribute keys). |
 
 {{< /code-block >}}
 
+
+
+## `UnshareEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "flags": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Namespace flags requested by the unshare call"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "UnshareEventSerializer serializes an unshare event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `flags` | Namespace flags requested by the unshare call |
 
 
 ## `UserContext`
