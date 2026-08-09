@@ -32,8 +32,15 @@ const (
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
 	// AppsecInjectionVersionAnnotation is the version annotation key used to track the injector version
 	AppsecInjectionVersionAnnotation = "appsec.datadoghq.com/injection-version"
-	maxUDSPathLen                    = 100
+	// ManagedByLabelValue is the app.kubernetes.io/managed-by value used by Datadog-created AppSec injection resources.
+	ManagedByLabelValue = "datadog-cluster-agent"
+	maxUDSPathLen       = 100
 )
+
+// IsManagedByDatadog reports whether labels identify an AppSec injection resource created by the Datadog Cluster Agent.
+func IsManagedByDatadog(labels map[string]string) bool {
+	return labels[kubernetes.KubeAppManagedByLabelKey] == ManagedByLabelValue
+}
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
 // It has to be associated with both proxyMaps in proxies.go and the list of supported proxies in the Helm chart / Datadog Operator
@@ -51,6 +58,9 @@ const (
 
 	// ProxyTypeIngressNginx represents the ingress-nginx proxy type for appsec injection mode
 	ProxyTypeIngressNginx ProxyType = "ingress-nginx"
+
+	// ProxyTypeGKEGateway represents the GKE Gateway proxy type for appsec injection mode (EXTERNAL only)
+	ProxyTypeGKEGateway ProxyType = "gke-gateway"
 )
 
 // AllProxyTypes is the list of all supported proxy types for appsec injection mode
@@ -59,6 +69,7 @@ var AllProxyTypes = []ProxyType{
 	ProxyTypeIstio,
 	ProxyTypeIstioGateway,
 	ProxyTypeIngressNginx,
+	ProxyTypeGKEGateway,
 }
 
 // Processor represents the configuration of the AppSec processor service that was deployed in the cluster
@@ -104,6 +115,13 @@ type Sidecar struct {
 	UDSPath string
 	// RunAsUser is the UID/GID for the injected sidecar so it can share the UDS volume with the proxy container (default 65532, the Envoy Gateway proxy UID).
 	RunAsUser int64
+}
+
+// GKE contains configuration specific to GKE Gateway (gke-gateway) proxy type
+type GKE struct {
+	// GatewayClasses is the list of GatewayClass names eligible for AppSec
+	// traffic extension injection.
+	GatewayClasses []string
 }
 
 // Nginx contains configuration specific to ingress-nginx injection
@@ -153,6 +171,9 @@ type Product struct {
 
 	// Processor contains configuration for the EXTERNAL mode
 	Processor Processor
+
+	// GKE contains configuration specific to GKE Gateway injection
+	GKE GKE
 }
 
 // Injection represents Kubernetes-specific configuration available for users to customize
@@ -300,7 +321,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 	staticLabels := map[string]string{
 		kubernetes.KubeAppComponentLabelKey: "datadog-appsec-injector",
 		kubernetes.KubeAppPartOfLabelKey:    "datadog",
-		kubernetes.KubeAppManagedByLabelKey: "datadog-cluster-agent",
+		kubernetes.KubeAppManagedByLabelKey: ManagedByLabelValue,
 		AppsecInjectionVersionAnnotation:    "v2",
 	}
 
@@ -340,6 +361,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			Mode:       mode,
 			Sidecar:    sidecarConfig,
 			Nginx:      nginxConfig,
+			GKE:        GKE{GatewayClasses: cfg.GetStringSlice("appsec.proxy.gke.gateway_classes")},
 		},
 		Injection: Injection{
 			Enabled:           cfg.GetBool("cluster_agent.appsec.injector.enabled"),

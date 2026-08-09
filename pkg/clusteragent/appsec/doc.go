@@ -50,6 +50,12 @@ Currently supported proxy types:
   - Auto-detects via IngressClass with spec.controller == "k8s.io/ingress-nginx"
   - Version detection from controller image tag for matching init container image
 
+- GKE Gateway (ProxyTypeGKEGateway): Configures GCPTrafficExtension resources for external traffic routing
+  - EXTERNAL mode only: Managed GKE has no in-cluster data plane; SIDECAR mode is not supported
+  - Auto-detects via GatewayClass with external-managed controllers (gke-l7-global-external-managed, gke-l7-regional-external-managed); multi-cluster -mc variants are excluded by default (they require a ServiceImport backendRef; follow-up)
+  - Creates one GCPTrafficExtension (networking.gke.io/v1) per Gateway in the Gateway's own namespace
+  - Callout Deployment/Service/HealthCheckPolicy are user-deployed per public GKE docs
+
 Each proxy type implements the InjectionPattern interface, providing:
   - Resource detection (IsInjectionPossible)
   - Resource watching (Resource, Namespace)
@@ -408,6 +414,142 @@ deleting DD ConfigMaps (cross-controller coordination, same pattern as Istio).
   - Init container: Copies .so module, not a running sidecar process
   - Version coupling: Init container image must match nginx version
   - Mode() always returns SIDECAR regardless of global config (no external mode)
+
+## GKE Gateway Implementation
+
+GKE Gateway support is implemented via the gke subpackage and works in EXTERNAL mode ONLY.
+Managed GKE has no in-cluster Envoy data plane, so SIDECAR mode is structurally impossible.
+
+### Detection
+
+Detects GKE-managed Gateways by inspecting the GatewayClass controllerName against an allowlist
+of external-managed class names:
+
+  - gke-l7-global-external-managed
+  - gke-l7-regional-external-managed
+
+Internal GKE GatewayClasses (e.g. gke-l7-rilb, gke-l7-regional-internal-managed) are intentionally
+excluded because they do not support GCPTrafficExtension-based callouts. The multi-cluster variants
+(gke-l7-global-external-managed-mc, gke-l7-regional-external-managed-mc) are also intentionally
+excluded from the default allowlist: multi-cluster Gateways require the callout backendRef to be a
+ServiceImport (group net.gke.io), whereas this reconciler only emits a core Service backendRef.
+Multi-cluster (ServiceImport) support is a documented follow-up. The allowlist is overridable via
+the appsec.proxy.gke.gateway_classes configuration key.
+
+Gateway resources carrying the label appsec.datadoghq.com/enabled=false are skipped.
+
+### Resource Lifecycle (CREATE-ONLY / Gateway-driven)
+
+The injector watches Gateway resources (not GCPTrafficExtensions) and reacts to Add and Delete events:
+
+ 1. On Gateway Add: creates one GCPTrafficExtension (networking.gke.io/v1) in the Gateway's own namespace
+ 2. On Gateway Delete: deletes the corresponding GCPTrafficExtension
+
+CRITICAL: The injector is CREATE-ONLY and has NO UpdateFunc, no GCPTrafficExtension watch, and no
+periodic resync. Consequences:
+
+  - A manually-edited or stale GCPTrafficExtension is NOT auto-reconciled.
+  - A GatewayClass change on a live Gateway is NOT detected.
+  - Deleting the GCPTrafficExtension alone does NOT recreate it — recreation requires a new Gateway
+    Add event (delete+recreate the Gateway, or restart the cluster-agent / trigger leader re-election
+    so the informer replays AddFunc for all existing Gateways). This create-only, no-resync behavior
+    has been verified on a live GKE cluster: after deleting the CR while the Gateway still existed,
+    the cluster-agent did not recreate it until the pod was restarted.
+  - There is no drift reconciliation in v1.
+
+### Ownership and Cleanup Model (NO ownerReferences)
+
+The GCPTrafficExtension is created WITHOUT any metadata.ownerReferences. Cleanup is driven entirely
+by the informer's DeleteFunc (Gateway delete) and by the disable-time Cleanup pass — NOT by
+Kubernetes garbage collection. This is a deliberate design choice; the tradeoffs are:
+
+  - If the cluster-agent is down (or not leader) at the moment a Gateway is deleted, the DeleteFunc
+    event is missed and the GCPTrafficExtension is left orphaned until the agent restarts and its
+    Cleanup/reconcile logic runs again (note: current v1 only deletes on live Delete events and on
+    disable; it does not sweep orphans whose Gateway disappeared while the agent was down).
+  - An ownerReference to the Gateway WOULD be namespace-valid (same namespace, see below) and would
+    let Kubernetes GC remove the extension even while the agent is down; adopting it is a candidate
+    hardening follow-up. It is intentionally omitted in v1 to keep the reconciler informer-driven.
+
+### Same-Namespace Constraint (no cross-namespace, no ReferenceGrant)
+
+GCPTrafficExtension targetRefs and backendRef do not carry a namespace field — this is enforced by
+the CRD itself (verified empirically: applying either spec.targetRefs[].namespace or
+spec.extensionChains[].extensions[].backendRef.namespace is rejected with a strict-decoding
+"unknown field" error). Therefore:
+
+  - The GCPTrafficExtension MUST reside in the Gateway's own namespace (targetRefs is a local ref).
+  - The callout backend Service is always resolved in that same namespace (backendRef is local).
+  - Cross-namespace backends are structurally impossible, so NO Gateway API ReferenceGrant is needed
+    or even possible for the callout wiring.
+  - Consequently, Processor.Namespace is NOT used for GKE Gateway injection; the callout Deployment,
+    Service, and HealthCheckPolicy must be user-deployed in each Gateway's namespace per the public
+    GKE service-extensions documentation.
+
+### Teardown and Disabling (eventual GCP-resource garbage collection)
+
+Two paths remove a managed GCPTrafficExtension:
+
+ 1. Gateway deletion -> the informer DeleteFunc calls Deleted(), which deletes the CR.
+ 2. Disabling injection (appsec.proxy.enabled=false or cluster_agent.appsec.injector.enabled=false)
+    -> the start command runs appsec.Cleanup (leader-gated), which lists every Gateway and calls
+    Deleted() for each, removing all cluster-agent-managed GCPTrafficExtensions.
+
+CRITICAL teardown caveat (verified on a live GKE cluster): deleting the GCPTrafficExtension CR
+removes the Kubernetes object immediately, but the GKE Gateway controller garbage-collects the
+UNDERLYING GCP resource (a networkservices lbTrafficExtension) only EVENTUALLY. The GKE controller
+does not place a finalizer on the CR, so there is no synchronous teardown hook. Measured lag on a
+live cluster was ~5-7 minutes (observed ~401s) between CR deletion and the GCP lbTrafficExtension
+disappearing / edge blocking stopping. During that window the callout remains programmed at the load
+balancer and traffic continues to be inspected/blocked. Operators disabling AppSec should expect this
+delay before blocking fully stops; it clears without manual intervention. The injector deliberately
+does NOT call the GCP networkservices API to force-delete the resource (K8s-only reconciler); owning
+that teardown via the GCP API is a possible follow-up if synchronous disable is ever required.
+
+### GCPTrafficExtension Shape
+
+One GCPTrafficExtension per Gateway is created with:
+
+  - metadata.namespace: the Gateway's own namespace (same-namespace constraint)
+  - metadata.labels: app.kubernetes.io/managed-by=datadog-cluster-agent
+  - spec.targetRefs: one entry pointing at the Gateway (no namespace field; local ref)
+  - spec.extensionChains: one chain with matchCondition.celExpressions: [{celMatcher: "1 == 1"}]
+    and one extension entry with failOpen: true, supportedEvents: [RequestHeaders, ResponseHeaders],
+    timeout: 1s, and a backendRef to the user-deployed callout Service (no namespace field)
+
+Body inspection note: supportedEvents intentionally lists only the header events. The Datadog
+callout still inspects request/response bodies when a rule needs them: the dd-trace-go ext_proc
+callout dynamically requests the body via the ext_proc mode-override (ModeOverride
+RequestBodyMode=STREAMED) after seeing the request headers, and GKE's managed data plane honors
+allow_mode_override. This was verified on a live GKE cluster: with supportedEvents restricted to
+header events, a WAF rule matching the parsed JSON request body still blocked the request (HTTP
+403). Statically adding RequestBody/ResponseBody here is therefore unnecessary and would defeat the
+callout's dynamic negotiation by forcing the data plane to stream every body unconditionally.
+
+Load balancer programming lag is approximately 2 minutes after GCPTrafficExtension creation.
+
+### Error Handling and RBAC Requirements
+
+The cluster-agent requires the following RBAC (none of which ship in the default Datadog Helm
+chart / Operator ClusterRole today — enabling the GKE Gateway injector requires adding them, which
+is a packaging follow-up):
+
+  - gateways.gateway.networking.k8s.io: get, list, watch (the informer source).
+  - gcptrafficextensions.networking.gke.io: get, list, watch, create, delete (Get-before-Create
+    ownership guard, create, and teardown).
+  - customresourcedefinitions.apiextensions.k8s.io: get, list (Detect() checks for the
+    gcptrafficextensions CRD).
+  - events (core): create, patch in each Gateway's namespace (the injector records Gateway-scoped
+    events; note these are namespaced Roles in the Gateway namespaces, not the cluster-agent's own).
+
+Without the gcptrafficextensions permissions:
+
+  - Any non-NotFound error on Get/Create/Delete (e.g. Forbidden) causes the reconcile to fail.
+  - A WARN log is emitted and a Kubernetes event with reason GCPTrafficExtensionCreateFailed or
+    GCPTrafficExtensionDeleteFailed is recorded on the Gateway object.
+  - The reconcile is requeued once and then dropped. No GCPTrafficExtension is installed.
+  - Customer traffic is unaffected (the missing extension is a silent pass-through at the LB layer).
+  - This is NOT a silent no-op: failures are observable via events and cluster-agent logs.
 
 # Event Recording
 
