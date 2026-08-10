@@ -10,6 +10,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -74,6 +75,161 @@ func TestSecureRuntimeDirReclaimsNonRootComponent(t *testing.T) {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	require.True(t, ok)
 	require.Equal(t, uint32(0), stat.Uid, "repaired component must be owned by root")
+}
+
+// stickyParent returns a fresh root-owned sticky directory standing in for
+// /var/tmp, and a build path beneath a datadog-agent component under it.
+func stickyParent(t *testing.T) (sticky, buildPath string) {
+	t.Helper()
+	sticky = filepath.Join(t.TempDir(), "sticky")
+	require.NoError(t, os.Mkdir(sticky, 0777))
+	require.NoError(t, os.Chmod(sticky, 0777|os.ModeSticky))
+	return sticky, filepath.Join(sticky, "datadog-agent", "system-probe", "build")
+}
+
+func dirUID(t *testing.T, p string) uint32 {
+	t.Helper()
+	info, err := os.Lstat(p)
+	require.NoError(t, err)
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	require.True(t, ok)
+	return stat.Uid
+}
+
+func dirIno(t *testing.T, p string) uint64 {
+	t.Helper()
+	info, err := os.Lstat(p)
+	require.NoError(t, err)
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	require.True(t, ok)
+	return stat.Ino
+}
+
+// hasReclaimedLeftover reports whether any component under root retains a
+// moved-aside ".reclaimed-" directory, which must not survive a successful run.
+func hasReclaimedLeftover(t *testing.T, root string) bool {
+	t.Helper()
+	found := false
+	require.NoError(t, filepath.Walk(root, func(p string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if strings.Contains(p, ".reclaimed-") {
+			found = true
+		}
+		return nil
+	}))
+	return found
+}
+
+// B1: an absent directory is created root-owned and 0700.
+func TestSecureRuntimeDirCreatesRootOwnedWhenAbsent(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root")
+	}
+	_, build := stickyParent(t)
+
+	require.NoError(t, secureRuntimeDir(build))
+	require.Equal(t, uint32(0), dirUID(t, build), "created dir must be root-owned")
+	info, err := os.Lstat(build)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0700), info.Mode().Perm(), "created dir must be 0700")
+}
+
+// B2: a normal upgrade over a pre-existing root-owned tree is accepted without
+// any reclaim (the inode is preserved).
+func TestSecureRuntimeDirAcceptsPreexistingRootDir(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root")
+	}
+	sticky, build := stickyParent(t)
+	require.NoError(t, os.MkdirAll(build, 0755))
+	da := filepath.Join(sticky, "datadog-agent")
+	require.NoError(t, os.Chmod(da, 0755))
+	before := dirIno(t, da)
+
+	require.NoError(t, secureRuntimeDir(build))
+	// A valid root-owned dir must be left untouched: same inode and same mode
+	// (a reclaim would recreate it 0700).
+	require.Equal(t, before, dirIno(t, da))
+	info, err := os.Lstat(da)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0755), info.Mode().Perm(), "a valid dir must not be reclaimed to 0700")
+	require.False(t, hasReclaimedLeftover(t, sticky))
+}
+
+// B4: a non-root-owned deep component (not the top datadog-agent one) is
+// repaired too.
+func TestSecureRuntimeDirRepairsDeepNonRootComponent(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root to create a non-root-owned directory")
+	}
+	sticky, build := stickyParent(t)
+	sp := filepath.Join(sticky, "datadog-agent", "system-probe")
+	require.NoError(t, os.MkdirAll(sp, 0755))
+	require.NoError(t, syscall.Chown(sp, 1, 1))
+
+	require.NoError(t, secureRuntimeDir(build))
+	require.Equal(t, uint32(0), dirUID(t, sp), "deep non-root component must be repaired to root")
+	require.False(t, hasReclaimedLeftover(t, sticky))
+}
+
+// B5: a group/other-writable, non-sticky directory below the sticky boundary is
+// repaired (it violates the policy even though it is root-owned).
+func TestSecureRuntimeDirRepairsWritableNonStickyDir(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root")
+	}
+	sticky, build := stickyParent(t)
+	da := filepath.Join(sticky, "datadog-agent")
+	require.NoError(t, os.Mkdir(da, 0700))
+	require.NoError(t, os.Chmod(da, 0777)) // explicit chmod bypasses umask: root-owned, world-writable, no sticky
+
+	require.NoError(t, secureRuntimeDir(build))
+	require.Equal(t, uint32(0), dirUID(t, da))
+	// A reclaim recreates the component 0700; if it were wrongly accepted as-is
+	// it would still be 0777. (Inode numbers are unreliable here: ext4 recycles
+	// them, so a recreated dir can reuse the freed number.)
+	info, err := os.Lstat(da)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0700), info.Mode().Perm(), "writable non-sticky dir must be reclaimed to 0700")
+}
+
+// B9: running twice is idempotent - the second run finds a valid tree, repairs
+// nothing, and leaves no moved-aside directories behind.
+func TestSecureRuntimeDirIdempotent(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root to create a non-root-owned directory")
+	}
+	sticky, build := stickyParent(t)
+	da := filepath.Join(sticky, "datadog-agent")
+	require.NoError(t, os.Mkdir(da, 0777))
+	require.NoError(t, syscall.Chown(da, 1, 1))
+
+	require.NoError(t, secureRuntimeDir(build)) // repairs
+	inoAfterFirst := dirIno(t, da)
+	require.NoError(t, secureRuntimeDir(build)) // no-op
+	require.Equal(t, inoAfterFirst, dirIno(t, da), "second run must not reclaim again")
+	require.False(t, hasReclaimedLeftover(t, sticky), "no moved-aside dirs may remain")
+}
+
+// B8: a non-root component with NO sticky ancestor is refused, never repaired.
+// Uses /root as a non-sticky root-only base (t.TempDir lives under sticky /tmp).
+func TestSecureRuntimeDirRefusesNonRootWithoutStickyAncestor(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root to create the non-root component")
+	}
+	base, err := os.MkdirTemp("/root", "sp-rc-nosticky-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+
+	parent := filepath.Join(base, "parent")
+	require.NoError(t, os.Mkdir(parent, 0755))
+	require.NoError(t, syscall.Chown(parent, 1, 1))
+
+	err = secureRuntimeDir(filepath.Join(parent, "build"))
+	require.Error(t, err, "a non-root component with no sticky ancestor must be refused, not repaired")
+	require.Equal(t, uint32(1), dirUID(t, parent), "the component must be left untouched, not reclaimed")
 }
 
 // verifyDirComponent is the pure policy behind the ancestor walk in
