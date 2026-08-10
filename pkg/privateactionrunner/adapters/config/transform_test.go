@@ -77,11 +77,13 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
 				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
+				"com.datadoghq.mongodb":         sets.New[string]("action6"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":                sets.New[string]("testConnection", "enrichScript"),
 				"com.datadoghq.gitlab.users":          sets.New[string]("testConnection"),
 				"com.datadoghq.kubernetes.core":       sets.New[string]("testConnection"),
+				"com.datadoghq.mongodb":               sets.New[string]("testConnection"),
 				"com.datadoghq.remoteaction":          sets.New[string]("testConnection"),
 				"com.datadoghq.remoteaction.internal": sets.New[string]("prepareEncryption"),
 			},
@@ -425,6 +427,38 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedSystemServicesSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedSystemServices, map[string][]string{
+		"mysql.service": {"read", "restart"},
+		"nginx.service": {"read"},
+	})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{
+		"mysql.service": {"read", "restart"},
+		"nginx.service": {"read"},
+	}, cfg.RShellAllowedSystemServices)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  restricted_shell:
+    allowed_system_services: {}
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+	assert.True(t, mockConfig.IsConfigured(setup.PARRestrictedShellAllowedSystemServices))
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.RShellAllowedSystemServices)
+	assert.Empty(t, cfg.RShellAllowedSystemServices)
+}
+
 // TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
 // transform contract for `allowed_paths: []`: GetStringSlice returns a
 // nil slice for the explicit YAML empty list, and the transform forwards
@@ -569,8 +603,6 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *test
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
-	// No restricted_shell block at all: both axes fall back to their registered
-	// defaults.
 	yaml := `
 private_action_runner:
   enabled: true
@@ -581,6 +613,7 @@ private_action_runner:
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
+	assert.Nil(t, cfg.RShellAllowedSystemServices)
 }
 
 func TestNewMetricsClient(t *testing.T) {

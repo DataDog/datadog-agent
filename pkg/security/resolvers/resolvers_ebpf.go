@@ -115,7 +115,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver, versionResolver)
+	tagsResolver := tags.NewResolver(config.RuntimeSecurity.TagsResolverQueueSize, opts.Tagger, cgroupsResolver, versionResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -317,6 +317,11 @@ func (r *EBPFResolvers) snapshot() error {
 	for _, proc := range processes {
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
+		// If the process is running a Datadog tracer, populate the user-space
+		// tracer metadata — this otherwise only gets populated by the runtime
+		// tracer_memfd_seal event, which has already fired and been missed for
+		// processes that started before the agent.
+		r.ProcessResolver.SnapshotTracer(uint32(proc.Pid))
 	}
 
 	return nil

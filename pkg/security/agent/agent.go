@@ -315,7 +315,7 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 	}
 }
 
-//nolint:unused,deadcode
+//nolint:unused
 func (rsa *RuntimeSecurityAgent) setupGPRC() error {
 	if pkgconfigsetup.Datadog().GetString("runtime_security_config.event_grpc_server") == "security-agent" {
 		socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")

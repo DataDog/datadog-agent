@@ -372,6 +372,8 @@ properties:
             env_vars:
             - DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE
             - DD_SITE
+            tags:
+            - generate_const:DefaultSite
           unix_socket:
             node_type: setting
             type: string
@@ -558,11 +560,9 @@ properties:
         default:
         - 53
         items:
-          type: number
+          type: integer
         visibility: public
         description: A list of ports that should be monitored for DNS traffic.
-        tags:
-        - golang_type:[]int
       allow_netlink_conntracker_fallback:
         node_type: setting
         type: boolean
@@ -1266,8 +1266,8 @@ properties:
     type: object
     visibility: public
     description: |-
-      Configuration for the GPU Monitoring module, which uses eBPF probes to collect
-      per-process GPU metrics on Linux hosts (kernel 5.8+).
+      Configuration for the GPU Monitoring module, which collects GPU
+      metrics that require privileged access. Only for Linux hosts.
       Required for GPU monitoring on non-containerized Linux hosts alongside
       gpu.enabled: true in datadog.yaml.
     tags: []
@@ -1278,9 +1278,17 @@ properties:
         default: false
         visibility: public
         description: |-
-          Set to true to enable the GPU Monitoring module. This loads the eBPF programs
-          that collect per-process GPU utilization, memory, and performance metrics.
+          Set to true to enable the GPU Monitoring module, enabling collection of privileged metrics.
           Must be used together with gpu.enabled: true in datadog.yaml.
+      enable_ebpf_probes:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to additionally load the GPU Monitoring eBPF probes, which collect
+          the gpu.process.core.usage metric. Requires Linux kernel 5.8 or later.
+          These probes are deprecated and are disabled by default.
       attacher_detailed_logs:
         node_type: setting
         type: boolean
@@ -1307,10 +1315,6 @@ properties:
         format: duration
         tags:
         - golang_type:duration
-      enable_ebpf_probes:
-        node_type: setting
-        type: boolean
-        default: true
       enable_fatbin_parsing:
         node_type: setting
         type: boolean

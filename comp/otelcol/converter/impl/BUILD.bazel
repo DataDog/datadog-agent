@@ -7,6 +7,7 @@ go_library(
         "autoconfigure.go",
         "converter.go",
         "coreconfig.go",
+        "cumulativetodelta.go",
         "extensions.go",
         "infraattributes.go",
         "prometheus.go",

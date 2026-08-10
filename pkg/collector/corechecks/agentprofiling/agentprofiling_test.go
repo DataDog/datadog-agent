@@ -3,6 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// The agent-profiling check reads the agent process' memory/CPU usage through
+// gopsutil (process.NewProcess), which is not implemented on AIX, so these tests
+// cannot run there.
+//go:build !aix
+
 package agentprofiling
 
 import (

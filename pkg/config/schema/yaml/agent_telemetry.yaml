@@ -55,7 +55,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Agent Telemetry
   errortracking:
     node_type: section
     type: object
