@@ -2,7 +2,17 @@
 
 Load when the target is anything other than a Linux host, when you need a non-default OS, architecture, or cloud, or when you want a provisioner variant without the agent or without fakeintake.
 
-Provision only what the test uses. Every `Provisioner` includes a fakeintake, and dropping it is right for the many suites that assert on services, packaging, permissions, CLI output, or config rather than on payloads — on AWS the intake is an ECS Fargate task, so an unused one costs provisioning time and money on every run. Host provisioners drop it with the `ProvisionerNoFakeIntake` constructor; the container and cluster provisioners have no such constructor and take the scenario's `WithoutFakeIntake()` inside `WithRunOptions` instead.
+Provision only what the test uses. Every `Provisioner` includes a fakeintake, and dropping it is right for the many suites that assert on services, packaging, permissions, CLI output, or config rather than on payloads — on AWS the intake is an ECS Fargate task, so an unused one costs provisioning time and money on every run. How to drop it differs by provisioner, and there is no single spelling:
+
+| Provisioner | Run without a fakeintake |
+|---|---|
+| Any host — `awshost`, `winawshost`, `azurehost`, `winazurehost`, `gcphost` | the `ProvisionerNoFakeIntake` (or `ProvisionerNoAgentNoFakeIntake`) constructor |
+| Local podman — `localhost` | the same constructors, but named `PodmanProvisionerNoFakeIntake` |
+| AWS container and cluster — `awsdocker`, `ecs`, `kindvm`, `eks`, `kubeadm` | the scenario's `WithoutFakeIntake()` inside `WithRunOptions` |
+| Local kind — `localkubernetes` | `localkubernetes.WithoutFakeIntake()` directly on the provisioner |
+| AKS, GKE, OpenShift on GCP | no opt-out; these always deploy one |
+
+Dropping the *agent* is narrower still: `WithoutAgent()` exists on the `ec2`, `ec2docker`, and `eks` scenarios, and directly on the flat host and local-kind provisioners. ECS, kindvm, and kubeadm have none.
 
 Authoritative directories, in preference order when this file and the code disagree:
 
@@ -47,9 +57,7 @@ Every path below is prefixed `github.com/DataDog/datadog-agent/test/e2e-framewor
 
 Tests conventionally alias the kind provisioner as `awskubernetes`. That alias is a naming convention, not a package name — the import path ends in `kindvm`.
 
-The `NoFakeIntake` and `NoAgent` constructors exist only on the host provisioners. Docker, ECS, kind, EKS and kubeadm expose `Provisioner` alone, and drop the intake with the scenario's `WithoutFakeIntake()` inside `WithRunOptions`.
-
-Dropping the *agent* is not uniformly available: `WithoutAgent()` exists on the `ec2`, `ec2docker`, and `eks` scenarios only. ECS, kindvm, and kubeadm have no such option, so confirm it exists before relying on it.
+The `NoFakeIntake` and `NoAgent` constructors exist only on the host provisioners — see the table at the top of this file for what each other provisioner takes instead.
 
 ## Two option shapes
 

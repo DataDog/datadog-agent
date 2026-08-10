@@ -88,7 +88,7 @@ Cloud: use the cloud the feature is specific to, and AWS otherwise. Windows incl
 
 Kubernetes flavor: use kind. It provisions faster, costs less, and fails less than EKS. Reserve EKS for behavior that is specific to EKS, and expect an EKS job to run on `main` and nightly rather than on pull requests.
 
-Every stock provisioner ships a fakeintake by default, and the intake is an ECS Fargate task you would otherwise pay for and never query. When the test asserts only on host state, drop it — but the way to do that differs by provisioner. Host provisioners (`awshost`, `winawshost`, and their Azure and GCP equivalents) offer a `ProvisionerNoFakeIntake` constructor; Docker, ECS, kind, EKS and kubeadm expose only `Provisioner`, so pass the scenario's `WithoutFakeIntake()` inside `WithRunOptions` instead.
+Every stock provisioner ships a fakeintake by default, and on AWS it is an ECS Fargate task you would otherwise pay for and never query. When the test asserts only on host state, drop it. Host provisioners take a `ProvisionerNoFakeIntake` constructor; every other provisioner spells it differently and a few cannot do it at all, so use the table in `references/environments.md` rather than guessing.
 
 Reach for a custom provisioner last. Check the option surface of the stock provisioner first — most needs are already an option, and custom provisioners are the main source of long-lived breakage.
 
