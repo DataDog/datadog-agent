@@ -93,7 +93,7 @@ var (
 	// to avoid adding these broad attributes (e.g. service.name -> name) as
 	// tags on non-ACA workloads.
 	AzureContainerAppsMappings = map[string]string{
-		AttributeAzureContainerAppInstanceID:  "replica_name",
+		AttributeAzureContainerAppInstanceID:  "replica",
 		string(semconv1_27.ServiceNameKey):    "name",
 		string(semconv1_27.CloudAccountIDKey): "subscription_id",
 		AttributeAzureResourceGroupName:       "resource_group",

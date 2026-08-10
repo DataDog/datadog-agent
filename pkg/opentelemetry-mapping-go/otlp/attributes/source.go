@@ -208,7 +208,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 			if dims["name"] != "" && dims["resource_group"] != "" && dims["subscription_id"] != "" {
 				// The actual unique identifier for an Azure Container App is its subscription id,
 				// resource group, and name combination
-				primary := dims["replica_name"]
+				primary := dims["replica"]
 				if primary == "" {
 					primary = dims["name"]
 				}
