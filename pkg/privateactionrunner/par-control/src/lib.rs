@@ -11,5 +11,5 @@ pub mod procmgr;
 pub mod proto;
 pub mod transport;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub mod test_support;
