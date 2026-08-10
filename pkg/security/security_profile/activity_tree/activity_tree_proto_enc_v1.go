@@ -215,6 +215,14 @@ func credentialsToProto(creds *model.Credentials) *adproto.Credentials {
 	return pcreds
 }
 
+func fileInfoToProto(fi *FileInfo) *adproto.FileInfo {
+	if fi == nil {
+		return nil
+	}
+	fe := fi.toFileEvent()
+	return fileEventToProto(&fe)
+}
+
 func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 	if fe == nil {
 		return nil
@@ -259,7 +267,7 @@ func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) stri
 	*pfan = adproto.FileActivityNode{
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           escape(fan.Name),
-		File:           fileEventToProto(fan.File),
+		File:           fileInfoToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
