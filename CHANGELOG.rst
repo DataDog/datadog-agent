@@ -28,6 +28,9 @@ Bug Fixes
   overridden by a stale fallback value (respectively from the registry
   and from the running service account).
 
+- Fix an issue where GPU monitoring could trigger a kernel panic on multi-GPU
+  nodes with Hopper/Blackwell GPUs.
+
 
 .. _Release Notes_7.82.0:
 
