@@ -70,24 +70,23 @@ func TestFixedSizeQueueConcurrentAccess(t *testing.T) {
 	const iterations = 200
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines * 2)
 
 	for g := 0; g < goroutines; g++ {
-		go func(seed uint64) {
-			defer wg.Done()
+		seed := uint64(g)
+		wg.Go(func() {
 			for i := uint64(0); i < iterations; i++ {
 				q.push(seed*iterations + i)
 			}
-		}(uint64(g))
+		})
 	}
 
 	for g := 0; g < goroutines; g++ {
-		go func(seed uint64) {
-			defer wg.Done()
+		seed := uint64(g)
+		wg.Go(func() {
 			for i := uint64(0); i < iterations; i++ {
 				q.contains(seed*iterations + i)
 			}
-		}(uint64(g))
+		})
 	}
 
 	wg.Wait()
