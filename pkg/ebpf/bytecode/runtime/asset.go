@@ -98,6 +98,10 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	defer f.Close()
 
 	if err := secureRuntimeDir(outputDir); err != nil {
+		// Surface the policy refusal distinctly so operators can tell "runtime
+		// compilation disabled because the output directory is not under root's
+		// control" apart from an ordinary compilation failure.
+		log.Warnf("skipping runtime compilation of %s: %v", a.filename, err)
 		return nil, err
 	}
 
