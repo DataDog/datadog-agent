@@ -8,6 +8,7 @@
 #include "bpf_builtins.h"
 #include "map-defs.h"
 #include "compiler.h"
+#include "preempt.h"
 #include <asm-generic/errno-base.h>
 
 #define LOCK_CONTENTION_IOCTL_ID 0x70C13
@@ -23,6 +24,10 @@ volatile const u64 __per_cpu_offset = 0;
 volatile const u64 num_of_ranges = 0;
 volatile const u64 log2_num_of_ranges = 0;
 volatile const u64 num_cpus = 0;
+
+/** error stats **/ 
+int nesting_depth_fail;
+
 
 static __always_inline bool is_bpf_map(u32 fd, struct file** bpf_map_file) {
     struct file **fdarray;
@@ -350,22 +355,55 @@ BPF_PERCPU_ARRAY_MAP(ranges, struct lock_range, 0);
 
 __hidden int data_map_full;
 
+struct loop_variables {
+    u64 start;
+    u64 mid;
+    u64 end;
+};
+
+// nesting depth is all the different context in which ebpf can be executed
+// task, softirq, hardirq, nmi
+#define NESTING_DEPTH 4
+
+// this percpu array is meant to hold loop variables used for holding the binary search 
+// state in `can_record`. We need to place these in a map because the kernel 
+// tracks the bounds of stack slots as well. This causes the verifier to be unable to effectively
+// prune the state space of the program causing an explosion in complexity. The verifier however cannot
+// track the bounds inside maps, so all values read from a map are labelled as unbounded. This helps
+// the verifier prune the binary search state space more effectively.
+//
+// The reason we need the percpu map to be of length `NESTING_DEPTH` is because this is the possible nesting depth
+// for the trace_contention_begin tracepoint. Mutexes and read-write semaphores in particular only disable preemption
+// but not interrupts. So we can get multiple levels of nesting on the same CPU. All invocation of trace_contention_begin
+// happen with a preemption disabled block, so the nesting has an upper bound.
+BPF_PERCPU_ARRAY_MAP(lvars, struct loop_variables, NESTING_DEPTH);
+
 static __always_inline int can_record(u64 *ctx, struct lock_range* range)
 {
     u64 addr = ctx[0];
 
-    u64 end = num_of_ranges - 1;
-    u64 start = 0;
+    int nesting_depth = get_nesting_depth();
+    if (nesting_depth < 0) {
+        __sync_fetch_and_add(&nesting_depth_fail, 1);
+        return false;
+    }
 
-    u64 m;
+    struct loop_variables* loop_vars = bpf_map_lookup_elem(&lvars, &nesting_depth);
+    if (!loop_vars)
+        return false;
+
+
+    bpf_memset(loop_vars, 0, sizeof(struct loop_variables));
+    loop_vars->end = num_of_ranges - 1;
+
     struct lock_range *test_range;
     for (int i = 0; i < log2_num_of_ranges+1; i++) {
-        if (start > end)
+        if (loop_vars->start > loop_vars->end)
             return false;
 
-        m = start + ((end - start) / 2);
+        loop_vars->mid = loop_vars->start + ((loop_vars->end - loop_vars->start) / 2);
 
-        test_range = bpf_map_lookup_elem(&ranges, &m);
+        test_range = bpf_map_lookup_elem(&ranges, &loop_vars->mid);
         if (!test_range)
             return false;
 
@@ -375,9 +413,9 @@ static __always_inline int can_record(u64 *ctx, struct lock_range* range)
         }
 
         if (addr < test_range->addr_start)
-            end = m - 1;
+            loop_vars->end = loop_vars->mid - 1;
         else
-            start = m + 1;
+            loop_vars->start = loop_vars->mid + 1;
     }
 
     return false;

@@ -325,6 +325,11 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 	}
 
+	preemptCountMissing, err := VerifyKernelFuncs("__preempt_count")
+	if err != nil {
+		return fmt.Errorf("error verifying kernel symbol: %w", err)
+	}
+
 	var ranges uint32
 	var cpus uint32
 	if err := LoadCOREAsset("lock_contention.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
@@ -355,6 +360,11 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		for ksym, addr := range kaddrs {
 			constants[ksym] = addr
 		}
+
+		if len(preemptCountMissing) == 0 {
+			constants["use_preempt_count"] = 1
+		}
+
 		constants["num_of_ranges"] = uint64(ranges)
 		constants["log2_num_of_ranges"] = uint64(math.Log2(float64(ranges)))
 		for k, v := range constants {

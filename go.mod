@@ -247,7 +247,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/cilium/ebpf v0.22.0
+	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
