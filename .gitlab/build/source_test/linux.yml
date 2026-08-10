@@ -159,6 +159,8 @@ tests_serverless-init:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
+    # TODO: remove once Bazel is used to test the Agent
+    - dda inv -- -e schema.codegen --fix
     - go test -tags "serverless,otlp,test" ./cmd/serverless-init/.
 
 tests_serverless-init-logs:
@@ -171,6 +173,8 @@ tests_serverless-init-logs:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
+    # TODO: remove once Bazel is used to test the Agent
+    - dda inv -- -e schema.codegen --fix
     - go test -tags "serverless,otlp,test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
