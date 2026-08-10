@@ -191,3 +191,56 @@ func TestSCPCommand_Timeout(t *testing.T) {
 	}, "this is the data")
 	assert.ErrorContains(t, err, "context deadline exceeded")
 }
+
+func TestPagerCommand(t *testing.T) {
+	config := "ASA Version 9.24(1)\nhostname FW01\n"
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{
+		"terminal pager 0":           Ok(""),
+		"more system:running-config": Ok(config),
+	})
+	client := MustConnect(t, srv)
+
+	cmd := &profile.PlainCommand{
+		Command:       "more system:running-config",
+		SetupCommands: []string{"terminal pager 0"},
+		Validator: profile.Validator{
+			Require: []*regexp.Regexp{
+				regexp.MustCompile(`ASA Version \d+\.\d+\(\d+\)`),
+			},
+			Reject: []*regexp.Regexp{
+				regexp.MustCompile(`(?i)(<---\s*More\s*--->|--More--)`),
+			},
+		},
+	}
+
+	result, err := ExecuteCommand(context.Background(), client, cmd)
+	require.NoError(t, err)
+	assert.Empty(t, result.Error)
+	assert.Equal(t, config, result.Output)
+	assert.Equal(t, []string{"terminal pager 0\nmore system:running-config"}, srv.Received())
+}
+
+func TestPagerCommand_MoreMarkerRejected(t *testing.T) {
+	truncated := "ASA Version 9.24(1)\nhostname FW01\n <--- More --->"
+	srv := StartFakeSSHServer(t, map[string]FakeResponse{
+		"terminal pager 0":           Ok(""),
+		"more system:running-config": Ok(truncated),
+	})
+	client := MustConnect(t, srv)
+
+	cmd := &profile.PlainCommand{
+		Command:       "more system:running-config",
+		SetupCommands: []string{"terminal pager 0"},
+		Validator: profile.Validator{
+			Require: []*regexp.Regexp{
+				regexp.MustCompile(`ASA Version \d+\.\d+\(\d+\)`),
+			},
+			Reject: []*regexp.Regexp{
+				regexp.MustCompile(`(?i)(<---\s*More\s*--->|--More--)`),
+			},
+		},
+	}
+
+	_, err := ExecuteCommand(context.Background(), client, cmd)
+	assert.ErrorContains(t, err, "matches failure regex")
+}
