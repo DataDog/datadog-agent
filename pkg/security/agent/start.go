@@ -14,6 +14,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -23,7 +24,7 @@ import (
 )
 
 // StartRuntimeSecurity starts runtime security
-func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, compression compression.Component, secretsComp secrets.Component) (*RuntimeSecurityAgent, error) {
+func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, compression compression.Component, secretsComp secrets.Component, delegatedAuthComp delegatedauth.Component) (*RuntimeSecurityAgent, error) {
 	if !config.GetBool("runtime_security_config.enabled") {
 		log.Info("Datadog runtime security agent disabled by config")
 		return nil, nil
@@ -43,24 +44,24 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	stopper.Add(agent)
 
 	useSecRuntimeTrack := config.GetBool("runtime_security_config.use_secruntime_track")
-	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
+	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack, delegatedAuthComp)
 	if err != nil {
 		_ = log.Error(err)
 	}
 	stopper.Add(ctx)
 
-	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression, secretsComp)
+	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression, secretsComp, delegatedAuthComp)
 	if err != nil {
 		return nil, err
 	}
 
-	secInfoEndpoints, secInfoCtx, err := common.NewLogContextSecInfo()
+	secInfoEndpoints, secInfoCtx, err := common.NewLogContextSecInfo(delegatedAuthComp)
 	if err != nil {
 		_ = log.Error(err)
 	}
 	stopper.Add(secInfoCtx)
 
-	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoCtx, compression, secretsComp)
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoCtx, compression, secretsComp, delegatedAuthComp)
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,7 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -91,6 +92,13 @@ func newConfig(deps dependencies) (*cfg, error) {
 		// Feature detection still needs to run here since LoadDatadog (which
 		// normally triggers it) is skipped on this path.
 		pkgconfigenv.DetectFeatures(config)
+
+		//
+		// Still call ConfigureDelegatedAuth: skipping setupConfig also skips its internal call,
+		// so a streamed snapshot's delegated-auth directives would otherwise never be registered.
+		if err := pkgconfigsetup.ConfigureDelegatedAuth(context.Background(), config, deps.DelegatedAuth, deps.Secret); err != nil {
+			log.Errorf("Failed to configure delegated authentication for streamed config: %v. Agent will continue without delegated auth.", err)
+		}
 		return &cfg{Config: config, warnings: warnings}, nil
 	}
 
@@ -110,6 +118,12 @@ func newConfig(deps dependencies) (*cfg, error) {
 	if deps.Params.configLoadSecurityAgent {
 		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
 			return returnErrFct(err)
+		}
+
+		// Re-run now that security-agent.yaml is merged in, so delegated-auth directives that
+		// only exist there (not in the main datadog.yaml) get picked up too.
+		if err := pkgconfigsetup.ConfigureDelegatedAuth(context.Background(), config, deps.DelegatedAuth, deps.Secret); err != nil {
+			log.Errorf("Failed to re-configure delegated authentication after merging security-agent config: %v. Agent will continue without delegated auth.", err)
 		}
 	}
 
