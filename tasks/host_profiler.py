@@ -14,6 +14,7 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.libs.releasing.json import get_current_milestone
 from tasks.libs.releasing.version import query_version
+from tasks.schema.generate import schema_codegen
 
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
@@ -111,6 +112,9 @@ def update_golden_tests(ctx):
     Update golden test files for host-profiler converters
     """
     print("Updating golden test files...")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     test_paths = ["comp/host-profiler/collector/impl/converters", "comp/host-profiler/collector/impl/agentprovider"]
     for path in test_paths:

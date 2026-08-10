@@ -1,4 +1,3 @@
-using CustomActions.Tests.Helpers;
 using Datadog.CustomActions.Interfaces;
 using Moq;
 
@@ -13,8 +12,6 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
 
         public Datadog.CustomActions.ConfigureUserCustomActions Create(string rollbackDataName = "ConfigureUser")
         {
-            TestDirectory.PrepareRollbackStore();
-
             return new Datadog.CustomActions.ConfigureUserCustomActions(
                 Session.Object,
                 rollbackDataName,
