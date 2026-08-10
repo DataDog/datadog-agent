@@ -935,14 +935,12 @@ func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
 	const iterations = 10
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 	for i := 0; i < goroutines; i++ {
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := 0; j < iterations; j++ {
 				_ = c.initHTTPClient()
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
