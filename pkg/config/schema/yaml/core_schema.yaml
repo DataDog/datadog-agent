@@ -5426,6 +5426,25 @@ properties:
         node_type: setting
         type: string
         default: ''
+  agent_workload_balancing:
+    node_type: section
+    type: object
+    visibility: public
+    description: This section configures Agent workload balancing for Network Device
+      Monitoring.
+    tags:
+    - template_section:CoreAgent
+    - full-agent-only:true
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to enable Agent workload balancing. When enabled, the Agent only runs checks
+          for the workload balancing groups it has been assigned, allowing a device to be moved
+          between Agents without restarting either one.
   config_id:
     node_type: setting
     type: string
