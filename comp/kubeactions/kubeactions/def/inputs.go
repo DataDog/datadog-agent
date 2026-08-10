@@ -33,6 +33,7 @@ type ResourceRef struct {
 	// (the handler then falls back to the PAR job id for ActionID).
 	ActionID    string `json:"actionId,omitempty"`
 	RequestedBy string `json:"requestedBy,omitempty"`
+	UserUUID    string `json:"userUuid,omitempty"`
 }
 
 // DeletePodInputs are the inputs for the delete_pod action.

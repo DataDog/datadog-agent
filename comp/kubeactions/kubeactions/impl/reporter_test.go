@@ -44,6 +44,7 @@ func sampleReport() kubeactions.ActionReport {
 		ActionType:        kubeactions.ActionTypeDeletePod,
 		OrgID:             42,
 		RequestedBy:       "alice",
+		UserUUID:          "user-uuid-123",
 		ResourceID:        "pod-uid",
 		ResourceKind:      "Pod",
 		ResourceName:      "my-pod",
@@ -73,6 +74,7 @@ func TestResultReporter_ReportReceived(t *testing.T) {
 	assert.Equal(t, "action-1", ev.ActionID)
 	assert.Equal(t, int64(42), ev.OrgID)
 	assert.Equal(t, "alice", ev.RequestedBy)
+	assert.Equal(t, "user-uuid-123", ev.UserUUID)
 	assert.Equal(t, "my-cluster", ev.ClusterName)
 	assert.Equal(t, "cluster-id", ev.ClusterID)
 	assert.Equal(t, "Pod", ev.ResourceKind)

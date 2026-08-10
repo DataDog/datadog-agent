@@ -63,6 +63,7 @@ type ActionReport struct {
 	ActionType        string
 	OrgID             int64
 	RequestedBy       string
+	UserUUID          string
 	ResourceID        string
 	ResourceKind      string
 	ResourceName      string
@@ -79,5 +80,6 @@ func ReportFromResource(actionType string, r ResourceRef) ActionReport {
 		ResourceKind:      r.Kind,
 		ResourceName:      r.Name,
 		ResourceNamespace: r.Namespace,
+		UserUUID:          r.UserUUID,
 	}
 }

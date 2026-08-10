@@ -36,6 +36,7 @@ type ActionResultEvent struct {
 	ClusterID         string            `json:"cluster_id"`
 	ResourceID        string            `json:"resource_id"`
 	RequestedBy       string            `json:"requested_by"`
+	UserUUID          string            `json:"user_uuid"`
 	Timestamp         string            `json:"timestamp"`
 	Message           string            `json:"message"`
 	Payloads          map[string][]byte `json:"payloads,omitempty"`
@@ -102,6 +103,7 @@ func (r *ResultReporter) report(actionKey ActionKey, action *kubeactions.KubeAct
 		ClusterID:         r.clusterID,
 		ResourceID:        resourceID,
 		RequestedBy:       action.GetRequestedBy(),
+		UserUUID:          action.GetUserUuid(),
 		Timestamp:         ts.Format(time.RFC3339),
 		Message:           msg,
 		Payloads:          payloads,
