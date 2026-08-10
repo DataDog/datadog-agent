@@ -41,17 +41,35 @@ func TestRuleSetCoverageReport(t *testing.T) {
 	report := rs.GetRuleCoverageReport()
 	require.NotNil(t, report)
 
-	// 4 paths for the open rule, 2 for the mkdir one
+	// 5 paths for the open rule, 2 for the mkdir one
 	assert.Equal(t, 2, report.TrackedRules)
 	assert.Equal(t, 0, report.UntrackedRules)
-	assert.Equal(t, 6, report.TotalPaths)
+	assert.Equal(t, 7, report.TotalPaths)
 	assert.Equal(t, 0, report.CoveredPaths)
 	require.Len(t, report.Rules, 2)
 
 	// the rules are reported grouped by event type, mkdir before open
 	assert.Equal(t, "mkdir", report.Rules[0].EventType)
 	assert.Equal(t, "open", report.Rules[1].EventType)
-	assert.Equal(t, "A && (B || C)", report.Rules[1].Coverage.Skeleton)
+
+	// resolving the file path costs more than reading the credentials, so the
+	// alternative is tested before the path comparison it is written after
+	open := report.Rules[1].Coverage
+	assert.Equal(t, "(B || C) && A", open.Skeleton)
+	assert.Equal(t, `open.file.path == "/etc/passwd"`, open.Leaves[0].Expression)
+	assert.Equal(t, "A", open.Leaves[0].Name)
+
+	var paths []string
+	for _, path := range open.Paths {
+		paths = append(paths, path.String())
+	}
+	assert.Equal(t, []string{
+		"B=false C=false",
+		"B=false C=true A=false",
+		"B=false C=true A=true",
+		"B=true A=false",
+		"B=true A=true",
+	}, paths)
 
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
@@ -62,8 +80,8 @@ func TestRuleSetCoverageReport(t *testing.T) {
 	report = rs.GetRuleCoverageReport()
 	assert.Equal(t, 1, report.CoveredPaths)
 	assert.Equal(t, uint64(1), report.Rules[1].Coverage.Evaluations)
-	assert.Equal(t, "A=true B=true", report.Rules[1].Coverage.Paths[3].String())
-	assert.Equal(t, uint64(1), report.Rules[1].Coverage.Paths[3].Hits)
+	assert.Equal(t, "B=true A=true", report.Rules[1].Coverage.Paths[4].String())
+	assert.Equal(t, uint64(1), report.Rules[1].Coverage.Paths[4].Hits)
 
 	// the report round trips through JSON, which is how it reaches the CLI
 	encoded, err := json.Marshal(report)
@@ -77,11 +95,11 @@ func TestRuleSetCoverageReport(t *testing.T) {
 
 	// and renders as a human readable summary
 	rendered := decoded.String()
-	assert.Contains(t, rendered, "Rule coverage: 1/6 paths (16.7%) over 2 rules")
-	assert.Contains(t, rendered, "A && (B || C)")
+	assert.Contains(t, rendered, "Rule coverage: 1/7 paths (14.3%) over 2 rules")
+	assert.Contains(t, rendered, "(B || C) && A")
 	assert.Contains(t, rendered, `A = open.file.path == "/etc/passwd"`)
-	assert.Contains(t, rendered, "[x]          1  A=true B=true")
-	assert.Contains(t, rendered, "[ ]          0  A=false")
+	assert.Contains(t, rendered, "[x]          1  B=true A=true")
+	assert.Contains(t, rendered, "[ ]          0  B=false C=false")
 
 	rs.ResetRuleCoverage()
 	assert.Equal(t, 0, rs.GetRuleCoverageReport().CoveredPaths)

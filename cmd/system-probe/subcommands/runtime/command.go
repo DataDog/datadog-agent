@@ -289,6 +289,11 @@ func ruleCoverageCommands(globalParams *command.GlobalParams) []*cobra.Command {
 expression have been walked by an evaluation at least once. A path that was
 never walked is a branch of the rule that no observed workload exercised.
 
+Each rule is reported as a skeleton, such as 'A && (B || C)', naming its
+sub-expressions after their position in the rule but laid out in the order the
+evaluator tests them, cheapest first. A skeleton such as 'B && A' therefore
+means the operands were reordered.
+
 Requires 'runtime_security_config.rule_coverage.enabled' to be set in the
 system-probe configuration.`,
 		RunE: func(_ *cobra.Command, _ []string) error {

@@ -9,6 +9,7 @@ package eval
 import (
 	"fmt"
 	"math/bits"
+	"slices"
 	"strings"
 	"sync/atomic"
 )
@@ -24,6 +25,11 @@ import (
 //
 // The paths are enumerated statically when the rule is compiled, and the
 // evaluator records which one was taken on every evaluation.
+//
+// Which leaves a path evaluates depends on the order the operators test their
+// operands in, and And and Or test the cheapest one first. The skeleton the paths
+// are enumerated from therefore follows that same order, through swapsOperands,
+// rather than the order the operands appear in the rule.
 
 const (
 	// maxCoverageLeaves is the highest number of boolean leaves a rule can hold
@@ -82,8 +88,10 @@ type covNode struct {
 	// covLeaf. idx is the position of the leaf in the coverage bitmaps, and is
 	// only assigned once the whole skeleton is known: it stays negative for
 	// leaves that ended up unreachable from the root, and for every leaf of a
-	// rule whose coverage could not be enumerated.
+	// rule whose coverage could not be enumerated. It follows the evaluation
+	// order, whereas name follows the order the leaves appear in the rule.
 	idx    int
+	name   string
 	offset int
 	length int
 	label  string
@@ -134,11 +142,21 @@ func (s *State) covOperand(operand *BoolEvaluator, offset int) *BoolEvaluator {
 // covJoin records that the given evaluator combines the two operands with the
 // given boolean operator. The evaluator is always freshly built by And or Or, so
 // it is never shared with another rule.
+//
+// The children are stored in the order the operator evaluates them, not in the
+// order they appear in the rule: the paths have to be enumerated the way they are
+// walked, otherwise the recorded ones would match none of them.
 func (s *State) covJoin(joined *BoolEvaluator, kind covKind, left, right *BoolEvaluator) {
 	if s.cov == nil {
 		return
 	}
-	joined.covNode = &covNode{builder: s.cov, kind: kind, left: left.covNode, right: right.covNode, idx: -1}
+
+	first, second := left.covNode, right.covNode
+	if swapsOperands(left, right) {
+		first, second = second, first
+	}
+
+	joined.covNode = &covNode{builder: s.cov, kind: kind, left: first, right: second, idx: -1}
 }
 
 // covNegate records that the given evaluator is the negation of the operand
@@ -354,6 +372,11 @@ type RuleCoverage struct {
 	paths  []covPath
 	index  map[covPathKey]int
 
+	// inRuleOrder lists the leaves, by index, in the order they appear in the
+	// rule. The indexes themselves follow the evaluation order, which the
+	// operators are free to reorder.
+	inRuleOrder []int
+
 	// reason is set when the paths of the rule could not be enumerated, in
 	// which case nothing is recorded
 	reason string
@@ -390,6 +413,20 @@ func newRuleCoverage(expr string, root *covNode) *RuleCoverage {
 
 	coverage.leaves = make([]*covNode, count)
 	collectLeaves(root, coverage.leaves)
+
+	// name the leaves after their position in the rule rather than after their
+	// evaluation order, so that the legend of the report reads in the same order
+	// as the rule itself
+	coverage.inRuleOrder = make([]int, count)
+	for i := range coverage.inRuleOrder {
+		coverage.inRuleOrder[i] = i
+	}
+	slices.SortStableFunc(coverage.inRuleOrder, func(a, b int) int {
+		return coverage.leaves[a].offset - coverage.leaves[b].offset
+	})
+	for position, leaf := range coverage.inRuleOrder {
+		coverage.leaves[leaf].name = covLeafName(position)
+	}
 
 	coverage.index = make(map[covPathKey]int, len(coverage.paths))
 	for i, path := range coverage.paths {
@@ -531,7 +568,10 @@ type Coverage struct {
 	// Expression is the rule expression
 	Expression string `json:"expression"`
 	// Skeleton is the boolean structure of the rule, with every leaf replaced by
-	// its short name, for instance `A && (B || C)`
+	// its short name, for instance `A && (B || C)`. The leaves are named after
+	// their position in the rule but the structure follows the evaluation order,
+	// so a skeleton such as `B && A` means the operands were reordered to test
+	// the cheapest one first.
 	Skeleton string `json:"skeleton"`
 	// Unsupported explains why the coverage of the rule is not tracked. The
 	// remaining fields are empty when it is set.
@@ -561,16 +601,17 @@ func (c *RuleCoverage) Report() *Coverage {
 
 	report.Skeleton = covRender(c.root, c.root.kind)
 
-	report.Leaves = make([]LeafCoverage, len(c.leaves))
-	for i, leaf := range c.leaves {
-		report.Leaves[i] = LeafCoverage{
-			Name:       covLeafName(i),
+	report.Leaves = make([]LeafCoverage, 0, len(c.leaves))
+	for _, i := range c.inRuleOrder {
+		leaf := c.leaves[i]
+		report.Leaves = append(report.Leaves, LeafCoverage{
+			Name:       leaf.name,
 			Expression: leaf.label,
 			Offset:     leaf.offset,
 			Length:     leaf.length,
 			True:       c.leafTrue[i].Load(),
 			False:      c.leafFalse[i].Load(),
-		}
+		})
 	}
 
 	report.TotalPaths = len(c.paths)
@@ -587,7 +628,7 @@ func (c *RuleCoverage) Report() *Coverage {
 		conditions := make([]PathCondition, len(path.order))
 		for j, leaf := range path.order {
 			conditions[j] = PathCondition{
-				Leaf:  covLeafName(leaf),
+				Leaf:  c.leaves[leaf].name,
 				Value: path.key.values&(uint64(1)<<uint(leaf)) != 0,
 			}
 		}
@@ -630,7 +671,7 @@ func covLeafName(index int) string {
 func covRender(node *covNode, parent covKind) string {
 	switch node.kind {
 	case covLeaf:
-		return covLeafName(node.idx)
+		return node.name
 	case covConst:
 		if node.value {
 			return "true"

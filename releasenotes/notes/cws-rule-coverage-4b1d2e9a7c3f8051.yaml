@@ -6,8 +6,9 @@ features:
     rule have been taken. For a rule ``A && (B || C)`` the tracked paths are
     ``A=false``, ``A=true B=false C=false``, ``A=true B=false C=true`` and
     ``A=true B=true``, so the branches of a rule that no workload exercised can
-    be told apart from the ones that did. The report is available through
+    be told apart from the ones that did. The paths follow the order the
+    operators actually evaluate their operands in, which is by increasing cost
+    rather than by position in the rule. The report is available through
     ``system-probe runtime rule-coverage dump``, as a summary or as JSON. This
-    adds a small cost to every rule evaluation and disables an evaluation order
-    optimisation, so it is meant for testing and rule authoring rather than for
-    production.
+    adds a small cost to every rule evaluation, so it is meant for testing and
+    rule authoring rather than for production.

@@ -83,9 +83,8 @@ properties:
           Set to true to track, for every loaded rule, which of the evaluation
           paths through its expression have been taken. The report is available
           through `system-probe runtime rule-coverage dump`. This adds a small
-          cost to every rule evaluation and disables an evaluation order
-          optimisation, so it is meant for testing and rule authoring rather
-          than for production.
+          cost to every rule evaluation, so it is meant for testing and rule
+          authoring rather than for production.
   activity_dump:
     node_type: section
     type: object

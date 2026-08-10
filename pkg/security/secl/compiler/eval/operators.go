@@ -33,6 +33,14 @@ func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
 	return isDc
 }
 
+// swapsOperands reports whether And and Or evaluate b before a, which they do to
+// test the cheapest operand first. Rule coverage relies on this to enumerate the
+// evaluation paths of a rule in the order they are actually walked, so the
+// decision has to be taken here rather than duplicated.
+func swapsOperands(a *BoolEvaluator, b *BoolEvaluator) bool {
+	return a.EvalFnc != nil && b.EvalFnc != nil && a.Weight > b.Weight
+}
+
 // Unary evaluator
 func Unary(a *BoolEvaluator, state *State) (*BoolEvaluator, error) {
 	if a.Field != "" {
@@ -66,10 +74,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 			}
 		}
 
-		// evaluate the cheapest operand first, unless coverage is being tracked:
-		// the recorded evaluation paths have to follow the order the paths were
-		// statically enumerated in
-		if a.Weight > b.Weight && state.cov == nil {
+		if swapsOperands(a, b) {
 			tmp := ea
 			ea = eb
 			eb = tmp
@@ -198,10 +203,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 			}
 		}
 
-		// evaluate the cheapest operand first, unless coverage is being tracked:
-		// the recorded evaluation paths have to follow the order the paths were
-		// statically enumerated in
-		if a.Weight > b.Weight && state.cov == nil {
+		if swapsOperands(a, b) {
 			tmp := ea
 			ea = eb
 			eb = tmp

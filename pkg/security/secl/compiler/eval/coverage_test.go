@@ -138,10 +138,18 @@ func TestCoverageLeafExpressions(t *testing.T) {
 	report := rule.GetCoverage().Report()
 	require.Len(t, report.Leaves, 3)
 
+	// the leaves are named after their position in the rule, and reported in that
+	// order, whatever order the operators evaluate them in
 	assert.Equal(t, `process.name == "aaa"`, report.Leaves[0].Expression)
+	assert.Equal(t, "A", report.Leaves[0].Name)
 	assert.Equal(t, `process.uid in [1, 2]`, report.Leaves[1].Expression)
+	assert.Equal(t, "B", report.Leaves[1].Name)
 	assert.Equal(t, `process.is_root`, report.Leaves[2].Expression)
-	assert.Equal(t, `A && (B || !C)`, report.Skeleton)
+	assert.Equal(t, "C", report.Leaves[2].Name)
+
+	// the alternative tests the bare boolean field before the array membership,
+	// which is the more expensive of the two
+	assert.Equal(t, `A && (!C || B)`, report.Skeleton)
 
 	// every leaf points back at its own text in the rule expression
 	for _, leaf := range report.Leaves {
@@ -231,6 +239,45 @@ func TestCoverageIterator(t *testing.T) {
 		"A=true B=false => false": 0,
 		"A=true B=true => true":   1,
 	}, pathSignatures(report))
+}
+
+// TestCoverageOperandOrder checks that the paths are enumerated in the order the
+// operators evaluate their operands, which is by increasing cost rather than by
+// position in the rule
+func TestCoverageOperandOrder(t *testing.T) {
+	// scanning an array costs more than comparing a single integer, so the
+	// conjunction tests its second operand first
+	rule := coveredRule(t, `process.uid in [1, 2, 3] && process.gid == 0`)
+
+	report := rule.GetCoverage().Report()
+	assert.Equal(t, "B && A", report.Skeleton)
+	assert.Equal(t, `process.uid in [1, 2, 3]`, report.Leaves[0].Expression)
+	assert.Equal(t, `process.gid == 0`, report.Leaves[1].Expression)
+
+	var got []string
+	for _, path := range report.Paths {
+		got = append(got, fmt.Sprintf("%s => %t", path, path.Result))
+	}
+	assert.Equal(t, []string{
+		"B=false => false",
+		"B=true A=false => false",
+		"B=true A=true => true",
+	}, got)
+
+	// the array is never scanned when the single comparison already fails
+	event := &testEvent{}
+	event.process.uid = 1
+	event.process.gid = 1
+	assert.False(t, rule.Eval(NewContext(event)))
+
+	report = rule.GetCoverage().Report()
+	assert.Zero(t, report.Unmatched)
+	assert.Equal(t, map[string]uint64{
+		"B=false => false":        1,
+		"B=true A=false => false": 0,
+		"B=true A=true => true":   0,
+	}, pathSignatures(report))
+	assert.Zero(t, report.Leaves[0].True+report.Leaves[0].False)
 }
 
 // TestCoverageSharedMacro checks that two rules sharing a macro get leaves of
