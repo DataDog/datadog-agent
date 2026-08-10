@@ -351,6 +351,31 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
 		assert.False(t, hasK8sApps)
 	})
+
+	t.Run("kubeactions bundle is auto-allowed when kubeactions.enabled is true", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		for _, action := range []string{"deletePod", "restartDeployment", "patchDeployment", "rollbackDeployment", "getResource"} {
+			assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has(action), "expected %s to be allowed", action)
+		}
+	})
+
+	t.Run("kubeactions bundle is not allowed when kubeactions.enabled is false", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
+		assert.False(t, has)
+	})
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {

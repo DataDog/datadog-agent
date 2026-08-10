@@ -34,7 +34,6 @@ import (
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -170,7 +169,6 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
-		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
 	)
@@ -711,7 +709,6 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		hostnameimpl.MockModule(),
 		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),
-		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),
 		filterlistmock.MockModule(),
