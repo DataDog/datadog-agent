@@ -187,8 +187,11 @@ func httpSender(
 		// worker counts low.
 		queueCount = sender.DefaultQueuesCount
 		workersPerQueue = sender.DefaultWorkersPerQueue
-		minSenderConcurrency = numberOfPipelines
-		maxSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
+		// RTT fairness is retired: run a fixed sender concurrency (min == max, so the worker
+		// pool never scales with latency) instead of dynamically scaling with it. Operators who
+		// need to control the connection count should set the endpoint's batch_max_concurrent_send.
+		minSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
+		maxSenderConcurrency = minSenderConcurrency
 		if endpoints.BatchMaxConcurrentSend != constants.DefaultBatchMaxConcurrentSend {
 			// If the BatchMaxConcurrentSend parameter is set, we use it to control the concurrency of the destination.
 			// Legacy behavior ran numberOfPipelines senders, each with a concurrency of BatchMaxConcurrentSend, so
