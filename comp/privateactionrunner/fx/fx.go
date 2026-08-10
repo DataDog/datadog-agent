@@ -13,9 +13,22 @@ import (
 	"go.uber.org/fx"
 )
 
+type shutdownerAdapter struct {
+	shutdowner fx.Shutdowner
+}
+
+func (s shutdownerAdapter) Shutdown() error {
+	return s.shutdowner.Shutdown()
+}
+
+func newShutdownerAdapter(shutdowner fx.Shutdowner) privateactionrunnerimpl.Shutdowner {
+	return shutdownerAdapter{shutdowner: shutdowner}
+}
+
 // Module defines the fx options for this component
 func Module() fxutil.Module {
 	return fxutil.Component(
+		fx.Provide(newShutdownerAdapter),
 		fxutil.ProvideComponentConstructor(
 			privateactionrunnerimpl.NewComponent,
 		),
@@ -28,6 +41,7 @@ func Module() fxutil.Module {
 // ExecutorModule defines the fx options for the on-demand executor mode.
 func ExecutorModule() fxutil.Module {
 	return fxutil.Component(
+		fx.Provide(newShutdownerAdapter),
 		fxutil.ProvideComponentConstructor(
 			privateactionrunnerimpl.NewExecutorComponent,
 		),

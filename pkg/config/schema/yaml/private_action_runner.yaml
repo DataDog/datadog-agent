@@ -117,6 +117,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  idle_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
   log_file:
     node_type: setting
     type: string

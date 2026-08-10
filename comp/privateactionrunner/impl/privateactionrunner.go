@@ -60,11 +60,17 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
+// Shutdowner initiates shutdown of the application hosting the executor.
+type Shutdowner interface {
+	Shutdown() error
+}
+
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
 	Log           log.Component
 	Lifecycle     compdef.Lifecycle
+	Shutdowner    Shutdowner
 	RcClient      rcclient.Component
 	Hostname      hostname.Component
 	Tagger        tagger.Component
@@ -102,6 +108,7 @@ type PrivateActionRunner struct {
 	executorServer  *executor.Server
 	encryptionStore *encryptioncontext.Store
 	executorDone    chan struct{}
+	shutdowner      Shutdowner
 
 	telemetry *telemetry.Telemetry
 
@@ -160,6 +167,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	runner.ownsMetricsClient = true
+	runner.shutdowner = reqs.Shutdowner
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.StartExecutor,
 		OnStop:  runner.StopExecutor,
@@ -321,6 +329,13 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}
 	serveOpts := executor.ServeOptions{
 		DrainTimeout: drainTimeout,
+		IdleTimeout:  executorIdleTimeout(p.coreConfig),
+		OnIdleTimeout: func() {
+			p.logger.Info("Private action runner executor idle timeout elapsed; shutting down")
+			if err := p.shutdowner.Shutdown(); err != nil {
+				p.logger.Errorf("Private action runner executor failed to initiate shutdown: %v", err)
+			}
+		},
 	}
 	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
 	tlsConfig := p.ipc.GetTLSServerConfig()
@@ -334,6 +349,26 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+// executorIdleTimeoutFactor keeps the executor's self-exit well behind the
+// control plane's own idle stop, so the watchdog only fires when the control
+// plane is gone rather than racing it.
+const executorIdleTimeoutFactor = 3
+
+// executorIdleTimeout is how long the executor tolerates having no work before
+// exiting on its own. It is derived from the same setting the control plane uses
+// to stop an idle executor, so operators have one knob.
+//
+// This is a backstop: the control plane and the executor are siblings under
+// dd-procmgrd, so if the control plane is killed or stopped on its own, nothing
+// else would ever stop the executor.
+func executorIdleTimeout(cfg model.Reader) time.Duration {
+	idle := cfg.GetInt("private_action_runner.idle_timeout_seconds")
+	if idle <= 0 {
+		return 0
+	}
+	return time.Duration(idle) * executorIdleTimeoutFactor * time.Second
 }
 
 // StopExecutor gracefully stops the executor gRPC server and releases resources.
