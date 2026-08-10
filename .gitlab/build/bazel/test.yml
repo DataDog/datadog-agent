@@ -15,7 +15,7 @@
   variables:
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     BEP_FILE: $CI_PROJECT_DIR/bazel-bep.json
-    RESULT_JSON: output.json
+    RESULT_JSON: test_output.json
   after_script:
     - dda inv -- -e bazel.process-test-results --bep-file=$BEP_FILE --junit-tar=junit-${CI_JOB_NAME}.tgz --result-json=$RESULT_JSON
     - !reference [.upload_junit_source]
@@ -23,8 +23,10 @@
     expire_in: 2 weeks
     when: always
     paths:
+      - $RESULT_JSON
+      - test_output_unified.json
       - junit-*.tgz
-      - bazel-bep-*.json
+      - bazel-bep.json
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
@@ -81,8 +83,10 @@ bazel:test:macos-arm64:
     - !reference [.bazel:test:reporting, after_script]
   artifacts:
     paths:
+      - $RESULT_JSON
+      - test_output_unified.json
       - junit-*.tgz
-      - bazel-bep-*.json
+      - bazel-bep.json
       - bazel-exec.log
 
 # Windows splits the build from the Go tests, unlike the other platforms: the

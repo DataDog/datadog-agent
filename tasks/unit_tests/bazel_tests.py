@@ -12,7 +12,7 @@ from tasks.bazel import (
     _is_gotestsum_shaped,
     _label_to_import_path,
     _parse_bep,
-    _test_xml_candidates,
+    _test_output_candidates,
     _test_xml_funcs,
 )
 
@@ -30,26 +30,28 @@ class TestLabelToImportPath(unittest.TestCase):
 
 class TestTestXmlCandidates(unittest.TestCase):
     def test_file_uri_only(self):
-        paths = _test_xml_candidates("//pkg/foo:bar_test", "file:///tmp/test.xml", "cfg1", None, {})
+        paths = _test_output_candidates("//pkg/foo:bar_test", "file:///tmp/test.xml", "cfg1", None, {}, "test.xml")
         self.assertEqual(paths, [Path("/tmp/test.xml")])
 
     def test_bytestream_uri_reconstructed_from_testlogs(self):
-        paths = _test_xml_candidates(
+        paths = _test_output_candidates(
             "//pkg/foo:bar_test",
             "bytestream://example/blobs/abc/123",
             "cfg1",
             "/exec/root",
             {"cfg1": Path("bazel-out/k8-fastbuild/testlogs")},
+            "test.xml",
         )
         self.assertEqual(paths, [Path("/exec/root/bazel-out/k8-fastbuild/testlogs/pkg/foo/bar_test/test.xml")])
 
     def test_both_candidates_in_priority_order(self):
-        paths = _test_xml_candidates(
+        paths = _test_output_candidates(
             "//pkg/foo:bar_test",
             "file:///tmp/test.xml",
             "cfg1",
             "/exec/root",
             {"cfg1": Path("bazel-out/k8-fastbuild/testlogs")},
+            "test.xml",
         )
         self.assertEqual(
             paths,
@@ -60,8 +62,8 @@ class TestTestXmlCandidates(unittest.TestCase):
         )
 
     def test_no_candidates_when_config_unknown(self):
-        paths = _test_xml_candidates(
-            "//pkg/foo:bar_test", "bytestream://example/blobs/abc/123", "cfg1", "/exec/root", {}
+        paths = _test_output_candidates(
+            "//pkg/foo:bar_test", "bytestream://example/blobs/abc/123", "cfg1", "/exec/root", {}, "test.xml"
         )
         self.assertEqual(paths, [])
 

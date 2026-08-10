@@ -319,8 +319,8 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False)
 
 class BepTestArtifacts(TypedDict):
     cached: bool
-    xml_paths: list[Path]
-    log_paths: list[Path]
+    xml_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
+    log_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
 
 
 def _resolve_test_output_path(
@@ -488,8 +488,10 @@ def _collect_test2json(ctx, test_artifacts, output_path):
     with tempfile.TemporaryDirectory() as tmpdir:
         manifest_path = os.path.join(tmpdir, "manifest.tsv")
         with open(manifest_path, "w") as manifest:
-            for entry in sorted(test_artifacts.keys()):
-                manifest.writelines(f'{entry}\t{log_path}\n' for log_path in test_artifacts[entry]["log_paths"])
+            for import_path in sorted(test_artifacts.keys()):
+                manifest.writelines(
+                    f'{import_path}\t{log_path}\n' for log_path in test_artifacts[import_path]["log_paths"]
+                )
 
         bazel(
             ctx,
@@ -506,9 +508,11 @@ def _collect_test2json(ctx, test_artifacts, output_path):
 @task(
     help={
         "bep_file": "Path to a Bazel BEP JSON file (--build_event_json_file) used to gather all necessary data.",
+        "result_json": "Path to write test2json JSONL output.",
+        "junit_tar": "Path to write the JUnit tgz.",
     },
 )
-def process_test_results(ctx, bep_file, result_json, junit_tar):
+def process_test_results(ctx, bep_file, result_json="test_output.json", junit_tar=""):
     """Collect results from Bazel-run tests and produce various artifacts.
 
     This task:
@@ -516,13 +520,19 @@ def process_test_results(ctx, bep_file, result_json, junit_tar):
     - Produces a test2json file with test results and a UTOF json file created from it.
     - Displays test results in a human-friendly way (based on UTOF).
     """
-    # BEP is the authoritative source: it lists exactly the test.xml and test.out files
+    # BEP is the authoritative source: it lists exactly the test.xml and test.log files
     # produced by this invocation, avoiding stale results from previous runs
     # with a different Bazel configuration.
     test_artifacts = _parse_bep(Path(bep_file))
 
-    # Produce the junit tar
-    _collect_junit(test_artifacts, junit_tar)
-
     # Produce the test2json result file
     _collect_test2json(ctx, test_artifacts, result_json)
+
+    # Produce UTOF and associated terminal output
+    from tasks.libs.testing.utof.go.generate import generate_unified_output
+
+    generate_unified_output(ctx, result_json, "bazel", "")
+
+    # Produce the junit tar
+    if junit_tar:
+        _collect_junit(test_artifacts, junit_tar)
