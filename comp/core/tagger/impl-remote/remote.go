@@ -533,10 +533,8 @@ func (t *remoteTagger) run() {
 			taggerStreamInitialized = true
 		}
 
-		// DoWithTimeout can't abort Recv() on timeout, so on a slow/hung
-		// stream its goroutine keeps running after DoWithTimeout returns.
-		// Use a local copy so that leaked goroutine never touches t.stream,
-		// which run() and startTaggerStream mutate on later iterations.
+		// Local copy: on timeout DoWithTimeout leaks its goroutine, which
+		// must not keep touching t.stream after run() moves on.
 		stream := t.stream
 
 		var response *pb.StreamTagsResponse

@@ -127,13 +127,8 @@ func (*foreverBlockingClient) TaggerStreamEntities(context.Context, *pb.StreamTa
 	return &foreverBlockingStream{}, nil
 }
 
-// TestRun_AbandonedRecvDoesNotRaceWithStreamField is a regression test for
-// the t.stream data race found via the race-detector build in staging: a
-// Recv() call abandoned by DoWithTimeout on timeout kept reading t.stream
-// concurrently with run()'s writes to it. Whether -race actually observes a
-// single occurrence is timing-dependent (matching how rare it was in
-// production), so this runs many trials to make a miss astronomically
-// unlikely on unfixed code.
+// Regression test for the t.stream data race found in staging. Detection is
+// timing-dependent, so it runs many trials to make a miss on unfixed code unlikely.
 func TestRun_AbandonedRecvDoesNotRaceWithStreamField(t *testing.T) {
 	originalTimeout := streamRecvTimeout
 	streamRecvTimeout = 5 * time.Millisecond
@@ -150,10 +145,7 @@ func TestRun_AbandonedRecvDoesNotRaceWithStreamField(t *testing.T) {
 	for b := 0; b < batches; b++ {
 		var wg sync.WaitGroup
 		for i := 0; i < trialsPerRun; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
@@ -173,7 +165,7 @@ func TestRun_AbandonedRecvDoesNotRaceWithStreamField(t *testing.T) {
 				// Let run() hit the Recv() timeout and write to
 				// t.stream/t.ready, leaving the Recv() goroutine running.
 				time.Sleep(15 * time.Millisecond)
-			}()
+			})
 		}
 		wg.Wait()
 	}
