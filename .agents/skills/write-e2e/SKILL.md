@@ -50,7 +50,7 @@ Some areas own their own template and lifecycle rules through a directory-scoped
 
 ## Step 2 — Extend an existing suite before creating one
 
-Provisioning dominates E2E cost, and it is paid per suite. A Kubernetes suite waits out a ten-minute tagger warmup before its first assertion (twenty with FIPS enabled), and `tests/containers` already runs 25–30 minutes; a new suite next to it pays that again for one assertion. A new test method inside an existing suite is close to free.
+Provisioning dominates E2E cost, and it is paid per suite. A Kubernetes suite blocks on cluster and agent readiness before its first assertion — `tests/containers` allows up to ten minutes for it, twenty when FIPS or `cri-o` makes the images slower to pull — and a new suite beside it pays that again for one assertion. A new test method inside an existing suite is close to free.
 
 Read the implementation now for the exact observable it produces, because the assertion depends on the literal string rather than on the feature name: a metric name, log service, check name, or tag if the behavior ships a payload; a service name, file path, registry key, package name, or CLI output if it does not. Then look for existing coverage and a suite to join:
 
@@ -90,11 +90,11 @@ Kubernetes flavor: use kind. It provisions faster, costs less, and fails less th
 
 Every stock provisioner ships a fakeintake by default, and on AWS it is an ECS Fargate task you would otherwise pay for and never query. When the test asserts only on host state, drop it. Host provisioners take a `ProvisionerNoFakeIntake` constructor; every other provisioner spells it differently and a few cannot do it at all, so use the table in `references/environments.md` rather than guessing.
 
-Reach for a custom provisioner last. Check the option surface of the stock provisioner first — most needs are already an option, and custom provisioners are the main source of long-lived breakage.
+Reach for a custom provisioner last; `test/new-e2e/codereview_guideline.md` says to avoid them. Check the option surface of the stock provisioner first — most needs are already an option.
 
 ## Step 4 — Place the files
 
-Tests live in `test/new-e2e/tests/<area>/`. In an existing area, copy the package clause from a file already there — the usual form is the directory with its separators removed (`agent-runtimes` holds `package agentruntimes`), but not every area follows it. Read `test/new-e2e/AGENTS.md` §§ "Layout", "Each entry point needs its own suite type", and "Build tags" for the rest: which `<area>`, how a Linux/Windows pair splits across files, and why every entry point needs its own suite type — getting that last one wrong silently destroys infrastructure mid-run. `references/templates.md` § "Splitting one suite across operating systems" has the code for the split.
+Tests live in `test/new-e2e/tests/<area>/`. In an existing area, copy the package clause from a file already there — the usual form is the directory with its separators removed (`agent-runtimes` holds `package agentruntimes`), but not every area follows it. Read `test/new-e2e/AGENTS.md` §§ "Layout", "Each entry point needs its own suite type", and "Build tags" for the rest: which `<area>`, how a Linux/Windows pair splits across files, and why every entry point needs its own suite type — getting that last one wrong silently puts two parallel suites on one stack. `references/templates.md` § "Splitting one suite across operating systems" has the code for the split.
 
 Fixtures: a YAML snippet of ten lines or fewer goes inline as a `const`; anything longer, and any script, goes in `fixtures/` loaded with `//go:embed` (which needs `_ "embed"` in the import block).
 
@@ -197,7 +197,7 @@ Needs `dda`, `pulumi`, `~/.test_infra_config.yaml` (created by `dda inv e2e.setu
 
 | Gate | Command | Catches |
 |---|---|---|
-| G1 | `dda inv linter.go --targets=test/new-e2e/tests/<area>` | Compile errors, including nonexistent provisioner options |
+| G1 | `dda inv linter.go --module=test/new-e2e --targets=./tests/<area>` | Compile errors, including nonexistent provisioner options |
 | G2 | `grep -rn -e 'docker\.io' -e 'apt-get install' -e 'apt install' -e 'yum install' -e 'curl http' test/new-e2e/tests/<area>/` | External dependencies and unpinned installs |
 | G3 | `grep -rn 'TARGETS:.*<area>' .gitlab/test/e2e/e2e.yml .gitlab/windows/test/` and the JOBOWNERS entry | A test that never runs, or fails silently to no owner |
 | G4 | The dev-mode session below | Provisioning, timing, real Agent behavior, hidden inter-test dependencies, missing cleanup |

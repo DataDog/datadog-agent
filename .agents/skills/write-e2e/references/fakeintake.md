@@ -61,7 +61,7 @@ If the callback also needs to drive an action (send a statsd point, append to a 
 | Process, service, or file state on the host | `1*time.Minute, 5*time.Second` | Local state, no network round trip |
 | A check run right after a restart | `30*time.Second, 500*time.Millisecond` | Cheap to poll, expected almost immediately |
 
-Longer is not safer: an overlong timeout turns a real failure into a slow failure and eats the job's budget. A test that needs more than five minutes for a payload usually has a configuration problem.
+Longer is not safer: an overlong timeout turns a real failure into a slow failure and eats the job's budget.
 
 ## Proving a negative
 
@@ -85,9 +85,13 @@ assert.Empty(s.T(), metrics, "filtered metric should not reach the intake")
 
 ## Resetting between phases
 
-`FlushServerAndResetAggregators()` discards everything received so far, so a later assertion counts only new payloads.
+`FlushServerAndResetAggregators()` discards everything received so far, so a later assertion counts only new payloads. What it discards is gone — decide what you still need before calling it.
 
-Order matters when a phase restarts the agent: restart or `UpdateEnv` first, wait for the agent to be ready, then flush. Flushing before the restart leaves the pre-restart payloads in the aggregator and the assertion passes for the wrong reason.
+**Periodic payloads** — anything the agent re-emits every check or flush interval. When a phase restarts the agent or calls `UpdateEnv`, do that first, wait for the agent to be ready, then flush. Flushing earlier does not help: payloads produced under the old configuration keep arriving until the restart completes, so they land in the aggregator after the flush and the next assertion reads a mix of both configurations.
+
+**Startup-only payloads** — anything emitted once when a component starts. Assert on these *before* any flush, because a flush deletes the only copy and the poll that follows can only time out. `tests/otel/otel-agent/dogtel_standalone_test.go` does this in `SetupSuite`, capturing the extension's liveness metric ahead of the flush that the first test performs.
+
+When a suite has both, order the startup assertion first and treat the flush as the boundary between the two phases.
 
 ## One fakeintake per suite
 

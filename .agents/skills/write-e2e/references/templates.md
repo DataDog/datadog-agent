@@ -10,6 +10,8 @@ Each skeleton omits the license header for brevity — copy the four-line header
 
 ```go
 import (
+	"testing"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
@@ -53,12 +55,13 @@ Pull every image in that manifest through the ECR cache. `test/new-e2e/tests/age
 ```go
 import (
 	_ "embed"
+	"testing"
 
-	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
-	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 //go:embed fixtures/helm_values.yaml
@@ -95,7 +98,11 @@ Deploy a workload with `scenariokindvm.WithWorkloadApp(func(e config.Env, p *kub
 
 ```go
 import (
+	"testing"
+
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
@@ -123,8 +130,12 @@ MSI installer tests belong in `test/new-e2e/tests/windows/install-test/` on top 
 
 ```go
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 )
 

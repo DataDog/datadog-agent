@@ -16,7 +16,7 @@ One platform is one `<feature>_test.go`. A Linux and Windows pair shares a body:
 
 ## Each entry point needs its own suite type
 
-`BaseSuite` derives the default Pulumi stack name from the suite's struct type name — `e2e-<TypeName>-<hash(PkgPath)>`, in `test/e2e-framework/testing/e2e/suite.go`. Two entry points that instantiate the same type therefore land on the same stack, and since both run under `t.Parallel()`, each reprovisions and then destroys the other's infrastructure mid-test. Nothing detects this: no compile error, no warning, just a confusing failure in whichever suite loses the race.
+`BaseSuite` derives the default Pulumi stack name from the suite's struct type name — `e2e-<TypeName>-<hash(PkgPath)>`, in `test/e2e-framework/testing/e2e/suite.go`. Two entry points that instantiate the same type therefore land on the same stack, and since both run under `t.Parallel()`, two suites reconcile and tear down one shared stack concurrently. Nothing detects this: no compile error, no warning, just a confusing failure in whichever suite loses the race.
 
 So `infra_basic_nix_test.go` declares `basicLinuxSuite` and `infra_basic_win_test.go` declares `basicWindowsSuite`, both embedding the shared `basicSuite`. Give every entry point its own named type, or pass a distinct `e2e.WithStackName`. The same applies to one test function that provisions per-platform stacks in a loop.
 
