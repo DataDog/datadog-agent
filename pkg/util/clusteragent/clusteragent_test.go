@@ -894,12 +894,7 @@ func (suite *clusterAgentSuite) TestDCAClientCertificateVerification() {
 	}
 }
 
-// TestInitHTTPClientConcurrent exercises initHTTPClient() concurrently on the same
-// DCAClient, reproducing the scenario where startReconnectHandler's ticker goroutine
-// races with another call re-initializing the HTTP client (see the reconnect handler
-// started at the end of init()). Before the fix, the unlocked "assign if nil" bootstrap
-// read/write of clusterAgentAPIClient at the top of initHTTPClient races with the later
-// locked write, and is caught by the race detector (`dda inv test --race`).
+// TestInitHTTPClientConcurrent calls initHTTPClient() concurrently to catch data races on DCAClient state.
 func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
 	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
 	pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
