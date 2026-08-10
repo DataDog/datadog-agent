@@ -709,7 +709,9 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 				Correlation:    *s.openEpisode,
 				FromLevel:      evt.FromLevel,
 				ToLevel:        evt.ToLevel,
-				Contributors:   s.topAnomalies.contributors(s.config.MaxReportedItems),
+				// Live scheduling advances one data second at a time, so this
+				// snapshot represents the same second as the severity transition.
+				Contributors: s.topAnomalies.contributors(s.config.MaxReportedItems),
 			})
 		} else if evt.FromLevel >= threshold && evt.ToLevel < threshold && s.openEpisode != nil {
 			ep := *s.openEpisode
