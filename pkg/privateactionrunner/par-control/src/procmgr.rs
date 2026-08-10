@@ -39,13 +39,13 @@ impl ProcmgrLifecycle {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     fn with_rpc_timeout(mut self, timeout: Duration) -> Self {
         self.rpc_timeout = timeout;
         self
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     fn with_poll_interval(mut self, interval: Duration) -> Self {
         self.poll_interval = interval;
         self
@@ -215,7 +215,7 @@ impl std::fmt::Display for RpcError {
 
 impl std::error::Error for RpcError {}
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::test_support::{FakeProcmgr, serve_procmgr};
