@@ -37,6 +37,7 @@ struct Backend {
     arguments: Vec<String>,
     timeout_secs: u64,
     max_output_bytes: usize,
+    remove_trailing_line_break: bool,
 }
 
 static HANDLE_CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
@@ -151,11 +152,18 @@ fn load_backend(agent_yaml: &str) -> Result<Option<Backend>> {
                 .and_then(|yaml| yaml_usize(yaml, "secret_backend_output_max_size"))
         })
         .unwrap_or(DEFAULT_MAX_OUTPUT_BYTES);
+    let remove_trailing_line_break = env_bool("DD_SECRET_BACKEND_REMOVE_TRAILING_LINE_BREAK")
+        .or_else(|| {
+            root.as_ref()
+                .and_then(|yaml| yaml_bool(yaml, "secret_backend_remove_trailing_line_break"))
+        })
+        .unwrap_or(false);
     Ok(Some(Backend {
         command,
         arguments,
         timeout_secs,
         max_output_bytes,
+        remove_trailing_line_break,
     }))
 }
 
@@ -175,6 +183,10 @@ fn env_string(name: &str) -> Option<String> {
 }
 
 fn env_u64(name: &str) -> Option<u64> {
+    env_string(name).and_then(|text| text.parse().ok())
+}
+
+fn env_bool(name: &str) -> Option<bool> {
     env_string(name).and_then(|text| text.parse().ok())
 }
 
@@ -199,7 +211,7 @@ fn fetch_secret(backend: &Backend, handle: &str) -> Result<String> {
         "secret_backend_timeout": backend.timeout_secs,
     });
     let output = exec_backend(backend, &payload.to_string())?;
-    parse_secret_response(&output, handle)
+    parse_secret_response(&output, handle, backend.remove_trailing_line_break)
 }
 
 fn exec_backend(backend: &Backend, payload: &str) -> Result<String> {
@@ -212,7 +224,11 @@ fn exec_backend(backend: &Backend, payload: &str) -> Result<String> {
     )
 }
 
-fn parse_secret_response(output: &str, handle: &str) -> Result<String> {
+fn parse_secret_response(
+    output: &str,
+    handle: &str,
+    remove_trailing_line_break: bool,
+) -> Result<String> {
     let parsed: Value =
         serde_json::from_str(output).context("parse secret backend JSON response")?;
     let Some(entry) = parsed.get(handle) else {
@@ -224,8 +240,18 @@ fn parse_secret_response(output: &str, handle: &str) -> Result<String> {
     entry
         .get("value")
         .and_then(Value::as_str)
-        .map(str::to_owned)
+        .map(|value| normalize_secret_value(value, remove_trailing_line_break))
         .with_context(|| format!("secret backend response missing value for {handle}"))
+}
+
+fn normalize_secret_value(value: &str, remove_trailing_line_break: bool) -> String {
+    if remove_trailing_line_break {
+        value
+            .trim_end_matches(|c| c == '\r' || c == '\n')
+            .to_string()
+    } else {
+        value.to_owned()
+    }
 }
 
 fn yaml_string(root: &serde_yaml::Value, key: &str) -> Option<String> {
@@ -261,6 +287,14 @@ fn yaml_u64(root: &serde_yaml::Value, key: &str) -> Option<u64> {
 
 fn yaml_usize(root: &serde_yaml::Value, key: &str) -> Option<usize> {
     yaml_u64(root, key).and_then(|value| usize::try_from(value).ok())
+}
+
+fn yaml_bool(root: &serde_yaml::Value, key: &str) -> Option<bool> {
+    root.get(key).and_then(|value| match value {
+        serde_yaml::Value::Bool(enabled) => Some(*enabled),
+        serde_yaml::Value::String(text) => text.parse().ok(),
+        _ => None,
+    })
 }
 
 #[cfg(test)]
@@ -355,6 +389,22 @@ mod tests {
                 "true"
             );
         });
+    }
+
+    #[test]
+    fn normalize_secret_value_strips_trailing_line_breaks_when_enabled() {
+        assert_eq!(
+            normalize_secret_value("true\r\n", true),
+            "true".to_string()
+        );
+        assert_eq!(
+            normalize_secret_value("true\n", true),
+            "true".to_string()
+        );
+        assert_eq!(
+            normalize_secret_value("true\r\n", false),
+            "true\r\n".to_string()
+        );
     }
 
     #[test]
