@@ -893,3 +893,61 @@ func (suite *clusterAgentSuite) TestDCAClientCertificateVerification() {
 		})
 	}
 }
+
+// TestInitHTTPClientConcurrent exercises initHTTPClient() concurrently on the same
+// DCAClient, reproducing the scenario where startReconnectHandler's ticker goroutine
+// races with another call re-initializing the HTTP client (see the reconnect handler
+// started at the end of init()). Before the fix, the unlocked "assign if nil" bootstrap
+// read/write of clusterAgentAPIClient at the top of initHTTPClient races with the later
+// locked write, and is caught by the race detector (`dda inv test --race`).
+func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
+	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+	pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
+	dca, err := newDummyClusterAgent(suite.config)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	ts, p, err := dca.StartTLS()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
+
+	pkgapiutil.SetCrossNodeClientTLSConfig(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+
+	c := &DCAClient{
+		clusterAgentAPIEndpoint: fmt.Sprintf("https://127.0.0.1:%d", p),
+	}
+	c.clusterAgentAPIRequestHeaders = http.Header{}
+	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, "Bearer "+clusterAgentTokenValue)
+	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, clcRunnerIP)
+
+	// dummyClusterAgent.requests is a bounded channel that nothing else drains here;
+	// keep it flowing so ServeHTTP never blocks on a full channel and slows the test down.
+	stopDrain := make(chan struct{})
+	defer close(stopDrain)
+	go func() {
+		for {
+			select {
+			case <-dca.requests:
+			case <-stopDrain:
+				return
+			}
+		}
+	}()
+
+	const goroutines = 10
+	const iterations = 10
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				_ = c.initHTTPClient()
+			}
+		}()
+	}
+	wg.Wait()
+}
