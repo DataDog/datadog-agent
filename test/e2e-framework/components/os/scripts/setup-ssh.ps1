@@ -176,6 +176,22 @@ while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) {
 }
 Add-Content -Path $env:ProgramData\ssh\administrators_authorized_keys -Value $authorizedKey
 icacls.exe ""$env:ProgramData\ssh\administrators_authorized_keys"" /inheritance:r /grant ""Administrators:F"" /grant ""SYSTEM:F""
+
+# Write sshd_config so LogLevel is deterministic across AMIs/OpenSSH versions. DEBUG3 is set so
+# OpenSSH/Operational captures more detail if sshd fails to stay up after a later reboot (e.g.
+# domain controller promotion, see WINA-2095).
+Write-Host "Writing sshd_config"
+$sshdConfigLines = @(
+  "LogLevel DEBUG3",
+  "AuthorizedKeysFile`t.ssh/authorized_keys",
+  "Subsystem`tsftp`tsftp-server.exe",
+  "",
+  "Match Group administrators",
+  "       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys"
+)
+Set-Content -Path "$env:ProgramData\ssh\sshd_config" -Value $sshdConfigLines
+Restart-Service sshd -ErrorAction SilentlyContinue
+
 # Start sshd service
 $retries = 0
 while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Running") {
@@ -189,4 +205,30 @@ while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Runnin
   Start-Service sshd
   $retries++
 }
+
+# Install a boot-time watchdog that restarts sshd if it stops within 5 minutes of boot. SCM
+# service-recovery actions only fire on abnormal termination (event 7031), never on a clean stop
+# (event 7036) -- and sshd has been observed stopping cleanly shortly after the reboot triggered by
+# domain controller promotion (Install-ADDSForest), see WINA-2095. A boot-triggered task catches
+# both cases since it just polls service status rather than relying on SCM's crash-only recovery.
+Write-Host "Installing sshd watchdog scheduled task"
+$watchdogPath = "$env:ProgramData\ssh\sshd-watchdog.ps1"
+$watchdogLines = @(
+  '$deadline = (Get-Date).AddMinutes(5)',
+  'while ((Get-Date) -lt $deadline) {',
+  '  $svc = Get-Service -Name sshd -ErrorAction SilentlyContinue',
+  '  if ($svc -and $svc.Status -ne "Running") {',
+  '    Start-Service sshd -ErrorAction SilentlyContinue',
+  '  }',
+  '  Start-Sleep -Seconds 5',
+  '}'
+)
+Set-Content -Path $watchdogPath -Value $watchdogLines
+
+$watchdogAction = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$watchdogPath`""
+$watchdogTrigger = New-ScheduledTaskTrigger -AtStartup
+$watchdogPrincipal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$watchdogSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 6)
+Register-ScheduledTask -TaskName "SshdWatchdog" -Action $watchdogAction -Trigger $watchdogTrigger -Principal $watchdogPrincipal -Settings $watchdogSettings -Force | Out-Null
+Write-Host "sshd watchdog scheduled task installed"
 
