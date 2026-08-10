@@ -30,7 +30,7 @@ pub(super) fn spawn_as_primary_token(
     process_name: &str,
     request: &SpawnRequest,
     account: &AgentAccount,
-) -> Result<ProcessHandle> {
+) -> Result<(ProcessHandle, Option<UserProfileGuard>)> {
     // Map stdio to explicit Win32 handles for CreateProcessAsUserW.
     let stdout_handle = map_stdio_setting(
         process_name,
@@ -66,7 +66,7 @@ pub(super) fn spawn_as_primary_token(
         )?,
     });
 
-    let _profile_guard = if account.inherits_supervisor_token() {
+    let profile_guard = if account.inherits_supervisor_token() {
         None
     } else {
         Some(UserProfileGuard::load(
@@ -131,7 +131,10 @@ pub(super) fn spawn_as_primary_token(
         let _ = CloseHandle(pi.hThread);
     }
 
-    Ok(ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess))
+    Ok((
+        ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess),
+        profile_guard,
+    ))
 }
 
 fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {

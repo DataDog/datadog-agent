@@ -14,7 +14,7 @@ use super::super::local_account::computer_name;
 use super::super::wide;
 
 /// Keeps a user profile loaded for the lifetime of the guard.
-pub(super) struct UserProfileGuard {
+pub(crate) struct UserProfileGuard {
     token: HANDLE,
     profile_handle: HANDLE,
     _username_wide: Vec<u16>,

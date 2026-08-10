@@ -35,10 +35,13 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
     let job = JobObject::new()
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
-    let handle = match profile {
+    let (handle, user_profile) = match profile {
         SpawnProfile::Agent => spawn_agent_profile(process_name, &request)?,
-        SpawnProfile::Privileged => spawn_privileged_profile(process_name, request)?,
+        SpawnProfile::Privileged => (spawn_privileged_profile(process_name, request)?, None),
     };
+    if let Some(profile) = user_profile {
+        process.set_user_profile_guard(profile);
+    }
 
     assign_supervision_job(process, &handle, job)?;
     Ok(handle)

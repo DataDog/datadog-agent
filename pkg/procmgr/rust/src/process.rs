@@ -102,6 +102,8 @@ pub struct ManagedProcess {
     last_config_gate_met: Option<bool>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
+    #[cfg(windows)]
+    user_profile: Option<platform::UserProfileGuard>,
 }
 
 impl ManagedProcess {
@@ -132,6 +134,8 @@ impl ManagedProcess {
             last_config_gate_met: None,
             #[cfg(windows)]
             job_object: None,
+            #[cfg(windows)]
+            user_profile: None,
         }
     }
 
@@ -162,6 +166,17 @@ impl ManagedProcess {
     #[cfg(windows)]
     pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
         self.job_object = Some(job);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_user_profile_guard(&mut self, profile: platform::UserProfileGuard) {
+        self.user_profile = Some(profile);
+    }
+
+    #[cfg(windows)]
+    fn clear_windows_spawn_resources(&mut self) {
+        self.job_object = None;
+        self.user_profile = None;
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -301,9 +316,7 @@ impl ManagedProcess {
         self.last_exit_status = Some(status);
         self.pid = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
@@ -344,7 +357,7 @@ impl ManagedProcess {
             if let Err(e) = job.terminate() {
                 warn!("[{}] job object terminate failed: {e}", self.name);
             } else {
-                self.job_object = None;
+                self.clear_windows_spawn_resources();
                 return;
             }
         }
@@ -435,9 +448,7 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
     }
 
     #[cfg(test)]
