@@ -240,7 +240,7 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode, getIDFromImageTa
 	pfan := &FileNode{
 		MatchedRules:   make([]*model.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           fan.Name,
-		File:           protoDecodeFileEvent(fan.File),
+		File:           newFileInfo(protoDecodeFileEvent(fan.File)),
 		GenerationType: NodeGenerationType(fan.GenerationType),
 		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileNode, len(fan.Children)),
