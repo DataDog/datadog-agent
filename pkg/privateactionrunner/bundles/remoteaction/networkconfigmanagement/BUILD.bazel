@@ -12,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/networkconfigmanagement/types",
