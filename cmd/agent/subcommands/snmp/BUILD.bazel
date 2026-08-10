@@ -28,6 +28,7 @@ go_library(
         "//comp/serializer/metricscompression/fx",
         "//comp/snmpscan/def",
         "//comp/snmpscan/fx",
+        "//comp/workloadbalancing/fx",
         "//pkg/networkdevice/metadata",
         "//pkg/snmp/analyzer",
         "//pkg/snmp/snmpparse",

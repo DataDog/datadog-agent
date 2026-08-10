@@ -49,6 +49,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -328,6 +329,7 @@ func main() {
 		eventplatformfx.Module(eventplatform.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		haagentfx.Module(),
+		workloadbalancingfx.Module(),
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithFlushInterval(metricsFlushInterval),

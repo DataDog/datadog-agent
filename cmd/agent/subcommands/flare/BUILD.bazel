@@ -49,6 +49,7 @@ go_library(
         "//comp/metadata/resources/fx",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
+        "//comp/workloadbalancing/fx",
         "//pkg/config/helper",
         "//pkg/config/settings",
         "//pkg/config/setup",

@@ -50,6 +50,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -126,6 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				adfx.Module(),
 				haagentfx.Module(),
+				workloadbalancingfx.Module(),
 				healthplatform.Bundle(),
 				hostnameimpl.Module(),
 				logscompressorfx.Module(),

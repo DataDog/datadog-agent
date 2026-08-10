@@ -168,6 +168,7 @@ go_library(
         "//comp/trace/status/fx",
         "//comp/updater/daemonchecker/fx",
         "//comp/updater/ssistatus/fx",
+        "//comp/workloadbalancing/fx",
         "//comp/workloadselection/fx",
         "//pkg/aggregator",
         "//pkg/aggregator/sender",

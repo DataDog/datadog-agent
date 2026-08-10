@@ -51,6 +51,7 @@ go_library(
         "//comp/metadata/runner/fx",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
+        "//comp/workloadbalancing/fx",
         "//pkg/serializer",
         "//pkg/status/health",
         "//pkg/util/coredump",
