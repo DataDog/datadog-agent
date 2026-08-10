@@ -52,6 +52,9 @@ dd_agent_go_test(
     embed = [":driver"],
     gotags_sets = [["npm"]],
     include_default = False,
+    # Opens the ddnpm kernel device, so it only passes on a host where that
+    # driver is loaded. Run from the sysprobe-functional e2e suite instead.
+    tags = ["manual"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",

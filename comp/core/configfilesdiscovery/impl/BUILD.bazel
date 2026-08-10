@@ -65,11 +65,20 @@ dd_agent_go_test(
         "process_commandline_test.go",
     ],
     embed = [":impl"],
-    gotags_sets = [[
-        "cel",
-        "docker",
-        "kubelet",
-    ]],
+    gotags_sets = [
+        [
+            "cel",
+            "containerd",
+            "cri",
+            "docker",
+            "kubelet",
+        ],
+        [
+            "cel",
+            "docker",
+            "kubelet",
+        ],
+    ],
     deps = [
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
