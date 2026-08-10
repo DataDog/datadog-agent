@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"strings"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -48,6 +49,7 @@ func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 		"logs",
 		logsConfig.AgentJSONIntakeProtocol,
 		logsConfig.DefaultIntakeOrigin,
+		delegatedauthnoopimpl.NewComponent().Comp,
 	)
 }
 

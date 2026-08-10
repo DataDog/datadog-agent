@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
@@ -104,6 +105,7 @@ func TestHttpDestinationFactory(t *testing.T) {
 				1,
 				10,
 				secretsnoopimpl.NewComponent().Comp,
+				delegatedauthnoopimpl.NewComponent().Comp,
 			)
 
 			// Test 1: Verify first call creates destinations
@@ -176,6 +178,7 @@ func TestNewHTTPSender_UsesCallerPipelineMonitor(t *testing.T) {
 		1,
 		1,
 		secretsnoopimpl.NewComponent().Comp,
+		delegatedauthnoopimpl.NewComponent().Comp,
 		noop,
 	)
 

@@ -14,6 +14,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	delegatedauthnoopimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -30,35 +33,35 @@ func (suite *EndpointsTestSuite) SetupTest() {
 
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
 	suite.Equal("agent-intake.logs.datadoghq.com.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
-	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetInTest("site", "datadoghq.com")
 	suite.Equal("agent-intake.logs.datadoghq.com.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetInTest("site", "datadoghq.eu")
 	suite.Equal("agent-intake.logs.datadoghq.eu.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.eu.", endpoints.Main.Host)
 	suite.Equal(443, endpoints.Main.Port)
 
 	suite.config.SetInTest("logs_config.dd_url", "custom.logs.datadoghq.co.jp")
 	suite.Equal("custom.logs.datadoghq.co.jp", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("custom.logs.datadoghq.co.jp", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetInTest("logs_config.logs_dd_url", "azure.logs.datadoghq.co.uk:1234")
 	suite.Equal("azure.logs.datadoghq.co.uk:1234", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.logs_dd_url"))
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("azure.logs.datadoghq.co.uk", endpoints.Main.Host)
 	suite.Equal(1234, endpoints.Main.Port)
@@ -73,7 +76,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.config.SetInTest("api_key", "azerty")
 	suite.config.SetInTest("logs_config.socks5_proxy_address", "boz:1234")
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
@@ -84,7 +87,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.Equal(1, len(endpoints.Endpoints))
 
 	suite.config.SetInTest("logs_config.use_port_443", true)
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
@@ -96,7 +99,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 
 	suite.config.SetInTest("logs_config.logs_dd_url", "host:1234")
 	suite.config.SetInTest("logs_config.logs_no_ssl", true)
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
@@ -108,7 +111,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 
 	suite.config.SetInTest("logs_config.logs_dd_url", ":1234")
 	suite.config.SetInTest("logs_config.logs_no_ssl", false)
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
@@ -126,7 +129,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	suite.config.SetInTest("logs_config.use_http", true)
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
 	suite.Equal(endpoints.BatchWait, 5*time.Second)
@@ -144,7 +147,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.config.SetInTest("logs_config.use_http", true)
 	suite.config.SetInTest("logs_config.use_compression", true)
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
 
@@ -164,7 +167,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.config.SetInTest("logs_config.use_compression", true)
 	suite.config.SetInTest("logs_config.zstd_compression_level", zstdCompressionLevel)
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
 
@@ -182,7 +185,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.config.SetInTest("logs_config.dd_url", "foo")
 	suite.config.SetInTest("logs_config.batch_wait", 9)
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
 	suite.Equal(endpoints.BatchWait, 9*time.Second)
@@ -200,7 +203,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidProxyCo
 	suite.config.SetInTest("logs_config.use_http", true)
 	suite.config.SetInTest("logs_config.logs_dd_url", "foo:1234")
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
 
@@ -216,7 +219,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidProxyCon
 	suite.config.SetInTest("logs_config.use_http", true)
 	suite.config.SetInTest("logs_config.logs_dd_url", "foo")
 
-	_, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	_, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.NotNil(err)
 }
 
@@ -227,7 +230,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride
 	}
 	for _, url := range invalidURLs {
 		suite.config.SetInTest("logs_config.logs_dd_url", url)
-		_, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		_, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.NotNil(err)
 	}
 }
@@ -238,7 +241,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 	invalidBatchWaits := []int{-1, 0, 11}
 	for _, batchWait := range invalidBatchWaits {
 		suite.config.SetInTest("logs_config.batch_wait", batchWait)
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.Equal(endpoints.BatchWait, time.Duration(constants.DefaultBatchWait)*time.Second)
 	}
@@ -247,7 +250,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 // When migrating the agent v5 to v6, logs_dd_url is set to empty. Default to the dd_url/site already set instead.
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToAgentV6() {
 	suite.config.SetInTest("logs_config.logs_dd_url", "")
-	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
@@ -267,10 +270,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 	suite.Run("When use_http is true always create HTTP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetInTest("logs_config.use_http", "true")
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.True(endpoints.UseHTTP)
-		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.True(endpoints.UseHTTP)
 	})
@@ -278,10 +281,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 	suite.Run("When force_use_http is true always create HTTP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetInTest("logs_config.force_use_http", "true")
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.True(endpoints.UseHTTP)
-		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.True(endpoints.UseHTTP)
 	})
@@ -289,10 +292,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 	suite.Run("When use_tcp is true always create TCP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetInTest("logs_config.use_tcp", "true")
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
-		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
 	})
@@ -300,20 +303,20 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 	suite.Run("When force_use_tcp is true always create TCP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetInTest("logs_config.force_use_tcp", "true")
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
-		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
 	})
 
 	suite.Run("When (force_)use_http & (force_)use_tcp are false create HTTP endpoints if HTTP connectivity is successful", func() {
 		defer resetHTTPConfigValuesToFalse()
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.True(endpoints.UseHTTP)
-		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
 	})
@@ -321,10 +324,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 	suite.Run("When socks5_proxy_address is set always create TCP endpoints", func() {
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetInTest("logs_config.socks5_proxy_address", "my-address")
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
-		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
 		suite.config.SetInTest("logs_config.socks5_proxy_address", "")
@@ -334,10 +337,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "foo", "api_key": "1234", "use_compression": true, "compression_level": 1}})
 
-		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
-		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
 	})
@@ -357,7 +360,7 @@ func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 	apiKey, path := defaultLogsConfigKeys(suite.config).getMainAPIKey()
 	assert.Equal(suite.T(), "wassupkey", apiKey)
 	assert.Equal(suite.T(), "api_key", path)
-	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("wassupkey", endpoints.Main.GetAPIKey())
 }
@@ -369,7 +372,7 @@ func (suite *EndpointsTestSuite) TestOverrideApiKey() {
 	apiKey, path := defaultLogsConfigKeys(suite.config).getMainAPIKey()
 	assert.Equal(suite.T(), "wassuplogskey", apiKey)
 	assert.Equal(suite.T(), "logs_config.api_key", path)
-	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Equal("wassuplogskey", endpoints.Main.GetAPIKey())
 }
@@ -383,7 +386,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "foo", "api_key": "1234", "use_compression": false, "compression_level": 4}})
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 2)
 
@@ -393,7 +396,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 	suite.True(endpoint.UseSSL())
 
 	suite.config.SetInTest("logs_config.use_http", true)
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 2)
 
@@ -417,7 +420,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1", "is_reliable": false}, {"host": "b", "api_key": "2", "is_reliable": true}, {"host": "c", "api_key": "3", "is_reliable": false}})
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.Len(endpoints.GetUnReliableEndpoints(), 2)
@@ -444,7 +447,7 @@ func (suite *EndpointsTestSuite) TestIsReliableDefaultTrue() {
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "is_reliable": true}, {"host": "c", "api_key": "3", "is_reliable": false}})
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.Len(endpoints.GetUnReliableEndpoints(), 1)
@@ -463,7 +466,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointTru
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.False(endpoints.Endpoints[1].UseSSL())
@@ -482,7 +485,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointFal
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.True(endpoints.Endpoints[1].UseSSL())
@@ -502,7 +505,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointTr
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.False(endpoints.Endpoints[1].UseSSL())
@@ -522,7 +525,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointFa
 
 	suite.config.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{{"host": "a", "api_key": "1"}, {"host": "b", "api_key": "2", "use_ssl": true}, {"host": "c", "api_key": "3", "use_ssl": false}})
 
-	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.False(endpoints.Endpoints[1].UseSSL())
@@ -534,8 +537,8 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	suite.config.SetInTest("api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := newTCPEndpoint(logsConfig, true)
-	http := newHTTPEndpoint(logsConfig, true)
+	tcp := newTCPEndpoint(logsConfig, true, delegatedauthnoopimpl.NewComponent().Comp)
+	http := newHTTPEndpoint(logsConfig, true, delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -567,8 +570,8 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 	suite.config.SetInTest("logs_config.api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := newTCPEndpoint(logsConfig, true)
-	http := newHTTPEndpoint(logsConfig, true)
+	tcp := newTCPEndpoint(logsConfig, true, delegatedauthnoopimpl.NewComponent().Comp)
+	http := newHTTPEndpoint(logsConfig, true, delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -587,9 +590,11 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 	loadAdditionalEndpoints := map[string]func(Endpoint, *LogsConfigKeys) []Endpoint{
 		"http": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
-			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true)
+			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true, delegatedauthnoopimpl.NewComponent().Comp)
 		},
-		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l, true) },
+		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
+			return loadTCPAdditionalEndpoints(main, l, true, delegatedauthnoopimpl.NewComponent().Comp)
+		},
 	}
 
 	for endpointType, additionalEndpointsLoader := range loadAdditionalEndpoints {
@@ -615,7 +620,7 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 			"is_reliable": false
 			}]`)
 
-			mainEndpoint := newHTTPEndpoint(logsConfig, true)
+			mainEndpoint := newHTTPEndpoint(logsConfig, true, delegatedauthnoopimpl.NewComponent().Comp)
 			additionalEndpoints := additionalEndpointsLoader(mainEndpoint, logsConfig)
 			suite.Suite.Require().Len(additionalEndpoints, 2)
 
@@ -667,9 +672,11 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 func (suite *EndpointsTestSuite) TestEndpointOnUpdateDelegatedAuthDirective() {
 	loadAdditionalEndpoints := map[string]func(Endpoint, *LogsConfigKeys) []Endpoint{
 		"http": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
-			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true)
+			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true, delegatedauthnoopimpl.NewComponent().Comp)
 		},
-		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l, true) },
+		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
+			return loadTCPAdditionalEndpoints(main, l, true, delegatedauthnoopimpl.NewComponent().Comp)
+		},
 	}
 
 	for endpointType, additionalEndpointsLoader := range loadAdditionalEndpoints {
@@ -744,7 +751,7 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 
 	main := Endpoint{useSSL: true}
 	logsConfig := defaultLogsConfigKeys(suite.config)
-	endpoints := loadTCPAdditionalEndpoints(main, logsConfig, true)
+	endpoints := loadTCPAdditionalEndpoints(main, logsConfig, true, delegatedauthnoopimpl.NewComponent().Comp)
 
 	suite.Suite.Require().Len(endpoints, 2)
 	compareEndpoint(suite.T(), expected1, endpoints[0])
@@ -814,11 +821,133 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 		"some intake protocol",
 		"some intake origin",
 		true,
+		delegatedauthnoopimpl.NewComponent().Comp,
 	)
 
 	suite.Suite.Require().Len(endpoints, 2)
 	compareEndpoint(suite.T(), expected1, endpoints[0])
 	compareEndpoint(suite.T(), expected2, endpoints[1])
+}
+
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsHasPendingDelegatedAuth() {
+	jsonString := `[{
+			"api_key": "DELA(org-uuid, aws)",
+			"Host":    "localhost1",
+			"Port":    1234
+		},
+		{
+			"api_key": "apiKey2",
+			"Host":    "localhost2",
+			"Port":    5678
+		}]`
+	suite.config.SetInTest("logs_config.additional_endpoints", jsonString)
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	managedDelegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			return target.AdditionalEndpointsListConfigKey == "logs_config.additional_endpoints" && target.ListEntryIndex == 0
+		},
+	}
+
+	tcpEndpoints := loadTCPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, true, managedDelegatedAuth)
+	suite.Suite.Require().Len(tcpEndpoints, 2)
+	suite.True(tcpEndpoints[0].HasPendingDelegatedAuth())
+	suite.False(tcpEndpoints[1].HasPendingDelegatedAuth())
+
+	httpEndpoints := loadHTTPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, "", "", "", true, managedDelegatedAuth)
+	suite.Suite.Require().Len(httpEndpoints, 2)
+	suite.True(httpEndpoints[0].HasPendingDelegatedAuth())
+	suite.False(httpEndpoints[1].HasPendingDelegatedAuth())
+}
+
+// TestAdditionalEndpointsRejectedDirectiveIsNotPending verifies that a DELA(...) directive
+// rejected at config load (never registered with delegatedAuthComp) is not marked pending, even
+// though its raw api_key still looks like a directive.
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsRejectedDirectiveIsNotPending() {
+	jsonString := `[{
+			"api_key": "DELA(malformed-directive-that-was-rejected)",
+			"Host":    "localhost1",
+			"Port":    1234
+		},
+		{
+			"api_key": "apiKey2",
+			"Host":    "localhost2",
+			"Port":    5678
+		}]`
+	suite.config.SetInTest("logs_config.additional_endpoints", jsonString)
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	// Simulate: entry 0's directive was rejected during config load (never registered), while
+	// entry 1 is a genuinely valid, unrelated delegated-auth instance elsewhere in the process.
+	partiallyManagedDelegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			return target.AdditionalEndpointsListConfigKey == "logs_config.additional_endpoints" && target.ListEntryIndex == 1
+		},
+	}
+
+	tcpEndpoints := loadTCPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, true, partiallyManagedDelegatedAuth)
+	suite.Suite.Require().Len(tcpEndpoints, 2)
+	suite.False(tcpEndpoints[0].HasPendingDelegatedAuth(), "rejected DELA(...) directive must not be marked pending just because IsManaged is false for it")
+	suite.True(tcpEndpoints[1].HasPendingDelegatedAuth(), "the unrelated valid instance should still be marked pending")
+
+	httpEndpoints := loadHTTPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, "", "", "", true, partiallyManagedDelegatedAuth)
+	suite.Suite.Require().Len(httpEndpoints, 2)
+	suite.False(httpEndpoints[0].HasPendingDelegatedAuth(), "rejected DELA(...) directive must not be marked pending just because IsManaged is false for it")
+	suite.True(httpEndpoints[1].HasPendingDelegatedAuth(), "the unrelated valid instance should still be marked pending")
+}
+
+func (suite *EndpointsTestSuite) TestHasPendingDelegatedAuthSurvivesResolvedAPIKey() {
+	// Once delegated auth's initial fetch resolves a DELA(...) directive to a real key, the
+	// config value no longer looks like a directive - IsDelaDirective alone can no longer tell
+	// this endpoint is WIF-managed. Endpoint construction must also consult
+	// delegatedauth.Component.IsManaged, which stays true regardless of the current key text.
+	jsonString := `[{
+			"api_key": "already-resolved-real-key",
+			"Host":    "localhost1",
+			"Port":    1234
+		},
+		{
+			"api_key": "some-other-static-key",
+			"Host":    "localhost2",
+			"Port":    5678
+		}]`
+	suite.config.SetInTest("logs_config.additional_endpoints", jsonString)
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	managedDelegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			return target.AdditionalEndpointsListConfigKey == "logs_config.additional_endpoints" && target.ListEntryIndex == 0
+		},
+	}
+
+	tcpEndpoints := loadTCPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, true, managedDelegatedAuth)
+	suite.Suite.Require().Len(tcpEndpoints, 2)
+	suite.True(tcpEndpoints[0].HasPendingDelegatedAuth(), "entry 0 is reported as managed by the component even though its api_key is already a resolved real key")
+	suite.False(tcpEndpoints[1].HasPendingDelegatedAuth())
+
+	httpEndpoints := loadHTTPAdditionalEndpoints(Endpoint{useSSL: true}, logsConfig, "", "", "", true, managedDelegatedAuth)
+	suite.Suite.Require().Len(httpEndpoints, 2)
+	suite.True(httpEndpoints[0].HasPendingDelegatedAuth())
+	suite.False(httpEndpoints[1].HasPendingDelegatedAuth())
+}
+
+func (suite *EndpointsTestSuite) TestMainEndpointHasPendingDelegatedAuthFromIsManaged() {
+	// The primary (non-additional-endpoints) endpoint has no DELA(...) directive to string-match
+	// against at all when configured via delegated_auth.org_uuid - IsManaged is the only signal.
+	suite.config.SetInTest("logs_config.api_key", "already-resolved-real-key")
+	managedDelegatedAuth := &delegatedauthmock.Mock{
+		IsManagedFunc: func(target delegatedauth.Target) bool {
+			return target.APIKeyConfigKey == "logs_config.api_key"
+		},
+	}
+
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	httpEndpoint := newHTTPEndpoint(logsConfig, false, managedDelegatedAuth)
+	tcpEndpoint := newTCPEndpoint(logsConfig, false, managedDelegatedAuth)
+	unmanagedEndpoint := newHTTPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
+	suite.True(httpEndpoint.HasPendingDelegatedAuth())
+	suite.True(tcpEndpoint.HasPendingDelegatedAuth())
+	suite.False(unmanagedEndpoint.HasPendingDelegatedAuth())
 }
 
 func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
@@ -871,6 +1000,7 @@ func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 				suite.config,
 				logsConfig,
 				"", "", "", "",
+				delegatedauthnoopimpl.NewComponent().Comp,
 			)
 			suite.Nil(err)
 			suite.Equal(tt.expectedMain.CompressionKind, endpoints.Main.CompressionKind)
@@ -887,13 +1017,13 @@ func (suite *EndpointsTestSuite) TestMRFApiKeyUpdate() {
 		{
 			name: "HTTP",
 			endpointGetter: func(cfg model.Reader) (*Endpoints, error) {
-				return BuildHTTPEndpoints(cfg, "", "", "")
+				return BuildHTTPEndpoints(cfg, "", "", "", delegatedauthnoopimpl.NewComponent().Comp)
 			},
 		},
 		{
 			name: "TCP",
 			endpointGetter: func(cfg model.Reader) (*Endpoints, error) {
-				return buildTCPEndpoints(cfg, defaultLogsConfigKeys(cfg), true)
+				return buildTCPEndpoints(cfg, defaultLogsConfigKeys(cfg), true, delegatedauthnoopimpl.NewComponent().Comp)
 			},
 		},
 	}
@@ -942,19 +1072,19 @@ func (suite *EndpointsTestSuite) TestConnectionResetIntervalInheritedByAdditiona
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
 	suite.Run("TCP additional endpoints inherit connection_reset_interval from main", func() {
-		main := newTCPEndpoint(logsConfig, false)
+		main := newTCPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Equal(600*time.Second, main.ConnectionResetInterval)
 
-		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(600*time.Second, endpoints[0].ConnectionResetInterval)
 	})
 
 	suite.Run("HTTP additional endpoints inherit connection_reset_interval from main", func() {
-		main := newHTTPEndpoint(logsConfig, false)
+		main := newHTTPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Equal(600*time.Second, main.ConnectionResetInterval)
 
-		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(600*time.Second, endpoints[0].ConnectionResetInterval)
 	})
@@ -970,15 +1100,15 @@ func (suite *EndpointsTestSuite) TestConnectionResetIntervalPerEndpointOverride(
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
 	suite.Run("TCP additional endpoint overrides connection_reset_interval", func() {
-		main := newTCPEndpoint(logsConfig, false)
-		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		main := newTCPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(300*time.Second, endpoints[0].ConnectionResetInterval)
 	})
 
 	suite.Run("HTTP additional endpoint overrides connection_reset_interval", func() {
-		main := newHTTPEndpoint(logsConfig, false)
-		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		main := newHTTPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(300*time.Second, endpoints[0].ConnectionResetInterval)
 	})
@@ -995,19 +1125,19 @@ func (suite *EndpointsTestSuite) TestConnectionResetIntervalZeroWhenNotConfigure
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
 	suite.Run("TCP additional endpoints get zero when main is zero", func() {
-		main := newTCPEndpoint(logsConfig, false)
+		main := newTCPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Equal(time.Duration(0), main.ConnectionResetInterval)
 
-		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
 	})
 
 	suite.Run("HTTP additional endpoints get zero when main is zero", func() {
-		main := newHTTPEndpoint(logsConfig, false)
+		main := newHTTPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Equal(time.Duration(0), main.ConnectionResetInterval)
 
-		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
 	})
@@ -1023,19 +1153,19 @@ func (suite *EndpointsTestSuite) TestConnectionResetIntervalExplicitZeroDisables
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
 	suite.Run("TCP additional endpoint with explicit zero disables reset", func() {
-		main := newTCPEndpoint(logsConfig, false)
+		main := newTCPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Equal(600*time.Second, main.ConnectionResetInterval)
 
-		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false)
+		endpoints := loadTCPAdditionalEndpoints(main, logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
 	})
 
 	suite.Run("HTTP additional endpoint with explicit zero disables reset", func() {
-		main := newHTTPEndpoint(logsConfig, false)
+		main := newHTTPEndpoint(logsConfig, false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Equal(600*time.Second, main.ConnectionResetInterval)
 
-		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false)
+		endpoints := loadHTTPAdditionalEndpoints(main, logsConfig, "", "", "", false, delegatedauthnoopimpl.NewComponent().Comp)
 		suite.Require().Len(endpoints, 1)
 		suite.Equal(time.Duration(0), endpoints[0].ConnectionResetInterval)
 	})
@@ -1048,7 +1178,7 @@ func (suite *EndpointsTestSuite) TestMRFHTTPEndpointConnectionResetInterval() {
 	suite.config.SetInTest("multi_region_failover.site", "mrf_fake_site.com:12")
 	suite.config.SetInTest("multi_region_failover.api_key", "mrf_key")
 
-	endpoints, err := BuildHTTPEndpoints(suite.config, "", "", "")
+	endpoints, err := BuildHTTPEndpoints(suite.config, "", "", "", delegatedauthnoopimpl.NewComponent().Comp)
 	suite.Nil(err)
 
 	mrfFound := false
