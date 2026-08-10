@@ -62,13 +62,13 @@ impl ProcmgrLifecycle {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     fn with_rpc_timeout(mut self, timeout: Duration) -> Self {
         self.rpc_timeout = timeout;
         self
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     fn with_poll_interval(mut self, interval: Duration) -> Self {
         self.poll_interval = interval;
         self
@@ -241,9 +241,12 @@ impl std::error::Error for RpcError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::test_support::{FakeProcmgr, serve_procmgr};
+    #[cfg(unix)]
     use tonic::Status;
 
+    #[cfg(unix)]
     const TEST_PROCESS_NAME: &str = "datadog-agent-action-executor";
 
     #[cfg(unix)]
