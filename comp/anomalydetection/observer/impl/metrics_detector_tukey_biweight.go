@@ -69,6 +69,7 @@ type tbSeriesState struct {
 // shape matches the other streaming metric detectors: cache series, bulk-fetch
 // per-ref status, then advance each per-series cursor with ForEachPoint.
 type TukeyBiweightDetector struct {
+	ready bool
 	// WindowSize is the number of recent points held in the IRLS window.
 	// Default: 80, enough context for a robust local baseline without making
 	// each scoring tick too expensive.
@@ -157,11 +158,14 @@ func NewTukeyBiweightDetectorWithConfig(cfg TukeyBiweightConfig) *TukeyBiweightD
 // Name returns the detector name as registered in the catalog.
 func (d *TukeyBiweightDetector) Name() string { return "tukey_biweight" }
 
+func (d *TukeyBiweightDetector) Ready() bool { return d.ready }
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *TukeyBiweightDetector) Reset() {
 	d.series = make(map[tbStateKey]*tbSeriesState)
 	d.cachedSeries = nil
 	d.cachedGen = 0
+	d.ready = false
 }
 
 // RemoveSeries drops per-series state for refs that storage has freed.
@@ -254,6 +258,7 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				state.ticksSinceScore++
 
 				if state.count >= d.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.ScoreEvery {
+					d.ready = true
 					state.ticksSinceScore = 0
 					if anomaly, fired := d.scoreBiweight(state, seriesMeta, agg, p.Timestamp); fired {
 						anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
