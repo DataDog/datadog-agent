@@ -57,6 +57,7 @@ type Runner struct {
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
 	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
+	stopWG              sync.WaitGroup                // Goroutines Stop waits for: monitor and checks
 	// ctx is cancelled when the runner stops, providing a cancellation signal
 	// to any context-aware operation inside workers (e.g. hostname resolution).
 	ctx    context.Context
@@ -93,6 +94,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 	r.ensureMinWorkers(numWorkers)
 
 	// Start monitoring worker utilization
+	r.stopWG.Add(1)
 	go r.monitorWorkerUtilization()
 
 	return r
@@ -227,14 +229,13 @@ func (r *Runner) Stop() {
 	}
 
 	// Cancel the runner context to unblock any context-aware operations in workers
-	// (e.g. hostname resolution via EC2 IMDS) that may be waiting on I/O.
+	// (e.g. hostname resolution via EC2 IMDS) that may be waiting on I/O, and to
+	// wake up monitorWorkerUtilization immediately instead of on its next tick.
 	r.cancel()
 
 	log.Infof("Runner %d is shutting down...", r.id)
 	close(r.pendingChecksChan)
 	close(r.shadowChecksChan)
-
-	wg := sync.WaitGroup{}
 
 	// Stop running checks
 	r.checksTracker.WithRunningChecks(func(runningChecks map[checkid.ID]check.Check) {
@@ -242,14 +243,14 @@ func (r *Runner) Stop() {
 		terminateChecksRunningProcesses()
 
 		for _, c := range runningChecks {
-			wg.Add(1)
+			r.stopWG.Add(1)
 			go func(ch check.Check) {
 				err := r.StopCheck(ch.ID())
 				if err != nil {
 					log.Warnf("Check %v not responding after %v: %s", ch, stopCheckTimeout, err)
 				}
 
-				wg.Done()
+				r.stopWG.Done()
 			}(c)
 		}
 	})
@@ -257,7 +258,7 @@ func (r *Runner) Stop() {
 	globalDone := make(chan struct{})
 	go func() {
 		log.Debugf("Runner %d waiting for all the workers to exit...", r.id)
-		wg.Wait()
+		r.stopWG.Wait()
 
 		log.Debugf("All runner %d workers have been shut down", r.id)
 		close(globalDone)
@@ -358,12 +359,18 @@ func (r *Runner) logWorkerUtilization() {
 }
 
 func (r *Runner) monitorWorkerUtilization() {
+	defer r.stopWG.Done()
+
 	interval := pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval")
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for r.isRunning.Load() {
-		<-ticker.C
-		r.logWorkerUtilization()
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-ticker.C:
+			r.logWorkerUtilization()
+		}
 	}
 }
