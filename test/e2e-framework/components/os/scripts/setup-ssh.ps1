@@ -27,7 +27,8 @@ function Test-SshInstallationNeeded {
     Write-Host "Stop sshd service"
     Stop-Service sshd
     if (Is-WindowsServer2025) {
-      # for Windows Server 2025, replace the service
+      # Windows Server 2025 ships a preinstalled OpenSSH that's a different, inconsistent version;
+      # replace it with our pinned MSI version below (only happens once, per $sshInstallMarkerPath).
       return $true
     }
   } else {
@@ -148,6 +149,21 @@ if (Test-SshInstallationNeeded) {
     Set-Service -Name sshd -StartupType Automatic
     $retries++
   }
+
+  # Write sshd_config so LogLevel DEBUG3 is set so OpenSSH/Operational captures more detail if
+  # sshd fails to stay up after a later reboot (e.g. domain controller promotion, see WINA-2095).
+  Write-Host "Writing sshd_config"
+  $sshdConfigLines = @(
+    "LogLevel DEBUG3",
+    "AuthorizedKeysFile`t.ssh/authorized_keys",
+    "Subsystem`tsftp`tsftp-server.exe",
+    "",
+    "Match Group administrators",
+    "       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys"
+  )
+  Set-Content -Path "$env:ProgramData\ssh\sshd_config" -Value $sshdConfigLines
+  Restart-Service sshd -ErrorAction SilentlyContinue
+
   New-Item -Path $sshInstallMarkerPath -ItemType File -Force | Out-Null
 }
 
@@ -191,29 +207,6 @@ while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) {
 }
 Add-Content -Path $env:ProgramData\ssh\administrators_authorized_keys -Value $authorizedKey
 icacls.exe ""$env:ProgramData\ssh\administrators_authorized_keys"" /inheritance:r /grant ""Administrators:F"" /grant ""SYSTEM:F""
-
-# Write sshd_config so LogLevel is deterministic across AMIs/OpenSSH versions. DEBUG3 is set so
-# OpenSSH/Operational captures more detail if sshd fails to stay up after a later reboot (e.g.
-# domain controller promotion, see WINA-2095).
-$sshdConfigPath = "$env:ProgramData\ssh\sshd_config"
-$sshdConfigLines = @(
-  "LogLevel DEBUG3",
-  "AuthorizedKeysFile`t.ssh/authorized_keys",
-  "Subsystem`tsftp`tsftp-server.exe",
-  "",
-  "Match Group administrators",
-  "       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys"
-)
-$existingSshdConfigLines = if (Test-Path $sshdConfigPath) { @(Get-Content -Path $sshdConfigPath) } else { @() }
-if (@(Compare-Object $existingSshdConfigLines $sshdConfigLines -SyncWindow 0).Count -ne 0) {
-  # Only restart sshd (a brief interruption) when the config actually changed -- this script
-  # reruns on every boot, and a no-op restart on every one of them is an avoidable SSH outage.
-  Write-Host "Writing sshd_config"
-  Set-Content -Path $sshdConfigPath -Value $sshdConfigLines
-  Restart-Service sshd -ErrorAction SilentlyContinue
-} else {
-  Write-Host "sshd_config already up to date, skipping restart"
-}
 
 # Start sshd service
 $retries = 0
