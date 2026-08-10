@@ -75,6 +75,7 @@ import (
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -218,6 +219,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				jmxloggerfx.Module(),
 				fx.Supply(jmxlogger.NewCliParams("")),
 				haagentfx.Module(),
+				workloadbalancingfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				remotetraceroute.Module(),
 			)

@@ -62,6 +62,7 @@ go_library(
         "//comp/networkpath/traceroute/fx-remote",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
+        "//comp/workloadbalancing/fx",
         "//pkg/aggregator",
         "//pkg/cli/standalone",
         "//pkg/collector",
