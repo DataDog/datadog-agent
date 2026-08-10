@@ -52,6 +52,42 @@ bazel:test:linux-amd64:
   extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
+    # THROWAWAY: break down the restored bazel/go/pip caches by size and
+    # file count, to see what could be shrunk down (cf. Slack thread on CI
+    # runner init time, 2026-08-06). Not meant to be merged.
+    - |
+      set -euo pipefail
+      for d in .cache/bazel/*/cache .cache/go .cache/ms-go .cache/pip; do
+        if [ -d "$d" ]; then
+          echo "=== $d ==="
+          du -sh "$d"
+          du -h --max-depth=2 "$d" | sort -rh | awk 'NR<=20'
+          echo "$(find "$d" -type f | wc -l) files"
+        else
+          echo "=== $d: absent ==="
+        fi
+      done
+      echo "=== .cache/bazel/*/cache deep dive ==="
+      for d in .cache/bazel/*/cache; do
+        [ -d "$d" ] || continue
+        echo "--- $d: depth-6 breakdown ---"
+        du -h --max-depth=6 "$d" | sort -rh | awk 'NR<=40'
+        echo "--- $d: 20 largest files ---"
+        find "$d" -type f -printf '%s %p\n' | sort -rn \
+          | awk 'NR<=20 {printf "%10.1fM  %s\n", $1/1048576, $2}'
+        echo "--- $d: age histogram (by mtime) ---"
+        find "$d" -type f -printf '%T@ %s\n' | awk -v now="$(date +%s)" '
+          {
+            age_days = (now - $1) / 86400
+            if (age_days < 7) bucket = "  <7d"
+            else if (age_days < 30) bucket = " 7-30d"
+            else if (age_days < 90) bucket = "30-90d"
+            else bucket = "  >90d"
+            count[bucket]++
+            total[bucket] += $2
+          }
+          END { for (b in total) printf "%-8s %8d files  %10.1fM\n", b, count[b], total[b]/1048576 }'
+      done
     - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
 
 bazel:test:linux-arm64:
