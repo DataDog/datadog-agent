@@ -38,6 +38,7 @@ use super::spawn::user_profile::UserProfileGuard;
 use super::spawn::win32::{
     build_windows_command_line, duplicate_primary_token, env_block_from_token,
 };
+use super::secret_backend_rights;
 use super::wide;
 
 const PROCESS_NAME: &str = "secret-backend";
@@ -49,6 +50,9 @@ pub(crate) fn exec_secret_backend(
     timeout: Duration,
     max_output_bytes: usize,
 ) -> Result<String> {
+    secret_backend_rights::check_secret_backend_command_rights(command)
+        .with_context(|| format!("validate secret backend executable {command}"))?;
+
     let run = BackendRun {
         command,
         arguments,

@@ -13,6 +13,7 @@ mod pipe_caller;
 mod pipe_security;
 mod scm_service;
 mod secret_backend;
+mod secret_backend_rights;
 mod sid;
 mod spawn;
 mod wide;
