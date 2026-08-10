@@ -6,19 +6,10 @@
 pub mod server;
 pub mod service;
 
-#[cfg(not(bazel))]
+/// Process-manager protobuf and gRPC bindings are owned by the shared client
+/// crate so daemon and client consumers compile against one generated API.
 pub mod proto {
-    tonic::include_proto!("datadog.procmgr");
-
-    pub const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("process_manager_descriptor");
-}
-
-#[cfg(bazel)]
-pub mod proto {
-    // Crate name from //pkg/proto/datadog/procmgr:procmgr_rust_proto (rules_rust_prost).
-    pub use procmgr_proto::datadog::procmgr::*;
-    pub const FILE_DESCRIPTOR_SET: &[u8] = procmgr_proto::datadog::procmgr::FILE_DESCRIPTOR_SET;
+    pub use dd_procmgr_client::proto::*;
 }
 
 #[cfg(all(test, unix))]
@@ -29,13 +20,11 @@ mod tests {
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
     use crate::manager::ProcessManager;
-    use hyper_util::rt::TokioIo;
     use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnixListenerStream;
-    use tonic::transport::{Channel, Endpoint};
-    use tower::service_fn;
+    use tonic::transport::Channel;
 
     use crate::test_helpers;
 
@@ -122,17 +111,7 @@ mod tests {
             }
         });
 
-        let channel = Endpoint::from_static(crate::transport::DUMMY_ENDPOINT)
-            .connect_with_connector(service_fn(move |_| {
-                let path = sock_path.clone();
-                async move {
-                    tokio::net::UnixStream::connect(path)
-                        .await
-                        .map(TokioIo::new)
-                }
-            }))
-            .await
-            .unwrap();
+        let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
 
         let client = ProcessManagerClient::new(channel);
         (client, shutdown_tx)

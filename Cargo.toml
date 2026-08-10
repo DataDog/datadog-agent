@@ -9,6 +9,7 @@ members = [
     "pkg/discovery/module/rust",
     "pkg/privateactionrunner/par-control",
     "pkg/procmgr/rust",
+    "pkg/procmgr/rust/client",
 ]
 
 [workspace.package]
@@ -47,6 +48,7 @@ serde = { version = "1.0.219", features = ["derive", "std"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 dd-agent-log = { path = "comp/core/log/rust" }
+dd-procmgr-client = { path = "pkg/procmgr/rust/client" }
 time = { version = "0.3", features = ["formatting", "macros"] }
 thiserror = "2.0.12"
 tokio = "1"
