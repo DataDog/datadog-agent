@@ -63,7 +63,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
 			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
-			// com.datadoghq.remoteaction.agent is intentionally not registered here: its
+			// com.datadoghq.remoteaction.datadogagent is intentionally not registered here: its
 			// actions resolve the target Agent via pkgconfigsetup.GetIPCAddress, which
 			// rejects non-local addresses, so inside the Cluster Agent it would reach the
 			// Cluster Agent itself rather than a specific node's core Agent. Registering it

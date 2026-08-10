@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "agent",
+    name = "datadogagent",
     srcs = [
         "agentapi.go",
         "config.go",
@@ -10,7 +10,7 @@ go_library(
         "remoteconfig.go",
         "status.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/agent",
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/datadogagent",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/diagnose/def",
