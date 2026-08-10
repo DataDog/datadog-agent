@@ -217,7 +217,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
-						"replica_name":    "replica-1",
+						"replica":         "replica-1",
 						"name":            "my-app",
 						"subscription_id": "sub-123",
 						"resource_group":  "my-rg",
@@ -242,7 +242,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
-						"replica_name":    "replica-1",
+						"replica":         "replica-1",
 						"name":            "my-app",
 						"subscription_id": "sub-123",
 						"resource_group":  "my-rg",
@@ -265,7 +265,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
-						"replica_name":    "replica-1",
+						"replica":         "replica-1",
 						"name":            "my-app",
 						"subscription_id": "sub-123",
 						"resource_group":  "my-rg",
@@ -290,7 +290,7 @@ func TestSourceFromAttrs(t *testing.T) {
 				SourceIdentifier: source.SourceIdentifier{
 					Primary: "replica-1",
 					Dimensions: map[string]string{
-						"replica_name":    "replica-1",
+						"replica":         "replica-1",
 						"name":            "my-app",
 						"subscription_id": "sub-123",
 						"resource_group":  "my-rg",
