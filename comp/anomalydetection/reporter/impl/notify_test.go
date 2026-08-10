@@ -54,6 +54,30 @@ func TestFormatScorerContributorMessage(t *testing.T) {
 	assert.NotContains(t, message, "4.2")
 	assert.NotContains(t, message, "weight")
 }
+
+func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing.T) {
+	metas := make(map[observerdef.SeriesRef]observerdef.SeriesMeta, 200)
+	contributors := make([]observerdef.ScorerContributor, 200)
+	for i := range contributors {
+		ref := observerdef.SeriesRef(i + 1)
+		metas[ref] = observerdef.SeriesMeta{
+			Ref:  ref,
+			Name: fmt.Sprintf("metric.%d", i),
+			Tags: []string{strings.Repeat("tag:value,", 100)},
+		}
+		contributors[i] = observerdef.ScorerContributor{
+			Handle: observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
+			Share:  1.0 / float64(len(contributors)),
+		}
+	}
+
+	message := formatScorerContributorMessage(contributors, &sumRangeStorage{metas: metas})
+	assert.LessOrEqual(t, len(message), changeEventMessageMaxLen)
+	assert.True(t, utf8.ValidString(message))
+	assert.Contains(t, message, metas[1].Tags[0])
+	assert.Contains(t, message, "metric.3:avg{...}")
+	assert.Contains(t, message, "other anomalies")
+}
 func (s *sumRangeStorage) GetSeriesRange(_ observerdef.SeriesRef, _, _ int64, _ observerdef.Aggregate) *observerdef.Series {
 	panic("not implemented")
 }

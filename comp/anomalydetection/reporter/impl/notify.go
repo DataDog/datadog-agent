@@ -148,33 +148,78 @@ func logRatePart(a observerdef.Anomaly, storage observerdef.StorageReader) strin
 
 // formatScorerContributorMessage resolves a scorer episode's compact handles
 // only when rendering the report. Entries whose backing series was evicted are
-// omitted without affecting the shares captured at episode start.
+// omitted without affecting the shares captured at episode start. The returned
+// message is always safe for the Event Management payload limit.
 func formatScorerContributorMessage(contributors []observerdef.ScorerContributor, storage observerdef.StorageReader) string {
 	if storage == nil || len(contributors) == 0 {
 		return ""
 	}
 
-	var b strings.Builder
-	b.WriteString("Top contributing metrics:")
-	position := 0
+	fullLines := make([]string, 0, len(contributors))
+	compactLines := make([]string, 0, len(contributors))
 	for _, contributor := range contributors {
 		meta := storage.GetSeriesMeta(contributor.Handle.Ref)
 		if meta == nil {
 			continue
 		}
-		position++
-		display := observerdef.SeriesDescriptor{
+		fullDisplay := observerdef.SeriesDescriptor{
 			Namespace: meta.Namespace,
 			Name:      meta.Name,
 			Tags:      meta.Tags,
 			Aggregate: contributor.Handle.Aggregate,
 		}.DisplayName()
-		fmt.Fprintf(&b, "\n%d. %s — %.0f%%", position, display, contributor.Share*100)
+		compactDisplay := fullDisplay
+		if len(meta.Tags) > 0 {
+			compactDisplay = observerdef.SeriesDescriptor{
+				Namespace: meta.Namespace,
+				Name:      meta.Name,
+				Aggregate: contributor.Handle.Aggregate,
+			}.DisplayName() + "{...}"
+		}
+		position := len(fullLines) + 1
+		fullLines = append(fullLines, fmt.Sprintf("%d. %s — %.0f%%", position, fullDisplay, contributor.Share*100))
+		compactLines = append(compactLines, fmt.Sprintf("%d. %s — %.0f%%", position, compactDisplay, contributor.Share*100))
 	}
-	if position == 0 {
+	if len(fullLines) == 0 {
 		return ""
 	}
-	return b.String()
+	if scorerContributorMessageLen(fullLines) <= changeEventMessageMaxLen {
+		return "Top contributing metrics:\n" + strings.Join(fullLines, "\n")
+	}
+
+	lines := append([]string(nil), fullLines...)
+	for i := 3; i < len(lines); i++ {
+		lines[i] = compactLines[i]
+	}
+	return truncateScorerContributorLines(lines)
+}
+
+func scorerContributorMessageLen(lines []string) int {
+	return len("Top contributing metrics:") + len(lines) + len(strings.Join(lines, ""))
+}
+
+func truncateScorerContributorLines(lines []string) string {
+	message := "Top contributing metrics:"
+	for i, line := range lines {
+		remaining := len(lines) - i - 1
+		suffix := ""
+		if remaining > 0 {
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		if len(message)+1+len(line)+len(suffix) <= changeEventMessageMaxLen {
+			message += "\n" + line
+			continue
+		}
+
+		available := changeEventMessageMaxLen - len(message) - len(suffix) - 1
+		if available >= 4 {
+			message += "\n" + truncateBytesValidUTF8(line, available)
+			remaining--
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		return message + suffix
+	}
+	return message
 }
 
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
@@ -219,7 +264,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
-	msg := formatScorerContributorMessage(evt.Contributors, s.storage)
+	msg := truncateBytesValidUTF8(formatScorerContributorMessage(evt.Contributors, s.storage), changeEventMessageMaxLen)
 
 	var host string
 	if s.hostname != nil {

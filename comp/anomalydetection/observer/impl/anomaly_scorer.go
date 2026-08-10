@@ -170,6 +170,8 @@ type windowEntry [5]int64
 const (
 	topAnomalyWindowSecs        = int64(5 * 60)
 	contributorBufferMultiplier = 10
+	minMaxReportedItems         = 10
+	maxMaxReportedItems         = 1000
 )
 
 // topAnomaly is one storage-backed anomaly occurrence retained for scorer
@@ -428,9 +430,12 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	cfg.MaxEpisodeAnomalies = r.GetInt(outPrefix + "max_anomalies")
 	key = outPrefix + "max_reported_items"
 	cfg.MaxReportedItems = r.GetInt(key)
-	if cfg.MaxReportedItems <= 0 {
-		pkglog.Warnf("anomaly_scorer: %s must be > 0, got %d — using default %d", key, cfg.MaxReportedItems, defaults.MaxReportedItems)
-		cfg.MaxReportedItems = defaults.MaxReportedItems
+	if cfg.MaxReportedItems < minMaxReportedItems {
+		pkglog.Warnf("anomaly_scorer: %s must be at least %d, got %d — using %d", key, minMaxReportedItems, cfg.MaxReportedItems, minMaxReportedItems)
+		cfg.MaxReportedItems = minMaxReportedItems
+	} else if cfg.MaxReportedItems > maxMaxReportedItems {
+		pkglog.Warnf("anomaly_scorer: %s must be at most %d, got %d — using %d", key, maxMaxReportedItems, cfg.MaxReportedItems, maxMaxReportedItems)
+		cfg.MaxReportedItems = maxMaxReportedItems
 	}
 
 	return cfg
@@ -569,6 +574,11 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	}
 	if cfg.SaturationK <= 0 {
 		cfg.SaturationK = defaults.SaturationK
+	}
+	if cfg.MaxReportedItems < minMaxReportedItems {
+		cfg.MaxReportedItems = minMaxReportedItems
+	} else if cfg.MaxReportedItems > maxMaxReportedItems {
+		cfg.MaxReportedItems = maxMaxReportedItems
 	}
 	if threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold); err != nil {
 		pkglog.Warnf("anomaly_scorer: correlation_event_threshold %v; using default %q", err, defaults.CorrelationEventThreshold)

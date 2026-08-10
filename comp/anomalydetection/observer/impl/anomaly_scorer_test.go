@@ -49,15 +49,22 @@ func TestReadAnomalyScorerConfigMaxReportedItems(t *testing.T) {
 	const prefix = "anomaly_detection.anomaly_scorer."
 
 	cfg := readAnomalyScorerConfig(scorerConfigReader{
-		ints: map[string]int{prefix + "output.max_reported_items": 7},
+		ints: map[string]int{prefix + "output.max_reported_items": minMaxReportedItems},
 	}, prefix)
-	if cfg.MaxReportedItems != 7 {
-		t.Errorf("MaxReportedItems = %d, want 7", cfg.MaxReportedItems)
+	if cfg.MaxReportedItems != minMaxReportedItems {
+		t.Errorf("MaxReportedItems = %d, want minimum %d", cfg.MaxReportedItems, minMaxReportedItems)
 	}
 
 	cfg = readAnomalyScorerConfig(scorerConfigReader{}, prefix)
-	if cfg.MaxReportedItems != DefaultAnomalyScorerConfig().MaxReportedItems {
-		t.Errorf("invalid MaxReportedItems = %d, want default %d", cfg.MaxReportedItems, DefaultAnomalyScorerConfig().MaxReportedItems)
+	if cfg.MaxReportedItems != minMaxReportedItems {
+		t.Errorf("invalid MaxReportedItems = %d, want minimum %d", cfg.MaxReportedItems, minMaxReportedItems)
+	}
+
+	cfg = readAnomalyScorerConfig(scorerConfigReader{
+		ints: map[string]int{prefix + "output.max_reported_items": maxMaxReportedItems + 1},
+	}, prefix)
+	if cfg.MaxReportedItems != maxMaxReportedItems {
+		t.Errorf("MaxReportedItems = %d, want maximum %d", cfg.MaxReportedItems, maxMaxReportedItems)
 	}
 }
 
