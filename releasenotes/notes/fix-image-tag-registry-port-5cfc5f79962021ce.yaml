@@ -15,4 +15,7 @@ fixes:
     ``image_tag`` tags, as well as the values shown in the Container Images
     view, to be incorrect for such images. The repo and tag are now parsed
     using the last colon following the last slash, matching standard image
-    reference rules.
+    reference rules. Relatedly, the registry of images whose reference has a
+    registry host followed by a single path component (for example
+    ``localhost:5000/service`` or ``registry.k8s.io/pause``) is now reported
+    in the Container Images view instead of being left empty.

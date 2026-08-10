@@ -305,6 +305,58 @@ func TestProcessEvents(t *testing.T) {
 			},
 		},
 		{
+			// A registry host with a port followed by a single path component
+			// (e.g. `localhost:5000/service`) is still a registry, even though the
+			// repo name only has two slash-separated components.
+			name: "registry with port and single path component",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						RepoTags: []string{
+							"localhost:5000/service:1",
+						},
+						RepoDigests: []string{
+							"localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						SizeBytes:    42,
+						OS:           "linux",
+						OSVersion:    "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+			expectedImages: []*model.ContainerImage{
+				{
+					Id: "localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					DdTags: []string{
+						"image_id:localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						"image_name:localhost:5000/service",
+						"short_image:service",
+						"image_tag:1",
+					},
+					Name:      "localhost:5000/service",
+					Registry:  "localhost:5000",
+					ShortName: "service",
+					RepoTags: []string{
+						"1",
+					},
+					Digest:      "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					Size:        42,
+					RepoDigests: []string{"localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "linux",
+						Version:      "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+		},
+		{
 			// In containerd some images are created without a repo digest, and it's
 			// also possible to remove repo digests manually. To test that scenario, in
 			// this test, we define an image with 2 repo tags: one for the gcr.io

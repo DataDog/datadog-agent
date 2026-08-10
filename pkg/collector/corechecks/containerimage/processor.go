@@ -76,6 +76,14 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 	}
 }
 
+// isRegistryHost reports whether the first path component of a repository name
+// is a registry host rather than a namespace. Following the image reference
+// grammar, a component is a registry only when it contains a '.' or ':' (a host
+// or a host:port) or is exactly "localhost".
+func isRegistryHost(component string) bool {
+	return component == "localhost" || strings.ContainsAny(component, ".:")
+}
+
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID)
 	ddTags, err := p.tagger.Tag(entityID, types.HighCardinality)
@@ -134,7 +142,12 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	for repo := range repos {
 		repoSplitted := strings.Split(repo, "/")
 		registry := ""
-		if len(repoSplitted) > 2 {
+		if len(repoSplitted) > 1 && isRegistryHost(repoSplitted[0]) {
+			// Explicit registry host, e.g. `localhost:5000/service` or
+			// `gcr.io/foo/bar`, including when a single path component follows.
+			registry = repoSplitted[0]
+		} else if len(repoSplitted) > 2 {
+			// Nested name without an explicit host component.
 			registry = repoSplitted[0]
 		}
 		shortName := repoSplitted[len(repoSplitted)-1]
