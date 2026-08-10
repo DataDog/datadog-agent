@@ -92,3 +92,51 @@ func TestCheckpoint(t *testing.T) {
 		assert.Equal(t, "42", ec.Checkpoint())
 	})
 }
+
+func TestFilterEventListAfterResourceVersion(t *testing.T) {
+	t.Run("checkpoint filters each page and preserves pagination", func(t *testing.T) {
+		events := &v1.EventList{
+			ListMeta: metav1.ListMeta{
+				ResourceVersion: "100",
+				Continue:        "next-page",
+			},
+			Items: []v1.Event{
+				{ObjectMeta: metav1.ObjectMeta{Name: "old", ResourceVersion: "9"}},
+				{ObjectMeta: metav1.ObjectMeta{Name: "newer", ResourceVersion: "11"}},
+				{ObjectMeta: metav1.ObjectMeta{Name: "equal", ResourceVersion: "10"}},
+				{ObjectMeta: metav1.ObjectMeta{Name: "newest", ResourceVersion: "20"}},
+				{ObjectMeta: metav1.ObjectMeta{Name: "invalid", ResourceVersion: "invalid"}},
+			},
+		}
+
+		filterEventListAfterResourceVersion(events, 10)
+
+		assert.Equal(t, []v1.Event{
+			{ObjectMeta: metav1.ObjectMeta{Name: "newer", ResourceVersion: "11"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "newest", ResourceVersion: "20"}},
+		}, events.Items)
+		assert.Equal(t, "100", events.ResourceVersion)
+		assert.Equal(t, "next-page", events.Continue)
+	})
+
+	t.Run("no checkpoint skips the retained snapshot but preserves pagination", func(t *testing.T) {
+		remaining := int64(50)
+		events := &v1.EventList{
+			ListMeta: metav1.ListMeta{
+				ResourceVersion:    "100",
+				Continue:           "next-page",
+				RemainingItemCount: &remaining,
+			},
+			Items: []v1.Event{
+				{ObjectMeta: metav1.ObjectMeta{Name: "retained", ResourceVersion: "99"}},
+			},
+		}
+
+		filterEventListAfterResourceVersion(events, 0)
+
+		assert.Nil(t, events.Items)
+		assert.Equal(t, "100", events.ResourceVersion)
+		assert.Equal(t, "next-page", events.Continue)
+		assert.Equal(t, &remaining, events.RemainingItemCount)
+	})
+}
