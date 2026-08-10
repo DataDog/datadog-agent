@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.types.arch import ALL_ARCHS, Arch
+from tasks.schema.generate import schema_codegen
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -48,6 +49,7 @@ NPM_TAG = "npm"
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
+    "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
@@ -363,6 +365,9 @@ def test(
     go_root = os.getenv("GOROOT")
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
@@ -1130,7 +1135,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
 _BAZEL_WINDOWS_RESOURCE_COPIES = (
-    ("pkg/util/winutil/messagestrings/rsrc.syso", "pkg/util/winutil/messagestrings/rsrc.syso"),
+    ("pkg/util/winutil/messagestrings/messagestrings.syso", "pkg/util/winutil/messagestrings/messagestrings.syso"),
     ("pkg/util/winutil/messagestrings/messagestrings.h", "pkg/util/winutil/messagestrings/messagestrings.h"),
     ("cmd/system-probe/windows_resources/rsrc.syso", "cmd/system-probe/rsrc.syso"),
 )
@@ -1141,8 +1146,8 @@ def bazel_build_windows_resources(ctx: Context) -> None:
 
     Replaces the ninja-based windmc/windres pipeline for system-probe.
     Produces:
-      - pkg/util/winutil/messagestrings/rsrc.syso + messagestrings.h  (shared message table)
-      - cmd/system-probe/rsrc.syso                                    (system-probe versioninfo)
+      - pkg/util/winutil/messagestrings/messagestrings.syso + messagestrings.h  (shared message table)
+      - cmd/system-probe/rsrc.syso                                              (system-probe versioninfo)
     """
     import shutil
 
@@ -1834,6 +1839,10 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
             command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 

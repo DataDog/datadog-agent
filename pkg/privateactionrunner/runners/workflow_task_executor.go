@@ -11,6 +11,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
@@ -46,9 +47,10 @@ func NewWorkflowTaskExecutor(
 	eventPlatform eventplatform.Component,
 	ipcClient ipc.HTTPClient,
 	encryptionStore *encryptioncontext.Store,
+	ha helmactions.Component,
 ) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha),
 		config:       configuration,
 		taskVerifier: taskVerifier,
 		resolver:     resolver.NewPrivateCredentialResolver(),
@@ -88,6 +90,28 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 		Task:       unwrappedTask,
 		Credential: credential,
 	}, nil, nil
+}
+
+// RunPrepared runs a prepared task under its effective per-task timeout. It is the single
+// run+timeout seam shared by the OPMS loop and the executor gRPC handler.
+func (e *WorkflowTaskExecutor) RunPrepared(
+	ctx context.Context,
+	preparedTask *PreparedWorkflowTask,
+) (interface{}, error) {
+	logger := log.FromContext(ctx)
+	timeoutSeconds := preparedTask.Task.TimeoutSeconds()
+	if timeoutSeconds == nil {
+		timeoutSeconds = e.config.TaskTimeoutSeconds
+	}
+
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
+	defer timeoutCancel()
+
+	output, err := e.RunTask(timeoutCtx, preparedTask)
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
+		return nil, timeoutErr
+	}
+	return output, err
 }
 
 func (e *WorkflowTaskExecutor) RunTask(

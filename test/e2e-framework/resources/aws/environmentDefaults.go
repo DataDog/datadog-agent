@@ -40,6 +40,7 @@ type ddInfra struct {
 	defaultVPCID                   string
 	defaultSubnets                 []SubnetConfig
 	defaultSecurityGroups          []string
+	noInternetSecurityGroupNames   []string
 	defaultInstanceType            string
 	defaultInstanceProfileName     string
 	defaultARMInstanceType         string
@@ -158,7 +159,7 @@ func agentSandboxDefault() environmentDefault {
 	return environmentDefault{
 		aws: awsProvider{
 			region:  string(aws.RegionUSEast1),
-			profile: "exec-sso-agent-sandbox-account-admin",
+			profile: "exec-sso-agent-sandbox-account-admin-8h",
 		},
 		ddInfra: ddInfra{
 			defaultVPCID: "vpc-029c0faf8f49dee8d",
@@ -168,6 +169,7 @@ func agentSandboxDefault() environmentDefault {
 				{ID: "subnet-003831c49a10df3dd", MacOSCompatible: false},
 			},
 			defaultSecurityGroups:          []string{"sg-038231b976eb13d44", "sg-05466e7ce253d21b1"},
+			noInternetSecurityGroupNames:   []string{"no-internet-access"},
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
@@ -197,7 +199,7 @@ func agentSandboxDefault() environmentDefault {
 
 			eks: ddInfraEKS{
 				readOnlySSORole:     "arn:aws:iam::376334461865:role/AWSReservedSSO_read-only_14b5d3ee971c41e7",
-				accountAdminSSORole: "arn:aws:iam::376334461865:role/AWSReservedSSO_account-admin_6b545a7026a0a2d4",
+				accountAdminSSORole: "arn:aws:iam::376334461865:role/AWSReservedSSO_account-admin-8h_8fadaeaca2040435",
 				podSubnets: []DDInfraEKSPodSubnets{
 					{
 						AZ:       "us-east-1a",
@@ -238,6 +240,7 @@ func agentQADefault() environmentDefault {
 				{ID: "subnet-0dabe4bab92b2b9a7", MacOSCompatible: true},  // us-east-1b
 			},
 			defaultSecurityGroups:          []string{"sg-05e9573fcc582f22c", "sg-0498c960a173dff1e"},
+			noInternetSecurityGroupNames:   []string{"no-internet-access"},
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",

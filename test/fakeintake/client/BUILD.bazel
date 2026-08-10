@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "client",
@@ -14,13 +15,13 @@ go_library(
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/client/flare",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_samber_lo//:lo",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "client_test",
     srcs = [
         "client_integration_test.go",
@@ -43,7 +44,6 @@ go_test(
         "fixtures/api_v2_sbom_response",
         "fixtures/api_v2_series_response",
     ],
-    gotags = ["test"],
     deps = [
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",

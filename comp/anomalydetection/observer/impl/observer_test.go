@@ -11,6 +11,48 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	if err != nil {
+		t.Fatalf("newDefaultMetricsFilterRules() returned error: %v", err)
+	}
+
+	obs := &observerImpl{
+		engine:       newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		catalog:      defaultCatalog(),
+		obsCh:        make(chan observation, 1),
+		metricFilter: filter,
+	}
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	settings := ComponentSettings{
+		Enabled: map[string]bool{"anomaly_scorer": true},
+		configs: map[string]any{"anomaly_scorer": cfg},
+	}
+	storageCfg := DefaultStorageConfig()
+	storageCfg.TrackCorrelationHistory = true
+	obs.Reset(settings, storageCfg)
+
+	scorer := obs.engine.scorer
+	if scorer == nil {
+		t.Fatal("expected replay scorer to be configured")
+	}
+	seedAndCrossHighThreshold(scorer, 1000)
+	if got := scorer.ActiveCorrelations(); len(got) != 1 {
+		t.Fatalf("expected replay scorer watcher to open one correlation episode, got %d", len(got))
+	}
+}
+
 func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 100, nil)
@@ -58,11 +100,75 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 	}
 }
 
+func TestBaselineCompletedCallbackSink_AccumulatesGroupsUntilAllBaselinesComplete(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
+
+	type callbackResult struct {
+		endSec int64
+		groups []string
+	}
+	var callbacks []callbackResult
+	sink := &baselineCompletedCallbackSink{
+		engine: newEngine(engineConfig{storage: storage}),
+		callback: func(endSec int64, groups []string) {
+			callbacks = append(callbacks, callbackResult{endSec: endSec, groups: groups})
+		},
+	}
+
+	// The first detector finds a metric-backed anomaly. The final detector
+	// models a detector such as RRCF, which has no per-series source refs.
+	sink.onEngineEvent(engineEvent{
+		kind: eventBaselineCompleted,
+		baselineCompleted: &baselineCompletedEvent{
+			mutedRefs: []observerdef.SeriesRef{ref},
+		},
+	})
+	sink.onEngineEvent(engineEvent{
+		kind:      eventBaselineCompleted,
+		timestamp: 200,
+		baselineCompleted: &baselineCompletedEvent{
+			allComplete: true,
+		},
+	})
+
+	if len(callbacks) != 1 || callbacks[0].endSec != 200 {
+		t.Fatalf("callbacks = %v, want one callback at 200", callbacks)
+	}
+	if len(callbacks[0].groups) != 1 || callbacks[0].groups[0] != "ns/cpu" {
+		t.Fatalf("first callback groups = %v, want [ns/cpu]", callbacks[0].groups)
+	}
+
+	// A second replay must not inherit groups accumulated for the first one.
+	secondRef := storage.Add("ns", "memory", 1.0, 300, nil).Ref
+	sink.onEngineEvent(engineEvent{
+		kind: eventBaselineCompleted,
+		baselineCompleted: &baselineCompletedEvent{
+			mutedRefs: []observerdef.SeriesRef{secondRef},
+		},
+	})
+	sink.onEngineEvent(engineEvent{
+		kind:      eventBaselineCompleted,
+		timestamp: 400,
+		baselineCompleted: &baselineCompletedEvent{
+			allComplete: true,
+		},
+	})
+
+	if len(callbacks) != 2 || callbacks[1].endSec != 400 {
+		t.Fatalf("callbacks = %v, want second callback at 400", callbacks)
+	}
+	if len(callbacks[1].groups) != 1 || callbacks[1].groups[0] != "ns/memory" {
+		t.Fatalf("second callback groups = %v, want [ns/memory]", callbacks[1].groups)
+	}
+}
+
 type countingSeriesDetector struct {
 	anomalies []observerdef.Anomaly
 }
 
 func (d *countingSeriesDetector) Name() string { return "counting" }
+func (*countingSeriesDetector) Ready() bool    { return true }
 
 func (d *countingSeriesDetector) Detect(_ observerdef.Series) observerdef.DetectionResult {
 	return observerdef.DetectionResult{

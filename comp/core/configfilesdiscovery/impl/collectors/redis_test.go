@@ -8,6 +8,7 @@ package collectors
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
@@ -118,7 +119,11 @@ func TestRedisGetConfigPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotPath, gotOK := redisGetConfigPath(tt.commandline)
+			configArg, gotOK := redisGetConfigArgFromCommandline(tt.commandline.Args)
+			var gotPath string
+			if gotOK {
+				gotPath, gotOK = resolveConfigPath(configArg, tt.commandline.WorkingDir)
+			}
 
 			assert.Equal(t, tt.wantOK, gotOK)
 			assert.Equal(t, tt.wantPath, gotPath)
@@ -126,9 +131,37 @@ func TestRedisGetConfigPath(t *testing.T) {
 	}
 }
 
+func TestRedisCollectorResolvesAndReadsRelativeProcessConfig(t *testing.T) {
+	eventArgs := []string{"redis-server", "redis.conf"}
+	eventCommandline := configfilesdiscoveryimpl.TargetCommandline{
+		Args:       eventArgs,
+		WorkingDir: "/etc/redis",
+	}
+	reader := &redisCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
+		},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{eventCommandline},
+		file:                    configfilesdiscoveryimpl.ConfigFile{Path: "/etc/redis/redis.conf"},
+	}
+
+	collector := redisConfigCollector{}
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{Args: eventArgs}))
+	assert.True(t, collector.CanCollectFromProcess(eventCommandline))
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"redis-server", "/etc/redis/redis.conf"},
+	}))
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+}
+
 func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "/etc/redis/redis.conf"},
 		},
 		file: configfilesdiscoveryimpl.ConfigFile{
@@ -139,32 +172,181 @@ func TestRedisCollectorReadsDetectedConfig(t *testing.T) {
 	}
 	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
-	require.Len(t, files, 1)
+	require.Len(t, collected.ConfigFiles, 1)
 	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
 		Path:          "/etc/redis/redis.conf",
 		Content:       []byte("port 6379\n"),
 		Truncated:     true,
 		PayloadFormat: redisConfigPayloadFormat,
-	}, files[0])
+	}, collected.ConfigFiles[0])
+	assert.Empty(t, collected.EnvVars)
 }
 
-func TestRedisCollectorSkipsWhenNoConfigPathIsDetected(t *testing.T) {
+func TestRedisCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T) {
+	for _, args := range [][]string{
+		{"redis-server"},
+		{"redis-server", "--save", "60", "1"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			reader := &redisCollectorTestReader{
+				runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: args},
+				file: configfilesdiscoveryimpl.ConfigFile{
+					Path:    "/etc/redis/redis.conf",
+					Content: []byte("port 6379\n"),
+				},
+			}
+
+			collected, err := NewRedis().Collect(context.Background(), reader)
+
+			require.NoError(t, err)
+			assert.Empty(t, reader.readFileCalls)
+			assert.Empty(t, collected.ConfigFiles)
+			assert.Empty(t, collected.EnvVars)
+		})
+	}
+}
+
+func TestRedisCollectorReadsDefaultConfig(t *testing.T) {
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
-			Args: []string{"redis-server", "--save", "60", "1"},
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start-redis.sh"},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/etc/redis/redis.conf",
+			Content: []byte("port 6379\n"),
 		},
 	}
-	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := NewRedis().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, redisDefaultConfigPaths, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
+		Path:          "/etc/redis/redis.conf",
+		Content:       []byte("port 6379\n"),
+		PayloadFormat: redisConfigPayloadFormat,
+	}, collected.ConfigFiles[0])
+}
+
+func TestRedisCollectorSkipsDefaultsWhenLiveProcessHasNoConfigFile(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start-redis.sh"},
+		},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+			Args: []string{"redis-server", "--save", "60", "1"},
+		}},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/etc/redis/redis.conf",
+			Content: []byte("port 6379\n"),
+		},
+	}
+
+	collected, err := NewRedis().Collect(context.Background(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
-	assert.Empty(t, files)
+	assert.Empty(t, collected.ConfigFiles)
+}
+
+func TestRedisCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
+		},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
+			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/redis/redis.conf"},
+	}
+
+	collected, err := NewRedis().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
+	assert.Equal(t, 1, reader.processCommandlineCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+}
+
+func TestRedisCollectorSkipsConflictingProcessConfigPaths(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
+		},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
+			{Args: []string{"redis-server", "/etc/redis/other.conf"}},
+		},
+	}
+
+	collected, err := NewRedis().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+}
+
+func TestRedisCollectorSkipsUnresolvedMatchingProcessConfigPath(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/tini", "--", "/etc/scripts/start_redis.sh"},
+		},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{"redis-server", "/etc/redis/redis.conf"}},
+			{Args: []string{"redis-server", "redis.conf"}},
+		},
+	}
+
+	collected, err := NewRedis().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+}
+
+func TestRedisCollectorUsesRuntimeConfigBeforeProcessConfig(t *testing.T) {
+	reader := &redisCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"redis-server", "/etc/redis/runtime.conf"},
+		},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{"redis-server", "/etc/redis/process.conf"}},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/redis/runtime.conf"},
+	}
+
+	collected, err := NewRedis().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/etc/redis/runtime.conf"}, reader.readFileCalls)
+	assert.Zero(t, reader.processCommandlineCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+}
+
+func TestRedisCollectorFallsBackToProcessCommandlineOnRuntimeCommandlineError(t *testing.T) {
+	expectedErr := errors.New("command line unavailable")
+	reader := &redisCollectorTestReader{
+		commandlineErr: expectedErr,
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+			Args: []string{"redis-server", "/etc/redis/redis.conf"},
+		}},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path: "/etc/redis/redis.conf",
+		},
+	}
+
+	collected, err := NewRedis().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, reader.processCommandlineCalls)
+	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
 }
 
 func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
@@ -172,35 +354,38 @@ func TestRedisCollectorReturnsCommandlineErrors(t *testing.T) {
 	reader := &redisCollectorTestReader{commandlineErr: expectedErr}
 	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
-	assert.Nil(t, files)
+	assert.Equal(t, 1, reader.processCommandlineCalls)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
 func TestRedisCollectorReturnsReadFileErrors(t *testing.T) {
 	expectedErr := errors.New("read failed")
 	reader := &redisCollectorTestReader{
-		commandline: configfilesdiscoveryimpl.TargetCommandline{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"redis-server", "/etc/redis/redis.conf"},
 		},
 		readFileErr: expectedErr,
 	}
 	collector := NewRedis()
 
-	files, err := collector.Collect(context.Background(), reader)
+	collected, err := collector.Collect(context.Background(), reader)
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, []string{"/etc/redis/redis.conf"}, reader.readFileCalls)
-	assert.Nil(t, files)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
 type redisCollectorTestReader struct {
-	commandline    configfilesdiscoveryimpl.TargetCommandline
-	commandlineErr error
-	readFileCalls  []string
-	file           configfilesdiscoveryimpl.ConfigFile
-	readFileErr    error
+	runtimeCommandline      configfilesdiscoveryimpl.TargetCommandline
+	liveProcessCommandlines []configfilesdiscoveryimpl.TargetCommandline
+	commandlineErr          error
+	processCommandlineCalls int
+	readFileCalls           []string
+	file                    configfilesdiscoveryimpl.ConfigFile
+	readFileErr             error
 }
 
 func (r *redisCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
@@ -214,16 +399,24 @@ func (r *redisCollectorTestReader) ReadFile(_ context.Context, path string) (con
 	if r.readFileErr != nil {
 		return configfilesdiscoveryimpl.ConfigFile{}, r.readFileErr
 	}
-	return r.file, nil
+	if r.file.Path == path {
+		return r.file, nil
+	}
+	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }
 
 func (r *redisCollectorTestReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (r *redisCollectorTestReader) ReadCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
+func (r *redisCollectorTestReader) ReadRuntimeCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
 	if r.commandlineErr != nil {
 		return configfilesdiscoveryimpl.TargetCommandline{}, r.commandlineErr
 	}
-	return r.commandline, nil
+	return r.runtimeCommandline, nil
+}
+
+func (r *redisCollectorTestReader) ReadLiveProcessCommandlines(context.Context) []configfilesdiscoveryimpl.TargetCommandline {
+	r.processCommandlineCalls++
+	return r.liveProcessCommandlines
 }

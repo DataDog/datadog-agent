@@ -95,7 +95,7 @@ func TestAutoinstrumentation(t *testing.T) {
 		shouldMutate bool
 		expected     *expected
 	}{
-		"default configuration should not mutate": {
+		"default on-demand configuration should not mutate without a matching rule": {
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
 				NS:         "application",

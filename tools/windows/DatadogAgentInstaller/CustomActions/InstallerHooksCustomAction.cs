@@ -18,6 +18,8 @@ namespace Datadog.CustomActions
             ("DD_INSTALLER_REGISTRY_USERNAME", "DD_INSTALLER_REGISTRY_USERNAME"),
             ("DD_INSTALLER_REGISTRY_PASSWORD", "DD_INSTALLER_REGISTRY_PASSWORD"),
             ("DD_OTELCOLLECTOR_ENABLED", "DD_OTELCOLLECTOR_ENABLED"),
+            // EUDM gate for the ai-usage extension (installed via installAgentExtensions)
+            ("DD_INFRASTRUCTURE_MODE", "DD_INFRASTRUCTURE_MODE"),
         };
 
         private readonly ISession _session;

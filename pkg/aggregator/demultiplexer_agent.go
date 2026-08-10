@@ -88,6 +88,11 @@ type AgentDemultiplexerOptions struct {
 
 	NoAggregationPipelineWorkersCount int
 
+	DogStatsDLookback        DogStatsDLookback
+	DogStatsDLookbackFactory DogStatsDLookbackFactory
+
+	FinalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
+
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 
 	UseDogstatsdContextLimiter bool
@@ -169,6 +174,9 @@ func initAgentDemultiplexer(log log.Component,
 	// ----------------------
 
 	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
+		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
+	}
 
 	// prepare the embedded aggregator
 	// --
@@ -190,6 +198,8 @@ func initAgentDemultiplexer(log log.Component,
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
+		statsdSampler.finalDogStatsDSerieObservers = append([]FinalDogStatsDSerieObserver(nil), options.FinalDogStatsDSerieObservers...)
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -214,6 +224,7 @@ func initAgentDemultiplexer(log log.Component,
 				noAggSerializers[i],
 				agg.flushAndSerializeInParallel,
 				tagger,
+				options.DogStatsDLookback,
 			)
 		}
 	}
@@ -486,6 +497,9 @@ func (d *AgentDemultiplexer) Stop() {
 		d.aggregator.Stop()
 	}
 	d.aggregator = nil
+	if stopper, ok := d.options.DogStatsDLookback.(DogStatsDLookbackStopper); ok {
+		stopper.Stop()
+	}
 
 	// forwarders
 

@@ -66,7 +66,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Orchestrator Explorer DCA and core agent
   extra_tags:
     node_type: setting
     type: array

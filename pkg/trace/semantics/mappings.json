@@ -192,6 +192,12 @@
       "canonical": "db.system",
       "fallbacks": [
         {
+          "name": "db.system.name",
+          "provider": "otel",
+          "type": "string",
+          "version": "1.30.0"
+        },
+        {
           "name": "db.system",
           "provider": "otel",
           "type": "string"
@@ -563,6 +569,12 @@
     "peer.db.system": {
       "canonical": "peer.db.system",
       "fallbacks": [
+        {
+          "name": "db.system.name",
+          "provider": "otel",
+          "type": "string",
+          "version": "1.30.0"
+        },
         {
           "name": "db.system",
           "provider": "otel",

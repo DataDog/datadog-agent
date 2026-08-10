@@ -286,6 +286,9 @@ type DetectionResult struct {
 type SeriesDetector interface {
 	// Name returns the analysis name for debugging.
 	Name() string
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
 	// Detect examines a series and returns any detected anomalies.
 	Detect(series Series) DetectionResult
 }
@@ -294,9 +297,9 @@ type SeriesDetector interface {
 type CorrelatorEventKind int
 
 const (
-	// CorrelatorEventEpisodeStarted fires when the scorer enters High severity.
+	// CorrelatorEventEpisodeStarted fires when the scorer enters its configured episode threshold.
 	CorrelatorEventEpisodeStarted CorrelatorEventKind = iota + 1
-	// CorrelatorEventEpisodeEnded fires when the scorer leaves High severity.
+	// CorrelatorEventEpisodeEnded fires when the scorer leaves its configured episode threshold.
 	CorrelatorEventEpisodeEnded
 	// CorrelatorEventCorrelationDetected fires when a correlator observes a
 	// pattern for the first time (or after it has gone inactive and recurred).
@@ -574,6 +577,10 @@ type StorageReader interface {
 // This supports multivariate detection across multiple series.
 type Detector interface {
 	Name() string
+
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
 
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.
