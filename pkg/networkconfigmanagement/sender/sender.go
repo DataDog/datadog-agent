@@ -79,11 +79,18 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 	}
 }
 
-// SendNCMCheckFailure sends a count metric indicating that the NCM check
-// failed, tagged with the reason for the failure.
-func (s *NCMSender) SendNCMCheckFailure(errType types.ErrorType) {
+// SendNCMCheckFailure sends a single count metric indicating that the NCM
+// check failed, tagged with each of the distinct failure reasons.
+func (s *NCMSender) SendNCMCheckFailure(errTypes ...types.ErrorType) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
-	tags = append(tags, "error:"+string(errType))
+	seen := make(map[types.ErrorType]struct{}, len(errTypes))
+	for _, errType := range errTypes {
+		if _, ok := seen[errType]; ok {
+			continue
+		}
+		seen[errType] = struct{}{}
+		tags = append(tags, "error:"+string(errType))
+	}
 	s.Sender.Count(ncmCheckFailureMetric, 1, s.agentHostname, tags)
 }
 

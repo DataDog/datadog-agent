@@ -178,9 +178,11 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		dc.lastReportTime = startTime
 		return nil
 	}
+	errTypes := make([]types.ErrorType, 0, len(nonBlockingErrors))
 	for _, nbErr := range nonBlockingErrors {
-		sender.SendNCMCheckFailure(types.AsRollbackError(nbErr).Type())
+		errTypes = append(errTypes, types.AsRollbackError(nbErr).Type())
 	}
+	sender.SendNCMCheckFailure(errTypes...)
 	sender.SendNCMCheckMetrics(startTime, dc.lastReportTime, false)
 	return fmt.Errorf("check completed but with errors: %v", errors.Join(nonBlockingErrors...))
 }
