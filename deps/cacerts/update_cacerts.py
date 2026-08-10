@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Check/update deps/cacerts/cacerts.MODULE.bazel against curl.se's CA extract page.
+"""Check/update deps/cacerts against curl.se's CA extract page.
+
+Updates cacerts.MODULE.bazel, cacert.pem and cacert.sha256 together so they
+stay pinned to the same upstream version.
+
+TODO: When this change lasts a release cycle without problems, drop cacerts.MODULE.bazel.
 
 See AGENTS.md in this directory for the full procedure.
 
 Usage:
     python3 update_cacerts.py            # dry run, prints what would change
-    python3 update_cacerts.py --write    # rewrite cacerts.MODULE.bazel in place
+    python3 update_cacerts.py --write    # rewrite the files in place
 """
 
+import hashlib
 import os
 import re
 import sys
@@ -16,6 +22,7 @@ from pathlib import Path
 
 CAEXTRACT_URL = "https://curl.se/docs/caextract.html"
 SHA256_URL = "https://curl.se/ca/cacert-{version}.pem.sha256"
+PEM_URL = "https://curl.se/ca/cacert-{version}.pem"
 
 # Under `bazel run`, __file__ resolves inside the sandboxed runfiles tree, not
 # the real source tree, so writes there wouldn't reach the repo. Bazel sets
@@ -23,11 +30,18 @@ SHA256_URL = "https://curl.se/ca/cacert-{version}.pem.sha256"
 _workspace_dir = os.environ.get("BUILD_WORKSPACE_DIRECTORY")
 _base_dir = Path(_workspace_dir) / "deps" / "cacerts" if _workspace_dir else Path(__file__).parent
 MODULE_FILE = _base_dir / "cacerts.MODULE.bazel"
+CACERT_PEM_FILE = _base_dir / "cacert.pem"
+CACERT_SHA256_FILE = _base_dir / "cacert.sha256"
 
 
 def _fetch(url):
     with urllib.request.urlopen(url) as resp:
         return resp.read().decode("utf-8")
+
+
+def _fetch_bytes(url):
+    with urllib.request.urlopen(url) as resp:
+        return resp.read()
 
 
 def _latest_version():
@@ -67,14 +81,25 @@ def main():
     print(f"new sha256: {sha}")
 
     if not write:
-        print("dry run, pass --write to update cacerts.MODULE.bazel")
+        print("dry run, pass --write to update cacerts.MODULE.bazel, cacert.pem and cacert.sha256")
         return
+
+    pem_bytes = _fetch_bytes(PEM_URL.format(version=latest))
+    digest = hashlib.sha256(pem_bytes).hexdigest()
+    if digest != sha:
+        sys.exit(f"downloaded cacert-{latest}.pem sha256 {digest} does not match published sha256 {sha}")
 
     text = MODULE_FILE.read_text()
     text = re.sub(r'version\s*=\s*"[^"]+"', f'version = "{latest}"', text, count=1)
     text = re.sub(r'sha\s*=\s*"[^"]+"', f'sha = "{sha}"', text, count=1)
     MODULE_FILE.write_text(text)
     print(f"updated {MODULE_FILE}")
+
+    CACERT_PEM_FILE.write_bytes(pem_bytes)
+    print(f"updated {CACERT_PEM_FILE}")
+
+    CACERT_SHA256_FILE.write_text(f"{digest}  {CACERT_PEM_FILE.name}\n")
+    print(f"updated {CACERT_SHA256_FILE}")
 
 
 if __name__ == "__main__":
