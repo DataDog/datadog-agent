@@ -6,6 +6,9 @@
 package ec2
 
 import (
+	"fmt"
+	stdos "os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -16,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -62,17 +68,131 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			StorageSize:        vmArgs.storageSize,
 		}
 
-		if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
-			dedicatedHost, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{
-				InstanceType: vmArgs.instanceType,
-			})
+		// TODO: remove E2E_MACOS_POOL_ENABLED and this bypass path once the pool has
+		// been validated and is trusted as the default.
+		//
+		// E2E_MACOS_POOL_ENABLED is an escape hatch to bypass the pool entirely and fall
+		// back to provisioning a fresh Dedicated Host per run. Missing/true keeps pool
+		// behavior; only an explicit "false" disables it. Unlike isCI below, a missing
+		// value must default to true, so parse errors are surfaced instead of ignored.
+		poolEnabled := true
+		if v := stdos.Getenv("E2E_MACOS_POOL_ENABLED"); v != "" {
+			parsed, err := strconv.ParseBool(v)
+			if err != nil {
+				return fmt.Errorf("invalid E2E_MACOS_POOL_ENABLED value %q: %w", v, err)
+			}
+			poolEnabled = parsed
+		}
+
+		// isMacOSPoolMember/poolAcquired drive the pool-acquire/pool-provision/
+		// pool-release wiring below, once the instance itself has been created or
+		// imported.
+		isMacOSPoolMember := vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" && poolEnabled
+		isCI, _ := strconv.ParseBool(stdos.Getenv("CI"))
+		username := e.Username()
+		stackID := e.Ctx().Stack()
+		var poolAcquired pool.AcquireResult
+
+		if isMacOSPoolMember {
+			poolClient, err := pool.NewEC2Client(e.Ctx().Context(), e.Region(), e.Profile())
 			if err != nil {
 				return err
 			}
-			instanceArgs.HostID = dedicatedHost.Arn.ApplyT(func(arn string) pulumi.StringInput {
-				splitted := strings.Split(arn, "/")
-				return pulumi.String(splitted[len(splitted)-1])
-			}).(pulumi.StringInput)
+
+			// A local run is scoped to the developer's own previously-provisioned
+			// instance via the username tag. Found == false means they own none yet,
+			// so provision one; an existing but busy instance is an error instead.
+			var localOpts *pool.LocalProvisionOptions
+			if !isCI {
+				localOpts = &pool.LocalProvisionOptions{Username: username}
+			}
+
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, stackID, localOpts)
+			if err != nil {
+				return err
+			}
+
+			if localOpts != nil && poolAcquired.Found {
+				revertBeforeRun, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.RevertBeforeRun, false)
+				if err != nil {
+					return err
+				}
+				if revertBeforeRun {
+					// The re-published lease has a new ETag; keep it or the release at
+					// teardown fails its If-Match and strands the lease as in-use.
+					newToken, err := pool.RevertInPlace(e.Ctx().Context(), e.Region(), e.Profile(), poolAcquired.InstanceID, poolAcquired.LeaseToken)
+					if err != nil {
+						return fmt.Errorf("failed to revert local pool instance %s before run: %w", poolAcquired.InstanceID, err)
+					}
+					poolAcquired.LeaseToken = newToken
+				}
+			}
+
+			// Pooled instances/hosts are never destroyed by Pulumi;
+			// BaseSuite.releasePoolInstanceIfAny releases them back to idle instead.
+			opts = append(opts, pulumi.RetainOnDelete(true))
+			instanceArgs.Tenancy = "host"
+
+			if poolAcquired.Found {
+				// Import the existing pool member instead of creating a new instance,
+				// and pin HostID/SubnetID to what it's actually running on, since the
+				// instance's AZ is fixed by its Dedicated Host.
+				opts = append(opts, pulumi.Import(pulumi.ID(poolAcquired.InstanceID)))
+				instanceArgs.HostID = pulumi.String(poolAcquired.HostID)
+				instanceArgs.SubnetID = pulumi.String(poolAcquired.SubnetID)
+
+				// Tags, AMI, and key pair are owned externally on an imported pool
+				// member; without IgnoreChanges, Pulumi would reconcile them down to
+				// NewInstance's defaults, stripping the pool tag and drifting the AMI.
+				opts = append(opts, pulumi.IgnoreChanges([]string{"tags", "ami", "keyName"}))
+
+				// Exported so BaseSuite.releasePoolInstanceIfAny can revert and release
+				// the instance once the test suite completes, independent of region/
+				// profile resolution happening again on the test-harness side.
+				c.PoolInstanceID = pulumi.String(poolAcquired.InstanceID).ToStringOutput()
+				c.PoolLeaseToken = pulumi.String(poolAcquired.LeaseToken).ToStringOutput()
+				// Already registered, so no baseline to hand to the harness.
+				c.PoolBaselineImageID = pulumi.String("").ToStringOutput()
+				c.PoolStackID = pulumi.String(stackID).ToStringOutput()
+			} else {
+				// Local cache miss: no pool member owned by this developer exists yet.
+				// Provision a new Dedicated Host + instance through ordinary Pulumi
+				// resources so they're tracked in the stack.
+				host, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{InstanceType: vmArgs.instanceType}, opts...)
+				if err != nil {
+					return err
+				}
+				instanceArgs.HostID = host.ID()
+			}
+		} else {
+			// TODO: remove this bypass path once the pool has been validated and is
+			// trusted as the default.
+			if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
+				// Pool bypassed (E2E_MACOS_POOL_ENABLED=false) but still a macOS VM:
+				// mac1/mac2 instance types require Tenancy "host" and a Dedicated Host,
+				// which the pool branch above would otherwise have provisioned.
+				opts = append(opts, pulumi.RetainOnDelete(true))
+				instanceArgs.Tenancy = "host"
+
+				host, err := ec2.NewDedicatedHost(e, name, ec2.DedicatedHostArgs{InstanceType: vmArgs.instanceType}, opts...)
+				if err != nil {
+					return err
+				}
+				instanceArgs.HostID = host.ID()
+			}
+
+			c.PoolInstanceID = pulumi.String("").ToStringOutput()
+			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
+			c.PoolBaselineImageID = pulumi.String("").ToStringOutput()
+			c.PoolStackID = pulumi.String("").ToStringOutput()
+		}
+
+		if isMacOSPoolMember {
+			c.PoolRegion = pulumi.String(e.Region()).ToStringOutput()
+			c.PoolProfile = pulumi.String(e.Profile()).ToStringOutput()
+		} else {
+			c.PoolRegion = pulumi.String("").ToStringOutput()
+			c.PoolProfile = pulumi.String("").ToStringOutput()
 		}
 
 		// Create the EC2 instance
@@ -98,6 +218,24 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 
 		if err != nil {
 			return err
+		}
+
+		if isMacOSPoolMember && !poolAcquired.Found {
+			// Freshly created local instance: bake its current disk state into a golden
+			// AMI now that InitHost's setup has completed. The runner's options carry a
+			// DependsOn its readiness command, which is what orders the AMI after setup.
+			// PulumiOptions already carries Parent(c) and DeletedWith(c) as well.
+			imageID, err := ec2.RegisterPoolMember(e, name, instance.ID().ToStringOutput(), username,
+				c.OS.Runner().PulumiOptions()...)
+			if err != nil {
+				return err
+			}
+			c.PoolInstanceID = instance.ID().ToStringOutput()
+			c.PoolBaselineImageID = imageID
+			c.PoolStackID = pulumi.String(stackID).ToStringOutput()
+			// Left empty on purpose: an empty token with a set instance ID is how
+			// BaseSuite recognises a member whose first lease still needs publishing.
+			c.PoolLeaseToken = pulumi.String("").ToStringOutput()
 		}
 
 		// reset the windows password on Windows
