@@ -62,7 +62,7 @@ func TestPackageSigningComponent(t *testing.T) {
 		e2e.Run(tt,
 			&packageSigningTestSuite{osName: osDesc.Flavor.String()},
 			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-				awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(osDesc))),
+				awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(osDesc), ec2.WithInternetAccess())),
 			)),
 			e2e.WithStackName("pkgSigning-"+osDesc.Flavor.String()),
 		)
