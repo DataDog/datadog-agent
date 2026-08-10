@@ -20,8 +20,9 @@ import (
 // sumRangeStorage is a minimal StorageReader that answers SumRange calls via a
 // user-supplied function and panics on all other methods (they are unused here).
 type sumRangeStorage struct {
-	fn    func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
-	metas map[observerdef.SeriesRef]observerdef.SeriesMeta
+	fn       func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	metas    map[observerdef.SeriesRef]observerdef.SeriesMeta
+	contexts map[observerdef.SeriesRef]*observerdef.MetricContext
 }
 
 func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64 {
@@ -36,6 +37,9 @@ func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.
 		return nil
 	}
 	return &meta
+}
+func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
+	return s.contexts[ref]
 }
 
 func TestFormatScorerContributorMessage(t *testing.T) {
@@ -53,6 +57,30 @@ func TestFormatScorerContributorMessage(t *testing.T) {
 	assert.Equal(t, "Top contributing metrics:\n1. 42% — system.cpu.user:avg{host:web-1,env:prod}\n2. 25% — nginx.requests:count{service:api}", message)
 	assert.NotContains(t, message, "4.2")
 	assert.NotContains(t, message, "weight")
+}
+
+func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
+	storage := &sumRangeStorage{
+		metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
+			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Tags: []string{"service:api"}},
+			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: []string{"env:prod"}},
+		},
+		contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
+			42: {Pattern: "C3:C8_C1", Example: "ERROR: connection refused to db.prod:5432"},
+			43: {Pattern: "GET /checkout <*> returned 500"},
+		},
+	}
+
+	message := formatScorerContributorMessage([]observerdef.ScorerContributor{
+		{Handle: observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateCount}, Share: 0.75},
+		{Handle: observerdef.QueryHandle{Ref: 43, Aggregate: observerdef.AggregateSum}, Share: 0.25},
+	}, storage)
+
+	t.Log(message)
+	assert.Contains(t, message, "1. 75% — log: ERROR: connection refused to db.prod:5432 — {service:api}")
+	assert.Contains(t, message, "2. 25% — log: GET /checkout <*> returned 500 — {env:prod}")
+	assert.NotContains(t, message, "log.pattern.abc.count")
+	assert.NotContains(t, message, "log.pattern.def.rate")
 }
 
 func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing.T) {

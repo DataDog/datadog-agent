@@ -162,19 +162,18 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		if meta == nil {
 			continue
 		}
-		fullDisplay := observerdef.SeriesDescriptor{
-			Namespace: meta.Namespace,
-			Name:      meta.Name,
-			Tags:      meta.Tags,
-			Aggregate: contributor.Handle.Aggregate,
-		}.DisplayName()
+		context := storage.GetContext(contributor.Handle.Ref)
+		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
 		compactDisplay := fullDisplay
 		if len(meta.Tags) > 0 {
-			compactDisplay = observerdef.SeriesDescriptor{
-				Namespace: meta.Namespace,
-				Name:      meta.Name,
-				Aggregate: contributor.Handle.Aggregate,
-			}.DisplayName() + "{...}"
+			compactMeta := *meta
+			compactMeta.Tags = nil
+			compactDisplay = scorerContributorDisplayName(&compactMeta, context, contributor.Handle.Aggregate)
+			if logDerivedContributorName(meta.Namespace, context) != "" {
+				compactDisplay += " — {...}"
+			} else {
+				compactDisplay += "{...}"
+			}
 		}
 		position := len(fullLines) + 1
 		fullLines = append(fullLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, fullDisplay))
@@ -192,6 +191,47 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		lines[i] = compactLines[i]
 	}
 	return truncateScorerContributorLines(lines)
+}
+
+// scorerContributorDisplayName uses the same human-readable identifier as the
+// regular reporter for log-derived metrics: a log-frequency example, or a log
+// pattern when no example is available. Other metrics retain their series name.
+func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
+		if len(meta.Tags) == 0 {
+			return name
+		}
+		return name + " — {" + strings.Join(meta.Tags, ",") + "}"
+	}
+	return observerdef.SeriesDescriptor{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Tags:      meta.Tags,
+		Aggregate: aggregate,
+	}.DisplayName()
+}
+
+// logDerivedContributorName returns the human-readable name for a log-derived
+// metric. An empty result lets callers fall back to the metric descriptor when
+// its context is no longer available.
+func logDerivedContributorName(namespace string, context *observerdef.MetricContext) string {
+	if context == nil {
+		return ""
+	}
+	switch namespace {
+	case logMetricsExtractorNamespace:
+		if example := strings.TrimSpace(context.Example); example != "" {
+			return "log: " + example
+		}
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	case logPatternExtractorNamespace:
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	}
+	return ""
 }
 
 func scorerContributorMessageLen(lines []string) int {
