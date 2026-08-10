@@ -71,7 +71,6 @@ dd_agent_go_test(
     embed = [":postgres"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/config",
         "//pkg/network/protocols/postgres/ebpf",

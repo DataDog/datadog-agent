@@ -196,7 +196,10 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
 		c.EnabledModules[NoisyNeighborModule] = struct{}{}
 	}
-	if runtime.GOOS == "darwin" && cfg.GetBool(logonDurationNS("enabled")) {
+	// Read from the core config (datadog.yaml), not the system-probe config, so that
+	// enabling logon_duration in the core agent (e.g. via infrastructure_mode:
+	// end_user_device) also starts the system-probe module.
+	if runtime.GOOS == "darwin" && coreCfg.GetBool(logonDurationNS("enabled")) {
 		c.EnabledModules[LogonDurationModule] = struct{}{}
 	}
 

@@ -441,6 +441,60 @@ func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	s.T().Log("Got APM stats", stats)
 }
 
+// TestSpanDerivedPrimaryTags validates that keys listed under the Datadog
+// connector's traces.span_derived_primary_tags are resolved off each span (or,
+// failing that, its resource) and attached to the emitted APM stats as
+// ClientGroupedStats.AdditionalMetricTags.
+//
+// The accompanying config (config/span-derived-primary-tags.yml) configures two
+// keys, one per lookup path:
+//   - "team" is stamped as a SPAN attribute by an attributes processor upstream
+//     of the connector, covering the span-attribute path.
+//   - "custom.attribute" is a RESOURCE attribute set by the calendar app,
+//     covering the resource-attribute fallback path.
+//
+// "k8s.pod.name" is present on the spans but deliberately not configured, so it
+// serves as a negative control: an unlisted key must not leak into the stats.
+func TestSpanDerivedPrimaryTags(s OTelTestSuite) {
+	const (
+		wantSpanAttrTag = "team:checkout"
+		wantResAttrTag  = customAttribute + ":" + customAttributeValue
+		unlistedKey     = "k8s.pod.name"
+	)
+
+	s.T().Log("Waiting for APM stats with span-derived primary tags")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().GetAPMStats()
+		require.NoError(c, err)
+		require.NotEmpty(c, stats)
+
+		hasTaggedStats := false
+		for _, payload := range stats {
+			for _, csp := range payload.StatsPayload.Stats {
+				for _, bucket := range csp.Stats {
+					for _, cgs := range bucket.Stats {
+						if cgs.Service != CalendarService {
+							continue
+						}
+						if assert.ObjectsAreEqual([]string{wantSpanAttrTag, wantResAttrTag}, cgs.AdditionalMetricTags) ||
+							assert.ObjectsAreEqual([]string{wantResAttrTag, wantSpanAttrTag}, cgs.AdditionalMetricTags) {
+							hasTaggedStats = true
+						}
+						// Negative control: an unconfigured key must never be
+						// aggregated, on any bucket.
+						for _, tag := range cgs.AdditionalMetricTags {
+							assert.NotEqual(c, unlistedKey, strings.SplitN(tag, ":", 2)[0],
+								"unconfigured key %v must not be aggregated as a primary tag", unlistedKey)
+						}
+					}
+				}
+			}
+		}
+		require.True(c, hasTaggedStats,
+			"no APM stats for service %v carrying both %v and %v in AdditionalMetricTags", CalendarService, wantSpanAttrTag, wantResAttrTag)
+	}, 5*time.Minute, 10*time.Second)
+}
+
 // TestHeadBasedSamplingScaling validates that the Datadog connector scales APM
 // stats up by the W3C tracestate head-sampling weight.
 //

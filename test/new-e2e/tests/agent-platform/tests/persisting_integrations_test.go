@@ -82,7 +82,7 @@ func TestPersistingIntegrations(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osDesc.String())
 
-			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc), ec2.WithInternetAccess())
 
 			// To avoid stack name too long
 			simpleFlavorName := *flavorName

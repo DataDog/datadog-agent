@@ -345,6 +345,8 @@ const (
 	MetricSourceDellPowerFlex
 	MetricSourceHPEArubaEdgeConnect
 	MetricSourceNiFi
+	MetricSourceKueue
+	MetricSourceExternalSecrets
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1149,6 +1151,10 @@ func (ms MetricSource) String() string {
 		return "hpe_aruba_edgeconnect"
 	case MetricSourceNiFi:
 		return "nifi"
+	case MetricSourceKueue:
+		return "kueue"
+	case MetricSourceExternalSecrets:
+		return "external_secrets"
 	default:
 		return "<unknown>"
 	}
@@ -1849,6 +1855,10 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceCiscoSdwan
 	case "versa":
 		return MetricSourceVersa
+	case "kueue":
+		return MetricSourceKueue
+	case "external_secrets":
+		return MetricSourceExternalSecrets
 	default:
 		return MetricSourceUnknown
 	}
