@@ -51,9 +51,7 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	for host, keys := range conf.EVPProxy.AdditionalEndpoints {
 		for _, key := range keys {
 			if utils.IsDelaDirective(key) {
-				// Not a real API key (yet) - the delegatedauth component resolves this
-				// asynchronously and writes the real key into this same config slot. Skip it
-				// rather than sending the literal directive text as DD-API-KEY.
+				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
 				continue
 			}
 			endpoints = append(endpoints, config.Endpoint{

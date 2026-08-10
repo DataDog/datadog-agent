@@ -151,11 +151,7 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 			})
 		}
 		if len(realKeys) == 0 && hasPendingDelegatedAuth {
-			// Every key for this domain is still pending - keep a placeholder endpoint so the
-			// domain still gets a resolver. resolver.OnUpdateConfig registers its config-update
-			// listener per resolver (keyed by ConfigSettingPath), so a domain with no resolver at
-			// all would never see the real key once delegated auth resolves it and writes it back
-			// into this same config slot.
+			// Placeholder for a fully-pending domain - see PartitionRealAndPendingKeys' doc comment.
 			*endpoints = append(*endpoints, apicfg.Endpoint{
 				APIKey:            "",
 				Endpoint:          u,

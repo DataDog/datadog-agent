@@ -65,9 +65,7 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 	for host, keys := range cfg.OpenLineageProxy.AdditionalEndpoints {
 		for _, key := range keys {
 			if utils.IsDelaDirective(key) {
-				// Not a real API key (yet) - the delegatedauth component resolves this
-				// asynchronously and writes the real key into this same config slot. Skip it
-				// rather than sending the literal directive text as DD-API-KEY.
+				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
 				continue
 			}
 			urlStr := fmt.Sprintf(openlineageURLTemplate, host)
