@@ -52,10 +52,22 @@ func VerifyAssetPermissionsAndOpen(assetPath string) (*os.File, error) {
 		f.Close()
 		return nil, fmt.Errorf("error getting permissions for output file %s", assetPath)
 	}
-	// Enforce that we only load root-owned, non-group/other-writable object files.
-	if stat.Uid != 0 || stat.Gid != 0 || info.Mode().Perm()&os.FileMode(0022) != 0 {
+	if err := verifyOwnerPermissions(assetPath, stat.Uid, stat.Gid, info.Mode().Perm()); err != nil {
 		f.Close()
-		return nil, fmt.Errorf("%s has incorrect permissions: user=%v, group=%v, permissions=%v", assetPath, stat.Uid, stat.Gid, info.Mode().Perm())
+		return nil, err
 	}
 	return f, nil
+}
+
+// verifyOwnerPermissions enforces that the given ownership and permission bits
+// describe a root-owned file that is not writable by group or other. It is kept
+// separate from the filesystem access above so the policy can be unit-tested
+// with synthetic values, without needing to create root-owned files (which a
+// test run as non-root cannot do).
+func verifyOwnerPermissions(assetPath string, uid, gid uint32, perm os.FileMode) error {
+	// Enforce that we only load root-owned, non-group/other-writable object files.
+	if uid != 0 || gid != 0 || perm&os.FileMode(0022) != 0 {
+		return fmt.Errorf("%s has incorrect permissions: user=%v, group=%v, permissions=%v", assetPath, uid, gid, perm)
+	}
+	return nil
 }

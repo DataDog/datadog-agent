@@ -198,22 +198,36 @@ func secureRuntimeDir(outputDir string) error {
 		if err != nil {
 			return fmt.Errorf("unable to verify compiler output directory component %s: %w", p, err)
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("refusing to use compiler output directory: %s is a symlink", p)
-		}
-		if !info.IsDir() {
-			return fmt.Errorf("refusing to use compiler output directory: %s is not a directory", p)
-		}
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok {
 			return fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
 		}
-		if stat.Uid != 0 {
-			return fmt.Errorf("refusing to use compiler output directory: %s is not owned by root (uid=%d)", p, stat.Uid)
+		if err := verifyDirComponent(p, info.Mode(), stat.Uid); err != nil {
+			return err
 		}
-		if info.Mode().Perm()&0022 != 0 && info.Mode()&os.ModeSticky == 0 {
-			return fmt.Errorf("refusing to use compiler output directory: %s is writable by non-root and not sticky (mode=%#o)", p, info.Mode().Perm())
-		}
+	}
+	return nil
+}
+
+// verifyDirComponent enforces the runtime-directory policy on a single path
+// component, described by the mode returned from Lstat and its owning uid: it
+// must be a real (non-symlink) directory owned by root and not writable by other
+// users. A group/other-writable directory is only accepted when the sticky bit
+// is set (as for the default /var/tmp parent). It is kept separate from the
+// filesystem walk above so the policy can be unit-tested with synthetic values,
+// without needing to build a root-owned directory tree.
+func verifyDirComponent(p string, mode os.FileMode, uid uint32) error {
+	if mode&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing to use compiler output directory: %s is a symlink", p)
+	}
+	if !mode.IsDir() {
+		return fmt.Errorf("refusing to use compiler output directory: %s is not a directory", p)
+	}
+	if uid != 0 {
+		return fmt.Errorf("refusing to use compiler output directory: %s is not owned by root (uid=%d)", p, uid)
+	}
+	if mode.Perm()&0022 != 0 && mode&os.ModeSticky == 0 {
+		return fmt.Errorf("refusing to use compiler output directory: %s is writable by non-root and not sticky (mode=%#o)", p, mode.Perm())
 	}
 	return nil
 }

@@ -51,3 +51,36 @@ func TestVerifyAssetPermissionsAndOpenRejectsNonRoot(t *testing.T) {
 	}
 	assert.Error(t, err, "a non-root-owned asset must be rejected")
 }
+
+// verifyOwnerPermissions is the pure policy behind the descriptor check above.
+// Exercising it directly covers the ownership/permission rejection logic
+// regardless of the euid the suite runs under (the filesystem-level test above
+// skips when run as root).
+func TestVerifyOwnerPermissions(t *testing.T) {
+	tests := []struct {
+		name    string
+		uid     uint32
+		gid     uint32
+		perm    os.FileMode
+		wantErr bool
+	}{
+		{"root-owned 0644", 0, 0, 0644, false},
+		{"root-owned 0600", 0, 0, 0600, false},
+		{"root-owned 0755", 0, 0, 0755, false},
+		{"non-root uid", 1000, 0, 0644, true},
+		{"non-root gid", 0, 1000, 0644, true},
+		{"group-writable", 0, 0, 0664, true},
+		{"other-writable", 0, 0, 0646, true},
+		{"world-writable", 0, 0, 0666, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := verifyOwnerPermissions("asset.o", tc.uid, tc.gid, tc.perm)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
