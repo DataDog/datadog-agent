@@ -19,6 +19,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ncmtypes "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
@@ -90,7 +91,7 @@ func (h *RunCommandHandler) Run(
 	port := pkgconfigsetup.Datadog().GetInt("cmd_port")
 	url := fmt.Sprintf("https://%s/agent/ncm/run-command", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
 
-	resp, err := h.ipcClient.Post(url, "application/json", bytes.NewBuffer(body))
+	resp, err := h.ipcClient.Post(url, "application/json", bytes.NewBuffer(body), ipchttp.WithContext(ctx))
 	if err != nil {
 		// This case only happens when there's an internal error - errors during
 		// the command execution itself are returned in the RunCommandResponse.
