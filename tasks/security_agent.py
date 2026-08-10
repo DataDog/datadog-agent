@@ -27,6 +27,7 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
+from tasks.schema.generate import schema_codegen
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -376,6 +377,9 @@ def build_functional_tests(
         "src_path": srcpath,
     }
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     ctx.run(cmd.format(**args), env=env)
 
 
@@ -497,6 +501,9 @@ def generate_cws_documentation(ctx):
 
 @task
 def cws_go_generate(ctx, verbose=False):
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
     ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
@@ -654,6 +661,9 @@ class FailingTask:
 
 @task
 def go_generate_check(ctx):
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     tasks = [
         [cws_go_generate],
         [generate_cws_proto],
@@ -745,6 +755,9 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     args = '-args'
     if trace:
         args += " -trace"
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args} {testflags}", env=env)
 

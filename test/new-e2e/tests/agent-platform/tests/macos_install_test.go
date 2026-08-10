@@ -100,7 +100,7 @@ func TestMacosInstallScript(t *testing.T) {
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
 	e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault)), ec2.WithoutAgent()),
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault), ec2.WithInternetAccess()), ec2.WithoutAgent()),
 			awshost.WithExtraConfigParams(extraConfigMap),
 		)),
 	)

@@ -12,7 +12,7 @@ bind_delegate = r'bindDelegatedAuthConfig\(\w+, "([\w_\.]*)"'
 
 
 # Prefixes that begin a setting declaration. A declaration may span several lines (the arguments, a
-# `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value), so we accumulate lines until the
+# `[]string{...}` default, or a `getPlatformDefault(map[...]{...})` value), so we accumulate lines until the
 # parentheses balance and only then match the joined statement against the single-line regexes above.
 DECL_START_PREFIXES = (
     'config.BindEnvAndSetDefault(',
@@ -181,7 +181,7 @@ class Processor:
             return
 
         # A declaration whose parentheses don't close on this line continues onto the following lines (split
-        # arguments, a multi-line `[]string{...}` default, or a `GetPlatformDefault(map[...]{...})` value).
+        # arguments, a multi-line `[]string{...}` default, or a `getPlatformDefault(map[...]{...})` value).
         if self._paren_balance(line) > 0:
             self.accum_multiline = [line]
             self.within_multiline = True

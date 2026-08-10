@@ -291,25 +291,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v125663755-498a6dee
+  CI_IMAGE_BTF_GEN: v126430166-27084be1
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_X64: v126430166-27084be1
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v125663755-498a6dee
+  CI_IMAGE_DOCKER_ARM64: v126430166-27084be1
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v125663755-498a6dee
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v126430166-27084be1
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v125663755-498a6dee
+  CI_IMAGE_LINUX: v126430166-27084be1
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v125663755-498a6dee
+  CI_IMAGE_RPM_X64: v126430166-27084be1
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v125663755-498a6dee
+  CI_IMAGE_RPM_ARM64: v126430166-27084be1
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v125663755-498a6dee
+  CI_IMAGE_RPM_ARMHF: v126430166-27084be1
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2022_X64: v126430166-27084be1
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v125663755-498a6dee
+  CI_IMAGE_WIN_LTSC2025_X64: v126430166-27084be1
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -474,12 +474,15 @@ variables:
 
 # fakeintake changes that rebuild the published image (server binary only).
 # Client/CLI/docs changes don't. Keep in sync with _is_server_file() in tasks/fakeintake.py.
+# Only `.go` files under the server paths matter: the image is built from the Go sources
+# via test/fakeintake/Dockerfile, so BUILD.bazel and test fixtures don't affect it
+# (rules:changes has no exclusion syntax, hence the extension in the glob).
 .fakeintake_server_paths: &fakeintake_server_paths
   paths:
-    - test/fakeintake/cmd/server/**/*
-    - test/fakeintake/server/**/*
-    - test/fakeintake/aggregator/**/*
-    - test/fakeintake/api/**/*
+    - test/fakeintake/cmd/server/**/*.go
+    - test/fakeintake/server/**/*.go
+    - test/fakeintake/aggregator/**/*.go
+    - test/fakeintake/api/**/*.go
     - test/fakeintake/go.mod
     - test/fakeintake/go.sum
     - test/fakeintake/Dockerfile
@@ -519,8 +522,6 @@ variables:
   changes:
     paths:
       - omnibus/**/*
-      - pkg/config/config_template.yaml
-      - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
@@ -545,6 +546,19 @@ workflow:
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
     - <<: *if_mergequeue
+    # ADP is shipped in every Agent package and exercised across several test suites.
+    # Treat an ADP version bump like a full pipeline so platform-specific regressions
+    # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
+    - changes:
+        paths:
+          - deps/agent_data_plane/agent_data_plane.MODULE.bazel
+        compare_to: $COMPARE_TO_BRANCH
+      variables:
+        RUN_ALL_BUILDS: "true"
+        RUN_E2E_TESTS: "on"
+        RUN_KMT_TESTS: "on"
+        RUN_UNIT_TESTS: "on"
+        SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path
         compare_to: main
@@ -1016,7 +1030,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/tests/agent-devx/pre-test/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
@@ -1120,6 +1134,8 @@ workflow:
   - changes:
       paths:
         - cmd/agent/dist/conf.d/discovery.d/*
+        - comp/core/autodiscovery/discoverer/**/*
+        - comp/core/autodiscovery/impl/configmgr*
         - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/discovery/**/*

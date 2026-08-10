@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "procscan",
@@ -23,7 +24,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "procscan_test",
     srcs = [
         "list_pids_test.go",
@@ -49,11 +50,8 @@ go_test(
         "testdata/stat/special_chars.txt",
         "testdata/stat/with_spaces.txt",
     ],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
     deps = [
         "//pkg/discovery/tracermetadata/model",
         "//pkg/dyninst/process",
