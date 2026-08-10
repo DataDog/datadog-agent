@@ -471,15 +471,22 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 			return nil, err
 		}
 	} else {
-		var haveLegacyProfile bool
-		c.ProfileProvider, haveLegacyProfile, err = profile.GetProfileProvider(initConfig.Profiles)
+		var legacyProfiles []string
+		c.ProfileProvider, legacyProfiles, err = profile.GetProfileProvider(initConfig.Profiles)
 		if err != nil {
 			return nil, err
 		}
-		if haveLegacyProfile || profiledefinition.IsLegacyMetrics(instance.Metrics) {
-			if initConfig.Loader == "" && instance.Loader == "" {
-				return nil, errors.New("legacy profile detected with no loader specified, falling back to the Python loader")
-			}
+		// The Core loader cannot handle the legacy Python metric syntax, so a config relying on
+		// it is handed over to the Python loader unless a loader was explicitly requested.
+		var legacySources []string
+		if len(legacyProfiles) > 0 {
+			legacySources = append(legacySources, "profile(s) "+strings.Join(legacyProfiles, ", "))
+		}
+		if profiledefinition.IsLegacyMetrics(instance.Metrics) {
+			legacySources = append(legacySources, "the instance metrics")
+		}
+		if len(legacySources) > 0 && initConfig.Loader == "" && instance.Loader == "" {
+			return nil, fmt.Errorf("legacy profile detected with no loader specified, falling back to the Python loader; legacy syntax found in %s", strings.Join(legacySources, " and "))
 		}
 	}
 
