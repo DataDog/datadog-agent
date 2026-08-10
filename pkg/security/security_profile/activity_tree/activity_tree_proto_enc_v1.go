@@ -314,7 +314,7 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	}
 
 	for _, req := range dn.Requests {
-		pdn.Requests = append(pdn.Requests, dnsEventToProto(&req))
+		pdn.Requests = append(pdn.Requests, dnsQuestionToProto(&req))
 	}
 
 	pdn.NodeBase = nodeBaseToProto(&dn.NodeBase, tagIDToImageTag)
@@ -322,17 +322,17 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	return pdn
 }
 
-func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
-	if ev == nil {
+func dnsQuestionToProto(q *model.DNSQuestion) *adproto.DNSInfo {
+	if q == nil {
 		return nil
 	}
 
 	return &adproto.DNSInfo{
-		Name:  escape(ev.Question.Name),
-		Type:  uint32(ev.Question.Type),
-		Class: uint32(ev.Question.Class),
-		Size:  uint32(ev.Question.Size),
-		Count: uint32(ev.Question.Count),
+		Name:  escape(q.Name),
+		Type:  uint32(q.Type),
+		Class: uint32(q.Class),
+		Size:  uint32(q.Size),
+		Count: uint32(q.Count),
 	}
 }
 
@@ -350,7 +350,7 @@ func imdsNodeToProto(in *IMDSNode, tagIDToImageTag func(id uint64) string) *adpr
 	return pin
 }
 
-func imdsEventToProto(event model.IMDSEvent) *adproto.IMDSEvent {
+func imdsEventToProto(event IMDSInfo) *adproto.IMDSEvent {
 	return &adproto.IMDSEvent{
 		Type:          event.Type,
 		CloudProvider: event.CloudProvider,
@@ -362,7 +362,7 @@ func imdsEventToProto(event model.IMDSEvent) *adproto.IMDSEvent {
 	}
 }
 
-func awsIMDSEventToProto(event model.IMDSEvent) *adproto.AWSIMDSEvent {
+func awsIMDSEventToProto(event IMDSInfo) *adproto.AWSIMDSEvent {
 	if event.CloudProvider != model.IMDSAWSCloudProvider {
 		return nil
 	}

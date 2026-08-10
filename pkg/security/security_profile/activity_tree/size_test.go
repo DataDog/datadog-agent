@@ -34,7 +34,7 @@ func newSizeTestProcessNode(name string) *ProcessNode {
 		NodeBase:       NewNodeBase(),
 		Files:          map[string]*FileNode{},
 		DNSNames:       map[string]*DNSNode{},
-		IMDSEvents:     map[model.IMDSEvent]*IMDSNode{},
+		IMDSEvents:     map[IMDSInfo]*IMDSNode{},
 		NetworkDevices: map[model.NetworkDeviceContext]*NetworkDeviceNode{},
 		Process: ProcessInfo{
 			FileEvent: model.FileEvent{

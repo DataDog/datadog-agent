@@ -266,10 +266,10 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 		return utils.GraphID{}, false
 	}
 	var nameBuilder strings.Builder
-	nameBuilder.WriteString(n.Requests[0].Question.Name + " (" + (model.QType(n.Requests[0].Question.Type).String()))
+	nameBuilder.WriteString(n.Requests[0].Name + " (" + (model.QType(n.Requests[0].Type).String()))
 	for _, req := range n.Requests[1:] {
 		nameBuilder.WriteString(", ")
-		nameBuilder.WriteString(model.QType(req.Question.Type).String())
+		nameBuilder.WriteString(model.QType(req.Type).String())
 	}
 	nameBuilder.WriteString(")")
 	name := nameBuilder.String()

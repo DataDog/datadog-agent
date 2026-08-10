@@ -144,7 +144,7 @@ type ProcessNode struct {
 
 	Files          map[string]*FileNode
 	DNSNames       map[string]*DNSNode
-	IMDSEvents     map[model.IMDSEvent]*IMDSNode
+	IMDSEvents     map[IMDSInfo]*IMDSNode
 	NetworkDevices map[model.NetworkDeviceContext]*NetworkDeviceNode
 
 	Sockets      []*SocketNode
@@ -410,7 +410,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 	for name, dnsNode := range pn.DNSNames {
 		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
 			for _, req := range dnsNode.Requests {
-				if req.Question.Type == DNSType {
+				if req.Type == DNSType {
 					return true
 				}
 			}
@@ -436,13 +436,13 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
-			if req.Question.Type == evt.DNS.Question.Type {
+			if req.Type == evt.DNS.Question.Type {
 				return false
 			}
 		}
 
 		sizeBefore := dnsNode.size()
-		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
+		dnsNode.Requests = append(dnsNode.Requests, evt.DNS.Question)
 		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}
@@ -459,7 +459,8 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 
 // InsertIMDSEvent inserts an IMDS event in a process node
 func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
-	imdsNode, ok := pn.IMDSEvents[evt.IMDS]
+	key := newIMDSInfo(&evt.IMDS)
+	imdsNode, ok := pn.IMDSEvents[key]
 	if ok {
 		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
 		imdsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
@@ -472,7 +473,7 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 		if pn.IMDSEvents == nil {
 			pn.IMDSEvents = make(map[model.IMDSEvent]*IMDSNode)
 		}
-		pn.IMDSEvents[evt.IMDS] = imdsNode
+		pn.IMDSEvents[key] = imdsNode
 		stats.IMDSNodes++
 		stats.SizeBytes += imdsNode.size()
 	}
