@@ -203,12 +203,12 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (semconv v1.35.0 or later)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):  semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
-				AttributeAzureContainerAppInstanceID:  "replica-1",
-				string(conventions.ServiceNameKey):    "my-app",
-				string(semconv1_27.CloudAccountIDKey): "sub-123",
-				AttributeAzureResourceGroupName:       "my-rg",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:         "replica-1",
+				string(conventions.ServiceNameKey):           "my-app",
+				string(semconv1_27.CloudAccountIDKey):        "sub-123",
+				string(semconv143.AzureResourceGroupNameKey): "my-rg",
 			}),
 			ok: true,
 			src: source.Source{
@@ -228,12 +228,12 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (legacy platform value)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):  "azure_container_apps",
-				AttributeAzureContainerAppInstanceID:  "replica-1",
-				string(conventions.ServiceNameKey):    "my-app",
-				string(semconv1_27.CloudAccountIDKey): "sub-123",
-				AttributeAzureResourceGroupName:       "my-rg",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):         "azure_container_apps",
+				AttributeAzureContainerAppInstanceID:         "replica-1",
+				string(conventions.ServiceNameKey):           "my-app",
+				string(semconv1_27.CloudAccountIDKey):        "sub-123",
+				string(semconv143.AzureResourceGroupNameKey): "my-rg",
 			}),
 			ok: true,
 			src: source.Source{
@@ -301,11 +301,11 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (no replica name, falls back to name for Primary)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):  semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(conventions.ServiceNameKey):    "my-app",
-				string(semconv1_27.CloudAccountIDKey): "sub-123",
-				AttributeAzureResourceGroupName:       "my-rg",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.ServiceNameKey):           "my-app",
+				string(semconv1_27.CloudAccountIDKey):        "sub-123",
+				string(semconv143.AzureResourceGroupNameKey): "my-rg",
 			}),
 			ok: true,
 			src: source.Source{
@@ -324,9 +324,9 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (missing identifying attributes, falls through unidentified)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey): semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
-				AttributeAzureResourceGroupName:      "my-rg",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(semconv143.AzureResourceGroupNameKey): "my-rg",
 			}),
 			ok:  false,
 			src: source.Source{},
