@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
 )
@@ -49,68 +50,97 @@ func TestEnabled(t *testing.T) {
 	}
 }
 
-func TestGroupStateTransitions(t *testing.T) {
-	comp := newTestWorkloadBalancingComponent(t, map[string]interface{}{
+func newStateTestComponent(t *testing.T) *workloadBalancingImpl {
+	t.Helper()
+	provides := newTestWorkloadBalancingComponent(t, map[string]interface{}{
 		"hostname":                         testHostname,
 		"agent_workload_balancing.enabled": true,
-	}, nil).Comp
+	}, nil)
+	comp, ok := provides.Comp.(*workloadBalancingImpl)
+	require.True(t, ok)
+	return comp
+}
+
+func TestGroupStateTransitions(t *testing.T) {
+	comp := newStateTestComponent(t)
 
 	// a group we were never told about is unmanaged, and runs
 	assert.Equal(t, workloadbalancing.Unmanaged, comp.GetGroupState("group1"))
 	assert.True(t, comp.IsGroupActive("group1"))
 
 	// another Agent holds the group, so we stand by
-	comp.SetGroupLeader("group1", "another-agent-hostname")
+	require.NoError(t, comp.setGroupLeaders(map[string]string{"group1": "another-agent-hostname"}))
 	assert.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
 	assert.False(t, comp.IsGroupActive("group1"))
 
 	// we hold the group
-	comp.SetGroupLeader("group1", testHostname)
+	require.NoError(t, comp.setGroupLeaders(map[string]string{"group1": testHostname}))
 	assert.Equal(t, workloadbalancing.Active, comp.GetGroupState("group1"))
 	assert.True(t, comp.IsGroupActive("group1"))
 
 	// dropping the assignment returns the group to unmanaged, which runs
-	comp.RemoveGroup("group1")
+	require.NoError(t, comp.setGroupLeaders(map[string]string{}))
 	assert.Equal(t, workloadbalancing.Unmanaged, comp.GetGroupState("group1"))
 	assert.True(t, comp.IsGroupActive("group1"))
 }
 
-func TestGroupsAreIndependent(t *testing.T) {
-	comp := newTestWorkloadBalancingComponent(t, map[string]interface{}{
-		"hostname":                         testHostname,
-		"agent_workload_balancing.enabled": true,
-	}, nil).Comp
+// A group nobody has been assigned must keep running, or the device it covers goes unpolled.
+func TestGroupWithNoAssignedAgentRuns(t *testing.T) {
+	comp := newStateTestComponent(t)
 
-	comp.SetGroupLeader("group1", testHostname)
-	comp.SetGroupLeader("group2", "another-agent-hostname")
+	require.NoError(t, comp.setGroupLeaders(map[string]string{"group1": ""}))
+
+	assert.Equal(t, workloadbalancing.Unmanaged, comp.GetGroupState("group1"))
+	assert.True(t, comp.IsGroupActive("group1"))
+
+	// the group is still reported, so a group with no active Agent anywhere is visible
+	assert.Equal(t, map[string]workloadbalancing.State{
+		"group1": workloadbalancing.Unmanaged,
+	}, comp.GetGroupStates())
+}
+
+func TestGroupsAreIndependent(t *testing.T) {
+	comp := newStateTestComponent(t)
+
+	require.NoError(t, comp.setGroupLeaders(map[string]string{
+		"group1": testHostname,
+		"group2": "another-agent-hostname",
+	}))
 
 	assert.True(t, comp.IsGroupActive("group1"))
 	assert.False(t, comp.IsGroupActive("group2"))
 
-	comp.RemoveGroup("group1")
+	require.NoError(t, comp.setGroupLeaders(map[string]string{
+		"group2": "another-agent-hostname",
+	}))
 
 	assert.True(t, comp.IsGroupActive("group1"))
 	assert.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group2"))
 }
 
-func TestRemoveUnknownGroup(t *testing.T) {
-	comp := newTestWorkloadBalancingComponent(t, map[string]interface{}{
-		"hostname": testHostname,
-	}, nil).Comp
+// A hostname we cannot resolve leaves every group exactly as it was.
+func TestHostnameFailureLeavesStateUnchanged(t *testing.T) {
+	comp := newStateTestComponent(t)
 
-	comp.RemoveGroup("never-seen")
-	assert.Empty(t, comp.GetGroupStates())
+	require.NoError(t, comp.setGroupLeaders(map[string]string{"group1": "another-agent-hostname"}))
+	require.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
+
+	comp.hostname = failingHostname{}
+	err := comp.setGroupLeaders(map[string]string{"group1": testHostname})
+
+	assert.Error(t, err)
+	assert.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
 }
 
 func TestGetGroupStates(t *testing.T) {
-	comp := newTestWorkloadBalancingComponent(t, map[string]interface{}{
-		"hostname": testHostname,
-	}, nil).Comp
+	comp := newStateTestComponent(t)
 
 	assert.Empty(t, comp.GetGroupStates())
 
-	comp.SetGroupLeader("group1", testHostname)
-	comp.SetGroupLeader("group2", "another-agent-hostname")
+	require.NoError(t, comp.setGroupLeaders(map[string]string{
+		"group1": testHostname,
+		"group2": "another-agent-hostname",
+	}))
 
 	assert.Equal(t, map[string]workloadbalancing.State{
 		"group1": workloadbalancing.Active,

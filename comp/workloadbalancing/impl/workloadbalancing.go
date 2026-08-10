@@ -24,8 +24,7 @@ type workloadBalancingImpl struct {
 	groups map[string]workloadbalancing.State
 
 	// appliedConfigs holds the last assignment applied for each Remote Config path, so an update
-	// we cannot parse can fall back to it. Only touched from the RC listener, which the Remote
-	// Config client invokes serially.
+	// we cannot parse can fall back to it. Guarded by mu.
 	appliedConfigs map[string]workloadBalancingRCConfig
 }
 
@@ -65,22 +64,6 @@ func (w *workloadBalancingImpl) IsGroupActive(groupID string) bool {
 	return w.GetGroupState(groupID) != workloadbalancing.Standby
 }
 
-func (w *workloadBalancingImpl) SetGroupLeader(groupID string, leaderAgentHostname string) {
-	agentHostname, err := w.hostname.Get(context.TODO())
-	if err != nil {
-		w.log.Warnf("error getting the hostname, leaving group %s unchanged: %v", groupID, err)
-		return
-	}
-
-	newState := stateForLeader(agentHostname, leaderAgentHostname)
-
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	w.logTransition(groupID, w.stateLocked(groupID), newState)
-	w.groups[groupID] = newState
-}
-
 // setGroupLeaders replaces every tracked group at once. A group we currently hold that is absent
 // from leaders is dropped rather than left behind, so an assignment that goes away returns its
 // group to unmanaged and the group keeps reporting.
@@ -100,22 +83,29 @@ func (w *workloadBalancingImpl) setGroupLeaders(leaders map[string]string) error
 	defer w.mu.Unlock()
 
 	for groupID, newState := range groups {
-		w.logTransition(groupID, w.stateLocked(groupID), newState)
+		w.logTransition(groupID, w.stateLocked(groupID), newState, agentHostname, leaders[groupID])
 	}
 	for groupID, prevState := range w.groups {
 		if _, ok := groups[groupID]; !ok {
-			w.logTransition(groupID, prevState, workloadbalancing.Unmanaged)
+			w.logTransition(groupID, prevState, workloadbalancing.Unmanaged, agentHostname, "")
 		}
 	}
 	w.groups = groups
 	return nil
 }
 
+// stateForLeader maps the assigned Agent for a group onto the state this Agent holds for it. A
+// group nobody has been assigned is unmanaged rather than standby: standby everywhere would leave
+// the device unpolled, which is the one outcome workload balancing exists to avoid.
 func stateForLeader(agentHostname string, leaderAgentHostname string) workloadbalancing.State {
-	if agentHostname == leaderAgentHostname {
+	switch leaderAgentHostname {
+	case "":
+		return workloadbalancing.Unmanaged
+	case agentHostname:
 		return workloadbalancing.Active
+	default:
+		return workloadbalancing.Standby
 	}
-	return workloadbalancing.Standby
 }
 
 func (w *workloadBalancingImpl) stateLocked(groupID string) workloadbalancing.State {
@@ -126,20 +116,35 @@ func (w *workloadBalancingImpl) stateLocked(groupID string) workloadbalancing.St
 	return state
 }
 
-func (w *workloadBalancingImpl) logTransition(groupID string, prevState workloadbalancing.State, newState workloadbalancing.State) {
-	if newState != prevState {
-		w.log.Infof("group %s state switched from %s to %s", groupID, prevState, newState)
-	} else {
+// logTransition records a state change, naming both hostnames on a standby. Matching is exact, so
+// an assignment that names this host in a different form than hostname resolution returns reads as
+// a legitimate standby, and the two names side by side are the only way to tell the difference.
+func (w *workloadBalancingImpl) logTransition(groupID string, prevState workloadbalancing.State, newState workloadbalancing.State, agentHostname string, leaderAgentHostname string) {
+	if newState == prevState {
 		w.log.Debugf("group %s state not changed (current state: %s)", groupID, prevState)
+		return
 	}
+
+	if newState == workloadbalancing.Standby {
+		w.log.Infof("group %s state switched from %s to %s: assigned to %q, this Agent is %q",
+			groupID, prevState, newState, leaderAgentHostname, agentHostname)
+		return
+	}
+	w.log.Infof("group %s state switched from %s to %s", groupID, prevState, newState)
 }
 
-func (w *workloadBalancingImpl) RemoveGroup(groupID string) {
+// previousAssignments returns the assignments applied by the last update.
+func (w *workloadBalancingImpl) previousAssignments() map[string]workloadBalancingRCConfig {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	return maps.Clone(w.appliedConfigs)
+}
+
+// storeAssignments records the assignments this update applied, for the next update to fall back on.
+func (w *workloadBalancingImpl) storeAssignments(applied map[string]workloadBalancingRCConfig) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if prevState, ok := w.groups[groupID]; ok {
-		delete(w.groups, groupID)
-		w.log.Infof("group %s removed, state was %s", groupID, prevState)
-	}
+	w.appliedConfigs = applied
 }

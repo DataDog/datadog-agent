@@ -7,6 +7,7 @@ package workloadbalancingimpl
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -190,6 +191,61 @@ func TestOnUpdateKeepsTheLastAssignmentForAnInvalidConfig(t *testing.T) {
 		path: {Config: []byte(`{"active_agent":"another-agent"}`)},
 	}, callback)
 	assert.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
+}
+
+// A config we can parse always beats a stale fallback for the same group, whichever order the
+// update happens to iterate in.
+func TestOnUpdateStaleFallbackDoesNotOverrideAFreshAssignment(t *testing.T) {
+	comp := newRCTestComponent(t)
+	callback, _ := collectApplyStates(t)
+
+	const oldPath = "datadog/2/NDM_AGENT_WORKLOAD_BALANCING/group1-old/config"
+	const newPath = "datadog/2/NDM_AGENT_WORKLOAD_BALANCING/group1-new/config"
+
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		oldPath: {Config: []byte(`{"group_id":"group1","active_agent":"another-agent"}`)},
+	}, callback)
+	require.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
+
+	// group1 is handed to us on a new path while the old path stops parsing. Map iteration is
+	// unordered, so run this enough times to hit both orders.
+	for i := 0; i < 50; i++ {
+		comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+			oldPath: {Config: []byte(`not json`)},
+			newPath: {Config: []byte(fmt.Sprintf(`{"group_id":"group1","active_agent":%q}`, testHostname))},
+		}, callback)
+		require.Equal(t, workloadbalancing.Active, comp.GetGroupState("group1"))
+	}
+}
+
+// A group the backend has not assigned to anyone keeps running here.
+func TestOnUpdateEmptyActiveAgentLeavesTheGroupRunning(t *testing.T) {
+	comp := newRCTestComponent(t)
+	callback, applied := collectApplyStates(t)
+
+	const path = "datadog/2/NDM_AGENT_WORKLOAD_BALANCING/group1/config"
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		path: {Config: []byte(`{"group_id":"group1","active_agent":""}`)},
+	}, callback)
+
+	assert.Equal(t, workloadbalancing.Unmanaged, comp.GetGroupState("group1"))
+	assert.True(t, comp.IsGroupActive("group1"))
+	assert.Equal(t, state.ApplyStateAcknowledged, applied[path].State)
+}
+
+// A group ID reaches a metric tag unmodified, so an absurd one is rejected like an empty one.
+func TestOnUpdateRejectsAnOverlongGroupID(t *testing.T) {
+	comp := newRCTestComponent(t)
+	callback, applied := collectApplyStates(t)
+
+	const path = "datadog/2/NDM_AGENT_WORKLOAD_BALANCING/huge/config"
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		path: {Config: []byte(fmt.Sprintf(`{"group_id":%q,"active_agent":"another-agent"}`,
+			strings.Repeat("g", maxGroupIDLength+1)))},
+	}, callback)
+
+	assert.Equal(t, state.ApplyStateError, applied[path].State)
+	assert.Empty(t, comp.GetGroupStates())
 }
 
 // A config that disappears from the update is gone for good, invalid or not.

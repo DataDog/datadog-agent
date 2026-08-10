@@ -6,15 +6,33 @@
 package workloadbalancingimpl
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
+
+// failingHostname stands in for a host whose name cannot be resolved.
+type failingHostname struct{}
+
+func (failingHostname) Get(context.Context) (string, error) {
+	return "", errors.New("cannot resolve the hostname")
+}
+
+func (failingHostname) GetWithProvider(context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{}, errors.New("cannot resolve the hostname")
+}
+
+func (failingHostname) GetSafe(context.Context) string {
+	return "unknown host"
+}
 
 func newTestWorkloadBalancingComponent(t *testing.T, agentConfigs map[string]interface{}, logger log.Component) Provides {
 	if logger == nil {

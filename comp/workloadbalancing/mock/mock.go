@@ -10,6 +10,7 @@ package mock
 
 import (
 	"maps"
+	"sync"
 
 	"go.uber.org/fx"
 
@@ -18,15 +19,22 @@ import (
 )
 
 type mockWorkloadBalancing struct {
+	mu      sync.RWMutex
 	enabled bool
 	groups  map[string]workloadbalancing.State
 }
 
 func (m *mockWorkloadBalancing) Enabled() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return m.enabled
 }
 
 func (m *mockWorkloadBalancing) GetGroupState(groupID string) workloadbalancing.State {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	state, ok := m.groups[groupID]
 	if !ok {
 		return workloadbalancing.Unmanaged
@@ -35,6 +43,9 @@ func (m *mockWorkloadBalancing) GetGroupState(groupID string) workloadbalancing.
 }
 
 func (m *mockWorkloadBalancing) GetGroupStates() map[string]workloadbalancing.State {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return maps.Clone(m.groups)
 }
 
@@ -42,18 +53,17 @@ func (m *mockWorkloadBalancing) IsGroupActive(groupID string) bool {
 	return m.GetGroupState(groupID) != workloadbalancing.Standby
 }
 
-func (m *mockWorkloadBalancing) SetGroupLeader(_ string, _ string) {
-}
-
-func (m *mockWorkloadBalancing) RemoveGroup(groupID string) {
-	delete(m.groups, groupID)
-}
-
 func (m *mockWorkloadBalancing) SetEnabled(enabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.enabled = enabled
 }
 
 func (m *mockWorkloadBalancing) SetGroupState(groupID string, state workloadbalancing.State) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.groups[groupID] = state
 }
 
@@ -66,7 +76,7 @@ type Component interface {
 }
 
 // NewMock returns a new Mock
-func NewMock() workloadbalancing.Component {
+func NewMock() Component {
 	return &mockWorkloadBalancing{
 		enabled: false,
 		groups:  make(map[string]workloadbalancing.State),
@@ -76,6 +86,6 @@ func NewMock() workloadbalancing.Component {
 // Module defines the fx options for the mock component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMock),
+		fx.Provide(func() workloadbalancing.Component { return NewMock() }),
 	)
 }

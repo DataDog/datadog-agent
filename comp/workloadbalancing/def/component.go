@@ -24,11 +24,4 @@ type Component interface {
 
 	// GetGroupStates returns a copy of every group state this Agent holds
 	GetGroupStates() map[string]State
-
-	// SetGroupLeader takes the active Agent hostname for groupID. If it matches this
-	// Agent's hostname the group becomes active, otherwise standby.
-	SetGroupLeader(groupID string, leaderAgentHostname string)
-
-	// RemoveGroup drops any assignment for groupID, returning it to unmanaged
-	RemoveGroup(groupID string)
 }
