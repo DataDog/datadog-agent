@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build usm_debugger
-
 package main
 
 import (
@@ -46,7 +44,7 @@ func main() {
 	go func() {
 		t := time.NewTicker(10 * time.Second)
 		for range t.C {
-			_, cleaners = monitor.GetProtocolStats()
+			_, cleaners := monitor.GetProtocolStats()
 			cleaners()
 		}
 	}()
