@@ -182,7 +182,7 @@ impl ExecutorLifecycle for ProcmgrLifecycle {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::test_support::{FakeProcmgr, serve_procmgr};
