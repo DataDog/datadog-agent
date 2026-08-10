@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"container/heap"
 	"errors"
 	"fmt"
 	"math"
@@ -183,8 +184,8 @@ type topAnomaly struct {
 }
 
 // topAnomalyBuffer is a bounded approximation of the strongest anomalies over
-// the previous five minutes. Entries are maintained in rank order so the hot
-// path only does a bounded binary search and slice shift.
+// the previous five minutes. Entries form a min-heap, with the weakest retained
+// anomaly at the root.
 type topAnomalyBuffer struct {
 	entries  []topAnomaly
 	capacity int
@@ -223,20 +224,45 @@ func (b *topAnomalyBuffer) expire(sec int64) {
 		}
 	}
 	b.entries = kept
+	heap.Init(b)
 }
 
 func (b *topAnomalyBuffer) insert(candidate topAnomaly) {
-	index := sort.Search(len(b.entries), func(i int) bool {
-		return topAnomalyBefore(candidate, b.entries[i])
-	})
-	if len(b.entries) == b.capacity && index == len(b.entries) {
+	if b.capacity == 0 {
 		return
 	}
 	if len(b.entries) < b.capacity {
-		b.entries = append(b.entries, topAnomaly{})
+		heap.Push(b, candidate)
+		return
 	}
-	copy(b.entries[index+1:], b.entries[index:len(b.entries)-1])
-	b.entries[index] = candidate
+	if !topAnomalyBefore(candidate, b.entries[0]) {
+		return
+	}
+	b.entries[0] = candidate
+	heap.Fix(b, 0)
+}
+
+func (b *topAnomalyBuffer) Len() int {
+	return len(b.entries)
+}
+
+func (b *topAnomalyBuffer) Less(i, j int) bool {
+	return topAnomalyBefore(b.entries[j], b.entries[i])
+}
+
+func (b *topAnomalyBuffer) Swap(i, j int) {
+	b.entries[i], b.entries[j] = b.entries[j], b.entries[i]
+}
+
+func (b *topAnomalyBuffer) Push(value any) {
+	b.entries = append(b.entries, value.(topAnomaly))
+}
+
+func (b *topAnomalyBuffer) Pop() any {
+	last := len(b.entries) - 1
+	value := b.entries[last]
+	b.entries = b.entries[:last]
+	return value
 }
 
 // topAnomalyBefore defines the stable rank order for retained occurrences.

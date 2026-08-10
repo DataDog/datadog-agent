@@ -213,7 +213,7 @@ func TestTopAnomalyBuffer_ExpiresAtFiveMinutes(t *testing.T) {
 	}
 }
 
-func TestTopAnomalyBuffer_UsesScorerWeightsAndDeterministicOrder(t *testing.T) {
+func TestTopAnomalyBuffer_UsesScorerWeights(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
 	buffer := newTopAnomalyBuffer(10)
 	buffer.update(1000, []observer.Anomaly{
@@ -225,20 +225,18 @@ func TestTopAnomalyBuffer_UsesScorerWeightsAndDeterministicOrder(t *testing.T) {
 	if len(buffer.entries) != 3 {
 		t.Fatalf("expected three entries, got %+v", buffer.entries)
 	}
-	if buffer.entries[0].handle.Ref != 3 || buffer.entries[0].weight != levelWeights[4] {
-		t.Fatalf("unexpected first entry: %+v", buffer.entries[0])
+	weights := make(map[observer.SeriesRef]float64, len(buffer.entries))
+	for _, entry := range buffer.entries {
+		weights[entry.handle.Ref] = entry.weight
 	}
-	if buffer.entries[1].handle.Ref != 7 || buffer.entries[1].weight != levelWeights[4] {
-		t.Fatalf("unexpected second entry: %+v", buffer.entries[1])
-	}
-	if buffer.entries[2].handle.Ref != 42 || buffer.entries[2].weight != contributorWeight(
+	if weights[3] != levelWeights[4] || weights[7] != levelWeights[4] || weights[42] != contributorWeight(
 		observer.Anomaly{DetectorName: "holt_residual", Score: scorePtr(20)}, cfg,
 	) {
-		t.Fatalf("unexpected third entry: %+v", buffer.entries[2])
+		t.Fatalf("unexpected admitted anomalies: %+v", buffer.entries)
 	}
 }
 
-func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesTail(t *testing.T) {
+func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesWeakest(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
 	buffer := newTopAnomalyBuffer(2)
 	for i := 1; i <= buffer.capacity; i++ {
@@ -258,9 +256,12 @@ func TestTopAnomalyBuffer_RejectsWeakCandidatesAndReplacesTail(t *testing.T) {
 			t.Fatal("expected equal-weight tail candidate to be rejected")
 		}
 	}
-	if buffer.entries[0].handle != *strongHandle || buffer.entries[0].weight != levelWeights[4] {
-		t.Fatalf("expected stronger anomaly at the head, got %+v", buffer.entries[0])
+	for _, entry := range buffer.entries {
+		if entry.handle == *strongHandle && entry.weight == levelWeights[4] {
+			return
+		}
 	}
+	t.Fatalf("expected stronger anomaly to be retained, got %+v", buffer.entries)
 }
 
 func TestTopAnomalyBuffer_CapacityTracksDisplayCount(t *testing.T) {
