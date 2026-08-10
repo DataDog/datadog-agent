@@ -326,10 +326,13 @@ func TestKafkaCollectorFiltersSecretEnvVars(t *testing.T) {
 			Args: []string{"/etc/kafka/docker/run"},
 		},
 		env: map[string]string{
-			"KAFKA_CFG_OAUTH_ACCESS_TOKEN":              "secret",
-			"KAFKA_NODE_ID":                             "1",
-			"KAFKA_OPTS":                                "-Dsome.token=secret",
-			"KAFKA_SASL_OAUTHBEARER_TOKEN_ENDPOINT_URL": "https://identity.example/oauth2/token",
+			"CONFLUENT_ADMIN_PWD":                              "secret",
+			"KAFKA_CFG_OAUTH_ACCESS_TOKEN":                     "secret",
+			"KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR": "3",
+			"KAFKA_NODE_ID":                                    "1",
+			"KAFKA_OPTS":                                       "-Dsome.token=secret",
+			"KAFKA_SASL_OAUTHBEARER_TOKEN_ENDPOINT_URL":        "https://identity.example/oauth2/token",
+			"KAFKA_SASL_PWD":                                   "secret",
 		},
 	}
 
@@ -337,6 +340,7 @@ func TestKafkaCollectorFiltersSecretEnvVars(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR", Value: "3"},
 		{Name: "KAFKA_NODE_ID", Value: "1"},
 		{Name: "KAFKA_SASL_OAUTHBEARER_TOKEN_ENDPOINT_URL", Value: "https://identity.example/oauth2/token"},
 	}, collected.EnvVars)

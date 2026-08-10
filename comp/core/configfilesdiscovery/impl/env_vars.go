@@ -14,10 +14,12 @@ var secretEnvVarNameRegexps = []*regexp.Regexp{
 	regexp.MustCompile(`(^|_)CREDENTIALS?(_|$)`),
 	regexp.MustCompile(`(^|_)JAAS(_|$)`),
 	regexp.MustCompile(`(^|_)KEY(_|$)`),
-	regexp.MustCompile(`(^|_)LICENSE(_|$)`),
+	// License values end in LICENSE; LICENSE can also namespace safe settings.
+	regexp.MustCompile(`(^|_)LICENSE$`),
 	regexp.MustCompile(`(^|_)PASS(PHRASE|WD)?(_|$)`),
 	regexp.MustCompile(`(^|_)PASSWORDS?(_|$)`),
 	regexp.MustCompile(`(^|_)PRIVATE(_|$)`),
+	regexp.MustCompile(`(^|_)PWD(_|$)`),
 	regexp.MustCompile(`(^|_)SECRET(_|$)`),
 	// Token-valued variables end in TOKEN; names such as TOKEN_ENDPOINT_URL do not.
 	regexp.MustCompile(`(^|_)TOKENS?$`),
