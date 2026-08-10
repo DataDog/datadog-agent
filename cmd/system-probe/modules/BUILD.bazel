@@ -1,8 +1,5 @@
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-
-# gazelle:dd_agent_go_test on
-
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "modules",
@@ -27,6 +24,7 @@ go_library(
         "network_tracer_usm.go",
         "network_tracer_windows.go",
         "noisy_neighbor.go",
+        "notable_events_darwin.go",
         "oom_kill_probe.go",
         "ping.go",
         "privileged_logs_linux.go",
@@ -60,6 +58,7 @@ go_library(
             "//pkg/compliance/dbconfig",
             "//pkg/compliance/statusregistry",
             "//pkg/config/env",
+            "//pkg/config/helper",
             "//pkg/config/setup",
             "//pkg/discovery/module",
             "//pkg/dyninst/module",
@@ -124,6 +123,7 @@ go_library(
             "//pkg/network/tracer",
             "//pkg/networkpath/payload",
             "//pkg/networkpath/traceroute/config",
+            "//pkg/notableevents",
             "//pkg/system-probe/utils",
             "//pkg/util/log",
             "@com_github_datadog_datadog_traceroute//traceroute",
@@ -140,6 +140,7 @@ go_library(
             "//pkg/network/tracer",
             "//pkg/networkpath/payload",
             "//pkg/networkpath/traceroute/config",
+            "//pkg/notableevents",
             "//pkg/system-probe/utils",
             "//pkg/util/log",
             "@com_github_datadog_datadog_traceroute//traceroute",
@@ -155,6 +156,7 @@ go_library(
             "//pkg/compliance/dbconfig",
             "//pkg/compliance/statusregistry",
             "//pkg/config/env",
+            "//pkg/config/helper",
             "//pkg/config/setup",
             "//pkg/discovery/module",
             "//pkg/dyninst/module",
@@ -254,11 +256,12 @@ dd_agent_go_test(
         "gpu_test.go",
         "language_detection_test.go",
         "network_tracer_test.go",
+        "notable_events_darwin_test.go",
         "process_test.go",
         "traceroute_test.go",
     ],
     embed = [":modules"],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [["linux_bpf"]],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/compliance/dbconfig",
@@ -278,6 +281,7 @@ dd_agent_go_test(
             "//pkg/proto/pbgo/languagedetection",
             "//pkg/proto/pbgo/process",
             "//pkg/system-probe/api/module",
+            "//pkg/util/kernel",
             "@com_github_datadog_agent_payload_v5//process",
             "@com_github_datadog_datadog_traceroute//traceroute",
             "@com_github_davecgh_go_spew//spew",
@@ -285,6 +289,18 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@org_golang_google_protobuf//proto",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/notableevents",
+            "//pkg/system-probe/api/module",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/notableevents",
+            "//pkg/system-probe/api/module",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/compliance/dbconfig",
@@ -304,6 +320,7 @@ dd_agent_go_test(
             "//pkg/proto/pbgo/languagedetection",
             "//pkg/proto/pbgo/process",
             "//pkg/system-probe/api/module",
+            "//pkg/util/kernel",
             "@com_github_datadog_agent_payload_v5//process",
             "@com_github_datadog_datadog_traceroute//traceroute",
             "@com_github_davecgh_go_spew//spew",

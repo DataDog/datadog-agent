@@ -43,6 +43,17 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
 DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
+
+# The testbench applies these shorter warmups for interactive and headless
+# evaluation. Eval-generated configs name every detector, so carry the profile
+# explicitly: otherwise an enabled-only entry would lock the Go parser to its
+# production defaults and bypass the testbench profile.
+TESTBENCH_WARMUP_PARAMS = {
+    "bocpd": {"warmup_points": 40},
+    "holt_residual": {"warmup_points": 15, "residual_window": 25},
+    "tukey_biweight": {"window_size": 40, "min_points": 40},
+}
+
 ABLATION_CORRELATORS = ["anomaly_scorer"]
 SUPPORTED_CORRELATORS = ["anomaly_scorer", "cross_signal", "time_cluster"]
 
@@ -444,6 +455,9 @@ def random_component_combinations(
 def _component_base_config(name: str, enabled: bool) -> dict:
     """Base JSON config for a component in eval-generated testbench params."""
     cfg: dict[str, object] = {"enabled": enabled}
+    # Keep generated Optuna and combination configs aligned with testbench-only
+    # detector warmups. Sampled values below can intentionally override these.
+    cfg.update(TESTBENCH_WARMUP_PARAMS.get(name, {}))
     if enabled and name == "anomaly_scorer":
         # The scorer only contributes to Gaussian F1 when it emits Medium- or
         # High-severity episodes as anomaly_periods. Keep cooldown at zero so
@@ -513,7 +527,6 @@ def _sample_component_params(trial, component: str) -> dict:
         return {
             "alpha": alpha,
             "beta": alpha * beta_ratio,
-            "residual_window": trial.suggest_int("holt_residual.residual_window", 20, 90),
             "z_threshold": trial.suggest_float("holt_residual.z_threshold", 2.5, 8.0),
             "confirm_m": trial.suggest_int("holt_residual.confirm_m", 1, 3),
             "min_deviation_mad": trial.suggest_float("holt_residual.min_deviation_mad", 1.5, 6.0),
@@ -521,10 +534,7 @@ def _sample_component_params(trial, component: str) -> dict:
         }
 
     def sample_tukey_biweight() -> dict:
-        window_size = trial.suggest_int("tukey_biweight.window_size", 30, 120)
         return {
-            "window_size": window_size,
-            "min_points": window_size,
             "biweight_c": trial.suggest_float("tukey_biweight.biweight_c", 3.5, 6.0),
             "z_threshold": trial.suggest_float("tukey_biweight.z_threshold", 2.5, 10.0),
             "score_every": trial.suggest_int("tukey_biweight.score_every", 1, 6),

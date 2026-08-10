@@ -74,17 +74,6 @@ anomaly_detection:
 	))
 }
 
-// sendGauge sends one DogStatsD gauge over UDP to the local agent.
-// Uses Execute rather than MustExecute: a transient SSH error in the background
-// goroutine would otherwise propagate as an unrecovered panic, terminating the
-// test process and tearing down the DEV_MODE stack before assertions complete.
-func (s *metricsTriggeredSuite) sendGauge(name string, value float64) {
-	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
-	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
-		s.T().Logf("sendGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
-	}
-}
-
 // TestMetricsTriggeredEmitsOnDSDSpike sends a stable gauge baseline then a large
 // spike, expecting CUSUM to fire and the stdout reporter to emit its marker.
 //
@@ -124,7 +113,7 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 				return
 			default:
 			}
-			s.sendGauge(metricName, baseline)
+			sendGauge(s, metricName, baseline)
 			if (i+1)%10 == 0 {
 				s.T().Logf("baseline: sent %d/%d", i+1, baselinePoints)
 			}
@@ -141,7 +130,7 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 				return
 			default:
 			}
-			s.sendGauge(metricName, spike)
+			sendGauge(s, metricName, spike)
 			if (i+1)%10 == 0 {
 				s.T().Logf("spike: sent %d/%d", i+1, spikePoints)
 			}

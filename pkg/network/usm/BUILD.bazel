@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "usm",
@@ -74,7 +75,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "usm_test",
     srcs = [
         "compile_test.go",
@@ -96,7 +97,11 @@ go_test(
         "usm_http_monitor_test.go",
     ],
     embed = [":usm"],
-    gotags = ["test"],
+    gotags_sets = [
+        ["linux_bpf"],
+        ["npm"],
+    ],
+    include_default = False,
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/ebpftest",

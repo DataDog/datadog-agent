@@ -65,7 +65,6 @@ from tasks import (
     owners,
     package,
     pipeline,
-    pkg_template,
     pre_commit,
     privateactionrunner,
     process_agent,
@@ -75,7 +74,6 @@ from tasks import (
     release,
     renovate,
     rtloader,
-    rust_shared_checks,
     sbomgen,
     schema,
     secret_generic_connector,
@@ -250,7 +248,6 @@ ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(renovate)
 ns.add_collection(rtloader)
-ns.add_collection(rust_shared_checks)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)
@@ -280,7 +277,6 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(schema)
 ns.add_collection(sbomgen)
-ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
 ns.add_collection(files_inventory)
 

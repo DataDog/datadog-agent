@@ -1,0 +1,47 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+_LINUX_ONLY = select({
+    "@platforms//os:linux": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+rust_library(
+    name = "par-control-lib",
+    srcs = [
+        "src/config.rs",
+        "src/lib.rs",
+    ],
+    crate_name = "par_control",
+    edition = "2024",
+    target_compatible_with = _LINUX_ONLY,
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:serde",
+        "@crates//:serde_yaml",
+    ],
+)
+
+rust_binary(
+    name = "par-control",
+    srcs = ["src/bins/par-control.rs"],
+    edition = "2024",
+    target_compatible_with = _LINUX_ONLY,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":par-control-lib",
+        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:anyhow",
+        "@crates//:clap",
+        "@crates//:log",
+        "@crates//:tokio",
+    ],
+)
+
+rust_test(
+    name = "par-control_test",
+    crate = ":par-control-lib",
+    edition = "2024",
+    target_compatible_with = _LINUX_ONLY,
+)

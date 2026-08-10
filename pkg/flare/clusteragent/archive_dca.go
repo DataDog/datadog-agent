@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	flarecommon "github.com/DataDog/datadog-agent/pkg/flare/common"
@@ -261,7 +262,7 @@ func getLocalClusterAgentDiagnose(fb flaretypes.FlareBuilder, diagnose diagnose.
 // dcaIPCHostPort returns `host:port` for the local cluster agent IPC
 // endpoint, with IPv6 hosts properly bracketed.
 func dcaIPCHostPort() (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}

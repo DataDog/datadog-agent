@@ -27,11 +27,15 @@ dd_agent_go_test(
     srcs = ["collector_test.go"],
     data = glob(["testdata/**"]),
     embed = [":kubelet"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/workloadmeta/def",

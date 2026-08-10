@@ -46,6 +46,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/flare",
         "//pkg/status/health",
         "//pkg/util/http",
@@ -73,6 +74,16 @@ dd_agent_go_test(
         "store_test.go",
     ],
     embed = [":impl"],
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        ["python"],
+    ],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

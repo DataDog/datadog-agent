@@ -68,6 +68,7 @@ from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.libs.types.types import JobDependency
+from tasks.schema.generate import schema_codegen
 from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
@@ -863,6 +864,9 @@ def kmt_secagent_prepare(
             filter_fn=lambda x: os.path.basename(x).startswith("runtime-security"),
         )
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
@@ -1063,7 +1067,9 @@ def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: 
 
     packages_list = " ".join(packages)
     list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
-    res = ctx.run(f"go list -buildvcs=false -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    res = ctx.run(
+        f"go list -buildvcs=false -test -f '{list_format}' -tags \"{','.join(build_tags)}\" {packages_list}", hide=True
+    )
     if res is None or not res.ok:
         raise Exit("Failed to get dependencies for system-probe")
 
@@ -1167,7 +1173,7 @@ def kmt_sysprobe_prepare(
             variables = {
                 "env": env_str,
                 "go": go_path,
-                "build_tags": build_tags,
+                "build_tags": ",".join(build_tags),
             }
             timeout = get_test_timeout(os.path.relpath(pkg, os.getcwd()))
             if timeout:
@@ -1250,6 +1256,10 @@ def kmt_sysprobe_prepare(
                     )
 
     info("[+] Compiling tests...")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 

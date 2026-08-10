@@ -17,7 +17,7 @@ import (
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -197,7 +197,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// The otel-agent forces zlib compression, which is incompatible with the v3
 	// metrics intake.
 	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
-	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
@@ -253,9 +252,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Proxy Setup from config
-	if ddc.ProxyURL != "" {
-		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
-		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+	if ddc.ClientConfig.ProxyURL != "" {
+		pkgconfig.Set("proxy.http", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("proxy.https", ddc.ClientConfig.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
 	// Always load proxy env vars (DD_PROXY_HTTP, DD_PROXY_HTTPS, DD_PROXY_NO_PROXY,
