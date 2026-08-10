@@ -42,10 +42,8 @@ func (s *LogSourceSuite) TestDumpConcurrentWithProcessingInfo() {
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(2)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-stop:
@@ -54,15 +52,14 @@ func (s *LogSourceSuite) TestDumpConcurrentWithProcessingInfo() {
 				source.ProcessingInfo.Inc("exclude_rule")
 			}
 		}
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; i < 1000; i++ {
 			source.Dump(true)
 		}
 		close(stop)
-	}()
+	})
 
 	wg.Wait()
 }
