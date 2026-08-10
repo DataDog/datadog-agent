@@ -94,8 +94,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 	r.ensureMinWorkers(numWorkers)
 
 	// Start monitoring worker utilization
-	r.stopWG.Add(1)
-	go r.monitorWorkerUtilization()
+	r.stopWG.Go(r.monitorWorkerUtilization)
 
 	return r
 }
@@ -243,15 +242,12 @@ func (r *Runner) Stop() {
 		terminateChecksRunningProcesses()
 
 		for _, c := range runningChecks {
-			r.stopWG.Add(1)
-			go func(ch check.Check) {
-				err := r.StopCheck(ch.ID())
+			r.stopWG.Go(func() {
+				err := r.StopCheck(c.ID())
 				if err != nil {
-					log.Warnf("Check %v not responding after %v: %s", ch, stopCheckTimeout, err)
+					log.Warnf("Check %v not responding after %v: %s", c, stopCheckTimeout, err)
 				}
-
-				r.stopWG.Done()
-			}(c)
+			})
 		}
 	})
 
@@ -359,8 +355,6 @@ func (r *Runner) logWorkerUtilization() {
 }
 
 func (r *Runner) monitorWorkerUtilization() {
-	defer r.stopWG.Done()
-
 	interval := pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_monitor_interval")
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
