@@ -109,7 +109,7 @@ def fetch_main_headroom(failing_gates: list[str]) -> dict[str, dict[str, int]]:
         f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main AND ({gate_filter})}} by {{gate_name}}"
         for m in metric_map
     )
-    result = query_metrics(queries, from_time="now-1d", to_time="now")
+    result = query_metrics(queries, from_time="now-7d", to_time="now")  # accounts for weekends
 
     for series in result:
         gate_name = _extract_gate_name_from_scope(series.get("scope", ""))
@@ -127,13 +127,15 @@ def fetch_main_headroom(failing_gates: list[str]) -> dict[str, dict[str, int]]:
                     main_metrics[gate_name][key] = int(latest_value)
                 break
 
+    from tasks.static_quality_gates.thresholds import BUFFER_SIZE  # avoids a circular import
+
     headroom: dict[str, dict[str, int]] = {}
     for gate_name, metrics in main_metrics.items():
         disk_headroom = metrics.get("max_disk", 0) - metrics.get("current_disk", 0)
         wire_headroom = metrics.get("max_wire", 0) - metrics.get("current_wire", 0)
         headroom[gate_name] = {
-            "disk_headroom": max(0, disk_headroom),
-            "wire_headroom": max(0, wire_headroom),
+            "disk_headroom": max(BUFFER_SIZE, disk_headroom),
+            "wire_headroom": max(BUFFER_SIZE, wire_headroom),
         }
 
     return headroom
