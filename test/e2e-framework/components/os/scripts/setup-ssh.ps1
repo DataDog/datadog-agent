@@ -1,3 +1,12 @@
+# This script is embedded as EC2 user data with <persist>true</persist>, so it reruns on every
+# boot, not just the first -- see https://github.com/DataDog/test-infra-definitions/pull/1178,
+# which relies on that to let authorized_keys be reset on every boot for reused/custom AMIs. Every
+# step below must therefore either be safe to repeat unconditionally, or be guarded to only do real
+# work once. In particular, replacing OpenSSH via MSI stops sshd and takes a while; doing that on
+# every boot -- including the one triggered by domain controller promotion -- creates an extended
+# sshd outage that can overlap with whatever is trying to SSH in right after reboot. See WINA-2095.
+$sshInstallMarkerPath = "$env:ProgramData\ssh\.dd-openssh-installed"
+
 # function to test if the OS is Windows Server 2025
 function Is-WindowsServer2025 {
   $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
@@ -7,6 +16,11 @@ function Is-WindowsServer2025 {
 
 # function to test if the sshd service is running and if it needs to be replaced
 function Test-SshInstallationNeeded {
+  if (Test-Path $sshInstallMarkerPath) {
+    # Already installed/replaced on a previous boot -- nothing to do.
+    return $false
+  }
+
   $service = Get-Service -Name sshd -ErrorAction SilentlyContinue
 
   if ($service -ne $null) {
@@ -134,6 +148,7 @@ if (Test-SshInstallationNeeded) {
     Set-Service -Name sshd -StartupType Automatic
     $retries++
   }
+  New-Item -Path $sshInstallMarkerPath -ItemType File -Force | Out-Null
 }
 
 Restore-AutoInheritedFlag
@@ -180,7 +195,7 @@ icacls.exe ""$env:ProgramData\ssh\administrators_authorized_keys"" /inheritance:
 # Write sshd_config so LogLevel is deterministic across AMIs/OpenSSH versions. DEBUG3 is set so
 # OpenSSH/Operational captures more detail if sshd fails to stay up after a later reboot (e.g.
 # domain controller promotion, see WINA-2095).
-Write-Host "Writing sshd_config"
+$sshdConfigPath = "$env:ProgramData\ssh\sshd_config"
 $sshdConfigLines = @(
   "LogLevel DEBUG3",
   "AuthorizedKeysFile`t.ssh/authorized_keys",
@@ -189,8 +204,16 @@ $sshdConfigLines = @(
   "Match Group administrators",
   "       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys"
 )
-Set-Content -Path "$env:ProgramData\ssh\sshd_config" -Value $sshdConfigLines
-Restart-Service sshd -ErrorAction SilentlyContinue
+$existingSshdConfigLines = if (Test-Path $sshdConfigPath) { @(Get-Content -Path $sshdConfigPath) } else { @() }
+if (@(Compare-Object $existingSshdConfigLines $sshdConfigLines -SyncWindow 0).Count -ne 0) {
+  # Only restart sshd (a brief interruption) when the config actually changed -- this script
+  # reruns on every boot, and a no-op restart on every one of them is an avoidable SSH outage.
+  Write-Host "Writing sshd_config"
+  Set-Content -Path $sshdConfigPath -Value $sshdConfigLines
+  Restart-Service sshd -ErrorAction SilentlyContinue
+} else {
+  Write-Host "sshd_config already up to date, skipping restart"
+}
 
 # Start sshd service
 $retries = 0
@@ -205,30 +228,4 @@ while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Runnin
   Start-Service sshd
   $retries++
 }
-
-# Install a boot-time watchdog that restarts sshd if it stops within 5 minutes of boot. SCM
-# service-recovery actions only fire on abnormal termination (event 7031), never on a clean stop
-# (event 7036) -- and sshd has been observed stopping cleanly shortly after the reboot triggered by
-# domain controller promotion (Install-ADDSForest), see WINA-2095. A boot-triggered task catches
-# both cases since it just polls service status rather than relying on SCM's crash-only recovery.
-Write-Host "Installing sshd watchdog scheduled task"
-$watchdogPath = "$env:ProgramData\ssh\sshd-watchdog.ps1"
-$watchdogLines = @(
-  '$deadline = (Get-Date).AddMinutes(5)',
-  'while ((Get-Date) -lt $deadline) {',
-  '  $svc = Get-Service -Name sshd -ErrorAction SilentlyContinue',
-  '  if ($svc -and $svc.Status -ne "Running") {',
-  '    Start-Service sshd -ErrorAction SilentlyContinue',
-  '  }',
-  '  Start-Sleep -Seconds 5',
-  '}'
-)
-Set-Content -Path $watchdogPath -Value $watchdogLines
-
-$watchdogAction = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$watchdogPath`""
-$watchdogTrigger = New-ScheduledTaskTrigger -AtStartup
-$watchdogPrincipal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-$watchdogSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 6)
-Register-ScheduledTask -TaskName "SshdWatchdog" -Action $watchdogAction -Trigger $watchdogTrigger -Principal $watchdogPrincipal -Settings $watchdogSettings -Force | Out-Null
-Write-Host "sshd watchdog scheduled task installed"
 
