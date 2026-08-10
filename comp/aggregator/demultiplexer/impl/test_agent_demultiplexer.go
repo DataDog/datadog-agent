@@ -23,6 +23,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -186,6 +187,6 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	filterList := filterlist.NewNoopFilterList()
 	orchestratorForwarder := option.New[defaultforwarderdef.Forwarder](defaultforwardernoop.NewComponent())
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressor))
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressor, noopimpl.NewComponent(), filterList, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), metricscompressor, noopimpl.NewComponent(), filterList, "hostname")
 	return NewTestAgentDemultiplexer(demux)
 }

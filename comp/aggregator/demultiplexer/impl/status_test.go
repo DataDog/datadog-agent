@@ -38,6 +38,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -99,6 +100,7 @@ func TestStatusOutPut(t *testing.T) {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwardermock.MockModule(),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),
 		logscompression.MockModule(),

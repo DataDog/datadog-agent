@@ -32,6 +32,7 @@ dd_agent_go_test(
         "//comp/haagent/mock",
         "//comp/serializer/logscompression/fx-mock",
         "//comp/serializer/metricscompression/fx-mock",
+        "//comp/workloadbalancing/mock",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

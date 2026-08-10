@@ -39,6 +39,7 @@ dd_agent_go_test(
         "//comp/haagent/mock",
         "//comp/serializer/logscompression/fx-mock",
         "//comp/serializer/metricscompression/fx-mock",
+        "//comp/workloadbalancing/mock",
         "//pkg/aggregator",
         "//pkg/config/mock",
         "//pkg/config/setup",

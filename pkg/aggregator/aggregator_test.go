@@ -13,6 +13,7 @@ import (
 	"expvar"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +39,8 @@ import (
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -167,7 +170,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -200,7 +203,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -250,7 +253,7 @@ func TestDefaultData(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	start := time.Now()
 
@@ -296,7 +299,7 @@ func TestDefaultSeries(t *testing.T) {
 	mockHaAgent.SetEnabled(true)
 	mockHaAgent.SetState(haagent.Active)
 
-	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, mockHaAgent, workloadbalancingmock.NewMock(), taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	start := time.Now()
 
@@ -338,6 +341,67 @@ func TestDefaultSeries(t *testing.T) {
 	agg.Flush(triggerInstance)
 
 	assert.EqualValues(t, expectedSeries, flushedSeries)
+}
+
+func TestWorkloadBalancingSeries(t *testing.T) {
+	// this test IS USING globals (tagsetTlm and recurrentSeries) but a local aggregator
+	// -
+
+	s := &MockSerializerIterableSerie{}
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("config_id", "config123")
+
+	wb := workloadbalancingmock.NewMock().(workloadbalancingmock.Component)
+	wb.SetEnabled(true)
+	wb.SetGroupState("group1", workloadbalancing.Active)
+	wb.SetGroupState("group2", workloadbalancing.Standby)
+
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), wb, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+
+	start := time.Now()
+
+	var flushedSeries metrics.Series
+	agg.appendWorkloadBalancingSeries(start, &flushedSeries)
+
+	require.Len(t, flushedSeries, 2)
+	byGroup := map[string]*metrics.Serie{}
+	for _, serie := range flushedSeries {
+		assert.Equal(t, fmt.Sprintf("datadog.%s.workload_balancing.running", agg.agentName), serie.Name)
+		assert.Equal(t, metrics.APIGaugeType, serie.MType)
+		assert.Equal(t, agg.hostname, serie.Host)
+		assert.Equal(t, []metrics.Point{{Value: 1, Ts: float64(start.Unix())}}, serie.Points)
+		tags := serie.Tags.UnsafeToReadOnlySliceString()
+		assert.Contains(t, tags, "config_id:config123")
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "workload_balancing_group:") {
+				byGroup[strings.TrimPrefix(tag, "workload_balancing_group:")] = serie
+			}
+		}
+	}
+
+	require.Contains(t, byGroup, "group1")
+	assert.Contains(t, byGroup["group1"].Tags.UnsafeToReadOnlySliceString(), "workload_balancing_state:active")
+	require.Contains(t, byGroup, "group2")
+	assert.Contains(t, byGroup["group2"].Tags.UnsafeToReadOnlySliceString(), "workload_balancing_state:standby")
+}
+
+// A disabled component emits nothing at all, so an Agent that is not part of workload balancing
+// does not pay for the metric.
+func TestWorkloadBalancingSeriesDisabled(t *testing.T) {
+	s := &MockSerializerIterableSerie{}
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+
+	wb := workloadbalancingmock.NewMock().(workloadbalancingmock.Component)
+	wb.SetGroupState("group1", workloadbalancing.Active)
+
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), wb, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+
+	var flushedSeries metrics.Series
+	agg.appendWorkloadBalancingSeries(time.Now(), &flushedSeries)
+
+	assert.Empty(t, flushedSeries)
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
@@ -652,7 +716,7 @@ func TestTags(t *testing.T) {
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 			mockHaAgent.SetEnabled(tt.haAgentEnabled)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second, filterlistmock.NewMockFilterList())
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, workloadbalancingmock.NewMock(), taggerComponent, tt.hostname, time.Second, filterlistmock.NewMockFilterList())
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
@@ -684,7 +748,7 @@ func TestConfigIDTags(t *testing.T) {
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second, filterlistmock.NewMockFilterList())
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, workloadbalancingmock.NewMock(), taggerComponent, "my-hostname", time.Second, filterlistmock.NewMockFilterList())
 			assert.ElementsMatch(t, tt.want, agg.configIDTags())
 		})
 	}
@@ -716,7 +780,7 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	NewBufferedAggregator(s, nil, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
 		Name:   "datadog.djm.agent_host",
@@ -817,6 +881,7 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		filterlistmock.MockModule(),
 	)
 

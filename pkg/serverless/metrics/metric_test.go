@@ -36,6 +36,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -126,6 +127,7 @@ func testStopDrainsBeforeFlush(t *testing.T) {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
@@ -174,6 +176,7 @@ func TestStopDrainsThroughWrappedDemux(t *testing.T) {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),

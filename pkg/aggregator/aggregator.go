@@ -21,6 +21,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -264,6 +265,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
+	workloadBalancing      workloadbalancing.Component
 	configID               string
 	hostname               string
 	hostnameUpdate         chan string
@@ -306,7 +308,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, workloadBalancing workloadbalancing.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -347,6 +349,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
+		workloadBalancing:           workloadBalancing,
 		configID:                    configID,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
@@ -640,6 +643,8 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		SourceTypeName: "System",
 	})
 
+	agg.appendWorkloadBalancingSeries(start, series)
+
 	if agg.haAgent.Enabled() {
 		haAgentTags := slices.Concat(agg.tags(false),
 			agg.configIDTags(),
@@ -652,6 +657,32 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
 			Tags:           tagset.CompositeTagsFromSlice(haAgentTags),
+			Host:           agg.hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+}
+
+// appendWorkloadBalancingSeries emits one gauge per workload balancing group this Agent knows
+// about, so a group with no active Agent anywhere is visible as a gap rather than as silence.
+func (agg *BufferedAggregator) appendWorkloadBalancingSeries(start time.Time, series metrics.SerieSink) {
+	if agg.workloadBalancing == nil || !agg.workloadBalancing.Enabled() {
+		return
+	}
+
+	for groupID, state := range agg.workloadBalancing.GetGroupStates() {
+		tags := slices.Concat(agg.tags(false),
+			agg.configIDTags(),
+			[]string{
+				"workload_balancing_group:" + groupID,
+				"workload_balancing_state:" + string(state),
+			},
+		)
+		series.Append(&metrics.Serie{
+			Name:           fmt.Sprintf("datadog.%s.workload_balancing.running", agg.agentName),
+			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice(tags),
 			Host:           agg.hostname,
 			MType:          metrics.APIGaugeType,
 			SourceTypeName: "System",

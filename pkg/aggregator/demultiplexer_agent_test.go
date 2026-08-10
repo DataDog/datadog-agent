@@ -37,6 +37,8 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -106,7 +108,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	batch := testDemuxSamples(t)
 
@@ -131,7 +133,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.NoAggregationPipelineWorkersCount = 1
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 	demux.statsd.noAggStreamWorkers[0].serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.run()
@@ -170,6 +172,7 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
@@ -209,7 +212,7 @@ func TestDemuxNoAggWorkersCount(t *testing.T) {
 			opts.NoAggregationPipelineWorkersCount = tt.configured
 			deps := createDemultiplexerAgentTestDeps(t)
 
-			demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+			demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 			require.Len(t, demux.statsd.noAggStreamWorkers, tt.expectedCount)
 			require.Len(t, demux.noAggSerializers, tt.expectedCount)
@@ -230,7 +233,7 @@ func TestDemuxNoAggWorkersUseSharedQueue(t *testing.T) {
 	opts.NoAggregationPipelineWorkersCount = 3
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	for i := 0; i < 5; i++ {
 		demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{
@@ -259,7 +262,7 @@ func TestDemuxNoAggLookbackDoesNotReceiveNormalAggregationBatches(t *testing.T) 
 	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	demux.AggregateSamples(TimeSamplerID(0), testDemuxSamples(t))
 
@@ -279,7 +282,7 @@ func TestDemuxNoAggLookbackFactoryReceivesSharedSerializer(t *testing.T) {
 	}
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	require.True(t, called)
 	require.Same(t, lookback, demux.options.DogStatsDLookback)
@@ -292,7 +295,7 @@ func TestSendSamplesWithoutAggregationDropsEmptyBatch(t *testing.T) {
 	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{})
 
@@ -338,6 +341,7 @@ func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemulti
 		demuxTestOptions(),
 		deps.EventPlatform,
 		deps.HaAgent,
+		deps.WorkloadBalancing,
 		deps.Compressor,
 		deps.Tagger,
 		deps.FilterList,
@@ -408,6 +412,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 		opts,
 		deps.EventPlatform,
 		deps.HaAgent,
+		deps.WorkloadBalancing,
 		deps.Compressor,
 		deps.Tagger,
 		filterList,
@@ -518,6 +523,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 		opts,
 		deps.EventPlatform,
 		deps.HaAgent,
+		deps.WorkloadBalancing,
 		deps.Compressor,
 		deps.Tagger,
 		filterList,
@@ -618,6 +624,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		opts,
 		deps.EventPlatform,
 		deps.HaAgent,
+		deps.WorkloadBalancing,
 		deps.Compressor,
 		deps.Tagger,
 		filterList,
@@ -692,12 +699,13 @@ func TestUpdateMetricFilterList(t *testing.T) {
 
 type DemultiplexerAgentTestDeps struct {
 	TestDeps
-	OrchestratorFwd orchestratorforwarder.Component
-	EventPlatform   eventplatform.Component
-	Compressor      compression.Component
-	Tagger          tagger.Component
-	HaAgent         haagent.Component
-	Telemetry       telemetry.Component
+	OrchestratorFwd   orchestratorforwarder.Component
+	EventPlatform     eventplatform.Component
+	Compressor        compression.Component
+	Tagger            tagger.Component
+	HaAgent           haagent.Component
+	WorkloadBalancing workloadbalancing.Component
+	Telemetry         telemetry.Component
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
@@ -714,6 +722,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		filterlistmock.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerComponent }),
 	)

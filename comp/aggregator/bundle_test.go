@@ -23,6 +23,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -35,6 +36,7 @@ func TestBundleDependencies(t *testing.T) {
 		eventplatformmock.MockModule(),
 		nooptagger.Module(),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistfx.MockModule(),

@@ -25,6 +25,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,6 +48,7 @@ type Dependencies struct {
 	OrchestratorForwarder        orchestratorforwarder.Component
 	EventPlatformForwarder       eventplatform.Component
 	HaAgent                      haagent.Component
+	WorkloadBalancing            workloadbalancing.Component
 	Compressor                   compression.Component
 	Tagger                       tagger.Component
 	Hostname                     hostnameinterface.Component
@@ -91,6 +93,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 		options,
 		deps.EventPlatformForwarder,
 		deps.HaAgent,
+		deps.WorkloadBalancing,
 		deps.Compressor,
 		deps.Tagger,
 		deps.FilterList,

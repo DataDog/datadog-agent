@@ -118,7 +118,7 @@ func TestSetObserverNilIsNoop(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	// Use initAgentDemultiplexer (not started) — no goroutines, no Stop() needed.
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	demux.SetObserver(nil)
 
@@ -134,7 +134,7 @@ func TestSetObserverConfigOff(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	// Use initAgentDemultiplexer (not started) — no goroutines, no Stop() needed.
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	// Observer gates are off by default — handle must not be wired.
 	comp := &recordingComponent{handle: &recordingHandle{}}
@@ -157,7 +157,7 @@ func TestSetObserverConfigOff(t *testing.T) {
 func TestSetObserverReportingEventsGateOn(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	cfg := pkgconfigsetup.Datadog()
 	cfg.Set("anomaly_detection.reporting.events.enabled", true, model.SourceAgentRuntime)
@@ -226,7 +226,7 @@ func TestCheckSamplerObserverHandleNil(t *testing.T) {
 func TestBufferedAggregatorObserverHandlePropagation(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.WorkloadBalancing, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	handle := &recordingHandle{}
 	demux.aggregator.SetObserverHandle(handle)

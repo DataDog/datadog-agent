@@ -18,6 +18,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -75,6 +76,7 @@ func newMock(deps mockDependencies) MockProvides {
 		LogsCompression:    logscompressionmock.NewMockCompressor(),
 		MetricsCompression: metricscompressionmock.NewMockCompressor(),
 		HaAgent:            haagentmock.NewMockHaAgent(),
+		WorkloadBalancing:  workloadbalancingmock.NewMock(),
 		FilterList:         filterlistmock.NewMockFilterList(),
 	}
 

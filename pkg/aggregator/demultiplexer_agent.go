@@ -24,6 +24,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -144,11 +145,12 @@ func InitAndStartAgentDemultiplexer(
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
 	haAgent haagent.Component,
+	workloadBalancing workloadbalancing.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
 	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, workloadBalancing, compressor, tagger, filterList, hostname)
 	go demux.run()
 	return demux
 }
@@ -159,6 +161,7 @@ func initAgentDemultiplexer(log log.Component,
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
 	haAgent haagent.Component,
+	workloadBalancing workloadbalancing.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
@@ -181,7 +184,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, workloadBalancing, tagger, hostname, options.FlushInterval, filterList)
 
 	// statsd samplers
 	// ---------------

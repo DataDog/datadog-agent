@@ -40,6 +40,7 @@ dd_agent_go_test(
         "//comp/haagent/mock",
         "//comp/logs/agent/def",
         "//comp/metadata/runner/def",
+        "//comp/workloadbalancing/mock",
         "//pkg/serializer",
         "//pkg/util/fxutil",
         "//pkg/util/option",
