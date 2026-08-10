@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,6 +24,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// runtimeDirLogState dedupes the runtime-directory warnings, which would
+// otherwise repeat once per asset compiled (secureRuntimeDir runs inside the
+// per-asset compile()).
+var runtimeDirLogState struct {
+	sync.Mutex
+	seen map[string]struct{}
+}
+
+// logRuntimeDirOnce reports whether the given reason has not yet been logged,
+// recording it so subsequent identical reasons are suppressed.
+func logRuntimeDirOnce(reason string) bool {
+	runtimeDirLogState.Lock()
+	defer runtimeDirLogState.Unlock()
+	if _, ok := runtimeDirLogState.seen[reason]; ok {
+		return false
+	}
+	if runtimeDirLogState.seen == nil {
+		runtimeDirLogState.seen = make(map[string]struct{})
+	}
+	runtimeDirLogState.seen[reason] = struct{}{}
+	return true
+}
+
+// logRuntimeDirReclaimed warns (once per reclaimed path) that a stale
+// runtime-directory component was moved aside and recreated. A recurring reclaim
+// points at something else recreating the directory as non-root, so it is worth
+// surfacing rather than doing it silently.
+func logRuntimeDirReclaimed(p string) {
+	if logRuntimeDirOnce("reclaimed:" + p) {
+		log.Warnf("recreated runtime compiler output directory component %s: it was not a root-owned directory", p)
+	}
+}
 
 // asset represents an asset that needs its content integrity checked at runtime
 type asset struct {
@@ -100,8 +134,12 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	if err := secureRuntimeDir(outputDir); err != nil {
 		// Surface the policy refusal distinctly so operators can tell "runtime
 		// compilation disabled because the output directory is not under root's
-		// control" apart from an ordinary compilation failure.
-		log.Warnf("skipping runtime compilation of %s: %v", a.filename, err)
+		// control" apart from an ordinary compilation failure. compile() runs
+		// once per asset, so dedupe by reason to avoid one warning per asset for
+		// the same misconfigured directory.
+		if logRuntimeDirOnce(err.Error()) {
+			log.Warnf("skipping runtime compilation: %v", err)
+		}
 		return nil, err
 	}
 
@@ -176,14 +214,75 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 // set. The sticky-bit exception permits the default location under /var/tmp
 // (root-owned, mode 1777): the sticky bit keeps other users from renaming or
 // deleting the datadog-agent directory that root creates beneath it.
+//
+// The default parent /var/tmp is shared and writable by every user, so the
+// datadog-agent directory beneath it may already exist owned by a non-root user
+// (left over from a previous install, or created by another process). Rather
+// than refusing in that case for the lifetime of the process - which would break
+// upgraded hosts and leave runtime compilation disabled - secureRuntimeDir
+// repairs the common case: a wrong-owner directory below the sticky boundary is
+// renamed aside and the path recreated fresh as root. Only root can rename
+// entries inside a sticky directory, so the repair is not subject to
+// interference, and renaming aside (rather than reusing or chown-ing the
+// existing tree) means we never write through whatever it previously contained.
+//
+// The repair is deliberately narrow (see verifyRuntimeDirChain): it happens only
+// as root, only below a verified root-owned sticky directory, and only for a real
+// directory with the wrong owner/permissions. A symlink, a non-directory, or
+// anything at or above the sticky boundary is still refused, so unexpected or
+// broken layouts fail closed rather than being silently rewritten.
 func secureRuntimeDir(outputDir string) error {
 	if err := os.MkdirAll(outputDir, 0700); err != nil {
 		return fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
 	}
 
+	// Anything re-creating the component between the rename and the recreate
+	// cannot take effect (the recreated component is root-owned and, under a
+	// sticky parent, only root can replace it), so a single repair pass is
+	// sufficient; the retry is only a safety bound.
+	const maxAttempts = 3
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		badPath, healable, err := verifyRuntimeDirChain(outputDir)
+		if err == nil {
+			return nil
+		}
+		if !healable {
+			return err
+		}
+		if rErr := reclaimDirComponent(badPath); rErr != nil {
+			return fmt.Errorf("%w (attempted reclaim failed: %v)", err, rErr)
+		}
+		logRuntimeDirReclaimed(badPath)
+		// Recreate the freshly reclaimed path before re-verifying.
+		if mErr := os.MkdirAll(outputDir, 0700); mErr != nil {
+			return fmt.Errorf("unable to recreate compiler output directory %s after reclaim: %w", outputDir, mErr)
+		}
+		lastErr = err
+	}
+	return fmt.Errorf("unable to secure compiler output directory %s after %d reclaim attempts: %w", outputDir, maxAttempts, lastErr)
+}
+
+// verifyRuntimeDirChain walks outputDir and every ancestor up to the filesystem
+// root, enforcing verifyDirComponent on each. On the first failure it reports the
+// offending path and whether that failure is safely reclaimable.
+//
+// A failure is reclaimable only when all of the following hold, so the repair
+// stays conservative and never runs in a context where it could damage unrelated
+// directories:
+//   - we are running as root (system-probe's normal state); a non-root process
+//     must not start renaming directories it happens not to own,
+//   - the component lies strictly below a verified root-owned sticky directory
+//     (a shared, writable-by-anyone parent such as /var/tmp, whose sticky bit
+//     means only root can rename the entries beneath it), and
+//   - the component is itself a real directory that merely has the wrong owner or
+//     permissions. A symlink or non-directory at a path component is unexpected
+//     rather than a routine leftover, so it is still refused (fail-closed)
+//     instead of being rewritten.
+func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err error) {
 	abs, err := filepath.Abs(outputDir)
 	if err != nil {
-		return fmt.Errorf("unable to resolve compiler output directory %s: %w", outputDir, err)
+		return "", false, fmt.Errorf("unable to resolve compiler output directory %s: %w", outputDir, err)
 	}
 
 	// Collect every path component from outputDir up to the filesystem root.
@@ -197,18 +296,54 @@ func secureRuntimeDir(outputDir string) error {
 		p = parent
 	}
 
-	for _, p := range components {
-		info, err := os.Lstat(p)
-		if err != nil {
-			return fmt.Errorf("unable to verify compiler output directory component %s: %w", p, err)
+	// Walk root -> leaf so we know a component sits below a verified sticky
+	// boundary before we decide whether its failure is reclaimable.
+	belowStickyBoundary := false
+	for i := len(components) - 1; i >= 0; i-- {
+		p := components[i]
+		info, lerr := os.Lstat(p)
+		if lerr != nil {
+			return p, false, fmt.Errorf("unable to verify compiler output directory component %s: %w", p, lerr)
 		}
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok {
-			return fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
+			return p, false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
 		}
-		if err := verifyDirComponent(p, info.Mode(), stat.Uid); err != nil {
-			return err
+		if verr := verifyDirComponent(p, info.Mode(), stat.Uid); verr != nil {
+			// Reclaim only a real, wrong-owner/permission directory below the
+			// sticky boundary, and only as root. info.Mode().IsDir() is false for
+			// a symlink or a regular file, so those remain fail-closed.
+			healable := belowStickyBoundary && os.Geteuid() == 0 && info.Mode().IsDir()
+			return p, healable, verr
 		}
+		// This component is verified good. If it is a sticky directory it marks
+		// the shared-parent boundary; anything deeper may be repaired.
+		if info.Mode()&os.ModeSticky != 0 {
+			belowStickyBoundary = true
+		}
+	}
+	return "", false, nil
+}
+
+// reclaimDirComponent moves a stale path component aside and removes it. The
+// caller must only invoke this for a component that verifyRuntimeDirChain
+// reported as repairable (below a verified root-owned sticky directory), which
+// guarantees the parent is root-owned so root can rename the entry regardless of
+// who owns it, and the sticky bit means the rename cannot be interfered with.
+// Renaming aside (never reusing or chown-ing the existing entry) ensures we do
+// not follow a symlink or reuse whatever the entry previously contained.
+func reclaimDirComponent(p string) error {
+	// os.Rename does not follow a symlink at p: a symlinked component is moved as
+	// the link itself. The aside name is in the same (root-owned) parent so the
+	// rename stays within one directory.
+	aside := fmt.Sprintf("%s.reclaimed-%d-%d", p, os.Getpid(), time.Now().UnixNano())
+	if err := os.Rename(p, aside); err != nil {
+		return fmt.Errorf("unable to move aside stale component %s: %w", p, err)
+	}
+	// Best-effort cleanup of the moved-aside tree. os.RemoveAll uses O_NOFOLLOW
+	// openat internally, so it will not traverse symlinks beneath it.
+	if err := os.RemoveAll(aside); err != nil {
+		log.Debugf("unable to remove reclaimed component %s: %s", aside, err)
 	}
 	return nil
 }

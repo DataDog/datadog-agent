@@ -10,6 +10,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,38 @@ func TestSecureRuntimeDirRejectsSymlinkComponent(t *testing.T) {
 
 	err := secureRuntimeDir(filepath.Join(link, "build"))
 	require.Error(t, err, "a cache directory reached through a symlink must be rejected")
+}
+
+// secureRuntimeDir must repair a non-root-owned component that sits below a
+// root-owned sticky directory (as with a pre-existing datadog-agent directory
+// under /var/tmp) by moving it aside and recreating the path as root, instead of
+// refusing for the lifetime of the process. This requires root to create the
+// non-root-owned component, so it runs only as root (as eBPF CI suites do).
+func TestSecureRuntimeDirReclaimsNonRootComponent(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root to create a non-root-owned directory")
+	}
+
+	// Root-owned sticky parent standing in for /var/tmp.
+	sticky := filepath.Join(t.TempDir(), "sticky")
+	require.NoError(t, os.Mkdir(sticky, 0777))
+	require.NoError(t, os.Chmod(sticky, 0777|os.ModeSticky))
+
+	// A pre-existing datadog-agent directory owned by a non-root user.
+	preexisting := filepath.Join(sticky, "datadog-agent")
+	require.NoError(t, os.Mkdir(preexisting, 0777))
+	require.NoError(t, syscall.Chown(preexisting, 1, 1))
+
+	build := filepath.Join(preexisting, "system-probe", "build")
+	require.NoError(t, secureRuntimeDir(build), "secureRuntimeDir should repair the non-root component and succeed")
+
+	// The repaired component must now be a root-owned directory.
+	info, err := os.Lstat(preexisting)
+	require.NoError(t, err)
+	require.True(t, info.IsDir())
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	require.True(t, ok)
+	require.Equal(t, uint32(0), stat.Uid, "repaired component must be owned by root")
 }
 
 // verifyDirComponent is the pure policy behind the ancestor walk in
