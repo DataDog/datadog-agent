@@ -13,8 +13,8 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type PatchClusterCustomObjectHandler struct{}
