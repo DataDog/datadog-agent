@@ -44,6 +44,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
+from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
@@ -670,6 +671,9 @@ def test(
     if _bazel_env not in ("", "0"):
         skip_tests_covered_by_bazel = True
         run_bazel_tests = True
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
@@ -1434,6 +1438,9 @@ def check_otel_build(ctx):
     package_otel = "package otel"
     package_main = "package main"
     rename_package(file_path, package_otel, package_main)
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     with ctx.cd("test/otel"):
         # Update dependencies to latest local version
