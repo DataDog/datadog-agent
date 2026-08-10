@@ -447,6 +447,9 @@ Bug Fixes
   normal DBM collection on the untargeted ports. Only the instance actually
   selected as the Data Observability check is now excluded.
 
+- Fix an issue where GPU monitoring could trigger a kernel panic on multi-GPU
+  nodes with Hopper/Blackwell GPUs.
+
 - Fix Docker log parsing for TTY-mode containers when a single log line exceeds the
   16KB Docker buffer size. Previously, the Agent retained the per-chunk timestamp
   prefix that Docker inserts at every 16KB boundary, causing those timestamps to
