@@ -109,6 +109,7 @@ impl CapturedChild {
         self.stdin
             .write_all(run.payload.as_bytes())
             .context("write secret backend payload")?;
+        drop(self.stdin);
 
         let process = self.process.as_handle();
         let stdout = self.stdout;
