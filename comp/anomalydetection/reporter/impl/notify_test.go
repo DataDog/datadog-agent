@@ -50,7 +50,7 @@ func TestFormatScorerContributorMessage(t *testing.T) {
 		{Handle: observerdef.QueryHandle{Ref: 7, Aggregate: observerdef.AggregateCount}, Weight: 2.5, Share: 0.25},
 	}, storage)
 
-	assert.Equal(t, "Top contributing metrics:\n1. system.cpu.user:avg{host:web-1,env:prod} — 42%\n2. nginx.requests:count{service:api} — 25%", message)
+	assert.Equal(t, "Top contributing metrics:\n1. 42% — system.cpu.user:avg{host:web-1,env:prod}\n2. 25% — nginx.requests:count{service:api}", message)
 	assert.NotContains(t, message, "4.2")
 	assert.NotContains(t, message, "weight")
 }

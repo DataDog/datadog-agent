@@ -200,10 +200,10 @@ function EventRow({ window: w, filter, report, onHover }: {
                 <ol className="space-y-1 text-xs text-slate-300 list-decimal list-inside">
                   {report.contributors.map((contributor, index) => (
                     <li key={`${contributor.name}-${index}`} className="flex min-w-0 items-baseline gap-1">
+                      <span className="shrink-0 text-cyan-300">{Math.round(contributor.share * 100)}% —</span>
                       <span className="min-w-0 max-w-[36rem] truncate font-mono text-slate-200" title={contributor.name}>
                         {contributor.name}
                       </span>
-                      <span className="shrink-0 text-cyan-300">— {Math.round(contributor.share * 100)}%</span>
                     </li>
                   ))}
                 </ol>

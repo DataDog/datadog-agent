@@ -177,8 +177,8 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 			}.DisplayName() + "{...}"
 		}
 		position := len(fullLines) + 1
-		fullLines = append(fullLines, fmt.Sprintf("%d. %s — %.0f%%", position, fullDisplay, contributor.Share*100))
-		compactLines = append(compactLines, fmt.Sprintf("%d. %s — %.0f%%", position, compactDisplay, contributor.Share*100))
+		fullLines = append(fullLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, fullDisplay))
+		compactLines = append(compactLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, compactDisplay))
 	}
 	if len(fullLines) == 0 {
 		return ""
