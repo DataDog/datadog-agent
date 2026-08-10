@@ -383,6 +383,11 @@ impl YamlCache {
     }
 }
 
+/// Drop cached secret handles and backend settings before config-gate re-evaluation.
+pub(crate) fn clear_secret_caches() {
+    secrets::clear_caches();
+}
+
 /// Returns true when `conditions` is empty or any `(path, key)` pair is enabled.
 pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
     if conditions.is_empty() {

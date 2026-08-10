@@ -290,6 +290,7 @@ impl ProcessManager {
         exit_tx: &mpsc::Sender<ExitEvent>,
         restart_tx: &mpsc::Sender<String>,
     ) -> Result<ReloadResult, Status> {
+        crate::config_gate::clear_secret_caches();
         let new_configs = self.config_loader.load();
         let new_names: std::collections::HashSet<&str> =
             new_configs.iter().map(|c| c.name.as_str()).collect();

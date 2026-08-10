@@ -96,6 +96,20 @@ fn cache_handle(handle: &str, value: &str) {
     }
 }
 
+/// Drop cached handles and backend settings so reload re-queries the secret backend.
+pub(super) fn clear_caches() {
+    if let Some(cache) = HANDLE_CACHE.get()
+        && let Ok(mut guard) = cache.lock()
+    {
+        guard.clear();
+    }
+    if let Some(cache) = BACKEND_CACHE.get()
+        && let Ok(mut guard) = cache.lock()
+    {
+        guard.clear();
+    }
+}
+
 fn backend_for(agent_yaml: &str) -> Result<Option<Backend>> {
     let cache = BACKEND_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let mut guard = cache.lock().expect("backend cache lock");
@@ -341,6 +355,14 @@ mod tests {
                 "true"
             );
         });
+    }
+
+    #[test]
+    fn clear_caches_drops_cached_handles() {
+        cache_handle("process_enabled", "true");
+        assert_eq!(cached_handle("process_enabled"), Some("true".into()));
+        clear_caches();
+        assert_eq!(cached_handle("process_enabled"), None);
     }
 
     #[test]
