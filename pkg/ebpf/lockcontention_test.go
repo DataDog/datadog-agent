@@ -8,7 +8,6 @@
 package ebpf
 
 import (
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -258,10 +257,6 @@ func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
 				KernelTypes: opts.VerifierOptions.Programs.KernelTypes,
 			},
 		})
-		var ve *ebpf.VerifierError
-		if errors.As(err, &ve) {
-			t.Fatalf("verifier error loading preempt_test.o: %+v", ve)
-		}
 		require.NoError(t, err)
 		t.Cleanup(coll.Close)
 
@@ -274,9 +269,6 @@ func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
 		})
 		require.NoError(t, err, "attaching raw tracepoint %s", tracepoint)
 		t.Cleanup(func() { _ = lnk.Close() })
-
-		depths, ok = coll.Maps["nesting_depth"]
-		require.True(t, ok, "nesting_depth map missing from preempt_test.o")
 
 		return nil
 	})
@@ -297,11 +289,8 @@ func readNestingDepth(t *testing.T, m *ebpf.Map) int32 {
 	return val
 }
 
-// awaitDepth runs trigger until the attached program records a sample, then
-// checks that sample reports want. Only the program for the context under test
-// is attached, so every sample it takes must classify as want; the retry loop
-// is there purely to wait for the trigger to land, which is asynchronous for
-// device interrupts and NMI IPIs.
+// awaitDepth runs `trigger` until the attached program records a sample, then
+// checks that sample reports `want`.
 func awaitDepth(t *testing.T, m *ebpf.Map, want int32, trigger func()) {
 	t.Helper()
 

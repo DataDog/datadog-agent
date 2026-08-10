@@ -370,12 +370,12 @@ struct loop_variables {
 // tracks the bounds of stack slots as well. This causes the verifier to be unable to effectively
 // prune the state space of the program causing an explosion in complexity. The verifier however cannot
 // track the bounds inside maps, so all values read from a map are labelled as unbounded. This helps
-// the verifier prune the binary search state space more effectively.
+// the verifier prune the state space more effectively.
 //
 // The reason we need the percpu map to be of length `NESTING_DEPTH` is because this is the possible nesting depth
 // for the trace_contention_begin tracepoint. Mutexes and read-write semaphores in particular only disable preemption
 // but not interrupts. So we can get multiple levels of nesting on the same CPU. All invocation of trace_contention_begin
-// happen with a preemption disabled block, so the nesting has an upper bound.
+// happen within a preemption disabled block, so the nesting has an upper bound.
 BPF_PERCPU_ARRAY_MAP(lvars, struct loop_variables, NESTING_DEPTH);
 
 static __always_inline int can_record(u64 *ctx, struct lock_range* range)
