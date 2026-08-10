@@ -51,9 +51,12 @@ import (
 )
 
 const (
-	streamRecvTimeout = 10 * time.Minute
-	cacheExpiration   = 1 * time.Minute
+	cacheExpiration = 1 * time.Minute
 )
+
+// streamRecvTimeout is the max time run() waits for a single Recv() before
+// re-establishing the stream. A var so tests can lower it.
+var streamRecvTimeout = 10 * time.Minute
 
 // Requires defines the dependencies for the remote tagger.
 type Requires struct {
@@ -530,13 +533,21 @@ func (t *remoteTagger) run() {
 			taggerStreamInitialized = true
 		}
 
+		// DoWithTimeout can't abort Recv() on timeout, so on a slow/hung
+		// stream its goroutine keeps running after DoWithTimeout returns.
+		// Use a local copy so that leaked goroutine never touches t.stream,
+		// which run() and startTaggerStream mutate on later iterations.
+		stream := t.stream
+
 		var response *pb.StreamTagsResponse
 		err := grpcutil.DoWithTimeout(func() error {
 			var err error
-			response, err = t.stream.Recv()
+			response, err = stream.Recv()
 			return err
 		}, streamRecvTimeout)
 		if err != nil {
+			// Cancel now so a hung Recv() above unblocks promptly instead
+			// of leaking until the connection notices on its own.
 			t.streamCancel()
 
 			t.telemetryStore.ClientStreamErrors.Inc()
