@@ -468,6 +468,7 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 
 	c.SmartSeverityProfilesEnabled = pkgconfigsetup.Datadog().GetBool(smartSeverityProfilesEnabledConfigKey)
 	if c.SmartSeverityProfilesEnabled {
+		WarnGlobalSmartSeverityProfileDiscrepancies()
 		c.Profiles = resolveSmartSeverityProfiles(preprocessor.SamplerProfile{RateLimit: c.RateLimit, BurstSize: c.BurstSize})
 		details := "unknown source"
 		if len(sourceDetails) > 0 {

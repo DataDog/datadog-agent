@@ -12,7 +12,6 @@ go_library(
     deps = [
         "//comp/logs-library/pipeline",
         "//comp/logs/auditor/def",
-        "//pkg/logs/internal/decoder",
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
     ],

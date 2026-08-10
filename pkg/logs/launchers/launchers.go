@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -63,7 +62,6 @@ func (ls *Launchers) AddLauncher(launcher Launcher) {
 
 // Start starts all launchers in the collection.
 func (ls *Launchers) Start() {
-	decoder.WarnGlobalSmartSeverityProfileDiscrepancies()
 	for _, s := range ls.launchers {
 		s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
 	}
