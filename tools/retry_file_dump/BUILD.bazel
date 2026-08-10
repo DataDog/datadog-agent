@@ -14,5 +14,6 @@ go_library(
 go_binary(
     name = "retry_file_dump",
     embed = [":retry_file_dump_lib"],
-    visibility = ["//visibility:public"],
+    # This should never be in the final product.
+    visibility = ["//visibility:private"],
 )
