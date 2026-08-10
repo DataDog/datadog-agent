@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "bundles",
-    srcs = ["registry.go"],
+    srcs = [
+        "registry.go",
+        "registry_kubeapiserver.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles",
     visibility = ["//visibility:public"],
     deps = [
