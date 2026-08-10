@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
-	conventionsv140 "go.opentelemetry.io/otel/semconv/v1.40.0"
 	semconv1_43 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
@@ -126,7 +125,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			name: "Azure Container Apps (semconv v1.40.0 or later)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):          conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
 				AttributeAzureContainerAppInstanceID:          "replica-1",
 				string(conventions.ServiceNameKey):            "my-app",
 				string(semconv1_27.CloudAccountIDKey):         "sub-123",
@@ -176,7 +175,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			name: "Azure Container Apps (name, subscription_id, resource_group all from cloud.resource_id fallback)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):   conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):   conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.CloudPlatformKey):   semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
 				AttributeAzureContainerAppInstanceID:   "replica-1",
 				string(semconv1_27.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
 			}),
@@ -199,7 +198,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			name: "Azure Container Apps (resource_group from cloud.resource_id, name and subscription_id from primary attrs take precedence)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):   conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):   conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.CloudPlatformKey):   semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
 				AttributeAzureContainerAppInstanceID:   "replica-1",
 				string(conventions.ServiceNameKey):     "my-app",
 				string(semconv1_27.CloudAccountIDKey):  "sub-123",
@@ -224,7 +223,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			name: "Azure Container Apps (no replica name, falls back to name for Primary)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):          conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
 				string(conventions.ServiceNameKey):            "my-app",
 				string(semconv1_27.CloudAccountIDKey):         "sub-123",
 				string(semconv1_43.AzureResourceGroupNameKey): "my-rg",
@@ -247,7 +246,7 @@ func TestSourceFromAttrs(t *testing.T) {
 			name: "Azure Container Apps (missing identifying attributes, falls through unidentified)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):          conventionsv140.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
 				string(semconv1_43.AzureResourceGroupNameKey): "my-rg",
 			}),
 			ok:  false,

@@ -17,7 +17,7 @@ package attributes
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
-	conventionsv140 "go.opentelemetry.io/otel/semconv/v1.40.0"
+	semconv1_43 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
@@ -123,7 +123,7 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
 	// If on Azure Container Apps, we don't have a hostname
 	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
 		p := cloudPlatform.Str()
-		if p == conventionsv140.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
+		if p == semconv1_43.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
 			return "", false
 		}
 	}
@@ -177,7 +177,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 
 	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
 		p := cloudPlatform.Str()
-		if p == conventionsv140.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
+		if p == semconv1_43.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
 			dims := map[string]string{}
 			for otelKey, ddKey := range AzureContainerAppsMappings {
 				if v, ok := attrs.Get(otelKey); ok && v.Str() != "" {
