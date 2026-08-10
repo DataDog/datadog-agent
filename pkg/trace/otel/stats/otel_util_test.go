@@ -501,7 +501,7 @@ func TestOTLPTracesToConcentratorInputsSkipsClientComputedResource(t *testing.T)
 
 	conf := config.New()
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
-	assert.Empty(t, OTLPTracesToConcentratorInputs(traces, conf, nil, nil))
+	assert.Empty(t, OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil))
 }
 
 func newTestClientSpan(spanID pcommon.SpanID, markComputed bool) ptrace.Span {
@@ -533,7 +533,7 @@ func TestOTLPTracesToConcentratorInputsSkipsOnlyClientComputedSpan(t *testing.T)
 
 	conf := config.New()
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
-	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
 	assert.Len(t, inputs[0].Traces[0].TraceChunk.Spans, 1)
 }
 
