@@ -427,13 +427,7 @@ def _annotate_junit_cache_status(xml_path: Path, cache_status: dict[str, bool]) 
     tree.write(str(xml_path))
 
 
-@task(
-    help={
-        "output_tgz": "Destination path for the output tgz (e.g. junit-bazel-base.tgz).",
-        "bep_file": "Path to a Bazel BEP JSON file (--build_event_json_file); drives test.xml discovery and annotates each testsuite with bazel.cached.",
-    },
-)
-def collect_junit(ctx, output_tgz, bep_file):
+def _collect_junit(test_artifacts, output_tgz):
     """Collect Bazel test results and package them for junit_upload.
 
     Merges the test.xml files produced by the rules_go test runner (one per
@@ -443,10 +437,6 @@ def collect_junit(ctx, output_tgz, bep_file):
     """
     from tasks.libs.common.junit_upload_core import produce_junit_tar
 
-    # BEP is the authoritative source: it lists exactly the test.xml and test.out files
-    # produced by this invocation, avoiding stale results from previous runs
-    # with a different Bazel configuration.
-    test_artifacts = _parse_bep(Path(bep_file))
     xml_files = [p for artifacts in test_artifacts.values() for p in artifacts["xml_paths"]]
     cache_status = {import_path: artifacts["cached"] for import_path, artifacts in test_artifacts.items()}
     if not xml_files:
@@ -492,3 +482,47 @@ def collect_junit(ctx, output_tgz, bep_file):
         produce_junit_tar([str(merged_path)], output_tgz)
 
     print(f"Packaged {collected} test suites → {output_tgz}")
+
+
+def _collect_test2json(ctx, test_artifacts, output_path):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manifest_path = os.path.join(tmpdir, "manifest.tsv")
+        with open(manifest_path, "w") as manifest:
+            for entry in sorted(test_artifacts.keys()):
+                manifest.writelines(f'{entry}\t{log_path}\n' for log_path in test_artifacts[entry]["log_paths"])
+
+        bazel(
+            ctx,
+            "run",
+            "//bazel/tools/testlogs_to_json",
+            "--",
+            "-manifest",
+            manifest_path,
+            "-output",
+            os.path.abspath(output_path),
+        )
+
+
+@task(
+    help={
+        "bep_file": "Path to a Bazel BEP JSON file (--build_event_json_file) used to gather all necessary data.",
+    },
+)
+def process_test_results(ctx, bep_file, result_json, junit_tar):
+    """Collect results from Bazel-run tests and produce various artifacts.
+
+    This task:
+    - Produces a tgz JUnit XML file compatible with our existing upload machinery.
+    - Produces a test2json file with test results and a UTOF json file created from it.
+    - Displays test results in a human-friendly way (based on UTOF).
+    """
+    # BEP is the authoritative source: it lists exactly the test.xml and test.out files
+    # produced by this invocation, avoiding stale results from previous runs
+    # with a different Bazel configuration.
+    test_artifacts = _parse_bep(Path(bep_file))
+
+    # Produce the junit tar
+    _collect_junit(test_artifacts, junit_tar)
+
+    # Produce the test2json result file
+    _collect_test2json(ctx, test_artifacts, result_json)
