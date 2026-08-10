@@ -13,3 +13,7 @@ package noisyneighbor
 import "C"
 
 type ebpfCgroupAggStats C.cgroup_agg_stats_t
+type ebpfPmuCounter C.pmu_counter_t
+type ebpfPmuCgroupStats C.pmu_cgroup_stats_t
+type ebpfPmuConfig C.pmu_config_t
+type ebpfPmuErrorStats C.pmu_error_stats_t

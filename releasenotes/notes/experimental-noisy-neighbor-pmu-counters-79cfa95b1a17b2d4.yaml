@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add experimental, opt-in per-container PMU counters to the Linux noisy
+    neighbor check. Collection uses a bounded rotating cgroup watchlist and
+    per-CPU perf events.

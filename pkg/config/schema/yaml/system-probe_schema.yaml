@@ -1260,6 +1260,79 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_SYSCALLS_MONITOR_ENABLED
             - DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_MONITOR_ENABLED
+  noisy_neighbor:
+    node_type: section
+    title: Experimental Noisy Neighbor PMU collection
+    type: object
+    visibility: public
+    description: |-
+      Experimental Linux-only scheduling and per-container PMU collection.
+      The noisy_neighbor check must also have an enabled instance.
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: Enables the noisy neighbor system-probe module.
+      max_tracked_cgroups:
+        node_type: setting
+        type: integer
+        default: 64
+        visibility: public
+        description: 'Maximum number of container cgroups sampled in each 10-second
+          window. Valid range: 1-128.'
+      pmu_metrics:
+        node_type: section
+        type: object
+        visibility: public
+        description: Each event is disabled by default. Hardware events open one perf
+          FD per online CPU.
+        tags: []
+        properties:
+          branch_misses:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Collect branch miss counts.
+          cache_misses:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Collect cache miss counts.
+          cache_references:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Collect cache reference counts.
+          cpu_migrations:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Collect exact scheduler CPU migration counts.
+          cycles:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Collect CPU cycle counts.
+          instructions:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Collect retired instruction counts.
+          itlb_misses:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Collect instruction TLB miss counts.
   gpu_monitoring:
     node_type: section
     title: System Probe GPU Monitoring module
@@ -1692,46 +1765,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-  noisy_neighbor:
-    node_type: section
-    type: object
-    properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      pmu_metrics:
-        node_type: section
-        type: object
-        properties:
-          branch_misses:
-            node_type: setting
-            type: boolean
-            default: false
-          cache_misses:
-            node_type: setting
-            type: boolean
-            default: false
-          cache_references:
-            node_type: setting
-            type: boolean
-            default: false
-          cpu_migrations:
-            node_type: setting
-            type: boolean
-            default: false
-          cycles:
-            node_type: setting
-            type: boolean
-            default: false
-          instructions:
-            node_type: setting
-            type: boolean
-            default: false
-          itlb_misses:
-            node_type: setting
-            type: boolean
-            default: false
   privileged_logs:
     node_type: section
     type: object

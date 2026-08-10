@@ -69,11 +69,11 @@ type Stats map[StatsKey]StatsValue
 corecheckLoader.RegisterCheck(<check>.CheckName, <check>.Factory(tagger))
 ```
 
-### 7. Add Configuration (`pkg/config/setup/system_probe.go`)
-```go
-const <check>NS = "<check_name>"
-cfg.BindEnvAndSetDefault(join(<check>NS, "enabled"), false)
-```
+### 7. Add Configuration (`pkg/config/schema/yaml/system-probe_schema.yaml`)
+
+Add the check's section and settings to the system-probe schema. The schema is
+the source of truth for generated defaults, environment bindings, and the
+configuration template; do not add handwritten bindings or template entries.
 
 ### 8. Add Static Config Listener (`comp/core/autodiscovery/listeners/staticconfig.go`)
 ```go
