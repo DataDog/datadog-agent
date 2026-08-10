@@ -82,7 +82,6 @@ GAZELLE_EXTRA_TAGS = set([
     "e2ecoverage",
     "e2eunit",
     "functionaltests",
-    "manual_luts_generator",
     "manualtest",
     "private_runner_experimental",
 ])
