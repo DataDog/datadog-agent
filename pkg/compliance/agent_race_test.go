@@ -21,11 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// TestReportCheckEventsConcurrentStatusRead races reportCheckEvents()
-// against concurrent reads of the checks status, mirroring how the
-// expvar/status endpoint marshals CheckStatus.LastEvent with no lock held.
-// Run with -race: it must stay clean after the reportCheckEvents reordering
-// and the copy-on-publish fixes in updateEvent/getChecksStatus.
+// TestReportCheckEventsConcurrentStatusRead races reportCheckEvents() against
+// concurrent status reads, mirroring the expvar/status endpoint. Run with -race.
 func TestReportCheckEventsConcurrentStatusRead(t *testing.T) {
 	const containerID = "abc123"
 
