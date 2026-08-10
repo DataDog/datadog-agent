@@ -233,11 +233,12 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		seenPIDsToGPUs:          make(map[int][]string),
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
-		gpuMonitoringEnabled:    config.GetBool("gpu.enabled"),
+		gpuMonitoringEnabled:    true,
 	}
 
 	if config != nil {
 		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
+		collector.gpuMonitoringEnabled = config.GetBool("gpu.enabled")
 	}
 
 	return collector
