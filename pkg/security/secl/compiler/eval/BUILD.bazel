@@ -21,6 +21,7 @@ go_library(
         "context.go",
         "context_functests.go",
         "context_regular.go",
+        "coverage.go",
         "dns_linux.go",
         "dns_others.go",
         "errors.go",
@@ -74,6 +75,7 @@ operators(
 dd_agent_go_test(
     name = "eval_test",
     srcs = [
+        "coverage_test.go",
         "eval_test.go",
         "glob_test.go",
         "model_test.go",
@@ -87,6 +89,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/security/secl/compiler/ast",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",
     ] + select({

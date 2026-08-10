@@ -50,6 +50,8 @@ type RuleEvaluator struct {
 	partialEvals map[Field]BoolEvalFnc
 
 	registers []Register
+
+	coverage *RuleCoverage
 }
 
 // NewRule returns a new rule
@@ -109,6 +111,12 @@ func (r *RuleEvaluator) GetFields() []Field {
 	return r.fields
 }
 
+// GetCoverage returns the coverage accumulator of the rule, nil when rule
+// coverage is disabled
+func (r *RuleEvaluator) GetCoverage() *RuleCoverage {
+	return r.coverage
+}
+
 // Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
 	return r.evaluator.Eval(ctx)
@@ -159,6 +167,15 @@ func (r *Rule) GetPprofLabels() utils.LabelSet {
 	return r.pprofLabels
 }
 
+// GetCoverage returns the coverage accumulator of the rule, nil when rule
+// coverage is disabled
+func (r *Rule) GetCoverage() *RuleCoverage {
+	if r.evaluator == nil {
+		return nil
+	}
+	return r.evaluator.coverage
+}
+
 // GetEvaluator - Returns the RuleEvaluator of the Rule corresponding to the SECL `Expression`
 func (r *Rule) GetEvaluator() *RuleEvaluator {
 	return r.evaluator
@@ -203,6 +220,9 @@ func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
 // NewRuleEvaluator returns a new evaluator for a rule
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	state := NewState(model, "", opts.MacroStore)
+	if opts.RuleCoverage {
+		state.enableCoverage(rule.Expr)
+	}
 
 	eval, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
@@ -218,6 +238,9 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	if err != nil {
 		return nil, err
 	}
+
+	// a rule that is a single sub-expression has no boolean skeleton yet
+	evalBool = state.covOperand(evalBool, rule.BooleanExpression.Pos.Offset)
 
 	// direct value, no bool evaluator, wrap value
 	if evalBool.EvalFnc == nil {
@@ -263,12 +286,31 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		}
 	}
 
+	// enumerate the evaluation paths of the rule and delimit the evaluations, so
+	// that each of them accounts for the path it walked. This wraps the register
+	// iteration so a rule iterating over a register reports one path per
+	// iteration.
+	var coverage *RuleCoverage
+	if state.cov != nil {
+		coverage = newRuleCoverage(rule.Expr, evalBool.covNode)
+
+		evalFnc := evalBool.EvalFnc
+		evalBool.EvalFnc = func(ctx *Context) bool {
+			ctx.coverage.target = coverage
+			res := evalFnc(ctx)
+			ctx.coverage.finish()
+			ctx.coverage.target = nil
+			return res
+		}
+	}
+
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventType:   eventType,
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
 		registers:   state.registers,
+		coverage:    coverage,
 	}, nil
 }
 

@@ -83,6 +83,15 @@ type Opts struct {
 	VariableStore *VariableStore
 	MacroStore    *MacroStore
 	Telemetry     *Telemetry
+	// RuleCoverage makes the compiled rules keep track of which of their
+	// evaluation paths have been taken
+	RuleCoverage bool
+}
+
+// WithRuleCoverage enables rule coverage tracking
+func (o *Opts) WithRuleCoverage(enabled bool) *Opts {
+	o.RuleCoverage = enabled
+	return o
 }
 
 // WithConstants set constants

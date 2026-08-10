@@ -175,6 +175,16 @@ message DumpDiscardersMessage{
     string DumpFilename = 1;
 }
 
+message DumpRuleCoverageParams{
+    // Reset drops the coverage accumulated so far once the report is produced
+    bool Reset = 1;
+}
+
+message DumpRuleCoverageMessage{
+    // Report is the JSON encoded rule coverage report
+    string Report = 1;
+}
+
 // Activity dump requests
 
 message StorageRequestParams {
@@ -356,6 +366,7 @@ service SecurityModuleCmd {
     rpc GetLoadedPolicies(GetLoadedPoliciesParams) returns (GetLoadedPoliciesMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}
+    rpc DumpRuleCoverage(DumpRuleCoverageParams) returns (DumpRuleCoverageMessage) {}
 
     // Activity dumps
     rpc DumpActivity(ActivityDumpParams) returns (ActivityDumpMessage) {}

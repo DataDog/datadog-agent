@@ -20,6 +20,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api/transform"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -263,6 +265,102 @@ func dumpLoadedPolicies(_ log.Component, _ config.Component, _ secrets.Component
 
 	_, err = fmt.Fprintln(writer, response.Policies)
 	return err
+}
+
+type ruleCoverageCliParams struct {
+	*command.GlobalParams
+
+	outputPath string
+	asJSON     bool
+	uncovered  bool
+	ruleID     string
+	reset      bool
+}
+
+func ruleCoverageCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &ruleCoverageCliParams{
+		GlobalParams: globalParams,
+	}
+
+	dumpRuleCoverageCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "Dump which evaluation paths of the loaded rules have been taken",
+		Long: `Report, for every loaded rule, which of the paths through its boolean
+expression have been walked by an evaluation at least once. A path that was
+never walked is a branch of the rule that no observed workload exercised.
+
+Requires 'runtime_security_config.rule_coverage.enabled' to be set in the
+system-probe configuration.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(dumpRuleCoverage,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	dumpRuleCoverageCmd.Flags().StringVar(&cliParams.outputPath, "output", "", "Path to write the report to (default: stdout)")
+	dumpRuleCoverageCmd.Flags().BoolVar(&cliParams.asJSON, "json", false, "Write the raw JSON report instead of a summary")
+	dumpRuleCoverageCmd.Flags().BoolVar(&cliParams.uncovered, "uncovered", false, "Only list the rules that still have uncovered paths. The summary line always covers the whole rule set")
+	dumpRuleCoverageCmd.Flags().StringVar(&cliParams.ruleID, "rule", "", "Only list this rule. The summary line always covers the whole rule set")
+	dumpRuleCoverageCmd.Flags().BoolVar(&cliParams.reset, "reset", false, "Drop the accumulated coverage once the report has been produced")
+
+	ruleCoverageCmd := &cobra.Command{
+		Use:   "rule-coverage",
+		Short: "Rule coverage commands",
+	}
+	ruleCoverageCmd.AddCommand(dumpRuleCoverageCmd)
+
+	return []*cobra.Command{ruleCoverageCmd}
+}
+
+func dumpRuleCoverage(_ log.Component, _ config.Component, _ secrets.Component, cliParams *ruleCoverageCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer client.Close()
+
+	writer := io.Writer(os.Stdout)
+	if cliParams.outputPath != "" && cliParams.outputPath != "-" {
+		file, err := os.Create(cliParams.outputPath)
+		if err != nil {
+			return fmt.Errorf("unable to create output file: %w", err)
+		}
+		defer file.Close()
+		writer = file
+	}
+
+	return writeRuleCoverage(client, cliParams, writer)
+}
+
+func writeRuleCoverage(client secagent.SecurityModuleCmdClientWrapper, cliParams *ruleCoverageCliParams, writer io.Writer) error {
+	response, err := client.DumpRuleCoverage(cliParams.reset)
+	if err != nil {
+		return fmt.Errorf("unable to dump the rule coverage: %w", err)
+	}
+
+	if cliParams.asJSON {
+		_, err = fmt.Fprintln(writer, response.GetReport())
+		return err
+	}
+
+	var report rules.CoverageReport
+	if err := json.Unmarshal([]byte(response.GetReport()), &report); err != nil {
+		return fmt.Errorf("unable to decode the rule coverage report: %w", err)
+	}
+
+	report.Rules = slices.DeleteFunc(report.Rules, func(rule rules.RuleCoverageReport) bool {
+		if cliParams.ruleID != "" && rule.RuleID != cliParams.ruleID {
+			return true
+		}
+		return cliParams.uncovered && rule.Coverage.CoveredPaths == rule.Coverage.TotalPaths
+	})
+
+	return report.Render(writer)
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter

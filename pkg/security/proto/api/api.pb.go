@@ -1836,6 +1836,96 @@ func (x *DumpDiscardersMessage) GetDumpFilename() string {
 	return ""
 }
 
+type DumpRuleCoverageParams struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Reset drops the coverage accumulated so far once the report is produced
+	Reset_        bool `protobuf:"varint,1,opt,name=Reset,proto3" json:"Reset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DumpRuleCoverageParams) Reset() {
+	*x = DumpRuleCoverageParams{}
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DumpRuleCoverageParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DumpRuleCoverageParams) ProtoMessage() {}
+
+func (x *DumpRuleCoverageParams) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DumpRuleCoverageParams.ProtoReflect.Descriptor instead.
+func (*DumpRuleCoverageParams) Descriptor() ([]byte, []int) {
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *DumpRuleCoverageParams) GetReset_() bool {
+	if x != nil {
+		return x.Reset_
+	}
+	return false
+}
+
+type DumpRuleCoverageMessage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Report is the JSON encoded rule coverage report
+	Report        string `protobuf:"bytes,1,opt,name=Report,proto3" json:"Report,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DumpRuleCoverageMessage) Reset() {
+	*x = DumpRuleCoverageMessage{}
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DumpRuleCoverageMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DumpRuleCoverageMessage) ProtoMessage() {}
+
+func (x *DumpRuleCoverageMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DumpRuleCoverageMessage.ProtoReflect.Descriptor instead.
+func (*DumpRuleCoverageMessage) Descriptor() ([]byte, []int) {
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *DumpRuleCoverageMessage) GetReport() string {
+	if x != nil {
+		return x.Report
+	}
+	return ""
+}
+
 type StorageRequestParams struct {
 	state                    protoimpl.MessageState `protogen:"open.v1"`
 	LocalStorageDirectory    string                 `protobuf:"bytes,1,opt,name=LocalStorageDirectory,proto3" json:"LocalStorageDirectory,omitempty"`
@@ -1849,7 +1939,7 @@ type StorageRequestParams struct {
 
 func (x *StorageRequestParams) Reset() {
 	*x = StorageRequestParams{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[35]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1861,7 +1951,7 @@ func (x *StorageRequestParams) String() string {
 func (*StorageRequestParams) ProtoMessage() {}
 
 func (x *StorageRequestParams) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[35]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1874,7 +1964,7 @@ func (x *StorageRequestParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageRequestParams.ProtoReflect.Descriptor instead.
 func (*StorageRequestParams) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{35}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *StorageRequestParams) GetLocalStorageDirectory() string {
@@ -1925,7 +2015,7 @@ type ActivityDumpParams struct {
 
 func (x *ActivityDumpParams) Reset() {
 	*x = ActivityDumpParams{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[36]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1937,7 +2027,7 @@ func (x *ActivityDumpParams) String() string {
 func (*ActivityDumpParams) ProtoMessage() {}
 
 func (x *ActivityDumpParams) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[36]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1950,7 +2040,7 @@ func (x *ActivityDumpParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityDumpParams.ProtoReflect.Descriptor instead.
 func (*ActivityDumpParams) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{36}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ActivityDumpParams) GetTimeout() string {
@@ -2014,7 +2104,7 @@ type MetadataMessage struct {
 
 func (x *MetadataMessage) Reset() {
 	*x = MetadataMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[37]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2026,7 +2116,7 @@ func (x *MetadataMessage) String() string {
 func (*MetadataMessage) ProtoMessage() {}
 
 func (x *MetadataMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[37]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2039,7 +2129,7 @@ func (x *MetadataMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetadataMessage.ProtoReflect.Descriptor instead.
 func (*MetadataMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{37}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *MetadataMessage) GetAgentVersion() string {
@@ -2168,7 +2258,7 @@ type StorageRequestMessage struct {
 
 func (x *StorageRequestMessage) Reset() {
 	*x = StorageRequestMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[38]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2180,7 +2270,7 @@ func (x *StorageRequestMessage) String() string {
 func (*StorageRequestMessage) ProtoMessage() {}
 
 func (x *StorageRequestMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[38]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2193,7 +2283,7 @@ func (x *StorageRequestMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageRequestMessage.ProtoReflect.Descriptor instead.
 func (*StorageRequestMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{38}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *StorageRequestMessage) GetType() string {
@@ -2241,7 +2331,7 @@ type ActivityDumpMessage struct {
 
 func (x *ActivityDumpMessage) Reset() {
 	*x = ActivityDumpMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[39]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2253,7 +2343,7 @@ func (x *ActivityDumpMessage) String() string {
 func (*ActivityDumpMessage) ProtoMessage() {}
 
 func (x *ActivityDumpMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[39]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2266,7 +2356,7 @@ func (x *ActivityDumpMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityDumpMessage.ProtoReflect.Descriptor instead.
 func (*ActivityDumpMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{39}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ActivityDumpMessage) GetHost() string {
@@ -2340,7 +2430,7 @@ type ActivityDumpListParams struct {
 
 func (x *ActivityDumpListParams) Reset() {
 	*x = ActivityDumpListParams{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[40]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2352,7 +2442,7 @@ func (x *ActivityDumpListParams) String() string {
 func (*ActivityDumpListParams) ProtoMessage() {}
 
 func (x *ActivityDumpListParams) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[40]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2365,7 +2455,7 @@ func (x *ActivityDumpListParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityDumpListParams.ProtoReflect.Descriptor instead.
 func (*ActivityDumpListParams) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{40}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{42}
 }
 
 type ActivityDumpListMessage struct {
@@ -2378,7 +2468,7 @@ type ActivityDumpListMessage struct {
 
 func (x *ActivityDumpListMessage) Reset() {
 	*x = ActivityDumpListMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[41]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2390,7 +2480,7 @@ func (x *ActivityDumpListMessage) String() string {
 func (*ActivityDumpListMessage) ProtoMessage() {}
 
 func (x *ActivityDumpListMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[41]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2403,7 +2493,7 @@ func (x *ActivityDumpListMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityDumpListMessage.ProtoReflect.Descriptor instead.
 func (*ActivityDumpListMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{41}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ActivityDumpListMessage) GetDumps() []*ActivityDumpMessage {
@@ -2431,7 +2521,7 @@ type ActivityDumpStopParams struct {
 
 func (x *ActivityDumpStopParams) Reset() {
 	*x = ActivityDumpStopParams{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[42]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2443,7 +2533,7 @@ func (x *ActivityDumpStopParams) String() string {
 func (*ActivityDumpStopParams) ProtoMessage() {}
 
 func (x *ActivityDumpStopParams) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[42]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2456,7 +2546,7 @@ func (x *ActivityDumpStopParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityDumpStopParams.ProtoReflect.Descriptor instead.
 func (*ActivityDumpStopParams) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{42}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ActivityDumpStopParams) GetName() string {
@@ -2489,7 +2579,7 @@ type ActivityDumpStopMessage struct {
 
 func (x *ActivityDumpStopMessage) Reset() {
 	*x = ActivityDumpStopMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[43]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2501,7 +2591,7 @@ func (x *ActivityDumpStopMessage) String() string {
 func (*ActivityDumpStopMessage) ProtoMessage() {}
 
 func (x *ActivityDumpStopMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[43]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2514,7 +2604,7 @@ func (x *ActivityDumpStopMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityDumpStopMessage.ProtoReflect.Descriptor instead.
 func (*ActivityDumpStopMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{43}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ActivityDumpStopMessage) GetError() string {
@@ -2534,7 +2624,7 @@ type TranscodingRequestParams struct {
 
 func (x *TranscodingRequestParams) Reset() {
 	*x = TranscodingRequestParams{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[44]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2546,7 +2636,7 @@ func (x *TranscodingRequestParams) String() string {
 func (*TranscodingRequestParams) ProtoMessage() {}
 
 func (x *TranscodingRequestParams) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[44]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2559,7 +2649,7 @@ func (x *TranscodingRequestParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TranscodingRequestParams.ProtoReflect.Descriptor instead.
 func (*TranscodingRequestParams) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{44}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *TranscodingRequestParams) GetActivityDumpFile() string {
@@ -2586,7 +2676,7 @@ type TranscodingRequestMessage struct {
 
 func (x *TranscodingRequestMessage) Reset() {
 	*x = TranscodingRequestMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[45]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2598,7 +2688,7 @@ func (x *TranscodingRequestMessage) String() string {
 func (*TranscodingRequestMessage) ProtoMessage() {}
 
 func (x *TranscodingRequestMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[45]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2611,7 +2701,7 @@ func (x *TranscodingRequestMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TranscodingRequestMessage.ProtoReflect.Descriptor instead.
 func (*TranscodingRequestMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{45}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *TranscodingRequestMessage) GetError() string {
@@ -2639,7 +2729,7 @@ type ActivityDumpStreamMessage struct {
 
 func (x *ActivityDumpStreamMessage) Reset() {
 	*x = ActivityDumpStreamMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[46]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2651,7 +2741,7 @@ func (x *ActivityDumpStreamMessage) String() string {
 func (*ActivityDumpStreamMessage) ProtoMessage() {}
 
 func (x *ActivityDumpStreamMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[46]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2664,7 +2754,7 @@ func (x *ActivityDumpStreamMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityDumpStreamMessage.ProtoReflect.Descriptor instead.
 func (*ActivityDumpStreamMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{46}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ActivityDumpStreamMessage) GetSelector() *WorkloadSelectorMessage {
@@ -2698,7 +2788,7 @@ type WorkloadSelectorMessage struct {
 
 func (x *WorkloadSelectorMessage) Reset() {
 	*x = WorkloadSelectorMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[47]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2710,7 +2800,7 @@ func (x *WorkloadSelectorMessage) String() string {
 func (*WorkloadSelectorMessage) ProtoMessage() {}
 
 func (x *WorkloadSelectorMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[47]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2723,7 +2813,7 @@ func (x *WorkloadSelectorMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkloadSelectorMessage.ProtoReflect.Descriptor instead.
 func (*WorkloadSelectorMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{47}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *WorkloadSelectorMessage) GetName() string {
@@ -2751,7 +2841,7 @@ type LastAnomalyTimestampMessage struct {
 
 func (x *LastAnomalyTimestampMessage) Reset() {
 	*x = LastAnomalyTimestampMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[48]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2763,7 +2853,7 @@ func (x *LastAnomalyTimestampMessage) String() string {
 func (*LastAnomalyTimestampMessage) ProtoMessage() {}
 
 func (x *LastAnomalyTimestampMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[48]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2776,7 +2866,7 @@ func (x *LastAnomalyTimestampMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LastAnomalyTimestampMessage.ProtoReflect.Descriptor instead.
 func (*LastAnomalyTimestampMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{48}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *LastAnomalyTimestampMessage) GetEventType() string {
@@ -2811,7 +2901,7 @@ type InstanceMessage struct {
 
 func (x *InstanceMessage) Reset() {
 	*x = InstanceMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[49]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2823,7 +2913,7 @@ func (x *InstanceMessage) String() string {
 func (*InstanceMessage) ProtoMessage() {}
 
 func (x *InstanceMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[49]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2836,7 +2926,7 @@ func (x *InstanceMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstanceMessage.ProtoReflect.Descriptor instead.
 func (*InstanceMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{49}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *InstanceMessage) GetContainerID() string {
@@ -2877,7 +2967,7 @@ type ActivityTreeStatsMessage struct {
 
 func (x *ActivityTreeStatsMessage) Reset() {
 	*x = ActivityTreeStatsMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[50]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2889,7 +2979,7 @@ func (x *ActivityTreeStatsMessage) String() string {
 func (*ActivityTreeStatsMessage) ProtoMessage() {}
 
 func (x *ActivityTreeStatsMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[50]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2902,7 +2992,7 @@ func (x *ActivityTreeStatsMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityTreeStatsMessage.ProtoReflect.Descriptor instead.
 func (*ActivityTreeStatsMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{50}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ActivityTreeStatsMessage) GetProcessNodesCount() int64 {
@@ -2978,7 +3068,7 @@ type EventTypeState struct {
 
 func (x *EventTypeState) Reset() {
 	*x = EventTypeState{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[51]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2990,7 +3080,7 @@ func (x *EventTypeState) String() string {
 func (*EventTypeState) ProtoMessage() {}
 
 func (x *EventTypeState) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[51]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3003,7 +3093,7 @@ func (x *EventTypeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventTypeState.ProtoReflect.Descriptor instead.
 func (*EventTypeState) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{51}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *EventTypeState) GetLastAnomalyNano() uint64 {
@@ -3032,7 +3122,7 @@ type ProfileContextMessage struct {
 
 func (x *ProfileContextMessage) Reset() {
 	*x = ProfileContextMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[52]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3044,7 +3134,7 @@ func (x *ProfileContextMessage) String() string {
 func (*ProfileContextMessage) ProtoMessage() {}
 
 func (x *ProfileContextMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[52]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3057,7 +3147,7 @@ func (x *ProfileContextMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProfileContextMessage.ProtoReflect.Descriptor instead.
 func (*ProfileContextMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{52}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ProfileContextMessage) GetFirstSeen() uint64 {
@@ -3114,7 +3204,7 @@ type SecurityProfileMessage struct {
 
 func (x *SecurityProfileMessage) Reset() {
 	*x = SecurityProfileMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[53]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3126,7 +3216,7 @@ func (x *SecurityProfileMessage) String() string {
 func (*SecurityProfileMessage) ProtoMessage() {}
 
 func (x *SecurityProfileMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[53]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3139,7 +3229,7 @@ func (x *SecurityProfileMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityProfileMessage.ProtoReflect.Descriptor instead.
 func (*SecurityProfileMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{53}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *SecurityProfileMessage) GetLoadedInKernel() bool {
@@ -3253,7 +3343,7 @@ type SecurityProfileListParams struct {
 
 func (x *SecurityProfileListParams) Reset() {
 	*x = SecurityProfileListParams{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[54]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3265,7 +3355,7 @@ func (x *SecurityProfileListParams) String() string {
 func (*SecurityProfileListParams) ProtoMessage() {}
 
 func (x *SecurityProfileListParams) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[54]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3278,7 +3368,7 @@ func (x *SecurityProfileListParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityProfileListParams.ProtoReflect.Descriptor instead.
 func (*SecurityProfileListParams) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{54}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *SecurityProfileListParams) GetIncludeCache() bool {
@@ -3298,7 +3388,7 @@ type SecurityProfileListMessage struct {
 
 func (x *SecurityProfileListMessage) Reset() {
 	*x = SecurityProfileListMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[55]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3310,7 +3400,7 @@ func (x *SecurityProfileListMessage) String() string {
 func (*SecurityProfileListMessage) ProtoMessage() {}
 
 func (x *SecurityProfileListMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[55]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3323,7 +3413,7 @@ func (x *SecurityProfileListMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityProfileListMessage.ProtoReflect.Descriptor instead.
 func (*SecurityProfileListMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{55}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SecurityProfileListMessage) GetProfiles() []*SecurityProfileMessage {
@@ -3349,7 +3439,7 @@ type SecurityProfileSaveParams struct {
 
 func (x *SecurityProfileSaveParams) Reset() {
 	*x = SecurityProfileSaveParams{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[56]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3361,7 +3451,7 @@ func (x *SecurityProfileSaveParams) String() string {
 func (*SecurityProfileSaveParams) ProtoMessage() {}
 
 func (x *SecurityProfileSaveParams) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[56]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3374,7 +3464,7 @@ func (x *SecurityProfileSaveParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityProfileSaveParams.ProtoReflect.Descriptor instead.
 func (*SecurityProfileSaveParams) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{56}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SecurityProfileSaveParams) GetSelector() *WorkloadSelectorMessage {
@@ -3394,7 +3484,7 @@ type SecurityProfileSaveMessage struct {
 
 func (x *SecurityProfileSaveMessage) Reset() {
 	*x = SecurityProfileSaveMessage{}
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[57]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3406,7 +3496,7 @@ func (x *SecurityProfileSaveMessage) String() string {
 func (*SecurityProfileSaveMessage) ProtoMessage() {}
 
 func (x *SecurityProfileSaveMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_security_proto_api_api_proto_msgTypes[57]
+	mi := &file_pkg_security_proto_api_api_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3419,7 +3509,7 @@ func (x *SecurityProfileSaveMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityProfileSaveMessage.ProtoReflect.Descriptor instead.
 func (*SecurityProfileSaveMessage) Descriptor() ([]byte, []int) {
-	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{57}
+	return file_pkg_security_proto_api_api_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *SecurityProfileSaveMessage) GetError() string {
@@ -3553,7 +3643,11 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\tEndpoints\x18\x01 \x03(\tR\tEndpoints\"\x16\n" +
 	"\x14DumpDiscardersParams\";\n" +
 	"\x15DumpDiscardersMessage\x12\"\n" +
-	"\fDumpFilename\x18\x01 \x01(\tR\fDumpFilename\"\xa8\x02\n" +
+	"\fDumpFilename\x18\x01 \x01(\tR\fDumpFilename\".\n" +
+	"\x16DumpRuleCoverageParams\x12\x14\n" +
+	"\x05Reset\x18\x01 \x01(\bR\x05Reset\"1\n" +
+	"\x17DumpRuleCoverageMessage\x12\x16\n" +
+	"\x06Report\x18\x01 \x01(\tR\x06Report\"\xa8\x02\n" +
 	"\x14StorageRequestParams\x124\n" +
 	"\x15LocalStorageDirectory\x18\x01 \x01(\tR\x15LocalStorageDirectory\x120\n" +
 	"\x13LocalStorageFormats\x18\x02 \x03(\tR\x13LocalStorageFormats\x128\n" +
@@ -3685,7 +3779,8 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\x04File\x18\x02 \x01(\tR\x04File2\xb3\x01\n" +
 	"\x13SecurityModuleEvent\x12G\n" +
 	"\x0eGetEventStream\x12\x16.google.protobuf.Empty\x1a\x19.api.SecurityEventMessage\"\x000\x01\x12S\n" +
-	"\x15GetActivityDumpStream\x12\x16.google.protobuf.Empty\x1a\x1e.api.ActivityDumpStreamMessage\"\x000\x012\xbe\t\n" +
+	"\x15GetActivityDumpStream\x12\x16.google.protobuf.Empty\x1a\x1e.api.ActivityDumpStreamMessage\"\x000\x012\x8f\n" +
+	"\n" +
 	"\x11SecurityModuleCmd\x12W\n" +
 	"\x10DumpProcessCache\x12\x1b.api.DumpProcessCacheParams\x1a$.api.SecurityDumpProcessCacheMessage\"\x00\x12?\n" +
 	"\tGetConfig\x12\x14.api.GetConfigParams\x1a\x1a.api.SecurityConfigMessage\"\x00\x120\n" +
@@ -3695,7 +3790,8 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\x0eReloadPolicies\x12\x19.api.ReloadPoliciesParams\x1a .api.ReloadPoliciesResultMessage\"\x00\x12R\n" +
 	"\x11GetLoadedPolicies\x12\x1c.api.GetLoadedPoliciesParams\x1a\x1d.api.GetLoadedPoliciesMessage\"\x00\x12[\n" +
 	"\x14DumpNetworkNamespace\x12\x1f.api.DumpNetworkNamespaceParams\x1a .api.DumpNetworkNamespaceMessage\"\x00\x12I\n" +
-	"\x0eDumpDiscarders\x12\x19.api.DumpDiscardersParams\x1a\x1a.api.DumpDiscardersMessage\"\x00\x12C\n" +
+	"\x0eDumpDiscarders\x12\x19.api.DumpDiscardersParams\x1a\x1a.api.DumpDiscardersMessage\"\x00\x12O\n" +
+	"\x10DumpRuleCoverage\x12\x1b.api.DumpRuleCoverageParams\x1a\x1c.api.DumpRuleCoverageMessage\"\x00\x12C\n" +
 	"\fDumpActivity\x12\x17.api.ActivityDumpParams\x1a\x18.api.ActivityDumpMessage\"\x00\x12P\n" +
 	"\x11ListActivityDumps\x12\x1b.api.ActivityDumpListParams\x1a\x1c.api.ActivityDumpListMessage\"\x00\x12O\n" +
 	"\x10StopActivityDump\x12\x1b.api.ActivityDumpStopParams\x1a\x1c.api.ActivityDumpStopMessage\"\x00\x12U\n" +
@@ -3718,7 +3814,7 @@ func file_pkg_security_proto_api_api_proto_rawDescGZIP() []byte {
 	return file_pkg_security_proto_api_api_proto_rawDescData
 }
 
-var file_pkg_security_proto_api_api_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
+var file_pkg_security_proto_api_api_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
 var file_pkg_security_proto_api_api_proto_goTypes = []any{
 	(*SecurityEventMessage)(nil),            // 0: api.SecurityEventMessage
 	(*DumpProcessCacheParams)(nil),          // 1: api.DumpProcessCacheParams
@@ -3755,38 +3851,40 @@ var file_pkg_security_proto_api_api_proto_goTypes = []any{
 	(*DirectSenderStatus)(nil),              // 32: api.DirectSenderStatus
 	(*DumpDiscardersParams)(nil),            // 33: api.DumpDiscardersParams
 	(*DumpDiscardersMessage)(nil),           // 34: api.DumpDiscardersMessage
-	(*StorageRequestParams)(nil),            // 35: api.StorageRequestParams
-	(*ActivityDumpParams)(nil),              // 36: api.ActivityDumpParams
-	(*MetadataMessage)(nil),                 // 37: api.MetadataMessage
-	(*StorageRequestMessage)(nil),           // 38: api.StorageRequestMessage
-	(*ActivityDumpMessage)(nil),             // 39: api.ActivityDumpMessage
-	(*ActivityDumpListParams)(nil),          // 40: api.ActivityDumpListParams
-	(*ActivityDumpListMessage)(nil),         // 41: api.ActivityDumpListMessage
-	(*ActivityDumpStopParams)(nil),          // 42: api.ActivityDumpStopParams
-	(*ActivityDumpStopMessage)(nil),         // 43: api.ActivityDumpStopMessage
-	(*TranscodingRequestParams)(nil),        // 44: api.TranscodingRequestParams
-	(*TranscodingRequestMessage)(nil),       // 45: api.TranscodingRequestMessage
-	(*ActivityDumpStreamMessage)(nil),       // 46: api.ActivityDumpStreamMessage
-	(*WorkloadSelectorMessage)(nil),         // 47: api.WorkloadSelectorMessage
-	(*LastAnomalyTimestampMessage)(nil),     // 48: api.LastAnomalyTimestampMessage
-	(*InstanceMessage)(nil),                 // 49: api.InstanceMessage
-	(*ActivityTreeStatsMessage)(nil),        // 50: api.ActivityTreeStatsMessage
-	(*EventTypeState)(nil),                  // 51: api.event_type_state
-	(*ProfileContextMessage)(nil),           // 52: api.ProfileContextMessage
-	(*SecurityProfileMessage)(nil),          // 53: api.SecurityProfileMessage
-	(*SecurityProfileListParams)(nil),       // 54: api.SecurityProfileListParams
-	(*SecurityProfileListMessage)(nil),      // 55: api.SecurityProfileListMessage
-	(*SecurityProfileSaveParams)(nil),       // 56: api.SecurityProfileSaveParams
-	(*SecurityProfileSaveMessage)(nil),      // 57: api.SecurityProfileSaveMessage
-	nil,                                     // 58: api.ScopedVariableStore.KeyValuesEntry
-	nil,                                     // 59: api.Status.ScopedVariablesEntry
-	nil,                                     // 60: api.ProfileContextMessage.EventTypeStateEntry
-	nil,                                     // 61: api.SecurityProfileMessage.ProfileContextsEntry
-	(*timestamppb.Timestamp)(nil),           // 62: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                   // 63: google.protobuf.Empty
+	(*DumpRuleCoverageParams)(nil),          // 35: api.DumpRuleCoverageParams
+	(*DumpRuleCoverageMessage)(nil),         // 36: api.DumpRuleCoverageMessage
+	(*StorageRequestParams)(nil),            // 37: api.StorageRequestParams
+	(*ActivityDumpParams)(nil),              // 38: api.ActivityDumpParams
+	(*MetadataMessage)(nil),                 // 39: api.MetadataMessage
+	(*StorageRequestMessage)(nil),           // 40: api.StorageRequestMessage
+	(*ActivityDumpMessage)(nil),             // 41: api.ActivityDumpMessage
+	(*ActivityDumpListParams)(nil),          // 42: api.ActivityDumpListParams
+	(*ActivityDumpListMessage)(nil),         // 43: api.ActivityDumpListMessage
+	(*ActivityDumpStopParams)(nil),          // 44: api.ActivityDumpStopParams
+	(*ActivityDumpStopMessage)(nil),         // 45: api.ActivityDumpStopMessage
+	(*TranscodingRequestParams)(nil),        // 46: api.TranscodingRequestParams
+	(*TranscodingRequestMessage)(nil),       // 47: api.TranscodingRequestMessage
+	(*ActivityDumpStreamMessage)(nil),       // 48: api.ActivityDumpStreamMessage
+	(*WorkloadSelectorMessage)(nil),         // 49: api.WorkloadSelectorMessage
+	(*LastAnomalyTimestampMessage)(nil),     // 50: api.LastAnomalyTimestampMessage
+	(*InstanceMessage)(nil),                 // 51: api.InstanceMessage
+	(*ActivityTreeStatsMessage)(nil),        // 52: api.ActivityTreeStatsMessage
+	(*EventTypeState)(nil),                  // 53: api.event_type_state
+	(*ProfileContextMessage)(nil),           // 54: api.ProfileContextMessage
+	(*SecurityProfileMessage)(nil),          // 55: api.SecurityProfileMessage
+	(*SecurityProfileListParams)(nil),       // 56: api.SecurityProfileListParams
+	(*SecurityProfileListMessage)(nil),      // 57: api.SecurityProfileListMessage
+	(*SecurityProfileSaveParams)(nil),       // 58: api.SecurityProfileSaveParams
+	(*SecurityProfileSaveMessage)(nil),      // 59: api.SecurityProfileSaveMessage
+	nil,                                     // 60: api.ScopedVariableStore.KeyValuesEntry
+	nil,                                     // 61: api.Status.ScopedVariablesEntry
+	nil,                                     // 62: api.ProfileContextMessage.EventTypeStateEntry
+	nil,                                     // 63: api.SecurityProfileMessage.ProfileContextsEntry
+	(*timestamppb.Timestamp)(nil),           // 64: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                   // 65: google.protobuf.Empty
 }
 var file_pkg_security_proto_api_api_proto_depIdxs = []int32{
-	62, // 0: api.SecurityEventMessage.Timestamp:type_name -> google.protobuf.Timestamp
+	64, // 0: api.SecurityEventMessage.Timestamp:type_name -> google.protobuf.Timestamp
 	10, // 1: api.FilterReport.Approvers:type_name -> api.ApproverReport
 	7,  // 2: api.RuleSetReportMessage.Filters:type_name -> api.FilterReport
 	11, // 3: api.ApproverReport.Approvers:type_name -> api.Approvers
@@ -3795,38 +3893,38 @@ var file_pkg_security_proto_api_api_proto_depIdxs = []int32{
 	8,  // 6: api.GetRuleSetReportMessage.RuleSetReportMessage:type_name -> api.RuleSetReportMessage
 	24, // 7: api.PolicyStatus.Status:type_name -> api.RuleStatus
 	26, // 8: api.SECLVariableStateList.Variables:type_name -> api.SECLVariableState
-	58, // 9: api.ScopedVariableStore.KeyValues:type_name -> api.ScopedVariableStore.KeyValuesEntry
+	60, // 9: api.ScopedVariableStore.KeyValues:type_name -> api.ScopedVariableStore.KeyValuesEntry
 	31, // 10: api.Status.Environment:type_name -> api.EnvironmentStatus
 	23, // 11: api.Status.SelfTests:type_name -> api.SelfTestsStatus
 	25, // 12: api.Status.PoliciesStatus:type_name -> api.PolicyStatus
 	32, // 13: api.Status.DirectSenderStatus:type_name -> api.DirectSenderStatus
 	26, // 14: api.Status.GlobalVariables:type_name -> api.SECLVariableState
-	59, // 15: api.Status.ScopedVariables:type_name -> api.Status.ScopedVariablesEntry
+	61, // 15: api.Status.ScopedVariables:type_name -> api.Status.ScopedVariablesEntry
 	22, // 16: api.ConstantFetcherStatus.Values:type_name -> api.ConstantValueAndSource
 	30, // 17: api.EnvironmentStatus.Constants:type_name -> api.ConstantFetcherStatus
-	35, // 18: api.ActivityDumpParams.Storage:type_name -> api.StorageRequestParams
-	38, // 19: api.ActivityDumpMessage.Storage:type_name -> api.StorageRequestMessage
-	37, // 20: api.ActivityDumpMessage.Metadata:type_name -> api.MetadataMessage
-	50, // 21: api.ActivityDumpMessage.Stats:type_name -> api.ActivityTreeStatsMessage
-	39, // 22: api.ActivityDumpListMessage.Dumps:type_name -> api.ActivityDumpMessage
-	35, // 23: api.TranscodingRequestParams.Storage:type_name -> api.StorageRequestParams
-	38, // 24: api.TranscodingRequestMessage.Storage:type_name -> api.StorageRequestMessage
-	47, // 25: api.ActivityDumpStreamMessage.Selector:type_name -> api.WorkloadSelectorMessage
-	60, // 26: api.ProfileContextMessage.event_type_state:type_name -> api.ProfileContextMessage.EventTypeStateEntry
-	47, // 27: api.SecurityProfileMessage.Selector:type_name -> api.WorkloadSelectorMessage
-	48, // 28: api.SecurityProfileMessage.LastAnomalies:type_name -> api.LastAnomalyTimestampMessage
-	49, // 29: api.SecurityProfileMessage.Instances:type_name -> api.InstanceMessage
-	37, // 30: api.SecurityProfileMessage.Metadata:type_name -> api.MetadataMessage
-	50, // 31: api.SecurityProfileMessage.Stats:type_name -> api.ActivityTreeStatsMessage
-	61, // 32: api.SecurityProfileMessage.profile_contexts:type_name -> api.SecurityProfileMessage.ProfileContextsEntry
-	53, // 33: api.SecurityProfileListMessage.Profiles:type_name -> api.SecurityProfileMessage
-	47, // 34: api.SecurityProfileSaveParams.Selector:type_name -> api.WorkloadSelectorMessage
+	37, // 18: api.ActivityDumpParams.Storage:type_name -> api.StorageRequestParams
+	40, // 19: api.ActivityDumpMessage.Storage:type_name -> api.StorageRequestMessage
+	39, // 20: api.ActivityDumpMessage.Metadata:type_name -> api.MetadataMessage
+	52, // 21: api.ActivityDumpMessage.Stats:type_name -> api.ActivityTreeStatsMessage
+	41, // 22: api.ActivityDumpListMessage.Dumps:type_name -> api.ActivityDumpMessage
+	37, // 23: api.TranscodingRequestParams.Storage:type_name -> api.StorageRequestParams
+	40, // 24: api.TranscodingRequestMessage.Storage:type_name -> api.StorageRequestMessage
+	49, // 25: api.ActivityDumpStreamMessage.Selector:type_name -> api.WorkloadSelectorMessage
+	62, // 26: api.ProfileContextMessage.event_type_state:type_name -> api.ProfileContextMessage.EventTypeStateEntry
+	49, // 27: api.SecurityProfileMessage.Selector:type_name -> api.WorkloadSelectorMessage
+	50, // 28: api.SecurityProfileMessage.LastAnomalies:type_name -> api.LastAnomalyTimestampMessage
+	51, // 29: api.SecurityProfileMessage.Instances:type_name -> api.InstanceMessage
+	39, // 30: api.SecurityProfileMessage.Metadata:type_name -> api.MetadataMessage
+	52, // 31: api.SecurityProfileMessage.Stats:type_name -> api.ActivityTreeStatsMessage
+	63, // 32: api.SecurityProfileMessage.profile_contexts:type_name -> api.SecurityProfileMessage.ProfileContextsEntry
+	55, // 33: api.SecurityProfileListMessage.Profiles:type_name -> api.SecurityProfileMessage
+	49, // 34: api.SecurityProfileSaveParams.Selector:type_name -> api.WorkloadSelectorMessage
 	27, // 35: api.ScopedVariableStore.KeyValuesEntry.value:type_name -> api.SECLVariableStateList
 	28, // 36: api.Status.ScopedVariablesEntry.value:type_name -> api.ScopedVariableStore
-	51, // 37: api.ProfileContextMessage.EventTypeStateEntry.value:type_name -> api.event_type_state
-	52, // 38: api.SecurityProfileMessage.ProfileContextsEntry.value:type_name -> api.ProfileContextMessage
-	63, // 39: api.SecurityModuleEvent.GetEventStream:input_type -> google.protobuf.Empty
-	63, // 40: api.SecurityModuleEvent.GetActivityDumpStream:input_type -> google.protobuf.Empty
+	53, // 37: api.ProfileContextMessage.EventTypeStateEntry.value:type_name -> api.event_type_state
+	54, // 38: api.SecurityProfileMessage.ProfileContextsEntry.value:type_name -> api.ProfileContextMessage
+	65, // 39: api.SecurityModuleEvent.GetEventStream:input_type -> google.protobuf.Empty
+	65, // 40: api.SecurityModuleEvent.GetActivityDumpStream:input_type -> google.protobuf.Empty
 	1,  // 41: api.SecurityModuleCmd.DumpProcessCache:input_type -> api.DumpProcessCacheParams
 	5,  // 42: api.SecurityModuleCmd.GetConfig:input_type -> api.GetConfigParams
 	21, // 43: api.SecurityModuleCmd.GetStatus:input_type -> api.GetStatusParams
@@ -3836,35 +3934,37 @@ var file_pkg_security_proto_api_api_proto_depIdxs = []int32{
 	17, // 47: api.SecurityModuleCmd.GetLoadedPolicies:input_type -> api.GetLoadedPoliciesParams
 	3,  // 48: api.SecurityModuleCmd.DumpNetworkNamespace:input_type -> api.DumpNetworkNamespaceParams
 	33, // 49: api.SecurityModuleCmd.DumpDiscarders:input_type -> api.DumpDiscardersParams
-	36, // 50: api.SecurityModuleCmd.DumpActivity:input_type -> api.ActivityDumpParams
-	40, // 51: api.SecurityModuleCmd.ListActivityDumps:input_type -> api.ActivityDumpListParams
-	42, // 52: api.SecurityModuleCmd.StopActivityDump:input_type -> api.ActivityDumpStopParams
-	44, // 53: api.SecurityModuleCmd.TranscodingRequest:input_type -> api.TranscodingRequestParams
-	54, // 54: api.SecurityModuleCmd.ListSecurityProfiles:input_type -> api.SecurityProfileListParams
-	56, // 55: api.SecurityModuleCmd.SaveSecurityProfile:input_type -> api.SecurityProfileSaveParams
-	0,  // 56: api.SecurityAgentAPI.SendEvent:input_type -> api.SecurityEventMessage
-	46, // 57: api.SecurityAgentAPI.SendActivityDumpStream:input_type -> api.ActivityDumpStreamMessage
-	0,  // 58: api.SecurityModuleEvent.GetEventStream:output_type -> api.SecurityEventMessage
-	46, // 59: api.SecurityModuleEvent.GetActivityDumpStream:output_type -> api.ActivityDumpStreamMessage
-	2,  // 60: api.SecurityModuleCmd.DumpProcessCache:output_type -> api.SecurityDumpProcessCacheMessage
-	6,  // 61: api.SecurityModuleCmd.GetConfig:output_type -> api.SecurityConfigMessage
-	29, // 62: api.SecurityModuleCmd.GetStatus:output_type -> api.Status
-	20, // 63: api.SecurityModuleCmd.RunSelfTest:output_type -> api.SecuritySelfTestResultMessage
-	14, // 64: api.SecurityModuleCmd.GetRuleSetReport:output_type -> api.GetRuleSetReportMessage
-	16, // 65: api.SecurityModuleCmd.ReloadPolicies:output_type -> api.ReloadPoliciesResultMessage
-	18, // 66: api.SecurityModuleCmd.GetLoadedPolicies:output_type -> api.GetLoadedPoliciesMessage
-	4,  // 67: api.SecurityModuleCmd.DumpNetworkNamespace:output_type -> api.DumpNetworkNamespaceMessage
-	34, // 68: api.SecurityModuleCmd.DumpDiscarders:output_type -> api.DumpDiscardersMessage
-	39, // 69: api.SecurityModuleCmd.DumpActivity:output_type -> api.ActivityDumpMessage
-	41, // 70: api.SecurityModuleCmd.ListActivityDumps:output_type -> api.ActivityDumpListMessage
-	43, // 71: api.SecurityModuleCmd.StopActivityDump:output_type -> api.ActivityDumpStopMessage
-	45, // 72: api.SecurityModuleCmd.TranscodingRequest:output_type -> api.TranscodingRequestMessage
-	55, // 73: api.SecurityModuleCmd.ListSecurityProfiles:output_type -> api.SecurityProfileListMessage
-	57, // 74: api.SecurityModuleCmd.SaveSecurityProfile:output_type -> api.SecurityProfileSaveMessage
-	63, // 75: api.SecurityAgentAPI.SendEvent:output_type -> google.protobuf.Empty
-	63, // 76: api.SecurityAgentAPI.SendActivityDumpStream:output_type -> google.protobuf.Empty
-	58, // [58:77] is the sub-list for method output_type
-	39, // [39:58] is the sub-list for method input_type
+	35, // 50: api.SecurityModuleCmd.DumpRuleCoverage:input_type -> api.DumpRuleCoverageParams
+	38, // 51: api.SecurityModuleCmd.DumpActivity:input_type -> api.ActivityDumpParams
+	42, // 52: api.SecurityModuleCmd.ListActivityDumps:input_type -> api.ActivityDumpListParams
+	44, // 53: api.SecurityModuleCmd.StopActivityDump:input_type -> api.ActivityDumpStopParams
+	46, // 54: api.SecurityModuleCmd.TranscodingRequest:input_type -> api.TranscodingRequestParams
+	56, // 55: api.SecurityModuleCmd.ListSecurityProfiles:input_type -> api.SecurityProfileListParams
+	58, // 56: api.SecurityModuleCmd.SaveSecurityProfile:input_type -> api.SecurityProfileSaveParams
+	0,  // 57: api.SecurityAgentAPI.SendEvent:input_type -> api.SecurityEventMessage
+	48, // 58: api.SecurityAgentAPI.SendActivityDumpStream:input_type -> api.ActivityDumpStreamMessage
+	0,  // 59: api.SecurityModuleEvent.GetEventStream:output_type -> api.SecurityEventMessage
+	48, // 60: api.SecurityModuleEvent.GetActivityDumpStream:output_type -> api.ActivityDumpStreamMessage
+	2,  // 61: api.SecurityModuleCmd.DumpProcessCache:output_type -> api.SecurityDumpProcessCacheMessage
+	6,  // 62: api.SecurityModuleCmd.GetConfig:output_type -> api.SecurityConfigMessage
+	29, // 63: api.SecurityModuleCmd.GetStatus:output_type -> api.Status
+	20, // 64: api.SecurityModuleCmd.RunSelfTest:output_type -> api.SecuritySelfTestResultMessage
+	14, // 65: api.SecurityModuleCmd.GetRuleSetReport:output_type -> api.GetRuleSetReportMessage
+	16, // 66: api.SecurityModuleCmd.ReloadPolicies:output_type -> api.ReloadPoliciesResultMessage
+	18, // 67: api.SecurityModuleCmd.GetLoadedPolicies:output_type -> api.GetLoadedPoliciesMessage
+	4,  // 68: api.SecurityModuleCmd.DumpNetworkNamespace:output_type -> api.DumpNetworkNamespaceMessage
+	34, // 69: api.SecurityModuleCmd.DumpDiscarders:output_type -> api.DumpDiscardersMessage
+	36, // 70: api.SecurityModuleCmd.DumpRuleCoverage:output_type -> api.DumpRuleCoverageMessage
+	41, // 71: api.SecurityModuleCmd.DumpActivity:output_type -> api.ActivityDumpMessage
+	43, // 72: api.SecurityModuleCmd.ListActivityDumps:output_type -> api.ActivityDumpListMessage
+	45, // 73: api.SecurityModuleCmd.StopActivityDump:output_type -> api.ActivityDumpStopMessage
+	47, // 74: api.SecurityModuleCmd.TranscodingRequest:output_type -> api.TranscodingRequestMessage
+	57, // 75: api.SecurityModuleCmd.ListSecurityProfiles:output_type -> api.SecurityProfileListMessage
+	59, // 76: api.SecurityModuleCmd.SaveSecurityProfile:output_type -> api.SecurityProfileSaveMessage
+	65, // 77: api.SecurityAgentAPI.SendEvent:output_type -> google.protobuf.Empty
+	65, // 78: api.SecurityAgentAPI.SendActivityDumpStream:output_type -> google.protobuf.Empty
+	59, // [59:79] is the sub-list for method output_type
+	39, // [39:59] is the sub-list for method input_type
 	39, // [39:39] is the sub-list for extension type_name
 	39, // [39:39] is the sub-list for extension extendee
 	0,  // [0:39] is the sub-list for field type_name
@@ -3881,7 +3981,7 @@ func file_pkg_security_proto_api_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_security_proto_api_api_proto_rawDesc), len(file_pkg_security_proto_api_api_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   62,
+			NumMessages:   64,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

@@ -65,6 +65,27 @@ properties:
         node_type: setting
         type: boolean
         default: true
+  rule_coverage:
+    node_type: section
+    type: object
+    visibility: public
+    description: Rule coverage records which evaluation paths of the loaded rules
+      have been taken, so that the branches of a rule that no workload exercised
+      can be told apart from the ones that did
+    tags: []
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to track, for every loaded rule, which of the evaluation
+          paths through its expression have been taken. The report is available
+          through `system-probe runtime rule-coverage dump`. This adds a small
+          cost to every rule evaluation and disables an evaluation order
+          optimisation, so it is meant for testing and rule authoring rather
+          than for production.
   activity_dump:
     node_type: section
     type: object

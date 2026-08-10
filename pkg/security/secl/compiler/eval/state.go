@@ -13,6 +13,16 @@ type State struct {
 	fieldValues map[Field][]FieldValue
 	macros      MacroEvaluatorGetter
 	registers   []Register
+
+	// cov is set when the boolean skeleton of the rule being compiled has to be
+	// tracked for coverage
+	cov *coverageBuilder
+}
+
+// enableCoverage makes the compilation build the boolean skeleton of the rule,
+// used to report which of its evaluation paths have been taken
+func (s *State) enableCoverage(expr string) {
+	s.cov = &coverageBuilder{expr: expr}
 }
 
 // UpdateFields updates the fields used in the rule

@@ -1,0 +1,13 @@
+features:
+  - |
+    CWS: added rule coverage. When
+    ``runtime_security_config.rule_coverage.enabled`` is set, the rule evaluator
+    records which of the evaluation paths through the boolean expression of each
+    rule have been taken. For a rule ``A && (B || C)`` the tracked paths are
+    ``A=false``, ``A=true B=false C=false``, ``A=true B=false C=true`` and
+    ``A=true B=true``, so the branches of a rule that no workload exercised can
+    be told apart from the ones that did. The report is available through
+    ``system-probe runtime rule-coverage dump``, as a summary or as JSON. This
+    adds a small cost to every rule evaluation and disables an evaluation order
+    optimisation, so it is meant for testing and rule authoring rather than for
+    production.

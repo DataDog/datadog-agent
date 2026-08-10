@@ -175,6 +175,7 @@ const (
 	SecurityModuleCmd_GetLoadedPolicies_FullMethodName    = "/api.SecurityModuleCmd/GetLoadedPolicies"
 	SecurityModuleCmd_DumpNetworkNamespace_FullMethodName = "/api.SecurityModuleCmd/DumpNetworkNamespace"
 	SecurityModuleCmd_DumpDiscarders_FullMethodName       = "/api.SecurityModuleCmd/DumpDiscarders"
+	SecurityModuleCmd_DumpRuleCoverage_FullMethodName     = "/api.SecurityModuleCmd/DumpRuleCoverage"
 	SecurityModuleCmd_DumpActivity_FullMethodName         = "/api.SecurityModuleCmd/DumpActivity"
 	SecurityModuleCmd_ListActivityDumps_FullMethodName    = "/api.SecurityModuleCmd/ListActivityDumps"
 	SecurityModuleCmd_StopActivityDump_FullMethodName     = "/api.SecurityModuleCmd/StopActivityDump"
@@ -196,6 +197,7 @@ type SecurityModuleCmdClient interface {
 	GetLoadedPolicies(ctx context.Context, in *GetLoadedPoliciesParams, opts ...grpc.CallOption) (*GetLoadedPoliciesMessage, error)
 	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error)
+	DumpRuleCoverage(ctx context.Context, in *DumpRuleCoverageParams, opts ...grpc.CallOption) (*DumpRuleCoverageMessage, error)
 	// Activity dumps
 	DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error)
 	ListActivityDumps(ctx context.Context, in *ActivityDumpListParams, opts ...grpc.CallOption) (*ActivityDumpListMessage, error)
@@ -304,6 +306,16 @@ func (c *securityModuleCmdClient) DumpDiscarders(ctx context.Context, in *DumpDi
 	return out, nil
 }
 
+func (c *securityModuleCmdClient) DumpRuleCoverage(ctx context.Context, in *DumpRuleCoverageParams, opts ...grpc.CallOption) (*DumpRuleCoverageMessage, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DumpRuleCoverageMessage)
+	err := c.cc.Invoke(ctx, SecurityModuleCmd_DumpRuleCoverage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *securityModuleCmdClient) DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ActivityDumpMessage)
@@ -377,6 +389,7 @@ type SecurityModuleCmdServer interface {
 	GetLoadedPolicies(context.Context, *GetLoadedPoliciesParams) (*GetLoadedPoliciesMessage, error)
 	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error)
+	DumpRuleCoverage(context.Context, *DumpRuleCoverageParams) (*DumpRuleCoverageMessage, error)
 	// Activity dumps
 	DumpActivity(context.Context, *ActivityDumpParams) (*ActivityDumpMessage, error)
 	ListActivityDumps(context.Context, *ActivityDumpListParams) (*ActivityDumpListMessage, error)
@@ -421,6 +434,9 @@ func (UnimplementedSecurityModuleCmdServer) DumpNetworkNamespace(context.Context
 }
 func (UnimplementedSecurityModuleCmdServer) DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error) {
 	return nil, status.Error(codes.Unimplemented, "method DumpDiscarders not implemented")
+}
+func (UnimplementedSecurityModuleCmdServer) DumpRuleCoverage(context.Context, *DumpRuleCoverageParams) (*DumpRuleCoverageMessage, error) {
+	return nil, status.Error(codes.Unimplemented, "method DumpRuleCoverage not implemented")
 }
 func (UnimplementedSecurityModuleCmdServer) DumpActivity(context.Context, *ActivityDumpParams) (*ActivityDumpMessage, error) {
 	return nil, status.Error(codes.Unimplemented, "method DumpActivity not implemented")
@@ -623,6 +639,24 @@ func _SecurityModuleCmd_DumpDiscarders_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecurityModuleCmd_DumpRuleCoverage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DumpRuleCoverageParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleCmdServer).DumpRuleCoverage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SecurityModuleCmd_DumpRuleCoverage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleCmdServer).DumpRuleCoverage(ctx, req.(*DumpRuleCoverageParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SecurityModuleCmd_DumpActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ActivityDumpParams)
 	if err := dec(in); err != nil {
@@ -773,6 +807,10 @@ var SecurityModuleCmd_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DumpDiscarders",
 			Handler:    _SecurityModuleCmd_DumpDiscarders_Handler,
+		},
+		{
+			MethodName: "DumpRuleCoverage",
+			Handler:    _SecurityModuleCmd_DumpRuleCoverage_Handler,
 		},
 		{
 			MethodName: "DumpActivity",

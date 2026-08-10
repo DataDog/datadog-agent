@@ -181,6 +181,9 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorReportInternalPolicies bool
 	// RuleCacheEnabled defines if the rule cache should be enabled
 	RuleCacheEnabled bool
+	// RuleCoverageEnabled defines if the rules should keep track of which of
+	// their evaluation paths have been taken
+	RuleCoverageEnabled bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 	// SocketPath is the path to the socket that is used to communicate with system-probe
@@ -568,6 +571,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
 		RuleCacheEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.rule_cache_enabled"),
+		RuleCoverageEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.rule_coverage.enabled"),
 
 		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),

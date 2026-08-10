@@ -446,6 +446,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
 	ruleOpts.WithRuleCacheEnabled(p.Config.RuntimeSecurity.RuleCacheEnabled)
 	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
+	evalOpts.WithRuleCoverage(p.Config.RuntimeSecurity.RuleCoverageEnabled)
 
 	eventCtor := func() eval.Event {
 		return p.PlatformProbe.NewEvent()

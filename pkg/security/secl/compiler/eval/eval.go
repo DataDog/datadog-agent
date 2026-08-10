@@ -776,18 +776,25 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, pos, NewTypeError(pos, reflect.Bool)
 			}
 
+			// the operands are the leaves of the boolean skeleton used for
+			// coverage, unless they are themselves boolean operations
+			cmpBool = state.covOperand(cmpBool, obj.Comparison.Pos.Offset)
+			nextBool = state.covOperand(nextBool, obj.Next.Pos.Offset)
+
 			switch *obj.Op {
 			case "||", "or":
 				boolEvaluator, err = Or(cmpBool, nextBool, state)
 				if err != nil {
 					return nil, obj.Pos, err
 				}
+				state.covJoin(boolEvaluator, covOr, cmpBool, nextBool)
 				return boolEvaluator, obj.Pos, nil
 			case "&&", "and":
 				boolEvaluator, err = And(cmpBool, nextBool, state)
 				if err != nil {
 					return nil, obj.Pos, err
 				}
+				state.covJoin(boolEvaluator, covAnd, cmpBool, nextBool)
 				return boolEvaluator, obj.Pos, nil
 			}
 			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
@@ -1589,7 +1596,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, pos, NewTypeError(pos, reflect.Bool)
 			}
 
-			return Not(unaryBool, state), obj.Pos, nil
+			unaryBool = state.covOperand(unaryBool, obj.Unary.Pos.Offset)
+			notBool := Not(unaryBool, state)
+			state.covNegate(notBool, unaryBool)
+
+			return notBool, obj.Pos, nil
 		case "-":
 			unaryInt, ok := unary.(*IntEvaluator)
 			if !ok {

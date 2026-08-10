@@ -250,6 +250,68 @@ func (_c *SecurityModuleCmdClientWrapper_DumpProcessCache_Call) RunAndReturn(run
 	return _c
 }
 
+// DumpRuleCoverage provides a mock function for the type SecurityModuleCmdClientWrapper
+func (_mock *SecurityModuleCmdClientWrapper) DumpRuleCoverage(reset bool) (*api.DumpRuleCoverageMessage, error) {
+	ret := _mock.Called(reset)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DumpRuleCoverage")
+	}
+
+	var r0 *api.DumpRuleCoverageMessage
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(bool) (*api.DumpRuleCoverageMessage, error)); ok {
+		return returnFunc(reset)
+	}
+	if returnFunc, ok := ret.Get(0).(func(bool) *api.DumpRuleCoverageMessage); ok {
+		r0 = returnFunc(reset)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.DumpRuleCoverageMessage)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(bool) error); ok {
+		r1 = returnFunc(reset)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DumpRuleCoverage'
+type SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call struct {
+	*mock.Call
+}
+
+// DumpRuleCoverage is a helper method to define mock.On call
+//   - reset bool
+func (_e *SecurityModuleCmdClientWrapper_Expecter) DumpRuleCoverage(reset any) *SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call {
+	return &SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call{Call: _e.mock.On("DumpRuleCoverage", reset)}
+}
+
+func (_c *SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call) Run(run func(reset bool)) *SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 bool
+		if args[0] != nil {
+			arg0 = args[0].(bool)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call) Return(dumpRuleCoverageMessage *api.DumpRuleCoverageMessage, err error) *SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call {
+	_c.Call.Return(dumpRuleCoverageMessage, err)
+	return _c
+}
+
+func (_c *SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call) RunAndReturn(run func(reset bool) (*api.DumpRuleCoverageMessage, error)) *SecurityModuleCmdClientWrapper_DumpRuleCoverage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GenerateActivityDump provides a mock function for the type SecurityModuleCmdClientWrapper
 func (_mock *SecurityModuleCmdClientWrapper) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	ret := _mock.Called(request)

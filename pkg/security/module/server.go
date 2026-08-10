@@ -746,6 +746,37 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 	}, nil
 }
 
+// DumpRuleCoverage returns, as JSON, which evaluation paths of the loaded rules
+// have been taken since they were loaded
+func (a *APIServer) DumpRuleCoverage(_ context.Context, params *api.DumpRuleCoverageParams) (*api.DumpRuleCoverageMessage, error) {
+	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
+		return nil, errors.New("no rule engine")
+	}
+
+	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
+	if ruleSet == nil {
+		return nil, errors.New("failed to get loaded rule set")
+	}
+
+	report := ruleSet.GetRuleCoverageReport()
+	if report == nil {
+		return nil, errors.New("rule coverage is disabled, set `runtime_security_config.rule_coverage.enabled` to enable it")
+	}
+
+	content, err := json.Marshal(report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal the rule coverage report: %w", err)
+	}
+
+	if params.GetReset_() {
+		ruleSet.ResetRuleCoverage()
+	}
+
+	return &api.DumpRuleCoverageMessage{
+		Report: string(content),
+	}, nil
+}
+
 type policyDump struct {
 	Name         string                   `json:"name"`
 	Source       string                   `json:"source"`

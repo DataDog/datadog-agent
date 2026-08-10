@@ -66,7 +66,10 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 			}
 		}
 
-		if a.Weight > b.Weight {
+		// evaluate the cheapest operand first, unless coverage is being tracked:
+		// the recorded evaluation paths have to follow the order the paths were
+		// statically enumerated in
+		if a.Weight > b.Weight && state.cov == nil {
 			tmp := ea
 			ea = eb
 			eb = tmp
@@ -195,7 +198,10 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 			}
 		}
 
-		if a.Weight > b.Weight {
+		// evaluate the cheapest operand first, unless coverage is being tracked:
+		// the recorded evaluation paths have to follow the order the paths were
+		// statically enumerated in
+		if a.Weight > b.Weight && state.cov == nil {
 			tmp := ea
 			ea = eb
 			eb = tmp

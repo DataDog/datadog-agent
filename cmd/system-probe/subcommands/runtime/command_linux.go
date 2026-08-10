@@ -31,6 +31,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
+	runtimeCmd.AddCommand(ruleCoverageCommands(globalParams)...)
 
 	return []*cobra.Command{runtimeCmd}
 }

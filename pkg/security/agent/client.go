@@ -56,6 +56,7 @@ type SecurityModuleCmdClientWrapper interface {
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
 	GetLoadedPolicies(includeBundled bool) (*api.GetLoadedPoliciesMessage, error)
+	DumpRuleCoverage(reset bool) (*api.DumpRuleCoverageMessage, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
@@ -69,6 +70,11 @@ func (c *RuntimeSecurityCmdClient) DumpDiscarders() (string, error) {
 	}
 
 	return response.DumpFilename, nil
+}
+
+// DumpRuleCoverage sends a request for the rule coverage report
+func (c *RuntimeSecurityCmdClient) DumpRuleCoverage(reset bool) (*api.DumpRuleCoverageMessage, error) {
+	return c.apiClient.DumpRuleCoverage(context.Background(), &api.DumpRuleCoverageParams{Reset_: reset})
 }
 
 // DumpProcessCache sends a process cache dump request

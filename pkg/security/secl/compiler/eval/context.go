@@ -68,6 +68,10 @@ type Context struct {
 	now              time.Time
 	resolvedFields   []string
 	matchingSubExprs []MatchingSubExpr
+
+	// evaluation path being walked by the rule under evaluation, only used when
+	// rule coverage is enabled
+	coverage coverageRecorder
 }
 
 // Now return and cache the `now` timestamp
@@ -123,6 +127,7 @@ func (c *Context) PerActionReset() {
 // PerEvalReset the context
 func (c *Context) PerEvalReset() {
 	c.matchingSubExprs = c.matchingSubExprs[0:0]
+	c.coverage = coverageRecorder{}
 }
 
 // GetResolvedFields returns the resolved fields, always empty outside of functional tests
