@@ -20,8 +20,10 @@
 //! `starts_with(b"-----BEGIN PRIVATE KEY-----")` check before ever parsing the
 //! key, so it rejects SEC1 outright with `Error::NotPkcs8` even though OpenSSL's
 //! own PEM parser would happily read it. We re-encode SEC1 -> PKCS8 ourselves via
-//! the `openssl` crate (already linked in as a `native-tls` dependency) before
-//! calling `from_pkcs8`.
+//! the `openssl` crate (already linked in as a `native-tls` dependency). On
+//! Windows, Schannel cannot import this EC identity through `from_pkcs8`, so we
+//! package the converted key and certificate as PKCS#12 before handing it to
+//! native-tls.
 
 use anyhow::{Context, Result, bail};
 use openssl::pkey::PKey;
@@ -35,8 +37,7 @@ pub fn build_ipc_client_connector(ipc_cert_file: &Path) -> Result<tokio_native_t
     let (cert_pem, key_pem) = split_cert_and_key(&pem)?;
     let key_pem = to_pkcs8_pem(&key_pem)?;
 
-    let identity = native_tls::Identity::from_pkcs8(&cert_pem, &key_pem)
-        .context("building TLS identity from the IPC cert/key")?;
+    let identity = identity_from_pkcs8(&cert_pem, &key_pem)?;
     let root = native_tls::Certificate::from_pem(&cert_pem)
         .context("parsing the IPC cert as a trust root")?;
 
@@ -68,6 +69,33 @@ fn to_pkcs8_pem(key_pem: &[u8]) -> Result<Vec<u8>> {
     let pkey = PKey::private_key_from_pem(key_pem).context("parsing the IPC private key")?;
     pkey.private_key_to_pem_pkcs8()
         .context("re-encoding the IPC private key as PKCS8")
+}
+
+#[cfg(not(windows))]
+fn identity_from_pkcs8(cert_pem: &[u8], key_pem: &[u8]) -> Result<native_tls::Identity> {
+    native_tls::Identity::from_pkcs8(cert_pem, key_pem)
+        .context("building TLS identity from the IPC cert/key")
+}
+
+#[cfg(windows)]
+fn identity_from_pkcs8(cert_pem: &[u8], key_pem: &[u8]) -> Result<native_tls::Identity> {
+    // Schannel's PKCS#8 import rejects the Agent's ECDSA identity with
+    // CRYPT_E_ASN1_BADTAG. PKCS#12 is its native certificate+key interchange
+    // format and preserves the same key and certificate without changing the
+    // identity presented on the wire.
+    let cert = openssl::x509::X509::from_pem(cert_pem)
+        .context("parsing the IPC certificate for PKCS12")?;
+    let key =
+        PKey::private_key_from_pem(key_pem).context("parsing the IPC private key for PKCS12")?;
+    let mut builder = openssl::pkcs12::Pkcs12::builder();
+    builder.name("Datadog Agent IPC").pkey(&key).cert(&cert);
+    let der = builder
+        .build2("")
+        .and_then(|pkcs12| pkcs12.to_der())
+        .context("packaging the IPC identity as PKCS12")?;
+
+    native_tls::Identity::from_pkcs12(&der, "")
+        .context("building TLS identity from the IPC PKCS12 bundle")
 }
 
 /// Split a combined IPC PEM into its CERTIFICATE and private-key blocks.
