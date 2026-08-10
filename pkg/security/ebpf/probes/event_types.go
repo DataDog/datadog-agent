@@ -663,9 +663,14 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("rethook_io_issue_sqe"),
 			}}},
 
-		// hook_accept is activated with the network probes because it also keeps flow_pid up to
-		// date, it only sends events once this event type is reflected in the enabled_events map
-		"accept": {},
+		// List of probes required to capture accept events
+		// hook_accept is also part of NetworkSelectors because it keeps flow_pid up to date, it is
+		// kept here so that accept events are still captured when network tracking is off
+		"accept": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_accept"),
+			}},
+		},
 		// List of probes required to capture bind events
 		"bind": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
