@@ -114,37 +114,36 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 	return 2 // detectors without explicit thresholds default to Medium
 }
 
-// contributorWeight maps an anomaly score onto a continuous contributor weight
-// in [0.2, 3.0]. It is used only to rank retained top anomalies; the scorer's
-// EWMA continues to use the calibrated discrete levelWeights.
+// contributorWeight interpolates an anomaly score between the adjacent
+// calibrated levelWeights. It is used only to rank retained top anomalies; the
+// scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
 	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
 	if !ok {
-		return 0.2 + 2.8*0.5 // uncalibrated detectors retain Medium's position
+		return levelWeights[2] // uncalibrated detectors retain Medium's weight
 	}
 	if a.Score == nil {
-		return 0.2
+		return levelWeights[0]
 	}
 
 	score := *a.Score
-	breakpoints := [5]float64{0, thresholds[0], thresholds[1], thresholds[2], thresholds[3]}
-	severity := 4.0
-	if score <= 0 {
-		severity = 0
-	} else {
-		for level := 0; level < len(breakpoints)-1; level++ {
-			if score < breakpoints[level+1] {
-				span := breakpoints[level+1] - breakpoints[level]
-				if span <= 0 {
-					severity = float64(level)
-				} else {
-					severity = float64(level) + (score-breakpoints[level])/span
-				}
-				break
-			}
-		}
+	if score <= thresholds[0] {
+		return levelWeights[0]
 	}
-	return 0.2 + (severity/4)*2.8
+
+	lowerThreshold := thresholds[0]
+	for level, upperThreshold := range thresholds {
+		if score < upperThreshold {
+			span := upperThreshold - lowerThreshold
+			if span <= 0 {
+				return levelWeights[level]
+			}
+			fraction := (score - lowerThreshold) / span
+			return levelWeights[level] + fraction*(levelWeights[level+1]-levelWeights[level])
+		}
+		lowerThreshold = upperThreshold
+	}
+	return levelWeights[len(levelWeights)-1]
 }
 
 // seriesID returns a stable string key for deduplication.

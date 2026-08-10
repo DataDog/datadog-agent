@@ -165,12 +165,16 @@ func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
 	if got := contributorWeight(below, cfg); got != 0.2 {
 		t.Fatalf("weight below range = %g, want 0.2", got)
 	}
+	belowFirstThreshold := makeAnomaly("holt_residual", 1000, scorePtr(1))
+	if got := contributorWeight(belowFirstThreshold, cfg); got != levelWeights[0] {
+		t.Fatalf("weight below first threshold = %g, want %g", got, levelWeights[0])
+	}
 
 	// 16 is halfway between holt_residual's medium (12) and high (20)
-	// thresholds, producing a severity of 2.5 rather than a discrete bucket.
+	// thresholds, so interpolate between their calibrated weights (1 and 2).
 	middle := makeAnomaly("holt_residual", 1000, scorePtr(16))
-	if got := contributorWeight(middle, cfg); math.Abs(got-1.95) > 1e-9 {
-		t.Fatalf("weight at normalized severity 2.5 = %g, want 1.95", got)
+	if got := contributorWeight(middle, cfg); math.Abs(got-1.5) > 1e-9 {
+		t.Fatalf("weight halfway between Medium and High = %g, want 1.5", got)
 	}
 
 	above := makeAnomaly("holt_residual", 1000, scorePtr(100))
