@@ -16,18 +16,13 @@ use std::time::Duration;
 
 const SKIP_TASK_VERIFICATION_ENV: &str = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION";
 
-/// Default local sockets. The executor socket must match the Go executor's
-/// `private_action_runner.executor.socket_path` platform default; the procmgr
-/// socket must match dd-procmgrd's own default (`pkg/procmgr/rust/src/transport/`).
-/// Both are per-platform: a Unix socket path on Unix, a named pipe on Windows.
+/// The executor socket must match the Go executor's
+/// `private_action_runner.executor.socket_path` platform default. The procmgr
+/// endpoint comes from the shared procmgr client crate.
 #[cfg(not(windows))]
 pub const DEFAULT_EXECUTOR_SOCKET: &str = "/opt/datadog-agent/run/par-executor.sock";
 #[cfg(windows)]
 pub const DEFAULT_EXECUTOR_SOCKET: &str = r"\\.\pipe\dd-par-executor";
-#[cfg(not(windows))]
-pub const DEFAULT_PROCMGR_SOCKET: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
-#[cfg(windows)]
-pub const DEFAULT_PROCMGR_SOCKET: &str = r"\\.\pipe\datadog-procmgrd";
 /// Process-definition name the executor is registered under with the process
 /// manager. MUST match the `name` of the procmgr process definition installed by
 /// `pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor.yaml.tmpl`
@@ -326,11 +321,11 @@ impl Config {
                     .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| DEFAULT_EXECUTOR_SOCKET.to_string()),
             ),
-            procmgr_socket: PathBuf::from(
-                par.procmgr_socket_path
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or_else(|| DEFAULT_PROCMGR_SOCKET.to_string()),
-            ),
+            procmgr_socket: par
+                .procmgr_socket_path
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .unwrap_or_else(dd_procmgr_client::default_ipc_path),
             executor_process_name: par
                 .executor_process_name
                 .unwrap_or_else(|| DEFAULT_EXECUTOR_PROCESS_NAME.to_string()),
@@ -655,7 +650,7 @@ fn apply_env_overrides(raw: &mut RawConfig, env: &impl Fn(&str) -> Option<String
     // DD_PM_SOCKET_PATH, then the platform default applied later. Honoring the
     // daemon's variable means relocating its socket does not also require
     // setting a second, PAR-specific value for par-control to find it
-    // (`ipc_path` in `pkg/procmgr/rust/src/transport/{uds,named_pipe}.rs`).
+    // (`ipc_path` in the shared `dd-procmgr-client` crate).
     par.procmgr_socket_path = env("DD_PRIVATE_ACTION_RUNNER_PROCMGR_SOCKET_PATH")
         .or(par.procmgr_socket_path.take())
         .or_else(|| env("DD_PM_SOCKET_PATH"));
@@ -918,7 +913,7 @@ private_action_runner:
         // Unset: platform default.
         assert_eq!(
             resolve(MIN_YAML, &[]),
-            PathBuf::from(DEFAULT_PROCMGR_SOCKET)
+            dd_procmgr_client::default_ipc_path()
         );
 
         // The daemon's own override wins over the default.
@@ -933,7 +928,7 @@ private_action_runner:
         // Empty is treated as unset.
         assert_eq!(
             resolve(MIN_YAML, &[("DD_PM_SOCKET_PATH", "")]),
-            PathBuf::from(DEFAULT_PROCMGR_SOCKET)
+            dd_procmgr_client::default_ipc_path()
         );
 
         // The PAR-specific setting still outranks the daemon's variable.
