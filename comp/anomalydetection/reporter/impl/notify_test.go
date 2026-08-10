@@ -55,6 +55,18 @@ func TestFormatScorerContributorMessage(t *testing.T) {
 	assert.NotContains(t, message, "weight")
 }
 
+func TestFormatScorerEpisodeMessageFallsBackWithoutContributors(t *testing.T) {
+	event := observerdef.CorrelatorEvent{
+		CorrelatorName: "anomaly_scorer",
+		Timestamp:      1234,
+		Correlation:    observerdef.ActiveCorrelation{Pattern: "anomaly_scorer_high:1234"},
+	}
+
+	message := formatScorerEpisodeMessage(event, nil, "ended")
+
+	assert.Equal(t, "Anomaly scorer \"anomaly_scorer\" episode ended at t=1234\nPattern: anomaly_scorer_high:1234", message)
+}
+
 func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing.T) {
 	metas := make(map[observerdef.SeriesRef]observerdef.SeriesMeta, 200)
 	contributors := make([]observerdef.ScorerContributor, 200)

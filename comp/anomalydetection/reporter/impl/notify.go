@@ -264,7 +264,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
-	msg := truncateBytesValidUTF8(formatScorerContributorMessage(evt.Contributors, s.storage), changeEventMessageMaxLen)
+	msg := formatScorerEpisodeMessage(evt, s.storage, direction)
 
 	var host string
 	if s.hostname != nil {
@@ -323,6 +323,15 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
 	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+}
+
+func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observerdef.StorageReader, direction string) string {
+	message := formatScorerContributorMessage(evt.Contributors, storage)
+	if message == "" {
+		message = fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
+			evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+	}
+	return truncateBytesValidUTF8(message, changeEventMessageMaxLen)
 }
 
 // severityLevelName returns a human-readable label for a SeverityLevel.
