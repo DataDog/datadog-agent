@@ -806,11 +806,33 @@ type StatsProcessor interface {
 	ProcessStats(ctx context.Context, p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) error
 }
 
+type otlpStatsProcessor interface {
+	ProcessOTLPStats(payload []byte)
+}
+
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer r.timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
 	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
+	if req.Header.Get("Dd-Protocol") == "otlp" {
+		if req.Header.Get("Content-Type") != "application/x-protobuf" {
+			http.Error(w, "OTLP stats require application/x-protobuf", http.StatusUnsupportedMediaType)
+			return
+		}
+		processor, ok := r.statsProcessor.(otlpStatsProcessor)
+		if !ok {
+			http.Error(w, "OTLP stats are unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		payload, err := io.ReadAll(rd)
+		if err != nil {
+			httpDecodingError(err, []string{"handler:stats", "codec:protobuf", "v:v0.6"}, w, r.statsd)
+			return
+		}
+		processor.ProcessOTLPStats(payload)
+		return
+	}
 	req.Header.Set("Accept", "application/msgpack")
 	in := &pb.ClientStatsPayload{}
 	if err := msgp.Decode(rd, in); err != nil {

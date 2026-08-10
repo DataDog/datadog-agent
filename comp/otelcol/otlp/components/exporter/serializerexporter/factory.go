@@ -39,7 +39,8 @@ type factory struct {
 	s            serializer.MetricSerializer
 	hostProvider SourceProviderFunc
 
-	statsIn chan []byte
+	statsIn     chan []byte
+	otlpStatsIn chan []byte
 
 	createConsumer createConsumerFunc
 	options        []otlpmetrics.TranslatorOption
@@ -67,10 +68,10 @@ type TelemetryStore struct {
 type createConsumerFunc func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
 
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
-// Serializer exporter should never receive APM stats in Agent OTLP ingestion.
+// SDK trace histograms may be converted and forwarded through the APM stats receiver.
 func NewFactoryForAgent(s serializer.MetricSerializer, hostGetter SourceProviderFunc, store TelemetryStore) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest)
+	return newFactoryForAgentWithType(s, hostGetter, nil, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest)
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
@@ -78,18 +79,20 @@ func NewFactoryForOTelAgent(
 	s serializer.MetricSerializer,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
+	otlpStatsIn chan []byte,
 	gatewayusage otel.GatewayUsage,
 	store TelemetryStore,
 	reporter *inframetadata.Reporter,
 ) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
-	return newFactoryForAgentWithType(s, hostGetter, statsIn, cfgType, gatewayusage, store, reporter, ddot)
+	return newFactoryForAgentWithType(s, hostGetter, statsIn, otlpStatsIn, cfgType, gatewayusage, store, reporter, ddot)
 }
 
 func newFactoryForAgentWithType(
 	s serializer.MetricSerializer,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
+	otlpStatsIn chan []byte,
 	typ component.Type,
 	gatewayUsage otel.GatewayUsage,
 	store TelemetryStore,
@@ -110,11 +113,13 @@ func newFactoryForAgentWithType(
 	if featuregates.AddUnitsFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithUnits())
 	}
+	options = append(options, otlpmetrics.WithSDKTraceMetricsRemapping())
 
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
 		statsIn:      statsIn,
+		otlpStatsIn:  otlpStatsIn,
 		createConsumer: func(extraTags []string, apmReceiverAddr string, _ component.BuildInfo) SerializerConsumer {
 			return &serializerConsumer{
 				extraTags:       extraTags,
@@ -162,7 +167,6 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 	if featuregates.AddUnitsFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithUnits())
 	}
-
 	f := &factory{
 		// hostProvider is a no-op function that returns an empty host.
 		// In OSS collector, the host is overridden via the HostProvider field in the config.
@@ -253,7 +257,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		hostGetter = cfg.HostProvider
 	}
 	// Create the metrics translator
-	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
+	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.otlpStatsIn, f.options...)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}

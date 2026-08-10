@@ -1191,10 +1191,15 @@ type mockStatsProcessor struct {
 	lastTracerVersion string
 	containerID       string
 	obfVersion        string
+	lastOTLP          []byte
 
 	// processingLantency is used to mock a busy processor.
 	// use this variable to control how long the processor should 'wait' for the work to be done.
 	processingLantency time.Duration
+}
+
+func (m *mockStatsProcessor) ProcessOTLPStats(payload []byte) {
+	m.lastOTLP = bytes.Clone(payload)
 }
 
 func (m *mockStatsProcessor) ProcessStats(ctx context.Context, p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfVersion string) error {
@@ -1283,6 +1288,19 @@ func TestHandleStats(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
+	})
+	t.Run("OTLP V4", func(t *testing.T) {
+		rcv := newTestReceiverFromConfig(newTestReceiverConfig())
+		mockProcessor := new(mockStatsProcessor)
+		rcv.statsProcessor = mockProcessor
+		payload := []byte{1, 2, 3}
+		req := httptest.NewRequest(http.MethodPost, "/v0.6/stats", bytes.NewReader(payload))
+		req.Header.Set("Content-Type", "application/x-protobuf")
+		req.Header.Set("Dd-Protocol", "otlp")
+		resp := httptest.NewRecorder()
+		rcv.buildMux().ServeHTTP(resp, req)
+		require.Equal(t, http.StatusOK, resp.Code)
+		require.Equal(t, payload, mockProcessor.lastOTLP)
 	})
 }
 
