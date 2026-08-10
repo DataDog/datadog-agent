@@ -528,6 +528,12 @@ Package securityagent is the metadata provider for security-agent process
 
 Package systemprobe is the metadata provider for system-probe process
 
+### [comp/metadata/workloadbalancing](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/workloadbalancing)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package workloadbalancing implements a component to generate the 'workload_balancing_metadata' metadata payload for inventory.
+
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
 *Datadog Team*: network-device-monitoring-core

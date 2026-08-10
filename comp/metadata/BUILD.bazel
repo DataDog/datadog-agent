@@ -21,6 +21,7 @@ go_library(
         "//comp/metadata/runner/fx",
         "//comp/metadata/securityagent/fx",
         "//comp/metadata/systemprobe/fx",
+        "//comp/metadata/workloadbalancing/fx",
         "//pkg/util/fxutil",
     ],
 )
@@ -40,6 +41,7 @@ dd_agent_go_test(
         "//comp/haagent/mock",
         "//comp/logs/agent/def",
         "//comp/metadata/runner/def",
+        "//comp/workloadbalancing/mock",
         "//pkg/serializer",
         "//pkg/util/fxutil",
         "//pkg/util/option",

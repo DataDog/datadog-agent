@@ -20,6 +20,7 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -37,6 +38,7 @@ func TestBundleDependencies(t *testing.T) {
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		haagentmock.Module(),
+		workloadbalancingmock.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 	)

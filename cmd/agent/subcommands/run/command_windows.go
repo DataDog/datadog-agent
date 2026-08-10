@@ -76,6 +76,7 @@ import (
 	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	workloadbalancingmetadata "github.com/DataDog/datadog-agent/comp/metadata/workloadbalancing/def"
 	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -130,6 +131,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
 			_ haagentmetadata.Component,
+			_ workloadbalancingmetadata.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
 			logsReceiver option.Option[integrations.Component],

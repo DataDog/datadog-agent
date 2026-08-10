@@ -1,0 +1,7 @@
+{{ if .enabled -}}
+  enabled: {{ .workload_balancing_metadata.Enabled }}
+  groups:
+  {{- range $group, $state := .workload_balancing_metadata.Groups }}
+    {{ $group }}: {{ $state }}
+  {{- end }}
+{{- end }}
