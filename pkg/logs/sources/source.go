@@ -212,7 +212,12 @@ func (s *LogSource) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("info: %#v,"), s.info)
 	fmt.Fprintf(&b, ws("parentSource: %p,"), s.ParentSource)
 	fmt.Fprintf(&b, ws("LatencyStats: %#v,"), s.LatencyStats)
-	fmt.Fprintf(&b, ws("ProcessingInfo: %#v,"), s.ProcessingInfo)
+	// Note: ProcessingInfo is intentionally formatted with %s (using its Stringer
+	// implementation), not %#v. %#v uses reflection to read the struct's raw
+	// fields directly (including the rules map and the embedded sync.Mutex's
+	// internal state), bypassing ProcessingInfo's own locking and racing with
+	// concurrent calls to ProcessingInfo.Inc().
+	fmt.Fprintf(&b, ws("ProcessingInfo: %s,"), s.ProcessingInfo)
 	fmt.Fprintf(&b, ws("hiddenFromStatus: %t}"), s.hiddenFromStatus)
 	return b.String()
 }
