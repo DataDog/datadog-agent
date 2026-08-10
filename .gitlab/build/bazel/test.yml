@@ -14,10 +14,9 @@
       aud: ci-identities
   variables:
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
-    FLAVOR: base
-    BEP_FILE: $CI_PROJECT_DIR/bazel-bep-$FLAVOR.json
+    BEP_FILE: $CI_PROJECT_DIR/bazel-bep.json
   after_script:
-    - dda inv -- -e bazel.collect-junit --flavor=$FLAVOR --output-tgz=junit-${CI_JOB_NAME}.tgz --bep-file=$BEP_FILE || true
+    - dda inv -- -e bazel.collect-junit --output-tgz=junit-${CI_JOB_NAME}.tgz --bep-file=$BEP_FILE
     - !reference [.upload_junit_source]
   artifacts:
     expire_in: 2 weeks

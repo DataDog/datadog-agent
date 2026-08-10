@@ -399,12 +399,11 @@ def _annotate_junit_cache_status(xml_path: Path, cache_status: dict[str, bool]) 
 
 @task(
     help={
-        "flavor": f"Agent flavor ({', '.join(f.name for f in AgentFlavor)}). Embedded in each JUnit XML.",
         "output_tgz": "Destination path for the output tgz (e.g. junit-bazel-base.tgz).",
         "bep_file": "Path to a Bazel BEP JSON file (--build_event_json_file); drives test.xml discovery and annotates each testsuite with bazel.cached.",
     },
 )
-def collect_junit(ctx, flavor, output_tgz, bep_file):
+def collect_junit(ctx, output_tgz, bep_file):
     """Collect Bazel test results and package them for junit_upload.
 
     Merges the test.xml files produced by the rules_go test runner (one per
@@ -412,7 +411,7 @@ def collect_junit(ctx, flavor, output_tgz, bep_file):
     with the existing junit_upload machinery (same format as --junit-tar from
     dda inv test).
     """
-    from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
+    from tasks.libs.common.junit_upload_core import produce_junit_tar
 
     # BEP is the authoritative source: it lists exactly the test.xml files
     # produced by this invocation, avoiding stale results from previous runs
@@ -422,8 +421,6 @@ def collect_junit(ctx, flavor, output_tgz, bep_file):
     if not xml_files:
         print("error: no test.xml files found in BEP output", file=sys.stderr)
         sys.exit(1)
-
-    agent_flavor = AgentFlavor[flavor]
 
     with tempfile.TemporaryDirectory() as tmpdir:
         merged = ET.Element("testsuites")
@@ -455,10 +452,8 @@ def collect_junit(ctx, flavor, output_tgz, bep_file):
             )
             sys.exit(1)
 
-        merged_path = Path(tmpdir) / f"junit-bazel-{flavor}.xml"
+        merged_path = Path(tmpdir) / "junit-bazel.xml"
         ET.ElementTree(merged).write(str(merged_path), encoding="unicode")
-
-        enrich_junitxml(str(merged_path), agent_flavor)
 
         if cache_status:
             _annotate_junit_cache_status(merged_path, cache_status)
