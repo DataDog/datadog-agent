@@ -378,6 +378,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return deviceUUID, nvml.SUCCESS
 		},
+		GetGpuFabricInfoFunc: func() (nvml.GpuFabricInfo, nvml.Return) {
+			return nvml.GpuFabricInfo{}, nvml.ERROR_NOT_SUPPORTED
+		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
 				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS

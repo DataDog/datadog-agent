@@ -21,7 +21,7 @@ require (
 	github.com/weppos/publicsuffix-go v0.50.3
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/atomic v1.11.0
-	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.57.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.40.0
@@ -135,9 +135,9 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
-	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../pkg/config/setup/constants
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../pkg/discovery/tracermetadata/model

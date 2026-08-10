@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "stats",
@@ -18,14 +19,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "stats_test",
     srcs = [
         "otel_benchmark_test.go",
         "otel_util_test.go",
     ],
     embed = [":stats"],
-    gotags = ["test"],
     deps = [
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
@@ -35,6 +35,7 @@ go_test(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_google_go_cmp//cmp",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//ptrace",

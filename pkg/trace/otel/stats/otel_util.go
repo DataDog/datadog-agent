@@ -40,8 +40,9 @@ func OTLPTracesToConcentratorInputs(
 	conf *config.AgentConfig,
 	containerTagKeys []string,
 	peerTagKeys []string,
+	primaryTagKeys []string,
 ) []stats.Input {
-	return OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, containerTagKeys, peerTagKeys, nil)
+	return OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, containerTagKeys, peerTagKeys, primaryTagKeys, nil)
 }
 
 // OTLPTracesToConcentratorInputsWithObfuscation converts eligible OTLP spans to Concentrator Input.
@@ -54,6 +55,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	conf *config.AgentConfig,
 	containerTagKeys []string,
 	peerTagKeys []string,
+	primaryTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
 ) []stats.Input {
 	spanByID, resByID, scopeByID := transform.IndexOTelSpans(traces)
@@ -130,7 +132,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys)
+		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys, primaryTagKeys)
 		if obfuscator != nil {
 			obfuscateSpanForConcentrator(obfuscator, ddSpan, conf)
 		}

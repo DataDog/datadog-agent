@@ -509,16 +509,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "libc",
- "serde",
- "serde_yaml",
-]
-
-[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -696,7 +686,6 @@ name = "datasecurity"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "core",
  "dd-sensitive-data-scanner",
  "libc",
  "postgres",
@@ -705,6 +694,7 @@ dependencies = [
  "prost-types",
  "serde",
  "serde_json",
+ "shlib_core",
 ]
 
 [[package]]
@@ -902,8 +892,8 @@ name = "example"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "core",
  "libc",
+ "shlib_core",
 ]
 
 [[package]]
@@ -1935,6 +1925,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "par-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dd-agent-log",
+ "log",
+ "serde",
+ "serde_yaml",
+ "tokio",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2725,6 +2728,16 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "shlib_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "serde",
+ "serde_yaml",
+]
 
 [[package]]
 name = "signal-hook-registry"
