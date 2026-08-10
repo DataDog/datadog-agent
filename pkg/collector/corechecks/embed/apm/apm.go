@@ -265,6 +265,11 @@ func (c *APMCheck) IsHASupported() bool {
 	return false
 }
 
+// WorkloadBalancingGroupID returns an empty group: Agent workload balancing does not apply
+func (c *APMCheck) WorkloadBalancingGroupID() string {
+	return ""
+}
+
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

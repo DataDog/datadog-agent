@@ -298,3 +298,9 @@ func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckBase) IsHASupported() bool {
 	return false
 }
+
+// WorkloadBalancingGroupID returns the empty string: a check is not managed by Agent workload
+// balancing unless it says otherwise.
+func (c *CheckBase) WorkloadBalancingGroupID() string {
+	return ""
+}

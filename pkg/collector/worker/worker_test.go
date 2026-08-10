@@ -25,6 +25,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	workloadbalancing "github.com/DataDog/datadog-agent/comp/workloadbalancing/def"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -143,6 +145,26 @@ func newHACheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *
 	}
 }
 
+type testWorkloadBalancedCheck struct {
+	testCheck
+	groupID string
+}
+
+func (c *testWorkloadBalancedCheck) WorkloadBalancingGroupID() string {
+	return c.groupID
+}
+
+func newWorkloadBalancedCheck(t *testing.T, id string, groupID string) *testWorkloadBalancedCheck {
+	return &testWorkloadBalancedCheck{
+		testCheck: testCheck{
+			t:        t,
+			id:       id,
+			runCount: atomic.NewUint64(0),
+		},
+		groupID: groupID,
+	}
+}
+
 func assertErrorCount(t *testing.T, c check.Check, count int) {
 	stats, found := expvars.CheckStats(c.ID())
 	require.True(t, found)
@@ -157,16 +179,16 @@ func TestWorkerInit(t *testing.T) {
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	senderManager := aggregator.NewNoOpSenderManager()
-	_, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, nil, checksTracker, mockShouldAddStatsFunc, 0)
+	_, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 1, 2, nil, checksTracker, mockShouldAddStatsFunc, 0)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc, 0)
+	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc, 0)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, pendingChecksChan, checksTracker, nil, 0)
+	_, err = NewWorker(senderManager, haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 1, 2, pendingChecksChan, checksTracker, nil, 0)
 	require.NotNil(t, err)
 
-	worker, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), 1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(senderManager, haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	assert.Nil(t, err)
 	assert.NotNil(t, worker)
 }
@@ -188,7 +210,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 			assert.Nil(t, err)
 
 			worker.Run(context.Background())
@@ -210,7 +232,7 @@ func TestWorkerName(t *testing.T) {
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
-		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 		assert.Nil(t, err)
 		assert.NotNil(t, worker)
 
@@ -263,7 +285,7 @@ func TestWorker(t *testing.T) {
 	pendingChecksChan <- testCheck1
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
 	wg.Add(1)
@@ -325,6 +347,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		mockShouldAddStatsFunc,
 		func() (sender.Sender, error) { return nil, nil },
 		haagentmock.NewMockHaAgent(),
+		workloadbalancingmock.NewMock(),
 		100*time.Millisecond,
 		10*time.Second,
 		false,
@@ -401,7 +424,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	}
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -448,7 +471,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	pendingChecksChan <- testCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
 	worker.Run(context.Background())
@@ -504,7 +527,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	pendingChecksChan <- squelchedStatsCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), workloadbalancingmock.NewMock(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
 	worker.Run(context.Background())
@@ -558,6 +581,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 			return mockSender, nil
 		},
 		haagentmock.NewMockHaAgent(),
+		workloadbalancingmock.NewMock(),
 		pollingInterval,
 		10*time.Second,
 		false,
@@ -635,6 +659,7 @@ func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
 			return mockSender, nil
 		},
 		haagentmock.NewMockHaAgent(),
+		workloadbalancingmock.NewMock(),
 		pollingInterval,
 		10*time.Second,
 		true,
@@ -670,6 +695,7 @@ func TestWorkerSenderNil(t *testing.T) {
 			return nil, errors.New("testerr")
 		},
 		haagentmock.NewMockHaAgent(),
+		workloadbalancingmock.NewMock(),
 		pollingInterval,
 		10*time.Second,
 		false,
@@ -714,6 +740,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 			return mockSender, nil
 		},
 		haagentmock.NewMockHaAgent(),
+		workloadbalancingmock.NewMock(),
 		pollingInterval,
 		10*time.Second,
 		false,
@@ -799,7 +826,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			haagentcomp, _ := haagentimpl.NewComponent(requires)
 			haagentcomp.Comp.SetLeader(tt.setLeaderValue)
 
-			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentcomp.Comp, 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentcomp.Comp, workloadbalancingmock.NewMock(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 			require.Nil(t, err)
 
 			wg.Add(1)
@@ -815,6 +842,79 @@ func TestWorker_HaIntegration(t *testing.T) {
 
 			// make sure the check is deleted from checksTracker
 			assert.Equal(t, 0, len(checksTracker.RunningChecks()))
+		})
+	}
+}
+
+func TestWorkerWorkloadBalancing(t *testing.T) {
+	tests := []struct {
+		name                string
+		enabled             bool
+		groupState          workloadbalancing.State
+		expectedGroupedRuns int
+	}{
+		{
+			name:                "active group runs",
+			enabled:             true,
+			groupState:          workloadbalancing.Active,
+			expectedGroupedRuns: 1,
+		},
+		{
+			name:                "standby group is skipped",
+			enabled:             true,
+			groupState:          workloadbalancing.Standby,
+			expectedGroupedRuns: 0,
+		},
+		{
+			// A group we have never been assigned still runs. A device nobody polls is worse than
+			// two agents polling it.
+			name:                "unmanaged group runs",
+			enabled:             true,
+			groupState:          workloadbalancing.Unmanaged,
+			expectedGroupedRuns: 1,
+		},
+		{
+			name:                "disabled ignores the group state entirely",
+			enabled:             false,
+			groupState:          workloadbalancing.Standby,
+			expectedGroupedRuns: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expvars.Reset()
+
+			var wg sync.WaitGroup
+
+			checksTracker := tracker.NewRunningChecksTracker()
+			pendingChecksChan := make(chan check.Check, 10)
+			mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+			groupedCheck := newWorkloadBalancedCheck(t, "snmp:123", "group1")
+			ungroupedCheck := newWorkloadBalancedCheck(t, "snmp:456", "")
+
+			pendingChecksChan <- groupedCheck
+			pendingChecksChan <- ungroupedCheck
+			close(pendingChecksChan)
+
+			wbMock := workloadbalancingmock.NewMock().(workloadbalancingmock.Component)
+			wbMock.SetEnabled(tt.enabled)
+			wbMock.SetGroupState("group1", tt.groupState)
+
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), wbMock, 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+			require.Nil(t, err)
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				worker.Run(context.Background())
+			}()
+
+			wg.Wait()
+
+			assert.Equal(t, tt.expectedGroupedRuns, groupedCheck.RunCount())
+			// A check with no group is never suppressed.
+			assert.Equal(t, 1, ungroupedCheck.RunCount())
 		})
 	}
 }
@@ -893,6 +993,7 @@ func TestWorkerWatchdogWarningLog(t *testing.T) {
 				func(checkid.ID) bool { return true },
 				func() (sender.Sender, error) { return nil, nil },
 				haagentmock.NewMockHaAgent(),
+				workloadbalancingmock.NewMock(),
 				100*time.Millisecond,
 				tt.watchdogTimeout,
 				false,
@@ -956,6 +1057,7 @@ func TestWorkerRecoverFromCheckPanic(t *testing.T) {
 	worker, err := NewWorker(
 		aggregator.NewNoOpSenderManager(),
 		haagentmock.NewMockHaAgent(),
+		workloadbalancingmock.NewMock(),
 		100, 200,
 		pendingChecksChan,
 		checksTracker,

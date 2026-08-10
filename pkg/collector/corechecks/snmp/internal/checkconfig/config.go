@@ -127,6 +127,10 @@ type InstanceConfig struct {
 	Loader                string                              `yaml:"loader"`
 	UseRCProfiles         *Boolean                            `yaml:"use_remote_config_profiles"`
 
+	// WorkloadBalancingGroup is written by the NDM reconciler, not by users. It names the group
+	// this device belongs to for Agent workload balancing.
+	WorkloadBalancingGroup string `yaml:"agent_workload_balancing_group"`
+
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
 	// TODO: deprecated extra tags in favour of using autodiscovery listener Service.GetTags()
@@ -208,6 +212,10 @@ type CheckConfig struct {
 	PingConfig  pinger.Config
 
 	UseUnconnectedUDPSocket bool
+
+	// WorkloadBalancingGroup is the Agent workload balancing group this device belongs to, empty
+	// when the device is not managed by workload balancing.
+	WorkloadBalancingGroup string
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
@@ -412,6 +420,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.PrivProtocol = instance.PrivProtocol
 	c.PrivKey = instance.PrivKey
 	c.ContextName = instance.ContextName
+
+	c.WorkloadBalancingGroup = instance.WorkloadBalancingGroup
 
 	if instance.OidBatchSize != 0 {
 		c.OidBatchSize = int(instance.OidBatchSize)
@@ -653,6 +663,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.PingConfig.UseRawSocket = c.PingConfig.UseRawSocket
 
 	newConfig.UseUnconnectedUDPSocket = c.UseUnconnectedUDPSocket
+	newConfig.WorkloadBalancingGroup = c.WorkloadBalancingGroup
 
 	return &newConfig
 }

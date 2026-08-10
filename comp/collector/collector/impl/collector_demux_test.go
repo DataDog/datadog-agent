@@ -27,6 +27,7 @@ import (
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
@@ -90,15 +91,16 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 	)
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
 	suite.c = newCollector(dependencies{
-		Lc:               compdef.NewTestLifecycle(suite.T()),
-		Config:           config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
-		Log:              logmock.New(suite.T()),
-		HaAgent:          haagentmock.NewMockHaAgent(),
-		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),
-		Hostname:         hostname,
-		SenderManager:    suite.SenderManagerMock,
-		MetricSerializer: option.None[serializer.MetricSerializer](),
-		AgentTelemetry:   option.None[agenttelemetry.Component](),
+		Lc:                compdef.NewTestLifecycle(suite.T()),
+		Config:            config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
+		Log:               logmock.New(suite.T()),
+		HaAgent:           haagentmock.NewMockHaAgent(),
+		WorkloadBalancing: workloadbalancingmock.NewMock(),
+		HealthPlatform:    healthplatformnoopimpl.NewNoopComponent(),
+		Hostname:          hostname,
+		SenderManager:     suite.SenderManagerMock,
+		MetricSerializer:  option.None[serializer.MetricSerializer](),
+		AgentTelemetry:    option.None[agenttelemetry.Component](),
 	})
 	suite.c.start(context.TODO())
 }

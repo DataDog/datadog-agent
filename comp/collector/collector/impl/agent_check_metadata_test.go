@@ -19,6 +19,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
+	workloadbalancingmock "github.com/DataDog/datadog-agent/comp/workloadbalancing/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -38,15 +39,16 @@ func TestExternalHostTags(t *testing.T) {
 
 	hostname, _ := hostnameinterface.NewMock("my-hostname")
 	c := newCollector(dependencies{
-		Lc:               compdef.NewTestLifecycle(t),
-		Config:           config.NewMockWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
-		Log:              logmock.New(t),
-		HaAgent:          haagentmock.NewMockHaAgent(),
-		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),
-		Hostname:         hostname,
-		SenderManager:    aggregator.NewNoOpSenderManager(),
-		MetricSerializer: option.None[serializer.MetricSerializer](),
-		AgentTelemetry:   option.None[agenttelemetry.Component](),
+		Lc:                compdef.NewTestLifecycle(t),
+		Config:            config.NewMockWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
+		Log:               logmock.New(t),
+		HaAgent:           haagentmock.NewMockHaAgent(),
+		WorkloadBalancing: workloadbalancingmock.NewMock(),
+		HealthPlatform:    healthplatformnoopimpl.NewNoopComponent(),
+		Hostname:          hostname,
+		SenderManager:     aggregator.NewNoOpSenderManager(),
+		MetricSerializer:  option.None[serializer.MetricSerializer](),
+		AgentTelemetry:    option.None[agenttelemetry.Component](),
 	})
 
 	pl := c.GetPayload(context.Background())

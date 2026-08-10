@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    NDM: Added Agent workload balancing, enabled with ``agent_workload_balancing.enabled``.
+    When enabled, the Agent receives group assignments over Remote Config and skips checks
+    belonging to a group another Agent is actively running. Checks that are not assigned to a
+    workload balancing group are unaffected. The SNMP integration reads its group from the
+    ``agent_workload_balancing_group`` instance setting, which is written by Datadog rather than
+    by users.
