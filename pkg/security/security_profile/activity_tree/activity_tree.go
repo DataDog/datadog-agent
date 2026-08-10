@@ -365,19 +365,6 @@ func (at *ActivityTree) Debug(w io.Writer) {
 	}
 }
 
-// ScrubProcessArgsEnvs scrubs and retains process args and envs
-func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	// iterate through all the process nodes
-	openList := make([]*ProcessNode, len(at.ProcessNodes))
-	copy(openList, at.ProcessNodes)
-
-	for len(openList) != 0 {
-		current := openList[len(openList)-1]
-		current.scrubAndReleaseArgsEnvs(resolver)
-		openList = append(openList[:len(openList)-1], current.Children...)
-	}
-}
-
 // DifferentiateArgs enables the args differentiation feature
 func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true

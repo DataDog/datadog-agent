@@ -96,12 +96,8 @@ func (at *ActivityTree) PrepareGraphData(name string, selector string, resolver 
 
 func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, resolver *process.EBPFResolver) utils.GraphID {
 	var args string
-	var argv []string
-	if resolver != nil {
-		argv, _ = resolver.GetProcessArgvScrubbed(&p.Process)
-	} else {
-		argv, _ = process.GetProcessArgv(&p.Process)
-	}
+	// Args are already scrubbed and resolved when the node is created (see newProcessInfo).
+	argv := p.Process.Argv
 	if len(argv) > 0 {
 		args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
 		args = strings.ReplaceAll(args, "\n", " ")

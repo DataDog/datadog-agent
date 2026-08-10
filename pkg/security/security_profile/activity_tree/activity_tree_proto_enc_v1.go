@@ -156,7 +156,7 @@ func syscallNodeToProto(sysc *SyscallNode, tagIDToImageTag func(id uint64) strin
 	}
 }
 
-func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
+func processNodeToProto(p *ProcessInfo) *adproto.ProcessInfo {
 	if p == nil {
 		return nil
 	}

@@ -127,7 +127,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		if evt.ProcessContext == nil {
 			evt.ProcessContext = &model.ProcessContext{}
 		}
-		evt.ProcessContext.Process = pn.Process
+		evt.ProcessContext.Process = pn.Process.ToModelProcess()
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
@@ -144,7 +144,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 			mode := utils.UnixStatModeToGoFileMode(stat.Mode)
 			if mode.IsRegular() {
-				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &evt.ProcessContext.Process, &evt.Open.File)
 			}
 		} else {
 			evt.Open.File.FileFields.Mode = uint16(fileStats.Mode)
@@ -161,7 +161,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.MountID = uint32(fileStats.Mnt_id)
 
 			if (fileStats.Mode & syscall.S_IFREG) != 0 {
-				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &evt.ProcessContext.Process, &evt.Open.File)
 			}
 		}
 

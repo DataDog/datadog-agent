@@ -128,16 +128,14 @@ func protoDecodeSyscallNode(sysc *adproto.SyscallNode, getIDFromImageTag func(im
 	return syscallNode
 }
 
-func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
+func protoDecodeProcessNode(p *adproto.ProcessInfo) ProcessInfo {
 	if p == nil {
-		return model.Process{}
+		return ProcessInfo{}
 	}
 
-	mp := model.Process{
-		PIDContext: model.PIDContext{
-			Pid: p.Pid,
-			Tid: p.Tid,
-		},
+	mp := ProcessInfo{
+		Pid:        p.Pid,
+		Tid:        p.Tid,
 		PPid:       p.Ppid,
 		Cookie:     p.Cookie64,
 		IsThread:   p.IsThread,
