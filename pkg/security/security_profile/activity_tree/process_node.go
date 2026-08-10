@@ -36,10 +36,108 @@ type ProcessNodeParent interface {
 	AppendImageTagID(imageTagID uint64, timestamp time.Time)
 }
 
+// ProcessInfo is a slim, profile-local subset of model.Process.
+type ProcessInfo struct {
+	Pid    uint32
+	Tid    uint32
+	PPid   uint32
+	Cookie uint64
+
+	IsThread   bool
+	IsExecExec bool
+
+	FileEvent model.FileEvent
+
+	// CGroup and ContainerContext are needed when snapshotting rebuilds an event
+	// from this node: hash resolution keys off CGroup.CGroupID and SBOM/package
+	// resolution keys off ContainerContext.ContainerID.
+	CGroup           model.CGroupContext
+	ContainerContext model.ContainerContext
+
+	TTYName string
+	Comm    string
+
+	ForkTime time.Time
+	ExitTime time.Time
+	ExecTime time.Time
+
+	// Embedded (like model.Process) so promoted accessors such as .UID/.User keep working.
+	model.Credentials
+
+	Argv0         string
+	Argv          []string
+	ArgsTruncated bool
+
+	Envs          []string
+	EnvsTruncated bool
+}
+
+// newProcessInfo builds the slim ProcessInfo from a model.Process, scrubbing and resolving
+// args and envs on a copy so the raw ArgsEntry/EnvsEntry and Envp can be dropped.
+func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessInfo {
+	pc := *p
+	if resolver != nil {
+		// scrubs ArgsEntry values in place and populates pc.Argv
+		resolver.GetProcessArgvScrubbed(&pc)
+		resolver.GetProcessEnvs(&pc)
+	} else {
+		sprocess.GetProcessArgv(&pc)
+	}
+	sprocess.GetProcessArgv0(&pc)
+
+	return ProcessInfo{
+		Pid:              pc.Pid,
+		Tid:              pc.Tid,
+		PPid:             pc.PPid,
+		Cookie:           pc.Cookie,
+		IsThread:         pc.IsThread,
+		IsExecExec:       pc.IsExecExec,
+		FileEvent:        pc.FileEvent,
+		CGroup:           pc.CGroup,
+		ContainerContext: pc.ContainerContext,
+		TTYName:          pc.TTYName,
+		Comm:             pc.Comm,
+		ForkTime:         pc.ForkTime,
+		ExitTime:         pc.ExitTime,
+		ExecTime:         pc.ExecTime,
+		Credentials:      pc.Credentials,
+		Argv0:            pc.Argv0,
+		Argv:             pc.Argv,
+		ArgsTruncated:    pc.ArgsTruncated,
+		Envs:             pc.Envs,
+		EnvsTruncated:    pc.EnvsTruncated,
+	}
+}
+
+// ToModelProcess rebuilds a model.Process from the slim ProcessInfo.
+func (pi *ProcessInfo) ToModelProcess() model.Process {
+	return model.Process{
+		PIDContext:       model.PIDContext{Pid: pi.Pid, Tid: pi.Tid},
+		PPid:             pi.PPid,
+		Cookie:           pi.Cookie,
+		IsThread:         pi.IsThread,
+		IsExecExec:       pi.IsExecExec,
+		FileEvent:        pi.FileEvent,
+		CGroup:           pi.CGroup,
+		ContainerContext: pi.ContainerContext,
+		TTYName:          pi.TTYName,
+		Comm:             pi.Comm,
+		ForkTime:         pi.ForkTime,
+		ExitTime:         pi.ExitTime,
+		ExecTime:         pi.ExecTime,
+		Credentials:      pi.Credentials,
+		Argv0:            pi.Argv0,
+		Argv:             pi.Argv,
+		ArgsTruncated:    pi.ArgsTruncated,
+		Envs:             pi.Envs,
+		EnvsTruncated:    pi.EnvsTruncated,
+	}
+}
+
 // ProcessNode holds the activity of a process
 type ProcessNode struct {
 	NodeBase
-	Process        model.Process
+	Process        ProcessInfo
 	Parent         ProcessNodeParent
 	GenerationType NodeGenerationType
 	MatchedRules   []*model.MatchedRule
@@ -82,14 +180,16 @@ func (pn *ProcessNode) size() int64 {
 // NewProcessNode returns a new ProcessNode instance
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
+	var processResolver *sprocess.EBPFResolver
 	if resolvers != nil {
 		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent, 0)
 		if entry.ProcessContext.HasInterpreter() {
 			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent, 0)
 		}
+		processResolver = resolvers.ProcessResolver
 	}
 	node := &ProcessNode{
-		Process:        entry.Process,
+		Process:        newProcessInfo(&entry.Process, processResolver),
 		GenerationType: generationType,
 	}
 	node.NodeBase = NewNodeBase()
@@ -128,7 +228,7 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	builder.WriteString("<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">")
 	var cmd string
 	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
-		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
+		arg0 := pn.Process.Argv0
 		cmd = fmt.Sprintf("%s %s", arg0, args)
 	} else {
 		cmd = fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
@@ -192,20 +292,6 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 	}
 }
 
-// scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
-func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.EBPFResolver) {
-	if pn.Process.ArgsEntry != nil {
-		resolver.GetProcessArgvScrubbed(&pn.Process)
-		sprocess.GetProcessArgv0(&pn.Process)
-		pn.Process.ArgsEntry = nil
-
-	}
-	if pn.Process.EnvsEntry != nil {
-		resolver.GetProcessEnvs(&pn.Process)
-		pn.Process.EnvsEntry = nil
-	}
-}
-
 // Matches return true if the process fields used to generate the dump are identical with the provided model.Process
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize bool) bool {
 	if normalize {
@@ -218,14 +304,14 @@ func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize b
 	}
 
 	if sprocess.IsBusybox(entry.FileEvent.PathnameStr) {
-		panArg0, _ := sprocess.GetProcessArgv0(&pn.Process)
+		panArg0 := pn.Process.Argv0
 		entryArg0, _ := sprocess.GetProcessArgv0(entry)
 		if panArg0 != entryArg0 {
 			return false
 		}
 	}
 	if matchArgs {
-		panArgs, _ := sprocess.GetProcessArgv(&pn.Process)
+		panArgs := pn.Process.Argv
 		entryArgs, _ := sprocess.GetProcessArgv(entry)
 		if len(panArgs) != len(entryArgs) {
 			return false
