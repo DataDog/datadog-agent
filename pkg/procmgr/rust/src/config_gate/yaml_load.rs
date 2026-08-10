@@ -22,13 +22,23 @@ use serde_yaml::{Mapping, Number, Sequence, Value};
 
 /// Parse YAML for config-gate lookups, matching Agent config file semantics.
 pub(super) fn load_yaml(contents: &str) -> Result<Value> {
-    match serde_yaml::from_str(contents) {
-        Ok(value) => Ok(value),
+    let value = match serde_yaml::from_str(contents) {
+        Ok(mut value) => {
+            apply_yaml_merges(&mut value)?;
+            value
+        }
         Err(strict_err) => {
             debug!("strict YAML parse failed, retrying permissive: {strict_err}");
-            load_yaml_permissive(contents).with_context(|| strict_err.to_string())
+            load_yaml_permissive(contents).with_context(|| strict_err.to_string())?
         }
-    }
+    };
+    Ok(value)
+}
+
+fn apply_yaml_merges(value: &mut Value) -> Result<()> {
+    value
+        .apply_merge()
+        .context("apply YAML merge keys for config gate lookup")
 }
 
 /// Same shape as `serde_yaml::Value`, but mappings use `HashMap` (last duplicate wins).
@@ -45,7 +55,9 @@ enum PermissiveValue {
 
 fn load_yaml_permissive(contents: &str) -> Result<Value> {
     let root: PermissiveValue = serde_yaml::from_str(contents)?;
-    Ok(permissive_to_value(root))
+    let mut value = permissive_to_value(root);
+    apply_yaml_merges(&mut value)?;
+    Ok(value)
 }
 
 fn permissive_to_value(value: PermissiveValue) -> Value {
@@ -121,6 +133,33 @@ mod tests {
                 .and_then(|v| v.get("process_collection"))
                 .and_then(|v| v.get("enabled")),
             Some(&Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn merge_keys_expand_disabled_process_config_defaults() {
+        let yaml = r#"
+disabled: &disabled
+  process_collection:
+    enabled: false
+  container_collection:
+    enabled: false
+
+process_config:
+  <<: *disabled
+"#;
+        let root = load_yaml(yaml).unwrap();
+        assert_eq!(
+            root.get("process_config")
+                .and_then(|v| v.get("process_collection"))
+                .and_then(|v| v.get("enabled")),
+            Some(&Value::Bool(false))
+        );
+        assert_eq!(
+            root.get("process_config")
+                .and_then(|v| v.get("container_collection"))
+                .and_then(|v| v.get("enabled")),
+            Some(&Value::Bool(false))
         );
     }
 }
