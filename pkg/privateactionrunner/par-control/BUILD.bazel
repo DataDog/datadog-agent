@@ -1,4 +1,3 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
 _LINUX_OR_WINDOWS = select({
@@ -6,17 +5,6 @@ _LINUX_OR_WINDOWS = select({
     "@platforms//os:windows": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
-
-# rust_prost_library propagates CcInfo from proto_library, which transitively
-# includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default.
-cc_library(
-    name = "cpp_stdlib",
-    linkopts = select({
-        "@platforms//os:windows": [],
-        "@platforms//os:macos": [],
-        "//conditions:default": ["-lstdc++"],
-    }),
-)
 
 rust_library(
     name = "par-control-lib",
@@ -31,22 +19,17 @@ rust_library(
     ],
     crate_name = "par_control",
     edition = "2024",
-    link_deps = [":cpp_stdlib"],
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/proto/datadog/procmgr:procmgr_rust_proto",
+        "//pkg/procmgr/rust/client:dd-procmgr-client",
         "@crates//:anyhow",
-        "@crates//:hyper-util",
         "@crates//:log",
-        "@crates//:prost",
         "@crates//:serde",
         "@crates//:serde_yaml",
         "@crates//:tokio",
         "@crates//:tonic",
-        "@crates//:tonic-prost",
-        "@crates//:tower",
     ] + select({
         "@platforms//os:windows": [
             "@crates//:windows-registry",
