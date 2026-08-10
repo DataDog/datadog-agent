@@ -109,9 +109,11 @@ rust_test(
     }),
     edition = "2024",
     env = select({
-        # The Windows loader searches PATH before main(), so point it at the
-        # runfiles directory containing the Agent OpenSSL DLLs.
-        "@platforms//os:windows": {"PATH": "$(rlocationpath :par-control_test_openssl_dlls)"},
+        # The Windows loader searches PATH before main(), so use the path from
+        # the test's runfiles working directory. rlocationpath is a logical key
+        # for a runfiles library and includes the workspace name, so Windows
+        # cannot use it directly as a PATH entry.
+        "@platforms//os:windows": {"PATH": "$(rootpath :par-control_test_openssl_dlls)"},
         "//conditions:default": {},
     }),
     rustc_env = _RUSTC_ENV,
