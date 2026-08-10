@@ -140,7 +140,7 @@ func TestProcessContainer(t *testing.T) {
 			{Type: workloadmeta.EventTypeUnset, Entity: &podContainer},
 			{Type: workloadmeta.EventTypeUnset, Entity: &taskContainer},
 		},
-	})
+	}, workloadmeta.SourceRuntime)
 
 	hostName, _ := hostname.Get(context.TODO())
 
