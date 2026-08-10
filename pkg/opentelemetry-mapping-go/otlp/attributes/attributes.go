@@ -110,7 +110,7 @@ var (
 		"app.kubernetes.io/name":       "kube_app_name",
 		"app.kubernetes.io/instance":   "kube_app_instance",
 		"app.kubernetes.io/version":    "kube_app_version",
-		"app.kuberenetes.io/component": "kube_app_component",
+		"app.kubernetes.io/component":  "kube_app_component",
 		"app.kubernetes.io/part-of":    "kube_app_part_of",
 		"app.kubernetes.io/managed-by": "kube_app_managed_by",
 	}
