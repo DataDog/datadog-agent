@@ -226,10 +226,42 @@ func durationBetween(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
+// bootOffsetFunc returns the boot-relative offset in milliseconds of a
+// timestamp, on the axis boot_timeline places milestones on.
+//
+// The idle time at the login screen (LoginUIDone -> SessionLogon) is collapsed
+// out of post-logon offsets so the timeline renders contiguously; each
+// milestone's Timestamp keeps wall-clock truth. Group Policy extension
+// invocations are placed with this same function, which is what guarantees an
+// invocation nests inside its parent pass milestone instead of the two sitting
+// on separate copies of the rule that can drift apart.
+//
+// Without a boot reference every offset is zero, reproducing what the timeline
+// already reported in that case.
+func bootOffsetFunc(tl BootTimeline) func(time.Time) int64 {
+	boot := tl.BootStart
+	if boot.IsZero() {
+		return func(time.Time) int64 { return 0 }
+	}
+
+	gap := time.Duration(0)
+	if !tl.LoginUIDone.IsZero() && !tl.SessionLogon.IsZero() && tl.SessionLogon.After(tl.LoginUIDone) {
+		gap = tl.SessionLogon.Sub(tl.LoginUIDone)
+	}
+
+	return func(ts time.Time) int64 {
+		offset := ts.Sub(boot).Milliseconds()
+		if gap > 0 && !ts.Before(tl.SessionLogon) {
+			offset -= gap.Milliseconds()
+		}
+		return offset
+	}
+}
+
 // buildTimelineMilestones returns an ordered slice of boot milestones.
 // Only milestones with a non-zero timestamp are included.
 func buildTimelineMilestones(tl BootTimeline) []Milestone {
-	boot := tl.BootStart
+	const tsFmt = "2006-01-02T15:04:05.000Z"
 
 	candidates := []struct {
 		id       string
@@ -250,40 +282,25 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
 	}
 
-	hasBootRef := !boot.IsZero()
-
-	// gap is the idle time at the login screen (LoginUIDone -> SessionLogon).
-	// It is collapsed out of post-logon offsets so the timeline renders
-	// contiguously; the per-milestone Timestamp retains wall-clock truth.
-	gap := time.Duration(0)
-	if !tl.LoginUIDone.IsZero() && !tl.SessionLogon.IsZero() && tl.SessionLogon.After(tl.LoginUIDone) {
-		gap = tl.SessionLogon.Sub(tl.LoginUIDone)
-	}
+	offsetOf := bootOffsetFunc(tl)
 
 	var milestones []Milestone
 	for _, c := range candidates {
 		if c.ts.IsZero() {
 			continue
 		}
-		var offset float64
-		if hasBootRef {
-			offset = float64(c.ts.Sub(boot).Milliseconds())
-			if gap > 0 && !c.ts.Before(tl.SessionLogon) {
-				offset -= float64(gap.Milliseconds())
-			}
-		}
 		milestones = append(milestones, Milestone{
 			ID:         c.id,
 			Name:       c.name,
-			OffsetMs:   offset,
-			Timestamp:  c.ts.UTC().Format(timestampFormat),
+			OffsetMs:   float64(offsetOf(c.ts)),
+			Timestamp:  c.ts.UTC().Format(tsFmt),
 			DurationMs: float64(c.duration.Milliseconds()),
 		})
 	}
 	return milestones
 }
 
-func buildCustomPayload(tl BootTimeline, gp *GroupPolicyPayload) map[string]interface{} {
+func buildCustomPayload(tl BootTimeline, gp *GroupPolicyDetails) map[string]interface{} {
 	custom := make(map[string]interface{})
 
 	milestones := buildTimelineMilestones(tl)
@@ -327,11 +344,12 @@ func buildCustomPayload(tl BootTimeline, gp *GroupPolicyPayload) map[string]inte
 		custom["durations"] = durations
 	}
 
-	// Emitted whenever Group Policy was analyzed at all, even with no extension
-	// invocations: passes.user.observed answers whether the trace ever reached
-	// user logon, and that answer is worth more than the bytes it costs.
+	// Omitted entirely when no extension invocation was measured end to end.
+	// Whether a pass ran at all is already answered by boot_timeline, which
+	// carries a computer_group_policy / user_group_policy milestone exactly when
+	// that pass's start was observed.
 	if gp != nil {
-		custom["group_policy"] = gp
+		custom["group_policy_details"] = gp
 	}
 
 	return custom

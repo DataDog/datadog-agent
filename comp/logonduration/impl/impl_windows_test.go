@@ -360,7 +360,7 @@ func TestBuildCustomPayload_GroupPolicyAbsentWhenNil(t *testing.T) {
 	// A trace with no Group Policy events at all omits the block entirely, so
 	// existing consumers see exactly what they saw before.
 	custom := buildCustomPayload(fullBootTimeline(time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)), nil)
-	assert.NotContains(t, custom, "group_policy")
+	assert.NotContains(t, custom, "group_policy_details")
 	assert.Contains(t, custom, "boot_timeline")
 	assert.Contains(t, custom, "durations")
 }
@@ -370,7 +370,9 @@ func TestBuildCustomPayload_ExistingKeysUnchanged(t *testing.T) {
 	tl := fullBootTimeline(boot)
 
 	withoutGP := buildCustomPayload(tl, nil)
-	withGP := buildCustomPayload(tl, &GroupPolicyPayload{Version: groupPolicyPayloadVersion})
+	withGP := buildCustomPayload(tl, &GroupPolicyDetails{
+		Computer: []CSEInvocation{{CSEID: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"}},
+	})
 
 	// Adding the block must not perturb either existing key.
 	for _, key := range []string{"boot_timeline", "durations"} {
@@ -389,124 +391,99 @@ func TestBuildCustomPayload_ExistingKeysUnchanged(t *testing.T) {
 
 func TestSubmitEvent_GroupPolicyReachesTheWire(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
-	duration := int64(1250)
-	elapsed := uint32(1248)
-	code := "0x00000000"
 
-	gp := &GroupPolicyPayload{Version: groupPolicyPayloadVersion}
-	gp.Passes.Computer = GPPass{
-		Observed: true,
-		CSEInvocations: []CSEInvocation{{
-			CSEGUID:           "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}",
-			CSEName:           "Registry",
-			Start:             boot.Add(12500 * time.Millisecond).Format(timestampFormat),
-			End:               boot.Add(13750 * time.Millisecond).Format(timestampFormat),
-			DurationMs:        &duration,
-			ReportedElapsedMs: &elapsed,
-			Result:            cseResultSuccess,
-			ErrorCode:         &code,
-			Complete:          true,
-			ApplicableGPOIDs:  []string{"{31B2F340-016D-11D2-945F-00C04FB984F9}"},
+	gp := &GroupPolicyDetails{
+		Computer: []CSEInvocation{{
+			CSEID:      "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}",
+			CSEName:    "Registry",
+			OffsetMs:   12500,
+			DurationMs: 1250,
+			Result:     cseResultSuccess,
+			GPOs: []GPORef{{
+				ID:   "{31B2F340-016D-11D2-945F-00C04FB984F9}",
+				Name: "Default Domain Policy",
+			}},
 		}},
 	}
-	gp.Passes.User = GPPass{CSEInvocations: []CSEInvocation{}}
-	gp.GPOs = []GPO{{
-		ID:   "{31B2F340-016D-11D2-945F-00C04FB984F9}",
-		Name: "Default Domain Policy",
-		SOM:  "DC=corp,DC=example",
-	}}
 
 	custom, _ := submitAndDecodeCustom(t, &AnalysisResult{
 		Timeline:    BootTimeline{BootStart: boot},
 		GroupPolicy: gp,
 	})
 
-	block, ok := custom["group_policy"].(map[string]interface{})
-	require.True(t, ok, "group_policy should be present under custom")
-	assert.Equal(t, float64(1), block["version"])
+	block, ok := custom["group_policy_details"].(map[string]interface{})
+	require.True(t, ok, "group_policy_details should be present under custom")
 
-	passes := block["passes"].(map[string]interface{})
-	computer := passes["computer"].(map[string]interface{})
-	user := passes["user"].(map[string]interface{})
-
-	// The coverage signal: user scope is affirmatively reported as unobserved.
-	assert.Equal(t, true, computer["observed"])
-	assert.Equal(t, false, user["observed"])
-	assert.Equal(t, []interface{}{}, user["cse_invocations"])
-
-	invocations := computer["cse_invocations"].([]interface{})
+	invocations := block["computer"].([]interface{})
 	require.Len(t, invocations, 1)
 	inv := invocations[0].(map[string]interface{})
+	assert.Equal(t, "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}", inv["cse_id"])
 	assert.Equal(t, "Registry", inv["cse_name"])
+	assert.Equal(t, float64(12500), inv["offset_ms"])
 	assert.Equal(t, float64(1250), inv["duration_ms"])
-	assert.Equal(t, float64(1248), inv["reported_elapsed_ms"])
 	assert.Equal(t, "success", inv["result"])
-	assert.Equal(t, "0x00000000", inv["error_code"])
-	assert.Equal(t, []interface{}{"{31B2F340-016D-11D2-945F-00C04FB984F9}"}, inv["applicable_gpo_ids"])
-	assert.NotContains(t, inv, "scope", "the enclosing pass carries the scope")
+	assert.NotContains(t, inv, "scope", "the enclosing array carries the scope")
+	assert.NotContains(t, inv, "error_code", "a successful invocation carries no code")
 
-	gpos := block["gpos"].([]interface{})
+	// GPOs are inlined, so a consumer rendering pass -> CSE -> GPO needs no join.
+	gpos := inv["gpos"].([]interface{})
 	require.Len(t, gpos, 1)
 	assert.Equal(t, "{31B2F340-016D-11D2-945F-00C04FB984F9}", gpos[0].(map[string]interface{})["id"])
-	assert.NotContains(t, gpos[0].(map[string]interface{}), "applied",
-		"applicability is per pass, so it is not modelled on the GPO")
+	assert.Equal(t, "Default Domain Policy", gpos[0].(map[string]interface{})["name"])
+
+	// A pass with nothing measured is simply absent; boot_timeline is what says
+	// whether the pass ran.
+	assert.NotContains(t, block, "user")
 
 	// The existing keys still ride alongside.
 	assert.Contains(t, custom, "boot_timeline")
 }
 
 func TestSubmitEvent_PayloadSizeStaysUnderWarnThreshold(t *testing.T) {
-	// Saturate every bound so a future field addition that blows the byte
-	// budget fails here rather than as an invisible intake rejection.
+	// A pessimistic but realistic worst case: Windows registers roughly 30
+	// extensions per scope, so 60 per pass is double that, and 20 applicable
+	// GPOs per extension is far past what a normal domain applies. This is the
+	// empirical backing for inlining GPOs instead of pooling them in a shared
+	// table, and it fails here rather than as an invisible intake rejection if
+	// a future field blows the budget.
+	const (
+		invocationsPerPass = 60
+		gposPerInvocation  = 20
+	)
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
-	gp := &GroupPolicyPayload{Version: groupPolicyPayloadVersion}
 
-	gpoIDs := make([]string, maxApplicableGPOIDsPerCSE)
-	for i := range gpoIDs {
-		gpoIDs[i] = fmt.Sprintf("{%08X-016D-11D2-945F-00C04FB984F9}", i)
+	gpos := make([]GPORef, gposPerInvocation)
+	for i := range gpos {
+		gpos[i] = GPORef{
+			ID:   fmt.Sprintf("{%08X-016D-11D2-945F-00C04FB984F9}", i),
+			Name: strings.Repeat("G", maxGPONameBytes),
+		}
 	}
 
-	saturatedPass := func() GPPass {
-		invs := make([]CSEInvocation, 0, maxCSEInvocationsPerPass)
-		for i := 0; i < maxCSEInvocationsPerPass; i++ {
-			d := int64(i)
-			e := uint32(i)
-			c := "0x8000000A"
+	pass := func() []CSEInvocation {
+		invs := make([]CSEInvocation, 0, invocationsPerPass)
+		for i := 0; i < invocationsPerPass; i++ {
 			invs = append(invs, CSEInvocation{
-				CSEGUID:           fmt.Sprintf("{%08X-683F-11D2-A89A-00C04FBBCFA2}", i),
-				CSEName:           strings.Repeat("N", maxCSENameBytes),
-				Start:             boot.Add(time.Duration(i) * time.Second).Format(timestampFormat),
-				End:               boot.Add(time.Duration(i+1) * time.Second).Format(timestampFormat),
-				DurationMs:        &d,
-				ReportedElapsedMs: &e,
-				Result:            cseResultSuccess,
-				ErrorCode:         &c,
-				Complete:          true,
-				ApplicableGPOIDs:  gpoIDs,
+				CSEID:      fmt.Sprintf("{%08X-683F-11D2-A89A-00C04FBBCFA2}", i),
+				CSEName:    strings.Repeat("N", maxCSENameBytes),
+				OffsetMs:   int64(i) * 1000,
+				DurationMs: int64(i),
+				Result:     cseResultError,
+				ErrorCode:  "0x8000000A",
+				Async:      true,
+				GPOs:       gpos,
 			})
 		}
-		return GPPass{Observed: true, CSEInvocations: invs}
-	}
-	gp.Passes.Computer = saturatedPass()
-	gp.Passes.User = saturatedPass()
-
-	gp.GPOs = make([]GPO, 0, maxGPOsTotal)
-	for i := 0; i < maxGPOsTotal; i++ {
-		gp.GPOs = append(gp.GPOs, GPO{
-			ID:      fmt.Sprintf("{%08X-016D-11D2-945F-00C04FB984F9}", i),
-			Name:    strings.Repeat("G", maxGPONameBytes),
-			SOM:     strings.Repeat("S", maxGPOSOMBytes),
-			Version: "65539",
-		})
+		return invs
 	}
 
 	_, size := submitAndDecodeCustom(t, &AnalysisResult{
 		Timeline:    fullBootTimeline(boot),
-		GroupPolicy: gp,
+		GroupPolicy: &GroupPolicyDetails{Computer: pass(), User: pass()},
 	})
 
 	assert.Less(t, size, payloadSizeWarnBytes,
-		"a fully saturated payload must stay under the size warning threshold (was %d bytes)", size)
+		"a worst-case payload must stay under the size warning threshold (was %d bytes)", size)
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {

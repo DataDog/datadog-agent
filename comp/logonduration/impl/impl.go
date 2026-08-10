@@ -22,10 +22,9 @@ import (
 // persistentCacheKey stores the last boot time to detect reboots across agent restarts.
 const persistentCacheKey = "logon_duration:last_boot_time"
 
-// payloadSizeWarnBytes is the marshalled event size above which sendEvent warns.
-// The per-collection bounds applied while building the payload are what actually
-// keep it small; this is a backstop that makes an unexpectedly large event
-// visible in the Agent log rather than only as a silent intake rejection.
+// payloadSizeWarnBytes is the marshalled event size above which sendEvent
+// warns. It makes an unexpectedly large event visible in the Agent log rather
+// than only as a silent intake rejection.
 const payloadSizeWarnBytes = 1024 * 1024
 
 // Provides defines what this component provides
@@ -100,12 +99,9 @@ func sendEvent(forwarder eventplatform.Forwarder, input eventInput) error {
 	}
 
 	// The event-management pipeline streams one event per request and never
-	// splits, so an oversize payload is not batched down - it is rejected by the
-	// intake with HTTP 413, which the logs library classifies as non-retryable
-	// and drops. SendEventPlatformEventBlocking has already returned nil by
-	// then, so this warning is the only signal the Agent can ever produce.
-	// It only warns: the true intake ceiling is unknown, and dropping the event
-	// here would guarantee the loss that the intake might not have caused.
+	// splits, so an oversize payload is rejected by the intake with HTTP 413
+	// after SendEventPlatformEventBlocking has already returned nil. This
+	// warning is the only signal the Agent can produce.
 	if len(jsonData) > payloadSizeWarnBytes {
 		log.Warnf("Logon duration: event payload is %d bytes, above the %d-byte warning threshold; the intake may reject it and the rejection is not reported back to the Agent",
 			len(jsonData), payloadSizeWarnBytes)

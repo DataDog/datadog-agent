@@ -76,12 +76,15 @@ func (e *Event) GetPropertyByName(name string) (string, error) {
 // GetEventPropertyString returns the string value of a named property.
 // GetPropertyString on Event provides the same functionality as a method.
 //
-// A partial parse is still consulted: EventProperties returns everything it
-// decoded before failing, so a property that precedes the failure is returned
-// normally. Returns "" when the property is absent, which is indistinguishable
-// from a property whose value is legitimately the empty string.
+// A failed decode yields "" even for a property that precedes the failure and
+// was recovered. Callers that want the partial result should call
+// EventProperties directly; changing this would silently alter what every
+// existing caller sees.
 func GetEventPropertyString(e *Event, name string) string {
-	props, _ := e.EventProperties()
+	props, err := e.EventProperties()
+	if err != nil {
+		return ""
+	}
 	if v, ok := props[name]; ok {
 		return fmt.Sprintf("%v", v)
 	}

@@ -7,7 +7,6 @@ go_library(
         "analyzer.go",
         "autologger.go",
         "grouppolicy.go",
-        "grouppolicy_xml.go",
         "impl.go",
         "impl_darwin.go",
         "impl_noop.go",

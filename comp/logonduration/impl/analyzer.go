@@ -60,12 +60,6 @@ const (
 	evtUserGPStart    uint16 = 4001
 	evtUserGPEnd      uint16 = 8001
 
-	// evtGPActivityStartMax is the last of the 4000-4007 activity-start range.
-	// The range covers boot (4000/4001), network state change (4002/4003),
-	// manual gpupdate (4004/4005), and periodic refresh (4006/4007), and
-	// alternates by parity: even is computer scope, odd is user scope.
-	evtGPActivityStartMax uint16 = 4007
-
 	// Group Policy client-side extensions. The three stop events share an
 	// identical template and differ only in severity.
 	evtCSEStart       uint16 = 4016
@@ -186,9 +180,6 @@ func buildProviders(timeline *BootTimeline, gp *gpAccumulator) map[windows.GUID]
 			acceptedIDs: map[uint16]struct{}{
 				evtMachineGPStart: {}, evtMachineGPEnd: {},
 				evtUserGPStart: {}, evtUserGPEnd: {},
-				// Non-boot activity starts, which seed the scope of any
-				// extension invocation correlated to them.
-				4002: {}, 4003: {}, 4004: {}, 4005: {}, 4006: {}, 4007: {},
 				evtCSEStart:       {},
 				evtCSEStopSuccess: {}, evtCSEStopWarning: {}, evtCSEStopError: {},
 				evtGPOListApplicable: {},
@@ -209,10 +200,9 @@ func buildProviders(timeline *BootTimeline, gp *gpAccumulator) map[windows.GUID]
 // AnalysisResult holds the structured output from ETL analysis.
 type AnalysisResult struct {
 	Timeline BootTimeline
-	// GroupPolicy holds the client-side-extension invocations and Group Policy
-	// object metadata observed during the trace. It is nil when the trace
-	// contained no Group Policy events at all.
-	GroupPolicy *GroupPolicyPayload
+	// GroupPolicy holds the client-side-extension invocations measured during
+	// each boot Group Policy pass. It is nil when none were.
+	GroupPolicy *GroupPolicyDetails
 }
 
 // analyzeETL opens an ETL file, processes events, and returns a structured
@@ -265,7 +255,7 @@ func analyzeETL(_ context.Context, etlPath string) (*AnalysisResult, error) {
 
 	return &AnalysisResult{
 		Timeline:    coll.timeline,
-		GroupPolicy: coll.groupPolicy.finalize(),
+		GroupPolicy: coll.groupPolicy.finalize(coll.timeline),
 	}, nil
 }
 
@@ -446,29 +436,29 @@ type groupPolicyParser struct {
 
 func (p *groupPolicyParser) Parse(e eventWithProperties, id uint16, ts time.Time) {
 	switch id {
+	// Both ends of each pass seed the activity table, not just the start: a real
+	// trace was observed carrying 8001 with no 4001, and the stop event
+	// identifies the pass just as well.
 	case evtMachineGPStart:
 		if p.timeline.MachineGPStart.IsZero() {
 			p.timeline.MachineGPStart = ts
 		}
-		p.gp.noteActivityStart(activityIDOf(e), id)
+		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtMachineGPEnd:
 		if p.timeline.MachineGPEnd.IsZero() {
 			p.timeline.MachineGPEnd = ts
 		}
+		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtUserGPStart:
 		if p.timeline.UserGPStart.IsZero() {
 			p.timeline.UserGPStart = ts
 		}
-		p.gp.noteActivityStart(activityIDOf(e), id)
+		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtUserGPEnd:
 		if p.timeline.UserGPEnd.IsZero() {
 			p.timeline.UserGPEnd = ts
 		}
-	case 4002, 4003, 4004, 4005, 4006, 4007:
-		// Non-boot policy processing. These seed the scope of any extension
-		// invocation correlated to them but are not the boot pass reported by
-		// the timeline, so they do not mark the pass as observed.
-		p.gp.noteActivityStart(activityIDOf(e), id)
+		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtCSEStart:
 		p.parseCSEStart(e, ts)
 	case evtCSEStopSuccess, evtCSEStopWarning, evtCSEStopError:
@@ -488,41 +478,43 @@ func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
 		// Without an extension identity the invocation cannot be paired with
 		// its terminal event, so there is nothing meaningful to record.
 		log.Debugf("Logon duration: CSE start event has no usable CSEExtensionId")
-		p.gp.parseErrors++
 		return
 	}
 
 	// Absent or unrecognized, treat the extension as synchronous: that is the
-	// common case, and the flag only ever suppresses a duration.
+	// common case, and the flag only annotates the duration's meaning.
 	isAsync, _ := parseETWBool(prop("IsExtensionAsyncProcessing"))
 
-	ids, gpos, degraded := parseApplicableGPOList(prop("ApplicableGPOList"))
-	if degraded {
-		p.gp.parseErrors++
-	}
-	// Register the referenced objects so every applicable_gpo_ids value
-	// resolves against the payload's GPO table even when no 5312 was observed.
-	p.gp.addGPOs(gpos)
-	p.gp.addGPOIDs(ids)
+	// If ApplicableGPOList carries the same <GPO ID="…"><Name> shape as the 5312
+	// inventory, the display names come straight from here and no inventory
+	// event is needed. If it is a bare list of GUIDs this yields nothing and
+	// 5312 stays the only source of names.
+	gpoList := prop("ApplicableGPOList")
+	p.gp.mergeGPONames(gpoNamesFromInventory(gpoList))
 
 	p.gp.startCSE(activityIDOf(e), observedCSEStart{
-		guid:             guid,
-		guidString:       guidString,
-		name:             prop("CSEExtensionName"),
-		isAsync:          isAsync,
-		applicableGPOIDs: ids,
+		guid:       guid,
+		guidString: guidString,
+		name:       prop("CSEExtensionName"),
+		isAsync:    isAsync,
+		gpoIDs:     gpoIDsFromList(gpoList),
 	}, ts)
 }
 
 // parseCSEStop handles events 5016, 6016, and 7016, which close an extension
-// invocation. Note the provider's own misspelling of the elapsed-time field.
+// invocation.
+//
+// The provider's own CSEElaspedTimeInMilliSeconds is deliberately not read. The
+// emitted duration is the measured 4016-to-terminal interval, which is the same
+// kind of wall-clock measurement as the pass duration it is a slice of; a
+// second, differently-derived number would leave consumers without a clear
+// authoritative field.
 func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts time.Time) {
 	prop := eventPropertyReader(e)
 
 	guid, guidString, ok := normalizeGUID(prop("CSEExtensionId"))
 	if !ok {
 		log.Debugf("Logon duration: CSE stop event %d has no usable CSEExtensionId", id)
-		p.gp.parseErrors++
 		return
 	}
 
@@ -532,10 +524,6 @@ func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts ti
 		guidString: guidString,
 		name:       prop("CSEExtensionName"),
 	}
-	if elapsed, ok := parseUint32(prop("CSEElaspedTimeInMilliSeconds")); ok {
-		stop.elapsedMs = elapsed
-		stop.hasElapsed = true
-	}
 	if code, ok := formatErrorCode(prop("ErrorCode")); ok {
 		stop.errorCode = code
 	}
@@ -544,17 +532,11 @@ func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts ti
 }
 
 // parseGPOInventory handles event 5312, the list of applicable Group Policy
-// objects. It carries no timing fields, so the objects are recorded as metadata
-// only.
+// objects. It is the only source of GPO display names; the objects carry no
+// timing fields, so nothing else is taken from it.
 func (p *groupPolicyParser) parseGPOInventory(e eventWithProperties) {
 	prop := eventPropertyReader(e)
-
-	gpos, err := parseGPOList(prop("GPOInfoList"))
-	if err != nil {
-		log.Debugf("Logon duration: parsing GPOInfoList: %v", err)
-		p.gp.parseErrors++
-	}
-	p.gp.addGPOs(gpos)
+	p.gp.mergeGPONames(gpoNamesFromInventory(prop("GPOInfoList")))
 }
 
 // shellCoreParser processes Shell-Core events for Explorer startup tracking.

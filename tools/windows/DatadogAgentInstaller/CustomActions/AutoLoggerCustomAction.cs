@@ -24,9 +24,11 @@ namespace Datadog.CustomActions
         // Provider GUID -> MatchAnyKeyword mask. The session is enabled at EnableLevel=4
         // (Informational), and each mask is the OR of the keyword bits carried by the event
         // IDs that comp/logonduration/impl/analyzer.go actually consumes. The masks were read
-        // from each provider's manifest (Get-WinEvent -ListProvider); every consumed event ID
-        // is emitted at Level 4, so filtering this way is loss-less for the phases we report
-        // while dropping the verbose, all-keyword firehose we never read.
+        // from each provider's manifest (Get-WinEvent -ListProvider). ETW treats the level as
+        // a ceiling, so Level 4 admits every consumed event ID: most are Informational (4),
+        // and the more severe ones - GroupPolicy 6016 (Warning) and 7016 (Error) - satisfy it
+        // too. Filtering this way is loss-less for the phases we report while dropping the
+        // verbose, all-keyword firehose we never read.
         private static readonly Dictionary<string, long> ProviderKeywords = new Dictionary<string, long>
         {
             // Kernel-Process: WINEVENT_KEYWORD_PROCESS -> process start (evt 1).
@@ -42,9 +44,9 @@ namespace Datadog.CustomActions
             // GroupPolicy: this is the channel-wide Operational keyword, not a set of
             // per-event bits - the provider declares no custom keywords, so every one of
             // its Operational events shares this single mask. Consumed: machine GP
-            // (4000,8000), user GP (4001,8001), the non-boot activity starts (4002-4007),
-            // client-side extension invocations (4016, 5016/6016/7016), and the applicable
-            // GPO list (5312). Narrowing this mask would silently remove all of them.
+            // (4000,8000), user GP (4001,8001), client-side extension invocations
+            // (4016, 5016/6016/7016), and the applicable GPO list (5312). Narrowing this
+            // mask would silently remove all of them.
             { "{AEA1B4FA-97D1-45F2-A64C-4D69FFFD92C9}", 0x4000000000000000L },
             // Shell-Core: StartupPerf | Shell -> explorer init (9601,9602), desktop create
             // (9611,9612), desktop steps (9648,9649).

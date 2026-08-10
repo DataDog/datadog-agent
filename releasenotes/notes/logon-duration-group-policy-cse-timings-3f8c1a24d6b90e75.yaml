@@ -1,9 +1,9 @@
 ---
 enhancements:
   - |
-    The logon duration event on Windows now breaks each Group Policy pass down into the
-    individual client-side extension invocations that ran during it, with start and end
-    timestamps, duration, and outcome per extension, plus the Group Policy objects
-    applicable to each one. Each pass also reports whether it was observed at all, so an
-    empty computer or user pass can be distinguished from a boot trace that ended before
-    that pass ran.
+    The logon duration event on Windows now breaks each boot Group Policy pass down into
+    the individual client-side extension invocations that ran during it, reporting the
+    offset, duration, and outcome of each extension along with the Group Policy objects
+    that fed it. The breakdown appears as a new ``group_policy_details`` block alongside
+    the existing ``boot_timeline`` and ``durations``, and is omitted when no extension
+    invocation was measured end to end.

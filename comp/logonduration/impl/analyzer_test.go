@@ -457,30 +457,39 @@ func TestProcessEvent(t *testing.T) {
 	})
 }
 
+// withActivity stamps an event with an ETW activity ID. Real Group Policy
+// events carry one on EVENT_HEADER, and the collector refuses to attribute an
+// invocation without it, so a fixture that omits it collects nothing.
+func withActivity(e *mockEvent, activity windows.GUID) *mockEvent {
+	e.activityID = activity
+	return e
+}
+
 func TestCollector_FullBootSequence(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 	coll := newCollector()
+	machinePass := windows.GUID{Data1: 0x5BB89DD7}
 
 	events := []*mockEvent{
 		makeEvent(guidKernelGeneral, 12, boot),
 		makeEvent(guidWinlogon, 103, boot.Add(8*time.Second)),
 		makeEvent(guidWinlogon, 104, boot.Add(10*time.Second)),
-		makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)),
+		withActivity(makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)), machinePass),
 		// A client-side extension invoked inside the computer Group Policy pass,
 		// plus the applicable-object list for that pass.
-		makeEvent(guidGroupPolicy, 5312, boot.Add(13*time.Second),
-			property{Name: "GPOInfoList", Value: `<GPO ID="{31B2F340-016D-11D2-945F-00C04FB984F9}"><Name>Default Domain Policy</Name><SOM>DC=corp</SOM></GPO>`}),
-		makeEvent(guidGroupPolicy, 4016, boot.Add(14*time.Second),
+		withActivity(makeEvent(guidGroupPolicy, 5312, boot.Add(13*time.Second),
+			property{Name: "GPOInfoList", Value: `<GPO ID="{31B2F340-016D-11D2-945F-00C04FB984F9}"><Name>Default Domain Policy</Name><SOM>DC=corp</SOM></GPO>`}), machinePass),
+		withActivity(makeEvent(guidGroupPolicy, 4016, boot.Add(14*time.Second),
 			property{Name: "CSEExtensionId", Value: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"},
 			property{Name: "CSEExtensionName", Value: "Registry"},
 			property{Name: "IsExtensionAsyncProcessing", Value: "false"},
-			property{Name: "ApplicableGPOList", Value: "{31B2F340-016D-11D2-945F-00C04FB984F9}"}),
-		makeEvent(guidGroupPolicy, 5016, boot.Add(17*time.Second),
+			property{Name: "ApplicableGPOList", Value: "{31B2F340-016D-11D2-945F-00C04FB984F9}"}), machinePass),
+		withActivity(makeEvent(guidGroupPolicy, 5016, boot.Add(17*time.Second),
 			property{Name: "CSEExtensionId", Value: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"},
 			property{Name: "CSEExtensionName", Value: "Registry"},
 			property{Name: "CSEElaspedTimeInMilliSeconds", Value: "2980"},
-			property{Name: "ErrorCode", Value: "0x0"}),
-		makeEvent(guidGroupPolicy, 8000, boot.Add(20*time.Second)),
+			property{Name: "ErrorCode", Value: "0x0"}), machinePass),
+		withActivity(makeEvent(guidGroupPolicy, 8000, boot.Add(20*time.Second)), machinePass),
 		makeEvent(guidWinlogon, 7001, boot.Add(29*time.Second)),
 		makeEvent(guidUserProfile, 1001, boot.Add(31*time.Second)),
 		makeEvent(guidUserProfile, 1002, boot.Add(35*time.Second)),
@@ -523,7 +532,7 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot.Add(61*time.Second), tl.DesktopStartupAppsStart)
 	assert.Equal(t, boot.Add(65*time.Second), tl.DesktopStartupAppsEnd)
 
-	custom := buildCustomPayload(tl, coll.groupPolicy.finalize())
+	custom := buildCustomPayload(tl, coll.groupPolicy.finalize(tl))
 	durations := custom["durations"].(map[string]interface{})
 	assert.Equal(t, int64(34000), durations["total_boot_duration_ms"])
 	assert.Equal(t, int64(8000), durations["boot_duration_ms"])
@@ -538,20 +547,30 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		assert.NotContains(t, m.ID, "cse", "extension detail must not leak into boot_timeline")
 	}
 
-	gp := custom["group_policy"].(*GroupPolicyPayload)
-	assert.True(t, gp.Passes.Computer.Observed)
-	assert.False(t, gp.Passes.User.Observed, "no user pass in this trace")
+	gp := custom["group_policy_details"].(*GroupPolicyDetails)
+	assert.Empty(t, gp.User, "no user pass in this trace")
 
-	require.Len(t, gp.Passes.Computer.CSEInvocations, 1)
-	inv := gp.Passes.Computer.CSEInvocations[0]
+	require.Len(t, gp.Computer, 1)
+	inv := gp.Computer[0]
 	assert.Equal(t, "Registry", inv.CSEName)
-	assert.True(t, inv.Complete)
-	require.NotNil(t, inv.DurationMs)
-	assert.Equal(t, int64(3000), *inv.DurationMs, "wall-clock 4016 -> 5016 interval")
-	require.NotNil(t, inv.ReportedElapsedMs)
-	assert.Equal(t, uint32(2980), *inv.ReportedElapsedMs, "the provider's own measurement stays separate")
-	assert.Equal(t, []string{"{31B2F340-016D-11D2-945F-00C04FB984F9}"}, inv.ApplicableGPOIDs)
+	assert.Equal(t, cseResultSuccess, inv.Result)
+	assert.Equal(t, int64(3000), inv.DurationMs,
+		"the measured 4016 -> 5016 interval, not the provider's 2980")
 
-	require.Len(t, gp.GPOs, 1)
-	assert.Equal(t, "Default Domain Policy", gp.GPOs[0].Name)
+	// The invocation nests inside the computer_group_policy milestone, because
+	// both are placed by bootOffsetFunc.
+	var parent Milestone
+	for _, m := range milestones {
+		if m.ID == "computer_group_policy" {
+			parent = m
+		}
+	}
+	require.Equal(t, "computer_group_policy", parent.ID)
+	assert.Equal(t, int64(14000), inv.OffsetMs)
+	assert.GreaterOrEqual(t, float64(inv.OffsetMs), parent.OffsetMs)
+	assert.LessOrEqual(t, float64(inv.OffsetMs+inv.DurationMs), parent.OffsetMs+parent.DurationMs)
+
+	require.Len(t, inv.GPOs, 1)
+	assert.Equal(t, "{31B2F340-016D-11D2-945F-00C04FB984F9}", inv.GPOs[0].ID)
+	assert.Equal(t, "Default Domain Policy", inv.GPOs[0].Name, "name comes from the 5312 inventory")
 }
