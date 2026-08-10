@@ -2,7 +2,7 @@
 
 Load when the target is anything other than a Linux host, when you need a non-default OS, architecture, or cloud, or when you want a provisioner variant without the agent or without fakeintake.
 
-Pick the variant that provisions only what the test uses. `Provisioner` includes a fakeintake; `ProvisionerNoFakeIntake` drops it, which is right for the majority of suites — those asserting on services, packaging, permissions, CLI output, or config rather than on payloads. On AWS the intake is an ECS Fargate task, so an unused one costs provisioning time and money on every run.
+Provision only what the test uses. Every `Provisioner` includes a fakeintake, and dropping it is right for the many suites that assert on services, packaging, permissions, CLI output, or config rather than on payloads — on AWS the intake is an ECS Fargate task, so an unused one costs provisioning time and money on every run. Host provisioners drop it with the `ProvisionerNoFakeIntake` constructor; the container and cluster provisioners have no such constructor and take the scenario's `WithoutFakeIntake()` inside `WithRunOptions` instead.
 
 Authoritative directories, in preference order when this file and the code disagree:
 
@@ -46,6 +46,8 @@ Every path below is prefixed `github.com/DataDog/datadog-agent/test/e2e-framewor
 | Local kind | `local/kubernetes` | `localkubernetes` | `Provisioner`, `OpenShiftLocalProvisioner` |
 
 Tests conventionally alias the kind provisioner as `awskubernetes`. That alias is a naming convention, not a package name — the import path ends in `kindvm`.
+
+The `NoFakeIntake` and `NoAgent` constructors exist only on the host provisioners. Docker, ECS, kind, EKS and kubeadm expose `Provisioner` alone; drop the intake or the agent there by passing the scenario's `WithoutFakeIntake()` or `WithoutAgent()` inside `WithRunOptions`.
 
 ## Two option shapes
 

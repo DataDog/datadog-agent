@@ -85,7 +85,7 @@ Cloud: use the cloud the feature is specific to, and AWS otherwise. Windows incl
 
 Kubernetes flavor: use kind. It provisions faster, costs less, and fails less than EKS. Reserve EKS for behavior that is specific to EKS, and expect an EKS job to run on `main` and nightly rather than on pull requests.
 
-Every stock provisioner ships a fakeintake by default. When the test asserts only on host state, take the `ProvisionerNoFakeIntake` variant instead — that is the majority case in tree, and the intake is an ECS Fargate task you would otherwise pay for and never query.
+Every stock provisioner ships a fakeintake by default, and the intake is an ECS Fargate task you would otherwise pay for and never query. When the test asserts only on host state, drop it — but the way to do that differs by provisioner. Host provisioners (`awshost`, `winawshost`, and their Azure and GCP equivalents) offer a `ProvisionerNoFakeIntake` constructor; Docker, ECS, kind, EKS and kubeadm expose only `Provisioner`, so pass the scenario's `WithoutFakeIntake()` inside `WithRunOptions` instead.
 
 Reach for a custom provisioner last. Check the option surface of the stock provisioner first — most needs are already an option, and custom provisioners are the main source of long-lived breakage.
 
@@ -172,9 +172,9 @@ Decide first what the behavior is observable as. Most suites in tree assert on h
 
 Either way, anything that takes time to settle is asserted inside `s.EventuallyWithT(func(c *assert.CollectT) {...}, timeout, interval)` as in the Step 5 skeleton, and three rules apply to every such poll: `require` on anything later code dereferences, so the iteration aborts instead of accumulating misleading errors from a nil result; `MustExecuteOn(c, ...)` rather than `MustExecute`, so a transient SSH error retries; and never `time.Sleep` or a ticker, which is either a flake or wasted minutes.
 
-**Asserting on payloads** — load `references/fakeintake.md` first. It has the payload-to-client-method table, the matcher catalog, the timeout budgets, how to prove a negative, flush ordering around a restart, and how to stop a bare `FilterMetrics("x")` from matching a sibling test's traffic through the suite's shared fakeintake.
+**Asserting on payloads** — load `references/fakeintake.md` first. It has the payload-to-client-method table, the matcher catalog, the timeout budgets, how to prove a negative, and flush ordering around a restart.
 
-**Not asserting on payloads** — drop the intake with a `ProvisionerNoFakeIntake` variant. On AWS it is an ECS Fargate task, so provisioning one the test never queries is pure cost against the budget Step 2 is trying to protect.
+**Not asserting on payloads** — drop the intake. On AWS it is an ECS Fargate task, so provisioning one the test never queries is pure cost against the budget Step 2 is trying to protect. How to drop it depends on the provisioner, as Step 3 notes.
 
 ## Step 7 — Keep it reliable
 
@@ -186,7 +186,7 @@ Read `test/new-e2e/codereview_guideline.md` now — it is the authoritative reli
 
 ## Step 8 — Wire into CI
 
-Only needed when you created a new package, and a test in a package no job references never runs. Load `references/ci-wiring.md` for the rule template, the artifact-dependency table, the Windows matrix convention, and which branches a job ends up running on. Two things bite regardless of which template you extend: overriding `needs` replaces the template's list rather than adding to it, so re-reference the template's own entry; and `.gitlab/JOBOWNERS` is what routes a failure notification, while `.github/CODEOWNERS` only routes review.
+Needed when you created a new package, and whenever a test starts consuming a build artifact its job does not already pull — adding a container-based test to a package whose job extends a deb-only template leaves it waiting on an image nobody built. A test in a package no job references never runs at all. Load `references/ci-wiring.md` for the rule template, the artifact-dependency table, the Windows matrix convention, and which branches a job ends up running on. Two things bite regardless of which template you extend: overriding `needs` replaces the template's list rather than adding to it, so re-reference the template's own entry; and `.gitlab/JOBOWNERS` is what routes a failure notification, while `.github/CODEOWNERS` only routes review.
 
 ## Step 9 — Verify
 
@@ -227,6 +227,23 @@ Assertions   observable -> how it is checked -> timeout, one row each
 Local run    command, result, wall time
 CI           the rule/job/JOBOWNERS diffs, or "none needed" and why
 Follow-ups   flake exposure, budget headroom, qa/rc-required
+```
+
+Filled in, for a diff that added a `disk.free` metric:
+
+```
+Scope        Covers disk.free reaching the intake. Dropped the config-parsing
+             change — e2e-audit called it a unit test. Verdict: E2E justified.
+Files        test/new-e2e/tests/agent-runtimes/disk_free_test.go (new)
+Environment  environments.Host, AWS, Ubuntu2204 — host metric, no container
+             or cluster behavior involved.
+Assertions   disk.free -> FilterMetrics + WithMetricValueHigherThan(0) -> 2m/10s
+Local run    dda inv new-e2e-tests.run --targets=./tests/agent-runtimes/...
+             --run '^TestDiskFree$'  — passed, 11m4s
+CI           None needed. new-e2e-agent-runtimes already covers ./tests/
+             agent-runtimes and pulls agent_deb-x64-a7.
+Follow-ups   Runs on PR branches via .on_arun_or_e2e_changes, so no
+             qa/rc-required. 11m of the 15m budget used.
 ```
 
 Flag the change for the `qa/rc-required` label whenever the suite will not run on pull-request branches. When a repository document turns out to be wrong, correct it in the same change — the root `AGENTS.md` asks for exactly that.

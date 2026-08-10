@@ -145,10 +145,6 @@ package examples
 
 import (
     "testing"
-    "time"
-
-    "github.com/stretchr/testify/assert"
-    "github.com/stretchr/testify/require"
 
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -184,6 +180,9 @@ The framework provides several provisioners for different scenarios:
 ### Test Validation
 
 E2E tests should validate complete workflows:
+
+Adding a test method to the suite above. This block needs three more imports:
+`time`, `github.com/stretchr/testify/assert` and `github.com/stretchr/testify/require`.
 
 ```go
 func (v *vmSuite) TestAgentRunning() {

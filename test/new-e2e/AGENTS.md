@@ -2,7 +2,7 @@
 
 Tests that provision real cloud infrastructure, install the Agent on it, and assert against the running system.
 
-What they assert varies, and most files never call the fakeintake client at all — most areas contain at least one suite that does, but within an area it is usually a minority of the tests. The rest assert on host state: Windows services, registry keys and ACLs (`tests/windows/`), package install, upgrade and rollback (`tests/installer/`, `tests/fleet/`), CLI output (`tests/agent-subcommands/`), resolved configuration on disk (`tests/agent-configuration/`). What makes a test E2E here is the real provisioned host and the really installed Agent, not the assertion target; the fakeintake rules below apply only to suites that use one.
+What they assert varies. Some check payloads arriving in the fakeintake; others check host state — Windows services, registry keys and ACLs (`tests/windows/`), package install, upgrade and rollback (`tests/installer/`, `tests/fleet/`), CLI output (`tests/agent-subcommands/`), resolved configuration on disk (`tests/agent-configuration/`). What makes a test E2E here is the real provisioned host and the really installed Agent, not the assertion target.
 
 The framework these tests import is documented in `test/e2e-framework/AGENTS.md`, the intake mock in `test/fakeintake/AGENTS.md`.
 
@@ -22,15 +22,15 @@ So `infra_basic_nix_test.go` declares `basicLinuxSuite` and `infra_basic_win_tes
 
 ## Build tags
 
-Ordinary e2e tests carry none. The `_nix`/`_win` split exists so CI can select tests by name — jobs pass `--run` and `--skip` regexes through `EXTRA_PARAMS` — not so the compiler can. Name a Windows entry point so that a Linux job's `--skip "Windows"` excludes it.
+Ordinary e2e tests carry none. The `_nix`/`_win` filename suffix is a convention teams adopted for readability: it affects neither compilation nor which tests run. CI selects on the *test function* name, passing `--run` and `--skip` regexes through `EXTRA_PARAMS`, so name a Windows entry point such that a Linux job's `--skip "Windows"` excludes it — renaming the file would do nothing.
 
 The exception is `e2eunit`. A package holding plain unit tests alongside e2e tests marks its e2e files `//go:build !e2eunit`, and the unit-test job in `.gitlab/build/source_test/linux.yml` runs with `--tags e2eunit`. Only `tests/installer/windows/` and `tests/windows/common/agent/` do this today; do not add the tag to a test with no unit-test sibling.
 
 ## One fakeintake per suite
 
-Every test in a suite ships to the same fakeintake, and payloads are not partitioned by test. A bare `FilterMetrics("system.uptime")` can therefore match a sibling's traffic and pass while the behavior under test is broken.
+Every test in a suite ships to the same fakeintake, and the framework does not reset it between tests. A suite that needs each test to see only its own payloads resets the intake itself, calling `FlushServerAndResetAggregators()` from `BeforeTest`; around ten suites in tree do this today.
 
-Where an assertion must be about one test alone, tag that test's own workload and filter on the tag with `client.WithTags[*aggregator.MetricSeries]([]string{...})`, as `tests/agent-metric-pipelines/ccm-mode/` and `tests/agent-subcommands/dogstatsdreplay_common_test.go` do. This matters for anything the test emits itself — statsd points, custom logs, workload containers — and not for agent-internal metrics that only one test enables.
+Write assertions on the assumption that `FilterMetrics` returns your test's payloads. Where that assumption needs enforcing, reset in `BeforeTest` rather than tagging payloads and filtering on the tag — a test author should not have to label metrics to find them again.
 
 ## Working in this tree
 

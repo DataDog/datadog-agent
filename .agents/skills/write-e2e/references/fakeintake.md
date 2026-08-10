@@ -28,7 +28,7 @@ When debugging an assertion that never fires, list what actually arrived: `GetMe
 ## Matchers
 
 ```go
-client.WithTags[*aggregator.MetricSeries]([]string{"env:prod", "test_id:TestFoo"})
+client.WithTags[*aggregator.MetricSeries]([]string{"env:prod", "service:web"})
 client.WithMatchingTags[*aggregator.MetricSeries]([]*regexp.Regexp{re})
 client.WithMetricValueHigherThan(0)
 client.WithMetricValueLowerThan(100)
@@ -91,18 +91,18 @@ Order matters when a phase restarts the agent: restart or `UpdateEnv` first, wai
 
 ## One fakeintake per suite
 
-`test/new-e2e/AGENTS.md` § "One fakeintake per suite" has the hazard and when it applies. Tests in tree filter on a tag their workload already carries for its own reasons; where there is no such tag, derive one from the test name:
+Write assertions on the assumption that `FilterMetrics` returns your test's payloads — that is what a test author should be able to expect, and it is how tests in tree are written.
+
+The framework does not reset the intake between tests, so a suite that needs to enforce that assumption resets it itself:
 
 ```go
-func (s *mySuite) testID() string {
-	return "test_id:" + strings.NewReplacer("/", "_", " ", "_").Replace(s.T().Name())
+func (s *mySuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 }
-
-metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
-	"myfeature.points",
-	client.WithTags[*aggregator.MetricSeries]([]string{s.testID()}),
-)
 ```
+
+See `test/new-e2e/AGENTS.md` § "One fakeintake per suite".
 
 ## When there is no client method
 
