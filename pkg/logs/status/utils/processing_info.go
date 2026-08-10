@@ -73,9 +73,6 @@ func (p *ProcessingInfo) Info() []string {
 }
 
 // String returns a lock-safe, formatted representation of the processing info.
-// Do not format a *ProcessingInfo directly with %v/%#v: reflection-based formatting
-// walks the struct's raw fields (including the rules map and the embedded
-// sync.Mutex's internal state) without taking the lock, which races with Inc().
 func (p *ProcessingInfo) String() string {
 	return strings.Join(p.Info(), ", ")
 }

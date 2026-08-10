@@ -36,13 +36,7 @@ func (s *LogSourceSuite) TestDump() {
 	assert.Contains(s.T(), dump, "mysource")
 }
 
-// TestDumpConcurrentWithProcessingInfo reproduces a data race where Dump()
-// formats the ProcessingInfo field with a verb that reads its raw fields
-// (the rules map and the embedded sync.Mutex's internal state) via
-// reflection, bypassing ProcessingInfo's own locking, while another
-// goroutine concurrently calls ProcessingInfo.Inc() (e.g. from the
-// processing pipeline handling in-flight messages). Run with -race to
-// verify.
+// TestDumpConcurrentWithProcessingInfo runs Dump() concurrently with ProcessingInfo.Inc() to catch races (-race).
 func (s *LogSourceSuite) TestDumpConcurrentWithProcessingInfo() {
 	source := NewLogSource("racesource", nil)
 
