@@ -32,7 +32,6 @@ run_binary(
 go_library(
     name = "setup",
     srcs = [
-        "all_settings.go",
         "config.go",
         "config_accessor.go",
         "config_darwin.go",
@@ -43,12 +42,10 @@ go_library(
         "config_windows.go",
         "constants_compat.go",
         "fixup_init.go",
-        "generated.go",
         "otlp.go",
         "privateactionrunner.go",
         "process.go",
         "system_probe.go",
-        "system_probe_settings.go",
         "test_config_accessor.go",
         "test_helpers.go",
         "unexpectedunicodefinder.go",
