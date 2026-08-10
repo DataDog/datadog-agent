@@ -374,6 +374,11 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 		for _, span := range chunk.Spans {
 			// First span wins
 			if dm, ok := span.Meta[tagDecisionMaker]; ok {
+				// A v0.7 payload that omits the "tags" key decodes with a nil
+				// map; allocate before writing to avoid panicking on it.
+				if chunk.Tags == nil {
+					chunk.Tags = make(map[string]string, 1)
+				}
 				chunk.Tags[tagDecisionMaker] = dm
 				break
 			}
