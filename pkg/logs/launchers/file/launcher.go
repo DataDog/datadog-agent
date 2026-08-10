@@ -496,9 +496,13 @@ func (s *Launcher) recordFingerprintSkip(file *tailer.File, fingerprint *types.F
 	}
 
 	// Every check hands us a freshly built File wrapping whatever source currently matches the path,
-	// so adopt it instead of keeping the one from the first check. A source that is removed and
-	// re-added for the same path would otherwise leave the message on the old source and never set
-	// it on the new one, and we would eventually clear a message nobody was reading.
+	// so adopt it instead of keeping the one from the first check: a source removed and re-added for
+	// the same path has to end up carrying the message. Hand the message over rather than just
+	// copying it, because this is the last point that still knows about the source losing the file,
+	// and a message left there outlives the skip entirely.
+	if previous := skip.file; fingerprintSkipMessages(previous) != fingerprintSkipMessages(file) {
+		removeFingerprintSkipMessage(previous)
+	}
 	skip.file = file
 	setFingerprintSkipMessage(file, reason, fingerprint, err)
 

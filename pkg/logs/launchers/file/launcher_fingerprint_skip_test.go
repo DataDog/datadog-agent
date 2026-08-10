@@ -376,6 +376,10 @@ func TestLauncherMovesFingerprintSkipMessageToReplacementSource(t *testing.T) {
 	messages := replacement.Messages.GetMessages()
 	require.Len(t, messages, 1, "the replacement source must explain why the file is not tailed")
 	assert.Contains(t, messages[0], setup.path)
+	// The handover has to be a move, not a copy: a message left on the source that no longer matches
+	// the file claims it is not being tailed for as long as that source is displayed.
+	assert.Empty(t, setup.source.Messages.GetMessages(),
+		"the message must be taken off the source that no longer matches the file")
 
 	// And when the file stops being skipped, it must be cleared from the source that actually has it.
 	writeFile(t, setup.path, count)
