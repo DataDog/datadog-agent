@@ -58,6 +58,21 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	primaryTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
 ) []stats.Input {
+	resourceSpans := traces.ResourceSpans()
+	var clientComputedResources map[pcommon.Resource]struct{}
+	for i := 0; i < resourceSpans.Len(); i++ {
+		resourceSpan := resourceSpans.At(i)
+		if resourceSpansHasClientComputedStats(resourceSpan) {
+			if clientComputedResources == nil {
+				clientComputedResources = make(map[pcommon.Resource]struct{})
+			}
+			clientComputedResources[resourceSpan.Resource()] = struct{}{}
+		}
+	}
+	if resourceSpans.Len() > 0 && len(clientComputedResources) == resourceSpans.Len() {
+		return nil
+	}
+
 	spanByID, resByID, scopeByID := transform.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	topLevelSpans := transform.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
@@ -67,13 +82,6 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	}
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
-	clientComputedResources := make(map[pcommon.Resource]struct{})
-	for i := 0; i < traces.ResourceSpans().Len(); i++ {
-		resourceSpans := traces.ResourceSpans().At(i)
-		if resourceSpansHasClientComputedStats(resourceSpans) {
-			clientComputedResources[resourceSpans.Resource()] = struct{}{}
-		}
-	}
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
 		if _, ok := clientComputedResources[otelres]; ok {
