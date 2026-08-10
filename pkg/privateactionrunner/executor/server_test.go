@@ -445,7 +445,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 
 func TestServeExitsWhenIdle(t *testing.T) {
 	mockClock := clock.NewMock()
-	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
 	srv.clock = mockClock
 	srv.touch()
 	srv.SetReady(true)
@@ -482,7 +482,7 @@ func TestServeExitsWhenIdle(t *testing.T) {
 
 func TestIdleTracking(t *testing.T) {
 	mockClock := clock.NewMock()
-	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
 	srv.clock = mockClock
 	srv.touch()
 
