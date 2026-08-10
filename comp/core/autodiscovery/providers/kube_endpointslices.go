@@ -151,6 +151,8 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
 func (k *kubeEndpointSlicesConfigProvider) IsUpToDate(context.Context) (bool, error) {
+	k.RLock()
+	defer k.RUnlock()
 	return k.upToDate, nil
 }
 

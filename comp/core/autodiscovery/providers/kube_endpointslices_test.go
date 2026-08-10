@@ -9,6 +9,8 @@ package providers
 
 import (
 	"context"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -757,6 +759,67 @@ func TestEndpointSlice_InvalidateOnEndpointSliceUpdate(t *testing.T) {
 			assert.Equal(t, tc.expectedUpToDate, upToDate)
 		})
 	}
+}
+
+// TestEndpointSlice_ConcurrentIsUpToDateAndInvalidate reproduces the data race between IsUpToDate
+// (called from the autodiscovery scheduler loop) and invalidateOnEndpointSliceUpdate (called from a
+// client-go informer goroutine), both of which access upToDate. It must be run with -race to be
+// meaningful: it fails before the fix (IsUpToDate reading upToDate without RLock) and passes after.
+func TestEndpointSlice_ConcurrentIsUpToDateAndInvalidate(t *testing.T) {
+	portName := "http"
+	port80 := int32(80)
+
+	baseSlice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "1",
+			Namespace:       "default",
+			Labels: map[string]string{
+				"kubernetes.io/service-name": "test-svc",
+			},
+		},
+		Endpoints: []discv1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}},
+		},
+		Ports: []discv1.EndpointPort{
+			{Name: &portName, Port: &port80},
+		},
+	}
+
+	provider := &kubeEndpointSlicesConfigProvider{
+		upToDate:          true,
+		monitoredServices: map[string]bool{"default/test-svc": true},
+	}
+
+	const iterations = 1000
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Simulates the informer callback goroutine mutating upToDate.
+	go func() {
+		defer wg.Done()
+		oldSlice := baseSlice
+		for i := 0; i < iterations; i++ {
+			newSlice := oldSlice.DeepCopy()
+			newSlice.ResourceVersion = strconv.Itoa(i + 2)
+			if i%2 == 0 {
+				newSlice.Endpoints = append(newSlice.Endpoints, discv1.Endpoint{Addresses: []string{"10.0.0.2"}})
+			}
+			provider.invalidateOnEndpointSliceUpdate(oldSlice, newSlice)
+			oldSlice = newSlice
+		}
+	}()
+
+	// Simulates the autodiscovery scheduler's polling loop reading upToDate.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			_, err := provider.IsUpToDate(context.Background())
+			assert.NoError(t, err)
+		}
+	}()
+
+	wg.Wait()
 }
 
 func TestHasEndpointSliceAnnotations(t *testing.T) {
