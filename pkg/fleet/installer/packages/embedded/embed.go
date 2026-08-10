@@ -37,6 +37,12 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 var DDOTProcessConfig string
 
+// PARExecutorProcessConfig is the rendered process manager config for the PAR on-demand executor
+// on Linux (deb/rpm layout).
+//
+//go:embed tmpl/gen/debrpm/datadog-agent-action-executor.yaml
+var PARExecutorProcessConfig string
+
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //
@@ -54,6 +60,12 @@ var ADPWindowsProcmgrConfig string
 //
 //go:embed tmpl/gen/windows/datadog-agent-action.yaml
 var PARWindowsProcmgrConfig string
+
+// PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
+// on-demand executor on Windows (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/windows/datadog-agent-action-executor.yaml
+var PARExecutorWindowsProcmgrConfig string
 
 // SystemdUnitType is the type of systemd unit.
 type SystemdUnitType string

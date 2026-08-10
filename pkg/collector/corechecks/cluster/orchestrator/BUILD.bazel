@@ -30,6 +30,7 @@ go_library(
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/collector/corechecks/cluster/orchestrator/processors/common",
         "//pkg/collector/corechecks/cluster/orchestrator/util",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/orchestrator",
         "//pkg/orchestrator/config",
@@ -64,10 +65,14 @@ dd_agent_go_test(
         "terminated_resource_bundle_test.go",
     ],
     embed = [":orchestrator"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/integration",

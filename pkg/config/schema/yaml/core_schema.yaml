@@ -41,6 +41,7 @@ properties:
       Set to 'ap1.datadoghq.com' to send data to the AP1 site.
       Set to 'ddog-gov.com' to send data to the US1-FED site.
     tags:
+    - generate_const:DefaultSite
     - template_section:Common
   infrastructure_mode:
     node_type: setting
@@ -1745,12 +1746,16 @@ properties:
             default: 1000
             visibility: public
             description: The timeout in milliseconds for a network path test.
+            tags:
+            - generate_const:DefaultNetworkPathTimeout
           max_ttl:
             node_type: setting
             type: integer
             default: 30
             visibility: public
             description: The maximum TTL (Time To Live) for traceroute tests.
+            tags:
+            - generate_const:DefaultNetworkPathMaxTTL
           pathtest_ttl:
             node_type: setting
             type: string
@@ -1781,7 +1786,7 @@ properties:
               Custom filters to include or exclude specific destinations from network path collection.
               Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
               Filters are applied sequentially, the last matching filter takes precedence.
-              In end_user_device infrastructure mode, user-defined filters are appended to the default SaaS filters below.
+              No filters are added automatically in end_user_device infrastructure mode; configure filters explicitly when needed.
             example: |2-
 
 
@@ -1818,12 +1823,16 @@ properties:
             default: 3
             visibility: public
             description: The number of traceroute queries for static path tests.
+            tags:
+            - generate_const:DefaultNetworkPathStaticPathTracerouteQueries
           e2e_queries:
             node_type: setting
             type: integer
             default: 50
             visibility: public
             description: The number of end-to-end queries for static path tests.
+            tags:
+            - generate_const:DefaultNetworkPathStaticPathE2eQueries
           input_chan_size:
             node_type: setting
             type: integer
@@ -4221,6 +4230,24 @@ properties:
             description: |-
               List of IP addresses to exclude from automatic scanning.
               Devices with these IP addresses will be skipped during default scan.
+          bulk_batch_size:
+            node_type: setting
+            type: integer
+            default: 20
+            visibility: public
+            description: |-
+              Starting number of values requested per GetBulk call during the automatic
+              device scan. The scan adjusts this down on failures and back up on
+              successes, so this is the ceiling it works toward.
+          flush_every_n_oids:
+            node_type: setting
+            type: integer
+            default: 0
+            comment: Internal, undocumented knobs for tuning partial result reporting.
+          flush_interval:
+            node_type: setting
+            type: string
+            default: 0s
       autodiscovery:
         node_type: section
         type: object
@@ -4503,7 +4530,7 @@ properties:
                       # @param authProtocol - string - optional
                       # The authentication protocol to use when connecting to your SNMP devices.
                       # Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-                      # Defaults to MD5 when `authentication_key` is specified.
+                      # Defaults to MD5 when `authentication_key` is specified, or SHA256 in FIPS mode.
                       # SNMPv3 only.
 
                       authProtocol: <AUTHENTICATION_PROTOCOL>
@@ -4517,7 +4544,7 @@ properties:
                       # @param privProtocol - string - optional
                       # The privacy protocol to use when connecting to your SNMP devices.
                       # Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-                      # Defaults to DES when `privacy_key` is specified.
+                      # Defaults to DES when `privacy_key` is specified, or AES in FIPS mode.
                       # SNMPv3 only.
 
                       privProtocol: <PRIVACY_PROTOCOL>
@@ -5842,6 +5869,27 @@ properties:
               Set to true to enable logs support in the OTLP ingest endpoint.
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
             example: 'true'
+          infra_attributes:
+            node_type: section
+            type: object
+            visibility: public
+            description: Controls whether infrastructure attributes (host tags, container
+              tags) are attached to OTLP logs ingested by the Agent.
+            tags:
+            - template_section:CoreAgent
+            properties:
+              tags_as_ddtags:
+                node_type: setting
+                type: boolean
+                default: false
+                visibility: public
+                description: |-
+                  Controls whether the Infra-Attribute-Processor writes custom tags (for example, from
+                  kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log tags instead of log attributes.
+                comment: |-
+                  tags_as_ddtags controls whether the infraattributes processor writes custom tags
+                  (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as real Datadog log
+                  tags instead of log attributes.
           batch:
             node_type: section
             type: object
@@ -6347,6 +6395,35 @@ properties:
               type: object
             comment: Ordered log-processing rules applied to anomaly-detection log
               sources.
+          time_buckets:
+            node_type: section
+            type: object
+            properties:
+              bucket_width:
+                node_type: setting
+                type: string
+                default: 5s
+                format: duration
+                tags:
+                - golang_type:duration
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+              idle_ttl:
+                node_type: setting
+                type: string
+                default: 5m0s
+                format: duration
+                tags:
+                - golang_type:duration
+              retention:
+                node_type: setting
+                type: string
+                default: 10m0s
+                format: duration
+                tags:
+                - golang_type:duration
       metrics:
         node_type: section
         type: object
@@ -6442,6 +6519,8 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+    tags:
+    - full-agent-only:true
   appsec:
     node_type: section
     type: object
@@ -6975,6 +7054,27 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      heartbeat_interval:
+        node_type: setting
+        type: string
+        default: 1h0m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      heartbeat_jitter:
+        node_type: setting
+        type: string
+        default: 10m0s
+        format: duration
+        tags:
+        - golang_type:duration
+      startup_jitter:
+        node_type: setting
+        type: string
+        default: 1m0s
+        format: duration
+        tags:
+        - golang_type:duration
   container_exclude:
     node_type: setting
     type: array
@@ -7287,6 +7387,17 @@ properties:
         default: true
     tags:
     - full-agent-only:true
+  data_security:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Data Security: single enablement flag gating both the autodiscovery provider
+          and the sds-result event platform pipeline.
   data_streams:
     node_type: section
     type: object
@@ -8417,6 +8528,8 @@ properties:
     node_type: setting
     type: integer
     default: 60
+    tags:
+    - generate_const:DefaultAPIKeyValidationInterval
     comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
@@ -8437,6 +8550,8 @@ properties:
     node_type: setting
     type: integer
     default: 2
+    tags:
+    - generate_const:DefaultForwarderRecoveryInterval
   forwarder_recovery_reset:
     node_type: setting
     type: boolean
@@ -8695,6 +8810,10 @@ properties:
             node_type: setting
             type: integer
             default: 7778
+      log_file:
+        node_type: setting
+        type: string
+        default: ${log_path}/host-profiler.log
     tags:
     - full-agent-only:true
   hpa_configmap_name:
@@ -9374,7 +9493,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Logon Duration config (macOS)
   metadata_endpoints_max_hostname_size:
     node_type: setting
     type: integer
@@ -9448,6 +9566,7 @@ properties:
         platform_default:
           linux: true
           windows: true
+          aix: true
           other: false
     tags:
     - full-agent-only:true
@@ -9532,6 +9651,10 @@ properties:
       or connected mode (expects core agent for secrets and tagger)
   otelcollector:
     $ref: otelcollector.yaml
+  patch_prometheus_client:
+    node_type: setting
+    type: boolean
+    default: true
   prioritize_go_check_loader:
     node_type: setting
     type: boolean
@@ -9560,15 +9683,15 @@ properties:
         env_parser: json
         items:
           type: object
-        comment: List of HTTP SD endpoints to poll. Each entry must specify url and
-          check_template.
+        comment: |-
+          List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
       url:
         node_type: setting
         type: string
         default: ''
-        comment: |-
-          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
-          [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+        comment: '[DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs
+          instead.'
     tags:
     - full-agent-only:true
   provider_kind:
@@ -9646,6 +9769,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+    tags:
+    - full-agent-only:true
   remote_policies:
     node_type: setting
     type: boolean
@@ -9669,6 +9794,110 @@ properties:
     default: ${run_path}
   runtime_security_config:
     $ref: runtime_security_config.yaml
+  sds_result:
+    node_type: section
+    type: object
+    properties:
+      forwarder:
+        node_type: section
+        type: object
+        properties:
+          additional_endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          batch_max_concurrent_send:
+            node_type: setting
+            type: integer
+            default: 0
+          batch_max_content_size:
+            node_type: setting
+            type: integer
+            default: 5000000
+          batch_max_size:
+            node_type: setting
+            type: integer
+            default: 1000
+          batch_wait:
+            node_type: setting
+            type: number
+            default: 5
+            tags:
+            - golang_type:float64
+          compression_kind:
+            node_type: setting
+            type: string
+            default: zstd
+          compression_level:
+            node_type: setting
+            type: integer
+            default: 6
+          connection_reset_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          dev_mode_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+            tags:
+            - no-env
+          input_chan_size:
+            node_type: setting
+            type: integer
+            default: 100
+          logs_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          logs_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+          sender_backoff_base:
+            node_type: setting
+            type: number
+            default: 1
+            tags:
+            - golang_type:float64
+          sender_backoff_factor:
+            node_type: setting
+            type: number
+            default: 2
+            tags:
+            - golang_type:float64
+          sender_backoff_max:
+            node_type: setting
+            type: number
+            default: 120
+            tags:
+            - golang_type:float64
+          sender_recovery_interval:
+            node_type: setting
+            type: integer
+            default: 2
+          sender_recovery_reset:
+            node_type: setting
+            type: boolean
+            default: false
+          use_compression:
+            node_type: setting
+            type: boolean
+            default: true
+          use_v2_api:
+            node_type: setting
+            type: boolean
+            default: true
+          zstd_compression_level:
+            node_type: setting
+            type: integer
+            default: 1
   secret_audit_file_max_size:
     node_type: setting
     type: integer
@@ -9687,6 +9916,8 @@ properties:
         node_type: setting
         type: integer
         default: 5010
+        tags:
+        - generate_const:DefaultSecurityAgentCmdPort
       disable_thp:
         node_type: setting
         type: boolean
@@ -9781,6 +10012,8 @@ properties:
             env_vars:
             - DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE
             - DD_SITE
+            tags:
+            - generate_const:DefaultSite
           unix_socket:
             node_type: setting
             type: string
@@ -9795,6 +10028,8 @@ properties:
     node_type: setting
     type: string
     default: zstd
+    tags:
+    - generate_const:DefaultCompressorKind
   serializer_experimental_use_v3_api:
     node_type: section
     type: object
@@ -9803,14 +10038,14 @@ properties:
         node_type: setting
         type: integer
         default: 0
-      series:
+      sketches:
         node_type: section
         type: object
         properties:
           beta_route:
             node_type: setting
             type: string
-            default: /api/intake/metrics/v3beta/series
+            default: /api/intake/metrics/v3beta/sketches
           endpoints:
             node_type: setting
             type: array
@@ -9830,28 +10065,6 @@ properties:
             - datadoghq.com
             items:
               type: string
-          use_beta:
-            node_type: setting
-            type: boolean
-            default: false
-          validate:
-            node_type: setting
-            type: boolean
-            default: false
-      sketches:
-        node_type: section
-        type: object
-        properties:
-          endpoints:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-          validate:
-            node_type: setting
-            type: boolean
-            default: false
   serializer_max_payload_size:
     node_type: setting
     type: integer
@@ -9878,6 +10091,8 @@ properties:
     node_type: setting
     type: integer
     default: 1
+    tags:
+    - generate_const:DefaultZstdCompressionLevel
   serverless:
     node_type: section
     type: object
@@ -10187,6 +10402,7 @@ properties:
     - runtime
     items:
       type: string
+    comment: this is a list of the statsd prefixes used by the agent and its components
   telemetry:
     node_type: section
     type: object
@@ -10296,6 +10512,7 @@ properties:
     platform_default:
       linux: true
       windows: true
+      aix: true
       other: false
     tags:
     - full-agent-only:true

@@ -1,0 +1,43 @@
+services:
+  redis-configfilesdiscovery-explicit:
+    image: ghcr.io/datadog/redis:{APPS_VERSION}
+    container_name: redis-configfilesdiscovery-explicit
+    command:
+      - /bin/sh
+      - /configfilesdiscovery/start-redis.sh
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "redisdb": {
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 6379
+              }
+            ]
+          }
+        }
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}:/configfilesdiscovery:ro
+
+  redis-configfilesdiscovery-default:
+    image: ghcr.io/datadog/redis:{APPS_VERSION}
+    container_name: redis-configfilesdiscovery-default
+    command:
+      - /bin/sh
+      - /configfilesdiscovery/start-default-redis.sh
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "redisdb": {
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 6379
+              }
+            ]
+          }
+        }
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}:/configfilesdiscovery:ro
+      - ${CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR}/redis-default.conf:/etc/redis/redis.conf:ro

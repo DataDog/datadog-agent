@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.opentelemetry.io/collector/confmap"
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 	ebpfconfig "go.opentelemetry.io/ebpf-profiler/collector/config"
 	"go.opentelemetry.io/ebpf-profiler/interpreter"
@@ -34,7 +34,7 @@ type Config struct {
 // The order indicates which environment variable takes precedence.
 var defaultEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION"}
 
-var _ xconfmap.Validator = (*Config)(nil)
+var _ confmap.Validator = (*Config)(nil)
 
 func errSymbolEndpointsRequired() error {
 	return errors.New("symbol_endpoints is required")
@@ -47,7 +47,7 @@ func errSymbolEndpointsAPIKeyRequired() error {
 }
 
 // Validate validates the config.
-// This is automatically called by the config parser as it implements the xconfmap.Validator interface.
+// This is automatically called by the config parser as it implements the confmap.Validator interface.
 func (c *Config) Validate() error {
 	if err := c.EbpfCollectorConfig.Validate(); err != nil {
 		return err
@@ -102,5 +102,10 @@ func defaultInterpretersConfig() interpreterconfig.Config {
 	cfg.Go.Symbolization = interpreter.BaseConfig{Disabled: true}
 	//  Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
 	cfg.Go.Labels = interpreter.BaseConfig{Disabled: true}
+	// CRuby has lots of Ruby->native->Ruby transitions which runs out of ebpf tail calls very fast
+	// and captures only a small part of the stack. This config fixes this by skipping native frames
+	// (and tail calls) for Ruby methods implemented in C. Leaf native frames are still captured.
+	// See https://github.com/open-telemetry/opentelemetry-ebpf-profiler/pull/1335
+	cfg.Ruby.SkipNativeResume = true
 	return cfg
 }

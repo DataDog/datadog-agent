@@ -31,15 +31,17 @@ type RegisterRemoteAgentRequest struct {
 	Flavor string `protobuf:"bytes,2,opt,name=flavor,proto3" json:"flavor,omitempty"`
 	// Human-friendly display name of the remote agent.
 	//
-	// SHOULD be the common name for the remote agent, such as "OpenTelemetry Collector".
+	// MUST be a non-empty common name for the remote agent, such as "OpenTelemetry Collector".
 	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// gRPC endpoint address where the remote agent can be reached.
 	//
 	// MUST expose the `RemoteAgent` service, and MUST specify the scheme of the transport.
 	//
 	// Supported schemes:
-	// - "https://host:port" for TCP with TLS (recommended for network endpoints).
-	// - "unix:///absolute/path" for Unix domain socket with TLS.
+	//   - "https://host:port" for TCP with TLS (recommended for network endpoints).
+	//   - "unix:///absolute/path" for Unix domain socket with TLS.
+	//   - "vsock://cid:port" for AF_VSOCK with TLS (used when the remote agent and core agent
+	//     run in separate VMs, e.g. on kata/microVM clusters).
 	//
 	// SHOULD present a valid certificate where possible.
 	ApiEndpointUri string `protobuf:"bytes,4,opt,name=api_endpoint_uri,json=apiEndpointUri,proto3" json:"api_endpoint_uri,omitempty"`

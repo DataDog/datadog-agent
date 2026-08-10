@@ -29,6 +29,9 @@ func newCollectorErrors() *collectorErrors {
 
 // setLoaderError will safely set the error for that check and loader to the LoaderErrorStats
 func (ce *collectorErrors) setLoaderError(checkName string, loaderName string, err string) {
+	ce.m.Lock()
+	defer ce.m.Unlock()
+
 	_, found := ce.loader[checkName]
 	if !found {
 		ce.loader[checkName] = make(map[string]string)
@@ -39,6 +42,9 @@ func (ce *collectorErrors) setLoaderError(checkName string, loaderName string, e
 
 // removeLoaderErrors removes the errors for a check (usually when successfully loaded)
 func (ce *collectorErrors) removeLoaderErrors(checkName string) {
+	ce.m.Lock()
+	defer ce.m.Unlock()
+
 	delete(ce.loader, checkName)
 }
 
