@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Fleet Automation: the installer daemon now reports whether it can reach the
+    package registry as a ``fleet_registry_reachable`` tag, and the reason it
+    cannot as ``fleet_registry_failure_kind`` — DNS, connection, TLS, registry
+    credentials, or an unparseable reference. Previously all of these surfaced
+    only after an upgrade had already failed, and all of them looked the same.
+    The check runs at most once per
+    ``installer.registry_reachability_refresh_interval`` (default one hour) and
+    is re-run immediately after a failed package operation.

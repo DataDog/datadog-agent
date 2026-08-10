@@ -287,11 +287,7 @@ func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
 		return refAndKeychains
 	}
 
-	defaultRegistries := defaultRegistriesProd
-	if mainEnv.Site == "datad0g.com" {
-		defaultRegistries = defaultRegistriesStaging
-	}
-	for _, additionalDefaultRegistry := range defaultRegistries {
+	for _, additionalDefaultRegistry := range defaultRegistries(mainEnv) {
 		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
 		// Deduplicate
 		found := false
@@ -363,13 +359,9 @@ func formatImageRef(override string) string {
 // If they are specified, the registry and authentication overrides are applied first.
 // Then we try each registry in the list of default registries in order and return the first successful download.
 func (d *Downloader) downloadRegistry(ctx context.Context, rawURL string) (oci.Image, error) {
-	transport := telemetry.WrapRoundTripper(d.client.Transport)
-	var err error
-	if d.env.Mirror != "" {
-		transport, err = newMirrorTransport(transport, d.env.Mirror)
-		if err != nil {
-			return nil, fmt.Errorf("could not create mirror transport: %w", err)
-		}
+	transport, err := d.roundTripper()
+	if err != nil {
+		return nil, err
 	}
 	var multiErr error
 	for _, refAndKeychain := range getRefAndKeychains(d.env, rawURL) {

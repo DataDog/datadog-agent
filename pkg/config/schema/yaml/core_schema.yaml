@@ -8907,6 +8907,13 @@ properties:
             node_type: setting
             type: string
             default: ''
+      registry_reachability_refresh_interval:
+        node_type: setting
+        type: string
+        default: 1h0m0s
+        format: duration
+        tags:
+        - golang_type:duration
     tags:
     - full-agent-only:true
   instrumentation_crd_controller:

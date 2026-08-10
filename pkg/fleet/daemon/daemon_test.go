@@ -278,6 +278,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		taskDB,
 		30*time.Second,
 		1*time.Hour,
+		0, // reachability probing disabled: unit tests must not reach the network
 		secretsPubKey,
 		secretsPrivKey,
 	)
@@ -527,6 +528,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		taskDB,
 		30*time.Second,
 		1*time.Hour,
+		0, // reachability probing disabled: unit tests must not reach the network
 		secretsPubKey,
 		secretsPrivKey,
 	)
