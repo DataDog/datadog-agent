@@ -81,19 +81,15 @@ func TestClientsSeenActiveClientsRace(t *testing.T) {
 
 	const iterations = 2000
 	var wg sync.WaitGroup
-	wg.Add(2)
-
 	// Repeatedly mark the client as seen, like ClientGetConfigs does.
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; i < iterations; i++ {
 			clients.seen(pbClient)
 		}
-	}()
+	})
 
 	// Repeatedly fetch and marshal active clients, like refresh() does.
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; i < iterations; i++ {
 			for _, active := range clients.activeClients() {
 				if _, err := proto.Marshal(active); err != nil {
@@ -101,7 +97,7 @@ func TestClientsSeenActiveClientsRace(t *testing.T) {
 				}
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 }
