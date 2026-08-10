@@ -19,8 +19,8 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
     spawn_child(process.name(), request, profile)
 }
 
-/// Spawn a managed child. On Unix, procmgr already runs as `dd-agent`; both profiles
-/// use the supervisor identity until a distinct host-privileged child is needed.
+/// Spawn a managed child. On Unix, procmgr currently runs as `dd-agent`; both profiles
+/// inherit the supervisor identity until Linux [`SpawnProfile::Privileged`] lands.
 fn spawn_child(
     process_name: &str,
     request: SpawnRequest,

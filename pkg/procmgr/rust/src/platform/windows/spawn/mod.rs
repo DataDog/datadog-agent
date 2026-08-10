@@ -6,12 +6,13 @@
 //! Windows child spawning by spawn profile (`CreateProcessAsUserW` vs inherited LocalSystem).
 
 mod command;
-mod logon;
+pub(crate) mod logon;
 mod managed;
 mod primary_token;
 mod privileged;
 mod profiles;
 mod stdio;
-mod user_profile;
+pub(crate) mod user_profile;
+mod win32;
 
 pub(crate) use managed::spawn_child_handle;

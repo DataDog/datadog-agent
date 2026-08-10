@@ -13,6 +13,7 @@ pub mod manager;
 pub mod ordering;
 pub mod platform;
 pub mod process;
+mod secret_backend_exec;
 pub mod shutdown;
 mod spawn;
 mod spawn_context;

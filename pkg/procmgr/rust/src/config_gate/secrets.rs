@@ -11,15 +11,14 @@
 //!
 //! Backend settings follow Agent config precedence: `DD_SECRET_BACKEND_*` env
 //! vars (including the core Agent service SCM `Environment` on Windows) override
-//! `datadog.yaml`.
+//! `datadog.yaml`. The backend command always runs as the core Agent service
+//! account (`dd-agent` / `datadogagent`), not as the procmgr supervisor or a
+//! Privileged managed-child identity.
 
 use std::collections::HashMap;
-use std::io::{Read, Write};
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use log::debug;
@@ -190,53 +189,13 @@ fn fetch_secret(backend: &Backend, handle: &str) -> Result<String> {
 }
 
 fn exec_backend(backend: &Backend, payload: &str) -> Result<String> {
-    let mut command = Command::new(&backend.command);
-    command
-        .args(&backend.arguments)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    let mut child = command
-        .spawn()
-        .with_context(|| format!("spawn secret backend {}", backend.command))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(payload.as_bytes())
-            .context("write secret backend payload")?;
-    }
-    let timeout = Duration::from_secs(backend.timeout_secs);
-    let deadline = Instant::now() + timeout;
-    let status = loop {
-        match child.try_wait().context("poll secret backend")? {
-            Some(status) => break status,
-            None if Instant::now() >= deadline => {
-                let _ = child.kill();
-                let _ = child.wait();
-                bail!(
-                    "secret backend {} timed out after {} seconds",
-                    backend.command,
-                    backend.timeout_secs
-                );
-            }
-            None => thread::sleep(Duration::from_millis(50)),
-        }
-    };
-    if !status.success() {
-        bail!("secret backend {} exited with {}", backend.command, status);
-    }
-    let stdout = child.stdout.take().context("read secret backend stdout")?;
-    let mut output = Vec::new();
-    stdout
-        .take(backend.max_output_bytes as u64 + 1)
-        .read_to_end(&mut output)
-        .context("read secret backend stdout")?;
-    if output.len() > backend.max_output_bytes {
-        bail!(
-            "secret backend output exceeded {} bytes",
-            backend.max_output_bytes
-        );
-    }
-    String::from_utf8(output).context("decode secret backend stdout as UTF-8")
+    crate::platform::exec_secret_backend(
+        &backend.command,
+        &backend.arguments,
+        payload,
+        Duration::from_secs(backend.timeout_secs),
+        backend.max_output_bytes,
+    )
 }
 
 fn parse_secret_response(output: &str, handle: &str) -> Result<String> {

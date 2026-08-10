@@ -18,8 +18,8 @@
 //!
 //! - [`SpawnProfile::Agent`]: spawn as the Datadog agent service account (`dd-agent` on
 //!   Linux, `ddagentuser` on Windows).
-//! - [`SpawnProfile::Privileged`]: spawn as `NT AUTHORITY\\SYSTEM` on Windows
-//!   (process-agent only), matching the `datadog-process-agent` service account.
+//! - [`SpawnProfile::Privileged`]: host-privileged child (Windows process-agent today;
+//!   Linux landing soon). Secret backends stay on the core Agent user regardless.
 
 /// Procmgr process name for the process-agent (`processes.d` basename stem).
 pub const DATADOG_AGENT_PROCESS: &str = "datadog-agent-process";
@@ -31,9 +31,11 @@ pub enum SpawnProfile {
     ///
     /// Linux: `dd-agent`. Windows: the `datadogagent` service account (`ddagentuser`).
     Agent,
-    /// Spawn as `NT AUTHORITY\\SYSTEM` (LocalSystem).
+    /// Host-privileged managed-child identity when required by the legacy supervisor.
     ///
-    /// Windows process-agent only; matches the account configured for `datadog-process-agent`.
+    /// Windows: `NT AUTHORITY\\SYSTEM` for process-agent today. Linux: will use a
+    /// privileged supervisor identity when process-agent moves under procmgr (config-gate
+    /// secret backends still run as `dd-agent` — see `platform/unix/secret_backend.rs`).
     Privileged,
 }
 
@@ -54,11 +56,12 @@ impl std::fmt::Display for SpawnProfile {
 
 /// Resolve the spawn profile for a process from its procmgr name.
 ///
-/// Unknown processes default to [`SpawnProfile::Agent`]. On Windows, only
-/// `datadog-agent-process` uses [`SpawnProfile::Privileged`].
+/// Unknown processes default to [`SpawnProfile::Agent`]. Only `datadog-agent-process`
+/// uses [`SpawnProfile::Privileged`] (Windows today; Linux when privileged children land).
 pub fn profile_for(process_name: &str) -> SpawnProfile {
     match process_name {
         DATADOG_AGENT_PROCESS if cfg!(windows) => SpawnProfile::Privileged,
+        // DATADOG_AGENT_PROCESS on Linux remains Agent until privileged spawn lands.
         _ => SpawnProfile::Agent,
     }
 }

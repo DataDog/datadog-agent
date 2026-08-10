@@ -3,15 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod secret_backend;
 mod spawn;
+
+pub(crate) use secret_backend::exec_secret_backend;
+pub(crate) use spawn::spawn_child_handle;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use tokio::process::Command;
-
-pub(crate) use spawn::spawn_child_handle;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
