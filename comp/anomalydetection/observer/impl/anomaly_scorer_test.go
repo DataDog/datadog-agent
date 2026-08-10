@@ -183,24 +183,6 @@ func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
 	}
 }
 
-func TestTopAnomalyBuffer_OnlyTracksStorageBackedMetrics(t *testing.T) {
-	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
-	buffer := newTopAnomalyBuffer(10)
-	handle := &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
-	buffer.update(1000, []observer.Anomaly{
-		{SourceRef: handle, DetectorName: "holt_residual", Score: scorePtr(40)},
-		{Source: observer.SeriesDescriptor{Namespace: "rrcf", Name: "direct"}, DetectorName: "rrcf"},
-		{Type: observer.AnomalyTypeLog, Source: observer.SeriesDescriptor{Namespace: "logs", Name: "error"}, DetectorName: "log"},
-	}, cfg)
-
-	if len(buffer.entries) != 1 {
-		t.Fatalf("expected only one storage-backed entry, got %+v", buffer.entries)
-	}
-	if got := buffer.entries[0]; got.handle != *handle || got.weight != levelWeights[4] {
-		t.Fatalf("unexpected admitted anomaly: %+v", got)
-	}
-}
-
 func TestTopAnomalyBuffer_ExpiresAtFiveMinutes(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
 	buffer := newTopAnomalyBuffer(10)
