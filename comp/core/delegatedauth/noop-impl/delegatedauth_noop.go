@@ -39,6 +39,16 @@ func (d *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.Insta
 	return nil
 }
 
+// Refresh does nothing in the noop implementation - there are never any instances to nudge.
+func (d *DelegatedAuthNoop) Refresh() bool {
+	return false
+}
+
+// IsManaged always returns false in the noop implementation - there are never any instances.
+func (d *DelegatedAuthNoop) IsManaged(_ delegatedauth.Target) bool {
+	return false
+}
+
 // Status Provider implementation for noop
 
 // Name returns the name for status sorting
