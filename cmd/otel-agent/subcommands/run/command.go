@@ -313,7 +313,9 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 		// Resolve hostname locally; no core agent to ask
 		hostnameimpl.Module(),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
-		// effectively disabled by the default agent_ipc.config_refresh_interval=0
+		// force-disabled in agent_config.go (agent_ipc.config_refresh_interval=0 via
+		// SourceAgentRuntime) so it can't be re-enabled by an env var meant for a
+		// colocated core agent.
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
 		// Local workloadmeta-backed tagger so the infraattributes processor can enrich
 		// spans with K8s tags (pod, namespace, deployment, ...) without a core agent

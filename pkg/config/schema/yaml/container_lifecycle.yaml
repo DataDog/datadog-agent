@@ -53,6 +53,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  extended_set:
+    node_type: setting
+    type: boolean
+    default: false
   input_chan_size:
     node_type: setting
     type: integer

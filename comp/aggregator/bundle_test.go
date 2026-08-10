@@ -21,7 +21,6 @@ import (
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -35,7 +34,6 @@ func TestBundleDependencies(t *testing.T) {
 		eventplatformmock.MockModule(),
 		nooptagger.Module(),
 		haagentmock.Module(),
-		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistfx.MockModule(),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),

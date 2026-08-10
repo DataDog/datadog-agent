@@ -72,10 +72,12 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 			}
 			if err != nil {
 				logger.Error("health check failed", log.ErrorField(err))
-			} else if healthCheckLogLimit.ShouldLog() {
-				logger.Info("health check succeeded")
 			} else {
-				logger.Debug("health check succeeded")
+				if healthCheckLogLimit.ShouldLog() {
+					logger.Info("health check succeeded")
+				} else {
+					logger.Debug("health check succeeded")
+				}
 			}
 
 			nextInterval := defaultInterval
