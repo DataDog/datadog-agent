@@ -159,9 +159,7 @@ func NewSubscriber(
 		scanner = procscan.NewScanner(
 			kernel.ProcFSRoot(),
 			// The first retry lands on the next scan, and doubles from there.
-			procscan.WithRetryBackoff(
-				cfg.scanInterval, procscan.DefaultRetryBackoffCap,
-			),
+			cfg.scanInterval, procscan.DefaultRetryBackoffCap,
 		)
 	}
 	s := &Subscriber{

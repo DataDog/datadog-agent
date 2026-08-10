@@ -170,8 +170,12 @@ func newScannerTestState(t *testing.T) *scannerTestState {
 	}
 }
 
+// testEpoch anchors the tick-denominated timelines to the wall clock that the
+// scanner's retry bookkeeping runs on.
+var testEpoch = time.Unix(0, 0).UTC()
+
 // ticksToDuration converts the tick-denominated durations used by the test
-// timelines into the durations that the Options take.
+// timelines into the durations that the constructor takes.
 func ticksToDuration(t uint64) time.Duration {
 	return time.Duration(t) * time.Second / clkTck
 }
@@ -332,12 +336,8 @@ func (c *initializeCommand) execute(
 ) error {
 	ts.currentTime = ticks(c.CurrentTime)
 	ts.scanner = newScanner(
-		[]Option{
-			WithRetryBackoff(
-				ticksToDuration(c.BackoffBase), ticksToDuration(c.BackoffCap),
-			),
-		},
-		func() (ticks, error) { return ts.currentTime, nil },
+		ticksToDuration(c.BackoffBase), ticksToDuration(c.BackoffCap),
+		ts.now,
 		ts.listPids,
 		ts.readStartTime,
 		ts.readTracerMetadata,
@@ -364,6 +364,10 @@ func (c *scanCommand) execute(_ *testing.T, ts *scannerTestState) error {
 		Removed: removed,
 	}
 	return nil
+}
+
+func (ts *scannerTestState) now() time.Time {
+	return testEpoch.Add(ticksToDuration(uint64(ts.currentTime)))
 }
 
 func (ts *scannerTestState) listPids() iter.Seq2[uint32, error] {
@@ -464,12 +468,14 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 	s := ts.scanner
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	live := make([]procSnapshot, 0)
-	s.mu.live.Ascend(func(key procKey) bool {
+	live := make([]procSnapshot, 0, len(s.mu.live))
+	for pid, startTime := range s.mu.live {
 		live = append(live, procSnapshot{
-			PID: key.pid, StartTime: uint64(key.startTime),
+			PID: pid, StartTime: uint64(startTime),
 		})
-		return true
+	}
+	slices.SortFunc(live, func(a, b procSnapshot) int {
+		return cmp.Compare(a.PID, b.PID)
 	})
 
 	candidates := make([]candidateSnapshot, 0, len(s.candidates))
@@ -478,7 +484,7 @@ func (ts *scannerTestState) cloneState() *scannerStateSnapshot {
 			PID:         pid,
 			StartTime:   uint64(c.startTime),
 			Attempts:    c.attempts,
-			NextAttempt: uint64(c.nextAttempt),
+			NextAttempt: uint64(durationToTicks(c.nextAttempt.Sub(testEpoch))),
 		})
 	}
 	slices.SortFunc(candidates, func(a, b candidateSnapshot) int {
@@ -531,6 +537,8 @@ func (ts *scannerTestState) generateOutput(
 			for _, pid := range ts.lastScanResult.Removed {
 				scanOut.Removed = append(scanOut.Removed, int(pid))
 			}
+			// Scan reports exits in map order; sort for a stable snapshot.
+			slices.Sort(scanOut.Removed)
 		}
 
 		outputStruct = scanOut

@@ -12,12 +12,11 @@ import (
 	"fmt"
 	"io/fs"
 	"iter"
+	"maps"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/google/btree"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -31,22 +30,17 @@ import (
 type ProcessID uint32
 
 const (
-	DefaultRetryBackoffBase = 5 * time.Second
-	DefaultRetryBackoffCap  = 5 * time.Minute
+	// DefaultRetryBackoffCap is the cap that the doubling delay between two
+	// looks at the same process grows to.
+	DefaultRetryBackoffCap = 5 * time.Minute
 
-	defaultExecutableCacheSize = 1024
+	// maxCachedExecutables bounds each generation of the goExecutables cache.
+	maxCachedExecutables = 1024
 )
 
 type procKey struct {
 	pid       uint32
 	startTime ticks
-}
-
-func procKeyLess(a, b procKey) bool {
-	if a.pid != b.pid {
-		return a.pid < b.pid
-	}
-	return a.startTime < b.startTime
 }
 
 // candidate is the retry state for a process that has not been instrumented
@@ -55,12 +49,12 @@ type candidate struct {
 	// startTime distinguishes this process from a later one that reuses its pid.
 	startTime ticks
 	// seenAt is the time of the last scan that observed the process.
-	seenAt ticks
+	seenAt time.Time
 	// attempts is the number of scans that have looked at this process without
 	// instrumenting it.
 	attempts uint32
 	// nextAttempt is the earliest time of the next look at this process.
-	nextAttempt ticks
+	nextAttempt time.Time
 }
 
 // Scanner reconciles the set of processes that should be instrumented against
@@ -70,16 +64,17 @@ type candidate struct {
 type Scanner struct {
 	// backoffBase and backoffCap bound the delay between two metadata reads for
 	// the same process.
-	backoffBase ticks
-	backoffCap  ticks
+	backoffBase time.Duration
+	backoffCap  time.Duration
 
-	// nowTicks returns the current time in ticks since boot.
-	nowTicks func() (ticks, error)
+	// now returns the current time.
+	now func() time.Time
 
 	mu struct {
 		sync.Mutex
-		// live tracks discovered processes that have been reported as live.
-		live *btree.BTreeG[procKey]
+		// live maps the pid of each process reported as live to the start time
+		// that identifies it.
+		live map[uint32]ticks
 	}
 
 	// listPids returns an iterator over all PIDs in the system.
@@ -98,49 +93,32 @@ type Scanner struct {
 	// Go binary.
 	checkGoExecutable func(path string) (bool, error)
 
-	goExecutables *lru.Cache[process.FileKey, bool]
+	// goExecutables records, per executable, whether it is a Go binary, so that
+	// each distinct executable is parsed at most once. Entries age out a
+	// generation at a time: once the young map fills it becomes the old map and
+	// a fresh one starts, and a hit in the old map is promoted back into the
+	// young one. Anything still running therefore survives indefinitely while
+	// executables that have gone away fall out after two generations.
+	goExecutables    map[process.FileKey]bool
+	goExecutablesOld map[process.FileKey]bool
 
 	// candidates holds the retry state of processes that are not yet
-	// instrumented, keyed by pid.
+	// instrumented, keyed by pid. Not just Go processes: every process a scan
+	// looked at and did not instrument lands here, kernel threads included,
+	// since no verdict is final.
 	candidates map[uint32]*candidate
 }
 
-type scannerConfig struct {
-	backoffBase         time.Duration
-	backoffCap          time.Duration
-	executableCacheSize int
-}
-
-var defaultScannerConfig = scannerConfig{
-	backoffBase:         DefaultRetryBackoffBase,
-	backoffCap:          DefaultRetryBackoffCap,
-	executableCacheSize: defaultExecutableCacheSize,
-}
-
-// Option configures a Scanner.
-type Option interface {
-	apply(*scannerConfig)
-}
-
-type optionFunc func(*scannerConfig)
-
-func (f optionFunc) apply(c *scannerConfig) { f(c) }
-
-// WithRetryBackoff sets the delay before the first retry of a tracer metadata
-// read and the cap that the doubling delay grows to.
-func WithRetryBackoff(base, maxDelay time.Duration) Option {
-	return optionFunc(func(c *scannerConfig) {
-		c.backoffBase, c.backoffCap = base, maxDelay
-	})
-}
-
-// NewScanner creates a new Scanner that discovers processes in the given
-// procfs root.
-func NewScanner(procfsRoot string, opts ...Option) *Scanner {
+// NewScanner creates a new Scanner that discovers processes in the given procfs
+// root. The delay before another look at a process that was not instrumented
+// starts at backoffBase and doubles up to backoffCap.
+func NewScanner(
+	procfsRoot string, backoffBase, backoffCap time.Duration,
+) *Scanner {
 	reader := newStartTimeReader(procfsRoot)
 	return newScanner(
-		opts,
-		nowTicks,
+		backoffBase, backoffCap,
+		time.Now,
 		func() iter.Seq2[uint32, error] {
 			return listPids(procfsRoot, 512)
 		},
@@ -164,44 +142,28 @@ func NewScanner(procfsRoot string, opts ...Option) *Scanner {
 // newScanner creates a Scanner with injected dependencies. Used by NewScanner
 // for production code and by tests for dependency injection.
 func newScanner(
-	opts []Option,
-	nowTicks func() (ticks, error),
+	backoffBase, backoffCap time.Duration,
+	now func() time.Time,
 	listPids func() iter.Seq2[uint32, error],
 	readStartTime func(pid int32) (ticks, error),
 	tracerMetadataReader func(pid int32) (model.TracerMetadata, error),
 	resolveExecutable func(pid int32) (process.Executable, error),
 	checkGoExecutable func(path string) (bool, error),
 ) *Scanner {
-	cfg := defaultScannerConfig
-	for _, opt := range opts {
-		opt.apply(&cfg)
-	}
 	s := &Scanner{
-		backoffBase:          durationToTicks(cfg.backoffBase),
-		backoffCap:           durationToTicks(cfg.backoffCap),
-		nowTicks:             nowTicks,
+		backoffBase:          backoffBase,
+		backoffCap:           backoffCap,
+		now:                  now,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
 		tracerMetadataReader: tracerMetadataReader,
 		resolveExecutable:    resolveExecutable,
 		checkGoExecutable:    checkGoExecutable,
-		goExecutables: mustNewLRU[process.FileKey, bool](
-			cfg.executableCacheSize,
-		),
-		candidates: make(map[uint32]*candidate),
+		goExecutables:        make(map[process.FileKey]bool),
+		candidates:           make(map[uint32]*candidate),
 	}
-	s.mu.live = btree.NewG(16, procKeyLess)
+	s.mu.live = make(map[uint32]ticks)
 	return s
-}
-
-// mustNewLRU panics if the cache creation fails, which only happens if the size
-// is non-positive.
-func mustNewLRU[K comparable, V any](size int) *lru.Cache[K, V] {
-	c, err := lru.New[K, V](size)
-	if err != nil {
-		panic(err)
-	}
-	return c
 }
 
 // DiscoveredProcess represents a newly discovered process that should be
@@ -229,10 +191,7 @@ func (p *Scanner) Scan() (
 	removed []ProcessID,
 	err error,
 ) {
-	now, err := p.nowTicks()
-	if err != nil {
-		return nil, nil, fmt.Errorf("get timestamp: %w", err)
-	}
+	now := p.now()
 
 	// Rate-limit logging about errors that are interesting.
 	maybeLogErr := func(prefix string, err error) {
@@ -256,7 +215,7 @@ func (p *Scanner) Scan() (
 	// Clone the live set. Processes still alive will be removed from this
 	// clone. Whatever remains has exited.
 	p.mu.Lock()
-	noLongerLive := p.mu.live.Clone()
+	noLongerLive := maps.Clone(p.mu.live)
 	p.mu.Unlock()
 
 	var ret []DiscoveredProcess
@@ -282,13 +241,16 @@ func (p *Scanner) Scan() (
 		}
 		key := procKey{pid: pid, startTime: startTime}
 
-		// Skip processes that are already instrumented.
-		if _, ok := noLongerLive.Delete(key); ok {
+		// Skip processes that are already instrumented. A pid whose start time
+		// no longer matches is a different process reusing the pid, so the entry
+		// stays put and is reported as an exit below.
+		if liveStart, ok := noLongerLive[pid]; ok && liveStart == startTime {
+			delete(noLongerLive, pid)
 			continue
 		}
 
 		c := p.candidateFor(key, now)
-		if c != nil && now < c.nextAttempt {
+		if c != nil && now.Before(c.nextAttempt) {
 			continue
 		}
 
@@ -339,21 +301,18 @@ func (p *Scanner) Scan() (
 		})
 	}
 
-	removed = make([]ProcessID, 0, noLongerLive.Len())
+	removed = make([]ProcessID, 0, len(noLongerLive))
 	p.mu.Lock()
-	noLongerLive.Ascend(func(key procKey) bool {
-		removed = append(removed, ProcessID(key.pid))
-		p.mu.live.Delete(key)
-		return true
-	})
+	// Removals are applied before discoveries so that a reused pid ends up
+	// mapped to the start time of the process that now holds it.
+	for pid := range noLongerLive {
+		removed = append(removed, ProcessID(pid))
+		delete(p.mu.live, pid)
+	}
 	for _, newProc := range ret {
-		p.mu.live.ReplaceOrInsert(procKey{
-			pid:       newProc.PID,
-			startTime: ticks(newProc.StartTimeTicks),
-		})
+		p.mu.live[newProc.PID] = ticks(newProc.StartTimeTicks)
 	}
 	p.mu.Unlock()
-	noLongerLive.Clear(true)
 
 	p.forgetExitedCandidates(now)
 	return ret, removed, nil
@@ -362,7 +321,7 @@ func (p *Scanner) Scan() (
 // candidateFor returns the retry state of the given process, or nil if it has
 // none. A candidate whose start time no longer matches belongs to a process
 // that died and whose pid was reused.
-func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
+func (p *Scanner) candidateFor(key procKey, now time.Time) *candidate {
 	c, ok := p.candidates[key.pid]
 	if !ok || c.startTime != key.startTime {
 		return nil
@@ -379,17 +338,17 @@ func (p *Scanner) candidateFor(key procKey, now ticks) *candidate {
 // exec keeps a process' pid and start time, so a process that is not running a
 // Go binary now may be running one later. The backoff bounds what asking again
 // costs without ever ruling a process out.
-func (p *Scanner) scheduleRetry(key procKey, c *candidate, now ticks) {
+func (p *Scanner) scheduleRetry(key procKey, c *candidate, now time.Time) {
 	if c == nil {
 		c = &candidate{startTime: key.startTime}
 	}
 	c.attempts++
 	c.seenAt = now
-	c.nextAttempt = now + p.retryDelay(c.attempts)
+	c.nextAttempt = now.Add(p.retryDelay(c.attempts))
 	p.candidates[key.pid] = c
 }
 
-func (p *Scanner) retryDelay(attempts uint32) ticks {
+func (p *Scanner) retryDelay(attempts uint32) time.Duration {
 	delay := p.backoffBase
 	for i := uint32(1); i < attempts && delay < p.backoffCap; i++ {
 		delay *= 2
@@ -400,9 +359,9 @@ func (p *Scanner) retryDelay(attempts uint32) ticks {
 // forgetExitedCandidates drops the retry state of processes that this scan did
 // not observe. Backoff bounds what retrying a live process costs; only this
 // sweep bounds the map.
-func (p *Scanner) forgetExitedCandidates(now ticks) {
+func (p *Scanner) forgetExitedCandidates(now time.Time) {
 	for pid, c := range p.candidates {
-		if c.seenAt != now {
+		if !c.seenAt.Equal(now) {
 			delete(p.candidates, pid)
 		}
 	}
@@ -414,15 +373,27 @@ func (p *Scanner) forgetExitedCandidates(now ticks) {
 // Failures are not cached: the answer must not depend on whether a file happened
 // to be readable at the instant we first looked at it.
 func (p *Scanner) isGoExecutable(exe process.Executable) (bool, error) {
-	if isGo, ok := p.goExecutables.Get(exe.Key); ok {
+	if isGo, ok := p.goExecutables[exe.Key]; ok {
+		return isGo, nil
+	}
+	if isGo, ok := p.goExecutablesOld[exe.Key]; ok {
+		p.cacheGoExecutable(exe.Key, isGo)
 		return isGo, nil
 	}
 	isGo, err := p.checkGoExecutable(exe.Path)
 	if err != nil {
 		return false, err
 	}
-	p.goExecutables.Add(exe.Key, isGo)
+	p.cacheGoExecutable(exe.Key, isGo)
 	return isGo, nil
+}
+
+func (p *Scanner) cacheGoExecutable(key process.FileKey, isGo bool) {
+	if len(p.goExecutables) >= maxCachedExecutables {
+		p.goExecutablesOld = p.goExecutables
+		p.goExecutables = make(map[process.FileKey]bool, maxCachedExecutables)
+	}
+	p.goExecutables[key] = isGo
 }
 
 // LiveProcesses returns the list of processes that were alive as of the last
@@ -430,10 +401,9 @@ func (p *Scanner) isGoExecutable(exe process.Executable) (bool, error) {
 func (p *Scanner) LiveProcesses() []ProcessID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	ret := make([]ProcessID, 0, p.mu.live.Len())
-	p.mu.live.Ascend(func(key procKey) bool {
-		ret = append(ret, ProcessID(key.pid))
-		return true
-	})
+	ret := make([]ProcessID, 0, len(p.mu.live))
+	for pid := range p.mu.live {
+		ret = append(ret, ProcessID(pid))
+	}
 	return ret
 }

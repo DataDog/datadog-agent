@@ -20,9 +20,6 @@ go_library(
         "//pkg/dyninst/process",
         "//pkg/util/kernel",
         "//pkg/util/log",
-        "@com_github_google_btree//:btree",
-        "@com_github_hashicorp_golang_lru_v2//:golang-lru",
-        "@org_golang_x_sys//unix",
         "@org_golang_x_time//rate",
     ],
 )

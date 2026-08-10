@@ -28,8 +28,8 @@ import (
 // benchScanInterval mirrors the interval the agent runs with, so that a
 // measured scan is the same amount of work as a production tick and can be
 // expressed as a fraction of a core. Keep it in step with defaultScanInterval
-// in the procsubscribe package. The scanner itself is built with its defaults,
-// which are the values the agent passes.
+// in the procsubscribe package, which is also the retry backoff base the agent
+// passes.
 const benchScanInterval = 5 * time.Second
 
 // benchProcessCounts and benchFDCounts describe the hosts we care about: a
@@ -44,7 +44,7 @@ var (
 // changed since the previous tick.
 func BenchmarkScanSteadyState(b *testing.B) {
 	forEachBenchSize(b, func(b *testing.B, tree syntheticProcfs) {
-		s := NewScanner(tree.root)
+		s := NewScanner(tree.root, benchScanInterval, DefaultRetryBackoffCap)
 		// The first scan examines every pre-existing process, which is a
 		// different workload; see BenchmarkScanFirstScan.
 		_, _, err := s.Scan()
@@ -73,7 +73,7 @@ func BenchmarkScanFirstScan(b *testing.B) {
 	forEachBenchSize(b, func(b *testing.B, tree syntheticProcfs) {
 		b.ReportAllocs()
 		for b.Loop() {
-			s := NewScanner(tree.root)
+			s := NewScanner(tree.root, benchScanInterval, DefaultRetryBackoffCap)
 			if _, _, err := s.Scan(); err != nil {
 				b.Fatal(err)
 			}
@@ -192,7 +192,7 @@ func TestSyntheticProcfsScanWork(t *testing.T) {
 	for _, numProcs := range []int{64, 1100} {
 		t.Run(fmt.Sprintf("procs=%d", numProcs), func(t *testing.T) {
 			tree := makeSyntheticProcfs(t, numProcs, 8)
-			s := NewScanner(tree.root)
+			s := NewScanner(tree.root, benchScanInterval, DefaultRetryBackoffCap)
 
 			var startTimeReads, resolutions, analyses, metadataReads int
 			readStartTime := s.readStartTime
@@ -272,18 +272,10 @@ type syntheticProcfs struct {
 func makeSyntheticProcfs(
 	tb testing.TB, numProcs, fdsPerProc int,
 ) syntheticProcfs {
-	now, err := nowTicks()
-	require.NoError(tb, err)
-
-	// Start times sit far enough in the past, and far enough apart, to be
-	// stable and distinct for the length of a benchmark run.
-	const minAge = ticks(1010 * clkTck)
-	const ageSpacing = ticks(7)
-	ageSpread := ageSpacing * ticks(numProcs)
-	if now < minAge+ageSpread {
-		tb.Skipf("host uptime of %d ticks is too short for %d processes",
-			now, numProcs)
-	}
+	// A scan only ever compares start times for equality, so any distinct
+	// values will do.
+	const firstStartTime = ticks(1010 * clkTck)
+	const startTimeSpacing = ticks(7)
 
 	systemExes, selfExe := benchExeTargets(tb)
 	tree := syntheticProcfs{
@@ -296,7 +288,7 @@ func makeSyntheticProcfs(
 	const firstPID = 1000
 	for i := range numProcs {
 		pid := uint32(firstPID + i)
-		startTime := now - minAge - ageSpacing*ticks(i)
+		startTime := firstStartTime + startTimeSpacing*ticks(i)
 		tree.pids = append(tree.pids, pid)
 		tree.startTimes = append(tree.startTimes, startTime)
 
