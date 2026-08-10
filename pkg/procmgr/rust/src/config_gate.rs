@@ -536,10 +536,15 @@ fn lookup_dotted_key_in_mapping<'a>(
 fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
     match value {
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
-        serde_yaml::Value::Number(number) => number.as_i64().map(|n| n != 0),
+        serde_yaml::Value::Number(number) => yaml_number_as_bool(number),
         serde_yaml::Value::String(text) => bool_from_config_string(text, agent_yaml),
         _ => None,
     }
+}
+
+/// Mirrors Go `cast.ToBoolE` for numeric YAML scalars (integers and floats).
+fn yaml_number_as_bool(number: &serde_yaml::Number) -> Option<bool> {
+    number.as_f64().map(|n| n != 0.0)
 }
 
 fn bool_from_config_string(text: &str, agent_yaml: &str) -> Option<bool> {
@@ -1663,6 +1668,27 @@ process_config:
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
             assert!(!condition_config_any_met(&process_agent_conditions(agent)));
         });
+    }
+
+    #[test]
+    fn value_as_bool_handles_numeric_scalars() {
+        let agent_yaml = "/nonexistent/datadog.yaml";
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(1.into()), agent_yaml),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(0.into()), agent_yaml),
+            Some(false)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(1.0.into()), agent_yaml),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Number(0.0.into()), agent_yaml),
+            Some(false)
+        );
     }
 
     #[test]
