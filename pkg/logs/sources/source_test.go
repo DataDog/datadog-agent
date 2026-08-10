@@ -42,10 +42,8 @@ func TestTrackerSuite(t *testing.T) {
 	suite.Run(t, new(LogSourceSuite))
 }
 
-// TestConcurrentTailingModeAndStatusAccess guards against a regression of a data race where
-// the file launcher mutates a LogSource's Config.TailingMode and Status pointer from a
-// background goroutine while the status builder reads them concurrently to render `agent
-// status`. Both accesses must go through LogSource's lock. Run with `-race` to verify.
+// TestConcurrentTailingModeAndStatusAccess guards against a regression of the data race
+// between the file launcher mutating TailingMode/Status and the status builder reading them.
 func TestConcurrentTailingModeAndStatusAccess(t *testing.T) {
 	t.Parallel()
 	source := NewLogSource("test", &config.LogsConfig{TailingMode: "end"})

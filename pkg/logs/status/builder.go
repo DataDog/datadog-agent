@@ -379,8 +379,7 @@ func (b *Builder) toString(status *status.LogStatus) string {
 }
 
 // toDictionary returns a representation of the configuration. tailingMode is passed in
-// separately (rather than read from c.TailingMode) because it can be mutated concurrently
-// by the file launcher after the source is created, and must go through LogSource's lock.
+// separately since it's mutated concurrently and must be read through LogSource's lock.
 func (b *Builder) toDictionary(c *config.LogsConfig, tailingMode string) map[string]interface{} {
 	dictionary := make(map[string]interface{})
 	dictionary["Service"] = c.Service
