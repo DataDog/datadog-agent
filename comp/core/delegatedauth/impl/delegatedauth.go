@@ -848,20 +848,39 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		}
 
 		merged := make([]any, len(entries))
-		replaced := false
 		for i, entry := range entries {
-			if !replaced {
+			merged[i] = entry
+		}
+
+		// Prefer the recorded index: if the entry there still holds our expected value, this is
+		// unambiguously our own entry. A value-only scan across the whole list can't distinguish
+		// two entries that happen to share the same api_key (e.g. a static entry's key equals
+		// another instance's fallback=<key>), which could silently update the wrong entry. Only
+		// fall back to the value-only scan below if the recorded index no longer points at an
+		// entry with our expected value - i.e. the list was reordered or resized since this
+		// instance was created.
+		matchIndex := -1
+		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
+			if valStr, ok := caseInsensitiveStringField(entries[instance.listEntryIndex], "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
+				matchIndex = instance.listEntryIndex
+			}
+		}
+		if matchIndex == -1 {
+			for i, entry := range entries {
 				// Also match originalDirective - see its doc comment on authInstance.
 				if valStr, ok := caseInsensitiveStringField(entry, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
-					newEntry := make(map[string]any, len(entry))
-					maps.Copy(newEntry, entry)
-					newEntry["api_key"] = apiKey
-					merged[i] = newEntry
-					replaced = true
-					continue
+					matchIndex = i
+					break
 				}
 			}
-			merged[i] = entry
+		}
+
+		replaced := matchIndex != -1
+		if replaced {
+			newEntry := make(map[string]any, len(entries[matchIndex]))
+			maps.Copy(newEntry, entries[matchIndex])
+			newEntry["api_key"] = apiKey
+			merged[matchIndex] = newEntry
 		}
 
 		lastAttempt := attempt == maxAdditionalEndpointsWriteAttempts

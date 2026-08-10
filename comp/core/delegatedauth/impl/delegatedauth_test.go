@@ -889,6 +889,60 @@ func TestMergeIntoAdditionalEndpointsListLeavesListUnchangedWhenNoMatch(t *testi
 	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue, "lastWrittenValue must not advance on a failed match")
 }
 
+// TestMergeIntoAdditionalEndpointsListMatchesByIndexOnValueCollision is a regression test: if two
+// entries happen to share the same api_key value (e.g. a static entry's key equals another
+// instance's fallback=<key>), a value-only scan can't tell them apart and would update whichever
+// one it finds first - not necessarily this instance's own entry. Recording listEntryIndex at
+// AddInstance time and preferring it here fixes that, since it's a stable per-entry identity a
+// value collision can't disturb.
+func TestMergeIntoAdditionalEndpointsListMatchesByIndexOnValueCollision(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
+		map[string]any{"api_key": "shared-key", "Host": "host-a"},
+		map[string]any{"api_key": "shared-key", "Host": "host-b"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		listEntryIndex:                   1,
+		lastWrittenValue:                 "shared-key",
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+
+	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	require.Len(t, got, 2)
+	assert.Equal(t, "shared-key", got[0].(map[string]any)["api_key"], "the entry at the other index must be untouched")
+	assert.Equal(t, "resolved-key", got[1].(map[string]any)["api_key"], "the entry at this instance's recorded index must be updated")
+}
+
+// TestMergeIntoAdditionalEndpointsListFallsBackToValueScanWhenIndexStale is a regression test: if
+// the list was reordered or resized since this instance was created (so listEntryIndex no longer
+// points at an entry with this instance's expected value), the merge must still fall back to a
+// value-only scan across the whole list rather than giving up.
+func TestMergeIntoAdditionalEndpointsListFallsBackToValueScanWhenIndexStale(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
+		map[string]any{"api_key": "DELA(logs-org-uuid, aws)", "Host": "host-a"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		listEntryIndex:                   3, // stale - the list only has 1 entry now
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+
+	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
+	require.True(t, ok)
+	require.Len(t, got, 1)
+	assert.Equal(t, "resolved-key", got[0].(map[string]any)["api_key"])
+}
+
 // raceInjectingConfig wraps a pkgconfigmodel.ReaderWriter and runs inject once, the first time the
 // wrapped GetStringMapStringSlice/Get is called for watchKey - simulating another writer (e.g. the
 // secrets resolver's configAssignAtPath) reading the same compound config value and writing its own

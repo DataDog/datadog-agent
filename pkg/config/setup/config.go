@@ -678,8 +678,11 @@ func resolveFallbackAPIKey(secretResolver secrets.Component, fallback string, or
 }
 
 // fallbackParamRe matches a fallback=<value> parameter within a raw DELA(...) directive string,
-// capturing the value up to the next comma or closing paren.
-var fallbackParamRe = regexp.MustCompile(`(fallback=)[^,)]*`)
+// capturing the value up to the next comma or closing paren. Allows whitespace around "=" and any
+// casing of the key, since parseDelaDirective's key=value splitting trims whitespace around both
+// sides before comparing - "fallback = <key>" parses as a valid fallback param, so the redaction
+// must catch it too, and matching case-insensitively is a safety margin against a mistyped key.
+var fallbackParamRe = regexp.MustCompile(`(?i)(fallback\s*=\s*)[^,)]*`)
 
 // redactDelaDirectiveForLogging returns value with any fallback=<key> parameter's value masked,
 // safe to include in a log message or flare. Directives that fail to parse (the only case this is
@@ -717,9 +720,19 @@ var mapShapeAdditionalEndpointsConfigKeys = []string{
 	"additional_endpoints",
 	"apm_config.additional_endpoints",
 	"apm_config.profiling_additional_endpoints",
+	"apm_config.debugger_additional_endpoints",
+	"apm_config.debugger_diagnostics_additional_endpoints",
+	"apm_config.symdb_additional_endpoints",
+	"apm_config.telemetry.additional_endpoints",
 	"process_config.additional_endpoints",
+	// process_config.orchestrator_additional_endpoints is deprecated in favor of
+	// orchestrator_explorer.orchestrator_additional_endpoints, but both are still read (see
+	// pkg/orchestrator/config/config.go's extractOrchestratorAdditionalEndpoints), so both need
+	// the DELA(...) scan.
+	"process_config.orchestrator_additional_endpoints",
 	"orchestrator_explorer.orchestrator_additional_endpoints",
 	"evp_proxy_config.additional_endpoints",
+	"ol_proxy_config.additional_endpoints",
 }
 
 // configureAdditionalEndpointsDelegatedAuth scans every map-shape `additional_endpoints`-style

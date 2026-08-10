@@ -2039,6 +2039,19 @@ func TestRedactDelaDirectiveForLogging(t *testing.T) {
 			value: "DELA(some-org-uuid, aws, fallback=super-secret-key)",
 			want:  "DELA(some-org-uuid, aws, fallback=***)",
 		},
+		{
+			// parseDelaDirective trims whitespace around both sides of "=" when splitting
+			// key=value params, so a spaced fallback param still parses as valid and must still
+			// be masked.
+			name:  "fallback param with whitespace around = is masked",
+			value: "DELA(some-org-uuid, aws, fallback = super-secret-key, invalid)",
+			want:  "DELA(some-org-uuid, aws, fallback = ***, invalid)",
+		},
+		{
+			name:  "fallback param with different casing is masked",
+			value: "DELA(some-org-uuid, aws, Fallback=super-secret-key, invalid)",
+			want:  "DELA(some-org-uuid, aws, Fallback=***, invalid)",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -2085,6 +2098,27 @@ additional_endpoints:
 	third := byDomain["https://third-org.datadoghq.com"]
 	assert.Equal(t, "third-org-uuid", third.OrgUUID)
 	assert.Equal(t, "DELA(third-org-uuid, aws)", third.AdditionalEndpointDirective)
+}
+
+// TestMapShapeAdditionalEndpointsConfigKeysCoversAllRegisteredSettings is a regression test:
+// several real, bound map-shape additional_endpoints settings were missing from the scan list,
+// meaning a DELA(...) directive placed there never got a delegated-auth instance even on a
+// healthy startup. Each of these keys has its own consumer that treats a DELA(...) value as a
+// literal API key (comp/trace/config/impl/setup.go for the apm_config.* keys and
+// evp_proxy_config, pkg/orchestrator/config/config.go for the two orchestrator keys) - see
+// pkg/config/setup/apm_settings.go and common_settings.go for where each is bound.
+func TestMapShapeAdditionalEndpointsConfigKeysCoversAllRegisteredSettings(t *testing.T) {
+	mustContain := []string{
+		"apm_config.debugger_additional_endpoints",
+		"apm_config.debugger_diagnostics_additional_endpoints",
+		"apm_config.symdb_additional_endpoints",
+		"apm_config.telemetry.additional_endpoints",
+		"process_config.orchestrator_additional_endpoints",
+		"ol_proxy_config.additional_endpoints",
+	}
+	for _, key := range mustContain {
+		assert.Contains(t, mapShapeAdditionalEndpointsConfigKeys, key)
+	}
 }
 
 func TestConfigureAdditionalEndpointsDelegatedAuthTwoOrgsOnSameDomain(t *testing.T) {

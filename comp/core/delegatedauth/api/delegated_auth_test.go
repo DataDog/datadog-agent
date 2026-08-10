@@ -152,6 +152,14 @@ func TestGetAPIDomain(t *testing.T) {
 			want:     "https://api.datadoghq.com.",
 		},
 		{
+			// Regression test: hostOnly must use url.URL.Hostname() (which strips a port),
+			// not the raw Host field, or domainURLRegexp never matches and the endpoint is
+			// returned unchanged - sending the key exchange to the wrong host/port.
+			name:     "production intake domain with explicit port",
+			endpoint: "https://agent.datadoghq.com:443",
+			want:     "https://api.datadoghq.com",
+		},
+		{
 			name:     "production EU domain",
 			endpoint: "https://agent.datadoghq.eu",
 			want:     "https://api.datadoghq.eu",
