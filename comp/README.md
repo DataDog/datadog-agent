@@ -1004,7 +1004,7 @@ network tests based on remote config.
 
 ### [comp/workloadbalancing](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadbalancing)
 
-*Datadog Team*: ndm-core
+*Datadog Team*: network-device-monitoring-core
 
 Package workloadbalancing holds the per-group active/standby state used to hand a
 network device from one Agent to another without restarting either Agent.

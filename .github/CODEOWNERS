@@ -464,7 +464,7 @@
 /comp/snmpscanmanager @DataDog/network-device-monitoring-core
 /comp/softwareinventory @DataDog/windows-products
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
-/comp/workloadbalancing @DataDog/ndm-core
+/comp/workloadbalancing @DataDog/network-device-monitoring-core
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
 

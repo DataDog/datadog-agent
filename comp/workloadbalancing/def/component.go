@@ -7,7 +7,7 @@
 // network device from one Agent to another without restarting either Agent.
 package workloadbalancing
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type.
 type Component interface {
