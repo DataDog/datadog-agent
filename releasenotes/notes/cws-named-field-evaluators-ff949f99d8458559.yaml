@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    CWS: the evaluator of a SECL field is now a named function rather than an
+    anonymous closure of ``GetEvaluator``. Field resolution is where rule
+    evaluation spends most of its time, and a CPU profile used to attribute all
+    of it to one unnamed closure per event model. It now names the field, so a
+    profile taken with ``system_probe_config.internal_profiling.enabled`` shows
+    which fields a rule set resolves. Combined with the ``rule_id`` profiler
+    label, which every rule evaluation already carries, this gives the cost of a
+    rule set broken down by rule and by field.

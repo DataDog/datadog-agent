@@ -51,48 +51,13 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 
-func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
-	// Handle array index access (e.g., field[0])
-	// This is processed here before the switch to support all array fields
-	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
-	if err != nil {
-		return nil, err
-	}
-
-	if isArrayAccess {
-		// Get the base field evaluator (returns the full array)
-		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
-		if err != nil {
-			return nil, err
-		}
-
-		// Wrap it to return only the specific index
-		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
-	}
-
-	switch field {
-	{{range $Name, $Field := .Fields}}
-	{{- if $Field.GettersOnly }}
-		{{continue}}
-	{{end}}
-
-	{{if $Field.Ref}}
-	{{$Ref := index $.Fields $Field.Ref}}
-		{{if $Ref}}
-			{{$Field = $Ref}}
-		{{end}}
-	{{end}}
-
-	case "{{$Name}}":
-		return &{{$Field.GetEvaluatorType}}{
-			{{- if $Field.OpOverrides}}
-			OpOverrides: []*eval.OpOverrides{ {{Join $Field.OpOverrides ", "}} },
-			{{- end}}
+{{define "evalFnc"}}
+{{- $Name := .Name}}{{$Field := .Field}}{{$AllFields := .AllFields}}
 			{{- if and $Field.Iterator (not $Field.IsIterator) }}
-				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
-					ctx.AppendResolvedField(field)
+func eval{{PascalCaseFieldName $Name}}(ctx *eval.Context, regID eval.RegisterID) []{{$Field.ReturnType}} {
+					ctx.AppendResolvedField("{{$Name}}")
 
-					{{$Checks := $Field | GetChecks $.AllFields}}
+					{{$Checks := $Field | GetChecks $AllFields}}
 
 					ev := ctx.Event.(*Event)
 
@@ -154,7 +119,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						{{end}}
 					}
 
-					if result, ok := ctx.{{$Field.GetCacheName}}[field]; ok {
+					if result, ok := ctx.{{$Field.GetCacheName}}["{{$Name}}"]; ok {
 						return result
 					}
 
@@ -207,21 +172,21 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						{{end}}
 					})
 
-					ctx.{{$Field.GetCacheName}}[field] = results
+					ctx.{{$Field.GetCacheName}}["{{$Name}}"] = results
 
 					return results
-				},
+}
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
-				EvalFnc: func(ctx *eval.Context) {{- if not (or $Field.IsIterator $Field.IsLength)}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
-					ctx.AppendResolvedField(field)
+func eval{{PascalCaseFieldName $Name}}(ctx *eval.Context) {{- if not (or $Field.IsIterator $Field.IsLength)}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
+					ctx.AppendResolvedField("{{$Name}}")
 					{{- if not (and $Field.IsIterator (or $Field.IsLength $Field.IsRootDomain))}}
 						ev := ctx.Event.(*Event)
 					{{end}}
 
 					{{$Return := $Field.Name | printf "ev.%s"}}
 
-					{{$Checks := $Field | GetChecks $.AllFields}}
+					{{$Checks := $Field | GetChecks $AllFields}}
 					{{range $Check := $Checks}}
 						{{$Check = $Check | printf "ev.%s"}}
 						if !{{$Check}}() {
@@ -231,7 +196,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 
 					{{- if $Field.Handler}}
 						{{$Ptr := "&"}}
-						{{$Parent := index $.AllFields $Field.Prefix}}
+						{{$Parent := index $AllFields $Field.Prefix}}
 						{{- if or (not $Parent) $Parent.IsOrigTypePtr}}
 							{{$Ptr = ""}}
 						{{end}}
@@ -283,7 +248,69 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 							{{end}}
 						{{end -}}
 					{{end -}}
+}
+			{{end}}
+{{end}}
+
+// Field evaluators. One named function per field: the evaluator of a field is
+// what a CPU profile samples inside, and an anonymous closure of GetEvaluator
+// tells nothing about which field it resolves.
+{{range $Name, $Field := .Fields}}
+{{- if $Field.GettersOnly }}
+	{{continue}}
+{{end}}
+{{if $Field.Ref}}
+{{$Ref := index $.Fields $Field.Ref}}
+	{{if $Ref}}
+		{{$Field = $Ref}}
+	{{end}}
+{{end}}
+{{- template "evalFnc" (dict "Name" $Name "Field" $Field "AllFields" $.AllFields)}}
+{{end}}
+
+func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
+
+	switch field {
+	{{range $Name, $Field := .Fields}}
+	{{- if $Field.GettersOnly }}
+		{{continue}}
+	{{end}}
+
+	{{if $Field.Ref}}
+	{{$Ref := index $.Fields $Field.Ref}}
+		{{if $Ref}}
+			{{$Field = $Ref}}
+		{{end}}
+	{{end}}
+
+	case "{{$Name}}":
+		return &{{$Field.GetEvaluatorType}}{
+			{{- if $Field.OpOverrides}}
+			OpOverrides: []*eval.OpOverrides{ {{Join $Field.OpOverrides ", "}} },
+			{{- end}}
+			{{- if and $Field.Iterator (not $Field.IsIterator) }}
+				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
+					return eval{{PascalCaseFieldName $Name}}(ctx, regID)
 				},
+			{{- else}}
+				EvalFnc: eval{{PascalCaseFieldName $Name}},
 			{{end}}
 			Field: field,
 			{{- if $Field.Iterator}}
