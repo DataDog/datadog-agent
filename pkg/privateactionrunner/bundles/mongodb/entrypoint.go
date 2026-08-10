@@ -25,6 +25,7 @@ func NewMongoDB() types.Bundle {
 			"createIndex":    NewCreateIndexHandler(),
 			"findAndModify":  NewFindAndModifyHandler(),
 			"insertMany":     NewInsertManyHandler(),
+			"testConnection": NewTestConnectionHandler(),
 		},
 	}
 }
