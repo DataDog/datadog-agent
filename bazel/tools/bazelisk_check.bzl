@@ -26,4 +26,6 @@ def _impl(mctx):
             mctx.read(file_to_path["tools/bazelisk.md"]),
         ))
 
+    return mctx.extension_metadata(reproducible = True)
+
 bazelisk_check = module_extension(implementation = _impl)

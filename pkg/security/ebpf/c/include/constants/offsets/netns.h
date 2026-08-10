@@ -2,6 +2,7 @@
 #define _CONSTANTS_OFFSETS_NETNS_H_
 
 #include "constants/macros.h"
+#include "constants/offsets/filesystem.h"
 
 __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device *device) {
     u64 net_device_ifindex_offset;
@@ -37,9 +38,9 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
     }
 
 #ifndef DO_NOT_USE_TC
-    struct ns_common ns;
-    bpf_probe_read(&ns, sizeof(ns), (void *)net + net_ns_offset);
-    return ns.inum;
+    u32 inum = 0;
+    bpf_probe_read(&inum, sizeof(inum), (void *)net + net_ns_offset + get_ns_common_inum_offset());
+    return inum;
 #else
     return 0;
 #endif

@@ -425,6 +425,467 @@ func TestSchedulerRunsCollectorOutsideScheduleCallback(t *testing.T) {
 	collector.waitForRuns(t, 1)
 }
 
+func TestSchedulerRecollectsOnMatchingContainerProcess(t *testing.T) {
+	tests := []struct {
+		name      string
+		runtime   RuntimeType
+		serviceID string
+		resolver  func(t *testing.T) targetResolver
+	}{
+		{
+			name:      "docker",
+			runtime:   RuntimeDocker,
+			serviceID: "docker://abc123",
+			resolver:  func(*testing.T) targetResolver { return targetResolver{} },
+		},
+		{
+			name:      "kubernetes",
+			runtime:   RuntimeKubernetes,
+			serviceID: "containerd://abc123",
+			resolver: func(t *testing.T) targetResolver {
+				store := newWorkloadMetaMock(t)
+				store.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "abc123"},
+					Runtime:  workloadmeta.ContainerRuntimeContainerd,
+					Owner:    &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+				})
+				store.Set(&workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"}})
+				return targetResolver{store: store}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &recordingCollectedConfigSender{}
+			readerFactory := &recordingConfigReaderFactory{reader: fakeConfigReader{runtime: tt.runtime}}
+			collector := &recordingConfigCollector{
+				filesByRun: [][]ConfigFile{
+					nil,
+					{{Path: "/etc/redis/redis.conf", Content: []byte("port 6379\n")}},
+				},
+				canCollectFromProcess: func(commandline TargetCommandline) bool {
+					return len(commandline.Args) >= 2 && commandline.Args[0] == "redis-server" && commandline.Args[1] == "/etc/redis/redis.conf"
+				},
+			}
+			s := newTestADScheduler(
+				tt.resolver(t),
+				map[RuntimeType]configReaderFactory{tt.runtime: readerFactory.Build},
+				map[string]ConfigCollector{testRedisIntegrationName: collector},
+				sender,
+			)
+			defer s.Stop()
+
+			config := checkConfig(testRedisIntegrationName, tt.serviceID)
+			s.Schedule([]integration.Config{config})
+			collector.waitForRuns(t, 1)
+			waitForNextCollectionScheduled(t, s, config)
+
+			s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+				ContainerID: "other-container",
+				Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+			}))
+			s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+				ContainerID: "abc123",
+				Cmdline:     []string{"nginx", "-c", "/etc/nginx/nginx.conf"},
+			}))
+			waitForNextCollectionScheduled(t, s, config)
+			require.Len(t, collector.recordedRuns(), 1)
+
+			bundle := newProcessEventBundle(&workloadmeta.Process{
+				ContainerID: "abc123",
+				Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+			})
+			s.handleProcessEventBundle(bundle)
+			select {
+			case <-bundle.Ch:
+			default:
+				t.Fatal("process event bundle was not acknowledged")
+			}
+
+			collector.waitForRuns(t, 2)
+			configs := sender.waitForCollectedConfigs(t, 1)
+			require.Len(t, configs, 1)
+			assert.Equal(t, tt.runtime, configs[0].Runtime)
+			assert.Equal(t, "abc123", configs[0].RuntimeID)
+			targets := readerFactory.recordedTargets()
+			require.Len(t, targets, 2)
+			assert.Equal(t, target{runtime: tt.runtime, entityID: "abc123"}, targets[1])
+
+		})
+	}
+}
+
+func TestSchedulerUsesProcessFallbackAfterInitialCollectionError(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		errorsByRun: []error{errors.New("initial collection failed"), nil},
+		filesByRun: [][]ConfigFile{
+			nil,
+			{{Path: "/etc/redis/redis.conf"}},
+		},
+		canCollectFromProcess: func(commandline TargetCommandline) bool {
+			return len(commandline.Args) >= 2 && commandline.Args[0] == "redis-server"
+		},
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+	s.Schedule([]integration.Config{config})
+	collector.waitForRuns(t, 1)
+	waitForNextCollectionScheduled(t, s, config)
+
+	s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}))
+
+	collector.waitForRuns(t, 2)
+	configs := sender.waitForCollectedConfigs(t, 1)
+	require.Len(t, configs, 1)
+	assert.Equal(t, []ConfigFile{{Path: "/etc/redis/redis.conf"}}, configs[0].ConfigFiles)
+}
+
+func TestSchedulerRecollectsWhenProcessArrivesDuringInitialCollection(t *testing.T) {
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+	collector := &recordingConfigCollector{
+		started:    started,
+		unblock:    unblock,
+		filesByRun: [][]ConfigFile{nil, {{Path: "/etc/redis/redis.conf"}}},
+		canCollectFromProcess: func(commandline TargetCommandline) bool {
+			return len(commandline.Args) >= 2 && commandline.Args[0] == "redis-server"
+		},
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		nil,
+	)
+	defer s.Stop()
+
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	s.Schedule([]integration.Config{config})
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("initial collection did not start")
+	}
+	firstProcess := &workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}
+	secondProcess := &workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis-secondary.conf"},
+	}
+	s.handleProcessEventBundle(newProcessEventBundle(firstProcess))
+	s.handleProcessEventBundle(newProcessEventBundle(secondProcess))
+	close(unblock)
+
+	collector.waitForRuns(t, 2)
+	waitForConfigState(t, s, config, configCollected)
+	require.Len(t, collector.recordedRuns(), 2)
+}
+
+func TestSchedulerRecollectsWhenProcessArrivesDuringFailedInitialCollection(t *testing.T) {
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		started:     started,
+		unblock:     unblock,
+		errorsByRun: []error{errors.New("initial collection failed"), nil},
+		filesByRun: [][]ConfigFile{
+			nil,
+			{{Path: "/etc/redis/redis.conf"}},
+		},
+		canCollectFromProcess: func(commandline TargetCommandline) bool {
+			return len(commandline.Args) >= 2 && commandline.Args[0] == "redis-server"
+		},
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+	s.Schedule([]integration.Config{config})
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("initial collection did not start")
+	}
+	s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}))
+	close(unblock)
+
+	collector.waitForRuns(t, 2)
+	configs := sender.waitForCollectedConfigs(t, 1)
+	require.Len(t, configs, 1)
+	assert.Equal(t, []ConfigFile{{Path: "/etc/redis/redis.conf"}}, configs[0].ConfigFiles)
+}
+
+func TestSchedulerDoesNotConsumeProcessFallbackDuringStartupJitter(t *testing.T) {
+	mockClock := clock.NewMock()
+	collector := &recordingConfigCollector{
+		filesByRun: [][]ConfigFile{nil, {{Path: "/etc/redis/redis.conf"}}},
+		canCollectFromProcess: func(commandline TargetCommandline) bool {
+			return len(commandline.Args) >= 2 && commandline.Args[0] == "redis-server"
+		},
+	}
+	cfg := defaultADSchedulerConfig()
+	cfg.startupJitter = time.Minute
+	cfg.heartbeatCheckInterval = time.Hour
+	cfg.clock = mockClock
+	cfg.jitter = fixedJitter(0)
+	s := newADSchedulerWithConfig(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		nil,
+		cfg,
+	)
+	defer s.Stop()
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	process := &workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}
+
+	s.Schedule([]integration.Config{config})
+	s.handleProcessEventBundle(newProcessEventBundle(process))
+
+	assert.Empty(t, collector.recordedRuns())
+
+	mockClock.Add(30 * time.Second)
+	collector.waitForRuns(t, 1)
+	waitForNextCollectionScheduled(t, s, config)
+
+	s.handleProcessEventBundle(newProcessEventBundle(process))
+	collector.waitForRuns(t, 2)
+}
+
+func TestSchedulerDiscardsCollectionUnscheduledWhileRunning(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   []ConfigFile
+		envVars []ConfigEnvVar
+	}{
+		{
+			name:  "config files",
+			files: []ConfigFile{{Path: "/etc/redis/redis.conf"}},
+		},
+		{
+			name:    "env vars",
+			envVars: []ConfigEnvVar{{Name: "REDIS_PORT", Value: "6379"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			started := make(chan struct{})
+			unblock := make(chan struct{})
+			sender := &recordingCollectedConfigSender{}
+			collector := &recordingConfigCollector{
+				started: started,
+				unblock: unblock,
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+			s := newTestADScheduler(
+				targetResolver{},
+				map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+				map[string]ConfigCollector{testRedisIntegrationName: collector},
+				sender,
+			)
+
+			config := checkConfig(testRedisIntegrationName, "docker://abc123")
+			s.Schedule([]integration.Config{config})
+			select {
+			case <-started:
+			case <-time.After(time.Second):
+				t.Fatal("collection did not start")
+			}
+
+			s.Unschedule([]integration.Config{config})
+			close(unblock)
+			collector.waitForRuns(t, 1)
+			s.Stop()
+
+			assert.Empty(t, sender.recordedBatches())
+		})
+	}
+}
+
+func TestSchedulerDiscardsConfigUnscheduledWhileWaitingForBatch(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		files: []ConfigFile{{Path: "/etc/redis/redis.conf"}},
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+	s.Schedule([]integration.Config{config})
+	collector.waitForRuns(t, 1)
+	waitForConfigState(t, s, config, configCollected)
+
+	s.Unschedule([]integration.Config{config})
+	s.Stop()
+
+	assert.Empty(t, sender.recordedBatches())
+}
+
+func TestSchedulerWaitsForUsableProcessInformation(t *testing.T) {
+	collector := &recordingConfigCollector{
+		filesByRun: [][]ConfigFile{nil, {{Path: "/etc/redis/redis.conf"}}},
+		canCollectFromProcess: func(commandline TargetCommandline) bool {
+			return len(commandline.Args) >= 2 &&
+				(commandline.WorkingDir != "" || commandline.Args[1] == "/etc/redis/redis.conf")
+		},
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		nil,
+	)
+	defer s.Stop()
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+	s.Schedule([]integration.Config{config})
+	collector.waitForRuns(t, 1)
+	waitForNextCollectionScheduled(t, s, config)
+
+	s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "redis.conf"},
+	}))
+	waitForNextCollectionScheduled(t, s, config)
+	require.Len(t, collector.recordedRuns(), 1)
+
+	s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}))
+	collector.waitForRuns(t, 2)
+}
+
+func TestSchedulerDoesNotRepeatProcessFallback(t *testing.T) {
+	tests := []struct {
+		name          string
+		collectionErr error
+	}{
+		{
+			name: "empty collection",
+		},
+		{
+			name:          "collection error",
+			collectionErr: errors.New("process-triggered collection failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClock := clock.NewMock()
+			collector := &recordingConfigCollector{
+				errorsByRun: []error{nil, tt.collectionErr, nil},
+				filesByRun: [][]ConfigFile{
+					nil,
+					nil,
+					{{Path: "/etc/redis/redis.conf"}},
+				},
+				canCollectFromProcess: func(TargetCommandline) bool { return true },
+			}
+			cfg := defaultADSchedulerConfig()
+			cfg.startupJitter = 0
+			cfg.heartbeatInterval = time.Minute
+			cfg.heartbeatJitter = 0
+			cfg.heartbeatRetryInterval = time.Minute
+			cfg.heartbeatCheckInterval = time.Minute
+			cfg.clock = mockClock
+			cfg.jitter = fixedJitter(0)
+			s := newADSchedulerWithConfig(
+				targetResolver{},
+				map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+				map[string]ConfigCollector{testRedisIntegrationName: collector},
+				nil,
+				cfg,
+			)
+			defer s.Stop()
+			config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+			s.Schedule([]integration.Config{config})
+			collector.waitForRuns(t, 1)
+			waitForNextCollectionScheduled(t, s, config)
+
+			s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+				ContainerID: "abc123",
+				Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+			}))
+			collector.waitForRuns(t, 2)
+			waitForNextCollectionScheduled(t, s, config)
+
+			s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+				ContainerID: "abc123",
+				Cmdline:     []string{"redis-server", "/etc/redis/redis-new.conf"},
+			}))
+			waitForNextCollectionScheduled(t, s, config)
+			require.Len(t, collector.recordedRuns(), 2)
+
+			mockClock.Add(time.Minute)
+			collector.waitForRuns(t, 3)
+		})
+	}
+}
+
+func TestSchedulerRemovesProcessFallbackWhenUnscheduled(t *testing.T) {
+	collector := &recordingConfigCollector{
+		canCollectFromProcess: func(TargetCommandline) bool { return true },
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		nil,
+	)
+	defer s.Stop()
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+	s.Schedule([]integration.Config{config})
+	collector.waitForRuns(t, 1)
+	waitForNextCollectionScheduled(t, s, config)
+
+	s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+		ContainerID: "other-container",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}))
+	s.Unschedule([]integration.Config{config})
+
+	s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}))
+	require.Len(t, collector.recordedRuns(), 1)
+}
+
 func TestSchedulerSendsCollectedConfig(t *testing.T) {
 	sender := &recordingCollectedConfigSender{}
 	collector := &recordingConfigCollector{
@@ -499,6 +960,82 @@ func TestSchedulerSendsEnvOnlyCollectedConfig(t *testing.T) {
 			{Name: "REDIS_TLS_ENABLED", Value: "true"},
 		},
 	}, collectedConfigs[0])
+}
+
+func TestSchedulerRecollectsOnNewProcessInformationAfterEnvOnlySend(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		filesByRun: [][]ConfigFile{
+			nil,
+			{{Path: "/etc/redis/redis.conf"}},
+		},
+		envVars:               []ConfigEnvVar{{Name: "REDIS_PORT", Value: "6379"}},
+		canCollectFromProcess: func(TargetCommandline) bool { return true },
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+	s.Schedule([]integration.Config{config})
+	first := sender.waitForCollectedConfigs(t, 1)
+	require.Len(t, first, 1)
+	assert.Empty(t, first[0].ConfigFiles)
+	assert.Equal(t, []ConfigEnvVar{{Name: "REDIS_PORT", Value: "6379"}}, first[0].EnvVars)
+	waitForConfigSent(t, s, config)
+
+	process := &workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}
+	s.handleProcessEventBundle(newProcessEventBundle(process))
+
+	configs := sender.waitForCollectedConfigs(t, 2)
+	assert.Equal(t, []ConfigFile{{Path: "/etc/redis/redis.conf"}}, configs[1].ConfigFiles)
+	assert.Equal(t, []ConfigEnvVar{{Name: "REDIS_PORT", Value: "6379"}}, configs[1].EnvVars)
+	waitForConfigSent(t, s, config)
+
+	s.handleProcessEventBundle(newProcessEventBundle(process))
+	waitForConfigSent(t, s, config)
+	require.Len(t, collector.recordedRuns(), 2)
+}
+
+func TestSchedulerSendsCollectedConfigBeforeProcessRecollection(t *testing.T) {
+	sender := &recordingCollectedConfigSender{}
+	collector := &recordingConfigCollector{
+		envVars:               []ConfigEnvVar{{Name: "REDIS_PORT", Value: "6379"}},
+		errorsByRun:           []error{nil, errors.New("process recollection failed")},
+		canCollectFromProcess: func(TargetCommandline) bool { return true },
+	}
+	s := newTestADScheduler(
+		targetResolver{},
+		map[RuntimeType]configReaderFactory{RuntimeDocker: fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		sender,
+	)
+	defer s.Stop()
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+
+	s.Schedule([]integration.Config{config})
+	collector.waitForRuns(t, 1)
+	waitForConfigState(t, s, config, configCollected)
+
+	s.handleProcessEventBundle(newProcessEventBundle(&workloadmeta.Process{
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	}))
+
+	configs := sender.waitForCollectedConfigs(t, 1)
+	require.Len(t, configs, 1)
+	assert.Empty(t, configs[0].ConfigFiles)
+	assert.Equal(t, []ConfigEnvVar{{Name: "REDIS_PORT", Value: "6379"}}, configs[0].EnvVars)
+	collector.waitForRuns(t, 2)
+	waitForNextCollectionScheduled(t, s, config)
+	assert.Len(t, sender.recordedCollectedConfigs(), 1)
 }
 
 func TestSchedulerSkipsEmptyCollectedConfig(t *testing.T) {
@@ -778,8 +1315,8 @@ func TestSchedulerSchedulesBatchHeartbeatsTogether(t *testing.T) {
 	secondConfig := checkConfig(testRedisIntegrationName, "docker://def456")
 	s.Schedule([]integration.Config{firstConfig, secondConfig})
 	sender.waitForCollectedConfigs(t, 2)
-	waitForWatchScheduled(t, s, firstConfig)
-	waitForWatchScheduled(t, s, secondConfig)
+	waitForNextCollectionScheduled(t, s, firstConfig)
+	waitForNextCollectionScheduled(t, s, secondConfig)
 
 	firstHeartbeat, _, _ := watchedConfigState(s, firstConfig)
 	secondHeartbeat, _, _ := watchedConfigState(s, secondConfig)
@@ -824,7 +1361,7 @@ func TestSchedulerHeartbeatsCollectedFilesWithJitter(t *testing.T) {
 	})
 
 	sender.waitForCollectedConfigs(t, 1)
-	waitForWatchScheduled(t, s, config)
+	waitForNextCollectionScheduled(t, s, config)
 
 	nextCollection, inFlight, ok := watchedConfigState(s, config)
 	require.True(t, ok)
@@ -868,7 +1405,7 @@ func TestSchedulerCollectsChangedFilesAtNextHeartbeat(t *testing.T) {
 		config,
 	})
 	sender.waitForCollectedConfigs(t, 1)
-	waitForWatchScheduled(t, s, config)
+	waitForNextCollectionScheduled(t, s, config)
 
 	collector.setFiles([]ConfigFile{
 		{
@@ -932,7 +1469,7 @@ func TestSchedulerIgnoresRescheduleReceivedInFlight(t *testing.T) {
 	collectedConfigs := sender.waitForCollectedConfigs(t, 1)
 	require.Len(t, collectedConfigs, 1)
 	assert.Equal(t, []byte("port 6379\n"), collectedConfigs[0].ConfigFiles[0].Content)
-	waitForWatchScheduled(t, s, config)
+	waitForNextCollectionScheduled(t, s, config)
 	assert.Len(t, collector.recordedRuns(), 1)
 }
 
@@ -966,7 +1503,7 @@ func TestSchedulerUnscheduleStopsHeartbeats(t *testing.T) {
 	config := checkConfig(testRedisIntegrationName, "docker://abc123")
 	s.Schedule([]integration.Config{config})
 	sender.waitForCollectedConfigs(t, 1)
-	waitForWatchScheduled(t, s, config)
+	waitForNextCollectionScheduled(t, s, config)
 
 	s.Unschedule([]integration.Config{config})
 	_, _, ok := watchedConfigState(s, config)
@@ -1011,13 +1548,13 @@ func TestSchedulerContinuesHeartbeatingAfterEmptyCollection(t *testing.T) {
 	})
 
 	sender.waitForCollectedConfigs(t, 1)
-	waitForWatchScheduled(t, s, config)
+	waitForNextCollectionScheduled(t, s, config)
 	collector.setFiles(nil)
 
 	mockClock.Add(time.Hour)
 	collector.waitForRuns(t, 2)
 	assert.Len(t, sender.recordedCollectedConfigs(), 1)
-	waitForWatchScheduled(t, s, config)
+	waitForNextCollectionScheduled(t, s, config)
 
 	collector.setFiles([]ConfigFile{
 		{
@@ -1071,7 +1608,7 @@ func TestSchedulerRetriesAfterFailedSend(t *testing.T) {
 
 	collectedConfigs := sender.waitForCollectedConfigs(t, 2)
 	assert.Equal(t, collectedConfigs[0], collectedConfigs[1])
-	waitForWatchScheduled(t, s, config)
+	waitForNextCollectionScheduled(t, s, config)
 }
 
 func TestSchedulerRetriesFailedSendBeforeExistingHeartbeat(t *testing.T) {
@@ -1098,8 +1635,8 @@ func TestSchedulerRetriesFailedSendBeforeExistingHeartbeat(t *testing.T) {
 		key:            watchKey(config),
 		integration:    config.Name,
 		serviceID:      config.ServiceID,
+		state:          configCollected,
 		nextCollection: oldHeartbeat,
-		inFlight:       true,
 	}
 	s.mu.Lock()
 	s.watches[watchKey(config)] = watch
@@ -1144,14 +1681,15 @@ func TestSchedulerRejectsCollectionFromReplacedWatch(t *testing.T) {
 		key:         key,
 		integration: config.Name,
 		serviceID:   config.ServiceID,
+		state:       configCollecting,
 	}
 	replacementDeadline := time.Now().Add(time.Hour)
 	replacementWatch := &watchedConfig{
 		key:            key,
 		integration:    config.Name,
 		serviceID:      config.ServiceID,
+		state:          configCollecting,
 		nextCollection: replacementDeadline,
-		inFlight:       true,
 	}
 	s.mu.Lock()
 	s.watches[key] = replacementWatch
@@ -1165,12 +1703,12 @@ func TestSchedulerRejectsCollectionFromReplacedWatch(t *testing.T) {
 			watch: staleWatch,
 		},
 	}, true)
-	s.finishCollection(staleWatch, time.Time{})
+	s.transitionWatch(staleWatch, collectionDeferred, time.Time{})
 
 	s.mu.Lock()
 	activeWatch := s.watches[key]
 	activeDeadline := activeWatch.nextCollection
-	activeInFlight := activeWatch.inFlight
+	activeInFlight := activeWatch.isCollecting() || activeWatch.hasCollectedConfig()
 	s.mu.Unlock()
 	assert.Same(t, replacementWatch, activeWatch)
 	assert.Equal(t, replacementDeadline, activeDeadline)
@@ -1251,8 +1789,7 @@ func TestComponentAppliesStartupJitterToFirstConfigDiscoveredAfterRegistration(t
 			jitter:                 fixedJitter(0),
 		},
 	)
-	adScheduler, ok := c.scheduler.(*adScheduler)
-	require.True(t, ok)
+	adScheduler := c.scheduler
 	adScheduler.readers[RuntimeDocker] = fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})
 	defer func() {
 		require.NoError(t, c.stop(context.Background()))
@@ -1275,21 +1812,53 @@ func TestComponentAppliesStartupJitterToFirstConfigDiscoveredAfterRegistration(t
 	collector.waitForRuns(t, 2)
 }
 
+func TestComponentRecollectsFromSubscribedProcessEventsAndStops(t *testing.T) {
+	store := newWorkloadMetaMock(t)
+	ac := &fakeAutodiscovery{}
+	collector := &recordingConfigCollector{
+		filesByRun: [][]ConfigFile{nil, {{Path: "/etc/redis/redis.conf"}}},
+		canCollectFromProcess: func(commandline TargetCommandline) bool {
+			return len(commandline.Args) >= 2 && commandline.Args[0] == "redis-server"
+		},
+	}
+	cfg := defaultADSchedulerConfig()
+	cfg.startupJitter = 0
+	c := newComponentWithSchedulerConfig(
+		ac,
+		targetResolver{store: store},
+		noopCollectedConfigSender{},
+		map[string]ConfigCollector{testRedisIntegrationName: collector},
+		cfg,
+	)
+	c.scheduler.readers[RuntimeDocker] = fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})
+
+	require.NoError(t, c.start(context.Background()))
+	config := checkConfig(testRedisIntegrationName, "docker://abc123")
+	c.scheduler.Schedule([]integration.Config{config})
+	collector.waitForRuns(t, 1)
+	waitForNextCollectionScheduled(t, c.scheduler, config)
+
+	store.Set(&workloadmeta.Process{
+		EntityID:    workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "101"},
+		ContainerID: "abc123",
+		Cmdline:     []string{"redis-server", "/etc/redis/redis.conf"},
+	})
+	collector.waitForRuns(t, 2)
+
+	require.NoError(t, c.stop(context.Background()))
+	assert.Equal(t, schedulerName, ac.removedName)
+	assert.Nil(t, c.processEvents)
+}
+
 func TestComponentRegistersProvidedCollectors(t *testing.T) {
 	collector := &recordingConfigCollector{}
 	c := newComponent(nil, targetResolver{}, noopCollectedConfigSender{}, map[string]ConfigCollector{"custom": collector})
-	adScheduler, ok := c.scheduler.(*adScheduler)
-	require.True(t, ok)
-
-	assert.Same(t, collector, adScheduler.collectors["custom"])
+	assert.Same(t, collector, c.scheduler.collectors["custom"])
 }
 
 func TestComponentRegistersKubernetesConfigReader(t *testing.T) {
 	c := newComponent(nil, targetResolver{}, noopCollectedConfigSender{}, nil)
-	adScheduler, ok := c.scheduler.(*adScheduler)
-	require.True(t, ok)
-
-	assert.Contains(t, adScheduler.readers, RuntimeKubernetes)
+	assert.Contains(t, c.scheduler.readers, RuntimeKubernetes)
 }
 
 func TestComponentUsesEventPlatformSenderWhenAvailable(t *testing.T) {
@@ -1298,10 +1867,8 @@ func TestComponentUsesEventPlatformSenderWhenAvailable(t *testing.T) {
 		forwarder: forwarder,
 		ok:        true,
 	}, "test-host"), nil)
-	adScheduler, ok := c.scheduler.(*adScheduler)
-	require.True(t, ok)
 
-	_, ok = adScheduler.sender.(*eventPlatformCollectedConfigSender)
+	_, ok := c.scheduler.sender.(*eventPlatformCollectedConfigSender)
 	require.True(t, ok)
 }
 
@@ -1500,12 +2067,17 @@ func (h fakeHostname) GetSafe(context.Context) string {
 }
 
 type recordingConfigCollector struct {
-	mu      sync.Mutex
-	runs    []runCall
-	unblock chan struct{}
-	files   []ConfigFile
-	envVars []ConfigEnvVar
-	err     error
+	mu                    sync.Mutex
+	runs                  []runCall
+	started               chan struct{}
+	startOnce             sync.Once
+	unblock               chan struct{}
+	files                 []ConfigFile
+	filesByRun            [][]ConfigFile
+	envVars               []ConfigEnvVar
+	err                   error
+	errorsByRun           []error
+	canCollectFromProcess func(TargetCommandline) bool
 }
 
 type runCall struct {
@@ -1513,6 +2085,9 @@ type runCall struct {
 }
 
 func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigReader) (CollectedConfig, error) {
+	if c.started != nil {
+		c.startOnce.Do(func() { close(c.started) })
+	}
 	if c.unblock != nil {
 		select {
 		case <-ctx.Done():
@@ -1526,13 +2101,25 @@ func (c *recordingConfigCollector) Collect(ctx context.Context, reader ConfigRea
 	c.runs = append(c.runs, runCall{
 		reader: reader,
 	})
+	run := len(c.runs) - 1
+	if run < len(c.errorsByRun) && c.errorsByRun[run] != nil {
+		return CollectedConfig{}, c.errorsByRun[run]
+	}
 	if c.err != nil {
 		return CollectedConfig{}, c.err
 	}
+	files := c.files
+	if run < len(c.filesByRun) {
+		files = c.filesByRun[run]
+	}
 	return CollectedConfig{
-		ConfigFiles: c.files,
+		ConfigFiles: files,
 		EnvVars:     c.envVars,
 	}, nil
+}
+
+func (c *recordingConfigCollector) CanCollectFromProcess(commandline TargetCommandline) bool {
+	return c.canCollectFromProcess != nil && c.canCollectFromProcess(commandline)
 }
 
 type recordingCollectedConfigSender struct {
@@ -1726,10 +2313,10 @@ func watchedConfigState(s *adScheduler, config integration.Config) (time.Time, b
 	if !ok {
 		return time.Time{}, false, false
 	}
-	return watch.nextCollection, watch.inFlight, true
+	return watch.nextCollection, watch.isCollecting() || watch.hasCollectedConfig(), true
 }
 
-func waitForWatchScheduled(t *testing.T, s *adScheduler, config integration.Config) {
+func waitForNextCollectionScheduled(t *testing.T, s *adScheduler, config integration.Config) {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -1738,7 +2325,23 @@ func waitForWatchScheduled(t *testing.T, s *adScheduler, config integration.Conf
 	}, time.Second, 10*time.Millisecond)
 }
 
-func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCall {
+func waitForConfigState(t *testing.T, s *adScheduler, config integration.Config, want configCollectionState) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		watch, ok := s.watches[watchKey(config)]
+		return ok && watch.state == want
+	}, time.Second, 10*time.Millisecond)
+}
+
+func waitForConfigSent(t *testing.T, s *adScheduler, config integration.Config) {
+	t.Helper()
+	waitForConfigState(t, s, config, configSent)
+}
+
+func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) {
 	t.Helper()
 
 	require.Eventually(t, func() bool {
@@ -1746,12 +2349,13 @@ func (c *recordingConfigCollector) waitForRuns(t *testing.T, count int) []runCal
 		defer c.mu.Unlock()
 		return len(c.runs) >= count
 	}, time.Second, 10*time.Millisecond)
+}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	runs := make([]runCall, len(c.runs))
-	copy(runs, c.runs)
-	return runs
+func newProcessEventBundle(process *workloadmeta.Process) workloadmeta.EventBundle {
+	return workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Entity: process}},
+		Ch:     make(chan struct{}),
+	}
 }
 
 type fakeConfigReader struct {
@@ -1777,8 +2381,12 @@ func (r fakeConfigReader) ReadEnvVars(context.Context, []string) (map[string]str
 	return nil, errors.New("not implemented")
 }
 
-func (r fakeConfigReader) ReadCommandline(context.Context) (TargetCommandline, error) {
+func (r fakeConfigReader) ReadRuntimeCommandline(context.Context) (TargetCommandline, error) {
 	return TargetCommandline{}, errors.New("not implemented")
+}
+
+func (r fakeConfigReader) ReadLiveProcessCommandlines(context.Context) []TargetCommandline {
+	return nil
 }
 
 func fakeConfigReaderFactory(reader ConfigReader) configReaderFactory {

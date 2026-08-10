@@ -1,0 +1,39 @@
+services:
+  kafka-configfilesdiscovery-default:
+    image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/confluentinc/cp-kafka:7.7.0@sha256:1fa3cdb3ef77b75bc56e7040bbdfa2bd6950b6ee6363381b2493f7a83e07a0b3
+    container_name: kafka-configfilesdiscovery-default
+    command:
+      - /bin/bash
+      - /configfilesdiscovery/start-kafka.sh
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-configfilesdiscovery-default:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-configfilesdiscovery-default:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_BROKER_RACK: configfilesdiscovery-e2e-sentinel
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: kafka-configfilesdiscovery-default
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "kafka": {
+            "init_config": {
+              "is_jmx": true,
+              "collect_default_metrics": true
+            },
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 9999
+              }
+            ]
+          }
+        }
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_KAFKA_CONFIG_DIR}:/configfilesdiscovery:ro

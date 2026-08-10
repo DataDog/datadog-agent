@@ -35,6 +35,7 @@ func TestAgentSuiteEC2(t *testing.T) {
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithRunOptions(
+					scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 					scenec2.WithAgentOptions(
 						agentparams.WithAgentConfig(agentConfig),
 						agentparams.WithSecurityAgentConfig(securityAgentConfig),

@@ -21,6 +21,7 @@ go_library(
 dd_agent_go_test(
     name = "collectors_test",
     srcs = [
+        "helpers_test.go",
         "kafka_test.go",
         "redis_test.go",
     ],

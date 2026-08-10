@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Newtonsoft.Json;
@@ -19,9 +21,7 @@ namespace Datadog.CustomActions.Rollback
 
         private List<IRollbackAction> RollbackActions { get; set; }
 
-        static string StorageBasePath() => Path.Combine(Path.GetTempPath(), "datadog-installer");
-
-        static string StorageRootPath() => Path.Combine(StorageBasePath(), "rollback");
+        static string StorageRootPath() => Path.Combine(Path.GetTempPath(), "datadog-installer", "rollback");
 
         // Used to safely bind serialized JSON to a .NET type
         // TypeNameHandling.Auto/All is unsafe by itself
@@ -64,19 +64,42 @@ namespace Datadog.CustomActions.Rollback
         }
 
         /// <summary>
-        /// Create the directories used to store the rollback data, and return the path of the file
-        /// the data is stored in.
+        /// Create, configure, and return the path to be used to store this rollback data
         /// </summary>
-        /// <remarks>
-        /// Done when the store is created, before the custom actions change anything, so a store we
-        /// could not write fails the action early.
-        /// </remarks>
         private string CreateStoragePath()
         {
-            SecureDirectory.CreateAndSecure(_session, StorageBasePath());
-            SecureDirectory.CreateAndSecure(_session, StorageRootPath());
+            var parent = StorageRootPath();
+            var path = Path.Combine(parent, $"{_storageName}.json");
 
-            return Path.Combine(StorageRootPath(), $"{_storageName}.json");
+            CreateDirectory(parent);
+
+            return path;
+        }
+
+        /// <summary>
+        /// Create directory @path and secure it so only SYSTEM and Administrators have access
+        /// </summary>
+        /// <param name="path"></param>
+        private void CreateDirectory(string path)
+        {
+            // Create DACL for only SYSTEM and Administrators, disable inheritance
+            FileSystemSecurity security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // Create the directory with the DACL
+            Directory.CreateDirectory(path, (DirectorySecurity)security);
         }
 
         /// <summary>
@@ -145,9 +168,6 @@ namespace Datadog.CustomActions.Rollback
         {
             var jsonString = JsonConvert.SerializeObject(RollbackActions, Formatting.Indented, GetSerializerSettings());
             _session.Log($"Saving rollback info: {jsonString}");
-            // Delete rather than overwrite in place, so the file is created fresh and inherits the
-            // DACL of the parent directory.
-            File.Delete(_dataPath);
             File.WriteAllText(_dataPath, jsonString);
         }
     }

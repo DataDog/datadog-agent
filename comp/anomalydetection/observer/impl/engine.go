@@ -183,7 +183,7 @@ func newEngine(cfg engineConfig) *engine {
 		e.logCounts = newMaterializedLogCountBucketizer(cfg.logCountBuckets)
 	}
 	if cfg.baseline.Enabled {
-		e.baseline = newBaselineController(cfg.baseline)
+		e.baseline = newBaselineController(cfg.baseline, detectorNames(cfg.detectors))
 	}
 
 	// Cache log observers from detectors.
@@ -328,7 +328,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			// Always canonicalize so the hash computed here matches storage's
 			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
 			tags = canonicalizeTags(tags)
-			if e.baseline != nil && e.baseline.frozen && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, tags)]; ok {
 					continue
 				}
@@ -495,17 +495,16 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	}
 
 	if e.baseline != nil {
-		e.baseline.activeAt(upToSec)
+		e.baseline.start(upToSec)
+		// Complete windows before detecting at their exact end. This removes
+		// series globally before a slower detector can process them again.
+		e.completeDueBaselines(upToSec)
 	}
 	if e.logCounts != nil {
 		e.logCounts.flush(e.storage, upToSec)
 	}
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
-
-	if e.baseline != nil && e.baseline.shouldFreeze(upToSec) {
-		e.freezeBaseline(upToSec)
-	}
 
 	// Evict series beyond the storage cap and fan freed refs to detectors.
 	if freed := e.storage.EvictDefault(); len(freed) > 0 {
@@ -559,6 +558,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		result := detector.Detect(storageForDetect, upTo)
+		if e.baseline != nil && detector.Ready() {
+			e.baseline.ready(detector.Name(), upTo)
+		}
 
 		// Emit detect digest (captures raw result BEFORE dedup).
 		if e.onDetectDigest != nil {
@@ -588,16 +590,13 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
 			// so captureRawAnomaly would return false (duplicate) before we could mark it.
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
-			if e.baseline != nil && e.baseline.activeAt(upTo) {
+			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
 				if anomaly.SourceRef != nil {
-					e.baseline.mark(seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
+					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
 				}
 				continue
 			}
-			// On the freeze advance activeAt returns false, so anomalies from noisy
-			// series would otherwise enter processAnomaly and land in the correlator
-			// just as the series is being reclaimed. Drop them here instead.
-			if e.baseline != nil && !e.baseline.frozen && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
 				if _, muted := e.baseline.mutedHashes[h]; muted {
 					continue
@@ -821,18 +820,27 @@ func (e *engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
 	return result
 }
 
-// freezeBaseline closes the baseline window, optionally reclaims muted series,
-// and emits eventBaselineCompleted. Must be called from the engine run goroutine.
-func (e *engine) freezeBaseline(upToSec int64) {
-	windowAnomalyCount := e.baseline.freeze()
-	if e.logCounts != nil && e.baseline.config.MuteNoisyMetrics {
-		e.logCounts.removeSeriesByHashes(e.baseline.mutedHashes)
+// completeDueBaselines closes every detector window due at dataSec. It is
+// called before detection so a series muted by one detector is immediately
+// removed from storage and every other detector's local state.
+func (e *engine) completeDueBaselines(dataSec int64) {
+	names := e.baseline.due(dataSec)
+	sort.Strings(names)
+	for _, name := range names {
+		e.completeBaseline(name, dataSec)
+	}
+}
+
+func (e *engine) completeBaseline(detectorName string, upToSec int64) {
+	newHashes, snapshotChanged, windowAnomalyCount, allComplete := e.baseline.complete(detectorName)
+	if e.logCounts != nil && e.baseline.config.MuteNoisyMetrics && len(newHashes) > 0 {
+		e.logCounts.removeSeriesByHashes(newHashes)
 	}
 
 	needRefs := e.baseline.config.MuteNoisyMetrics || e.baseline.config.Verbose
 	var refs []observerdef.SeriesRef
-	if needRefs && len(e.baseline.mutedHashes) > 0 {
-		refs = e.storage.FindRefsByHashes(e.baseline.mutedHashes)
+	if needRefs && len(newHashes) > 0 {
+		refs = e.storage.FindRefsByHashes(newHashes)
 	}
 
 	// Collect display names before removal (GetSeriesMeta returns nil after RemoveSeriesByRefs).
@@ -844,17 +852,23 @@ func (e *engine) freezeBaseline(upToSec int64) {
 			}
 		}
 		sort.Strings(displayNames)
+		e.baseline.recordMutedNames(displayNames)
 	}
 
 	totalSeries := e.storage.TotalSeriesCount("")
 
-	// Emit before removal so testbench sinks can read metadata.
+	// Emit before removal so testbench sinks can read metadata. The controller
+	// uses copy-on-write snapshots, so this immutable union can be published to
+	// concurrent ingress handlers without another full-map copy.
 	e.emit(engineEvent{
 		kind:      eventBaselineCompleted,
 		timestamp: upToSec,
 		baselineCompleted: &baselineCompletedEvent{
-			mutedHashes: e.baseline.mutedHashes,
-			mutedRefs:   refs,
+			detectorName:    detectorName,
+			mutedHashes:     e.baseline.mutedHashes,
+			snapshotChanged: snapshotChanged,
+			mutedRefs:       refs,
+			allComplete:     allComplete,
 		},
 	})
 
@@ -865,11 +879,14 @@ func (e *engine) freezeBaseline(upToSec int64) {
 		}
 	}
 
-	pkglog.Infof("[observer] baseline window ended: %d/%d series muted from anomaly detection (%d anomalies seen)",
-		len(e.baseline.mutedHashes), totalSeries, windowAnomalyCount)
+	pkglog.Debugf("[observer] baseline %d/%d ended for detector %q: %d new series muted (%d anomalies seen)",
+		e.baseline.completedCount(), len(e.baseline.detectors), detectorName, len(newHashes), windowAnomalyCount)
 
-	if e.baseline.config.Verbose {
-		for _, name := range displayNames {
+	if allComplete {
+		pkglog.Infof("[observer] all baseline windows ended: %d/%d series muted from anomaly detection", len(e.baseline.mutedHashes), totalSeries)
+	}
+	if allComplete && e.baseline.config.Verbose {
+		for _, name := range e.baseline.takeMutedDisplayNames() {
 			pkglog.Infof("[observer] baseline muted: %s", name)
 		}
 	}
@@ -943,7 +960,7 @@ func (e *engine) Reset() {
 	}
 
 	if e.baseline != nil {
-		e.baseline.reset()
+		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
 	}
 }
 
@@ -997,7 +1014,7 @@ func (e *engine) resetAnalysisState() {
 	// log ingestion and is needed by enrichAnomaly during replay.
 
 	if e.baseline != nil {
-		e.baseline.reset()
+		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
 	}
 
 	e.resetRawAnomalies()
@@ -1031,7 +1048,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
 	if baselineCfg.Enabled {
-		e.baseline = newBaselineController(baselineCfg)
+		e.baseline = newBaselineController(baselineCfg, detectorNames(detectors))
 	} else {
 		e.baseline = nil
 	}

@@ -90,6 +90,36 @@ type ComponentSettings struct {
 	configs map[string]any
 }
 
+// ApplyTestbenchDetectorDefaults applies the shorter detector warmups used by
+// the offline testbench. Production builds ComponentSettings from the agent
+// config and never calls this function. An explicit testbench --config entry
+// for a detector takes precedence over this profile.
+func ApplyTestbenchDetectorDefaults(settings ComponentSettings) ComponentSettings {
+	if settings.configs == nil {
+		settings.configs = make(map[string]any)
+	}
+
+	bocpd := DefaultBOCPDConfig()
+	bocpd.WarmupPoints = 40
+	holt := DefaultHoltResidualConfig()
+	holt.WarmupPoints = 15
+	holt.ResidualWindow = 25
+	tukey := DefaultTukeyBiweightConfig()
+	tukey.WindowSize = 40
+	tukey.MinPoints = 40
+
+	for name, cfg := range map[string]any{
+		"bocpd":          bocpd,
+		"holt_residual":  holt,
+		"tukey_biweight": tukey,
+	} {
+		if _, explicitlyConfigured := settings.configs[name]; !explicitlyConfigured {
+			settings.configs[name] = cfg
+		}
+	}
+	return settings
+}
+
 // componentCatalog is the shared registry of all available pipeline components.
 // Both the live observer and the testbench use this to discover and instantiate
 // detectors, correlators, and extractors.

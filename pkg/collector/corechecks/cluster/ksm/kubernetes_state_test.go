@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -1329,6 +1330,95 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	}
 }
 
+func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
+	tests := []struct {
+		name             string
+		ownerKind        string
+		ownerName        string
+		argoRolloutLabel string
+		expectedTags     []string
+	}{
+		{
+			name:             "Argo Rollout pod",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+			},
+		},
+		{
+			name:      "Deployment pod",
+			ownerKind: kubernetes.ReplicaSetKind,
+			ownerName: "my-deployment-7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-deployment-7f59c78c9b",
+				"kube_deployment:my-deployment",
+			},
+		},
+		{
+			name:             "non-ReplicaSet Argo-labeled pod",
+			ownerKind:        kubernetes.DaemonSetKind,
+			ownerName:        "my-daemonset",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_daemon_set:my-daemonset",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const (
+				namespace = "default"
+				podName   = "my-rollout-7f59c78c9b-abcde"
+			)
+
+			config := &KSMConfig{
+				LabelsMapper: defaultLabelsMapper(),
+				LabelJoins:   defaultLabelJoins(),
+			}
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
+			check.processLabelJoins()
+
+			labelJoiner := newLabelJoiner(config.labelJoins)
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_labels",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         namespace,
+					"pod":                podName,
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:     namespace,
+					"pod":            podName,
+					createdByKindKey: tt.ownerKind,
+					createdByNameKey: tt.ownerName,
+				}}},
+			})
+
+			_, actualTags := check.hostnameAndTags(map[string]string{
+				namespaceKey: namespace,
+				"pod":        podName,
+			}, labelJoiner, nil)
+
+			assert.ElementsMatch(t, tt.expectedTags, actualTags)
+		})
+	}
+}
+
 func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1555,6 +1645,54 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 			k := &KSMCheck{instance: tt.config}
 			k.mergeLabelsMapper(tt.extra)
 			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.LabelsMapper))
+		})
+	}
+}
+
+func TestKSMCheck_ensureArgoRolloutLabelJoin(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		expected []string
+	}{
+		{
+			name:     "no kube_pod_labels join configured",
+			config:   &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{}},
+			expected: nil,
+		},
+		{
+			name: "user-defined kube_pod_labels join missing the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{"label_team"}},
+			}},
+			expected: []string{"label_team", argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join already has the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{argoRolloutLabelName}},
+			}},
+			expected: []string{argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join uses get_all_labels",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {GetAllLabels: true},
+			}},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.ensureArgoRolloutLabelJoin()
+
+			podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
+			if !found {
+				assert.Nil(t, tt.expected)
+				return
+			}
+			assert.Equal(t, tt.expected, podLabelJoin.LabelsToGet)
 		})
 	}
 }
@@ -1924,16 +2062,18 @@ func TestKSMCheckInitTags(t *testing.T) {
 
 func TestOwnerTags(t *testing.T) {
 	tests := []struct {
-		tc   string
-		kind string
-		name string
-		want []string
+		tc             string
+		kind           string
+		name           string
+		want           []string
+		wantDeployment string
 	}{
 		{
-			tc:   "rs + deploy",
-			kind: "ReplicaSet",
-			name: "foo-6768ddc4d",
-			want: []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			tc:             "rs + deploy",
+			kind:           "ReplicaSet",
+			name:           "foo-6768ddc4d",
+			want:           []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			wantDeployment: "foo",
 		},
 		{
 			tc:   "rs only",
@@ -1974,7 +2114,9 @@ func TestOwnerTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.tc, func(t *testing.T) {
-			assert.EqualValues(t, tt.want, ownerTags(tt.kind, tt.name))
+			actualTags, actualDeployment := ownerTags(tt.kind, tt.name)
+			assert.EqualValues(t, tt.want, actualTags)
+			assert.Equal(t, tt.wantDeployment, actualDeployment)
 		})
 	}
 }
@@ -1983,14 +2125,14 @@ func BenchmarkOwnerTags(b *testing.B) {
 	b.Run("ReplicaSet", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("ReplicaSet", "foo-6768ddc4d")
+			_, _ = ownerTags("ReplicaSet", "foo-6768ddc4d")
 		}
 	})
 
 	b.Run("Job", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("Job", "foo-1627309500")
+			_, _ = ownerTags("Job", "foo-1627309500")
 		}
 	})
 }

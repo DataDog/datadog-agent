@@ -80,7 +80,35 @@ class TestAblationConfig(unittest.TestCase):
         tukey = _sample_component_params(trial, "tukey_biweight")
 
         self.assertLessEqual(holt["beta"], holt["alpha"])
-        self.assertEqual(tukey["min_points"], tukey["window_size"])
+        self.assertNotIn("residual_window", holt)
+        self.assertNotIn("window_size", tukey)
+        self.assertNotIn("min_points", tukey)
+
+    def test_generated_configs_include_testbench_warmup_profile(self):
+        components = _build_optuna_config(
+            trial=None,
+            components=["anomaly_scorer"],
+            locked={"anomaly_scorer"},
+        )["components"]
+
+        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["holt_residual"]["warmup_points"], 15)
+        self.assertEqual(components["holt_residual"]["residual_window"], 25)
+        self.assertEqual(components["tukey_biweight"]["window_size"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
+
+    def test_optuna_cannot_override_testbench_warmup_profile(self):
+        components = _build_optuna_config(
+            trial=MinimumTrial(),
+            components=["bocpd", "holt_residual", "tukey_biweight"],
+            locked=set(),
+        )["components"]
+
+        self.assertEqual(components["bocpd"]["warmup_points"], 40)
+        self.assertEqual(components["holt_residual"]["warmup_points"], 15)
+        self.assertEqual(components["holt_residual"]["residual_window"], 25)
+        self.assertEqual(components["tukey_biweight"]["window_size"], 40)
+        self.assertEqual(components["tukey_biweight"]["min_points"], 40)
 
 
 class TestPipelineResume(unittest.TestCase):

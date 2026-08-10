@@ -13,6 +13,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.schema.generate import schema_codegen
 
 DEFAULT_FUZZING_SLACK_CHANNEL = "agent-fuzz-findings"
 
@@ -85,6 +86,9 @@ def build_and_upload_fuzz(
     auth_header = ctx.run(
         'vault read -field=token identity/oidc/token/security-fuzzing-platform', hide=True
     ).stdout.strip()
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     max_pkg_name_length = 50
     for directory, func in search_fuzz_tests(os.getcwd()):

@@ -129,6 +129,14 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.PCIBusID = pciBusIDFromNVMLInfo(pciInfo)
 	}
 
+	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
+	if err == nil {
+		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
+			gpuDeviceInfo.FabricClusterUUID = clusterUUID
+			gpuDeviceInfo.FabricCliqueID = cliqueID
+		}
+	}
+
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
 	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
 		maxSMClock, err := physicalDevice.GetMaxClockInfo(nvml.CLOCK_SM)
@@ -161,6 +169,20 @@ func pciBusIDFromNVMLInfo(pciInfo nvml.PciInfo) string {
 	// function. For NVIDIA GPUs, the GPU function is the .0 function; companion
 	// functions, when present, represent auxiliary devices such as audio.
 	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
+}
+
+func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
+	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
+}
+
+func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
+	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
+		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
+		fabricInfo.ClusterUuid == [16]uint8{} {
+		return "", 0, false
+	}
+
+	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {

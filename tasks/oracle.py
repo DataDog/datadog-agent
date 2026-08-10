@@ -4,6 +4,8 @@ from time import sleep
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.schema.generate import schema_codegen
+
 
 @task
 def test(ctx, verbose=False) -> None:
@@ -17,6 +19,9 @@ def test(ctx, verbose=False) -> None:
     try:
         os.environ["ORACLE_TEST_PORT"] = "1521"
         os.environ["ORACLE_TEST_SERVER"] = "oracle" if os.environ.get("CI") else "localhost"
+
+        # TODO: remove once Bazel is used to build the Agent
+        schema_codegen(ctx, keep_orig_order=False, fix=True)
 
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")

@@ -115,7 +115,7 @@ func Run(t *testing.T, f func() e2e.Suite[environments.Host], platforms []e2eos.
 			t.Parallel()
 			name := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
 			// clone opts and shadow it to avoid race condition when running in parallel
-			opts := append(slices.Clone(opts), awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform)), ec2.WithoutAgent()))
+			opts := append(slices.Clone(opts), awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform), ec2.WithInternetAccess()), ec2.WithoutAgent()))
 			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(name))
 		})
 	}

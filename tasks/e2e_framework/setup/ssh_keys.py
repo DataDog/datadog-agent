@@ -1,13 +1,14 @@
 import base64
+import contextlib
 import os
 import secrets
 from pathlib import Path
 from typing import NamedTuple
 
 from invoke.context import Context
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.e2e_framework.tool import info, is_windows, warn
+from tasks.e2e_framework.tool import ask_yesno, info, is_windows, restrict_file_to_owner, warn
 
 
 def ssh_fingerprint_to_bytes(fingerprint: str) -> bytes:
@@ -165,9 +166,10 @@ def add_key_to_ssh_agent(ctx: Context, private_key_path: str, passphrase: str) -
     with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
         f.write(f'#!/bin/sh\nprintf "%s" "{passphrase}"\n')
         askpass_path = f.name
-    os.chmod(askpass_path, stat.S_IRWXU)
 
     try:
+        # ssh-add executes the script, so it needs the owner execute bit that mkstemp omits.
+        os.chmod(askpass_path, stat.S_IRWXU)
         # On macOS, --apple-use-keychain persists the passphrase across reboots
         extra = "--apple-use-keychain " if platform.system() == "Darwin" else ""
         ctx.run(
@@ -175,10 +177,16 @@ def add_key_to_ssh_agent(ctx: Context, private_key_path: str, passphrase: str) -
             hide=True,
         )
         info(f"✓ SSH key added to ssh-agent: {private_key_path}")
-    except UnexpectedExit as e:
+    except Exception as e:
+        # Loading the agent is a convenience, and the caller has a freshly generated key
+        # whose passphrase is not yet persisted. Aborting setup here would leave that key
+        # on disk with no record of its passphrase.
         warn(f"Could not add key to ssh-agent (is it running?): {e}")
     finally:
-        os.unlink(askpass_path)
+        try:
+            os.unlink(askpass_path)
+        except OSError as e:
+            warn(f"Could not remove {askpass_path}, which holds the key passphrase in cleartext: {e}")
 
 
 def default_key_paths(
@@ -201,6 +209,41 @@ def default_key_paths(
     return private_path, public_path
 
 
+def discard_key_without_passphrase(
+    ctx: Context,
+    private_key_path: Path,
+    public_key_path: Path,
+    recorded_passphrase: str | None,
+) -> None:
+    """
+    Offer to replace a key whose passphrase is not recorded in the local config.
+
+    A run interrupted between generating a key and saving that config leaves a key nobody
+    holds the passphrase for, and callers read the file's presence as proof of setup, so
+    every later run would otherwise report it as usable.
+
+    The passphrase can outlive the config file, however: it may be restorable from a backup,
+    and on macOS add_key_to_ssh_agent keeps a copy in the Keychain. Any host already
+    provisioned with the public half also still trusts it. Deleting the key is therefore
+    offered rather than inferred.
+    """
+    if recorded_passphrase or not private_key_path.is_file():
+        return
+    if not is_key_encrypted(ctx, str(private_key_path)):
+        return
+
+    warn(f"{private_key_path} is encrypted, but no passphrase for it is recorded in the local config.")
+    if not ask_yesno("Delete it and generate a replacement? Hosts that trust the current key will reject the new one"):
+        raise Exit(
+            f"Cannot use {private_key_path} without its passphrase. Restore the local config from a "
+            f"backup, set privateKeyPassword for this provider by hand, or delete the key to have "
+            f"setup generate a replacement."
+        )
+    for stale in (private_key_path, public_key_path):
+        with contextlib.suppress(OSError):
+            os.remove(stale)
+
+
 def generate_keypair_with_passphrase(
     ctx: Context,
     private_key_path: str,
@@ -215,10 +258,18 @@ def generate_keypair_with_passphrase(
     passphrase = secrets.token_urlsafe(32)
     os.makedirs(Path(private_key_path).parent, exist_ok=True)
     ctx.run(f'ssh-keygen -t {key_type} -f "{private_key_path}" -N "{passphrase}" -C ""', hide=True)
-    if not is_windows():
-        os.chmod(private_key_path, 0o600)
     # ssh-keygen appends .pub to the private key path; rename to the desired public key path
     generated_pub = f"{private_key_path}.pub"
-    if generated_pub != public_key_path:
-        os.rename(generated_pub, public_key_path)
+    try:
+        restrict_file_to_owner(private_key_path)
+        if generated_pub != public_key_path:
+            os.rename(generated_pub, public_key_path)
+    except BaseException:
+        # The passphrase exists only in this frame until it is returned, so a key that
+        # outlives the failure can never be decrypted. Callers read the private key's
+        # presence as proof of setup and would skip regenerating it.
+        for path in (private_key_path, generated_pub):
+            with contextlib.suppress(OSError):
+                os.remove(path)
+        raise
     return passphrase

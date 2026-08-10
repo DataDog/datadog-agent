@@ -1,10 +1,10 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
-
-# gazelle:dd_agent_go_test off
 
 # gazelle:exclude include_headers_gen.go
 # gazelle:exclude types_linux_test.go
+
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files([
     "types_linux.go",
@@ -248,21 +248,18 @@ go_library(
 )
 
 # keep
-go_test(
+dd_agent_go_test(
     name = "types_linux_test",
     srcs = ["types_linux_test.go"],
     embed = [":ebpf"],
-    gotags = [
-        "linux_bpf",
-        "test",
-    ],
+    gotags_sets = [["linux_bpf"]],
     # keep
     deps = [
         "//pkg/ebpf/ebpftest:cgo_align",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
         "btf_test.go",
@@ -279,13 +276,9 @@ go_test(
         "rc_btf_test.go",
         "time_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":ebpf"],
-    gotags = [
-        "linux_bpf",
-        "test",
-    ],
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [["linux_bpf"]],
     deps = [
         "//comp/core/telemetry/impl/noops",
         "//pkg/config/remote/data",

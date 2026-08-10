@@ -82,14 +82,12 @@
     <Compile Include="Flare\FlareUnitTests.cs" />
     <Compile Include="IntegrationTests\TestConfig.cs" />
     <Compile Include="Logs\ProcessConfigTests.cs" />
-    <Compile Include="Native\SecureDirectoryTests.cs" />
     <Compile Include="ProcessUserCustomActions\TestDelegate.cs" />
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="Service\ServiceCustomActionTests.cs" />
     <Compile Include="Service\ServiceCustomActionsTestSetup.cs" />
     <Compile Include="Telemetry\TelemetryUnitTests.cs" />
-    <Compile Include="SessionExtensionsTests.cs" />
     <Compile Include="SessionTestBaseSetup.cs" />
     <Compile Include="ProcessUserCustomActions\ProcessUserCustomActionsDomainClientTests.cs" />
     <Compile Include="ProcessUserCustomActions\ProcessUserCustomActionsDomainControllerTests.cs" />
@@ -98,8 +96,6 @@
     <Compile Include="WriteConfigUnitTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="YamlAssertions\YamlAssertionsTests.cs" />
-    <Compile Include="Helpers\Elevation.cs" />
-    <Compile Include="Helpers\TestDirectory.cs" />
     <Compile Include="Helpers\YamlAssertions.cs" />
     <Compile Include="Helpers\YamlAssertionsExtensions.cs" />
     <Compile Include="Helpers\YamlExpectationsExtensions.cs" />

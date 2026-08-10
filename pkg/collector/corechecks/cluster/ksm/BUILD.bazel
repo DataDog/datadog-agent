@@ -82,6 +82,7 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/kubestatemetrics/store",
         "//pkg/metrics/servicecheck",
+        "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

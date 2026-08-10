@@ -31,6 +31,7 @@ const (
 	DDInfraDefaultVPCIDParamName               = "aws/defaultVPCID"
 	DDInfraDefaultSubnetsParamName             = "aws/defaultSubnets"
 	DDInfraDefaultSecurityGroupsParamName      = "aws/defaultSecurityGroups"
+	DDInfraNoInternetSecurityGroupNamesParamName = "aws/noInternetSecurityGroupNames"
 	DDInfraDefaultInstanceTypeParamName        = "aws/defaultInstanceType"
 	DDInfraDefaultInstanceProfileParamName     = "aws/defaultInstanceProfile"
 	DDInfraDefaultARMInstanceTypeParamName     = "aws/defaultARMInstanceType"
@@ -256,6 +257,14 @@ func (e *Environment) RandomSubnets() pulumi.StringArrayOutput {
 
 func (e *Environment) DefaultSecurityGroups() []string {
 	return e.GetStringListWithDefault(e.InfraConfig, DDInfraDefaultSecurityGroupsParamName, e.envDefault.ddInfra.defaultSecurityGroups)
+}
+
+// NoInternetSecurityGroupNames returns the names of security groups to attach to a VM instead of
+// the account's default security groups when internet access must be blocked. The groups are
+// resolved to IDs at provisioning time via LookupSecurityGroup; they must already exist in the
+// account's VPC and be configured accordingly.
+func (e *Environment) NoInternetSecurityGroupNames() []string {
+	return e.GetStringListWithDefault(e.InfraConfig, DDInfraNoInternetSecurityGroupNamesParamName, e.envDefault.ddInfra.noInternetSecurityGroupNames)
 }
 
 func (e *Environment) DefaultInstanceType() string {

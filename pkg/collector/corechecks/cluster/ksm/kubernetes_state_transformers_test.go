@@ -1916,7 +1916,7 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 		{
 			name: "memory",
 			args: args{
-				name: "kube_pod_container_resource_requests",
+				name: "kube_pod_container_effective_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 50000000,
 					Labels: map[string]string{
@@ -1937,7 +1937,7 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 		{
 			name: "cpu",
 			args: args{
-				name: "kube_pod_container_resource_requests",
+				name: "kube_pod_container_effective_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 2,
 					Labels: map[string]string{
@@ -1958,7 +1958,7 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 		{
 			name: "kubernetes_io_network_bandwidth",
 			args: args{
-				name: "kube_pod_container_resource_requests",
+				name: "kube_pod_container_extended_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 2,
 					Labels: map[string]string{
@@ -1979,13 +1979,10 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 		{
 			name: "no resource label",
 			args: args{
-				name: "kube_pod_container_resource_requests",
+				name: "kube_pod_container_effective_resource_requests",
 				metric: ksmstore.DDMetric{
-					Val: 2,
-					Labels: map[string]string{
-						"resource": "cpu",
-						"unit":     "core",
-					},
+					Val:    2,
+					Labels: map[string]string{"unit": "core"},
 				},
 				tags: []string{"foo:bar"},
 			},
@@ -2004,6 +2001,64 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 			} else {
 				s.AssertNotCalled(t, "Gauge")
 			}
+		})
+	}
+}
+
+func Test_podTerminatingTransformer(t *testing.T) {
+	s := mocksender.NewMockSender(t, "ksm")
+	s.SetupAcceptAll()
+	tags := []string{"pod_name:test-pod", "kube_namespace:test-namespace"}
+
+	podTerminatingTransformer(s, "kube_pod_deletion_timestamp", ksmstore.DDMetric{Val: 12345}, "", tags, time.Time{})
+
+	s.AssertMetric(t, "Gauge", "kubernetes_state.pod.terminating", 1, "", tags)
+	s.AssertNumberOfCalls(t, "Gauge", 1)
+}
+
+func Test_containerSpecResourceRequestsTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource string
+		expected *metricsExpected
+	}{
+		{
+			name:     "cpu is emitted from effective requests instead",
+			resource: "cpu",
+		},
+		{
+			name:     "memory is emitted from effective requests instead",
+			resource: "memory",
+		},
+		{
+			name:     "spec-only resource is preserved",
+			resource: "nvidia_com_gpu",
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_requested",
+				val:      1,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := mocksender.NewMockSender(t, "ksm")
+			s.SetupAcceptAll()
+			metric := ksmstore.DDMetric{
+				Val:    1,
+				Labels: map[string]string{"resource": tt.resource},
+			}
+
+			containerSpecResourceRequestsTransformer(s, "kube_pod_container_resource_requests", metric, "foo", []string{"foo:bar"}, time.Time{})
+			if tt.expected == nil {
+				s.AssertNotCalled(t, "Gauge")
+				return
+			}
+
+			s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.expected.hostname, tt.expected.tags)
+			s.AssertNumberOfCalls(t, "Gauge", 1)
 		})
 	}
 }

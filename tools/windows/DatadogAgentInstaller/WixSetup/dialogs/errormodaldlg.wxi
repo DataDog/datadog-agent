@@ -1,12 +1,10 @@
 <Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <!-- The text control clips anything that does not fit, so it is sized for the longest messages the
-       custom actions produce. -->
-  <Dialog Id="ErrorModalDlg" Width="370" Height="140" Title="!(loc.ErrorModalDialog_Title)">
+  <Dialog Id="ErrorModalDlg" Width="270" Height="105" Title="!(loc.ErrorModalDialog_Title)">
 
-    <Control Id="Text" Type="Text" X="48" Y="15" Width="305" Height="80"
+    <Control Id="Text" Type="Text" X="48" Y="15" Width="210" Height="60" 
         Text="[ErrorModal_ErrorMessage]" />
 
-    <Control Id="OK" Type="PushButton" X="157" Y="105" Width="56"
+    <Control Id="OK" Type="PushButton" X="100" Y="80" Width="56" 
         Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
         <!-- WiX 5: Publish condition moved to attribute -->
         <Publish Event="EndDialog" Value="Return" Condition="1" />

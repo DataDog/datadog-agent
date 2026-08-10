@@ -44,7 +44,7 @@ func TestUpgradeScript(t *testing.T) {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
 
-	vmOpts := []ec2.VMOption{}
+	vmOpts := []ec2.VMOption{ec2.WithInternetAccess()}
 	if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 		vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 	}

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build docker || (cri && containerd) || test
+
 // Package fx provides fx wiring for the config files discovery component.
 package fx
 
@@ -62,14 +64,10 @@ func newOptionalComponent(reqs Requires) Provides {
 		Hostname:      reqs.Hostname,
 		WorkloadMeta:  reqs.WorkloadMeta,
 		EventPlatform: reqs.EventPlatform,
-		Collectors:    defaultCollectors(),
+		Collectors: map[string]configfilesdiscoveryimpl.ConfigCollector{
+			collectors.KafkaIntegrationName: collectors.NewKafka(),
+			collectors.RedisIntegrationName: collectors.NewRedis(),
+		},
 	})
 	return Provides{Comp: option.New(provides.Comp)}
-}
-
-func defaultCollectors() map[string]configfilesdiscoveryimpl.ConfigCollector {
-	return map[string]configfilesdiscoveryimpl.ConfigCollector{
-		collectors.KafkaIntegrationName: collectors.NewKafka(),
-		collectors.RedisIntegrationName: collectors.NewRedis(),
-	}
 }

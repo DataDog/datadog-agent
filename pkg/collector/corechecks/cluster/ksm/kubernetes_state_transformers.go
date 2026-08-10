@@ -95,12 +95,14 @@ func resourceDDName(resource string, allowedResources map[string]struct{}) (ddna
 func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 	transformers := map[string]metricTransformerFunc{
 		"kube_pod_created":                                podCreationTransformer,
+		"kube_pod_deletion_timestamp":                     podTerminatingTransformer,
 		"kube_pod_start_time":                             podStartTimeTransformer,
 		"kube_pod_status_phase":                           podPhaseTransformer,
 		"kube_pod_container_status_waiting_reason":        containerWaitingReasonTransformer,
 		"kube_pod_container_status_terminated_reason":     containerTerminatedReasonTransformer,
 		"kube_pod_container_extended_resource_requests":   containerResourceRequestsTransformer,
-		"kube_pod_container_resource_requests":            containerResourceRequestsTransformer,
+		"kube_pod_container_effective_resource_requests":  containerResourceRequestsTransformer,
+		"kube_pod_container_resource_requests":            containerSpecResourceRequestsTransformer,
 		"kube_pod_container_resource_limits":              containerResourceLimitsTransformer,
 		"kube_pod_container_extended_resource_limits":     containerResourceLimitsTransformer,
 		"kube_pod_init_container_status_waiting_reason":   initcontainerWaitingReasonTransformer,
@@ -254,6 +256,12 @@ func podCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric,
 	submitAge(s, ksmMetricPrefix+"pod.age", metric, hostname, tags, currentTime)
 }
 
+// podTerminatingTransformer emits a sparse value-1 gauge for every pod whose
+// deletion timestamp is set. kube_pod_deletion_timestamp is absent otherwise.
+func podTerminatingTransformer(s sender.Sender, _ string, _ ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	s.Gauge(ksmMetricPrefix+"pod.terminating", 1, hostname, tags)
+}
+
 // podStartTimeTransformer generates the pod uptime metric based on the start time timestamp
 func podStartTimeTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	submitAge(s, ksmMetricPrefix+"pod.uptime", metric, hostname, tags, currentTime)
@@ -318,6 +326,19 @@ func submitContainerTerminatedReasonTransformer(s sender.Sender, metric ksmstore
 
 // containerResourceRequestsTransformer transforms the generic ksm resource request metrics into resource-specific metrics
 func containerResourceRequestsTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	submitContainerResourceMetric(s, name, metric, hostname, tags, "requested", crs.Standard)
+}
+
+// containerSpecResourceRequestsTransformer preserves resource metrics that are
+// only available from the pod spec. CPU and memory are emitted by
+// kube_pod_container_effective_resource_requests instead so they can account
+// for in-place vertical scaling without producing duplicate series.
+func containerSpecResourceRequestsTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	resource := metric.Labels["resource"]
+	if resource == "cpu" || resource == "memory" {
+		return
+	}
+
 	submitContainerResourceMetric(s, name, metric, hostname, tags, "requested", crs.Standard)
 }
 

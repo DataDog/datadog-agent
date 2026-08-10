@@ -9566,6 +9566,7 @@ properties:
         platform_default:
           linux: true
           windows: true
+          aix: true
           other: false
     tags:
     - full-agent-only:true
@@ -10037,14 +10038,14 @@ properties:
         node_type: setting
         type: integer
         default: 0
-      series:
+      sketches:
         node_type: section
         type: object
         properties:
           beta_route:
             node_type: setting
             type: string
-            default: /api/intake/metrics/v3beta/series
+            default: /api/intake/metrics/v3beta/sketches
           endpoints:
             node_type: setting
             type: array
@@ -10064,28 +10065,6 @@ properties:
             - datadoghq.com
             items:
               type: string
-          use_beta:
-            node_type: setting
-            type: boolean
-            default: false
-          validate:
-            node_type: setting
-            type: boolean
-            default: false
-      sketches:
-        node_type: section
-        type: object
-        properties:
-          endpoints:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-          validate:
-            node_type: setting
-            type: boolean
-            default: false
   serializer_max_payload_size:
     node_type: setting
     type: integer
@@ -10533,6 +10512,7 @@ properties:
     platform_default:
       linux: true
       windows: true
+      aix: true
       other: false
     tags:
     - full-agent-only:true

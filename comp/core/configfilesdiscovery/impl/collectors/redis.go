@@ -21,28 +21,39 @@ const (
 	redisConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF
 )
 
+var redisDefaultConfigPaths = []string{
+	"/etc/redis/redis.conf",
+	"/usr/local/etc/redis/redis.conf",
+	"/opt/bitnami/redis/etc/redis.conf",
+}
+
 type redisConfigCollector struct{}
 
 func NewRedis() configfilesdiscoveryimpl.ConfigCollector {
 	return redisConfigCollector{}
 }
 
-func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	commandline, err := reader.ReadCommandline(ctx)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read redis command line: %w", err)
-	}
-
-	configPath, ok := redisGetConfigPath(commandline)
+// CanCollectFromProcess returns whether the command line contains an explicit,
+// resolvable Redis config path.
+func (redisConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
+	configArg, ok := redisGetConfigArgFromCommandline(commandline.Args)
 	if !ok {
-		log.Debugf("config files discovery skipped redis config collection: no explicit config file path detected")
+		return false
+	}
+	_, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+	return resolved
+}
+
+func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
+	file, ok, err := readConfigFile(ctx, reader, redisGetConfigArgFromCommandline, redisMatchesCommandline, redisDefaultConfigPaths)
+	if err != nil {
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect redis config file: %w", err)
+	}
+	if !ok {
+		log.Debugf("config files discovery skipped redis config collection: no unique config file path detected")
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
-	file, err := reader.ReadFile(ctx, configPath)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read redis config file %q: %w", configPath, err)
-	}
 	file.PayloadFormat = redisConfigPayloadFormat
 
 	return configfilesdiscoveryimpl.CollectedConfig{
@@ -50,21 +61,21 @@ func (c redisConfigCollector) Collect(ctx context.Context, reader configfilesdis
 	}, nil
 }
 
-// redisGetConfigPath returns the explicit config file path passed to
-// redis-server. Redis also accepts command-line options as temporary config,
+// redisGetConfigArgFromCommandline returns the explicit config argument passed
+// to redis-server. Redis also accepts command-line options as temporary config,
 // but those options do not identify a file this collector can read.
-func redisGetConfigPath(commandline configfilesdiscoveryimpl.TargetCommandline) (string, bool) {
-	args := commandlineArgs(commandline)
+func redisGetConfigArgFromCommandline(args []string) (string, bool) {
+	args = unwrapShellCommandline(args)
 	redisArgs, ok := redisGetArgs(args)
 	if !ok {
 		return "", false
 	}
+	return redisGetConfigArg(redisArgs)
+}
 
-	configPath, ok := redisGetConfigArg(redisArgs)
-	if !ok {
-		return "", false
-	}
-	return resolveConfigPath(configPath, commandline.WorkingDir)
+func redisMatchesCommandline(args []string) bool {
+	_, ok := redisGetArgs(unwrapShellCommandline(args))
+	return ok
 }
 
 func redisGetArgs(args []string) ([]string, bool) {

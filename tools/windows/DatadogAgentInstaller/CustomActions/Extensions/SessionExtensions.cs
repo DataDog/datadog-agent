@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms;
 using Datadog.CustomActions.Interfaces;
 using WixToolset.Dtf.WindowsInstaller;
 
@@ -59,43 +58,6 @@ namespace Datadog.CustomActions.Extensions
             {
                 return (session.CustomActionData.ContainsKey(name) ? session.CustomActionData[name] : "");
             }
-        }
-
-        /// <summary>
-        /// Write @message to the log and send it as an error message, which the installer displays in
-        /// a dialog depending on the UI level.
-        /// </summary>
-        /// <remarks>
-        /// https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
-        /// </remarks>
-        public static void LogAndDisplayError(this ISession session, string message)
-        {
-            session.Log(message);
-
-            using var record = new Record
-            {
-                FormatString = message.EscapeMsiFormat()
-            };
-            session.Message(InstallMessage.Error
-                            | (InstallMessage)((int)MessageBoxButtons.OK | (int)MessageBoxIcon.Warning),
-                record);
-        }
-
-        /// <summary>
-        /// Escape @text so that the installer does not substitute parts of it when the text is used
-        /// as the format string of a message.
-        /// </summary>
-        /// <remarks>
-        /// The installer resolves [...] in a format string, so a directory such as C:\a[b]c\Datadog
-        /// would lose part of the message. "[\[]" is the documented way to keep a literal bracket.
-        ///
-        /// Only for text that becomes a format string. A message stored in a property and displayed by
-        /// a dialog, such as ErrorModal_ErrorMessage, is inserted as it is and must not be escaped.
-        /// https://learn.microsoft.com/en-us/windows/win32/api/msiquery/nf-msiquery-msiformatrecordw
-        /// </remarks>
-        public static string EscapeMsiFormat(this string text)
-        {
-            return text?.Replace("[", @"[\[]");
         }
 
         /// <summary>

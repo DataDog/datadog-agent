@@ -74,6 +74,7 @@ func TestInstallScript(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithInternetAccess())
 
 			suite := &installScriptSuite{cwsSupported: cwsSupported, osDesc: osDesc}
 			// will be set as TESTING_KEYS_URL in the install script
@@ -107,7 +108,7 @@ func DockerTest(t *testing.T) {
 			suite,
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithRunOptions(ec2.WithDocker(), ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E))),
+					awshost.WithRunOptions(ec2.WithDocker(), ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E), ec2.WithInternetAccess())),
 				),
 			),
 		)

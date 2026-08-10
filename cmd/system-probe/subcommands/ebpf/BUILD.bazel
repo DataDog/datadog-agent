@@ -42,8 +42,6 @@ dd_agent_go_test(
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
