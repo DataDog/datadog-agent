@@ -30,6 +30,12 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 )
 
+// maxMessageSize is the control<->executor protocol limit in bytes. Action
+// inputs and outputs can approach 15 MiB, so 20 MiB leaves protobuf headroom
+// while still bounding memory use. Keep this in sync with MAX_MESSAGE_SIZE in
+// par-control's executor client.
+const maxMessageSize = 20 * 1024 * 1024
+
 type actionExecutor interface {
 	PrepareTask(ctx context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error)
 	RunPrepared(ctx context.Context, prepared *runners.PreparedWorkflowTask) (interface{}, error)
@@ -204,6 +210,12 @@ const idleCheckDivisor = 10
 // Serve serves the Executor on lis until ctx is cancelled, then stops gracefully
 // bounded by the drain timeout. Pass grpcOpts to secure the socket.
 func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions, grpcOpts ...grpc.ServerOption) error {
+	// Apply the protocol limits after caller-provided options so every executor
+	// endpoint accepts the same bounded action payload sizes.
+	grpcOpts = append(grpcOpts,
+		grpc.MaxRecvMsgSize(maxMessageSize),
+		grpc.MaxSendMsgSize(maxMessageSize),
+	)
 	grpcServer := grpc.NewServer(grpcOpts...)
 	pb.RegisterExecutorServer(grpcServer, srv)
 

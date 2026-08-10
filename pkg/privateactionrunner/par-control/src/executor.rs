@@ -12,8 +12,14 @@ use crate::proto::executor as pb;
 use crate::proto::executor::executor_client::ExecutorClient;
 use crate::transport;
 use anyhow::{Context, Result, bail};
+use prost::Message;
 use std::path::Path;
 use tonic::transport::Channel;
+
+/// Control<->executor protocol limit in bytes. Action inputs and outputs can
+/// approach 15 MiB, so 20 MiB leaves protobuf headroom while still bounding
+/// memory use. Keep this in sync with `maxMessageSize` in the Go executor.
+const MAX_MESSAGE_SIZE: usize = 20 * 1024 * 1024;
 
 /// Executor health snapshot used to gate dispatch.
 #[derive(Debug, Clone)]
@@ -75,7 +81,9 @@ impl ExecutorDispatcher {
             None => transport::connect_lazy(socket),
         };
         ExecutorDispatcher {
-            client: ExecutorClient::new(channel),
+            client: ExecutorClient::new(channel)
+                .max_encoding_message_size(MAX_MESSAGE_SIZE)
+                .max_decoding_message_size(MAX_MESSAGE_SIZE),
         }
     }
 }
@@ -122,9 +130,16 @@ impl Dispatcher for ExecutorDispatcher {
     }
 
     async fn run_action(&self, raw: Vec<u8>) -> Result<Outcome> {
+        let request = pb::RunActionRequest { task: raw };
+        if request.encoded_len() > MAX_MESSAGE_SIZE {
+            return Err(tonic::Status::resource_exhausted(format!(
+                "RunAction request exceeds the {MAX_MESSAGE_SIZE}-byte protocol limit"
+            ))
+            .into());
+        }
         let mut client = self.client.clone();
         let mut stream = client
-            .run_action(pb::RunActionRequest { task: raw })
+            .run_action(request)
             .await
             .context("executor RunAction failed")?
             .into_inner();
@@ -150,5 +165,134 @@ impl Dispatcher for ExecutorDispatcher {
             }),
             None => bail!("RunAction result had no outcome"),
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crate::proto::executor::executor_server::{Executor, ExecutorServer};
+    use std::pin::Pin;
+    use tokio_stream::Stream;
+    use tokio_stream::wrappers::UnixListenerStream;
+    use tonic::{Request, Response, Status};
+
+    #[derive(Clone)]
+    struct FakeExecutor {
+        output: Vec<u8>,
+    }
+
+    #[tonic::async_trait]
+    impl Executor for FakeExecutor {
+        type RunActionStream =
+            Pin<Box<dyn Stream<Item = std::result::Result<pb::RunActionResponse, Status>> + Send>>;
+
+        async fn run_action(
+            &self,
+            _request: Request<pb::RunActionRequest>,
+        ) -> std::result::Result<Response<Self::RunActionStream>, Status> {
+            let response = pb::RunActionResponse {
+                event: Some(pb::run_action_response::Event::Result(pb::ActionResult {
+                    outcome: Some(pb::action_result::Outcome::Output(self.output.clone())),
+                })),
+            };
+            Ok(Response::new(Box::pin(tokio_stream::once(Ok(response)))))
+        }
+
+        async fn health(
+            &self,
+            _request: Request<pb::HealthRequest>,
+        ) -> std::result::Result<Response<pb::HealthResponse>, Status> {
+            Ok(Response::new(pb::HealthResponse::default()))
+        }
+
+        async fn sync_keys(
+            &self,
+            _request: Request<pb::SyncKeysRequest>,
+        ) -> std::result::Result<Response<pb::SyncKeysResponse>, Status> {
+            Ok(Response::new(pb::SyncKeysResponse::default()))
+        }
+    }
+
+    async fn test_dispatcher(output: Vec<u8>) -> (ExecutorDispatcher, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let socket = dir.path().join("executor.sock");
+        let listener = tokio::net::UnixListener::bind(&socket).expect("bind executor socket");
+        tokio::spawn(async move {
+            let service = ExecutorServer::new(FakeExecutor { output })
+                .max_decoding_message_size(MAX_MESSAGE_SIZE * 2)
+                .max_encoding_message_size(MAX_MESSAGE_SIZE * 2);
+            let _ = tonic::transport::Server::builder()
+                .add_service(service)
+                .serve_with_incoming(UnixListenerStream::new(listener))
+                .await;
+        });
+        (ExecutorDispatcher::new(&socket, None), dir)
+    }
+
+    fn request_payload_with_encoded_size(target: usize) -> Vec<u8> {
+        let mut payload = vec![b'a'; target];
+        loop {
+            let encoded = pb::RunActionRequest {
+                task: payload.clone(),
+            }
+            .encoded_len();
+            match encoded.cmp(&target) {
+                std::cmp::Ordering::Equal => return payload,
+                std::cmp::Ordering::Less => payload.resize(payload.len() + target - encoded, b'a'),
+                std::cmp::Ordering::Greater => payload.truncate(payload.len() - (encoded - target)),
+            }
+        }
+    }
+
+    fn response_output_with_encoded_size(target: usize) -> Vec<u8> {
+        let mut output = vec![b'a'; target];
+        loop {
+            let encoded = pb::RunActionResponse {
+                event: Some(pb::run_action_response::Event::Result(pb::ActionResult {
+                    outcome: Some(pb::action_result::Outcome::Output(output.clone())),
+                })),
+            }
+            .encoded_len();
+            match encoded.cmp(&target) {
+                std::cmp::Ordering::Equal => return output,
+                std::cmp::Ordering::Less => output.resize(output.len() + target - encoded, b'a'),
+                std::cmp::Ordering::Greater => output.truncate(output.len() - (encoded - target)),
+            }
+        }
+    }
+
+    fn assert_status(error: &anyhow::Error, expected: tonic::Code) {
+        let status = error
+            .downcast_ref::<Status>()
+            .unwrap_or_else(|| panic!("expected tonic status, got {error:#}"));
+        assert_eq!(status.code(), expected, "unexpected status: {status}");
+    }
+
+    #[tokio::test]
+    async fn enforces_request_encoding_limit() {
+        let (dispatcher, _dir) = test_dispatcher(Vec::new()).await;
+        let below = request_payload_with_encoded_size(MAX_MESSAGE_SIZE - 1);
+        assert!(dispatcher.run_action(below).await.is_ok());
+
+        let above = request_payload_with_encoded_size(MAX_MESSAGE_SIZE + 1);
+        let error = dispatcher.run_action(above).await.unwrap_err();
+        assert_status(&error, tonic::Code::ResourceExhausted);
+    }
+
+    #[tokio::test]
+    async fn enforces_response_decoding_limit() {
+        let below = response_output_with_encoded_size(MAX_MESSAGE_SIZE - 1);
+        let (dispatcher, _dir) = test_dispatcher(below.clone()).await;
+        match dispatcher.run_action(Vec::new()).await.unwrap() {
+            Outcome::Success { output_json } => assert_eq!(output_json, below),
+            Outcome::Failure { .. } => panic!("expected success"),
+        }
+
+        let above = response_output_with_encoded_size(MAX_MESSAGE_SIZE + 1);
+        let (dispatcher, _dir) = test_dispatcher(above).await;
+        let error = dispatcher.run_action(Vec::new()).await.unwrap_err();
+        // Tonic reports an oversized decoded response as OutOfRange.
+        assert_status(&error, tonic::Code::OutOfRange);
     }
 }
