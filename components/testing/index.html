@@ -3914,7 +3914,7 @@
   
 
 
-<h1 id="testing-components">Testing components</h1>
+<h1 id="testing-components">Testing components<a class="headerlink" href="#testing-components" title="Permanent link">&para;</a></h1>
 <p>Testing is an essential part of the software development life cycle. This page covers everything you need to know about testing components.</p>
 <p>One of the core benefits of using components is that each component isolates its internal logic behind its interface. Focus on asserting that each implementation behaves correctly.</p>
 <p>To recap from the <a href="../creating-components/">previous page</a>, a component was created that compresses the payload before sending it to the Datadog backend. The component has two separate implementations.</p>
@@ -3936,7 +3936,7 @@
 <p>Ensure the <code>Compress</code> and <code>Decompress</code> functions behave correctly.</p>
 <p>Writing tests for a component implementation follows the same rules as any other test in a Go project. See the <a href="https://pkg.go.dev/testing">testing package</a> documentation for more information.</p>
 <p>For this example, write a test file for the <code>zstd</code> implementation. Create a new file named <code>component_test.go</code> in the <code>impl-zstd folder</code>. Inside the test file, initialize the component's dependencies, create a new component instance, and test the behavior.</p>
-<h3 id="initialize-the-components-dependencies">Initialize the component's dependencies</h3>
+<h3 id="initialize-the-components-dependencies">Initialize the component's dependencies<a class="headerlink" href="#initialize-the-components-dependencies" title="Permanent link">&para;</a></h3>
 <p>All components expect a <code>Requires</code> struct with all the necessary dependencies. To ensure a component instance can be created, create a <code>requires</code> instance.</p>
 <p>The <code>Requires</code> struct declares a dependency on the config component and the log component. The following code snippet shows how to create the <code>Require</code> struct:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:1"><input checked="checked" id="compcompressionimpl-zstdcomponent_testgo" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="compcompressionimpl-zstdcomponent_testgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/impl-zstd/component_test.go</label></div>
@@ -3966,7 +3966,7 @@
 </div>
 </div>
 <p>To create the log and config component, use their respective mocks. The <a href="../creating-components/#the-mock-folder">mock package</a> was mentioned previously in the <a href="../creating-components/">Creating a Component page</a>.</p>
-<h3 id="testing-the-components-interface">Testing the component's interface</h3>
+<h3 id="testing-the-components-interface">Testing the component's interface<a class="headerlink" href="#testing-the-components-interface" title="Permanent link">&para;</a></h3>
 <p>Now that the <code>Require</code> struct is created, an instance of the component can be created and its functionality tested:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="3:1"><input checked="checked" id="compcompressionimpl-zstdcomponent_testgo_1" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="compcompressionimpl-zstdcomponent_testgo_1"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/compression/impl-zstd/component_test.go</label></div>
 <div class="tabbed-content">
@@ -4001,7 +4001,7 @@
 </div>
 </div>
 </div>
-<h3 id="testing-lifecycle-hooks">Testing lifecycle hooks</h3>
+<h3 id="testing-lifecycle-hooks">Testing lifecycle hooks<a class="headerlink" href="#testing-lifecycle-hooks" title="Permanent link">&para;</a></h3>
 <p>Sometimes a component uses <a href="../fx/#lifecycle">Fx lifecycle</a> to add hooks. It is a good practice to test the hooks as well.</p>
 <p>For this example, imagine a component wants to add some hooks into the app lifecycle. Some code is omitted for simplicity:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="4:1"><input checked="checked" id="compsomecomponentimplcomponentgo" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="compsomecomponentimplcomponentgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> comp/somecomponent/impl/component.go</label></div>
