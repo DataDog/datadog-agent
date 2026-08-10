@@ -19,6 +19,7 @@
 //! Env bindings are centralized in [`env_bindings`].
 
 mod env_bindings;
+mod secrets;
 mod system_probe;
 mod yaml_load;
 
@@ -121,7 +122,7 @@ impl GatedKeySpec {
         if let Some(enabled) = self.fleet_policy_value(base_path, yaml)? {
             return Ok(enabled);
         }
-        if let Some(enabled) = self.env_override() {
+        if let Some(enabled) = self.env_override(base_path) {
             return Ok(enabled);
         }
         if let Some(enabled) = yaml.bool_key_if_exists(base_path, self.key)? {
@@ -171,8 +172,8 @@ impl GatedKeySpec {
         yaml.bool_key_if_exists(&path, self.key)
     }
 
-    fn env_override(&self) -> Option<bool> {
-        env_bool_for_config_key(self.key)
+    fn env_override(&self, base_path: &str) -> Option<bool> {
+        env_bool_for_config_key(self.key, &agent_datadog_yaml(base_path))
     }
 }
 
@@ -247,7 +248,7 @@ impl YamlCache {
         {
             return Ok(value);
         }
-        if let Some(enabled) = env_bool_for_config_key(key) {
+        if let Some(enabled) = env_bool_for_config_key(key, &agent_datadog_yaml(base_path)) {
             return Ok(enabled);
         }
         Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(false))
@@ -267,7 +268,7 @@ impl YamlCache {
         {
             return Ok(value);
         }
-        if let Some(enabled) = env_bool_for_config_key(key) {
+        if let Some(enabled) = env_bool_for_config_key(key, &agent_datadog_yaml(base_path)) {
             return Ok(enabled);
         }
         Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(default))
@@ -345,7 +346,7 @@ impl YamlCache {
         let Some(value) = self.dotted_key(path, key)? else {
             return Ok(None);
         };
-        value_as_bool(value)
+        value_as_bool(value, &agent_datadog_yaml(path))
             .ok_or_else(|| anyhow::anyhow!("key {key} is not a bool"))
             .map(Some)
     }
@@ -527,13 +528,24 @@ fn lookup_dotted_key_in_mapping<'a>(
     lookup_dotted_key_in_mapping(next, rest)
 }
 
-fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
+fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
     match value {
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
         serde_yaml::Value::Number(number) => number.as_i64().map(|n| n != 0),
-        serde_yaml::Value::String(text) => Some(parse_agent_bool_string(text).unwrap_or(false)),
+        serde_yaml::Value::String(text) => bool_from_config_string(text, agent_yaml),
         _ => None,
     }
+}
+
+fn bool_from_config_string(text: &str, agent_yaml: &str) -> Option<bool> {
+    let resolved = secrets::resolve_config_string(text, agent_yaml);
+    if let Some(enabled) = parse_agent_bool_string(&resolved) {
+        return Some(enabled);
+    }
+    if secrets::is_enc(text) {
+        return None;
+    }
+    Some(parse_agent_bool_string(text).unwrap_or(false))
 }
 
 /// Mirrors Go `GetBool` / `strconv.ParseBool` for env and YAML bool strings.
@@ -906,7 +918,10 @@ process_config:
             let _empty = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
 
             assert_eq!(
-                env_bool_for_config_key("process_config.process_discovery.enabled"),
+                env_bool_for_config_key(
+                    "process_config.process_discovery.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
                 None
             );
             assert!(!env_configured_for_key(
@@ -923,7 +938,10 @@ process_config:
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "true");
 
             assert_eq!(
-                env_bool_for_config_key("process_config.process_discovery.enabled"),
+                env_bool_for_config_key(
+                    "process_config.process_discovery.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
                 Some(true)
             );
             assert!(env_configured_for_key(
@@ -982,7 +1000,10 @@ process_config:
             let _process = EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "true");
 
             assert_eq!(
-                env_bool_for_config_key("process_config.container_collection.enabled"),
+                env_bool_for_config_key(
+                    "process_config.container_collection.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
                 Some(false)
             );
         });
@@ -1564,6 +1585,25 @@ process_config:
     }
 
     #[test]
+    fn env_bool_unresolved_secret_falls_through_instead_of_false() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _enc = EnvGuard::set(
+                "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+                "ENC[missing_backend]",
+            );
+
+            assert_eq!(
+                env_bool_for_config_key(
+                    "process_config.process_collection.enabled",
+                    "/nonexistent/datadog.yaml",
+                ),
+                None
+            );
+        });
+    }
+
+    #[test]
     fn parse_agent_bool_string_matches_strconv_parse_bool() {
         for (input, expected) in [
             ("1", Some(true)),
@@ -1622,34 +1662,79 @@ process_config:
 
     #[test]
     fn value_as_bool_handles_strings() {
+        let agent_yaml = "/nonexistent/datadog.yaml";
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("disabled".into())),
+            value_as_bool(&serde_yaml::Value::String("disabled".into()), agent_yaml),
             Some(false)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("true".into())),
+            value_as_bool(&serde_yaml::Value::String("true".into()), agent_yaml),
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("TRUE".into())),
+            value_as_bool(&serde_yaml::Value::String("TRUE".into()), agent_yaml),
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("1".into())),
+            value_as_bool(&serde_yaml::Value::String("1".into()), agent_yaml),
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("t".into())),
+            value_as_bool(&serde_yaml::Value::String("t".into()), agent_yaml),
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("0".into())),
+            value_as_bool(&serde_yaml::Value::String("0".into()), agent_yaml),
             Some(false)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("yes".into())),
+            value_as_bool(&serde_yaml::Value::String("yes".into()), agent_yaml),
             Some(false)
         );
+    }
+
+    #[test]
+    fn env_bool_resolves_secret_backed_gate_values() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let dir = tempfile::tempdir().unwrap();
+            #[cfg(unix)]
+            let script = dir.path().join("secret_backend.sh");
+            #[cfg(unix)]
+            {
+                std::fs::write(
+                    &script,
+                    "#!/bin/sh\nprintf '{\"process_enabled\":{\"value\":\"true\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"process_enabled\\\":{\\\"value\\\":\\\"true\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!("secret_backend_command: {}\n", script.to_string_lossy()),
+            );
+            let _enc = EnvGuard::set(
+                "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
+                "ENC[process_enabled]",
+            );
+
+            assert_eq!(
+                env_bool_for_config_key("process_config.process_collection.enabled", &agent,),
+                Some(true)
+            );
+        });
     }
 
     #[test]

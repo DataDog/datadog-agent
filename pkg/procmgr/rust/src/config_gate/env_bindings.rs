@@ -17,6 +17,8 @@
 //! (`datadogagent`) SCM `Environment` registry first, then dd-procmgr's process
 //! environment, so service-local overrides match agent config resolution.
 
+use super::secrets;
+
 struct EnvBinding {
     key: &'static str,
     env_vars: &'static [&'static str],
@@ -100,13 +102,13 @@ pub(super) fn env_vars_for_key(key: &str) -> &'static [&'static str] {
         .unwrap_or(&[])
 }
 
-pub(super) fn env_bool_for_config_key(key: &str) -> Option<bool> {
+pub(super) fn env_bool_for_config_key(key: &str, agent_yaml: &str) -> Option<bool> {
     let names = env_vars_for_key(key);
     if !names.is_empty() {
-        return env_bool_from_names(names);
+        return env_bool_from_names(names, agent_yaml);
     }
     let auto = auto_env_var_for_key(key);
-    env_bool_from_names(&[&auto])
+    env_bool_from_names(&[&auto], agent_yaml)
 }
 
 /// Whether any env var bound to `key` is set to a non-empty value (mirrors Go `IsConfigured` env source).
@@ -151,13 +153,24 @@ fn env_var_nonempty(name: &str) -> bool {
     env_var_value(name).is_some()
 }
 
-fn env_bool_from_names(names: &[&str]) -> Option<bool> {
+fn env_bool_from_names(names: &[&str], agent_yaml: &str) -> Option<bool> {
     for name in names {
         if let Some(value) = env_var_value(name) {
-            return Some(super::parse_agent_bool_string(&value).unwrap_or(false));
+            return bool_from_env_string(&value, agent_yaml);
         }
     }
     None
+}
+
+fn bool_from_env_string(value: &str, agent_yaml: &str) -> Option<bool> {
+    let resolved = secrets::resolve_config_string(value, agent_yaml);
+    if let Some(enabled) = super::parse_agent_bool_string(&resolved) {
+        return Some(enabled);
+    }
+    if secrets::is_enc(value) {
+        return None;
+    }
+    Some(super::parse_agent_bool_string(value).unwrap_or(false))
 }
 
 /// Core Agent SCM `Environment` overrides, then dd-procmgr process env.
