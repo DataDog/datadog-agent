@@ -1,3 +1,36 @@
+# Config gate for the SMP experiment tree. Runs early (lint stage) so authors get fast feedback,
+# and is BLOCKING: correctness problems (duplicate experiment names, malformed labels,
+# Leaf-XOR-Dir violations, invalid runner) always fail; missing required metadata fails under
+# --in-ci. Offline apart from downloading the smp binary. ebpf is excluded until it is modeled.
+single-machine-performance-experiments-validate:
+  stage: lint
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - changes:
+        paths:
+          - test/regression/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  variables:
+    SMP_VERSION: dev-pr4679-39a10a451
+    CONFIG_DIR: test/regression
+    AWS_NAMED_PROFILE: single-machine-performance
+    BOT_LOGIN: bot_login
+    BOT_TOKEN: bot_token
+  script:
+    # Fetch the SMP bot AWS creds and download the smp binary (same source as the run job).
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_LOGIN)
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_TOKEN)
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+    - aws --profile ${AWS_NAMED_PROFILE} s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
+    - chmod +x smp
+    # Correctness always fails; missing metadata fails under --in-ci.
+    - ./smp experiments validate --target-config-dir ${CONFIG_DIR} --exclude-path ebpf --in-ci
+
 single_machine_performance-regression_detector-merge_base_check:
   stage: functional_test
   timeout: 10m
