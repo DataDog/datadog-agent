@@ -474,13 +474,11 @@ func TestIsEnabledConcurrent(t *testing.T) {
 	s.cfg.MRFFailoverAPM = failover.Load
 
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
+	for i := range 50 {
+		wg.Go(func() {
 			failover.Store(i%2 == 0)
 			s.isEnabled()
-		}(i)
+		})
 	}
 	wg.Wait()
 }
