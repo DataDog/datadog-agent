@@ -63,8 +63,9 @@ type InstanceParams struct {
 
 	// ListEntryIndex is this entry's position within the list-shape value at
 	// AdditionalEndpointsListConfigKey. Only used (and required) when
-	// AdditionalEndpointsListConfigKey is set - it's the identity Component.IsManaged uses to
-	// find this instance again, since a list can hold several DELA(...) entries at the same key.
+	// AdditionalEndpointsListConfigKey is set - it's the stable identity mergeIntoAdditionalEndpointsList
+	// uses to find this entry again, since a list can hold several DELA(...) entries at the same key
+	// and two entries can transiently share the same api_key value.
 	ListEntryIndex int
 
 	// AdditionalEndpointDirective is the literal DELA(...) directive text that requested this
@@ -93,23 +94,6 @@ type InstanceParams struct {
 	ProviderConfig common.ProviderConfig
 }
 
-// Target identifies which delegated-auth instance a Component.IsManaged query is asking about.
-// It mirrors the identity-establishing subset of InstanceParams' routing fields - set exactly one
-// of the three combinations:
-//   - APIKeyConfigKey alone, for a flat (non-additional-endpoints) instance, e.g. "api_key" or
-//     "logs_config.api_key".
-//   - AdditionalEndpointsConfigKey + AdditionalEndpointDomain, for a map-shape instance.
-//   - AdditionalEndpointsListConfigKey + ListEntryIndex, for a list-shape instance.
-type Target struct {
-	APIKeyConfigKey string
-
-	AdditionalEndpointsConfigKey string
-	AdditionalEndpointDomain     string
-
-	AdditionalEndpointsListConfigKey string
-	ListEntryIndex                   int
-}
-
 // Component manages cloud-based delegated authentication.
 //
 // Usage: Call AddInstance() for each API key to manage.
@@ -125,16 +109,4 @@ type Component interface {
 	// background refresh goroutines use their own cancellable context.
 	// Returns an error if Config or OrgUUID is empty.
 	AddInstance(ctx context.Context, params InstanceParams) error
-
-	// Refresh nudges instances to retry sooner than their normal backoff interval, throttled
-	// per-instance to avoid hammering the auth-proof exchange. Mirrors
-	// comp/core/secrets.Component.Refresh()'s contract. Non-blocking - never fetches inline.
-	// Returns false only when there are no delegated-auth instances at all.
-	Refresh() bool
-
-	// IsManaged reports whether an active instance currently manages target. Unlike string-sniffing
-	// the api_key config value for a DELA(...) directive, this stays true even after the directive
-	// has already been resolved to a real key. Callers should use this to decide whether a 403 on
-	// an endpoint is a transient WIF auth failure rather than a bad static key.
-	IsManaged(target Target) bool
 }

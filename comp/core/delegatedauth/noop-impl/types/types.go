@@ -21,13 +21,3 @@ var _ delegatedauth.Component = (*DelegatedAuthNoop)(nil)
 func (r *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) error {
 	return nil
 }
-
-// Refresh does nothing in the noop implementation - there are never any instances to nudge.
-func (r *DelegatedAuthNoop) Refresh() bool {
-	return false
-}
-
-// IsManaged always returns false in the noop implementation - there are never any instances.
-func (r *DelegatedAuthNoop) IsManaged(_ delegatedauth.Target) bool {
-	return false
-}
