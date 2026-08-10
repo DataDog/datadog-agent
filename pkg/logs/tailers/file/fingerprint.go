@@ -146,6 +146,7 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 // Note that the providedconfiguration can fallback to different default configuration if specific errors occur attempting to compute the fingerprint.
 func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
+		log.Debug("no fingerprint configuration provided, returning an invalid fingerprint")
 		return newInvalidFingerprint(nil), nil
 	}
 
@@ -173,6 +174,7 @@ func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fing
 // computeFingerprint computes the fingerprint for the given file path
 func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
+		log.Debugf("no fingerprint configuration resolved for %q, returning an invalid fingerprint", filePath)
 		return newInvalidFingerprint(nil), nil
 	}
 
@@ -208,8 +210,13 @@ func computeFingerPrintByBytes(fpFile afero.File, filePath string, fingerprintCo
 		return newInvalidFingerprint(fingerprintConfig), err
 	}
 
-	// Check if we have enough bytes to create a meaningful fingerprint
+	// Check if we have enough bytes to create a meaningful fingerprint.
+	// Note that this is reported as an invalid fingerprint with a nil error: the file is not
+	// broken, it is simply too short for now. Callers that decide whether to tail a file
+	// distinguish this from a read failure by looking at whether the error is nil.
 	if bytesRead == 0 || bytesRead < maxBytes {
+		log.Debugf("Not enough data to fingerprint %q: read %d of the %d bytes required by the byte_checksum strategy (count_to_skip: %d)",
+			filePath, bytesRead, maxBytes, bytesToSkip)
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
 
@@ -263,7 +270,11 @@ func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintCo
 				return newInvalidFingerprint(fingerprintConfig), err
 			}
 			// Check if we have enough data for fingerprinting
-			// We need either enough lines OR enough bytes to create a meaningful fingerprint
+			// We need either enough lines OR enough bytes to create a meaningful fingerprint.
+			// As in computeFingerPrintByBytes, this is an invalid fingerprint with a nil error:
+			// the file is simply too short for now.
+			log.Debugf("Not enough data to fingerprint %q: read %d of the %d lines required by the line_checksum strategy (count_to_skip: %d, max_bytes: %d)",
+				filePath, linesRead, maxLines, linesToSkip, maxBytes)
 			return newInvalidFingerprint(fingerprintConfig), nil
 
 		}
