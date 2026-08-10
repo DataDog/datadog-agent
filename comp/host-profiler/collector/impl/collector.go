@@ -128,6 +128,8 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories, p Params) (
 			},
 		},
 		LoggingOptions: extraFactories.GetLoggingOptions(),
+		// grpclog.SetLogger is not mutex-protected; skip it to avoid racing with other gRPC clients in-process.
+		SkipSettingGRPCLogger: true,
 	}, nil
 }
 
