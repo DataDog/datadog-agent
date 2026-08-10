@@ -67,22 +67,13 @@ func TestCacheBypassClientsRateLimit(t *testing.T) {
 	assert.False(t, cacheBypassClients.Limit())
 }
 
-// TestClientsSeenActiveClientsRace reproduces the data race that used to
-// exist between (*clients).seen() mutating/storing the caller's live
-// *pbgo.Client pointer and a concurrent reader (e.g. proto.Marshal on the
-// result of activeClients()) reading that same object. seen() must store a
-// defensive copy so activeClients() never hands out an object that a
-// concurrent seen() call can still mutate.
-//
-// Run with -race (e.g. `dda inv test --targets=./pkg/config/remote/service --race`)
-// to confirm this fails without the defensive copy and passes with it.
+// TestClientsSeenActiveClientsRace catches concurrent mutation of a *pbgo.Client shared via seen()/activeClients(); run with -race.
 func TestClientsSeenActiveClientsRace(t *testing.T) {
 	testTTL := time.Second * 5
 	realClock := clock.New()
 	clients := newClients(realClock, testTTL)
 
-	// A single, shared *pbgo.Client, owned by the "caller" goroutine, mimicking
-	// the same request.Client object being reused across ClientGetConfigs calls.
+	// Shared *pbgo.Client, mimicking a reused request.Client.
 	pbClient := &pbgo.Client{
 		Id:       "client1",
 		Products: []string{"APM_SAMPLING"},
@@ -92,8 +83,7 @@ func TestClientsSeenActiveClientsRace(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Goroutine 1: repeatedly mark the client as seen, mutating pbClient.LastSeen
-	// in place, just like ClientGetConfigs does.
+	// Repeatedly mark the client as seen, like ClientGetConfigs does.
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
@@ -101,8 +91,7 @@ func TestClientsSeenActiveClientsRace(t *testing.T) {
 		}
 	}()
 
-	// Goroutine 2: repeatedly fetch active clients and marshal them, just like
-	// refresh() does while building the outgoing request.
+	// Repeatedly fetch and marshal active clients, like refresh() does.
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {

@@ -77,15 +77,10 @@ func (c *clients) seen(pbClient *pbgo.Client) {
 	defer c.m.Unlock()
 	now := c.clock.Now().UTC()
 	pbClient.LastSeen = uint64(now.UnixMilli())
-	// Store a defensive copy rather than the caller's own pointer: the
-	// caller may keep mutating/reusing its pbClient after this call
-	// returns, while the copy stored here can be concurrently read (e.g.
-	// marshaled) by activeClients() callers after we release c.m.
+	// Store a copy: the caller may keep mutating pbClient after this returns.
 	pbCopy, ok := proto.Clone(pbClient).(*pbgo.Client)
 	if !ok {
-		// Should never happen: proto.Clone on a *pbgo.Client always
-		// returns a *pbgo.Client. Fall back to the original pointer
-		// rather than dropping the client entirely.
+		// Unreachable: proto.Clone always returns the same concrete type.
 		pbCopy = pbClient
 	}
 	c.clients[pbClient.Id] = &client{
