@@ -60,8 +60,10 @@ package seclcel
 // A CPU profile puts the rest of it where nothing here can reach: acquiring and
 // releasing the pooled ExecutionFrame is around a fifth of a scalar evaluation.
 // cel-go will accept a frame passed to Eval instead of taking one from the pool,
-// but its documentation says a frame must not be stored, so that is a question
-// for whoever wires up the rule engine rather than a change to make here.
+// which is what BenchmarkCELScaffolding measures — that and the rest of what
+// surrounds an evaluation is a third of a bucket rule. Its documentation says a
+// frame must not be stored, so that remains a question for whoever wires up the
+// rule engine rather than a change to make here.
 //
 // The same profile is what found the type adapter: every read returns a ref.Val
 // already, and the interpreter adapted it anyway, through a type switch dozens
@@ -116,6 +118,8 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/interpreter"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -262,6 +266,206 @@ func BenchmarkCEL(b *testing.B) {
 			}
 		})
 	}
+}
+
+// BenchmarkCELScaffolding measures what surrounds an evaluation rather than the
+// evaluation itself, by taking away, one at a time, everything cel-go's own
+// BenchmarkInterpreter does without.
+//
+// Frame is the first: it builds an ExecutionFrame once and reuses it for every
+// iteration, where BenchmarkCEL hands Eval an activation and lets it take a
+// frame from the pool and return it. prog.Eval type switches on a frame and
+// skips both that and the deferred Close, which a profile put at around a fifth
+// of a scalar evaluation.
+//
+// The frame's documentation says it must not be stored, so what this measures
+// is the size of the prize, not a licence to take it.
+//
+// The other half of cel-go's benchmark, CompileRegexConstants with
+// MatchesRegexOptimization, has no variant here because we already have it:
+// cel.OptOptimize registers that optimization itself (cel/program.go:246), so
+// planningOptions gets it through the option it already passes. Measured as a
+// variant it moved nothing, which is the confirmation.
+//
+// Exec is the rest of the same question. cel.Program is a wrapper around the
+// interpretable the planner produced, and prog.Eval charges for the wrapper on
+// every call: a deferred recover, the frame handling above, a types.IsError test
+// and a three value return. cel-go's own benchmark never pays it — it plans
+// through interpreter.NewInterpretable and calls Exec on the interpretable
+// directly. planInterpretable rebuilds what newProgram builds so that the same
+// rule can be evaluated that way here.
+//
+// Bucket/ is the same question asked where it matters most: both costs are per
+// Eval, so a bucket of r rules pays them r times per event.
+//
+// Measured (ns/op, mean of six runs at -cpu=1; allocations are identical across
+// all three, the pool was already giving the frame back for free):
+//
+//	                 activation      frame       exec
+//	Comm                    269        231        216
+//	Path                    394        346        333
+//	InList                  294        248        235
+//	Regex                   743        692        649
+//	Glob                    530        478        445
+//	Ancestors              2048       1977       1992
+//	DeepAncestors         49269      49724      49754
+//	Bucket/10  per rule     258        199        182
+//	Bucket/50  per rule     273        210        185
+//	Bucket/200 per rule     281        226        202
+//
+// Both are costs per Eval rather than per predicate: 40 to 60 ns for the frame,
+// and a further 13 to 25 ns for the wrapper — more on Regex and Glob, where the
+// only difference from the shapes around them is that the plan reaches a
+// function binding through the dispatcher, which the benchmark cannot explain
+// and which is too small to change the reading. Both are invisible on
+// DeepAncestors, which pays them once for 50 µs of folding, and together they
+// are around a third of a bucket rule — the shape production actually runs, one
+// Eval per rule per event, nearly all of them short circuiting immediately.
+//
+// Read against BenchmarkBucket's finding that merging a bucket into one
+// disjunction saves 66 ns per rule: that saving and these are largely the same
+// money, since all of it is scaffolding around one Eval, and none of it touches
+// what a predicate costs. A bucket rule that costs 281 ns can be made to cost
+// 202, and it bottoms out there: what is left is the predicate, which costs
+// cel-go about 179 ns wherever it sits, against 29 ns for the closure the
+// compiler plans it into. Every trick cel-go has for evaluating a rule faster,
+// taken together and taken past what its own documentation sanctions, closes a
+// third of the gap the compiler exists to close.
+func BenchmarkCELScaffolding(b *testing.B) {
+	env, err := NewModelEnv()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, variant := range celScaffoldingVariants {
+		for _, name := range sortedKeys(benchExprs) {
+			b.Run(name+"/"+variant.name, func(b *testing.B) {
+				event := benchEvent()
+				ctx := eval.NewContext(event)
+				input := celInput(b, ctx, variant.frame)
+				run := variant.build(b, env, benchExprs[name], input)
+				b.ReportAllocs()
+				for b.Loop() {
+					resetContext(ctx, event)
+					if run() != types.True {
+						b.Fatal("expected a match")
+					}
+				}
+			})
+		}
+
+		for _, r := range []int{10, 50, 200} {
+			b.Run(fmt.Sprintf("Bucket/%d/%s", r, variant.name), func(b *testing.B) {
+				event := scaleEvent()
+				ctx := eval.NewContext(event)
+				input := celInput(b, ctx, variant.frame)
+				runs := make([]func() ref.Val, 0, r)
+				for _, rule := range bucketRules(r) {
+					runs = append(runs, variant.build(b, env, rule, input))
+				}
+				b.ReportAllocs()
+				for b.Loop() {
+					resetContext(ctx, event)
+					for _, run := range runs {
+						if run() == types.True {
+							b.Fatal("no rule should match")
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+// celScaffoldingVariants are the three ways of getting a planned rule
+// evaluated, from the one the integration would use today to the one cel-go
+// benchmarks itself with.
+var celScaffoldingVariants = []struct {
+	name  string
+	frame bool
+	build func(b *testing.B, env *cel.Env, expr string, input any) func() ref.Val
+}{
+	{name: "Activation", build: programEval},
+	{name: "Frame", frame: true, build: programEval},
+	{name: "Exec", frame: true, build: interpretableEval},
+}
+
+// programEval evaluates through cel.Program, which is what Program returns.
+func programEval(b *testing.B, env *cel.Env, expr string, input any) func() ref.Val {
+	b.Helper()
+	program, err := Program(env, expr, ModelFieldTypes{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	return func() ref.Val {
+		out, _, err := program.Eval(input)
+		if err != nil {
+			b.Fatal(err)
+		}
+		return out
+	}
+}
+
+// interpretableEval evaluates the planned interpretable directly, which only a
+// frame can drive.
+func interpretableEval(b *testing.B, env *cel.Env, expr string, input any) func() ref.Val {
+	b.Helper()
+	plan := planInterpretable(b, env, expr)
+	frame := input.(*interpreter.ExecutionFrame)
+	return func() ref.Val { return plan.Exec(frame) }
+}
+
+// planInterpretable plans a rule the way cel.Env.Program does, stopping at the
+// interpretable rather than wrapping it in a cel.Program.
+//
+// It reproduces newProgram (cel/program.go): a dispatcher holding the bindings
+// of every declared function, the environment's own adapter and provider, and
+// the same two decorators planningOptions asks for — Optimize, then the regex
+// constants, which is the order cel.Program applies them in and the order the
+// glob and matches hooks are registered in there.
+func planInterpretable(b *testing.B, env *cel.Env, expr string) interpreter.InterpretableV2 {
+	b.Helper()
+	checked, err := CompileWithTypes(env, expr, ModelFieldTypes{})
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	dispatcher := interpreter.NewDispatcher()
+	for _, function := range env.Functions() {
+		bindings, err := function.Bindings()
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := dispatcher.Add(bindings...); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	adapter, provider := env.CELTypeAdapter(), env.CELTypeProvider()
+	attributes := interpreter.NewAttributeFactory(env.Container, adapter, provider)
+	interp := interpreter.NewInterpreter(dispatcher, env.Container, provider, adapter, attributes)
+	plan, err := interp.NewInterpretable(checked.NativeRep(),
+		interpreter.Optimize(),
+		interpreter.CompileRegexConstants(globOptimization, interpreter.MatchesRegexOptimization))
+	if err != nil {
+		b.Fatal(err)
+	}
+	return plan
+}
+
+// celInput returns what Eval is handed: the activation, or a frame wrapping it.
+func celInput(b *testing.B, ctx *eval.Context, frame bool) any {
+	b.Helper()
+	activation := NewActivation(ctx)
+	if !frame {
+		return activation
+	}
+	f, err := interpreter.NewExecutionFrame(activation)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(f.Close)
+	return f
 }
 
 // BenchmarkScale answers the question the migration turns on: whether the gap
