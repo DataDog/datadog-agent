@@ -220,8 +220,8 @@ func tracepointExists(group, name string) bool {
 	return err == nil
 }
 
-// loadPreemptTest loads preempt_test.o and attaches only progName. All three
-// programs in that object share one single-entry map, so attaching just the
+// loadPreemptTest loads preempt_test.o and attaches only progName. Every
+// program in that object shares one single-entry map, so attaching just the
 // program under test is what makes the observed value attributable to the
 // context being exercised.
 func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
@@ -270,9 +270,13 @@ func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
 		require.NoError(t, err, "attaching raw tracepoint %s", tracepoint)
 		t.Cleanup(func() { _ = lnk.Close() })
 
+		depths, ok = coll.Maps["nesting_depth"]
+		require.True(t, ok, "nesting_depth map missing from preempt_test.o")
+
 		return nil
 	})
 	require.NoError(t, err)
+	require.NotNil(t, depths, "nesting_depth map was never resolved")
 
 	return depths
 }
@@ -396,8 +400,7 @@ func TestPreemptNestingDepth(t *testing.T) {
 		depths := loadPreemptTest(t, prog, tracepoint)
 
 		awaitDepth(t, depths, hardirqDepth, func() {
-			for start := time.Now(); time.Since(start) < 5*time.Millisecond; {
-			}
+			time.Sleep(1 * time.Second)
 		})
 	})
 
