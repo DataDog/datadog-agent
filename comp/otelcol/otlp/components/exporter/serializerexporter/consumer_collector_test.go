@@ -40,7 +40,7 @@ func TestExporterWorkloadMetrics(t *testing.T) {
 		{
 			name:         "azurecontainerapps",
 			metricSuffix: "azurecontainerapps",
-			tags:         []string{"version:1.0", "command:otelcontribcol", "replica_name:replica-1"},
+			tags:         []string{"version:1.0", "command:otelcontribcol", "replica:replica-1"},
 			wantName:     "otel.datadog_exporter.metrics.running.azurecontainerapps",
 		},
 	}
@@ -122,7 +122,7 @@ func TestAzureContainerAppsMetric(t *testing.T) {
 	buildInfo := component.BuildInfo{}
 	c := newTestCollectorConsumer(buildInfo)
 	tags := []string{
-		"replica_name:replica-1",
+		"replica:replica-1",
 		"name:my-app",
 		"subscription_id:sub-123",
 		"resource_group:my-rg",
@@ -131,7 +131,7 @@ func TestAzureContainerAppsMetric(t *testing.T) {
 		"resource_group:my-rg",
 		"subscription_id:sub-123",
 		"name:my-app",
-		"replica_name:replica-1",
+		"replica:replica-1",
 	}
 	c.ConsumeTagSet("azurecontainerapps", tags)
 	// Same tags, different order should dedup
@@ -142,7 +142,7 @@ func TestAzureContainerAppsMetric(t *testing.T) {
 	found := c.series[0]
 	assert.Equal(t, "otel.datadog_exporter.metrics.running.azurecontainerapps", found.Name)
 	tagStrs := found.Tags.UnsafeToReadOnlySliceString()
-	assert.Contains(t, tagStrs, "replica_name:replica-1")
+	assert.Contains(t, tagStrs, "replica:replica-1")
 	assert.Contains(t, tagStrs, "name:my-app")
 	assert.Contains(t, tagStrs, "subscription_id:sub-123")
 	assert.Contains(t, tagStrs, "resource_group:my-rg")
