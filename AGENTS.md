@@ -182,6 +182,13 @@ Ships on Linux (amd64, arm64), Windows (amd64), and macOS (amd64, arm64), plus c
 ### Common Build Issues
 - **Missing tools**: Run `dda inv install-tools`
 - **CMake errors**: Remove `dda inv rtloader.clean`
+- **cgo-backed platform packages cannot be verified by local cross-compilation.**
+  `bazel build --platforms=@rules_go//go/toolchain:windows_amd64 //some/pkg` builds
+  with cgo disabled, so every symbol from a `cgo = True` package (e.g.
+  `pkg/fleet/installer/packages/user/windows`) resolves as `undefined` — for
+  pre-existing code too. Those errors say nothing about your change; only Windows
+  CI compiles that code. Same for `dda inv linter.go`, which lints the host GOOS
+  only. Check such code by symbol and signature against the package it calls.
 
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues

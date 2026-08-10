@@ -9,6 +9,9 @@ go_library(
         "local_api_unix.go",
         "local_api_windows.go",
         "remote_config.go",
+        "state.go",
+        "state_nix.go",
+        "state_windows.go",
         "task_db.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/daemon",
@@ -38,6 +41,7 @@ go_library(
         "@org_golang_x_crypto//nacl/box",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/packages/user/windows",
             "@com_github_microsoft_go_winio//:go-winio",
         ],
         "//conditions:default": [],

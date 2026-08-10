@@ -566,6 +566,23 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	pm.AssertExpectations(t)
 }
 
+func TestRefreshStateAgentUserErrorCodeTag(t *testing.T) {
+	i := newTestInstaller(t)
+	defer i.Stop()
+
+	i.daemonImpl.refreshState(context.Background())
+
+	state := i.rcc.GetInstallerState()
+	require.NotNil(t, state)
+	if runtime.GOOS == "windows" {
+		// The check needs LocalSystem and a real service, so only assert the shape.
+		require.Len(t, state.Tags, 1)
+		assert.Regexp(t, `^installer_agent_user_error_code:(ok|\d+)$`, state.Tags[0])
+	} else {
+		assert.Empty(t, state.Tags, "the Agent user check is Windows-only")
+	}
+}
+
 func TestDecryptSecrets(t *testing.T) {
 	// Generate test encryption keys
 	pubKey, privKey, err := box.GenerateKey(rand.Reader)

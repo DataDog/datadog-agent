@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    On Windows, the Agent now checks ahead of an upgrade whether the stored Agent
+    user password is available, so upgrades that would fail without it are not
+    started.
