@@ -5,7 +5,6 @@
 
 package com_datadoghq_kubernetes_admissionregistration
 
-
 import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 
 type KubernetesAdmissionregistration struct {

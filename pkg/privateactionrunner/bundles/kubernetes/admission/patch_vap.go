@@ -5,7 +5,6 @@
 
 package com_datadoghq_kubernetes_admissionregistration
 
-
 import (
 	"context"
 	"encoding/json"
