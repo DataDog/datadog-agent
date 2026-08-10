@@ -77,12 +77,12 @@ dd_agent_go_test(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "noisyneighbor_perf_test",
     srcs = ["perf_test.go"],
     embed = [":noisyneighbor"],
-    gotags = ["linux_bpf"],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
         "@com_github_stretchr_testify//require",
