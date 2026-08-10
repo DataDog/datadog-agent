@@ -7,6 +7,7 @@ import os
 from invoke import task
 
 from tasks.fuzz_infra import get_fuzz_build_tags
+from tasks.schema.generate import schema_codegen
 
 
 @task
@@ -16,6 +17,9 @@ def fuzz(ctx, fuzztime="10s"):
     This is a temporary approach until Go supports fuzzing multiple targets.
     See https://github.com/golang/go/issues/46312.
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     for directory, func in search_fuzz_tests(os.getcwd()):
         with ctx.cd(directory):
             tags = ",".join(get_fuzz_build_tags())
