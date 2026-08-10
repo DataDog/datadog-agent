@@ -35,6 +35,7 @@ pub(super) fn load_yaml(contents: &str) -> Result<Value> {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum PermissiveValue {
+    Null,
     Bool(bool),
     Number(Number),
     String(String),
@@ -49,6 +50,7 @@ fn load_yaml_permissive(contents: &str) -> Result<Value> {
 
 fn permissive_to_value(value: PermissiveValue) -> Value {
     match value {
+        PermissiveValue::Null => Value::Null,
         PermissiveValue::Bool(enabled) => Value::Bool(enabled),
         PermissiveValue::Number(number) => Value::Number(number),
         PermissiveValue::String(text) => Value::String(text),
@@ -93,6 +95,27 @@ mod tests {
     fn permissive_parse_nested_duplicate_key_last_wins() {
         let yaml = "process_config:\n  process_collection:\n    enabled: false\n  process_collection:\n    enabled: true\n";
         let root = load_yaml(yaml).unwrap();
+        assert_eq!(
+            root.get("process_config")
+                .and_then(|v| v.get("process_collection"))
+                .and_then(|v| v.get("enabled")),
+            Some(&Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn permissive_parse_accepts_null_with_duplicate_keys() {
+        let yaml = "network_config:\n  enabled:\nsystem_probe_config:\n  enabled: true\nprocess_config:\n  enabled: false\nprocess_config:\n  process_collection:\n    enabled: true\n";
+        let root = load_yaml(yaml).unwrap();
+        assert_eq!(
+            root.get("network_config").and_then(|v| v.get("enabled")),
+            Some(&Value::Null)
+        );
+        assert_eq!(
+            root.get("system_probe_config")
+                .and_then(|v| v.get("enabled")),
+            Some(&Value::Bool(true))
+        );
         assert_eq!(
             root.get("process_config")
                 .and_then(|v| v.get("process_collection"))
