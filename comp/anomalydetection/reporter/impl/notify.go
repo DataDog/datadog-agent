@@ -183,7 +183,7 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		return ""
 	}
 	if scorerContributorMessageLen(fullLines) <= changeEventMessageMaxLen {
-		return "Top contributing metrics:\n" + strings.Join(fullLines, "\n")
+		return "Top contributions:\n" + strings.Join(fullLines, "\n")
 	}
 
 	lines := append([]string(nil), fullLines...)
@@ -235,11 +235,11 @@ func logDerivedContributorName(namespace string, context *observerdef.MetricCont
 }
 
 func scorerContributorMessageLen(lines []string) int {
-	return len("Top contributing metrics:") + len(lines) + len(strings.Join(lines, ""))
+	return len("Top contributions:") + len(lines) + len(strings.Join(lines, ""))
 }
 
 func truncateScorerContributorLines(lines []string) string {
-	message := "Top contributing metrics:"
+	message := "Top contributions:"
 	for i, line := range lines {
 		remaining := len(lines) - i - 1
 		suffix := ""
