@@ -793,11 +793,9 @@ func TestEndpointSlice_ConcurrentIsUpToDateAndInvalidate(t *testing.T) {
 	const iterations = 1000
 
 	var wg sync.WaitGroup
-	wg.Add(2)
 
 	// Simulates the informer callback goroutine mutating upToDate.
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		oldSlice := baseSlice
 		for i := 0; i < iterations; i++ {
 			newSlice := oldSlice.DeepCopy()
@@ -808,16 +806,15 @@ func TestEndpointSlice_ConcurrentIsUpToDateAndInvalidate(t *testing.T) {
 			provider.invalidateOnEndpointSliceUpdate(oldSlice, newSlice)
 			oldSlice = newSlice
 		}
-	}()
+	})
 
 	// Simulates the autodiscovery scheduler's polling loop reading upToDate.
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; i < iterations; i++ {
 			_, err := provider.IsUpToDate(context.Background())
 			assert.NoError(t, err)
 		}
-	}()
+	})
 
 	wg.Wait()
 }
