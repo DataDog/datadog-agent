@@ -18,8 +18,8 @@ use tonic::transport::Channel;
 /// dd-procmgrd serializes every command through a single loop
 /// (`ProcessManager::run`), so one wedged operation stalls all callers. These
 /// RPCs sit on the dispatch path via `ensure_ready`, after a task has been
-/// leased from OPMS but before heartbeats start, so an unbounded call would hang
-/// the action with nothing reporting it as alive and no outcome ever published.
+/// leased from OPMS. Heartbeats protect the lease during the call, but a bound is
+/// still required so a wedged daemon becomes a publishable executor failure.
 const PROCMGR_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Executor lifecycle operations the orchestrator relies on. A trait so the

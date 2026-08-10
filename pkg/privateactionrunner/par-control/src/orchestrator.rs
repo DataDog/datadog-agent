@@ -30,7 +30,7 @@ pub struct Params {
     pub ready_timeout: Duration,
     pub key_sync_timeout: Duration,
     pub idle_timeout: Duration,
-    /// Only while an action's result stream is open.
+    /// From task dequeue through terminal publication.
     pub heartbeat_interval: Duration,
     /// Runner liveness reporting to OPMS, independent of task flow.
     pub health_check_interval: Duration,
@@ -134,34 +134,8 @@ where
             };
         }
 
-        // Pre-warm keys before leasing work from OPMS.
-        info!("pre-warming executor signing-key cache");
-        loop {
-            let prewarm = tokio::select! {
-                _ = &mut shutdown => {
-                    info!("shutdown requested during executor pre-warm");
-                    stop_health_checks(stop_health, health_done).await;
-                    return;
-                }
-                result = self.ensure_ready() => result,
-            };
-            match prewarm {
-                Ok(()) => {
-                    let key_count = self.key_cache.read().await.as_ref().map_or(0, Vec::len);
-                    info!("executor signing-key cache ready ({key_count} keys)");
-                    break;
-                }
-                Err(e) => warn!("executor pre-warm failed; retrying: {e:#}"),
-            }
-            tokio::select! {
-                _ = &mut shutdown => {
-                    info!("shutdown requested during executor pre-warm backoff");
-                    stop_health_checks(stop_health, health_done).await;
-                    return;
-                }
-                _ = tokio::time::sleep(self.params.min_backoff) => {}
-            }
-        }
+        // The executor remains stopped until work arrives. The first cold task
+        // populates the signing-key cache, which seeds later cold starts.
         let idle_since = Arc::new(AsyncMutex::new(Instant::now()));
 
         loop {
@@ -203,6 +177,14 @@ where
                         "dequeued task {} ({}) for job {}",
                         task.task_id, task.action_fqn, task.job_id
                     );
+                    // Start protecting the OPMS lease before cold-starting the
+                    // executor or synchronizing keys. Keep it protected until
+                    // terminal publication finishes.
+                    let (stop_hb, hb_done) = spawn_heartbeats(
+                        Arc::clone(&self.opms),
+                        task.clone(),
+                        self.params.heartbeat_interval,
+                    );
                     let ready = tokio::select! {
                         _ = &mut shutdown => {
                             info!("shutdown requested before task {} could be dispatched", task.task_id);
@@ -217,6 +199,7 @@ where
                             ).await {
                                 error!("failed to publish shutdown failure for task {}: {e:#}", task.task_id);
                             }
+                            stop_heartbeats(stop_hb, hb_done).await;
                             drop(permit);
                             break;
                         }
@@ -237,6 +220,7 @@ where
                         {
                             error!("failed to publish executor-unavailable failure: {pe:#}");
                         }
+                        stop_heartbeats(stop_hb, hb_done).await;
                         drop(permit);
                         continue;
                     }
@@ -246,16 +230,11 @@ where
                     let dispatcher = Arc::clone(&self.dispatcher);
                     let lifecycle = Arc::clone(&self.lifecycle);
                     let inflight = Arc::clone(&self.inflight);
-                    let heartbeat_interval = self.params.heartbeat_interval;
                     let publish_max_attempts = self.params.publish_max_attempts;
                     let publish_min_backoff = self.params.publish_min_backoff;
                     let publish_max_backoff = self.params.publish_max_backoff;
                     let idle_since = Arc::clone(&idle_since);
                     tokio::spawn(async move {
-                        // The control plane owns heartbeats while the executor stream is open.
-                        let (stop_hb, hb_done) =
-                            spawn_heartbeats(Arc::clone(&opms), task.clone(), heartbeat_interval);
-
                         let outcome = match dispatcher.run_action(task.raw.clone()).await {
                             Ok(o) => {
                                 match &o {
@@ -300,8 +279,7 @@ where
                             error!("failed to publish result for task {}: {e:#}", task.task_id);
                         }
 
-                        let _ = stop_hb.send(());
-                        let _ = hb_done.await;
+                        stop_heartbeats(stop_hb, hb_done).await;
                         *idle_since.lock().await = Instant::now();
                         inflight.fetch_sub(1, Ordering::SeqCst);
                         drop(permit);
@@ -561,8 +539,9 @@ fn log_health_check(check: &HealthCheck, last_info: &mut Option<Instant>) {
 }
 
 /// Spawn a task that heartbeats `task`'s OPMS lease every `interval` until the
-/// returned sender is dropped/fired. The first heartbeat is emitted after one
-/// full interval (the immediate `interval` tick is consumed).
+/// returned sender is dropped/fired or OPMS reports the task missing. The first
+/// heartbeat is emitted after one full interval (the immediate `interval` tick
+/// is consumed).
 fn spawn_heartbeats<O: Opms + 'static>(
     opms: Arc<O>,
     task: Task,
@@ -594,6 +573,14 @@ fn spawn_heartbeats<O: Opms + 'static>(
     (stop_tx, handle)
 }
 
+async fn stop_heartbeats(
+    stop: tokio::sync::oneshot::Sender<()>,
+    done: tokio::task::JoinHandle<()>,
+) {
+    let _ = stop.send(());
+    let _ = done.await;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -614,6 +601,7 @@ mod tests {
         concurrent: usize,
         sync_calls: usize,
         sync_calls_with_seed: usize,
+        ensure_started_calls: usize,
     }
 
     struct Fakes {
@@ -632,9 +620,12 @@ mod tests {
         dequeue_release: tokio::sync::Semaphore,
         // Describe reports the process has exited (crash).
         exited: bool,
-        // Hold SyncKeys so tests can prove dequeue waits for pre-warm.
+        // Hold SyncKeys so tests can observe a cold start in progress.
         block_sync: bool,
         sync_release: tokio::sync::Semaphore,
+        // Hold terminal publication so tests can verify heartbeats continue.
+        block_publish: bool,
+        publish_release: tokio::sync::Semaphore,
         // Simulate OPMS forgetting a task on its first heartbeat.
         heartbeat_not_found: bool,
         // Health checks answer with this status (200 unless a test overrides it).
@@ -656,6 +647,8 @@ mod tests {
                 exited: false,
                 block_sync: false,
                 sync_release: tokio::sync::Semaphore::new(0),
+                block_publish: false,
+                publish_release: tokio::sync::Semaphore::new(0),
                 heartbeat_not_found: false,
                 health_check_status: 200,
                 fail_health_check: false,
@@ -692,12 +685,18 @@ mod tests {
         }
 
         async fn publish(&self, _task: &Task, outcome: &Outcome) -> anyhow::Result<PublishResult> {
-            let mut s = self.state.lock().unwrap();
-            s.publish_attempts += 1;
-            if s.publish_failures_remaining > 0 {
-                s.publish_failures_remaining -= 1;
-                anyhow::bail!("simulated publish outage");
+            {
+                let mut s = self.state.lock().unwrap();
+                s.publish_attempts += 1;
+                if s.publish_failures_remaining > 0 {
+                    s.publish_failures_remaining -= 1;
+                    anyhow::bail!("simulated publish outage");
+                }
             }
+            if self.block_publish {
+                self.publish_release.acquire().await.unwrap().forget();
+            }
+            let mut s = self.state.lock().unwrap();
             s.published += 1;
             if matches!(outcome, Outcome::Failure { .. }) {
                 s.failures += 1;
@@ -729,6 +728,7 @@ mod tests {
 
     impl ExecutorLifecycle for Fakes {
         async fn ensure_started(&self) -> anyhow::Result<()> {
+            self.state.lock().unwrap().ensure_started_calls += 1;
             Ok(())
         }
         async fn is_running(&self) -> anyhow::Result<bool> {
@@ -807,17 +807,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prewarm_populates_key_cache_before_dequeue() {
-        let fake = Arc::new(Fakes {
-            tasks_to_serve: 1,
-            block_sync: true,
-            ..Default::default()
-        });
+    async fn idle_control_plane_does_not_start_executor() {
+        let fake = Arc::new(Fakes::default());
         let orch = Orchestrator::new(
             Arc::clone(&fake),
             Arc::clone(&fake),
             Arc::clone(&fake),
-            test_params(1, Duration::from_millis(10)),
+            test_params(1, Duration::from_secs(3600)),
         );
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
         let run = tokio::spawn(async move {
@@ -828,15 +824,42 @@ mod tests {
         });
 
         tokio::time::sleep(Duration::from_millis(30)).await;
-        assert_eq!(fake.state.lock().unwrap().dequeued, 0);
+        {
+            let state = fake.state.lock().unwrap();
+            assert_eq!(state.ensure_started_calls, 0);
+            assert_eq!(state.sync_calls, 0);
+        }
 
-        // One permit completes startup pre-warm; the second lets the first task
-        // refresh the cache before dispatch.
+        let _ = shutdown_tx.send(());
+        run.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn first_task_populates_key_cache_for_later_starts() {
+        let fake = Arc::new(Fakes {
+            tasks_to_serve: 2,
+            block_sync: true,
+            ..Default::default()
+        });
+        let orch = Orchestrator::new(
+            Arc::clone(&fake),
+            Arc::clone(&fake),
+            Arc::clone(&fake),
+            test_params(1, Duration::from_secs(3600)),
+        );
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let run = tokio::spawn(async move {
+            orch.run(async {
+                let _ = shutdown_rx.await;
+            })
+            .await;
+        });
+
         fake.sync_release.add_permits(2);
-        fake.release.add_permits(1);
+        fake.release.add_permits(2);
         tokio::time::timeout(Duration::from_secs(1), async {
             loop {
-                if fake.state.lock().unwrap().published == 1 {
+                if fake.state.lock().unwrap().published == 2 {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(5)).await;
@@ -847,6 +870,7 @@ mod tests {
 
         {
             let state = fake.state.lock().unwrap();
+            assert_eq!(state.ensure_started_calls, 2);
             assert_eq!(state.sync_calls, 2);
             assert_eq!(state.sync_calls_with_seed, 1);
         }
@@ -949,11 +973,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn heartbeats_while_stream_open_and_stop_after() {
-        // One task whose stream stays open (never released) so heartbeats fire.
+    async fn heartbeats_from_dequeue_through_terminal_publication() {
         let fakes = Arc::new(Fakes {
             tasks_to_serve: 1,
-            release: tokio::sync::Semaphore::new(0),
+            block_sync: true,
+            block_publish: true,
             ..Default::default()
         });
 
@@ -961,7 +985,7 @@ mod tests {
             Arc::clone(&fakes),
             Arc::clone(&fakes),
             Arc::clone(&fakes),
-            test_params(1, Duration::from_millis(10)),
+            test_params(1, Duration::from_millis(5)),
         );
 
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
@@ -972,20 +996,57 @@ mod tests {
             .await;
         });
 
-        // Stream is open this whole window → several heartbeats should fire.
-        tokio::time::sleep(Duration::from_millis(80)).await;
-        let during = fakes.state.lock().unwrap().heartbeats;
-        assert!(during >= 1, "expected heartbeats while the stream was open");
+        // The lease is protected while a cold executor waits for key sync.
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if fakes.state.lock().unwrap().heartbeats >= 2 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .expect("heartbeats did not start during cold-start readiness");
+        assert_eq!(fakes.state.lock().unwrap().sync_calls, 0);
 
-        // Close the stream; heartbeats must stop promptly.
+        // Finish readiness and execution, but hold the terminal OPMS request.
+        fakes.sync_release.add_permits(1);
         fakes.release.add_permits(1);
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if fakes.state.lock().unwrap().publish_attempts == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .expect("terminal publication did not start");
+        let before_publish = fakes.state.lock().unwrap().heartbeats;
         tokio::time::sleep(Duration::from_millis(20)).await;
-        let after_close = fakes.state.lock().unwrap().heartbeats;
-        tokio::time::sleep(Duration::from_millis(40)).await;
-        let later = fakes.state.lock().unwrap().heartbeats;
+        assert!(
+            fakes.state.lock().unwrap().heartbeats > before_publish,
+            "heartbeats must continue until terminal publication completes"
+        );
+
+        fakes.publish_release.add_permits(1);
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if fakes.state.lock().unwrap().published == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .expect("terminal publication did not complete");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let after_publish = fakes.state.lock().unwrap().heartbeats;
+        tokio::time::sleep(Duration::from_millis(20)).await;
         assert_eq!(
-            after_close, later,
-            "heartbeats must stop once the stream closes"
+            fakes.state.lock().unwrap().heartbeats,
+            after_publish,
+            "heartbeats must stop after terminal publication"
         );
 
         let _ = tx.send(());
@@ -1076,7 +1137,6 @@ mod tests {
             .await;
         });
 
-        fakes.sync_release.add_permits(1);
         for _ in 0..100 {
             if fakes.state.lock().unwrap().dequeued > 0 {
                 break;
@@ -1318,17 +1378,13 @@ mod tests {
         );
     }
 
-    /// Liveness reporting must survive a failing health check and a control plane
-    /// still stuck waiting on its executor: those are exactly the situations where
-    /// operators need the runner's health signal, and a loop that aborted on the
-    /// first error — or only started once pre-warm succeeded — would go silent
-    /// precisely then.
+    /// Liveness reporting must survive a failing health check while the control
+    /// plane remains idle. Those are exactly the situations where operators need
+    /// the runner's health signal.
     #[tokio::test]
-    async fn liveness_reporting_survives_failures_and_a_stalled_prewarm() {
+    async fn liveness_reporting_survives_failures_while_idle() {
         let fakes = Arc::new(Fakes {
             fail_health_check: true,
-            // Pre-warm blocks forever, so the main dequeue loop is never reached.
-            block_sync: true,
             ..Default::default()
         });
         let mut params = test_params(1, Duration::from_secs(3600));
@@ -1362,13 +1418,13 @@ mod tests {
         assert_eq!(
             fakes.state.lock().unwrap().sync_calls,
             0,
-            "pre-warm is still blocked; health checks must not depend on it"
+            "idle liveness checks must not start the executor"
         );
 
         let _ = tx.send(());
         tokio::time::timeout(Duration::from_secs(5), handle)
             .await
-            .expect("shutdown during pre-warm must stop the health-check loop too")
+            .expect("shutdown must stop the health-check loop too")
             .expect("orchestrator task panicked");
     }
 

@@ -64,7 +64,7 @@ pub struct Config {
     pub procmgr_socket: PathBuf,
     pub executor_process_name: String,
     pub loop_interval: Duration,
-    /// Only while an action's result stream is open.
+    /// From task dequeue through terminal publication.
     pub heartbeat_interval: Duration,
     /// Runner liveness reporting to OPMS, independent of task flow.
     pub health_check_interval: Duration,
