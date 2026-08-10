@@ -24,9 +24,9 @@ pub(crate) use legacy_scm_env::set_test_core_agent_scm_env;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub use scm_service::run_as_service;
-pub(crate) use spawn::user_profile::UserProfileGuard;
 pub(crate) use secret_backend::exec_secret_backend;
 pub(crate) use spawn::spawn_child_handle;
+pub(crate) use spawn::user_profile::UserProfileGuard;
 
 use anyhow::Result;
 use std::collections::HashMap;

@@ -246,9 +246,7 @@ fn parse_secret_response(
 
 fn normalize_secret_value(value: &str, remove_trailing_line_break: bool) -> String {
     if remove_trailing_line_break {
-        value
-            .trim_end_matches(|c| c == '\r' || c == '\n')
-            .to_string()
+        value.trim_end_matches(['\r', '\n']).to_string()
     } else {
         value.to_owned()
     }
@@ -393,14 +391,8 @@ mod tests {
 
     #[test]
     fn normalize_secret_value_strips_trailing_line_breaks_when_enabled() {
-        assert_eq!(
-            normalize_secret_value("true\r\n", true),
-            "true".to_string()
-        );
-        assert_eq!(
-            normalize_secret_value("true\n", true),
-            "true".to_string()
-        );
+        assert_eq!(normalize_secret_value("true\r\n", true), "true".to_string());
+        assert_eq!(normalize_secret_value("true\n", true), "true".to_string());
         assert_eq!(
             normalize_secret_value("true\r\n", false),
             "true\r\n".to_string()

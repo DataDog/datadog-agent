@@ -33,12 +33,12 @@ use windows_sys::Win32::System::Threading::{
 use crate::secret_backend_exec::{BackendRun, exec_inherited_token, wait_with_stdout_drain};
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
+use super::secret_backend_rights;
 use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::spawn::user_profile::UserProfileGuard;
 use super::spawn::win32::{
     build_windows_command_line, duplicate_primary_token, env_block_from_token,
 };
-use super::secret_backend_rights;
 use super::wide;
 
 const PROCESS_NAME: &str = "secret-backend";

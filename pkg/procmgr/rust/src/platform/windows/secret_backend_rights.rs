@@ -19,9 +19,9 @@ use windows_sys::Win32::Security::Authorization::{
     ConvertStringSidToSidW, GetNamedSecurityInfoW, SE_FILE_OBJECT,
 };
 use windows_sys::Win32::Security::{
-    ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AllocateAndInitializeSid, EqualSid, FreeSid,
-    GetAce, GetAclInformation, AclSizeInformation, DACL_SECURITY_INFORMATION,
-    DOMAIN_ALIAS_RID_ADMINS, PSID, SECURITY_BUILTIN_DOMAIN_RID, SECURITY_NT_AUTHORITY,
+    ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AclSizeInformation, AllocateAndInitializeSid,
+    DACL_SECURITY_INFORMATION, DOMAIN_ALIAS_RID_ADMINS, EqualSid, FreeSid, GetAce,
+    GetAclInformation, PSID, SECURITY_BUILTIN_DOMAIN_RID, SECURITY_NT_AUTHORITY,
 };
 
 use super::sid::lookup_account_sid;
@@ -144,9 +144,7 @@ fn file_dacl(path: &str) -> Result<FileDacl> {
 struct FileDacl(*mut ACL);
 
 fn ace_sid(ace: *const ACCESS_ALLOWED_ACE) -> PSID {
-    unsafe {
-        (ace as *const u8).add(offset_of!(ACCESS_ALLOWED_ACE, SidStart)) as PSID
-    }
+    unsafe { (ace as *const u8).add(offset_of!(ACCESS_ALLOWED_ACE, SidStart)) as PSID }
 }
 
 fn sids_equal(left: PSID, right: PSID) -> bool {
@@ -262,6 +260,5 @@ fn registry_agent_user_sid() -> Result<Vec<u8>> {
         .unwrap_or_default()
         .trim()
         .to_string();
-    lookup_account_sid(&domain, &user)
-        .with_context(|| format!("lookup SID for {domain}\\{user}"))
+    lookup_account_sid(&domain, &user).with_context(|| format!("lookup SID for {domain}\\{user}"))
 }

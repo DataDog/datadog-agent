@@ -49,10 +49,7 @@ pub(crate) fn spawn_and_capture(
             .context("write secret backend payload")?;
     }
 
-    let stdout = child
-        .stdout
-        .take()
-        .context("read secret backend stdout")?;
+    let stdout = child.stdout.take().context("read secret backend stdout")?;
     let pid = child.id();
     let deadline = Instant::now() + run.timeout;
     let command = run.command;
@@ -212,15 +209,18 @@ mod tests {
     fn wait_with_stdout_drain_errors_when_output_exceeds_limit() {
         let (reader, mut writer) = std::io::pipe().expect("pipe");
         let writer = thread::spawn(move || {
-            writer
-                .write_all(&vec![b'a'; 1025])
-                .expect("write payload");
+            writer.write_all(&vec![b'a'; 1025]).expect("write payload");
         });
 
-        let err = wait_with_stdout_drain(reader, 1024, || {}, || {
-            writer.join().expect("writer thread");
-            Ok(())
-        })
+        let err = wait_with_stdout_drain(
+            reader,
+            1024,
+            || {},
+            || {
+                writer.join().expect("writer thread");
+                Ok(())
+            },
+        )
         .unwrap_err();
 
         assert!(
@@ -235,10 +235,7 @@ mod tests {
         // Pipe buffers are typically 64 KiB; emit more before exit to catch wait-then-read deadlocks.
         let run = BackendRun {
             command: "sh",
-            arguments: &[
-                "-c".into(),
-                "perl -e 'print \"a\" x 131072'".into(),
-            ],
+            arguments: &["-c".into(), "perl -e 'print \"a\" x 131072'".into()],
             payload: "secret-handle",
             timeout: Duration::from_secs(5),
             max_output_bytes: 1024 * 1024,
@@ -253,10 +250,7 @@ mod tests {
     fn spawn_and_capture_kills_child_when_output_exceeds_limit() {
         let run = BackendRun {
             command: "sh",
-            arguments: &[
-                "-c".into(),
-                "perl -e 'print \"a\" x 131072'".into(),
-            ],
+            arguments: &["-c".into(), "perl -e 'print \"a\" x 131072'".into()],
             payload: "secret-handle",
             timeout: Duration::from_secs(5),
             max_output_bytes: 1024,
