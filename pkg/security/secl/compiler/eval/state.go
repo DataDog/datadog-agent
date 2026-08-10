@@ -14,15 +14,14 @@ type State struct {
 	macros      MacroEvaluatorGetter
 	registers   []Register
 
-	// cov is set when the boolean skeleton of the rule being compiled has to be
-	// tracked for coverage
-	cov *coverageBuilder
+	// skel is set when the boolean skeleton of the rule being compiled has to be
+	// built, which is what rule coverage enumerates the evaluation paths from
+	skel *skeletonBuilder
 }
 
-// enableCoverage makes the compilation build the boolean skeleton of the rule,
-// used to report which of its evaluation paths have been taken
-func (s *State) enableCoverage(expr string) {
-	s.cov = &coverageBuilder{expr: expr}
+// enableSkeleton makes the compilation build the boolean skeleton of the rule
+func (s *State) enableSkeleton(expr string) {
+	s.skel = &skeletonBuilder{expr: expr}
 }
 
 // UpdateFields updates the fields used in the rule

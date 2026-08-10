@@ -23,13 +23,9 @@ import (
 //	A=true B=false C=true   => true
 //	A=true B=false C=false  => false
 //
-// The paths are enumerated statically when the rule is compiled, and the
-// evaluator records which one was taken on every evaluation.
-//
-// Which leaves a path evaluates depends on the order the operators test their
-// operands in, and And and Or test the cheapest one first. The skeleton the paths
-// are enumerated from therefore follows that same order, through swapsOperands,
-// rather than the order the operands appear in the rule.
+// The paths are enumerated statically from the boolean skeleton built while the
+// rule is compiled (see skeleton.go), and the evaluator records which one was
+// taken on every evaluation.
 
 const (
 	// maxCoverageLeaves is the highest number of boolean leaves a rule can hold
@@ -49,200 +45,6 @@ var (
 	errTooManyCoveragePaths  = fmt.Errorf("more than %d evaluation paths", maxCoveragePaths)
 )
 
-// covKind is the kind of a node of the boolean skeleton of a rule
-type covKind uint8
-
-const (
-	// covLeaf is a sub-expression that coverage does not look into, typically a
-	// comparison, a macro reference or a bare boolean field
-	covLeaf covKind = iota
-	// covConst is a sub-expression folded to a constant at compile time
-	covConst
-	covAnd
-	covOr
-	covNot
-)
-
-func (k covKind) operator() string {
-	if k == covOr {
-		return " || "
-	}
-	return " && "
-}
-
-// covNode is a node of the boolean skeleton of a rule. It is built while the
-// rule is compiled and mirrors the short-circuit structure of the generated
-// evaluator.
-type covNode struct {
-	// builder is the compilation the node was created by, used to tell the nodes
-	// of the rule being compiled apart from the ones left on an evaluator shared
-	// with another rule, such as a macro
-	builder *coverageBuilder
-
-	kind        covKind
-	left, right *covNode // covAnd, covOr
-	child       *covNode // covNot
-
-	value bool // covConst
-
-	// covLeaf. idx is the position of the leaf in the coverage bitmaps, and is
-	// only assigned once the whole skeleton is known: it stays negative for
-	// leaves that ended up unreachable from the root, and for every leaf of a
-	// rule whose coverage could not be enumerated. It follows the evaluation
-	// order, whereas name follows the order the leaves appear in the rule.
-	idx    int
-	name   string
-	offset int
-	length int
-	label  string
-}
-
-// coverageBuilder holds the compile time state needed to build the boolean
-// skeleton of a rule.
-type coverageBuilder struct {
-	expr string
-}
-
-// covOperand returns the evaluator to use in place of an operand of a boolean
-// operator. An operand that is not already a coverage sub-tree of the rule being
-// compiled becomes a leaf, instrumented to record its outcome.
-//
-// The offset locates the sub-expression in the rule expression, and is used to
-// recover its source text.
-//
-// The operand is never modified: evaluators can be shared between rules, macro
-// values in particular, and each rule needs leaves of its own.
-func (s *State) covOperand(operand *BoolEvaluator, offset int) *BoolEvaluator {
-	if s.cov == nil || (operand.covNode != nil && operand.covNode.builder == s.cov) {
-		return operand
-	}
-
-	instrumented := *operand
-
-	if operand.EvalFnc == nil {
-		instrumented.covNode = &covNode{builder: s.cov, kind: covConst, value: operand.Value, idx: -1}
-		return &instrumented
-	}
-
-	node := &covNode{builder: s.cov, kind: covLeaf, idx: -1}
-	node.offset, node.length = covSpan(s.cov.expr, offset)
-	node.label = s.cov.expr[node.offset : node.offset+node.length]
-
-	inner := operand.EvalFnc
-	instrumented.EvalFnc = func(ctx *Context) bool {
-		value := inner(ctx)
-		ctx.coverage.record(node.idx, value)
-		return value
-	}
-	instrumented.covNode = node
-
-	return &instrumented
-}
-
-// covJoin records that the given evaluator combines the two operands with the
-// given boolean operator. The evaluator is always freshly built by And or Or, so
-// it is never shared with another rule.
-//
-// The children are stored in the order the operator evaluates them, not in the
-// order they appear in the rule: the paths have to be enumerated the way they are
-// walked, otherwise the recorded ones would match none of them.
-func (s *State) covJoin(joined *BoolEvaluator, kind covKind, left, right *BoolEvaluator) {
-	if s.cov == nil {
-		return
-	}
-
-	first, second := left.covNode, right.covNode
-	if swapsOperands(left, right) {
-		first, second = second, first
-	}
-
-	joined.covNode = &covNode{builder: s.cov, kind: kind, left: first, right: second, idx: -1}
-}
-
-// covNegate records that the given evaluator is the negation of the operand
-func (s *State) covNegate(negated *BoolEvaluator, operand *BoolEvaluator) {
-	if s.cov == nil {
-		return
-	}
-	negated.covNode = &covNode{builder: s.cov, kind: covNot, child: operand.covNode, idx: -1}
-}
-
-// covSpan returns the extent, within the rule expression, of the sub-expression
-// starting at the given offset. The sub-expression ends at the first top level
-// boolean operator or at the first closing parenthesis that it does not open
-// itself.
-func covSpan(expr string, start int) (int, int) {
-	if start < 0 || start >= len(expr) {
-		return 0, 0
-	}
-
-	depth, end := 0, len(expr)
-
-scan:
-	for i := start; i < len(expr); i++ {
-		switch c := expr[i]; c {
-		case '"':
-			// strings, patterns and regexps are all double quoted, and may hold
-			// any of the characters looked at below
-			i = covSkipString(expr, i)
-		case '(':
-			depth++
-		case ')':
-			if depth == 0 {
-				end = i
-				break scan
-			}
-			depth--
-		case '&', '|':
-			if depth == 0 && i+1 < len(expr) && expr[i+1] == c {
-				end = i
-				break scan
-			}
-		case 'a', 'o':
-			if depth == 0 && covIsWordStart(expr, i) &&
-				(covHasWord(expr, i, "and") || covHasWord(expr, i, "or")) {
-				end = i
-				break scan
-			}
-		}
-	}
-
-	return start, len(strings.TrimRight(expr[start:end], " \t\n"))
-}
-
-// covSkipString returns the index of the closing quote of the string starting at
-// the given opening quote, or the index of the end of the expression.
-func covSkipString(expr string, start int) int {
-	for i := start + 1; i < len(expr); i++ {
-		switch expr[i] {
-		case '\\':
-			i++
-		case '"':
-			return i
-		}
-	}
-	return len(expr)
-}
-
-func covIsIdentChar(c byte) bool {
-	return c == '_' || c == '.' || c == '[' || c == ']' ||
-		(c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-}
-
-// covIsWordStart reports whether the given offset starts an identifier
-func covIsWordStart(expr string, i int) bool {
-	return i == 0 || !covIsIdentChar(expr[i-1])
-}
-
-// covHasWord reports whether the given identifier starts at the given offset
-func covHasWord(expr string, i int, word string) bool {
-	if !strings.HasPrefix(expr[i:], word) {
-		return false
-	}
-	next := i + len(word)
-	return next == len(expr) || !covIsIdentChar(expr[next])
-}
-
 // covPathKey identifies an evaluation path by the set of leaves it evaluates and
 // the value each of them took.
 type covPathKey struct {
@@ -259,19 +61,19 @@ type covPath struct {
 
 // enumerate returns every evaluation path of the sub-tree, in the order in
 // which the evaluator walks them.
-func enumerate(node *covNode) ([]covPath, error) {
+func enumerate(node *skelNode) ([]covPath, error) {
 	switch node.kind {
-	case covConst:
+	case skelConst:
 		return []covPath{{result: node.value}}, nil
-	case covLeaf:
+	case skelLeaf:
 		// false first, so that the paths of the rule are reported in the order
 		// of a truth table, shortest first
-		mask := uint64(1) << uint(node.idx)
+		mask := uint64(1) << uint(node.covIdx)
 		return []covPath{
-			{key: covPathKey{seen: mask}, order: []int{node.idx}, result: false},
-			{key: covPathKey{seen: mask, values: mask}, order: []int{node.idx}, result: true},
+			{key: covPathKey{seen: mask}, order: []int{node.covIdx}, result: false},
+			{key: covPathKey{seen: mask, values: mask}, order: []int{node.covIdx}, result: true},
 		}, nil
-	case covNot:
+	case skelNot:
 		paths, err := enumerate(node.child)
 		if err != nil {
 			return nil, err
@@ -280,10 +82,10 @@ func enumerate(node *covNode) ([]covPath, error) {
 			paths[i].result = !paths[i].result
 		}
 		return paths, nil
-	case covAnd, covOr:
+	case skelAnd, skelOr:
 		// the left operand short-circuits the right one when its result already
 		// decides the outcome: true for `||`, false for `&&`
-		shortCircuit := node.kind == covOr
+		shortCircuit := node.kind == skelOr
 
 		left, err := enumerate(node.left)
 		if err != nil {
@@ -297,7 +99,7 @@ func enumerate(node *covNode) ([]covPath, error) {
 		// a left operand folded to a constant does not short-circuit an `||`: Or
 		// combines both sides instead of testing them in turn, so the right
 		// operand is evaluated whatever the constant is
-		alwaysRight := node.kind == covOr && node.left.kind == covConst
+		alwaysRight := node.kind == skelOr && node.left.kind == skelConst
 
 		var paths []covPath
 		for _, l := range left {
@@ -310,7 +112,7 @@ func enumerate(node *covNode) ([]covPath, error) {
 					return nil, errTooManyCoveragePaths
 				}
 				result := r.result
-				if node.kind == covOr && l.result {
+				if node.kind == skelOr && l.result {
 					result = true
 				}
 				paths = append(paths, covPath{
@@ -323,23 +125,23 @@ func enumerate(node *covNode) ([]covPath, error) {
 		return paths, nil
 	}
 
-	return nil, fmt.Errorf("unknown coverage node kind %d", node.kind)
+	return nil, fmt.Errorf("unknown skeleton node kind %d", node.kind)
 }
 
 // assignLeafIndices numbers the leaves reachable from the node in evaluation
 // order, and returns how many there are.
-func assignLeafIndices(node *covNode, next int) (int, error) {
+func assignLeafIndices(node *skelNode, next int) (int, error) {
 	switch node.kind {
-	case covConst:
-	case covLeaf:
+	case skelConst:
+	case skelLeaf:
 		if next >= maxCoverageLeaves {
 			return next, errTooManyCoverageLeaves
 		}
-		node.idx = next
+		node.covIdx = next
 		next++
-	case covNot:
+	case skelNot:
 		return assignLeafIndices(node.child, next)
-	case covAnd, covOr:
+	case skelAnd, skelOr:
 		var err error
 		if next, err = assignLeafIndices(node.left, next); err != nil {
 			return next, err
@@ -351,13 +153,13 @@ func assignLeafIndices(node *covNode, next int) (int, error) {
 
 // clearLeafIndices detaches every leaf of the sub-tree from the coverage
 // bitmaps, turning the instrumentation into a no-op.
-func clearLeafIndices(node *covNode) {
+func clearLeafIndices(node *skelNode) {
 	switch node.kind {
-	case covLeaf:
-		node.idx = -1
-	case covNot:
+	case skelLeaf:
+		node.covIdx = -1
+	case skelNot:
 		clearLeafIndices(node.child)
-	case covAnd, covOr:
+	case skelAnd, skelOr:
 		clearLeafIndices(node.left)
 		clearLeafIndices(node.right)
 	}
@@ -367,8 +169,8 @@ func clearLeafIndices(node *covNode) {
 // been taken. It is safe for concurrent use.
 type RuleCoverage struct {
 	expr   string
-	root   *covNode
-	leaves []*covNode
+	root   *skelNode
+	leaves []*skelNode
 	paths  []covPath
 	index  map[covPathKey]int
 
@@ -394,7 +196,7 @@ type RuleCoverage struct {
 // newRuleCoverage enumerates the evaluation paths of the boolean skeleton and
 // returns the accumulator for them. It always returns a usable value: a rule
 // whose paths cannot be enumerated is reported as unsupported.
-func newRuleCoverage(expr string, root *covNode) *RuleCoverage {
+func newRuleCoverage(expr string, root *skelNode) *RuleCoverage {
 	coverage := &RuleCoverage{expr: expr, root: root}
 	if root == nil {
 		coverage.reason = "the rule holds no boolean expression"
@@ -411,7 +213,7 @@ func newRuleCoverage(expr string, root *covNode) *RuleCoverage {
 		return coverage
 	}
 
-	coverage.leaves = make([]*covNode, count)
+	coverage.leaves = make([]*skelNode, count)
 	collectLeaves(root, coverage.leaves)
 
 	// name the leaves after their position in the rule rather than after their
@@ -425,7 +227,7 @@ func newRuleCoverage(expr string, root *covNode) *RuleCoverage {
 		return coverage.leaves[a].offset - coverage.leaves[b].offset
 	})
 	for position, leaf := range coverage.inRuleOrder {
-		coverage.leaves[leaf].name = covLeafName(position)
+		coverage.leaves[leaf].name = skelLeafName(position)
 	}
 
 	coverage.index = make(map[covPathKey]int, len(coverage.paths))
@@ -445,13 +247,13 @@ func newRuleCoverage(expr string, root *covNode) *RuleCoverage {
 	return coverage
 }
 
-func collectLeaves(node *covNode, leaves []*covNode) {
+func collectLeaves(node *skelNode, leaves []*skelNode) {
 	switch node.kind {
-	case covLeaf:
-		leaves[node.idx] = node
-	case covNot:
+	case skelLeaf:
+		leaves[node.covIdx] = node
+	case skelNot:
 		collectLeaves(node.child, leaves)
-	case covAnd, covOr:
+	case skelAnd, skelOr:
 		collectLeaves(node.left, leaves)
 		collectLeaves(node.right, leaves)
 	}
@@ -599,7 +401,7 @@ func (c *RuleCoverage) Report() *Coverage {
 		return report
 	}
 
-	report.Skeleton = covRender(c.root, c.root.kind)
+	report.Skeleton = skelRender(c.root, c.root.kind)
 
 	report.Leaves = make([]LeafCoverage, 0, len(c.leaves))
 	for _, i := range c.inRuleOrder {
@@ -653,38 +455,4 @@ func (c *RuleCoverage) Reset() {
 		c.leafFalse[i].Store(0)
 	}
 	c.unmatched.Store(0)
-}
-
-// covLeafName returns the short name of the nth leaf: A, B, ... Z, AA, AB, ...
-func covLeafName(index int) string {
-	name := []byte{byte('A' + index%26)}
-	for index /= 26; index > 0; index /= 26 {
-		name = append([]byte{byte('A' + (index-1)%26)}, name...)
-	}
-	return string(name)
-}
-
-// covRender returns the boolean structure of the sub-tree with every leaf
-// replaced by its short name. The parent kind is used to parenthesize only what
-// needs it: SECL has no precedence between `&&` and `||`, so a nested operator
-// of a different kind is always parenthesized.
-func covRender(node *covNode, parent covKind) string {
-	switch node.kind {
-	case covLeaf:
-		return node.name
-	case covConst:
-		if node.value {
-			return "true"
-		}
-		return "false"
-	case covNot:
-		return "!" + covRender(node.child, covNot)
-	case covAnd, covOr:
-		rendered := covRender(node.left, node.kind) + node.kind.operator() + covRender(node.right, node.kind)
-		if parent != node.kind {
-			return "(" + rendered + ")"
-		}
-		return rendered
-	}
-	return "?"
 }

@@ -776,10 +776,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, pos, NewTypeError(pos, reflect.Bool)
 			}
 
-			// the operands are the leaves of the boolean skeleton used for
-			// coverage, unless they are themselves boolean operations
-			cmpBool = state.covOperand(cmpBool, obj.Comparison.Pos.Offset)
-			nextBool = state.covOperand(nextBool, obj.Next.Pos.Offset)
+			// the operands are the leaves of the boolean skeleton, unless they
+			// are themselves boolean operations
+			cmpBool = state.skelOperand(cmpBool, obj.Comparison.Pos.Offset)
+			nextBool = state.skelOperand(nextBool, obj.Next.Pos.Offset)
 
 			switch *obj.Op {
 			case "||", "or":
@@ -787,14 +787,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				if err != nil {
 					return nil, obj.Pos, err
 				}
-				state.covJoin(boolEvaluator, covOr, cmpBool, nextBool)
+				state.skelJoin(boolEvaluator, skelOr, cmpBool, nextBool)
 				return boolEvaluator, obj.Pos, nil
 			case "&&", "and":
 				boolEvaluator, err = And(cmpBool, nextBool, state)
 				if err != nil {
 					return nil, obj.Pos, err
 				}
-				state.covJoin(boolEvaluator, covAnd, cmpBool, nextBool)
+				state.skelJoin(boolEvaluator, skelAnd, cmpBool, nextBool)
 				return boolEvaluator, obj.Pos, nil
 			}
 			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
@@ -1596,9 +1596,9 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, pos, NewTypeError(pos, reflect.Bool)
 			}
 
-			unaryBool = state.covOperand(unaryBool, obj.Unary.Pos.Offset)
+			unaryBool = state.skelOperand(unaryBool, obj.Unary.Pos.Offset)
 			notBool := Not(unaryBool, state)
-			state.covNegate(notBool, unaryBool)
+			state.skelNegate(notBool, unaryBool)
 
 			return notBool, obj.Pos, nil
 		case "-":

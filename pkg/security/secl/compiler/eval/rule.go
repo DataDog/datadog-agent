@@ -221,7 +221,7 @@ func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	state := NewState(model, "", opts.MacroStore)
 	if opts.RuleCoverage {
-		state.enableCoverage(rule.Expr)
+		state.enableSkeleton(rule.Expr)
 	}
 
 	eval, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
@@ -240,7 +240,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	}
 
 	// a rule that is a single sub-expression has no boolean skeleton yet
-	evalBool = state.covOperand(evalBool, rule.BooleanExpression.Pos.Offset)
+	evalBool = state.skelOperand(evalBool, rule.BooleanExpression.Pos.Offset)
 
 	// direct value, no bool evaluator, wrap value
 	if evalBool.EvalFnc == nil {
@@ -291,8 +291,8 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	// iteration so a rule iterating over a register reports one path per
 	// iteration.
 	var coverage *RuleCoverage
-	if state.cov != nil {
-		coverage = newRuleCoverage(rule.Expr, evalBool.covNode)
+	if state.skel != nil {
+		coverage = newRuleCoverage(rule.Expr, evalBool.skelNode)
 
 		evalFnc := evalBool.EvalFnc
 		evalBool.EvalFnc = func(ctx *Context) bool {

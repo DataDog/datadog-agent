@@ -35,9 +35,9 @@ type BoolEvaluator struct {
 	// track bitmask related value
 	originField Field
 
-	// node of the boolean skeleton of the rule, only set when rule coverage is
-	// enabled
-	covNode *covNode
+	// node of the boolean skeleton of the rule, only set when the skeleton is
+	// being built
+	skelNode *skelNode
 }
 
 // Eval returns the result of the evaluation
