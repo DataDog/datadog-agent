@@ -15,6 +15,7 @@ load(
 _TAG_SET_SUFFIX_ALIASES = {
     "cel+clusterchecks+kubeapiserver+kubelet+orchestrator": "dca",
     "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator": "dca_docker",
+    "cel+clusterchecks+containerd+docker+kubeapiserver+kubelet+orchestrator": "dca_containerd_docker",
 }
 
 # Windows caps a process's current directory at MAX_PATH even where longer paths
