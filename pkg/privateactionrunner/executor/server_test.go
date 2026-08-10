@@ -18,6 +18,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,8 +26,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
@@ -95,6 +99,10 @@ func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	conn, err := grpc.NewClient(
 		"passthrough:///"+socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize*2),
+			grpc.MaxCallSendMsgSize(maxMessageSize*2),
+		),
 		grpc.WithContextDialer(func(dialCtx context.Context, _ string) (net.Conn, error) {
 			return Dial(dialCtx, socketPath, 2*time.Second)
 		}),
@@ -130,6 +138,95 @@ func runAction(t *testing.T, client pb.ExecutorClient, taskBytes []byte) *pb.Act
 	}
 	require.NotNil(t, result, "RunAction stream ended without a terminal ActionResult")
 	return result
+}
+
+func taskWithEncodedSize(t *testing.T, target int) []byte {
+	t.Helper()
+	const prefix = `{"data":{"id":"task","attributes":{"padding":"`
+	const suffix = `"}}}`
+	padding := target - len(prefix) - len(suffix)
+	require.Positive(t, padding)
+	for {
+		raw := []byte(prefix + strings.Repeat("a", padding) + suffix)
+		size := proto.Size(&pb.RunActionRequest{Task: raw})
+		if size == target {
+			return raw
+		}
+		padding += target - size
+		require.Positive(t, padding)
+	}
+}
+
+func outputWithEncodedSize(t *testing.T, target int) string {
+	t.Helper()
+	padding := target
+	for {
+		output := strings.Repeat("a", padding)
+		outputJSON, err := json.Marshal(output)
+		require.NoError(t, err)
+		size := proto.Size(&pb.RunActionResponse{
+			Event: &pb.RunActionResponse_Result{
+				Result: &pb.ActionResult{
+					Outcome: &pb.ActionResult_Output{Output: outputJSON},
+				},
+			},
+		})
+		if size == target {
+			return output
+		}
+		padding += target - size
+		require.Positive(t, padding)
+	}
+}
+
+func receiveRunActionError(client pb.ExecutorClient, task []byte) error {
+	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: task})
+	if err != nil {
+		return err
+	}
+	_, err = stream.Recv()
+	return err
+}
+
+func TestServeEnforcesRequestMessageLimit(t *testing.T) {
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   map[string]interface{}{},
+	}
+	srv := NewServer(fake, "test-version", nil)
+	srv.SetReady(true)
+	client := startTestServer(t, srv)
+
+	below := taskWithEncodedSize(t, maxMessageSize-1)
+	result := runAction(t, client, below)
+	require.NotNil(t, result.GetOutput())
+
+	above := taskWithEncodedSize(t, maxMessageSize+1)
+	err := receiveRunActionError(client, above)
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
+
+func TestServeEnforcesResponseMessageLimit(t *testing.T) {
+	below := outputWithEncodedSize(t, maxMessageSize-1)
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   below,
+	}
+	srv := NewServer(fake, "test-version", nil)
+	srv.SetReady(true)
+	client := startTestServer(t, srv)
+
+	result := runAction(t, client, []byte(`{"data":{"id":"task-1"}}`))
+	belowJSON, err := json.Marshal(below)
+	require.NoError(t, err)
+	assert.Equal(t, belowJSON, result.GetOutput())
+
+	above := outputWithEncodedSize(t, maxMessageSize+1)
+	fake.output = above
+	err = receiveRunActionError(client, []byte(`{"data":{"id":"task-2"}}`))
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
 
 func TestServeSyncKeysSeedsAndReturnsCurrentSnapshot(t *testing.T) {
