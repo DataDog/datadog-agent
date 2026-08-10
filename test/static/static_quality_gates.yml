@@ -17,7 +17,7 @@ static_quality_gate_agent_rpm_amd64_fips:
   max_on_disk_size: 715.68 MiB
   max_on_wire_size: 177.74 MiB
 static_quality_gate_agent_rpm_arm64:
-  max_on_disk_size: 736.00 MiB
+  max_on_disk_size: 735.50 MiB
   max_on_wire_size: 167.01 MiB
 static_quality_gate_agent_rpm_arm64_fips:
   max_on_disk_size: 693.64 MiB
@@ -29,7 +29,7 @@ static_quality_gate_agent_suse_amd64_fips:
   max_on_disk_size: 715.68 MiB
   max_on_wire_size: 177.89 MiB
 static_quality_gate_agent_suse_arm64:
-  max_on_disk_size: 736.00 MiB
+  max_on_disk_size: 735.50 MiB
   max_on_wire_size: 166.98 MiB
 static_quality_gate_agent_suse_arm64_fips:
   max_on_disk_size: 693.64 MiB
