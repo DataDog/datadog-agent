@@ -36,6 +36,7 @@ var validProducts = map[string]struct{}{
 	ProductOrchestratorK8sCRDs:          {},
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
+	ProductNDMAgentWorkloadBalancing:    {},
 	ProductMetricControl:                {},
 	ProductDataStreamsKafkaActions:      {},
 	ProductLiveDebuggingSymbolDB:        {},
@@ -120,6 +121,8 @@ const (
 	ProductSyntheticsTest = "SYNTHETIC_TEST"
 	// ProductNDMDeviceProfilesCustom receives user-created SNMP profiles for network device monitoring
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
+	// ProductNDMAgentWorkloadBalancing names the Agent that actively polls each network device monitoring workload balancing group
+	ProductNDMAgentWorkloadBalancing = "NDM_AGENT_WORKLOAD_BALANCING"
 	// ProductMetricControl receives configuration for the metrics control.
 	ProductMetricControl = "METRIC_CONTROL"
 	// ProductDataStreamsKafkaActions is used for executing Kafka actions remotely

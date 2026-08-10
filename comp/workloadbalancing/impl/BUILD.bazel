@@ -5,6 +5,8 @@ go_library(
     name = "impl",
     srcs = [
         "config.go",
+        "rcpayload.go",
+        "rcupdate.go",
         "workloadbalancing.go",
         "workloadbalancing_comp.go",
     ],
@@ -14,14 +16,17 @@ go_library(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
+        "//comp/remote-config/rcclient/types",
         "//comp/workloadbalancing/def",
         "//comp/workloadbalancing/helpers",
+        "//pkg/remoteconfig/state",
     ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "rcupdate_test.go",
         "workloadbalancing_test.go",
         "workloadbalancing_testutils_test.go",
     ],
@@ -32,6 +37,7 @@ dd_agent_go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/workloadbalancing/def",
+        "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
