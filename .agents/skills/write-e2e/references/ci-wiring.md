@@ -131,7 +131,7 @@ new-e2e-myarea*                   @DataDog/myteam
 
 `test/new-e2e/codereview_guideline.md` § "Keeping tests fast" sets the wall-time budgets. A job gated on every pull request regardless of paths is rare by design and needs justifying.
 
-Most E2E jobs run only on `main`, release branches, and release candidates. A change whose only coverage is such a job gets no pull-request signal, so flag it for the `qa/rc-required` label and say so in the report.
+Most E2E jobs run only on `main`, release branches, and release candidates. A change whose only coverage is such a job gets no pull-request signal — say so in the report, since a reviewer cannot tell from a green pipeline. That is a disclosure, not a label: a test-only pull request still takes `qa/no-code-change`, and `qa/rc-required` is reserved for changes that genuinely can only be validated on a release candidate.
 
 ## Dynamic test skipping
 

@@ -75,13 +75,16 @@ Read any `AGENTS.md` inside the target directory first (`ls test/new-e2e/tests/<
 | Signal in the behavior | Environment | Provisioner |
 |---|---|---|
 | Host metrics, agent CLI, files, services, packaging | `environments.Host` | `awshost.Provisioner()` |
-| Windows host behavior | `environments.WindowsHost` | `winawshost.Provisioner()` |
+| Windows host behavior | `environments.Host` with a Windows OS descriptor | `awshost.Provisioner()` |
+| Active Directory, Defender, FIPS mode, test signing, MSI install | `environments.WindowsHost` | `winawshost.Provisioner()` |
 | Agent in a container, Docker integrations | `environments.DockerHost` | `awsdocker.Provisioner()` |
 | DaemonSet, Cluster Agent, admission, k8s tagging | `environments.Kubernetes` | kind (`.../aws/kubernetes/kindvm`) |
 | ECS or Fargate task behavior | `environments.ECS` | `.../aws/ecs` |
 | Two hosts, or a host plus a separate workload | custom struct | `e2e.WithPulumiProvisioner[Env]` |
 
-Cloud: use the cloud the feature is specific to, and AWS otherwise. Windows included — every Windows suite in tree uses `winawshost`, and every Windows CI job depends on AWS-side MSI artifacts. Azure has a working Windows provisioner and reportedly boots Windows faster, but no test uses it and no CI job wires it, so choosing it means solving both problems yourself.
+Ordinary Windows behavior does not need `WindowsHost`. Suites like `tests/agent-subcommands/config_win_test.go` run on plain `environments.Host` with `ec2.WithOS(e2eos.WindowsServerDefault)`, which is also what the cross-OS split in `references/templates.md` produces — so a Windows test can extend an existing suite instead of provisioning a new one. Move up to `WindowsHost` only for the scenario components it carries.
+
+Cloud: use the cloud the feature is specific to, and AWS otherwise. Windows included — the Windows CI templates depend on AWS-side MSI artifacts. Azure has a working Windows provisioner and reportedly boots Windows faster, but no test uses it and no CI job wires it, so choosing it means solving both problems yourself.
 
 Kubernetes flavor: use kind. It provisions faster, costs less, and fails less than EKS. Reserve EKS for behavior that is specific to EKS, and expect an EKS job to run on `main` and nightly rather than on pull requests.
 
@@ -91,7 +94,7 @@ Reach for a custom provisioner last. Check the option surface of the stock provi
 
 ## Step 4 — Place the files
 
-Tests live in `test/new-e2e/tests/<area>/`, and the package is that directory with its separators removed — `agent-runtimes` holds `package agentruntimes`. Read `test/new-e2e/AGENTS.md` §§ "Layout", "Each entry point needs its own suite type", and "Build tags" for the rest: which `<area>`, how a Linux/Windows pair splits across files, and why every entry point needs its own suite type — getting that last one wrong silently destroys infrastructure mid-run. `references/templates.md` § "Splitting one suite across operating systems" has the code for the split.
+Tests live in `test/new-e2e/tests/<area>/`. In an existing area, copy the package clause from a file already there — the usual form is the directory with its separators removed (`agent-runtimes` holds `package agentruntimes`), but not every area follows it. Read `test/new-e2e/AGENTS.md` §§ "Layout", "Each entry point needs its own suite type", and "Build tags" for the rest: which `<area>`, how a Linux/Windows pair splits across files, and why every entry point needs its own suite type — getting that last one wrong silently destroys infrastructure mid-run. `references/templates.md` § "Splitting one suite across operating systems" has the code for the split.
 
 Fixtures: a YAML snippet of ten lines or fewer goes inline as a `const`; anything longer, and any script, goes in `fixtures/` loaded with `//go:embed` (which needs `_ "embed"` in the import block).
 
@@ -226,7 +229,7 @@ Environment  env struct, cloud, OS, and one line on why that combination
 Assertions   observable -> how it is checked -> timeout, one row each
 Local run    command, result, wall time
 CI           the rule/job/JOBOWNERS diffs, or "none needed" and why
-Follow-ups   flake exposure, budget headroom, qa/rc-required
+Follow-ups   flake exposure, budget headroom, QA label, PR-branch coverage
 ```
 
 Filled in, for a diff that added a `disk.free` metric:
@@ -242,8 +245,10 @@ Local run    dda inv new-e2e-tests.run --targets=./tests/agent-runtimes/...
              --run '^TestDiskFree$'  — passed, 11m4s
 CI           None needed. new-e2e-agent-runtimes already covers ./tests/
              agent-runtimes and pulls agent_deb-x64-a7.
-Follow-ups   Runs on PR branches via .on_arun_or_e2e_changes, so no
-             qa/rc-required. 11m of the 15m budget used.
+Follow-ups   Test-only change, so qa/no-code-change. Runs on PR branches
+             via .on_arun_or_e2e_changes. 11m of the 15m budget used.
 ```
 
-Flag the change for the `qa/rc-required` label whenever the suite will not run on pull-request branches. When a repository document turns out to be wrong, correct it in the same change — the root `AGENTS.md` asks for exactly that.
+Recommend a QA label, and note that the checks accept exactly one. A pull request that only adds tests or CI wiring takes `qa/no-code-change`, whichever branches its job runs on. `qa/rc-required` is for changes that can only be validated on a release candidate — a workload that cannot be emulated, or behavior observable only during RC deployment — so reach for it based on what the *change* needs, not on whether the new job happens to skip pull-request branches. `docs/public/guidelines/contributing.md` has the full list.
+
+When a repository document turns out to be wrong, correct it in the same change — the root `AGENTS.md` asks for exactly that.

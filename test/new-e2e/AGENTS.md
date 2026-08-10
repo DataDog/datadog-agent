@@ -10,7 +10,7 @@ The framework these tests import is documented in `test/e2e-framework/AGENTS.md`
 
 ## Layout
 
-Tests live in `tests/<area>/`, where `<area>` is the owning team's directory in `.github/CODEOWNERS`. Area directories are hyphenated but Go package names cannot be, so the package is that directory with its separators removed — `tests/agent-runtimes/` holds `package agentruntimes`.
+Tests live in `tests/<area>/`, where `<area>` is the owning team's directory in `.github/CODEOWNERS`. Area directories are hyphenated but Go package names cannot be, so a new area's package is usually that directory with its separators removed — `tests/agent-runtimes/` holds `package agentruntimes`. Existing areas do not all follow it; `tests/security-agent-functional/` declares `package secagentfunctional`. Read the package clause of a file already in the directory and match it exactly, since one directory cannot hold two package names.
 
 One platform is one `<feature>_test.go`. A Linux and Windows pair shares a body: the suite struct and every assertion live in `<feature>_common_test.go`, while `<feature>_nix_test.go` and `<feature>_win_test.go` hold only entry points, each setting a different `descriptor e2eos.Descriptor`. Branch on `s.descriptor.Family() == e2eos.WindowsFamily` inside the shared body for path differences. `tests/agent-runtimes/infra_basic_*_test.go` is the reference implementation.
 

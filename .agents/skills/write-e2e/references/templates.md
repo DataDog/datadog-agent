@@ -115,7 +115,9 @@ Tasks are reached through `s.Env().ECSCluster.ECSClient` (`ListTasks`, `ExecComm
 
 ## Windows host
 
-Use `winawshost`. Every Windows suite in tree does, and the Windows CI templates depend on AWS-side MSI artifacts. A Windows provisioner also exists for Azure (`winazurehost`, flat options) and reportedly boots faster, but nothing in `tests/` uses it and no CI job wires it, so treat it as unproven rather than the default.
+Reach for this only when the test needs a Windows-specific scenario component — Active Directory, Defender, FIPS mode, test signing — or is an MSI installer test. Ordinary Windows behavior runs on plain `environments.Host` with `ec2.WithOS(e2eos.WindowsServerDefault)`; use the cross-OS split below, or extend a suite that already does this, rather than provisioning a second one.
+
+Within Windows, use `winawshost`: the Windows CI templates depend on AWS-side MSI artifacts. A Windows provisioner also exists for Azure (`winazurehost`, flat options) and reportedly boots faster, but nothing in `tests/` uses it and no CI job wires it, so treat it as unproven rather than the default.
 
 MSI installer tests belong in `test/new-e2e/tests/windows/install-test/` on top of `BaseAgentInstallerSuite` rather than this skeleton. Read `test/new-e2e/tests/windows/AGENTS.md` before writing either.
 

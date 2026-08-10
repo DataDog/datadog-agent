@@ -47,7 +47,9 @@ Every path below is prefixed `github.com/DataDog/datadog-agent/test/e2e-framewor
 
 Tests conventionally alias the kind provisioner as `awskubernetes`. That alias is a naming convention, not a package name — the import path ends in `kindvm`.
 
-The `NoFakeIntake` and `NoAgent` constructors exist only on the host provisioners. Docker, ECS, kind, EKS and kubeadm expose `Provisioner` alone; drop the intake or the agent there by passing the scenario's `WithoutFakeIntake()` or `WithoutAgent()` inside `WithRunOptions`.
+The `NoFakeIntake` and `NoAgent` constructors exist only on the host provisioners. Docker, ECS, kind, EKS and kubeadm expose `Provisioner` alone, and drop the intake with the scenario's `WithoutFakeIntake()` inside `WithRunOptions`.
+
+Dropping the *agent* is not uniformly available: `WithoutAgent()` exists on the `ec2`, `ec2docker`, and `eks` scenarios only. ECS, kindvm, and kubeadm have no such option, so confirm it exists before relying on it.
 
 ## Two option shapes
 
