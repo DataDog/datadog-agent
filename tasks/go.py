@@ -29,6 +29,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
+from tasks.schema.generate import schema_codegen
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -291,6 +292,9 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             # Ensure that none of these modules import the datadog-agent main module.
             if mod.independent:
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
+
+        # TODO: remove once Bazel is used to build the Agent
+        schema_codegen(ctx, keep_orig_order=False, fix=True)
 
         with ctx.cd(dummy_folder):
             ctx.run("go mod tidy")
