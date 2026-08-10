@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -69,6 +70,12 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 				continue
 			}
 			for _, key := range extra[endpoint] {
+				if utils.IsDelaDirective(key) {
+					// Not a real API key (yet) - the delegatedauth component resolves this
+					// asynchronously and writes the real key into this same config slot. Skip it
+					// rather than sending the literal directive text as DD-API-KEY.
+					continue
+				}
 				urls = append(urls, u)
 				apiKeys = append(apiKeys, key)
 			}

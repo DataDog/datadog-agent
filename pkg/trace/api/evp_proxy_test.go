@@ -419,6 +419,25 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, endpoints[0].APIKey, "override_api_key")
 	})
 
+	t.Run("pending delegated auth directive", func(t *testing.T) {
+		// Regression test: a still-unresolved DELA(...) directive must not be sent as a literal
+		// DD-API-KEY - the delegatedauth component resolves it asynchronously and writes the real
+		// key back into this same config slot, at which point a config reload picks it up.
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.EVPProxy.AdditionalEndpoints = map[string][]string{
+			"datadoghq.eu": {"DELA(some-org-uuid, aws)", "test_api_key_1"},
+		}
+
+		endpoints := evpProxyEndpointsFromConfig(conf)
+
+		require.Len(t, endpoints, 2, "the pending directive must be skipped, only the main and real-key endpoints remain")
+		assert.Equal(t, "test_api_key", endpoints[0].APIKey)
+		assert.Equal(t, "datadoghq.eu", endpoints[1].Host)
+		assert.Equal(t, "test_api_key_1", endpoints[1].APIKey)
+	})
+
 	t.Run("headerfilter", func(t *testing.T) {
 		stats.Reset()
 

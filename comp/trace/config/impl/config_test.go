@@ -2342,15 +2342,13 @@ func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
 		})
 		config := buildComponent(t, true, coreConfig)
 		cfg := config.Object()
-		require.Len(t, cfg.Endpoints, 2)
-		assert.Equal(t, "https://second-org.datadoghq.com", cfg.Endpoints[1].Host)
-		assert.Equal(t, "DELA(second-org-uuid, aws)", cfg.Endpoints[1].APIKey)
+		require.Len(t, cfg.Endpoints, 1, "a pending DELA(...) directive must not be sent as a literal API key")
 
 		coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
 			"https://second-org.datadoghq.com": {"resolved-real-key"},
 		}, configmodel.SourceSecret)
 
-		require.Len(t, cfg.Endpoints, 2, "main endpoint must be preserved")
+		require.Len(t, cfg.Endpoints, 2, "main endpoint must be preserved, resolved endpoint must now be added")
 		assert.Equal(t, "https://second-org.datadoghq.com", cfg.Endpoints[1].Host)
 		assert.Equal(t, "resolved-real-key", cfg.Endpoints[1].APIKey)
 	})
@@ -2364,7 +2362,7 @@ func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
 		})
 		config := buildComponent(t, true, coreConfig)
 		cfg := config.Object()
-		require.Len(t, cfg.Endpoints, 3)
+		require.Len(t, cfg.Endpoints, 2, "a pending DELA(...) directive must not be sent as a literal API key")
 		require.True(t, cfg.Endpoints[1].IsMRF)
 
 		coreConfig.Set("apm_config.additional_endpoints", map[string][]string{

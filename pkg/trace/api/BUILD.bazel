@@ -39,6 +39,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
+        "//pkg/config/utils",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",

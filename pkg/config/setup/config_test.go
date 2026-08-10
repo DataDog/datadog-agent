@@ -2203,9 +2203,9 @@ func TestConfigureListShapeAdditionalEndpointsDelegatedAuth(t *testing.T) {
 api_key: fakeapikey
 logs_config:
   additional_endpoints:
-  - api_key: 'DELA(logs-org-uuid, aws, fallback=static-logs-fallback-key)'
-    Host: "agent-http-intake.logs.datadoghq.com"
   - api_key: "some-static-key"
+    Host: "agent-http-intake.logs.datadoghq.com"
+  - api_key: 'DELA(logs-org-uuid, aws, fallback=static-logs-fallback-key)'
     Host: "agent-http-intake.logs.datadoghq.com"
 database_monitoring:
   samples:
@@ -2241,7 +2241,10 @@ sbom:
 	assert.Equal(t, "DELA(logs-org-uuid, aws, fallback=static-logs-fallback-key)", logs.AdditionalEndpointDirective)
 	assert.Equal(t, "static-logs-fallback-key", logs.FallbackAPIKey)
 	assert.Empty(t, logs.AdditionalEndpointDomain, "list-shape instances must not set the map-shape domain field")
-	assert.Equal(t, "logs_config.additional_endpoints[0][logs-org-uuid]", logs.APIKeyConfigKey)
+	// The DELA(...) entry is at index 1 (a static entry precedes it) - regression test for
+	// ListEntryIndex being wired to the entry's actual position, not left at its zero value.
+	assert.Equal(t, "logs_config.additional_endpoints[1][logs-org-uuid]", logs.APIKeyConfigKey)
+	assert.Equal(t, 1, logs.ListEntryIndex, "ListEntryIndex must match the entry's actual position in the list")
 	assert.Equal(t, "agent-http-intake.logs.datadoghq.com", logs.TargetSite,
 		"the entry's own Host must be used as the auth-proof exchange site, not the agent's primary site")
 

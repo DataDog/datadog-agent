@@ -38,24 +38,15 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 		if err != nil {
 			return nil, fmt.Errorf("invalid %s url '%s': %s", additionalEpsKey, endpointURL, err)
 		}
-		hasRealKey := false
-		hasPendingDelegatedAuth := false
-		for _, k := range apiKeys {
-			if utils.IsDelaDirective(k) {
-				// Not a real API key (yet) - the delegatedauth component resolves this
-				// asynchronously and writes the real key into this same config slot. Skip it
-				// rather than submitting the literal directive text upstream as an API key.
-				hasPendingDelegatedAuth = true
-				continue
-			}
-			hasRealKey = true
+		realKeys, hasPendingDelegatedAuth := utils.PartitionRealAndPendingKeys(apiKeys)
+		for _, k := range realKeys {
 			eps = append(eps, apicfg.Endpoint{
 				APIKey:            utils.SanitizeAPIKey(k),
 				Endpoint:          u,
 				ConfigSettingPath: additionalEpsKey,
 			})
 		}
-		if !hasRealKey && hasPendingDelegatedAuth {
+		if len(realKeys) == 0 && hasPendingDelegatedAuth {
 			// Every key for this domain is still pending - keep a placeholder endpoint so the
 			// domain still gets a resolver. resolver.OnUpdateConfig registers its config-update
 			// listener per resolver (keyed by ConfigSettingPath), so a domain with no resolver at

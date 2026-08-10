@@ -88,6 +88,25 @@ func IsDelaDirective(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
 }
 
+// PartitionRealAndPendingKeys splits keys from an `additional_endpoints`-style config list into
+// real API keys and reports whether at least one pending DELA(...) directive was present. A
+// caller that builds one endpoint per real key should still keep a placeholder entry for the
+// domain when hasPendingDelegatedAuth is true and no real keys are returned, so the domain still
+// gets a config-update watcher/resolver and can pick up the real key once delegated auth resolves
+// it and writes it back into the same config slot - otherwise a fully-pending domain would be
+// dropped and never see the key.
+func PartitionRealAndPendingKeys(keys []string) (realKeys []string, hasPendingDelegatedAuth bool) {
+	realKeys = make([]string, 0, len(keys))
+	for _, key := range keys {
+		if IsDelaDirective(key) {
+			hasPendingDelegatedAuth = true
+			continue
+		}
+		realKeys = append(realKeys, key)
+	}
+	return realKeys, hasPendingDelegatedAuth
+}
+
 // MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
 // a map of domain to Endpoint structs.
 func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIKeys {
@@ -99,21 +118,13 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 		// Exception: a domain whose only entries are pending DELA(...) directives is still kept
 		// (with an empty Keys list) below, so the forwarder knows to wait for delegated auth
 		// rather than dropping the domain outright.
-		trimmed := []string{}
-		hasPendingDelegatedAuth := false
+		nonEmpty := make([]string, 0, len(keys))
 		for _, key := range keys {
-			trimmedAPIKey := strings.TrimSpace(key)
-			if trimmedAPIKey == "" {
-				continue
+			if trimmedAPIKey := strings.TrimSpace(key); trimmedAPIKey != "" {
+				nonEmpty = append(nonEmpty, trimmedAPIKey)
 			}
-			if IsDelaDirective(trimmedAPIKey) {
-				// Not a real API key (yet) - the delegatedauth component resolves this
-				// asynchronously and writes the real key into this same config slot.
-				hasPendingDelegatedAuth = true
-				continue
-			}
-			trimmed = append(trimmed, trimmedAPIKey)
 		}
+		trimmed, hasPendingDelegatedAuth := PartitionRealAndPendingKeys(nonEmpty)
 
 		if len(trimmed) > 0 || hasPendingDelegatedAuth {
 			result[url] = []APIKeys{{

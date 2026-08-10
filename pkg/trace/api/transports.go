@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -81,6 +82,12 @@ func newForwardingTransport(
 			continue
 		}
 		for _, key := range keys {
+			if utils.IsDelaDirective(key) {
+				// Not a real API key (yet) - the delegatedauth component resolves this
+				// asynchronously and writes the real key into this same config slot. Skip it
+				// rather than sending the literal directive text as DD-API-KEY.
+				continue
+			}
 			targets = append(targets, u)
 			apiKeys = append(apiKeys, strings.TrimSpace(key))
 		}

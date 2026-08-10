@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -63,6 +64,12 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 
 	for host, keys := range cfg.OpenLineageProxy.AdditionalEndpoints {
 		for _, key := range keys {
+			if utils.IsDelaDirective(key) {
+				// Not a real API key (yet) - the delegatedauth component resolves this
+				// asynchronously and writes the real key into this same config slot. Skip it
+				// rather than sending the literal directive text as DD-API-KEY.
+				continue
+			}
 			urlStr := fmt.Sprintf(openlineageURLTemplate, host)
 			u, err := url.Parse(urlStr)
 			if err != nil {
