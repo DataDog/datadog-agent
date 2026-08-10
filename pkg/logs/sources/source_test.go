@@ -52,9 +52,7 @@ func TestConcurrentTailingModeAndStatusAccess(t *testing.T) {
 	stop := make(chan struct{})
 
 	// writer: mimics (*Launcher).launchTailers/addSource mutating the source concurrently.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; ; i++ {
 			select {
 			case <-stop:
@@ -68,7 +66,7 @@ func TestConcurrentTailingModeAndStatusAccess(t *testing.T) {
 			}
 			source.SetStatus(NewLogSource("test", nil).Status())
 		}
-	}()
+	})
 
 	// reader: mimics (*Builder).toDictionary/getIntegrations reading the source concurrently.
 	for i := 0; i < 1000; i++ {
