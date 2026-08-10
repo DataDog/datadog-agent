@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
+//go:build linux || windows || aix
 
 // Package networkv2 provides a check for network connection and socket statistics
 package networkv2
@@ -21,7 +21,7 @@ const (
 )
 
 // NetworkCheck represents a network check. networkStats and networkInstanceConfig are
-// declared per-platform (network_linux.go, network_windows.go).
+// declared per-platform.
 type NetworkCheck struct {
 	core.CheckBase
 	net    networkStats
