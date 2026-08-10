@@ -440,6 +440,12 @@ func (c *PythonCheck) IsHASupported() bool {
 	return c.haSupported
 }
 
+// WorkloadBalancingGroupID returns the empty string: Python checks are not managed by Agent
+// workload balancing
+func (c *PythonCheck) WorkloadBalancingGroupID() string {
+	return ""
+}
+
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
 // by the PythonCheck.
 func pythonCheckFinalizer(c *PythonCheck) {

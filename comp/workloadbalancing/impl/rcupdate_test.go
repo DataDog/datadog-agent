@@ -165,3 +165,46 @@ func TestOnUpdateAppliesValidConfigsAlongsideInvalidOnes(t *testing.T) {
 	assert.Equal(t, state.ApplyStateAcknowledged, applied[goodPath].State)
 	assert.Equal(t, state.ApplyStateError, applied[badPath].State)
 }
+
+// A config that stops parsing must not silently hand its group back to this Agent.
+func TestOnUpdateKeepsTheLastAssignmentForAnInvalidConfig(t *testing.T) {
+	comp := newRCTestComponent(t)
+	callback, applied := collectApplyStates(t)
+
+	const path = "datadog/2/NDM_AGENT_WORKLOAD_BALANCING/group1/config"
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		path: {Config: []byte(`{"group_id":"group1","active_agent":"another-agent"}`)},
+	}, callback)
+	require.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
+
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		path: {Config: []byte(`not json`)},
+	}, callback)
+
+	assert.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
+	assert.False(t, comp.IsGroupActive("group1"))
+	assert.Equal(t, state.ApplyStateError, applied[path].State)
+
+	// the carried-forward assignment survives a second bad update
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		path: {Config: []byte(`{"active_agent":"another-agent"}`)},
+	}, callback)
+	assert.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
+}
+
+// A config that disappears from the update is gone for good, invalid or not.
+func TestOnUpdateDropsAConfigThatIsNoLongerSent(t *testing.T) {
+	comp := newRCTestComponent(t)
+	callback, _ := collectApplyStates(t)
+
+	const path = "datadog/2/NDM_AGENT_WORKLOAD_BALANCING/group1/config"
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{
+		path: {Config: []byte(`{"group_id":"group1","active_agent":"another-agent"}`)},
+	}, callback)
+	require.Equal(t, workloadbalancing.Standby, comp.GetGroupState("group1"))
+
+	comp.onWorkloadBalancingUpdate(map[string]state.RawConfig{}, callback)
+
+	assert.Equal(t, workloadbalancing.Unmanaged, comp.GetGroupState("group1"))
+	assert.True(t, comp.IsGroupActive("group1"))
+}

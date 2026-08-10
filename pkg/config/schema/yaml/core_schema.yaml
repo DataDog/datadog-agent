@@ -5442,9 +5442,10 @@ properties:
         default: false
         visibility: public
         description: |-
-          Set to true to enable Agent workload balancing. When enabled, the Agent only runs checks
-          for the workload balancing groups it has been assigned, allowing a device to be moved
-          between Agents without restarting either one.
+          Set to true to enable Agent workload balancing. When enabled, the Agent skips checks for
+          the workload balancing groups another Agent has been assigned, allowing a device to be
+          moved between Agents without restarting either one. Checks in a group this Agent holds no
+          assignment for keep running, so a device is never left unpolled.
   config_id:
     node_type: setting
     type: string

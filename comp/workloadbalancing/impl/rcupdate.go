@@ -22,6 +22,7 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 	w.log.Debugf("Updates received: count=%d", len(updates))
 
 	leaders := make(map[string]string, len(updates))
+	applied := make(map[string]workloadBalancingRCConfig, len(updates))
 	valid := make([]string, 0, len(updates))
 	for configPath, rawConfig := range updates {
 		w.log.Debugf("Received config %s: %s", configPath, string(rawConfig.Config))
@@ -29,6 +30,7 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 		var msg workloadBalancingRCConfig
 		if err := json.Unmarshal(rawConfig.Config, &msg); err != nil {
 			w.log.Warnf("Skipping invalid NDM_AGENT_WORKLOAD_BALANCING update %s: %v", configPath, err)
+			w.keepPreviousAssignment(configPath, leaders, applied)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: "error unmarshalling payload",
@@ -37,6 +39,7 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 		}
 		if msg.GroupID == "" {
 			w.log.Warnf("Skipping invalid NDM_AGENT_WORKLOAD_BALANCING update %s: empty group_id", configPath)
+			w.keepPreviousAssignment(configPath, leaders, applied)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: "group_id is empty",
@@ -45,6 +48,7 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 		}
 
 		leaders[msg.GroupID] = msg.ActiveAgent
+		applied[configPath] = msg
 		valid = append(valid, configPath)
 		w.log.Debugf("Processed config %s: %v", configPath, msg)
 	}
@@ -58,10 +62,25 @@ func (w *workloadBalancingImpl) onWorkloadBalancingUpdate(updates map[string]sta
 		}
 		return
 	}
+	w.appliedConfigs = applied
 
 	for _, configPath := range valid {
 		applyStateCallback(configPath, state.ApplyStatus{
 			State: state.ApplyStateAcknowledged,
 		})
 	}
+}
+
+// keepPreviousAssignment carries the last assignment applied for configPath into this update. A
+// config we cannot parse tells us nothing about its group, and dropping it would return that group
+// to unmanaged and start this Agent polling a device another Agent already holds.
+func (w *workloadBalancingImpl) keepPreviousAssignment(configPath string, leaders map[string]string, applied map[string]workloadBalancingRCConfig) {
+	prev, ok := w.appliedConfigs[configPath]
+	if !ok {
+		return
+	}
+
+	w.log.Infof("Keeping the last assignment for %s: group %s stays with %s", configPath, prev.GroupID, prev.ActiveAgent)
+	leaders[prev.GroupID] = prev.ActiveAgent
+	applied[configPath] = prev
 }

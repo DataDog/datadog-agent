@@ -22,6 +22,11 @@ type workloadBalancingImpl struct {
 
 	mu     sync.RWMutex
 	groups map[string]workloadbalancing.State
+
+	// appliedConfigs holds the last assignment applied for each Remote Config path, so an update
+	// we cannot parse can fall back to it. Only touched from the RC listener, which the Remote
+	// Config client invokes serially.
+	appliedConfigs map[string]workloadBalancingRCConfig
 }
 
 func newWorkloadBalancingImpl(log log.Component, hostname hostnameinterface.Component, configs *workloadBalancingConfigs) *workloadBalancingImpl {
@@ -30,6 +35,8 @@ func newWorkloadBalancingImpl(log log.Component, hostname hostnameinterface.Comp
 		hostname: hostname,
 		configs:  configs,
 		groups:   make(map[string]workloadbalancing.State),
+
+		appliedConfigs: make(map[string]workloadBalancingRCConfig),
 	}
 }
 
