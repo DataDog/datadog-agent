@@ -100,8 +100,14 @@ func TestDogStatsDReverseProxyPayloadRelay(t *testing.T) {
 	}{
 		{
 			name:    "newlines only",
-			body:    bytes.NewReader(bytes.Repeat([]byte("\n"), 100_000)),
+			body:    bytes.NewReader(bytes.Repeat([]byte("\n"), maxDogstatsdProxyLines)),
 			errCode: http.StatusOK,
+		},
+		{
+			// Empty lines relay nothing, but still count towards the limit.
+			name:    "more newlines than the proxy scans",
+			body:    bytes.NewReader(bytes.Repeat([]byte("\n"), maxDogstatsdProxyLines+1)),
+			errCode: http.StatusRequestEntityTooLarge,
 		},
 		{
 			name:             "unreadable body",
@@ -119,7 +125,7 @@ func TestDogStatsDReverseProxyPayloadRelay(t *testing.T) {
 		},
 		{
 			name:             "more payloads than the proxy relays",
-			body:             strings.NewReader(strings.Repeat("x\n", maxDogstatsdProxyPayloads+1)),
+			body:             strings.NewReader(strings.Repeat("x\n", maxDogstatsdProxyLines+1)),
 			errCode:          http.StatusRequestEntityTooLarge,
 			wantFirstPayload: "x",
 		},

@@ -15,13 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-// maxDogstatsdProxyPayloads bounds the number of payloads (newline separated
-// lines) relayed to DogStatsD for a single proxied request. Without it, the
-// number of UDP writes performed by one request is only bounded by the request
-// size, so a body of two-byte lines can drive one write per two bytes sent. The
-// limit stays well above any realistic batch, which is a handful of metrics per
-// request, while keeping the writes a single request can cause to a fixed cost.
-const maxDogstatsdProxyPayloads = 100_000
+// maxDogstatsdProxyLines bounds the number of lines read from the body of a
+// single proxied request. Without it, both the number of UDP writes and the
+// number of scanner iterations one request causes are only bounded by the
+// request size, so a body of two-byte lines can drive one write per two bytes
+// sent, and a body of newlines one iteration per byte sent. Empty lines relay
+// nothing but still count, so that the work a request can ask for stays a fixed
+// cost. The limit stays well above any realistic batch, which is a handful of
+// metrics per request.
+const maxDogstatsdProxyLines = 100_000
 
 // dogstatsdProxyHandler returns a new HTTP handler which will proxy requests to
 // the DogStatsD endpoint in the Core Agent over UDP. Communication between the
@@ -29,7 +31,7 @@ const maxDogstatsdProxyPayloads = 100_000
 // all statsd payloads.
 //
 // The request body is relayed as it is read, so a body that turns out to be
-// unreadable, over the size limit, or over maxDogstatsdProxyPayloads is
+// unreadable, over the size limit, or over maxDogstatsdProxyLines is
 // reported as an error only after its earlier payloads have been sent. A client
 // that retries such a request may therefore submit those payloads twice.
 func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
@@ -66,18 +68,18 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 		// of newlines multiplies its own size in memory several times over. The
 		// scanner keeps the extra memory proportional to the longest line.
 		scanner := bufio.NewScanner(req.Body)
-		payloads := 0
+		lines := 0
 		for scanner.Scan() {
+			lines++
+			if lines > maxDogstatsdProxyLines {
+				log.Errorf("Dogstatsd proxy request contains more than %d lines, dropping the rest.", maxDogstatsdProxyLines)
+				http.Error(w, "too many dogstatsd payloads in request", http.StatusRequestEntityTooLarge)
+				return
+			}
 			payload := scanner.Bytes()
 			if len(payload) == 0 {
 				// Nothing for DogStatsD to parse; don't spend a syscall on it.
 				continue
-			}
-			payloads++
-			if payloads > maxDogstatsdProxyPayloads {
-				log.Errorf("Dogstatsd proxy request contains more than %d payloads, dropping the rest.", maxDogstatsdProxyPayloads)
-				http.Error(w, "too many dogstatsd payloads in request", http.StatusRequestEntityTooLarge)
-				return
 			}
 			if _, err := conn.Write(payload); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
