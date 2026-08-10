@@ -137,6 +137,13 @@ def go_build(
         print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
         check_deadcode = False
 
+    # disable race for unsupported builds
+    if race and (
+        ctx.run("go env CGO_ENABLED", env=env).stdout.strip() == "0"
+        or ctx.run("go env GOARCH", env=env).stdout.strip() not in ("amd64", "arm64")
+    ):
+        race = False
+
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during

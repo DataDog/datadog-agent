@@ -153,7 +153,7 @@ def build(
             mod=go_mod,
             env=env,
             bin_path=agent_bin,
-            race=race,
+            race=True,
             rebuild=rebuild,
             gcflags=gcflags,
             ldflags=ldflags,
