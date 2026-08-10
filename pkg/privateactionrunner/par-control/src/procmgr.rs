@@ -13,11 +13,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tonic::transport::Channel;
 
-#[cfg(unix)]
-const DEFAULT_PROCMGR_SOCKET: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
-#[cfg(windows)]
-const DEFAULT_PROCMGR_SOCKET: &str = r"\\.\pipe\datadog-procmgrd";
-
 const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -28,15 +23,10 @@ const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// healthy while the executor is gone.
 const PROCMGR_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Resolve dd-procmgrd's listening socket the same way the daemon does:
-/// `DD_PM_SOCKET_PATH` when set, else the platform default. Mirrors `ipc_path`
-/// in `pkg/procmgr/rust/src/transport/{uds,named_pipe}.rs` — without this, a
-/// daemon started with a non-default socket is unreachable.
+/// Resolve dd-procmgrd's listening endpoint through the shared client so the
+/// daemon, CLI, and par-control follow the same platform and environment rules.
 pub fn default_socket_path() -> PathBuf {
-    std::env::var_os("DD_PM_SOCKET_PATH")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_PROCMGR_SOCKET))
+    dd_procmgr_client::ipc_path()
 }
 
 pub struct ProcmgrLifecycle {
@@ -356,11 +346,7 @@ mod tests {
             PathBuf::from("/tmp/custom-procmgrd.sock")
         );
 
-        unsafe { std::env::set_var("DD_PM_SOCKET_PATH", "") };
-        assert_eq!(default_socket_path(), PathBuf::from(DEFAULT_PROCMGR_SOCKET));
-
         unsafe { std::env::remove_var("DD_PM_SOCKET_PATH") };
-        assert_eq!(default_socket_path(), PathBuf::from(DEFAULT_PROCMGR_SOCKET));
 
         if let Some(value) = previous {
             unsafe { std::env::set_var("DD_PM_SOCKET_PATH", value) };

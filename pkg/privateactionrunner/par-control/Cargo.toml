@@ -19,9 +19,8 @@ path = "src/bins/par-control.rs"
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
 dd-agent-log.workspace = true
-hyper-util.workspace = true
+dd-procmgr-client.workspace = true
 log.workspace = true
-prost.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 tokio = { workspace = true, features = [
@@ -32,19 +31,11 @@ tokio = { workspace = true, features = [
   "time",
 ] }
 tonic = { workspace = true, features = ["transport"] }
-tonic-prost.workspace = true
-tower.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-registry.workspace = true
-windows-sys = { workspace = true, features = [
-  "Win32_Foundation", # ERROR_PIPE_BUSY, for the named-pipe client retry loop.
-  "Win32_System_Registry",
-] }
+windows-sys = { workspace = true, features = ["Win32_System_Registry"] }
 
 [dev-dependencies]
 tempfile.workspace = true
 tokio-stream = { workspace = true, features = ["net"] }
-
-[build-dependencies]
-tonic-prost-build.workspace = true

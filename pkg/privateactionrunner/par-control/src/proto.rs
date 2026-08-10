@@ -3,14 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Generated protobuf/gRPC bindings for dd-procmgrd.
+//! Protobuf/gRPC bindings for services par-control talks to.
 
-#[cfg(not(bazel))]
+/// Process-manager service (`datadog.procmgr`).
 pub mod procmgr {
-    tonic::include_proto!("datadog.procmgr");
-}
-
-#[cfg(bazel)]
-pub mod procmgr {
-    pub use procmgr_proto::datadog::procmgr::*;
+    pub use dd_procmgr_client::proto::*;
 }
