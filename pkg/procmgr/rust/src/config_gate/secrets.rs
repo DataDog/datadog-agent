@@ -10,10 +10,12 @@
 //! supported (not `secret_backend_type` / `multi_secret_backends`).
 
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use log::debug;
@@ -149,23 +151,39 @@ fn exec_backend(backend: &Backend, payload: &str) -> Result<String> {
             .write_all(payload.as_bytes())
             .context("write secret backend payload")?;
     }
-    let output = child
-        .wait_with_output()
-        .context("wait for secret backend")?;
-    if !output.status.success() {
-        bail!(
-            "secret backend {} exited with {}",
-            backend.command,
-            output.status
-        );
+    let timeout = Duration::from_secs(backend.timeout_secs);
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait().context("poll secret backend")? {
+            Some(status) => break status,
+            None if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                bail!(
+                    "secret backend {} timed out after {} seconds",
+                    backend.command,
+                    backend.timeout_secs
+                );
+            }
+            None => thread::sleep(Duration::from_millis(50)),
+        }
+    };
+    if !status.success() {
+        bail!("secret backend {} exited with {}", backend.command, status);
     }
-    if output.stdout.len() > backend.max_output_bytes {
+    let stdout = child.stdout.take().context("read secret backend stdout")?;
+    let mut output = Vec::new();
+    stdout
+        .take(backend.max_output_bytes as u64 + 1)
+        .read_to_end(&mut output)
+        .context("read secret backend stdout")?;
+    if output.len() > backend.max_output_bytes {
         bail!(
             "secret backend output exceeded {} bytes",
             backend.max_output_bytes
         );
     }
-    String::from_utf8(output.stdout).context("decode secret backend stdout as UTF-8")
+    String::from_utf8(output).context("decode secret backend stdout as UTF-8")
 }
 
 fn parse_secret_response(output: &str, handle: &str) -> Result<String> {
@@ -242,6 +260,44 @@ mod tests {
         assert_eq!(
             resolve_config_string("true", "/nonexistent/datadog.yaml"),
             "true"
+        );
+    }
+
+    #[test]
+    fn exec_backend_times_out_hung_command() {
+        let dir = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        let script = {
+            let path = dir.path().join("slow_secret_backend.sh");
+            std::fs::write(&path, "#!/bin/sh\nsleep 30\n").unwrap();
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            path
+        };
+        #[cfg(windows)]
+        let script = {
+            let path = dir.path().join("slow_secret_backend.cmd");
+            std::fs::write(&path, "@echo off\r\nping -n 30 127.0.0.1 >nul\r\n").unwrap();
+            path
+        };
+        let agent_yaml = dir.path().join("datadog.yaml");
+        std::fs::write(
+            &agent_yaml,
+            format!(
+                "secret_backend_command: {}\nsecret_backend_timeout: 1\n",
+                script.to_string_lossy()
+            ),
+        )
+        .unwrap();
+
+        let started = std::time::Instant::now();
+        assert_eq!(
+            resolve_config_string("ENC[slow]", agent_yaml.to_str().unwrap()),
+            "ENC[slow]"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "hung secret backend should time out quickly"
         );
     }
 }
