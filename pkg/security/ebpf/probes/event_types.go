@@ -51,6 +51,7 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 			hookFunc("hook_inet_shutdown"),
 			hookFunc("hook_inet_bind"),
 			hookFunc("rethook_inet_bind"),
+			hookFunc("hook_accept"),
 			hookFunc("hook_sk_common_release"),
 			hookFunc("hook_path_get"),
 			hookFunc("hook_proc_fd_link"),
@@ -662,12 +663,9 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("rethook_io_issue_sqe"),
 			}}},
 
-		// List of probes required to capture accept events
-		"accept": {
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_accept"),
-			}},
-		},
+		// hook_accept is activated with the network probes because it also keeps flow_pid up to
+		// date, it only sends events once this event type is reflected in the enabled_events map
+		"accept": {},
 		// List of probes required to capture bind events
 		"bind": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
