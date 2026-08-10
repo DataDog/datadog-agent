@@ -447,7 +447,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 // but the two are siblings under dd-procmgrd, so nothing would ever reap the
 // executor if the control plane were killed or stopped by itself.
 func TestServeExitsWhenIdle(t *testing.T) {
-	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
 	srv.SetReady(true)
 
 	socketPath := testListenAddr(t)
@@ -482,7 +482,7 @@ func TestServeExitsWhenIdle(t *testing.T) {
 // Health is how the control plane checks whether the executor is usable, so it
 // must not keep an otherwise idle executor alive forever.
 func TestServeHealthDoesNotDeferIdleExit(t *testing.T) {
-	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
 	srv.SetReady(true)
 
 	socketPath := testListenAddr(t)
@@ -524,7 +524,7 @@ func TestServeHealthDoesNotDeferIdleExit(t *testing.T) {
 // idle state regardless of how much time passes.
 func TestIdleTrackingWhileDispatching(t *testing.T) {
 	mockClock := clock.NewMock()
-	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv := NewServer(&fakeExecutor{}, "test-version", nil)
 	srv.clock = mockClock
 	srv.touch()
 
