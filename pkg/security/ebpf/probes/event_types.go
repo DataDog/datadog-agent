@@ -230,6 +230,22 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		}
 	}
 
+	renameIOUringProbes := []manager.ProbesSelector{}
+	if haveIOURing {
+		renameIOUringProbes = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_do_renameat2"),
+				hookFunc("rethook_do_renameat2"),
+			}},
+			// Since 7.0, do_renameat2 was removed from the kernel so we need to hook the filename_renameat2 function instead
+			// It is also used by the io_uring code path
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_filename_renameat2"),
+				hookFunc("rethook_filename_renameat2"),
+			}},
+		}
+	}
+
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
@@ -385,12 +401,8 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rename", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: append(
-				[]manager.ProbesSelector{
-					hookFunc("hook_do_renameat2"),
-					hookFunc("rethook_do_renameat2"),
-				},
-				ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", hasFentry, EntryAndExit)...)},
+			&manager.BestEffort{Selectors: renameIOUringProbes},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", hasFentry, EntryAndExit)},
 
 			// unlink rmdir probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -436,9 +448,13 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				// source dentry
 				hookFunc("hook_complete_walk"),
 				// target dentry
+				// __filename_create is the pre-5.15 (and some el9 z-stream) symbol name for filename_create
+				// lookup_one_qstr_excl is the >=6.5 (and some el9 z-stream) replacement for __lookup_hash
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					hookFunc("rethook_filename_create"),
+					hookFunc("rethook___filename_create"),
 					hookFunc("rethook___lookup_hash"),
+					hookFunc("rethook_lookup_one_qstr_excl"),
 				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", hasFentry, EntryAndExit)},
@@ -487,8 +503,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		"mkdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_vfs_mkdir"),
+				// __filename_create is the pre-5.15 (and some el9 z-stream) symbol name for filename_create
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					hookFunc("hook_filename_create"),
+					hookFunc("hook___filename_create"),
 					hookFunc("hook_security_path_mkdir"),
 				}},
 			}},

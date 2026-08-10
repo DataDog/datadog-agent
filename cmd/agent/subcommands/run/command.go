@@ -36,6 +36,7 @@ import (
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
@@ -66,6 +67,7 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
+	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
@@ -207,8 +209,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
-	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -474,6 +474,7 @@ func getSharedFxOption() fx.Option {
 		commonendpoints.Module(),
 		filterlist.Module(),
 		metriclookbackModule(),
+		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -584,8 +585,6 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
-		// errortracking submitter wire — atel owns buffer/flush/recursion.
-		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
@@ -604,33 +603,6 @@ func getSharedFxOption() fx.Option {
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 	)
-}
-
-// installErrortrackingHandler is a no-op when the feature is disabled
-// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
-// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
-// the matching clear runs synchronously inside atel.stop()
-// (deliberately not as a separate OnStop hook here) so it precedes the
-// final flush-goroutine drain.
-func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
-	if !configUtils.IsErrorTrackingEnabled(cfg) {
-		return
-	}
-
-	submitter := func(elog errortrackingpkg.ErrorLog) {
-		at.SubmitErrorLog(elog)
-	}
-
-	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
-	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
-
-	lc.Append(fx.Hook{
-		OnStart: func(_ context.Context) error {
-			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
-			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
-			return nil
-		},
-	})
 }
 
 // startAgent Initializes the agent process
@@ -706,6 +678,11 @@ func startAgent(
 		rcclient.SubscribeAgentTask()
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
+
+		if configUtils.IsDataSecurityEnabled(cfg) {
+			dataSecurityController := datasecurity.NewController(ac, rcclient)
+			ac.AddConfigProvider(dataSecurityController, false, 0)
+		}
 
 		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config

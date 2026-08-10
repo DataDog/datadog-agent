@@ -204,6 +204,9 @@ func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
 // config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!
 func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	c.Lock()
+	defer c.Unlock()
+	c.root = newInnerNode(nil) // invalidated with ready becoming false
 	c.ready.Store(false)
 	return c
 }
@@ -289,7 +292,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	}
 
 	parts := splitKey(key)
-	err = tree.setAt(parts, value, source)
+	err = tree.setAt(parts, value, source, copyOnWrite) // config may already be in use
 	return tree, err
 }
 
@@ -322,8 +325,11 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 }
 
 func (c *ntmConfig) setDefault(key string, value interface{}) {
-	parts := splitKey(key)
-	_ = c.defaults.setAt(parts, value, model.SourceDefault)
+	mode := copyOnWrite
+	if !c.isReady() {
+		mode = mutateInPlace // still being initialized
+	}
+	_ = c.defaults.setAt(splitKey(key), value, model.SourceDefault, mode)
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*nodeImpl, error) {
@@ -675,7 +681,7 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 		}
 	}
 	parts := splitKeyFunc(key)
-	return curr.setAt(parts, actualValue, model.SourceEnvVar)
+	return curr.setAt(parts, actualValue, model.SourceEnvVar, mutateInPlace) // still being initialized
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.

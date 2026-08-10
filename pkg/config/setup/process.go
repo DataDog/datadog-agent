@@ -6,7 +6,6 @@
 package setup
 
 import (
-	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,9 +46,6 @@ const (
 	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
 	DefaultProcessExpVarPort = 6062
 
-	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
-	DefaultProcessCmdPort = 6162
-
 	// DefaultProcessEntityStreamPort is the default port used by the process-agent to expose Process Entities
 	DefaultProcessEntityStreamPort = 6262
 
@@ -63,18 +59,6 @@ const (
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
 // we need to make sure it is only applied once
 var processesAddOverrideOnce sync.Once
-
-// procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
-// We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
-	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
-	// variable convention as the core agent.
-	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
-	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
-
-	envs := []string{processConfigKey, processAgentKey}
-	config.BindEnvAndSetDefault(key, val, envs...)
-}
 
 // loadProcessTransforms loads transforms associated with process config settings.
 func loadProcessTransforms(config pkgconfigmodel.Config) {
@@ -96,21 +80,4 @@ func loadProcessTransforms(config pkgconfigmodel.Config) {
 			config.Set("process_config.enabled", "disabled", pkgconfigmodel.SourceAgentRuntime)
 		}
 	}
-}
-
-// GetProcessAPIAddressPort returns the API endpoint of the process agent
-func GetProcessAPIAddressPort(config pkgconfigmodel.Reader) (string, error) {
-	address, err := GetIPCAddress(config)
-	if err != nil {
-		return "", err
-	}
-
-	port := config.GetInt("process_config.cmd_port")
-	if port <= 0 {
-		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, DefaultProcessCmdPort)
-		port = DefaultProcessCmdPort
-	}
-
-	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
-	return addrPort, nil
 }
