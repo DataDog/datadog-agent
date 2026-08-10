@@ -92,6 +92,39 @@ func IsDelaDirective(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
 }
 
+// delaPlaceholderSentinel is the placeholder kept for a DELA(...) directive that doesn't even
+// have a parseable org_uuid/provider pair. It carries no information from the original directive
+// text, so it can never leak a parameter value regardless of what characters that value contains.
+const delaPlaceholderSentinel = "DELA(unresolved)"
+
+// sanitizeDelaPlaceholder rebuilds a DELA(...) placeholder from only the org_uuid and provider
+// fields, dropping every other parameter (including fallback=...) so no secret value can survive
+// into the placeholder regardless of what characters it contains.
+func sanitizeDelaPlaceholder(directive string) string {
+	rest, ok := strings.CutPrefix(directive, delaDirectivePrefix)
+	if !ok {
+		return delaPlaceholderSentinel
+	}
+	// Truncate at the first ')' so a fallback value's own ')' (and everything after it) is
+	// discarded rather than inspected.
+	if idx := strings.IndexByte(rest, ')'); idx >= 0 {
+		rest = rest[:idx]
+	}
+
+	fields := strings.SplitN(rest, ",", 3)
+	if len(fields) < 2 {
+		return delaPlaceholderSentinel
+	}
+
+	orgUUID := strings.TrimSpace(fields[0])
+	provider := strings.TrimSpace(fields[1])
+	if orgUUID == "" || provider == "" {
+		return delaPlaceholderSentinel
+	}
+
+	return fmt.Sprintf("%s%s, %s)", delaDirectivePrefix, orgUUID, provider)
+}
+
 // PartitionRealAndPendingKeys splits keys from an `additional_endpoints`-style config list into
 // real API keys and reports whether at least one pending DELA(...) directive was present. A
 // caller that builds one endpoint per real key should still keep a placeholder entry for the
@@ -119,16 +152,26 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 		// Remove any empty API keys.
 		// We don't need to hold on to an endpoint with an empty API key to track if a
 		// secret has been updated since secrets can never be empty in the first place.
-		// Exception: a domain whose only entries are pending DELA(...) directives is still kept
-		// (with an empty Keys list) below, so the forwarder knows to wait for delegated auth
-		// rather than dropping the domain outright.
-		nonEmpty := make([]string, 0, len(keys))
+		trimmed := []string{}
+		hasPendingDelegatedAuth := false
 		for _, key := range keys {
-			if trimmedAPIKey := strings.TrimSpace(key); trimmedAPIKey != "" {
-				nonEmpty = append(nonEmpty, trimmedAPIKey)
+			trimmedAPIKey := strings.TrimSpace(key)
+			if trimmedAPIKey == "" {
+				continue
 			}
+			if IsDelaDirective(trimmedAPIKey) {
+				// Not a real API key (yet) - the delegatedauth component resolves this
+				// asynchronously and writes the real key into this same config slot. Keep a
+				// sanitized placeholder (see sanitizeDelaPlaceholder) as the key rather than
+				// dropping it, so the domain still gets a transaction/authorizer and can 403 (and
+				// retry) instead of being silently starved of keys until resolution. The original
+				// directive text is never kept verbatim since it may carry a fallback=<api_key>
+				// secret.
+				hasPendingDelegatedAuth = true
+				trimmedAPIKey = sanitizeDelaPlaceholder(trimmedAPIKey)
+			}
+			trimmed = append(trimmed, trimmedAPIKey)
 		}
-		trimmed, hasPendingDelegatedAuth := PartitionRealAndPendingKeys(nonEmpty)
 
 		if len(trimmed) > 0 || hasPendingDelegatedAuth {
 			result[url] = []APIKeys{{
