@@ -80,7 +80,7 @@ func main() {
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
 	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
-	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 10m window.")
+	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 2m window.")
 	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	flag.Parse()
 
@@ -146,10 +146,11 @@ func main() {
 	} else {
 		componentSettings.Baseline = observerimpl.BaselineConfig{
 			Enabled:          true,
-			DurationSec:      300,
+			DurationSec:      120,
 			MuteNoisyMetrics: *muteNoisyMetrics,
 		}
 	}
+	componentSettings = observerimpl.ApplyTestbenchDetectorDefaults(componentSettings)
 
 	if *headless == "" {
 		fmt.Printf("Observer Test Bench\n")

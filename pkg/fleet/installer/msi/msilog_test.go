@@ -375,20 +375,6 @@ Action ended 6:12:22: InstallFinalize. Return value 3.
 
 `,
 		},
-		"Configuration directory not owned by an administrator": {
-			input: "untrusted_config_root.log",
-			expected: `--- 638:2279
-SFXCA: Binding to CLR version v4.0.30319
-Calling custom action AgentCustomActions!Datadog.AgentCustomActions.CustomActions.EnsureSecureConfigRoot
-CA: 11:33:07: LogAndDisplayError. C:\ProgramData\Datadog\ has unexpected owner WIN-HOST\someuser (S-1-5-21-1841682664-813245174-3784748498-1001), it must be owned by Administrators or SYSTEM. The installer will not use a directory that a user without administrator rights may have created. Remove it, or make Administrators its owner by running takeown.exe /A /F "C:\ProgramData\Datadog" after reviewing its contents, then retry.
-MSI (s) (B8!E4) [11:33:07:759]: Product: Datadog Agent -- C:\ProgramData\Datadog\ has unexpected owner WIN-HOST\someuser (S-1-5-21-1841682664-813245174-3784748498-1001), it must be owned by Administrators or SYSTEM. The installer will not use a directory that a user without administrator rights may have created. Remove it, or make Administrators its owner by running takeown.exe /A /F "C:\ProgramData\Datadog" after reviewing its contents, then retry.
-
-C:\ProgramData\Datadog\ has unexpected owner WIN-HOST\someuser (S-1-5-21-1841682664-813245174-3784748498-1001), it must be owned by Administrators or SYSTEM. The installer will not use a directory that a user without administrator rights may have created. Remove it, or make Administrators its owner by running takeown.exe /A /F "C:\ProgramData\Datadog" after reviewing its contents, then retry.
-CustomAction EnsureSecureConfigRoot returned actual error code 1603 (note this may not be 100% accurate if translation happened inside sandbox)
-Action ended 11:33:07: EnsureSecureConfigRoot. Return value 3.
-
-`,
-		},
 	}
 
 	for name, test := range tests {

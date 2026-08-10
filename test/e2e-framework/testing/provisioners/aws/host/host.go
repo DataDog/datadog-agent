@@ -74,6 +74,8 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.Host) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
+		// Prepend the no-internet default so that caller-provided opts (e.g. ec2.WithInternetAccess()) can override it.
+		opts = append([]ProvisionerOption{WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithoutInternetAccess()))}, opts...)
 		params := getProvisionerParams(opts...)
 		runParams := ec2.GetParams(params.runOptions...)
 

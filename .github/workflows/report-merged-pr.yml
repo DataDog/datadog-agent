@@ -48,7 +48,7 @@ jobs:
 
       - name: Get Datadog credentials
         id: dd-sts
-        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75
+        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
         with:
           policy: datadog-agent-report-pr
 

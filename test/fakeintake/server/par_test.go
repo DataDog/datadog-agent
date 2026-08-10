@@ -27,6 +27,9 @@ func TestPARDequeueSurfacesRshellPolicyInSignedEnvelope(t *testing.T) {
 			"command":         "cat /tmp/file",
 			"allowedCommands": []string{"rshell:cat"},
 			"allowedPaths":    []string{"/tmp:rw", "/host/var/log"},
+			"systemServices": map[string]interface{}{
+				"nginx.service": []interface{}{"read", "restart"},
+			},
 		},
 	}}
 
@@ -51,6 +54,8 @@ func TestPARDequeueSurfacesRshellPolicyInSignedEnvelope(t *testing.T) {
 	require.NotNil(t, remoteAction)
 	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
 	assert.Equal(t, []string{"/tmp:rw", "/host/var/log"}, remoteAction.AllowedPaths)
+	require.Contains(t, remoteAction.SystemServices, "nginx.service")
+	assert.Equal(t, []interface{}{"read", "restart"}, remoteAction.SystemServices["nginx.service"].AsSlice())
 
 	assert.Equal(t, map[string]interface{}{"command": "cat /tmp/file"}, task.Inputs.AsMap())
 	assert.Equal(t, map[string]interface{}{"command": "cat /tmp/file"}, attributes["inputs"])
@@ -65,6 +70,7 @@ func TestPARDequeueSurfacesEmptyRshellPolicyInSignedEnvelope(t *testing.T) {
 			"command":         "cat /tmp/file",
 			"allowedCommands": []string{},
 			"allowedPaths":    []string{},
+			"systemServices":  map[string]interface{}{},
 		},
 	}}
 
@@ -89,7 +95,9 @@ func TestPARDequeueSurfacesEmptyRshellPolicyInSignedEnvelope(t *testing.T) {
 	require.NotNil(t, remoteAction)
 	assert.Empty(t, remoteAction.AllowedCommands)
 	assert.Empty(t, remoteAction.AllowedPaths)
+	assert.Empty(t, remoteAction.SystemServices)
 	assert.Equal(t, map[string]interface{}{"command": "cat /tmp/file"}, task.Inputs.AsMap())
+	assert.Equal(t, map[string]interface{}{"command": "cat /tmp/file"}, attributes["inputs"])
 }
 
 func TestPARDequeueLeavesLegacyAllowedPathsInputInSignedEnvelope(t *testing.T) {

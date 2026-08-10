@@ -12,11 +12,10 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
@@ -151,7 +150,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
-	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../pkg/config/setup/constants

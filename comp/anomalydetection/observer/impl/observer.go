@@ -565,6 +565,10 @@ func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
+func (a *seriesDetectorAdapter) Ready() bool {
+	return a.detector.Ready()
+}
+
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
@@ -821,8 +825,8 @@ func (s *baselineEventSink) onEngineEvent(evt engineEvent) {
 	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
 		return
 	}
-	if len(evt.baselineCompleted.mutedHashes) > 0 {
-		s.filter.setMuted(evt.baselineCompleted.mutedHashes)
+	if evt.baselineCompleted.snapshotChanged {
+		s.filter.publishMutedSnapshot(evt.baselineCompleted.mutedHashes)
 	}
 }
 
@@ -846,30 +850,57 @@ func (o *observerImpl) DebugSubscribeBaselineCompleted(callback func(endSec int6
 	})
 }
 
+// DebugBaselineStatus returns the per-detector baseline state for the
+// testbench. It is deliberately outside DebugView's production contract.
+func (o *observerImpl) DebugBaselineStatus() BaselineDebugStatus {
+	// This method is testbench-only. Serializing it with direct replay and the
+	// dispatch loop avoids reading the controller's maps concurrently without
+	// adding synchronization or allocations to the live agent's ingest path.
+	o.replayMu.Lock()
+	defer o.replayMu.Unlock()
+	if o.engine.baseline == nil {
+		return BaselineDebugStatus{}
+	}
+	status := o.engine.baseline.debugStatus()
+	o.engine.mu.RLock()
+	status.AnalyzedThroughSec = o.engine.lastAnalyzedDataTime
+	o.engine.mu.RUnlock()
+	return status
+}
+
 type baselineCompletedCallbackSink struct {
-	engine   *engine
-	callback func(int64, []string)
+	engine      *engine
+	callback    func(int64, []string)
+	mutedGroups map[string]struct{}
 }
 
 func (s *baselineCompletedCallbackSink) onEngineEvent(evt engineEvent) {
 	if evt.kind != eventBaselineCompleted || evt.baselineCompleted == nil {
 		return
 	}
-	seen := make(map[string]struct{}, len(evt.baselineCompleted.mutedRefs))
-	var groups []string
+	if s.mutedGroups == nil {
+		s.mutedGroups = make(map[string]struct{})
+	}
 	for _, ref := range evt.baselineCompleted.mutedRefs {
 		meta := s.engine.storage.GetSeriesMeta(ref)
 		if meta == nil {
 			continue
 		}
 		key := meta.Namespace + "/" + meta.Name
-		if _, ok := seen[key]; !ok {
-			seen[key] = struct{}{}
-			groups = append(groups, key)
-		}
+		s.mutedGroups[key] = struct{}{}
+	}
+	if !evt.baselineCompleted.allComplete {
+		return
+	}
+	groups := make([]string, 0, len(s.mutedGroups))
+	for group := range s.mutedGroups {
+		groups = append(groups, group)
 	}
 	sort.Strings(groups)
 	s.callback(evt.timestamp, groups)
+	// The sink is retained across testbench replays. Release this run's groups
+	// so a later replay reports only its own muted series.
+	s.mutedGroups = nil
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.

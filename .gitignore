@@ -266,3 +266,10 @@ pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
 flake.lock
+
+# Code generated from the config schema
+pkg/config/schema/*_settings.go
+pkg/config/schema/*_generated.go
+pkg/config/setup/generated.go
+pkg/config/setup/all_settings.go
+pkg/config/setup/system_probe_settings.go

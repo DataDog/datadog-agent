@@ -91,6 +91,7 @@ var DefaultActionFQNs = append([]string{}, defaultCommonActionFQNs...)
 var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{
 	{ActionFQN: "com.datadoghq.gitlab.users.testConnection", ExpectedPrefix: "com.datadoghq.gitlab"},
 	{ActionFQN: "com.datadoghq.kubernetes.core.testConnection", ExpectedPrefix: "com.datadoghq.kubernetes"},
+	{ActionFQN: "com.datadoghq.mongodb.testConnection", ExpectedPrefix: "com.datadoghq.mongodb"},
 	{ActionFQN: "com.datadoghq.script.testConnection", ExpectedPrefix: "com.datadoghq.script"},
 	{ActionFQN: "com.datadoghq.script.enrichScript", ExpectedPrefix: "com.datadoghq.script"},
 	{ActionFQN: "com.datadoghq.http.testConnection", ExpectedPrefix: "com.datadoghq.http"},

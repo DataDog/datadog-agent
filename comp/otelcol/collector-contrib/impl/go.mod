@@ -96,7 +96,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.81.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.81.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
@@ -516,7 +515,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 // indirect
+	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
@@ -647,7 +646,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../../pkg/config/remote
-	github.com/DataDog/datadog-agent/pkg/config/render_config => ../../../../pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../pkg/config/setup/constants

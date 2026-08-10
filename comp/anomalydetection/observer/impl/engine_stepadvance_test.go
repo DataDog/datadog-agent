@@ -19,6 +19,7 @@ type fixedDetector struct {
 }
 
 func (d *fixedDetector) Name() string { return "fixed" }
+func (*fixedDetector) Ready() bool    { return true }
 
 func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.DetectionResult {
 	if d.fired {

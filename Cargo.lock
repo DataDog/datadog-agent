@@ -1925,6 +1925,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "par-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dd-agent-log",
+ "log",
+ "serde",
+ "serde_yaml",
+ "tokio",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

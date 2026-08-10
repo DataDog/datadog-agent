@@ -114,7 +114,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		tb.Fatalf("failed to create namespace resolver: %v", err)
 	}
 
-	tagsResolver := tags.NewResolver(nil, nil, nil)
+	tagsResolver := tags.NewResolver(cfg.RuntimeSecurity.TagsResolverQueueSize, nil, nil, nil)
 
 	cgroupResolver, err := cgroup.NewResolver(noopSD, nil, dentryResolver)
 	if err != nil {

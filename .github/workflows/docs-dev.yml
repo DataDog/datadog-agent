@@ -42,7 +42,7 @@ jobs:
     # build image pinned in .gitlab-ci.yml, so that file changing is the only reason to fetch again.
     - name: Restore fetched documentation content
       id: docs-content
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: .docs-cache
         key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'docs/public/.hooks/inject_variables.py') }}
@@ -50,7 +50,7 @@ jobs:
     # Restoring the most recent results, which `cache` in .lychee.toml tells the checker to keep,
     # means a host that is briefly unreachable does not fail the run.
     - name: Restore link check results
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: .lycheecache
         key: docs-links-${{ github.run_id }}
@@ -71,7 +71,7 @@ jobs:
     # that fails on an unrelated link is exactly when the next one benefits from not fetching again.
     - name: Save fetched documentation content
       if: always() && steps.docs-content.outputs.cache-hit != 'true'
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: .docs-cache
         key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'docs/public/.hooks/inject_variables.py') }}
@@ -80,7 +80,7 @@ jobs:
     # which is what a re-run of it restores.
     - name: Save link check results
       if: always()
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: .lycheecache
         key: docs-links-${{ github.run_id }}

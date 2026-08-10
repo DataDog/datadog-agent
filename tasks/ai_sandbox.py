@@ -16,6 +16,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.libs.common.color import Color, color_message
+from tasks.schema.generate import codegen as schema_codegen
 
 E2E_FRAMEWORK_DIR = "test/e2e-framework"
 CLI_PACKAGE = "./cmd/ai-sandbox"
@@ -120,6 +121,9 @@ def run(
     # `go build -o` does not create the output's parent directory, and bin/ is
     # gitignored (absent in a clean checkout), so create it first.
     os.makedirs(os.path.join(E2E_FRAMEWORK_DIR, os.path.dirname(CLI_BIN)), exist_ok=True)
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     try:
         with ctx.cd(E2E_FRAMEWORK_DIR):

@@ -7,7 +7,6 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import glob
-import operator
 import os
 import re
 import shutil
@@ -44,6 +43,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
+from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
@@ -78,45 +78,12 @@ OTEL_UPSTREAM_GO_MOD_PATH = (
 )
 
 
-class TestProfiler:
-    times = []
-    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
-
-    def write(self, txt):
-        # Output to stdout
-        # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
-        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
-        # Extract the run time
-        for result in self.parser.finditer(txt):
-            self.times.append((result.group(1), float(result.group(2))))
-
-    def flush(self):
-        sys.stdout.flush()
-
-    def print_sorted(self, limit=0):
-        if self.times:
-            sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
-
-            if limit:
-                sorted_times = sorted_times[:limit]
-            for pkg, time in sorted_times:
-                print(f"{time}s\t{pkg}")
-
-
-def ensure_bytes(s):
-    if not isinstance(s, bytes):
-        return s.encode('utf-8')
-
-    return s
-
-
 def build_standard_lib(
     ctx,
     build_tags: list[str],
     cmd: str,
     env: dict[str, str],
     args: dict[str, str],
-    test_profiler: TestProfiler,
 ):
     """
     Builds the stdlib with the same build flags as the tests.
@@ -126,7 +93,7 @@ def build_standard_lib(
     """
     args["go_build_tags"] = ",".join(build_tags)
 
-    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)  # with `warn=True`, errors went unnoticed
+    ctx.run(cmd.format(**args), env=env)  # with `warn=True`, errors went unnoticed
 
 
 def _target_to_bazel_pattern(target: str) -> str:
@@ -410,7 +377,6 @@ def test_flavor(
     env: dict[str, str],
     args: dict[str, str],
     result_junit: str,
-    test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
     recursive: bool = True,
@@ -489,7 +455,6 @@ def test_flavor(
                     **args,
                 ),
                 env=env,
-                out_stream=test_profiler,
                 warn=True,
             )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
@@ -628,7 +593,6 @@ def test(
     build_exclude=None,
     verbose=False,
     race=False,
-    profile=False,
     rtloader_root=None,
     python_home_3=None,
     cpus=None,
@@ -671,6 +635,9 @@ def test(
         skip_tests_covered_by_bazel = True
         run_bazel_tests = True
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
+
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
     unit_tests_tags = compute_build_tags_for_flavor(
@@ -686,9 +653,6 @@ def test(
         python_home_3=python_home_3,
         include_python="python" in unit_tests_tags,
     )
-
-    # Use stdout if no profile is set
-    test_profiler = TestProfiler() if profile else None
 
     race_opt = "-race" if race else ""
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
@@ -760,7 +724,6 @@ def test(
             cmd=stdlib_build_cmd,
             env=env,
             args=args,
-            test_profiler=test_profiler,
         )
 
     if only_modified_packages:
@@ -805,7 +768,6 @@ def test(
             args=args,
             result_junit=result_junit,
             result_json=result_json,
-            test_profiler=test_profiler,
             coverage=coverage,
             recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
             exclude_packages=exclude_packages or None,
@@ -818,12 +780,6 @@ def test(
     if test_result:
         if coverage and print_coverage:
             coverage_flavor(ctx)
-
-        # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
-        # in the meantime to avoid confusion
-        if profile:
-            # print("\n--- Top 15 packages sorted by run time:")
-            test_profiler.print_sorted(15)
 
         go_success, go_stats = process_test_result(
             ctx,
@@ -1434,6 +1390,9 @@ def check_otel_build(ctx):
     package_otel = "package otel"
     package_main = "package main"
     rename_package(file_path, package_otel, package_main)
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx, keep_orig_order=False, fix=True)
 
     with ctx.cd("test/otel"):
         # Update dependencies to latest local version

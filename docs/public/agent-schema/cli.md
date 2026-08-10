@@ -34,38 +34,6 @@ problems are visible.
 
 ---
 
-## `schema.generate`
-
-Generate the enriched schema files for the core Agent and system-probe.
-
-```bash
-dda inv schema.generate --agent-bin=./bin/agent/agent
-```
-
-The command:
-
-1. Runs the Agent binary (`createschema`) to produce the base schemas for both
-   the `core` and `system-probe` targets.
-2. Enriches them with documentation pulled from `pkg/config/config_template.yaml`
-   and `pkg/config/system-probe_template.yaml`.
-3. Applies OS-specific fixes and code-extracted comments.
-4. Writes the result to `pkg/config/schema/yaml/` — large top-level sections of
-   the core schema are split into sibling `<section>.yaml` files referenced via
-   `$ref`.
-
-| Argument | Required | Default | Description |
-| --- | --- | --- | --- |
-| `--agent-bin` | yes | — | Path to a built Agent binary. Build one first with `dda inv agent.build`. |
-| `--output-dir` | no | `pkg/config/schema/yaml` | Directory where the schema files are written. |
-
-!!! warning "Build the Agent first"
-    `schema.generate` runs the Agent binary to extract the live configuration.
-    If the binary is missing it exits with an error pointing you to
-    `dda inv agent.build`. Rebuild after changing any `pkg/config/setup` code so
-    the schema reflects your changes.
-
----
-
 ## `schema.lint`
 
 Validate the schema against the schema quality rules and exit

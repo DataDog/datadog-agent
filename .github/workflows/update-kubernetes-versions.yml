@@ -47,7 +47,7 @@ jobs:
         run: pip install requests==2.33.1 pyyaml==6.0.3 semver==3.0.4
 
       - name: Install kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc #v1.14.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           install_only: true
 
@@ -146,4 +146,4 @@ jobs:
             ### Describe how you validated your changes
             CI will validate the new versions work correctly.
           team-reviewers: container-integrations
-          labels: team/container-integrations,qa/done,changelog/no-changelog,ask-review
+          labels: team/container-integrations,qa/done,changelog/no-changelog

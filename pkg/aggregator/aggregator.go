@@ -800,6 +800,7 @@ func (agg *BufferedAggregator) run() {
 		select {
 		case <-agg.stopChan:
 			log.Info("Stopping aggregator")
+			agg.health.Deregister() //nolint:errcheck
 			return
 		case trigger := <-agg.flushChan:
 			agg.Flush(trigger)

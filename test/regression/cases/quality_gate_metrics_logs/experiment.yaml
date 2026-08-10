@@ -45,7 +45,8 @@ checks:
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
     bounds:
       series: "connection.current"
-      upper_bound: 6
+      # Static sender concurrency cap (pipelines * 10 = 40) after retiring RTT fairness.
+      upper_bound: 40
 
   - name: missed_bytes
     description: "Allowable bytes not processed by Agent"

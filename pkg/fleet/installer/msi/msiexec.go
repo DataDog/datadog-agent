@@ -355,15 +355,6 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			//   Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
 			//   MSI (s) (54:EC) [12:25:53:886]: Product: Datadog Agent -- Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
 			return FindAllIndexWithContext(regexp.MustCompile("Verify that you have sufficient privileges to install system services"), bytes, 2, 1)
-		},
-		func(bytes []byte) []TextRange {
-			// The first pattern is the owner check, in both the MSI (EnsureSecureConfigRoot) and the
-			// Go installer (paths.IsDirSecure), the second is the directory not being readable.
-			// Typically looks like this:
-			//   CA: 12:24:00: EnsureSecureConfigRoot. C:\ProgramData\Datadog has unexpected owner WIN-HOST\someuser (S-1-5-21-1-2-3-1001), it must be owned by Administrators or SYSTEM. The installer will not use a directory that a user without administrator rights may have created. Remove it, or make Administrators its owner by running takeown.exe /A /F "C:\ProgramData\Datadog" after reviewing its contents, then retry.
-			return FindAllIndexWithContext(
-				regexp.MustCompile("has unexpected owner|to verify its owner"),
-				bytes, 2, 2)
 		})
 }
 

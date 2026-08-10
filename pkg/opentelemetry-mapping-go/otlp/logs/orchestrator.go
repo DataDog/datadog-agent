@@ -221,14 +221,14 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 }
 
 // ToManifestPayload creates a CollectorManifest payload from a list of manifests.
-func ToManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, clusterID string) *agentmodel.CollectorManifest {
+func ToManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, clusterID string, originCollector agentmodel.OriginCollector) *agentmodel.CollectorManifest {
 	return &agentmodel.CollectorManifest{
 		ClusterName:     clusterName,
 		ClusterId:       clusterID,
 		HostName:        hostName,
 		Manifests:       manifests,
 		Tags:            buildCommonTags(),
-		OriginCollector: agentmodel.OriginCollector_datadogExporter,
+		OriginCollector: originCollector,
 	}
 }
 
@@ -482,8 +482,9 @@ type K8sTranslationResult struct {
 
 // TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads.
 // It handles deduplication via cache (pass nil to disable), cluster manifest creation, and chunking.
+// Set skipClusterManifest to true to skip automatic Cluster manifest creation from collected nodes.
 // Individual record errors are logged and skipped rather than aborting the batch.
-func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger) *K8sTranslationResult {
+func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger, skipClusterManifest bool) *K8sTranslationResult {
 	var manifests []*agentmodel.Manifest
 	var nodes []*agentmodel.Manifest
 	var isWatchEvent bool
@@ -536,7 +537,7 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger)
 		}
 	}
 
-	if len(nodes) > 0 && !isWatchEvent {
+	if len(nodes) > 0 && !isWatchEvent && !skipClusterManifest {
 		logger.Debug("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", len(nodes)))
 		if clusterManifest := CreateClusterManifest(clusterID, nodes, logger); clusterManifest != nil {
 			if !shouldSkipManifest(clusterManifest, false, cache) {

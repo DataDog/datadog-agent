@@ -9,6 +9,7 @@ package customresources
 
 import (
 	"context"
+	"maps"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -79,6 +80,16 @@ func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 			}),
 		),
 		*generator.NewFamilyGeneratorWithStability(
+			"kube_pod_container_effective_resource_requests",
+			"The effective CPU and memory requests for a container, accounting for in-place vertical scaling.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapPodFunc(func(p *v1.Pod) *metric.Family {
+				return effectiveContainerResourceRequestsMetricFamily(p)
+			}),
+		),
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_pod_container_extended_resource_limits",
 			"The number of additional requested limit resource by a container, which otherwise might have been filtered out by kube-state-metrics.",
 			metric.Gauge,
@@ -129,6 +140,56 @@ func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 			}),
 		),
 	}
+}
+
+func effectiveContainerResourceRequestsMetricFamily(p *v1.Pod) *metric.Family {
+	containerStatuses := make(map[string]*v1.ContainerStatus, len(p.Status.ContainerStatuses))
+	for i := range p.Status.ContainerStatuses {
+		containerStatuses[p.Status.ContainerStatuses[i].Name] = &p.Status.ContainerStatuses[i]
+	}
+
+	ms := []*metric.Metric{}
+	for _, c := range p.Spec.Containers {
+		requests := effectiveContainerResourceRequests(c.Resources.Requests, containerStatuses[c.Name])
+		for _, resourceName := range []v1.ResourceName{v1.ResourceCPU, v1.ResourceMemory} {
+			value, found := requests[resourceName]
+			if !found {
+				continue
+			}
+
+			unit := constant.UnitByte
+			metricValue := float64(value.Value())
+			if resourceName == v1.ResourceCPU {
+				unit = constant.UnitCore
+				metricValue = float64(value.MilliValue()) / 1000
+			}
+
+			ms = append(ms, &metric.Metric{
+				LabelKeys:   []string{"container", "node", "resource", "unit"},
+				LabelValues: []string{c.Name, p.Spec.NodeName, sanitizeLabelName(string(resourceName)), string(unit)},
+				Value:       metricValue,
+			})
+		}
+	}
+
+	return &metric.Family{Metrics: ms}
+}
+
+// effectiveContainerResourceRequests overlays the requests enacted by the
+// kubelet on top of the pod spec. Clusters before Kubernetes 1.33 do not
+// populate status.resources, so they retain the previous spec-based behavior.
+func effectiveContainerResourceRequests(specRequests v1.ResourceList, status *v1.ContainerStatus) v1.ResourceList {
+	if status == nil || status.Resources == nil || len(status.Resources.Requests) == 0 {
+		return specRequests
+	}
+	if len(specRequests) == 0 {
+		return status.Resources.Requests
+	}
+
+	requests := make(v1.ResourceList, len(specRequests)+len(status.Resources.Requests))
+	maps.Copy(requests, specRequests)
+	maps.Copy(requests, status.Resources.Requests)
+	return requests
 }
 
 // containerResourceOwnerGenerator builds a metric with for a single container (init or standard) and adds extra tags extracted

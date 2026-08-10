@@ -17,6 +17,5 @@ go_binary(
     name = "gotypecli",
     embed = [":gotypecli_lib"],
     gotags = ["linux_bpf"],
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
