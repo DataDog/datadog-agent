@@ -30,7 +30,7 @@ use windows_sys::Win32::System::Threading::{
     STARTUPINFOW, TerminateProcess, WaitForSingleObject,
 };
 
-use crate::secret_backend_exec::{BackendRun, exec_inherited_token, read_limited_stdout};
+use crate::secret_backend_exec::{BackendRun, exec_inherited_token, wait_with_stdout_drain};
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
@@ -106,14 +106,23 @@ impl CapturedChild {
             .write_all(run.payload.as_bytes())
             .context("write secret backend payload")?;
 
-        let exit_code = wait_for_exit(self.process.raw(), run.timeout, run.command)?;
-        if exit_code != 0 {
-            bail!(
-                "secret backend {} exited with code {exit_code}",
-                run.command
-            );
-        }
-        read_limited_stdout(Some(self.stdout), run.max_output_bytes)
+        let process = self.process.as_handle();
+        let stdout = self.stdout;
+        let command = run.command;
+        let timeout = run.timeout;
+
+        wait_with_stdout_drain(
+            stdout,
+            run.max_output_bytes,
+            move || terminate_process(process),
+            move || {
+                let exit_code = wait_for_exit(process, timeout, command)?;
+                if exit_code != 0 {
+                    bail!("secret backend {command} exited with code {exit_code}");
+                }
+                Ok(())
+            },
+        )
     }
 }
 
@@ -267,6 +276,10 @@ fn clear_inheritable(handle: HANDLE) -> Result<()> {
 struct WinHandle(HANDLE);
 
 impl WinHandle {
+    fn as_handle(&self) -> HANDLE {
+        self.0
+    }
+
     fn raw(self) -> HANDLE {
         let handle = self.0;
         std::mem::forget(self);
@@ -284,14 +297,18 @@ impl Drop for WinHandle {
     }
 }
 
+fn terminate_process(process: HANDLE) {
+    unsafe {
+        TerminateProcess(process, 1);
+    }
+}
+
 fn wait_for_exit(process: HANDLE, timeout: Duration, command: &str) -> Result<u32> {
     let deadline = Instant::now() + timeout;
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            unsafe {
-                TerminateProcess(process, 1);
-            }
+            terminate_process(process);
             bail!(
                 "secret backend {command} timed out after {} seconds",
                 timeout.as_secs()
