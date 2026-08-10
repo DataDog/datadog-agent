@@ -6,10 +6,22 @@
 package activedirectory
 
 import (
+	"strings"
+	stdtime "time"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumiverse/pulumi-time/sdk/go/time"
+)
+
+const (
+	// maxTransientSSHRetries caps ensure-adws-started's onError retries -- covers sshd bouncing
+	// shortly after the promotion reboot and the reboot itself not having happened yet by the time
+	// the command runs (see WINA-2095).
+	maxTransientSSHRetries = 3
+	// transientSSHRetryDelay gives sshd/the reboot time to actually complete before the next attempt.
+	transientSSHRetryDelay = 15 * stdtime.Second
 )
 
 // Configuration is an object representing the desired Active Directory configuration.
@@ -149,6 +161,22 @@ try {
 	// ensure-adws-started runs only after wait-for-host-to-reboot, and first confirms the host has
 	// actually rebooted since promotion (a boot time newer than the recorded baseline) before probing
 	// ADWS/AD — so it never races the reboot. See WINA-2876.
+	// Retry ensure-adws-started instead of failing the whole stack up, but only for the failure modes
+	// that a retry can actually fix, see WINA-2095.
+	adwsRetryHook, err := adCtx.pulumiContext.RegisterErrorHook(adCtx.comp.namer.ResourceName("ensure-adws-started-retry"), func(args *pulumi.ErrorHookArgs) (bool, error) {
+		if len(args.Errors) > maxTransientSSHRetries {
+			return false, nil
+		}
+		if len(args.Errors) > 0 && strings.Contains(args.Errors[0], "failed attempts: dial") {
+			return false, nil
+		}
+		stdtime.Sleep(transientSSHRetryDelay)
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
 	ensureAdwsStartedCmd, err := adCtx.comp.host.OS.Runner().Command(adCtx.comp.namer.ResourceName("ensure-adws-started"), &command.Args{
 		Create: pulumi.String(`
 # Deterministically wait for the controlled post-promotion reboot to complete. install-forest records
@@ -211,7 +239,9 @@ if ([DateTime]::Now -ge $timeout) {
     throw "RID allocation probe timed out — DC not ready to issue RID pools"
 }
 `),
-	}, utils.PulumiDependsOn(waitForRebootCmd))
+	}, utils.PulumiDependsOn(waitForRebootCmd), pulumi.ResourceHooks(&pulumi.ResourceHookBinding{
+		OnError: []*pulumi.ErrorHook{adwsRetryHook},
+	}))
 	if err != nil {
 		return err
 	}
