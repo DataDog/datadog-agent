@@ -8,8 +8,8 @@
 package apiserverimpl_test
 
 import (
+	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -37,36 +37,73 @@ import (
 	apiserverfx "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
+// startAPIServer starts the apiserver fx app on a freshly-picked port,
+// retrying with a new port if the previous pick lost the bind race. Unlike
+// probing a port and reusing its number later, each attempt is a real bind,
+// so there's no gap between checking and using the port.
+func startAPIServer(t *testing.T, buildOpts func(port int) []fx.Option) (apiserver.Component, int) {
+	t.Helper()
+	var lastErr error
+	for attempt := 0; attempt < testutil.MaxBindAttempts; attempt++ {
+		port := testutil.FreeTCPPort(t)
+
+		var comp apiserver.Component
+		app := fx.New(
+			fxutil.FxAgentBase(),
+			fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+			fx.Populate(&comp),
+			fx.Options(buildOpts(port)...),
+		)
+
+		startCtx, cancel := context.WithTimeout(context.Background(), fx.DefaultTimeout)
+		err := app.Start(startCtx)
+		cancel()
+		if err == nil {
+			t.Cleanup(func() {
+				stopCtx, cancel := context.WithTimeout(context.Background(), fx.DefaultTimeout)
+				defer cancel()
+				require.NoError(t, app.Stop(stopCtx))
+			})
+			return comp, port
+		}
+		if !testutil.IsAddrInUse(err) {
+			t.Fatalf("failed to start apiserver: %v", err)
+		}
+		lastErr = err
+	}
+	t.Fatalf("could not bind apiserver after %d attempts: %v", testutil.MaxBindAttempts, lastErr)
+	return nil, 0
+}
+
 func TestLifecycle(t *testing.T) {
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
 	var ipcComp ipc.Component
 
-	_ = fxutil.Test[apiserver.Component](t, fx.Options(
-		apiserverfx.Module(),
-		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
-				"process_config.cmd_port": port,
-			})
-		}),
-		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: func() string { return "n/a" },
-			},
-		),
-		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-		statusimpl.Module(),
-		settingsmock.MockModule(),
-		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Populate(&ipcComp),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-	))
+	_, port := startAPIServer(t, func(port int) []fx.Option {
+		return []fx.Option{
+			apiserverfx.Module(),
+			fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
+			fx.Provide(func(t testing.TB) config.Component {
+				return config.NewMockWithOverrides(t, map[string]interface{}{
+					"process_config.cmd_port": port,
+				})
+			}),
+			workloadmetafx.Module(workloadmeta.NewParams()),
+			fx.Supply(
+				status.Params{
+					PythonVersionGetFunc: func() string { return "n/a" },
+				},
+			),
+			fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+			statusimpl.Module(),
+			settingsmock.MockModule(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Populate(&ipcComp),
+			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		}
+	})
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		url := fmt.Sprintf("https://localhost:%d/agent/status", port)
@@ -76,33 +113,31 @@ func TestLifecycle(t *testing.T) {
 }
 
 func TestPostAuthentication(t *testing.T) {
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
 	var ipcComp ipc.Component
 
-	_ = fxutil.Test[apiserver.Component](t, fx.Options(
-		apiserverfx.Module(),
-		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
-				"process_config.cmd_port": port,
-			})
-		}),
-		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: func() string { return "n/a" },
-			},
-		),
-		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-		statusimpl.Module(),
-		settingsmock.MockModule(),
-		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Populate(&ipcComp),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-	))
+	_, port := startAPIServer(t, func(port int) []fx.Option {
+		return []fx.Option{
+			apiserverfx.Module(),
+			fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
+			fx.Provide(func(t testing.TB) config.Component {
+				return config.NewMockWithOverrides(t, map[string]interface{}{
+					"process_config.cmd_port": port,
+				})
+			}),
+			workloadmetafx.Module(workloadmeta.NewParams()),
+			fx.Supply(
+				status.Params{
+					PythonVersionGetFunc: func() string { return "n/a" },
+				},
+			),
+			fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+			statusimpl.Module(),
+			settingsmock.MockModule(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Populate(&ipcComp),
+			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		}
+	})
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		// No authentication

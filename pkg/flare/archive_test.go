@@ -8,15 +8,12 @@ package flare
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
-	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,6 +43,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestGoRoutines(t *testing.T) {
@@ -94,41 +92,14 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	confMock.SetInTest("process_config.cmd_port", port)
 }
 
-// maxBindAttempts bounds retries when a freshly-picked port loses the bind
-// race to something else between being picked and the real server binding it.
-const maxBindAttempts = 5
-
-// wsaeAddrInUse is WSAEADDRINUSE, the raw Winsock error code Go's net
-// package passes through unmodified on Windows binds; it doesn't map to the
-// stdlib syscall.EADDRINUSE constant, which is a different synthetic value.
-const wsaeAddrInUse = syscall.Errno(10048)
-
-// isAddrInUse reports whether err is a failure to bind because the port was
-// already taken.
-func isAddrInUse(err error) bool {
-	if runtime.GOOS == "windows" {
-		return errors.Is(err, wsaeAddrInUse)
-	}
-	return errors.Is(err, syscall.EADDRINUSE)
-}
-
-// freeTCPPort asks the OS for a currently-free TCP port.
-func freeTCPPort(t testing.TB) int {
-	t.Helper()
-	l, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
-}
-
 // setupProcessAPIServer starts the real process-agent API server on a
 // freshly-picked port, retrying with a new port if the previous pick lost
 // the bind race. Unlike probing a port and reusing its number later, each
 // attempt is a real bind, so there's no gap between checking and using it.
 func setupProcessAPIServer(t *testing.T, cfg model.Config) {
 	var lastErr error
-	for attempt := 0; attempt < maxBindAttempts; attempt++ {
-		cfg.SetInTest("process_config.cmd_port", freeTCPPort(t))
+	for attempt := 0; attempt < testutil.MaxBindAttempts; attempt++ {
+		cfg.SetInTest("process_config.cmd_port", testutil.FreeTCPPort(t))
 
 		var comp processapiserver.Component
 		app := fx.New(
@@ -163,12 +134,12 @@ func setupProcessAPIServer(t *testing.T, cfg model.Config) {
 			})
 			return
 		}
-		if !isAddrInUse(err) {
+		if !testutil.IsAddrInUse(err) {
 			t.Fatalf("failed to start process API server: %v", err)
 		}
 		lastErr = err
 	}
-	t.Fatalf("could not bind process API server after %d attempts: %v", maxBindAttempts, lastErr)
+	t.Fatalf("could not bind process API server after %d attempts: %v", testutil.MaxBindAttempts, lastErr)
 }
 
 func TestVersionHistory(t *testing.T) {
