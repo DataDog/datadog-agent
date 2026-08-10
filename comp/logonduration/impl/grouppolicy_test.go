@@ -487,9 +487,9 @@ func TestGPOInlinedPerInvocation(t *testing.T) {
 }
 
 func TestGPONamesFromApplicableListAloneNeedNo5312(t *testing.T) {
-	// The runtime shape of ApplicableGPOList is unverified. If it turns out to
-	// carry the same <GPO ID="…"><Name> entries as the 5312 inventory, then
-	// names are available from 4016 alone and no inventory event is required.
+	// A boot capture confirms ApplicableGPOList carries the same
+	// <GPO ID="…"><Name> entries as the 5312 inventory, so names are available
+	// from 4016 alone and no inventory event is required.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
@@ -500,6 +500,32 @@ func TestGPONamesFromApplicableListAloneNeedNo5312(t *testing.T) {
 	require.Len(t, gpos, 1, "the extension GUID inside <Extensions> is not a GPO")
 	assert.Equal(t, gpoDefaultDomainGUID, gpos[0].ID)
 	assert.Equal(t, "Default Domain Policy", gpos[0].Name)
+}
+
+func TestGPONamesSurviveUnescapedAmpersand(t *testing.T) {
+	// Windows concatenates ApplicableGPOList without escaping display names, so
+	// a GPO named "R&D Baseline" arrives carrying a bare ampersand - a boot
+	// capture carried exactly that, in the first position of every list. Under
+	// strict XML parsing the walk aborts on that entry and every GPO behind it
+	// loses its name, while the braced-GUID fallback still recovers the IDs; the
+	// payload then shows GUIDs with no names at all. When the offending name is
+	// not first, the fallback does not even fire and the references themselves
+	// are dropped, which is why the mid-list position is covered too.
+	f := newGPFixture(t)
+	f.startComputerPass()
+	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
+		gpoFragment(
+			gpoEntry(gpoDefaultDomainGUID, "R&D Baseline"),
+			gpoEntry(gpoDomainCtlGUID, "Sales & Marketing"),
+			gpoEntry(gpoThirdGUID, "Plain Name"),
+		))
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+
+	assert.Equal(t, []GPORef{
+		{ID: gpoDefaultDomainGUID, Name: "R&D Baseline"},
+		{ID: gpoDomainCtlGUID, Name: "Sales & Marketing"},
+		{ID: gpoThirdGUID, Name: "Plain Name"},
+	}, f.details().Computer[0].GPOs)
 }
 
 func TestGPOInventoryResolvesNameArrivingAfterTheInvocation(t *testing.T) {
@@ -565,19 +591,33 @@ func TestGPOInventoryAloneEmitsNothing(t *testing.T) {
 }
 
 func TestGPOIDsFromList(t *testing.T) {
-	// The runtime format of ApplicableGPOList has never been observed, so the
-	// scan is deliberately format-agnostic.
+	// A boot capture confirms the XML shape, and the scan stays as a fallback
+	// for a fragment the walk cannot finish or a value with another delimiter.
 	cases := []struct {
 		name string
 		raw  string
 		want []string
 	}{
 		{"empty", "", nil},
-		// gpoEntry embeds an <Extensions>[{CSE GUID}]</Extensions> element, so a
-		// bare braced-GUID scan over the fragment would report the extension's
-		// own GUID as an applicable GPO. The XML tier reads the ID attributes
-		// instead, which is the whole reason it exists.
+		// gpoEntry models the fuller 5312 GPOInfoList entry, which embeds an
+		// <Extensions>[{CSE GUID}]</Extensions> element; a bare braced-GUID scan
+		// over it would report the extension's own GUID as an applicable GPO.
+		// The XML tier reads the ID attributes instead, which is why it exists.
+		// A real 4016 ApplicableGPOList carries ID and Name only.
 		{"xml fragment reads id attributes only", gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")), []string{gpoDefaultDomainGUID}},
+		// An unescaped ampersand in a display name must not cost the IDs. First
+		// position is what a boot capture carried; mid-list is the worse case,
+		// where a partial XML tier would short-circuit the scan fallback and
+		// silently drop the tail of the list.
+		{"unescaped ampersand first keeps every id", gpoFragment(
+			gpoEntry(gpoDefaultDomainGUID, "R&D Baseline"),
+			gpoEntry(gpoDomainCtlGUID, "Plain Name"),
+		), []string{gpoDefaultDomainGUID, gpoDomainCtlGUID}},
+		{"unescaped ampersand mid-list keeps every id", gpoFragment(
+			gpoEntry(gpoDefaultDomainGUID, "Plain Name"),
+			gpoEntry(gpoDomainCtlGUID, "R&D Baseline"),
+			gpoEntry(gpoThirdGUID, "Sales & Marketing"),
+		), []string{gpoDefaultDomainGUID, gpoDomainCtlGUID, gpoThirdGUID}},
 		{"xml fragment with several entries", gpoFragment(
 			gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy"),
 			gpoEntry(gpoDomainCtlGUID, "Default Domain Controllers Policy"),
@@ -640,6 +680,22 @@ func TestGPONamesFromInventory(t *testing.T) {
 	t.Run("malformed remainder keeps what parsed", func(t *testing.T) {
 		raw := gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy") + `<GPO ID="` + gpoDomainCtlGUID + `"><Nam`
 		assert.Equal(t, map[string]string{gpoDefaultDomainGUID: "Default Domain Policy"}, gpoNamesFromInventory(raw))
+	})
+
+	t.Run("unescaped ampersand truncates nothing", func(t *testing.T) {
+		// The provider does not escape display names, so a bare ampersand is
+		// well-formed input as far as this parser is concerned. Strict parsing
+		// would return an empty map here rather than dropping one entry.
+		raw := gpoFragment(
+			gpoEntry(gpoDefaultDomainGUID, "R&D Baseline"),
+			gpoEntry(gpoDomainCtlGUID, "Sales & Marketing"),
+			gpoEntry(gpoThirdGUID, "Plain Name"),
+		)
+		assert.Equal(t, map[string]string{
+			gpoDefaultDomainGUID: "R&D Baseline",
+			gpoDomainCtlGUID:     "Sales & Marketing",
+			gpoThirdGUID:         "Plain Name",
+		}, gpoNamesFromInventory(raw))
 	})
 
 	t.Run("empty and oversize yield nothing", func(t *testing.T) {

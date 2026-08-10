@@ -121,7 +121,8 @@ type GPORef struct {
 	// ID is the GPO GUID in canonical braced uppercase form, and is the
 	// identity. Two GPOs sharing a display name remain distinct.
 	ID string `json:"id"`
-	// Name is absent unless a 5312 inventory event supplied it.
+	// Name is absent unless the 4016 ApplicableGPOList or a 5312 inventory event
+	// supplied it.
 	Name string `json:"name,omitempty"`
 }
 
@@ -192,9 +193,10 @@ type gpAccumulator struct {
 	// by its stop event is not known until after its own invocations arrive.
 	done map[windows.GUID][]cseRecord
 
-	// gpoNames maps a GPO GUID to its display name, from 5312 inventory events.
-	// It is a lookup, not an inventory: an entry only reaches the wire if a
-	// surviving invocation references it.
+	// gpoNames maps a GPO GUID to its display name, from a 4016
+	// ApplicableGPOList or a 5312 inventory event. It is a lookup, not an
+	// inventory: an entry only reaches the wire if a surviving invocation
+	// references it.
 	gpoNames map[string]string
 }
 
@@ -393,18 +395,16 @@ var bracedGUIDPattern = regexp.MustCompile(
 // event's ApplicableGPOList.
 //
 // The property is declared win:UnicodeString rather than a TDH array, so TDH
-// hands it over as one opaque string, and its runtime format has never been
-// observed first-hand. Two tiers cover the plausible shapes:
+// hands it over as one opaque string. A boot capture confirms the runtime format
+// is a rootless <GPO ID="{GUID}"><Name>…</Name></GPO> sequence carrying ID and
+// Name only, so the IDs come from the attributes and the names come free.
 //
-// If the value is the same <GPO ID="…"> fragment that 5312 carries, the IDs come
-// from the attributes. Scanning such a fragment for braced GUIDs instead would
-// also harvest the extension GUIDs inside each entry's <Extensions> element and
-// report them as applicable GPOs.
-//
-// Otherwise the delimiter is unknown, so the value is scanned for braced GUIDs.
-// That recovers the references whether the provider emits a semicolon-separated
-// list, one per line, or prose, and assumes only that the GUIDs appear in braced
-// form - which every reported variant satisfies.
+// The braced-GUID scan stays as a fallback for a fragment the walk cannot
+// finish - a display name containing a literal "<" defeats even lenient XML -
+// and it also recovers references from a delimited or prose value. It is safe
+// only on ApplicableGPOList: 5312's GPOInfoList embeds an
+// <Extensions>[{CSE GUID}]</Extensions> element in every entry, which a scan
+// would report as applicable GPOs.
 func gpoIDsFromList(raw string) []string {
 	if raw == "" {
 		return nil
@@ -470,17 +470,23 @@ func gpoNamesFromInventory(raw string) map[string]string {
 // forEachGPOElement walks a <GPO> list fragment, calling fn once per entry that
 // carries a usable GUID.
 //
-// The fragment has no root element - it is a bare sequence of sibling
-// <GPO ID="{GUID}"> entries - so xml.Unmarshal would stop after the first one
-// and a token loop is used instead. That also parses a rooted variant, which
-// matters because no first-party capture confirms the runtime shape: the field
-// type comes from the provider manifest and the structure from third-party
-// captures. Every path here yields fewer entries rather than guessing.
+// The fragment has no root element - a bare sequence of sibling
+// <GPO ID="{GUID}"> entries, as confirmed by a boot capture - so xml.Unmarshal
+// would stop after the first one and a token loop is used instead. A rooted
+// variant parses too, and every path yields fewer entries rather than guessing.
+//
+// Strict parsing is off because the provider concatenates these fragments
+// without escaping display names: a GPO named "R&D Baseline" arrives carrying a
+// bare ampersand, which is not well-formed XML. A boot capture carried exactly
+// that. Strictly, DecodeElement fails on the offending entry and the walk
+// abandons every entry behind it, so one such name costs the names of all the
+// GPOs that follow it.
 //
 // An entry with no resolvable GUID is skipped: the GUID is the identity, and a
 // display name is neither unique nor stable enough to stand in for it.
 func forEachGPOElement(raw string, fn func(id string, entry gpoXML)) {
 	decoder := xml.NewDecoder(strings.NewReader(raw))
+	decoder.Strict = false
 	for {
 		token, err := decoder.Token()
 		if err != nil || token == nil {
@@ -504,8 +510,9 @@ func forEachGPOElement(raw string, fn func(id string, entry gpoXML)) {
 	}
 }
 
-// gpoIDAttr reads a <GPO> element's ID attribute. The casing the provider uses
-// is not confirmed against a live capture, so the match is case-insensitive.
+// gpoIDAttr reads a <GPO> element's ID attribute. A boot capture shows the
+// provider emits uppercase "ID"; the match stays case-insensitive because that
+// casing is not part of any documented contract.
 func gpoIDAttr(start xml.StartElement) string {
 	for _, attr := range start.Attr {
 		if strings.EqualFold(attr.Name.Local, "id") {
