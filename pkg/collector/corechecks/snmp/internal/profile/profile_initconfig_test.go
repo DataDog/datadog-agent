@@ -19,9 +19,9 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 
 	tests := []struct {
-		name                      string
-		metrics                   []profiledefinition.MetricsConfig
-		expectedHaveLegacyProfile bool
+		name                   string
+		metrics                []profiledefinition.MetricsConfig
+		expectedLegacyProfiles []string
 	}{
 		{
 			name: "ok profile",
@@ -59,7 +59,7 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 					},
 				},
 			},
-			expectedHaveLegacyProfile: false,
+			expectedLegacyProfiles: nil,
 		},
 		{
 			name: "legacy profile because no OID",
@@ -69,7 +69,7 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 					Name: "fooName",
 				},
 			},
-			expectedHaveLegacyProfile: true,
+			expectedLegacyProfiles: []string{"my-init-config-profile"},
 		},
 		{
 			name: "legacy profile because no Symbol.OID",
@@ -81,7 +81,7 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 					},
 				},
 			},
-			expectedHaveLegacyProfile: true,
+			expectedLegacyProfiles: []string{"my-init-config-profile"},
 		},
 		{
 			name: "legacy profile because no Symbols[...].OID",
@@ -103,13 +103,13 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 					},
 				},
 			},
-			expectedHaveLegacyProfile: true,
+			expectedLegacyProfiles: []string{"my-init-config-profile"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, haveLegacyProfile, err := loadInitConfigProfiles(ProfileConfigMap{
+			_, legacyProfiles, err := loadInitConfigProfiles(ProfileConfigMap{
 				"my-init-config-profile": {
 					Definition: profiledefinition.ProfileDefinition{
 						Metrics: tt.metrics,
@@ -117,7 +117,7 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedHaveLegacyProfile, haveLegacyProfile)
+			assert.Equal(t, tt.expectedLegacyProfiles, legacyProfiles)
 		})
 	}
 }
