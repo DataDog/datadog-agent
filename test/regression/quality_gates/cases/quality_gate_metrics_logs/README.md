@@ -1,3 +1,7 @@
+---
+description: Combined high-volume DogStatsD metrics and continuous log collection under a production-representative workload.
+---
+
 # Quality Gate Metrics & Logs Experiment
 
 ## Overview

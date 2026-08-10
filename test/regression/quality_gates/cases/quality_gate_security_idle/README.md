@@ -1,3 +1,7 @@
+---
+description: Workload Protection enabled with no custom policy or generated filesystem load — the CWS baseline floor.
+---
+
 # Quality Gate CWS - Idle
 
 ## Overview
