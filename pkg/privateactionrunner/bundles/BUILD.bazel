@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "bundles",
@@ -13,7 +14,9 @@ go_library(
         "//comp/forwarder/eventplatform/def",
         "//comp/kubeactions/helmactions/def",
         "//comp/networkpath/traceroute/def",
+        "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/bundles/authoredscripts",
         "//pkg/privateactionrunner/bundles/gitlab/branches",
         "//pkg/privateactionrunner/bundles/gitlab/commits",
         "//pkg/privateactionrunner/bundles/gitlab/customattributes",
@@ -54,5 +57,22 @@ go_library(
         "//pkg/privateactionrunner/bundles/temporal",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/types",
+    ],
+)
+
+dd_agent_go_test(
+    name = "bundles_test",
+    srcs = ["registry_test.go"],
+    embed = [":bundles"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    deps = [
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//assert",
     ],
 )
