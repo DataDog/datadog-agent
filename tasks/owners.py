@@ -161,7 +161,13 @@ def smp_inputs(
 
 
 def resolve_run_set_impl(
-    config_dir: str, smp_bin: str, changed_files: list[str], labels: str, runner: str, exclude: list[str], owners_file: str
+    config_dir: str,
+    smp_bin: str,
+    changed_files: list[str],
+    labels: str,
+    runner: str,
+    exclude: list[str],
+    owners_file: str,
 ) -> str:
     """Resolve the experiment run set to a `--experiment-path-filter` value.
 
@@ -179,11 +185,17 @@ def resolve_run_set_impl(
         json.dump(ownership, tf)
         tf.close()
         cmd = [
-            smp_bin, 'experiments', 'resolve',
-            '--target-config-dir', config_dir,
-            '--runner', runner,
-            '--ownership', tf.name,
-            '--format', 'path-filter',
+            smp_bin,
+            'experiments',
+            'resolve',
+            '--target-config-dir',
+            config_dir,
+            '--runner',
+            runner,
+            '--ownership',
+            tf.name,
+            '--format',
+            'path-filter',
         ]
         if exclude:
             cmd += ['--exclude-path', ','.join(exclude)]
