@@ -22,7 +22,6 @@ go_library(
             "//comp/serializer/logscompression/fx",
             "//comp/systray/systray/def",
             "//comp/systray/systray/fx",
-            "//comp/workloadbalancing/fx",
             "//pkg/serializer",
             "//pkg/util/defaultpaths",
             "//pkg/util/fxutil",

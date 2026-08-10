@@ -39,7 +39,6 @@ go_library(
         "//comp/healthplatform",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
-        "//comp/workloadbalancing/fx",
         "//pkg/cli/standalone",
         "//pkg/config/model",
         "//pkg/process/util/containers",

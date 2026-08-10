@@ -64,7 +64,6 @@ import (
 	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -177,7 +176,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 				haagentfx.Module(),
-				workloadbalancingfx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
 				diagnosefx.Module(),
