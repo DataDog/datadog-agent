@@ -8,11 +8,18 @@ package taglist
 
 import (
 	"maps"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"unique"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// denylistSetting lists the tag names that must never be built out of
+// workload-controlled metadata.
+const denylistSetting = "workload_tags_denylist"
 
 // TagList allows collector to incremental build a tag list
 // then export it easily to []string format
@@ -22,6 +29,10 @@ type TagList struct {
 	highCardTags         map[string]bool
 	standardTags         map[string]bool
 	splitList            map[string]string
+	// denylist is a read-only set of tag names refused from workload-controlled
+	// metadata, shared between tag lists. Only the Add*FromWorkload methods
+	// honor it: the tags the Agent computes itself are never filtered out.
+	denylist map[string]struct{}
 }
 
 // NewTagList creates a new object ready to use
@@ -32,7 +43,59 @@ func NewTagList() *TagList {
 		highCardTags:         make(map[string]bool),
 		standardTags:         make(map[string]bool),
 		splitList:            pkgconfigsetup.Datadog().GetStringMapString("tag_value_split_separator"),
+		denylist:             deniedTagNames(),
 	}
+}
+
+// deniedTagNamesCache memoizes the parsed denylist: NewTagList runs for every
+// workloadmeta event, so the set is only rebuilt when the setting changes.
+var deniedTagNamesCache atomic.Pointer[denylistCache]
+
+type denylistCache struct {
+	raw []string
+	set map[string]struct{}
+}
+
+// deniedTagNames returns the configured denylist as a set, for O(1) lookups.
+// The returned map is shared and must not be modified.
+func deniedTagNames() map[string]struct{} {
+	raw := pkgconfigsetup.Datadog().GetStringSlice(denylistSetting)
+
+	if cached := deniedTagNamesCache.Load(); cached != nil && slices.Equal(cached.raw, raw) {
+		return cached.set
+	}
+
+	set := make(map[string]struct{}, len(raw))
+	for _, name := range raw {
+		if name := normalizeTagName(name); name != "" {
+			set[name] = struct{}{}
+		}
+	}
+
+	deniedTagNamesCache.Store(&denylistCache{raw: raw, set: set})
+
+	return set
+}
+
+// normalizeTagName reduces a tag name to what consumers actually read as the
+// tag name, so that the denylist matches whichever form the workload used: the
+// '+' high cardinality prefix is stripped, the name is lowercased, and anything
+// from the first ':' on is dropped, since tags are serialized as "name:value"
+// and split on their first ':'.
+func normalizeTagName(name string) string {
+	name = strings.TrimPrefix(strings.TrimSpace(name), "+")
+	name, _, _ = strings.Cut(name, ":")
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+// IsDenied reports whether name is refused from workload-controlled metadata.
+func (l *TagList) IsDenied(name string) bool {
+	if len(l.denylist) == 0 {
+		return false
+	}
+
+	_, denied := l.denylist[normalizeTagName(name)]
+	return denied
 }
 
 func addTags(target map[string]bool, name string, value string, splits map[string]string) {
@@ -92,6 +155,43 @@ func (l *TagList) AddAuto(name, value string) {
 	l.AddLow(name, value)
 }
 
+// AddLowFromWorkload behaves like AddLow for a tag name coming from
+// workload-controlled metadata, dropping the denied ones.
+func (l *TagList) AddLowFromWorkload(name string, value string) {
+	if l.denied(name) {
+		return
+	}
+	l.AddLow(name, value)
+}
+
+// AddHighFromWorkload behaves like AddHigh for a tag name coming from
+// workload-controlled metadata, dropping the denied ones.
+func (l *TagList) AddHighFromWorkload(name string, value string) {
+	if l.denied(name) {
+		return
+	}
+	l.AddHigh(name, value)
+}
+
+// AddAutoFromWorkload behaves like AddAuto for a tag name coming from
+// workload-controlled metadata, dropping the denied ones.
+func (l *TagList) AddAutoFromWorkload(name string, value string) {
+	if l.denied(name) {
+		return
+	}
+	l.AddAuto(name, value)
+}
+
+// denied reports whether the tag must be dropped, and logs it when it is.
+func (l *TagList) denied(name string) bool {
+	if !l.IsDenied(name) {
+		return false
+	}
+
+	log.Debugf("Ignoring tag %q from workload metadata: it is listed in %s", name, denylistSetting)
+	return true
+}
+
 // Compute returns four string arrays in the format "tag:value"
 // - low cardinality
 // - orchestrator cardinality
@@ -119,6 +219,7 @@ func (l *TagList) Copy() *TagList {
 		highCardTags:         deepCopyMap(l.highCardTags),
 		standardTags:         deepCopyMap(l.standardTags),
 		splitList:            l.splitList, // constant, can be shared
+		denylist:             l.denylist,  // read-only, can be shared
 	}
 }
 

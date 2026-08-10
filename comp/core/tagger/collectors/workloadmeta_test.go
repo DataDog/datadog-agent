@@ -975,7 +975,7 @@ func TestHandleKubePod(t *testing.T) {
 					},
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
-						"pod_name:" + podName,
+						// no pod_name: it is in the default workload_tags_denylist
 						"pod_namespace:" + podNamespace,
 						"static:value",
 					},
@@ -1091,6 +1091,92 @@ func TestHandleKubePod(t *testing.T) {
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &tt.pod,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+// TestHandleKubePodDeniedAnnotationTags checks that a pod cannot forge the tags
+// listed in workload_tags_denylist through the ad.datadoghq.com/tags annotation.
+func TestHandleKubePodDeniedAnnotationTags(t *testing.T) {
+	podEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesPod,
+		ID:   "foobar",
+	}
+
+	pod := workloadmeta.KubernetesPod{
+		EntityID: podEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "datadog-agent-foobar",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/tags": `{"host":"victim-host","pod_name":"victim-pod","+pod_name":"victim-pod","team":"attacker"}`,
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		denylist []string
+		expected []*types.TagInfo
+	}{
+		{
+			name: "default denylist",
+			expected: []*types.TagInfo{
+				{
+					Source:               podSource,
+					EntityID:             types.NewEntityID(types.KubernetesPodUID, podEntityID.ID),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{"pod_name:datadog-agent-foobar"},
+					LowCardTags: []string{
+						"kube_namespace:default",
+						"team:attacker",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name:     "denylist disabled",
+			denylist: []string{},
+			expected: []*types.TagInfo{
+				{
+					Source:               podSource,
+					EntityID:             types.NewEntityID(types.KubernetesPodUID, podEntityID.ID),
+					HighCardTags:         []string{"pod_name:victim-pod"},
+					OrchestratorCardTags: []string{"pod_name:datadog-agent-foobar"},
+					LowCardTags: []string{
+						"kube_namespace:default",
+						"host:victim-host",
+						"pod_name:victim-pod",
+						"team:attacker",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			cfg := configmock.New(t)
+			if tt.denylist != nil {
+				cfg.SetInTest("workload_tags_denylist", tt.denylist)
+			}
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleKubePod(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &pod,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
@@ -3176,6 +3262,33 @@ func TestHandleContainer(t *testing.T) {
 						"owner_team:container-integrations",
 					},
 					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "denied tags from labels",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						// custom tags from label
+						"com.datadoghq.ad.tags": `["host:victim-host","pod_name:victim-pod","app_name:datadog-agent"]`,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
+						"app_name:datadog-agent",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
+					StandardTags:         []string{},
 				},
 			},
 		},
