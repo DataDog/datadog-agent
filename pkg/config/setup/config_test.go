@@ -802,88 +802,69 @@ allowed_additional_checks:
 	assert.Contains(t, additional, "redis")
 }
 
-func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
-	datadogYaml := `
-infrastructure_mode: end_user_device
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters, "filters should be set in end_user_device mode")
+func TestNetworkPathFiltersEndUserDeviceModeUnchanged(t *testing.T) {
+	t.Run("default filters remain empty", func(t *testing.T) {
+		config := confFromYAML(t, "infrastructure_mode: end_user_device")
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be a list of maps")
-	require.Greater(t, len(filtersList), 0, "filters should not be empty")
+		applyInfrastructureModeOverrides(config)
 
-	// Check that the first filter is the deny-all rule
-	assert.Equal(t, "*", filtersList[0]["match_domain"])
-	assert.Equal(t, "exclude", filtersList[0]["type"])
+		assert.Empty(t, config.Get("network_path.collector.filters"))
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 
-	// Check that some expected SaaS domains are present
-	var foundGoogle, foundSlack, foundGitHub bool
-	for _, filter := range filtersList {
-		if filter["match_domain"] == "*.google.com" && filter["type"] == "include" {
-			foundGoogle = true
-		}
-		if filter["match_domain"] == "*.slack.com" && filter["type"] == "include" {
-			foundSlack = true
-		}
-		if filter["match_domain"] == "*.github.com" && filter["type"] == "include" {
-			foundGitHub = true
-		}
-	}
-	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
-	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
-	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
-
-}
-
-func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
-	datadogYaml := `
+	t.Run("user filters remain unchanged", func(t *testing.T) {
+		config := confFromYAML(t, `
 infrastructure_mode: end_user_device
 network_path:
   collector:
     filters:
       - match_ip: 0.0.0.0/0
         type: include
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters)
+`)
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+		applyInfrastructureModeOverrides(config)
 
-	last := filtersList[len(filtersList)-1]
-	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
-	assert.Equal(t, "include", last["type"])
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 }
 
-func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
-	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
+func TestInfrastructureModeEndUserDeviceEnablesLogonDuration(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: end_user_device
-network_path:
-  collector:
-    filters:
-      - "not_a_map"
-      - "still_not_a_map"
 `
 	config := confFromYAML(t, datadogYaml)
 	applyInfrastructureModeOverrides(config)
 
-	// The filter override must be skipped: the user's (malformed) value is left in place
-	// rather than being silently replaced with the EUDM defaults.
-	filters := config.Get("network_path.collector.filters")
-	_, ok := filters.([]map[string]string)
-	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
+	assert.True(t, config.GetBool("logon_duration.enabled"),
+		"end_user_device mode should auto-enable logon_duration")
+}
 
-	// The other EUDM overrides should still be applied — a filter parse failure must not
-	// prevent the rest of the mode from taking effect.
-	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
-	assert.True(t, config.GetBool("software_inventory.enabled"))
-	assert.True(t, config.GetBool("notable_events.enabled"))
+func TestInfrastructureModeNonEUDLeavesLogonDurationDefault(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"non-EUD modes should leave logon_duration at its default (false)")
+}
+
+func TestInfrastructureModeEndUserDeviceLogonDurationUserOverride(t *testing.T) {
+	// An explicit user setting must win over the EUD default, since SourceInfraMode
+	// sits below file config in priority.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+logon_duration:
+  enabled: false
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"explicit user logon_duration.enabled=false should override the EUD default")
 }
 
 func TestApplyUseDogstatsdSuppression(t *testing.T) {

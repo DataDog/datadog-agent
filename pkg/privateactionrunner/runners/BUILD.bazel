@@ -13,6 +13,8 @@ go_library(
     deps = [
         "//comp/core/ipc/def",
         "//comp/forwarder/eventplatform/def",
+        "//comp/kubeactions/helmactions/def",
+        "//comp/kubeactions/kubeactions/def",
         "//comp/networkpath/traceroute/def",
         "//pkg/config/model",
         "//pkg/fleet/installer/telemetry",

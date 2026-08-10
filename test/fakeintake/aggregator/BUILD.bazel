@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "aggregator",
@@ -56,7 +57,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
         "agentDiscoveryAggregator_test.go",
@@ -111,7 +112,6 @@ go_test(
         "fixtures/sbom_bytes",
         "fixtures/trace_bytes",
     ],
-    gotags = ["test"],
     deps = [
         "//pkg/metrics/event",
         "//pkg/networkpath/payload",

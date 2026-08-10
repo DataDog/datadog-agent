@@ -84,12 +84,6 @@ type securityInfo struct {
 }
 
 func init() {
-	initPaths()
-}
-
-// initPaths computes the paths from the environment. Split out of init so that tests can recompute
-// them after redirecting DD_APPLICATIONDATADIRECTORY, see ReloadPaths.
-func initPaths() {
 	// Fetch environment variables, the paths are configurable.
 	// setup and experiment subcommands will respect the paths configured in the environment.
 	// This is important for experiments, as running the MSI may remove the registry keys.
@@ -186,9 +180,17 @@ func SetupInstallerDataDir() error {
 	//  - SeTakeOwnershipPrivilege - Required to set the owner
 	privilegesRequired := []string{"SeTakeOwnershipPrivilege"}
 
-	err := ensureDatadogDataDir(sddl)
-	if err != nil {
-		return err
+	// check if DatadogDataDir exists
+	_, err := os.Stat(DatadogDataDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		// DatadogDataDir does not exist, so we need to create it
+		// probably means the MSI has yet to run
+		// we'll create the directory with the restricted permissions
+		// the MSI will run and fix the permissions soon after
+		err = createDirectoryWithSDDL(DatadogDataDir, sddl)
+		if err != nil {
+			return fmt.Errorf("failed to create DatadogDataDir: %w", err)
+		}
 	}
 
 	return winio.RunWithPrivileges(privilegesRequired, func() error {
@@ -246,15 +248,23 @@ func SetupInstallerDataDir() error {
 func EnsureInstallerDataDir() error {
 	sddl := installerDataSecurityDescriptor
 
-	// fast path: both directories exist and are secure
-	if IsDirSecure(DatadogDataDir) == nil && IsDirSecure(DatadogInstallerData) == nil {
+	// fast path: if DatadogInstallerData exists and is secure
+	if IsDirSecure(DatadogInstallerData) == nil {
 		return nil
 	}
-	// A directory does not exist or is not secure, we need to create it
+	// Directory does not exist or is not secure, we need to create it
 
-	err := ensureDatadogDataDir(sddl)
-	if err != nil {
-		return err
+	// check if DatadogDataDir exists
+	_, err := os.Stat(DatadogDataDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		// DatadogDataDir does not exist, so we need to create it
+		// probably means the MSI has yet to run
+		// we'll create the directory with the restricted permissions
+		// the MSI will run and fix the permissions soon after
+		err = createDirectoryWithSDDL(DatadogDataDir, sddl)
+		if err != nil {
+			return fmt.Errorf("failed to create DatadogDataDir: %w", err)
+		}
 	}
 
 	// Enabling privileges can be audited/noisy and this function may be called frequently,
@@ -269,33 +279,6 @@ func EnsureInstallerDataDir() error {
 	}
 
 	return nil
-}
-
-// ensureDatadogDataDir creates the Agent configuration directory (C:\ProgramData\Datadog) if it
-// does not exist, and returns an error if it exists but is not owned by Administrators or SYSTEM.
-// The MSI checks the same thing, see the EnsureSecureConfigRoot and DDCreateFolders custom actions.
-//
-// It creates or checks, it never resets permissions, unlike SecureCreateDirectory:
-//   - the MSI owns this DACL, it carries the ACEs the Agent user inherits
-//   - so no privileges are needed here, unlike SetupInstallerDataDir's RunWithPrivileges block
-func ensureDatadogDataDir(sddl string) error {
-	_, err := os.Stat(DatadogDataDir)
-	if errors.Is(err, fs.ErrNotExist) {
-		// DatadogDataDir does not exist, so we need to create it
-		// probably means the MSI has yet to run
-		// we'll create the directory with the restricted permissions
-		// the MSI will run and fix the permissions soon after
-		err = createDirectoryWithSDDL(DatadogDataDir, sddl)
-		if err != nil {
-			return fmt.Errorf("failed to create DatadogDataDir: %w", err)
-		}
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to check if %s exists: %w", DatadogDataDir, err)
-	}
-
-	return IsDirSecure(DatadogDataDir)
 }
 
 // SecureCreateDirectory creates a directory with the specified SDDL string.
@@ -367,7 +350,6 @@ func IsDirSecure(targetDir string) error {
 	}
 
 	// get security info
-	// Reads the owner of a junction or symlink itself, not of its target.
 	sd, err := windows.GetNamedSecurityInfo(targetDir, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
 	if err != nil {
 		return fmt.Errorf("failed to get security info for dir \"%s\": %w", targetDir, err)
@@ -392,28 +374,9 @@ func IsDirSecure(targetDir string) error {
 		return windows.EqualSid(owner, sid)
 	})
 	if !ownerInAllowedList {
-		// This message is shown to the user, so it explains how to resolve the problem.
-		return fmt.Errorf("directory %s has unexpected owner %v, it must be owned by Administrators "+
-			"or SYSTEM. The installer will not use a directory that a user without administrator "+
-			"rights may have created. Remove it, or make Administrators its owner by running "+
-			"takeown.exe /A /F \"%s\" after reviewing its contents, then retry",
-			targetDir, describeSID(owner), filepath.Clean(targetDir))
+		return fmt.Errorf("installer data directory has unexpected owner: %v", owner.String())
 	}
 	return nil
-}
-
-// describeSID returns the account name for sid, falling back to its string form when it cannot be
-// resolved, for example because the account has been deleted. The MSI reports the owner the same
-// way, see SecureDirectory.Describe.
-func describeSID(sid *windows.SID) string {
-	account, domain, _, err := sid.LookupAccount("")
-	if err != nil {
-		return sid.String()
-	}
-	if domain == "" {
-		return fmt.Sprintf("%s (%s)", account, sid)
-	}
-	return fmt.Sprintf("%s\\%s (%s)", domain, account, sid)
 }
 
 // createDirectoryWithSDDL creates a directory with the specified SDDL string, returns
