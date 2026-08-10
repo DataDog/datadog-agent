@@ -201,6 +201,39 @@ func TestCoverageRecording(t *testing.T) {
 	assert.Equal(t, uint64(2), report.Leaves[2].False)
 }
 
+// TestCoverageBareBooleanField checks that an operand which is a bare boolean
+// field is recorded once per evaluation. `And` used to evaluate such an operand
+// a second time to report the matching sub-expression, which the recorder read
+// as a second walk through the same leaf.
+func TestCoverageBareBooleanField(t *testing.T) {
+	rule := coveredRule(t, `process.is_root && process.uid == 0`)
+
+	newEvent := func(isRoot bool, uid int) *Context {
+		event := &testEvent{}
+		event.process.isRoot = isRoot
+		event.process.uid = uid
+		return NewContext(event)
+	}
+
+	assert.True(t, rule.Eval(newEvent(true, 0)))
+	assert.False(t, rule.Eval(newEvent(true, 1)))
+	assert.False(t, rule.Eval(newEvent(false, 0)))
+
+	report := rule.GetCoverage().Report()
+	assert.Equal(t, map[string]uint64{
+		"A=false => false":        1,
+		"A=true B=false => false": 1,
+		"A=true B=true => true":   1,
+	}, pathSignatures(report))
+
+	assert.Equal(t, uint64(3), report.Evaluations)
+	assert.Zero(t, report.Unmatched)
+
+	// A is evaluated once per evaluation, whatever the outcome
+	assert.Equal(t, uint64(2), report.Leaves[0].True)
+	assert.Equal(t, uint64(1), report.Leaves[0].False)
+}
+
 // TestCoveragePartialEvaluation checks that generating the partials of a covered
 // rule, which recompiles its expression, does not record anything
 func TestCoveragePartialEvaluation(t *testing.T) {

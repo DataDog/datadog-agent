@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -1740,6 +1741,50 @@ func TestMatchingSubExprs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestOperandReorderReporting checks that the field reported for the operand
+// that decided a disjunction is the field of that operand, and not of the one
+// that happens to be written in its place. Or tests the cheapest operand first,
+// so the two do not always coincide.
+func TestOperandReorderReporting(t *testing.T) {
+	state := NewState(&testModel{}, "", newOptsWithParams(testConstants, nil).MacroStore)
+
+	// a comparison carries no field and is expensive, a bare boolean field is
+	// cheap: the right operand is the one actually tested first
+	expensive := &BoolEvaluator{EvalFnc: func(*Context) bool { return false }, Weight: PatternWeight}
+	cheap := &BoolEvaluator{EvalFnc: func(*Context) bool { return true }, Field: "process.is_root", Offset: 30}
+	require.True(t, swapsOperands(expensive, cheap))
+
+	or, err := Or(expensive, cheap, state)
+	require.NoError(t, err)
+
+	ctx := NewContext(&testEvent{})
+	require.True(t, or.EvalFnc(ctx))
+
+	subExprs := ctx.GetMatchingSubExprs()
+	require.Len(t, subExprs, 1)
+	assert.Equal(t, 30, subExprs[0].Offset)
+	assert.Equal(t, "process.is_root", subExprs[0].ValueA.Field)
+	assert.Equal(t, true, subExprs[0].ValueA.Value)
+}
+
+// TestOperandEvaluatedOnce checks that an operand of a boolean operator is
+// evaluated once per evaluation. And used to run it a second time to report the
+// value of the sub-expression it matched on.
+func TestOperandEvaluatedOnce(t *testing.T) {
+	state := NewState(&testModel{}, "", newOptsWithParams(testConstants, nil).MacroStore)
+
+	var callsA, callsB int
+	a := &BoolEvaluator{EvalFnc: func(*Context) bool { callsA++; return true }, Field: "process.is_root"}
+	b := &BoolEvaluator{EvalFnc: func(*Context) bool { callsB++; return true }, Field: "process.is_thread"}
+
+	and, err := And(a, b, state)
+	require.NoError(t, err)
+
+	require.True(t, and.EvalFnc(NewContext(&testEvent{})))
+	assert.Equal(t, 1, callsA)
+	assert.Equal(t, 1, callsB)
 }
 
 func FuzzEval(f *testing.F) {

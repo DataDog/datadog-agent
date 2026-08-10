@@ -74,22 +74,28 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 			}
 		}
 
+		// the operand that decided the disjunction is the one whose field and
+		// offset are reported, so the metadata follows the operands when they are
+		// reordered
+		fieldA, offsetA := a.Field, a.Offset
+		fieldB, offsetB := b.Field, b.Offset
+
 		if swapsOperands(a, b) {
-			tmp := ea
-			ea = eb
-			eb = tmp
+			ea, eb = eb, ea
+			fieldA, fieldB = fieldB, fieldA
+			offsetA, offsetB = offsetB, offsetA
 		}
 
 		evalFnc := func(ctx *Context) bool {
 			if ea(ctx) {
-				if a.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: true, Offset: a.Offset}, MatchingValue{})
+				if fieldA != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{Field: fieldA, Value: true, Offset: offsetA}, MatchingValue{})
 				}
 				return true
 			}
 			if eb(ctx) {
-				if b.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: true, Offset: b.Offset})
+				if fieldB != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: fieldB, Value: true, Offset: offsetB})
 				}
 				return true
 			}
@@ -171,7 +177,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 		va, vb := ea, eb(ctx)
 		res := va || vb
 		if res && b.Field != "" {
-			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb, Offset: b.Offset})
+			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
 		}
 		return res
 	}
@@ -212,11 +218,16 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 		evalFnc := func(ctx *Context) bool {
 			res := ea(ctx) && eb(ctx)
 			if res {
+				// both operands returned true, otherwise the conjunction would
+				// not hold. Reporting that rather than calling them again
+				// matters: the operands are the leaves rule coverage
+				// instruments, and a second call reads as a second walk
+				// through the leaf.
 				if a.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: ea(ctx), Offset: a.Offset}, MatchingValue{})
+					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: true, Offset: a.Offset}, MatchingValue{})
 				}
 				if b.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb(ctx), Offset: b.Offset})
+					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: true, Offset: b.Offset})
 
 				}
 			}
@@ -262,7 +273,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 		evalFnc := func(ctx *Context) bool {
 			res := ea(ctx) && eb
 			if res && a.Field != "" {
-				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: ea(ctx), Offset: a.Offset}, MatchingValue{})
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: true, Offset: a.Offset}, MatchingValue{})
 			}
 			return res
 		}
@@ -296,7 +307,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, erro
 	evalFnc := func(ctx *Context) bool {
 		res := ea && eb(ctx)
 		if res && b.Field != "" {
-			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb(ctx), Offset: b.Offset})
+			ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: true, Offset: b.Offset})
 		}
 		return res
 	}

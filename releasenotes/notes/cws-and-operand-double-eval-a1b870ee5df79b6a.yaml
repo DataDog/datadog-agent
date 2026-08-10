@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    CWS: the ``&&`` operator no longer evaluates its operands a second time to
+    report the sub-expression a rule matched on. A bare boolean field used as an
+    operand was evaluated twice on every match.
+  - |
+    CWS: the sub-expression a rule matched on is now reported against the operand
+    that decided a ``||``, rather than against the operand written in its place.
+    The two differ when the operands are reordered to test the cheapest one
+    first.
