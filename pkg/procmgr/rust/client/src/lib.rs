@@ -45,12 +45,17 @@ const DEFAULT_IPC_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 const DUMMY_ENDPOINT: &str = "http://[::]:50051";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Return the platform's default dd-procmgrd endpoint.
+pub fn default_ipc_path() -> PathBuf {
+    PathBuf::from(DEFAULT_IPC_PATH)
+}
+
 /// Resolve the daemon endpoint from `DD_PM_SOCKET_PATH`, falling back to the
 /// platform default.
 pub fn ipc_path() -> PathBuf {
     std::env::var("DD_PM_SOCKET_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(DEFAULT_IPC_PATH))
+        .unwrap_or_else(|_| default_ipc_path())
 }
 
 /// Open the platform-local stream used by dd-procmgrd.
