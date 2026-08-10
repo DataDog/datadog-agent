@@ -9,6 +9,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
+from typing import TypedDict
 
 from invoke import task
 
@@ -100,27 +101,28 @@ def _label_to_import_path(label: str) -> str:
     return _IMPORT_PREFIX if not pkg_part else f"{_IMPORT_PREFIX}/{pkg_part}"
 
 
-def _test_xml_candidates(
+def _test_output_candidates(
     label: str,
     uri: str,
     cfg_id: str,
     local_exec_root: str | None,
     config_testlogs: dict[str, Path],
+    output_name: str,
 ) -> list[Path]:
-    """Candidate paths for test.xml, in priority order.
+    """Candidate paths for a Bazel test output, in priority order.
 
     BEP URIs are file:// for local actions and bytestream:// for remote-cache
-    hits; for the latter Bazel still materializes test.xml on disk at
-    <localExecRoot>/<testlogs-dir>/<label>/test.xml.
+    hits; for the latter Bazel often still materializes outputs on disk at
+    <localExecRoot>/<testlogs-dir>/<label>/<output_name>.
     """
     paths: list[Path] = []
     if uri.startswith("file://"):
         paths.append(Path(uri.removeprefix("file://")))
     testlogs_dir = config_testlogs.get(cfg_id)
     if local_exec_root and testlogs_dir:
-        # Label "//pkg/foo:bar_test" -> "pkg/foo/bar_test/test.xml".
+        # Label "//pkg/foo:bar_test" -> "pkg/foo/bar_test/<output_name>".
         label_rel = label.lstrip("/").replace(":", "/")
-        paths.append(Path(local_exec_root) / testlogs_dir / label_rel / "test.xml")
+        paths.append(Path(local_exec_root) / testlogs_dir / label_rel / output_name)
     return paths
 
 
@@ -216,7 +218,9 @@ def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
         if label not in test_action:
             continue
         uri, cfg_id = test_action[label]
-        funcs = _test_xml_funcs(_test_xml_candidates(label, uri, cfg_id, ctx.local_exec_root, ctx.config_testlogs))
+        funcs = _test_xml_funcs(
+            _test_output_candidates(label, uri, cfg_id, ctx.local_exec_root, ctx.config_testlogs, "test.xml")
+        )
         covered.setdefault(_label_to_import_path(label), set()).update(funcs)
 
     return covered
@@ -313,16 +317,37 @@ def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False)
         sys.exit(1)
 
 
-def _parse_bep(bep_path: Path) -> tuple[list[Path], dict[str, bool]]:
+class BepTestArtifacts(TypedDict):
+    cached: bool
+    xml_paths: list[Path]
+    log_paths: list[Path]
+
+
+def _resolve_test_output_path(
+    label: str,
+    uri: str,
+    cfg_id: str,
+    ctx: _BepContext,
+    output_name: str,
+) -> Path:
+    candidates = _test_output_candidates(label, uri, cfg_id, ctx.local_exec_root, ctx.config_testlogs, output_name)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise RuntimeError(
+        f"Could not resolve {output_name} for {label}. "
+        f"uri={uri!r}, cfg_id={cfg_id!r}, candidates={[str(p) for p in candidates]}"
+    )
+
+
+def _parse_bep(bep_path: Path) -> dict[str, BepTestArtifacts]:
     """Parse a BEP JSON file in one pass.
 
-    Returns (xml_paths, cache_status) where xml_paths are the test.xml files
-    produced by this specific invocation, and cache_status maps import_path →
-    was_cached.
+    Returns a mapping keyed by Go import path. Each value contains the cache
+    status and the test.xml/test.log files produced by this invocation.
     """
     ctx = _BepContext()
-    test_action: dict[str, list[tuple[str, str]]] = {}
-    cache_status: dict[str, bool] = {}
+    test_actions: list[tuple[str, str, str, str, bool]] = []
 
     with bep_path.open() as f:
         for line in f:
@@ -339,24 +364,29 @@ def _parse_bep(bep_path: Path) -> tuple[list[Path], dict[str, bool]]:
             match eid:
                 case {"testResult": {"label": label}} if label:
                     tr = event.get("testResult", {})
-                    import_path = _label_to_import_path(label)
-                    cache_status[import_path] = bool(
-                        tr.get("cachedLocally") or tr.get("executionInfo", {}).get("cachedRemotely")
-                    )
                     cfg_id = eid["testResult"].get("configuration", {}).get("id", "")
-                    for output in tr.get("testActionOutput", []):
-                        if output.get("name") == "test.xml":
-                            test_action.setdefault(label, []).append((output.get("uri", ""), cfg_id))
-                            break
+                    output_uris = {
+                        output.get("name"): output.get("uri", "")
+                        for output in tr.get("testActionOutput", [])
+                        if output.get("name")
+                    }
+                    missing_outputs = [name for name in ("test.xml", "test.log") if name not in output_uris]
+                    if missing_outputs:
+                        raise RuntimeError(
+                            f"BEP testResult for {label} did not include {missing_outputs}; "
+                            f"available outputs: {sorted(output_uris)}"
+                        )
+                    cached = bool(tr.get("cachedLocally") or tr.get("executionInfo", {}).get("cachedRemotely"))
+                    test_actions.append((label, cfg_id, output_uris["test.xml"], output_uris["test.log"], cached))
 
-    xml_paths: list[Path] = []
-    for label, actions in test_action.items():
-        for uri, cfg_id in actions:
-            for candidate in _test_xml_candidates(label, uri, cfg_id, ctx.local_exec_root, ctx.config_testlogs):
-                if candidate.is_file():
-                    xml_paths.append(candidate)
-                    break
-    return xml_paths, cache_status
+    results: dict[str, BepTestArtifacts] = {}
+    for label, cfg_id, xml_uri, log_uri, cached in test_actions:
+        import_path = _label_to_import_path(label)
+        artifacts = results.setdefault(import_path, {"cached": cached, "xml_paths": [], "log_paths": []})
+        artifacts["cached"] = cached
+        artifacts["xml_paths"].append(_resolve_test_output_path(label, xml_uri, cfg_id, ctx, "test.xml"))
+        artifacts["log_paths"].append(_resolve_test_output_path(label, log_uri, cfg_id, ctx, "test.log"))
+    return results
 
 
 def _is_gotestsum_shaped(suite: ET.Element) -> bool:
@@ -413,11 +443,12 @@ def collect_junit(ctx, output_tgz, bep_file):
     """
     from tasks.libs.common.junit_upload_core import produce_junit_tar
 
-    # BEP is the authoritative source: it lists exactly the test.xml files
+    # BEP is the authoritative source: it lists exactly the test.xml and test.out files
     # produced by this invocation, avoiding stale results from previous runs
     # with a different Bazel configuration.
-    xml_paths, cache_status = _parse_bep(Path(bep_file))
-    xml_files = [p for p in xml_paths if p.is_file()]
+    test_artifacts = _parse_bep(Path(bep_file))
+    xml_files = [p for artifacts in test_artifacts.values() for p in artifacts["xml_paths"]]
+    cache_status = {import_path: artifacts["cached"] for import_path, artifacts in test_artifacts.items()}
     if not xml_files:
         print("error: no test.xml files found in BEP output", file=sys.stderr)
         sys.exit(1)
