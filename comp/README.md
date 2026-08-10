@@ -404,6 +404,13 @@ for executing Kubernetes and Helm actions on behalf of the cluster agent.
 
 Package helmactions provides a component for executing Helm actions.
 
+### [comp/kubeactions/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions)
+
+Package kubeactions provides a component for executing Kubernetes actions
+(delete pod, restart/patch/rollback deployment, get resource) on behalf of
+the cluster agent, and for reporting their progress and results to the
+backend via the Event Platform.
+
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-log-pipelines

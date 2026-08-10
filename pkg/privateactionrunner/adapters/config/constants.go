@@ -45,6 +45,20 @@ var defaultCommonActionFQNs = []string{
 	"com.datadoghq.remoteaction.rshell.runCommand",
 }
 
+// KubeActionsActionFQNs is the full set of actions in the kubeactions bundle.
+// They are auto-added to the allowlist when the kubeactions subsystem is enabled
+// (kubeactions.enabled / DD_KUBEACTIONS_ENABLED) so operators do not have to set
+// private_action_runner.actions_allowlist manually.
+var KubeActionsActionFQNs = []string{
+	"com.datadoghq.kubernetes.kubeactions.deletePod",
+	"com.datadoghq.kubernetes.kubeactions.restartDeployment",
+	"com.datadoghq.kubernetes.kubeactions.patchDeployment",
+	"com.datadoghq.kubernetes.kubeactions.patchDaemonset",
+	"com.datadoghq.kubernetes.kubeactions.patchStatefulset",
+	"com.datadoghq.kubernetes.kubeactions.rollbackDeployment",
+	"com.datadoghq.kubernetes.kubeactions.getResource",
+}
+
 // DefaultClusterAgentActionFQNs is a list of action FQNs that are enabled by default
 // when the agent runs as a Cluster Agent flavor.
 // Users can opt out by setting private_action_runner.default_actions_enabled to false.

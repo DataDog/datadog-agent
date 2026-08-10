@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    KSM core check: Fixed a bug where the ``kubernetes_state.configmap.count`` metric could
+    stop being reported. ConfigMaps are collected using a metadata-only Kubernetes client, and
+    the conversion of watch events into ConfigMap objects was dropping annotations, including
+    the ``k8s.io/initial-events-end`` bookmark annotation used by newer versions of client-go's
+    watch-list feature to signal that the initial list has finished syncing. Without that
+    signal, the underlying reflector would wait indefinitely and the metric would never be
+    reported.

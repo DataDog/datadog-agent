@@ -37,13 +37,23 @@ func defaultIgnoreCase() bool {
 }
 
 func baseDeviceName(device string) string {
-	return strings.ToLower(strings.Trim(device, "\\"))
+	return normalizeWindowsDeviceName(device)
 }
 
 // normalizeDeviceTag returns the device name for use in the device: tag.
-// On Windows, strips backslashes and lowercases (legacy behavior for C:\\ -> c:).
 func normalizeDeviceTag(deviceName string) string {
-	return strings.ToLower(strings.Trim(deviceName, "\\"))
+	return normalizeWindowsDeviceName(deviceName)
+}
+
+// normalizeWindowsDeviceName strips the surrounding backslashes of a Windows
+// device name (C:\ -> c:), turns the remaining ones into forward slashes
+// (F:\Tlog -> f:/tlog), and lowercases the result.
+//
+// Backslashes must never reach the backend: metric intake normalizes the
+// device resource with \ -> / but tag values with \ -> _, so a raw backslash
+// records the same volume under two device values.
+func normalizeWindowsDeviceName(deviceName string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.Trim(deviceName, `\`), `\`, "/"))
 }
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {

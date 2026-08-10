@@ -9,6 +9,8 @@
 package fx
 
 import (
+	"context"
+
 	uberfx "go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -24,14 +26,19 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		// default; callers can override with their own fx.Supply higher up
 		uberfx.Supply(helmactions.Params{}),
-		// apiserver.GetAPIClient talks to the k8s API and fails outside a cluster;
-		// only attempt it when the private action runner is actually enabled, so a
-		// disabled PAR (or a unit test) never depends on apiserver reachability.
+		// This provider is shared by every component in the kubeactions bundle
+		// (helmactions and kubeactions), so it must not fail fast: it is resolved
+		// eagerly at cluster-agent startup, and apiserver.GetAPIClient returns an
+		// error on transient init failures, which would abort fx and crash the DCA.
+		// WaitForAPIClient retries with backoff (matching the DCA start path) and
+		// only errors on permanent failure. It is skipped entirely when the private
+		// action runner is disabled, so a disabled PAR (or a unit test) never blocks
+		// on apiserver reachability.
 		uberfx.Provide(func(cfg config.Component) (*apiserver.APIClient, error) {
 			if !cfg.GetBool(privateactionrunner.PAREnabled) {
 				return nil, nil
 			}
-			return apiserver.GetAPIClient()
+			return apiserver.WaitForAPIClient(context.Background())
 		}),
 
 		fxutil.ProvideComponentConstructor(

@@ -24,8 +24,9 @@ type LifecycleEvent struct {
 type Handler interface {
 	// String returns a human-readable name for the handler.
 	String() string
-	// CanHandle reports whether this handler processes the given event.
-	CanHandle(workloadmeta.Event) bool
+	// CanHandle reports whether this handler processes the given event, which
+	// arrived over the subscription for the given source.
+	CanHandle(ev workloadmeta.Event, source workloadmeta.Source) bool
 	// Handle builds zero or more LifecycleEvents for the given event.
 	Handle(workloadmeta.Event) ([]LifecycleEvent, error)
 }
