@@ -121,6 +121,9 @@
 
   # E2E framework
   - test/e2e-framework/components/activedirectory/**/*
+  - test/e2e-framework/components/os/scripts/setup-ssh.ps1
+  - test/e2e-framework/components/os/windows*
+  - test/e2e-framework/scenarios/aws/ec2/os_win.go
 
 # Process manager
 .windows_path_4: &windows_path_4
