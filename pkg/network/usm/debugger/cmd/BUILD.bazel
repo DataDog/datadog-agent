@@ -18,14 +18,6 @@ genrule(
     cmd = "cp $< $@",
 )
 
-# Both source files carry `//go:build usm_debugger`, invisible to gazelle's
-# default tag set (this is a manual debugging binary, not part of the
-# regular build). gotags selects it here without touching the source.
-# linux_bpf is also required: usm.NewMonitor (and the rest of pkg/network/usm's
-# Linux implementation) is gated on `//go:build linux_bpf`, matching the
-# `inv system-probe.build-usm-debugger` task's build_tags. Neither tag is in
-# GAZELLE_BUILD_TAGS, so gazelle sees no buildable sources here and would
-# delete this whole rule as orphaned without the keep below.
 go_binary(
     name = "usm_debugger",
     srcs = [
@@ -38,10 +30,9 @@ go_binary(
     ],
     gotags = [
         "linux_bpf",
-        "usm_debugger",
     ],
     target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
     deps = [
         "//pkg/config/setup",
         "//pkg/network/config",
@@ -50,4 +41,4 @@ go_binary(
         "//pkg/util/log",
         "//pkg/util/log/setup",
     ],
-)  # keep
+)
