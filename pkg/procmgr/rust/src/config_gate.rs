@@ -192,17 +192,25 @@ fn agent_datadog_yaml(config_path: &str) -> String {
         .unwrap_or_else(|| config_path.to_owned())
 }
 
+fn resolve_fleet_policies_dir(raw: &str, agent_yaml: &str) -> Option<String> {
+    let resolved = secrets::resolve_config_string(raw, agent_yaml);
+    if secrets::is_enc(&resolved) || resolved.trim().is_empty() {
+        return None;
+    }
+    Some(resolved)
+}
+
 pub(super) struct YamlCache(HashMap<String, serde_yaml::Value>);
 
 impl YamlCache {
     /// Mirrors `pkg/config/setup/config_windows.go` `FleetConfigOverride`: env → datadog.yaml → registry/default.
     fn fleet_policies_dir(&mut self, config_path: &str) -> anyhow::Result<Option<String>> {
-        if let Some(dir) = env_bindings::env_var_value_for_name("DD_FLEET_POLICIES_DIR") {
-            return Ok(Some(dir));
-        }
         let agent = agent_datadog_yaml(config_path);
+        if let Some(dir) = env_bindings::env_var_value_for_name("DD_FLEET_POLICIES_DIR") {
+            return Ok(resolve_fleet_policies_dir(&dir, &agent));
+        }
         if let Some(dir) = self.fleet_policies_dir_in_yaml(&agent)? {
-            return Ok(Some(dir));
+            return Ok(resolve_fleet_policies_dir(&dir, &agent));
         }
         #[cfg(windows)]
         {
@@ -1181,6 +1189,62 @@ process_config:
                     "fleet_policies_dir: {fleet_dir_str}\nprocess_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
                 ),
             );
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policies_dir_resolves_secret_backed_env_path() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n",
+            );
+            let fleet_dir_json =
+                serde_json::to_string(fleet_dir.to_string_lossy().as_ref()).unwrap();
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    format!(
+                        "#!/bin/sh\nprintf '{{\"fleet_policies_dir\":{{\"value\":{fleet_dir_json}}}}}'\n"
+                    ),
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    format!(
+                        "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{{\\\"fleet_policies_dir\\\":{{\\\"value\\\":{fleet_dir_json}}}}}'\"\r\n"
+                    ),
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\nprocess_config:\n  enabled: false\n  process_collection:\n    enabled: false\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+                    script.to_string_lossy()
+                ),
+            );
+            let _fleet = EnvGuard::set("DD_FLEET_POLICIES_DIR", "ENC[fleet_policies_dir]");
+
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
