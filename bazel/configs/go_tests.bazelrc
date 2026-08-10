@@ -4,7 +4,7 @@
 # repeat this exclusion.
 test --test_tag_filters=-tagset_linux_bpf
 # To produce verbose test.xml files
-test --test_arg=-test.v
+test --test_env=GO_TEST_WRAP_TESTV=1
 
 # Go race detector for test invocations. Usage: bazel test --config=gorace //...
 test:gorace --@rules_go//go/config:race
