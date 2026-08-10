@@ -6,10 +6,13 @@
 package sources
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 type LogSourceSuite struct {
@@ -37,4 +40,43 @@ func (s *LogSourceSuite) TestDump() {
 
 func TestTrackerSuite(t *testing.T) {
 	suite.Run(t, new(LogSourceSuite))
+}
+
+// TestConcurrentTailingModeAndStatusAccess guards against a regression of a data race where
+// the file launcher mutates a LogSource's Config.TailingMode and Status pointer from a
+// background goroutine while the status builder reads them concurrently to render `agent
+// status`. Both accesses must go through LogSource's lock. Run with `-race` to verify.
+func TestConcurrentTailingModeAndStatusAccess(t *testing.T) {
+	t.Parallel()
+	source := NewLogSource("test", &config.LogsConfig{TailingMode: "end"})
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	// writer: mimics (*Launcher).launchTailers/addSource mutating the source concurrently.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if i%2 == 0 {
+				source.SetTailingMode("beginning")
+			} else {
+				source.SetTailingMode("end")
+			}
+			source.SetStatus(NewLogSource("test", nil).Status())
+		}
+	}()
+
+	// reader: mimics (*Builder).toDictionary/getIntegrations reading the source concurrently.
+	for i := 0; i < 1000; i++ {
+		_ = source.GetTailingMode()
+		_ = source.Status()
+	}
+	close(stop)
+	wg.Wait()
 }
