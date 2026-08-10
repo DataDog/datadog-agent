@@ -77,11 +77,13 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
 				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
+				"com.datadoghq.mongodb":         sets.New[string]("action6"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":                sets.New[string]("testConnection", "enrichScript"),
 				"com.datadoghq.gitlab.users":          sets.New[string]("testConnection"),
 				"com.datadoghq.kubernetes.core":       sets.New[string]("testConnection"),
+				"com.datadoghq.mongodb":               sets.New[string]("testConnection"),
 				"com.datadoghq.remoteaction":          sets.New[string]("testConnection"),
 				"com.datadoghq.remoteaction.internal": sets.New[string]("prepareEncryption"),
 			},

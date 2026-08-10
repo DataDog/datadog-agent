@@ -71,6 +71,7 @@ dd_agent_go_test(
         "agent_test.go",
         "auth_test.go",
         "checks_test.go",
+        "gui_test.go",
         "platform_darwin_test.go",
         "platform_nix_test.go",
         "platform_windows_test.go",

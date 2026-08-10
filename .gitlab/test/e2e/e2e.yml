@@ -297,7 +297,6 @@ new-e2e-containers-k8s-rc-latest:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
   rules:
-    - when: never # disabled — RC not newer than latest stable
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
@@ -305,7 +304,7 @@ new-e2e-containers-k8s-rc-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.0-rc.1@sha256:d7fcd0fa9939dd3d1f6691bd9ad9144aecc08e43b8888820a9a75017594644d6"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.0-rc.0@sha256:a11b5b8063555e8ef8a5e1100459cad9e100543f61e37cb7fd722ec576c9be89"
 
 new-e2e-containers-eks-init:
   stage: e2e_init

@@ -41,7 +41,7 @@ func (v *baseMultiProcessingLibSuite) getSuiteOptions(osInstance osVM.Descriptor
 					agentparams.WithIntegration("multi_pid_check.d", multiPidCheckYaml),
 					agentparams.WithFile(v.checksdPath, multiPidCheckPy, true),
 				),
-				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance), ec2.WithInternetAccess()),
 			),
 		),
 	))

@@ -120,16 +120,23 @@ type ComponentInfo struct {
 type testbenchView interface {
 	observerimpl.DebugView
 	DebugSubscribeBaselineCompleted(func(endSec int64, mutedGroups []string))
+	DebugBaselineStatus() observerimpl.BaselineDebugStatus
 }
 
 // BaselineInfo is the baseline analysis window state exposed to the testbench UI.
 type BaselineInfo struct {
-	Enabled          bool     `json:"enabled"`
-	DurationSec      int64    `json:"durationSec"`
-	MuteNoisyMetrics bool     `json:"muteNoisyMetrics"`
-	Active           bool     `json:"active"`
-	WindowEndSec     int64    `json:"windowEndSec,omitempty"`
-	MutedSeries      []string `json:"mutedSeries,omitempty"`
+	Enabled            bool                                       `json:"enabled"`
+	DurationSec        int64                                      `json:"durationSec"`
+	MuteNoisyMetrics   bool                                       `json:"muteNoisyMetrics"`
+	Started            bool                                       `json:"started"`
+	StartSec           int64                                      `json:"startSec"`
+	AnalyzedThroughSec int64                                      `json:"analyzedThroughSec,omitempty"`
+	AllComplete        bool                                       `json:"allComplete"`
+	MutedCount         int                                        `json:"mutedCount"`
+	Active             bool                                       `json:"active"`
+	WindowEndSec       int64                                      `json:"windowEndSec,omitempty"`
+	MutedSeries        []string                                   `json:"mutedSeries,omitempty"`
+	Detectors          []observerimpl.BaselineDetectorDebugStatus `json:"detectors,omitempty"`
 }
 
 // StatusResponse is the response for /api/status.
@@ -737,18 +744,30 @@ func (tb *Bench) GetStatus() StatusResponse {
 
 	var baselineInfo *BaselineInfo
 	if tb.settings.Baseline.Enabled {
+		status := observerimpl.BaselineDebugStatus{}
+		if debugBaseline, ok := tb.obs.(interface {
+			DebugBaselineStatus() observerimpl.BaselineDebugStatus
+		}); ok {
+			status = debugBaseline.DebugBaselineStatus()
+		}
 		tb.baselineMu.Lock()
 		frozen := tb.baselineFrozen
 		windowEndSec := tb.baselineWindowEndSec
 		mutedSeries := tb.baselineMutedSeries
 		tb.baselineMu.Unlock()
 		baselineInfo = &BaselineInfo{
-			Enabled:          true,
-			DurationSec:      tb.settings.Baseline.DurationSec,
-			MuteNoisyMetrics: tb.settings.Baseline.MuteNoisyMetrics,
-			Active:           !frozen,
-			WindowEndSec:     windowEndSec,
-			MutedSeries:      mutedSeries,
+			Enabled:            true,
+			DurationSec:        tb.settings.Baseline.DurationSec,
+			MuteNoisyMetrics:   tb.settings.Baseline.MuteNoisyMetrics,
+			Started:            status.Started,
+			StartSec:           status.StartSec,
+			AnalyzedThroughSec: status.AnalyzedThroughSec,
+			AllComplete:        status.AllComplete,
+			MutedCount:         status.MutedCount,
+			Active:             status.Started && !status.AllComplete && !frozen,
+			WindowEndSec:       windowEndSec,
+			MutedSeries:        mutedSeries,
+			Detectors:          status.Detectors,
 		}
 	}
 

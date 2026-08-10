@@ -56,6 +56,7 @@ func DefaultCUSUMConfig() CUSUMConfig {
 // An anomaly is emitted when either S_high[t] or S_low[t] first exceeds threshold h.
 type CUSUMDetector struct {
 	config CUSUMConfig
+	ready  bool
 }
 
 // NewCUSUMDetector creates a CUSUMDetector with the given config.
@@ -81,6 +82,11 @@ func NewCUSUMDetector(config CUSUMConfig) *CUSUMDetector {
 func (c *CUSUMDetector) Name() string {
 	return "cusum"
 }
+
+func (c *CUSUMDetector) Ready() bool { return c.ready }
+
+// Reset clears the readiness signal for replay/reanalysis.
+func (c *CUSUMDetector) Reset() { c.ready = false }
 
 // Detect runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
@@ -117,6 +123,7 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult 
 			return observer.DetectionResult{}
 		}
 	}
+	c.ready = true
 
 	// CUSUM parameters
 	k := cfg.SlackFactor * baselineStddev     // slack: ignore small deviations

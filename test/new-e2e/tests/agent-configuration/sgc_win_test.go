@@ -28,7 +28,7 @@ type sgcWindowsRuntimeSuite struct {
 func TestSGCWindowsRuntimeSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &sgcWindowsRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))),
+		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())),
 	)))
 }
 
@@ -46,7 +46,7 @@ secret_backend_config:
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithFileWithPermissions("C:/TestFolder/secrets.yaml", embeddedSecretFileYAML, true, windowsPermission),
 					agentparams.WithAgentConfig(config),

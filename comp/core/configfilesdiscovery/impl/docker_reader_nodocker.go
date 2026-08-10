@@ -7,8 +7,12 @@
 
 package configfilesdiscoveryimpl
 
-import "errors"
+import (
+	"errors"
 
-func newDockerConfigReader(target) (ConfigReader, error) {
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+)
+
+func newDockerConfigReader(target, workloadmeta.Component) (ConfigReader, error) {
 	return nil, errors.New("no config reader for runtime")
 }

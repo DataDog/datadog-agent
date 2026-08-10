@@ -66,8 +66,6 @@ dd_agent_go_test(
     ],
     embed = [":events"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/network/config",

@@ -228,6 +228,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Host = sample.Host
 							serie.MType = mtype
 							serie.Interval = bucketSize
+							serie.Source = sample.Source
 							if w.lookback != nil {
 								w.lookback.AppendDogStatsDNoAggSerie(&serie)
 							}

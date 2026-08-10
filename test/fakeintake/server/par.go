@@ -134,10 +134,38 @@ func parRemoteActionFromInputs(inputs map[string]interface{}) (*privateactionspb
 			delete(actionInputs, "allowedPaths")
 		}
 	}
+	if v, ok := inputs["systemServices"]; ok {
+		if services, ok := parSystemServices(v); ok {
+			remoteAction.SystemServices = services
+			hasRemoteAction = true
+			delete(actionInputs, "systemServices")
+		}
+	}
 	if !hasRemoteAction {
 		return nil, actionInputs
 	}
 	return remoteAction, actionInputs
+}
+
+func parSystemServices(value interface{}) (map[string]*structpb.ListValue, bool) {
+	values, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	policy, err := structpb.NewStruct(values)
+	if err != nil {
+		return nil, false
+	}
+
+	services := make(map[string]*structpb.ListValue, len(policy.Fields))
+	for service, value := range policy.Fields {
+		actions := value.GetListValue()
+		if actions == nil {
+			return nil, false
+		}
+		services[service] = actions
+	}
+	return services, true
 }
 
 func parStringSlice(value interface{}) ([]string, bool) {

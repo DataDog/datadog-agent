@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // mockRCClient implements rcclient.Component for tests.
@@ -77,6 +78,30 @@ func buildPayloadJSON(t *testing.T, configID, host string, queries []QuerySpec) 
 }
 
 var singleQuery = []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}}
+
+func TestHasSupportedIntegration(t *testing.T) {
+	tests := []struct {
+		name            string
+		integrationName string
+		want            bool
+	}{
+		{name: "PostgreSQL", integrationName: "postgres", want: true},
+		{name: "SAP HANA", integrationName: "sap_hana", want: true},
+		{name: "SQL Server", integrationName: "sqlserver", want: true},
+		{name: "unsupported integration", integrationName: "mysql", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := integration.Config{
+				Name:      test.integrationName,
+				Instances: []integration.Data{integration.Data("data_observability:\n  enabled: true\n")},
+			}
+			c, _ := newStreamComponent(t, []integration.Config{cfg})
+			assert.Equal(t, test.want, c.hasSupportedIntegration())
+		})
+	}
+}
 
 // --- Stream() lifecycle tests ---
 
@@ -177,20 +202,32 @@ func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 	}
 }
 
-// TestStream_ChannelReplace_PreservesUnschedule verifies that when a new RC update
-// arrives while the previous update is still buffered in outCh (unread by autodiscovery),
-// the dropped update's Unschedule entries are merged into the new update.
+// TestStream_ChannelReplace_PreservesUnschedule covers this capacity-one channel sequence:
 //
-// Only Unschedule entries are preserved from the dropped update — dropped Schedule entries
-// are discarded because the latest RC snapshot is authoritative. This prevents stale
-// Schedule entries from resurrecting configs that the new snapshot intentionally removed.
+//	update 1 (consumed by autodiscovery)
+//	  Schedule:   cfg-A(db-a + query), remainder-b(db-b without queries)
+//	  Active now: cfg-A, remainder-b
+//
+//	update 2 (left buffered in outCh)
+//	  Unschedule: cfg-A, remainder-b
+//	  Schedule:   original base config
+//
+//	update 3 arrives while update 2 occupies outCh
+//	  Unschedule: original base config
+//	  Schedule:   remainder-a(db-a without queries), cfg-B(db-b + query)
+//
+// sendChanges removes update 2 from the full channel. It prepends update 2's Unschedules to
+// update 3 so autodiscovery still removes cfg-A and remainder-b, which it activated from
+// update 1. It discards update 2's Schedule because restoring the original base config is
+// stale once update 3 applies cfg-B.
 func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
-	// Two separate postgres instances so each RC config can match a distinct one.
+	// Use two instances because applying one query action splits the base config into two
+	// scheduled configs: the matched instance with its query and the unmatched remainder.
 	postgresCfg := integration.Config{
 		Name: "postgres",
 		Instances: []integration.Data{
-			integration.Data("host: localhost\ndbname: db-a\ndata_observability:\n  enabled: true\n"),
-			integration.Data("host: localhost\ndbname: db-b\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: db-a.internal\ndbname: db-a\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: db-b.internal\ndbname: db-b\ndata_observability:\n  enabled: true\n"),
 		},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
@@ -203,30 +240,70 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	triggerRC := waitSubscribe(t, rc)
 	noStatus := func(string, state.ApplyStatus) {}
 
-	// Update 1: schedule cfg-A. Drain it to simulate autodiscovery processing it —
-	// cfg-A is now "in autodiscovery".
-	payload1 := buildPayloadJSON(t, "cfg-A", "localhost", singleQuery)
+	// Update 1 targets db-a. Consume the update to simulate autodiscovery applying both
+	// scheduled configs. Their digests are their identities in Unschedule: saving them here
+	// lets the final assertion prove that sendChanges carried forward the exact two removals
+	// from buffered update 2, rather than merely returning two Unschedule entries.
+	payload1 := buildPayloadJSON(t, "cfg-A", "db-a.internal", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: payload1}}, noStatus)
 	update1 := <-outCh
-	require.Len(t, update1.Schedule, 1, "update 1 should schedule cfg-A")
+	require.Len(t, update1.Schedule, 2, "update 1 should schedule cfg-A and the db-b remainder")
+	update1ScheduleDigests := make([]string, 0, len(update1.Schedule))
+	for _, cfg := range update1.Schedule {
+		update1ScheduleDigests = append(update1ScheduleDigests, cfg.Digest())
+	}
 
-	// Update 2: remove cfg-A (empty queries = disable). Channel is now empty — writes directly.
-	// Disabling produces: Unschedule=[cfg-A DO config], Schedule=[base config restoration].
+	// Update 2 removes cfg-A. It therefore unschedules both configs applied in update 1 and
+	// schedules the original two-instance base config as their replacement. Leave this update
+	// unread so it occupies the channel when update 3 arrives.
 	removeA, _ := json.Marshal(DOQueryPayload{ConfigID: "cfg-A"})
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: removeA}}, noStatus)
-	// DON'T read outCh — leave update 2 buffered.
+	// Do not read outCh: update 2 must remain buffered for this regression scenario.
 
-	// Update 3: schedule cfg-B. Channel is FULL with update 2.
-	// sendChanges must drain the full channel and merge update 2's Unschedule into update 3.
-	// Only Unschedule from the dropped update is preserved; dropped Schedule (base config
-	// restoration) is discarded since the new snapshot is authoritative.
-	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", singleQuery)
+	// Update 3 targets db-b while update 2 is buffered. The latest snapshot schedules cfg-B
+	// for db-b plus the db-a remainder, and unschedules the original base config. sendChanges
+	// must also carry forward update 2's two Unschedules, but must discard update 2's now-stale
+	// base restoration.
+	payload3 := buildPayloadJSON(t, "cfg-B", "db-b.internal", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-B": {Config: payload3}}, noStatus)
 
 	select {
 	case changes := <-outCh:
-		require.Len(t, changes.Schedule, 1, "should contain only cfg-B schedule (dropped base restoration is discarded)")
-		require.Len(t, changes.Unschedule, 2, "should contain cfg-A Unschedule from dropped + cfg-B's base config Unschedule")
+		require.Len(t, changes.Schedule, 2, "should contain cfg-B and its remainder (dropped base restoration is discarded)")
+
+		// Assert the identities and roles of the two latest configs, not only their count. This
+		// catches the regression where update 2's stale base restoration survives replacement.
+		scheduledHosts := make(map[string]bool, len(changes.Schedule))
+		for _, cfg := range changes.Schedule {
+			assert.NotEqual(t, postgresCfg.Digest(), cfg.Digest(), "dropped base restoration must not be scheduled")
+			require.Len(t, cfg.Instances, 1)
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(cfg.Instances[0], &instance))
+			host, _ := instance["host"].(string)
+			scheduledHosts[host] = true
+			doConfig, _ := instance["data_observability"].(map[string]any)
+			_, hasQueries := doConfig["queries"]
+			switch host {
+			case "db-a.internal":
+				assert.False(t, hasQueries, "db-a should be the plain remainder instance")
+			case "db-b.internal":
+				assert.True(t, hasQueries, "db-b should be the latest DO check")
+			default:
+				t.Errorf("unexpected scheduled host %q", host)
+			}
+		}
+		assert.Equal(t, map[string]bool{"db-a.internal": true, "db-b.internal": true}, scheduledHosts)
+
+		// The final update must remove exactly three configs: cfg-A and remainder-b (identified
+		// by the update-1 digests), carried forward from dropped update 2, plus the original base
+		// removed by update 3. Without the first two exact digests, autodiscovery would keep one
+		// or both update-1 configs active alongside cfg-B.
+		expectedUnscheduleDigests := append(append([]string(nil), update1ScheduleDigests...), postgresCfg.Digest())
+		actualUnscheduleDigests := make([]string, 0, len(changes.Unschedule))
+		for _, cfg := range changes.Unschedule {
+			actualUnscheduleDigests = append(actualUnscheduleDigests, cfg.Digest())
+		}
+		assert.ElementsMatch(t, expectedUnscheduleDigests, actualUnscheduleDigests)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for merged ConfigChanges")
 	}

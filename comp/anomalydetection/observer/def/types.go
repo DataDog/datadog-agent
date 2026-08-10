@@ -286,6 +286,9 @@ type DetectionResult struct {
 type SeriesDetector interface {
 	// Name returns the analysis name for debugging.
 	Name() string
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
 	// Detect examines a series and returns any detected anomalies.
 	Detect(series Series) DetectionResult
 }
@@ -574,6 +577,10 @@ type StorageReader interface {
 // This supports multivariate detection across multiple series.
 type Detector interface {
 	Name() string
+
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
 
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.

@@ -10,6 +10,9 @@ go_library(
         "evp_reporter.go",
         "kubernetes_reader.go",
         "kubernetes_reader_noop.go",
+        "process_commandline.go",
+        "process_retry.go",
+        "process_retry_noop.go",
         "reader_helpers.go",
         "scheduler.go",
         "types.go",
@@ -59,6 +62,7 @@ dd_agent_go_test(
         "configfilesdiscovery_test.go",
         "docker_reader_test.go",
         "kubernetes_reader_test.go",
+        "process_commandline_test.go",
     ],
     embed = [":impl"],
     gotags_sets = [
@@ -110,7 +114,5 @@ go_test(
         "@com_github_opencontainers_runtime_spec//specs-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_google_protobuf//proto",
-        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )

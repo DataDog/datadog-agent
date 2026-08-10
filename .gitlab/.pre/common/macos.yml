@@ -61,6 +61,11 @@
       mkdir -p "$DDA_DIR"
       sudo mv dda $DDA_DIR
       rm -f dda.tar.gz
+      # Explicitly bootstrap dda's managed environment. The stable mirror
+      # (UV_DEFAULT_INDEX) lags new dda releases by a publish waiting period, so
+      # let this install also resolve dda from the testing index already present
+      # in UV_INDEX. Scoped to the bootstrap only.
+      UV_INDEX_STRATEGY=unsafe-best-match dda self restore
       dda self dep sync -f legacy-tasks
       dda self pip install awscli==1.29.45
     fi

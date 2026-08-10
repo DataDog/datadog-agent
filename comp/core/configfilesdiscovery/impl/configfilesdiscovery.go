@@ -11,7 +11,6 @@ import (
 	"time"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -48,8 +47,10 @@ type Provides struct {
 }
 
 type component struct {
-	ad        autodiscovery.Component
-	scheduler scheduler.Scheduler
+	ad            autodiscovery.Component
+	scheduler     *adScheduler
+	store         workloadmeta.Component
+	processEvents chan workloadmeta.EventBundle
 }
 
 func newComponent(
@@ -69,8 +70,12 @@ func newComponentWithSchedulerConfig(
 	schedulerCfg adSchedulerConfig,
 ) *component {
 	readers := map[RuntimeType]configReaderFactory{
-		RuntimeDocker:     newDockerConfigReader,
-		RuntimeKubernetes: newKubernetesConfigReader,
+		RuntimeDocker: func(t target) (ConfigReader, error) {
+			return newDockerConfigReader(t, resolver.store)
+		},
+		RuntimeKubernetes: func(t target) (ConfigReader, error) {
+			return newKubernetesConfigReader(t, resolver.store)
+		},
 	}
 	if configCollectors == nil {
 		configCollectors = map[string]ConfigCollector{}
@@ -78,6 +83,7 @@ func newComponentWithSchedulerConfig(
 	return &component{
 		ad:        ad,
 		scheduler: newADSchedulerWithConfig(resolver, readers, configCollectors, sender, schedulerCfg),
+		store:     resolver.store,
 	}
 }
 
@@ -143,12 +149,14 @@ func adSchedulerConfigFromAgentConfig(agentConfig config.Component) adSchedulerC
 }
 
 func (c *component) start(context.Context) error {
+	c.startProcessFallbackListener()
 	c.ad.AddScheduler(schedulerName, c.scheduler, true)
 	return nil
 }
 
 func (c *component) stop(context.Context) error {
 	c.ad.RemoveScheduler(schedulerName)
+	c.stopProcessFallbackListener()
 	c.scheduler.Stop()
 	return nil
 }

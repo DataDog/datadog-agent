@@ -118,8 +118,6 @@ dd_agent_go_test(
     embed = [":proxy"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/network/protocols/http/testutil",
         "@com_github_stretchr_testify//require",

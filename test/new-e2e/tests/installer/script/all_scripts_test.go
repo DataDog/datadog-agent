@@ -91,7 +91,7 @@ func TestScripts(t *testing.T) {
 
 				opts := []awshost.ProvisionerOption{
 					awshost.WithRunOptions(
-						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture), ec2.WithInternetAccess()),
 						ec2.WithoutAgent(),
 					),
 				}

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add the ``kubernetes_state.pod.terminating`` gauge to the Kubernetes State
+    Core check. The metric reports a value of 1 for each pod from the moment
+    its deletion timestamp is set until the pod leaves the informer.

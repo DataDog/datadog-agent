@@ -92,12 +92,6 @@ u32 __attribute__((always_inline)) get_mount_offset_of_mount_ns(void) {
     return offset; // offsetof(struct mount, mnt_ns)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_nscommon_inum(void) {
-    u64 offset;
-    LOAD_CONSTANT("ns_common_inum_offset", offset);
-    return offset; // offsetof(struct ns_common, inum)
-}
-
 u32 __attribute__((always_inline)) get_mount_offset_of_parent(void) {
     u64 offset;
     LOAD_CONSTANT("mount_parent_offset", offset);
@@ -114,6 +108,12 @@ u32 __attribute__((always_inline)) get_mnt_namespace_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mnt_namespace_ns", offset);
     return offset; // offsetof(struct mnt_namespace, ns)
+}
+
+u32 __attribute__((always_inline)) get_ns_common_inum_offset(void) {
+    u64 offset;
+    LOAD_CONSTANT("ns_common_inum_offset", offset);
+    return offset; // offsetof(struct ns_common, inum)
 }
 
 static int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
@@ -185,7 +185,7 @@ u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
         return 0;
     }
 
-    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_mount_offset_of_nscommon_inum());
+    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_ns_common_inum_offset());
     return inum;
 }
 

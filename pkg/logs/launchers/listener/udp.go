@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -110,7 +111,8 @@ func (l *UDPListener) resetTailer() {
 // newUDPConnection returns a new UDP connection,
 // returns an error if the creation failed.
 func (l *UDPListener) newUDPConnection() (*net.UDPConn, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.source.Config.Port))
+	bindAddr := net.JoinHostPort(l.source.Config.BindHost, strconv.Itoa(l.source.Config.Port))
+	udpAddr, err := net.ResolveUDPAddr("udp", bindAddr)
 	if err != nil {
 		return nil, err
 	}

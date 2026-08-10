@@ -23,7 +23,7 @@ type linuxConfigCheckSuite struct {
 
 func TestLinuxConfigCheckSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
 }
 
 // cpu, disk, file_handle, io, load, memory, network, ntp, uptime, service_discovery

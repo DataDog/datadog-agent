@@ -35,16 +35,17 @@ func (am *agentLinuxManager) getInstallCommand(version agentparams.PackageVersio
 	testEnvVars := []string{}
 
 	if version.PipelineID != "" {
-		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", version.PipelineID, version.Major))
+		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", version.PipelineID, version.Major))
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-a7 7"
 		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="stable-%[1]s %[2]v"`, am.targetOS.Descriptor().Architecture, version.Major))
-		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=yumtesting.datad0g.com")
+		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=s3.amazonaws.com/yumtesting.datad0g.com")
 		// yum testing repo
 		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-a7/7"
 		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_YUM_VERSION_PATH=testing/pipeline-%[1]v-a%[2]v/%[2]v", version.PipelineID, version.Major))
 		// target testing keys
-		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_KEYS_URL=apttesting.datad0g.com/test-keys"))
+		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_KEYS_URL=s3.amazonaws.com/apttesting.datad0g.com/test-keys"))
+		testEnvVars = append(testEnvVars, "TESTING_REPORT_URL=undefined")
 	} else {
 		testEnvVars = append(testEnvVars, fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%v", version.Major))
 
@@ -53,8 +54,24 @@ func (am *agentLinuxManager) getInstallCommand(version agentparams.PackageVersio
 		}
 
 		if version.Channel != "" && version.Channel != agentparams.StableChannel {
-			testEnvVars = append(testEnvVars, "REPO_URL=datad0g.com")
+			// Non-stable channel (e.g. beta): packages are on datad0g.com. Use S3 bucket
+			// URLs directly instead of REPO_URL so that VMs without public internet access
+			// can reach them via the S3 VPC gateway endpoint.
+			testEnvVars = append(testEnvVars, "DD_REPO_URL=datad0g.com")
+			testEnvVars = append(testEnvVars, "TESTING_REPORT_URL=undefined")
+			testEnvVars = append(testEnvVars, "TESTING_APT_URL=s3.amazonaws.com/apt.datad0g.com")
+			testEnvVars = append(testEnvVars, "TESTING_YUM_URL=s3.amazonaws.com/yum.datad0g.com")
+			testEnvVars = append(testEnvVars, "TESTING_KEYS_URL=s3.amazonaws.com/public-signing-keys")
 			testEnvVars = append(testEnvVars, fmt.Sprintf("DD_AGENT_DIST_CHANNEL=%s", version.Channel))
+		} else {
+			// No pipeline ID and stable channel: installing from the default datadoghq.com repos.
+			// Use S3 bucket URLs directly instead of the CloudFront-backed domains so that
+			// VMs without public internet access can reach them via the S3 VPC gateway endpoint.
+			testEnvVars = append(testEnvVars, "TESTING_APT_URL=s3.amazonaws.com/apt.datadoghq.com")
+			testEnvVars = append(testEnvVars, "TESTING_YUM_URL=s3.amazonaws.com/yum.datadoghq.com")
+			testEnvVars = append(testEnvVars, "TESTING_KEYS_URL=s3.amazonaws.com/public-signing-keys")
+			testEnvVars = append(testEnvVars, "TESTING_REPORT_URL=undefined")
+
 		}
 	}
 

@@ -39,6 +39,7 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
    - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
+11. Once the PR is pushed, ask the user if they want to follow CI status for this PR. If yes, invoke the `/follow-pr` skill.
 
 ## PR Description Guidelines (from CONTRIBUTING.md)
 
@@ -86,4 +87,5 @@ EOF
 
 ## Output
 
-Return the PR URL when done.
+If you are not following the PR status (step 11): Return the PR URL when done.
+Otherwise, defer to `/follow-pr`.
