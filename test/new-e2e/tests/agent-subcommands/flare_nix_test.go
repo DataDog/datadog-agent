@@ -34,7 +34,7 @@ type linuxFlareSuite struct {
 
 func TestLinuxFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
 }
 
 // Add zz to name to run this test last in order to don't break other tests
