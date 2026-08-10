@@ -133,6 +133,10 @@ def integration_test(ctx):
     """
     Run the otel integration test
     """
-    cmd = """go test -timeout 0s -tags otlp,test -run ^TestIntegration$ \
+    # Include zlib,zstd so the config-driven metrics compressor (selector.FromConfig,
+    # //go:build zlib && zstd) resolves to a real compressor — matching the shipped
+    # otel-agent tags (OTEL_AGENT_TAGS). Without them the selector links its noop
+    # variant and metrics ship uncompressed ("identity") instead of zstd.
+    cmd = """go test -timeout 0s -tags otlp,test,zlib,zstd -run ^TestIntegration$ \
         github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
     ctx.run(cmd)

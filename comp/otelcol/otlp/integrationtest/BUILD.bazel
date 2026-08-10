@@ -55,7 +55,7 @@ dd_agent_go_test(
         "//comp/otelcol/otlp/testutil",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/def",
-        "//comp/serializer/metricscompression/fx-otel",
+        "//comp/serializer/metricscompression/fx",
         "//comp/trace",
         "//comp/trace/agent/impl",
         "//comp/trace/compression/fx-zstd",

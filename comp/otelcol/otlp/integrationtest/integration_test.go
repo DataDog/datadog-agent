@@ -75,7 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
-	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
@@ -139,6 +139,12 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		}),
 		logsagentpipelinefx.Module(),
 		logscompressionfx.Module(),
+		// Use the config-driven metrics compressor (comp/serializer/metricscompression/fx),
+		// exactly as production DDOT wires it in cmd/otel-agent/subcommands/run/command.go.
+		// The harness config comes from agentConfig.NewConfigComponent, which sets
+		// serializer_compressor_kind=zstd, so metrics are compressed with zstd here too —
+		// keeping the in-process metrics path faithful to production and exercising the
+		// /api/v2/series zstd path per-PR (asserted below), not just in the e2e suite.
 		metricscompressionfx.Module(),
 		// For FX to provide the compression.Compressor interface (used by serializer.NewSerializer)
 		// implemented by the metricsCompression.Component
@@ -188,7 +194,29 @@ func TestIntegration(t *testing.T) {
 	// See also https://github.com/DataDog/datadog-agent/blob/49c16e0d4deab396626238fa1d572b684475a53f/cmd/trace-agent/test/backend.go
 	apmstatsRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.APMStatsEndpoint, ReqChan: make(chan []byte)}
 	tracesRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.TraceEndpoint, ReqChan: make(chan []byte)}
-	server := testutil.DatadogServerMock(apmstatsRec.HandlerFunc, tracesRec.HandlerFunc)
+	// Metrics from the datadog/connector flow through the serializer's compressor to
+	// /api/v2/series and /api/beta/sketches; capture their Content-Encoding. These
+	// handlers respond 200 immediately (unlike the blocking channel recorder used
+	// for traces/stats) so the metrics forwarder doesn't pile up retries or stall
+	// server.Close() while the traces/stats loop below is running.
+	metricEncodings := make(chan string, 16)
+	metricHandler := func(pattern string) testutil.OverwriteHandleFunc {
+		return func() (string, http.HandlerFunc) {
+			return pattern, func(w http.ResponseWriter, r *http.Request) {
+				select {
+				case metricEncodings <- r.Header.Get("Content-Encoding"):
+				default:
+				}
+				w.WriteHeader(http.StatusOK)
+			}
+		}
+	}
+	server := testutil.DatadogServerMock(
+		apmstatsRec.HandlerFunc,
+		tracesRec.HandlerFunc,
+		metricHandler(testutil.MetricV2Endpoint),
+		metricHandler(testutil.SketchesMetricEndpoint),
+	)
 	defer server.Close()
 	t.Setenv("SERVER_URL", server.URL)
 
@@ -255,6 +283,20 @@ func TestIntegration(t *testing.T) {
 	// Verify we don't receive more than the expected numbers
 	assert.Len(t, spans, 5)
 	assert.Len(t, stats, 10)
+
+	// Validate metrics ship zstd on the wire too. The datadog/connector turns the
+	// received spans into metrics that flow through the serializer's config-driven
+	// compressor (zstd, wired via metricscompression/fx above, mirroring production)
+	// to /api/v2/series or /api/beta/sketches. Both endpoints share the one
+	// serializer compressor, so the Content-Encoding of whichever arrives first
+	// proves it — it would be "deflate" (zlib) under the previous hardcoded default,
+	// which is the regression this guards.
+	select {
+	case enc := <-metricEncodings:
+		assert.Equal(t, "zstd", enc, "metric payloads (series/sketches) must be zstd-compressed on the wire")
+	case <-time.After(90 * time.Second):
+		t.Fatal("timed out waiting for a metric payload (series or sketches) from the datadog connector")
+	}
 
 	// Verify that DDOT stops gracefully
 	stopCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
