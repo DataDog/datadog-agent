@@ -31,6 +31,7 @@ var (
 	testTraceID = [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	testSpanID1 = [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
 	testSpanID2 = [8]byte{2, 2, 3, 4, 5, 6, 7, 8}
+	testSpanID3 = [8]byte{3, 2, 3, 4, 5, 6, 7, 8}
 )
 
 func TestProcessOTLPTraces(t *testing.T) {
@@ -518,22 +519,23 @@ func newTestClientSpan(spanID pcommon.SpanID, markComputed bool) ptrace.Span {
 	return span
 }
 
-// A marker on one span must only drop that span, not the whole payload, since a single OTLP
-// payload can bundle spans from multiple resources with different CSS settings.
-func TestOTLPTracesToConcentratorInputsSkipsOnlyClientComputedSpan(t *testing.T) {
+func TestOTLPTracesToConcentratorInputsSkipsResourceWhenSpanIsClientComputed(t *testing.T) {
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
 	attributesTranslator, err := attributes.NewTranslator(set)
 	assert.NoError(t, err)
 
 	traces := ptrace.NewTraces()
-	scopeSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty()
-	newTestClientSpan(testSpanID1, false).CopyTo(scopeSpans.Spans().AppendEmpty())
-	newTestClientSpan(testSpanID2, true).CopyTo(scopeSpans.Spans().AppendEmpty())
+	computedResourceSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	newTestClientSpan(testSpanID1, false).CopyTo(computedResourceSpans.AppendEmpty())
+	newTestClientSpan(testSpanID2, true).CopyTo(computedResourceSpans.AppendEmpty())
+	uncomputedResourceSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	newTestClientSpan(testSpanID3, false).CopyTo(uncomputedResourceSpans.AppendEmpty())
 
 	conf := config.New()
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
+	require.Len(t, inputs, 1)
 	assert.Len(t, inputs[0].Traces[0].TraceChunk.Spans, 1)
 }
 

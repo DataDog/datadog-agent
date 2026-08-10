@@ -67,17 +67,16 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	}
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
-	// The tag is typically set once per resource rather than on every span, so cache the
-	// per-resource result instead of re-parsing the same resource attributes for each of its spans.
-	resourceComputedStats := make(map[pcommon.Resource]bool)
+	clientComputedResources := make(map[pcommon.Resource]struct{})
+	for i := 0; i < traces.ResourceSpans().Len(); i++ {
+		resourceSpans := traces.ResourceSpans().At(i)
+		if resourceSpansHasClientComputedStats(resourceSpans) {
+			clientComputedResources[resourceSpans.Resource()] = struct{}{}
+		}
+	}
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
-		resComputed, ok := resourceComputedStats[otelres]
-		if !ok {
-			resComputed = hasClientComputedStats(otelres.Attributes())
-			resourceComputedStats[otelres] = resComputed
-		}
-		if resComputed || hasClientComputedStats(otelspan.Attributes()) {
+		if _, ok := clientComputedResources[otelres]; ok {
 			continue
 		}
 		var resourceName string
@@ -155,6 +154,21 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		})
 	}
 	return inputs
+}
+
+func resourceSpansHasClientComputedStats(resourceSpans ptrace.ResourceSpans) bool {
+	if hasClientComputedStats(resourceSpans.Resource().Attributes()) {
+		return true
+	}
+	for i := 0; i < resourceSpans.ScopeSpans().Len(); i++ {
+		spans := resourceSpans.ScopeSpans().At(i).Spans()
+		for j := 0; j < spans.Len(); j++ {
+			if hasClientComputedStats(spans.At(j).Attributes()) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func hasClientComputedStats(attrs pcommon.Map) bool {
