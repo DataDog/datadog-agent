@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
@@ -48,8 +49,8 @@ type ProcessInfo struct {
 
 	FileEvent model.FileEvent
 
-	CGroup           model.CGroupContext
-	ContainerContext model.ContainerContext
+	CGroup      model.CGroupContext
+	ContainerID containerutils.ContainerID
 
 	TTYName string
 	Comm    string
@@ -89,7 +90,7 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 		IsExecExec:       pc.IsExecExec,
 		FileEvent:        pc.FileEvent,
 		CGroup:           pc.CGroup,
-		ContainerContext: pc.ContainerContext,
+		ContainerID:      pc.ContainerContext.ContainerID,
 		TTYName:          pc.TTYName,
 		Comm:             pc.Comm,
 		ForkTime:         pc.ForkTime,
@@ -114,7 +115,7 @@ func (pi *ProcessInfo) ToModelProcess() model.Process {
 		IsExecExec:       pi.IsExecExec,
 		FileEvent:        pi.FileEvent,
 		CGroup:           pi.CGroup,
-		ContainerContext: pi.ContainerContext,
+		ContainerContext: model.ContainerContext{ContainerID: pi.ContainerID},
 		TTYName:          pi.TTYName,
 		Comm:             pi.Comm,
 		ForkTime:         pi.ForkTime,

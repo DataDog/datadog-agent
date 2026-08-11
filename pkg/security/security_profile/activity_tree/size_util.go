@@ -126,8 +126,7 @@ func processStringsBytes(p *ProcessInfo) int64 {
 	n += stringSliceBytes(p.Envs)
 
 	n += int64(len(p.CGroup.CGroupID))
-	n += int64(len(p.ContainerContext.ContainerID))
-	n += stringSliceBytes(p.ContainerContext.Tags)
+	n += int64(len(p.ContainerID))
 
 	n += int64(len(p.Credentials.User))
 	n += int64(len(p.Credentials.Group))
