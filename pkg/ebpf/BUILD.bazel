@@ -194,6 +194,7 @@ go_library(
         "perf.go",
         "perf_data_event.go",
         "perf_ring_buffer.go",
+        "preempt.go",
         "preprocess.go",
         "printk_patcher.go",
         "probes.go",
