@@ -191,16 +191,18 @@ description: E2E userprofile env check
 `, markerPathForYAML)
 
 	host.MustExecute(writeProcessesDYamlContent(yamlPath, yamlContent))
+	// Register marker cleanup first so it runs after yaml removal and reload (LIFO).
+	defer func() {
+		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, markerPath))
+	}()
 	defer func() {
 		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, yamlPath))
+		_, _ = host.Execute(s.platform.cliCmd("reload"))
 	}()
 
 	reloadOut, err := host.Execute(s.platform.cliCmd("reload"))
 	require.NoError(s.T(), err)
 	assert.Contains(s.T(), reloadOut, "test-userprofile-env", "reload output: %s", reloadOut)
-	defer func() {
-		_, _ = host.Execute(psRemote(`Remove-Item -LiteralPath '%s' -Force -ErrorAction SilentlyContinue`, markerPath))
-	}()
 
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		desc := host.MustExecuteOn(ct, s.platform.cliCmd("describe test-userprofile-env"))
