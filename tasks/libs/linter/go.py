@@ -66,7 +66,7 @@ def lint_flavor(
     """Runs linters for given flavor, build tags, and modules."""
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     # Compute full list of targets to run linters against
     targets = []
