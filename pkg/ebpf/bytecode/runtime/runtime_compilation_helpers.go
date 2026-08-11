@@ -10,8 +10,10 @@ package runtime
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,7 +69,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 	// non-regular entry (e.g. a symlink) is removed and recompiled so we never
 	// write through it or read its target.
 	if fi, err := os.Lstat(outputFile); err != nil || !fi.Mode().IsRegular() {
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 		if err == nil {
