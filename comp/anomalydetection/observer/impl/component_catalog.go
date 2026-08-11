@@ -291,7 +291,7 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentCorrelator,
 				defaultConfig:  DefaultTimeClusterConfig(),
 				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
-				defaultEnabled: true,
+				defaultEnabled: false,
 				readConfig:     readTimeClusterConfig,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TimeClusterConfig)

@@ -6261,7 +6261,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: true
+                default: false
               min_cluster_size:
                 node_type: setting
                 type: integer
