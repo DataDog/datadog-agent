@@ -74,8 +74,8 @@ pub(super) fn resolve_config_string(raw: &str, agent_yaml: &str) -> String {
 
 fn enc_handle(value: &str) -> Option<String> {
     let trimmed = value.trim();
-    let inner = trimmed.strip_prefix("ENC[")?.strip_suffix(']')?.trim();
-    (!inner.is_empty()).then(|| inner.to_owned())
+    let inner = trimmed.strip_prefix("ENC[")?.strip_suffix(']')?;
+    Some(inner.to_owned())
 }
 
 fn resolve_handle(handle: &str, agent_yaml: &str) -> Result<String> {
@@ -515,10 +515,11 @@ mod tests {
         );
         assert_eq!(
             enc_handle("  ENC[ process_enabled ]  "),
-            Some("process_enabled".into())
+            Some(" process_enabled ".into())
         );
         assert_eq!(enc_handle("true"), None);
-        assert_eq!(enc_handle("ENC[]"), None);
+        assert_eq!(enc_handle("ENC[]"), Some(String::new()));
+        assert_eq!(enc_handle("ENC[]]]]"), Some("]]]".into()));
     }
 
     #[test]
