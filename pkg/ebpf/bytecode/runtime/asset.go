@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -414,8 +415,14 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 func reclaimDirComponent(p string) error {
 	// os.Rename does not follow a symlink at p: a symlinked component is moved as
 	// the link itself. The aside name is in the same (root-owned) parent so the
-	// rename stays within one directory.
-	aside := fmt.Sprintf("%s.reclaimed-%d-%d", p, os.Getpid(), time.Now().UnixNano())
+	// rename stays within one directory. Use the root-namespace PID: os.Getpid
+	// returns a namespaced PID inside a container, which is not unique across the
+	// host and could collide with a concurrent reclaim from another namespace.
+	pid, err := kernel.RootNSPID()
+	if err != nil {
+		pid = os.Getpid()
+	}
+	aside := fmt.Sprintf("%s.reclaimed-%d-%d", p, pid, time.Now().UnixNano())
 	if err := os.Rename(p, aside); err != nil {
 		return fmt.Errorf("unable to move aside stale component %s: %w", p, err)
 	}
