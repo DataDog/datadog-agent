@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    Added an agent telemetry diagnostic profile, gated behind the
+    ``diagnostics_data_loss`` remote flag. When enabled through
+    Remote Config, the Agent starts reporting a curated set of drop and
+    saturation metrics (forwarder retry-queue drops, on-disk retry
+    deserialization errors, DogStatsD buffer saturation, serialization drops,
+    and logs pipeline drops from destination send failures and the adaptive
+    sampler) via agent telemetry. It is disabled by default and ships no
+    additional data until the flag is turned on.

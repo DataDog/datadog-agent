@@ -41,6 +41,11 @@ type Profile struct {
 	Schedule *Schedule          `yaml:"schedule,omitempty"`
 	Events   []*Event           `yaml:"events"`
 
+	// Diagnostic marks a profile that is gated behind a remote flag: it is
+	// scheduled like any other profile, but run() skips it until the matching
+	// remote flag enables it at runtime (see remoteflags_handler.go).
+	Diagnostic bool `yaml:"diagnostic,omitempty"`
+
 	// compiled
 	metricsMap        map[string]*MetricConfig
 	excludeZeroMetric bool
