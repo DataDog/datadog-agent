@@ -208,6 +208,31 @@ become part of the same automated workflow — you do not need to know which ext
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
 
+#### `test/new-e2e/tests/` is not migrated — exclude new suite directories
+
+Most of `test/new-e2e/tests/` is listed in the root `BUILD.bazel` `# gazelle:exclude` block. Those suites provision real
+cloud infrastructure via Pulumi; CI runs `bazel test --config=no-dd-agent-go-tests //...`, so a `go_test` target for a
+suite would be *executed* by that job and fail in the sandbox (no credentials, no network). Only the helper
+`go_library` packages under `test/new-e2e/` are migrated — no e2e suite has a `go_test` target.
+
+When adding a suite directory, add a matching `# gazelle:exclude test/new-e2e/tests/<area>` to the root `BUILD.bazel`
+in the same change. Without it Gazelle generates a `go_test` on the next `bazel run //:gazelle` and keeps re-adding it
+after every deletion.
+
+Do not reach for `select()` on `deps` to keep a platform-specific suite file out of the build. E2E test binaries are
+cross-platform by design: the binary runs on the CI host while the *target VM* is Windows/Linux. Files like
+`foo_win_test.go` carry no Go build constraint (`_win` is not a `GOOS` — only `_windows` is), and constraining them
+would stop Windows suites from ever running from Linux CI.
+
+#### `@//` in a generated dep means Gazelle found no target
+
+A label like `"@//test/new-e2e/tests/windows/common"` (rather than `"//test/..."`) is Gazelle's module-path fallback: the
+import matched a local `go.work` module, but no `go_library` was indexed at that path, so no rule was found to point at.
+It always fails at analysis with `no such target '//...:<dir>'`. The usual cause is a `# gazelle:ignore` in the target
+package — e.g. `test/new-e2e/tests/windows/common`, which cannot be migrated while its
+`//go:embed fixtures/get-acl-helpers.ps1` refers to a `gazelle:exclude`d directory (no `embedsrcs` is generated, so the
+package does not compile). Fix the dependency's package or exclude the consumer; never hand-edit the `@//` label.
+
 ### Always name files `BUILD.bazel`, never `BUILD`
 
 This repo enforces `BUILD.bazel` exclusively:
