@@ -133,9 +133,6 @@ func InitConfigObjects() {
 	// Build the environment variable layer
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
-
-	// Fixups that need to read config values must run after BuildSchema(), once the config is ready for use.
-	fixupPostBuildConfig()
 }
 
 // InitConfig initializes the config defaults on a config used by all agents
@@ -461,6 +458,8 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	}
 
 	useHostEtc(config)
+
+	postProcessSystemProbe(SystemProbe())
 
 	err = checkConflictingOptions(config)
 	if err != nil {

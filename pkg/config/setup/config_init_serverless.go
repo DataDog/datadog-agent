@@ -23,9 +23,6 @@ func fixupInitConfig() {
 	fixupInitServerlessOnlyComponents(ddcfg)
 }
 
-// fixupPostBuildConfig is a no-op in serverless builds, which have no system-probe config.
-func fixupPostBuildConfig() {}
-
 // called only for full-agent, ONLY for serverless, after declaring settings
 func fixupInitServerlessOnlyComponents(_ pkgconfigmodel.Config) { // nolint:unused,deadcode this is only used by serverless
 	// Do not extend this list !

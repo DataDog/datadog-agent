@@ -20,10 +20,3 @@ func fixupInitConfig() {
 	fixupInitCommonConfigComponents(ddcfg)
 	fixupInitFullAgentOnlyComponents(ddcfg)
 }
-
-// fixupPostBuildConfig runs fixups that need to read config values, so they must run after
-// BuildSchema() has marked the config ready for use (unlike fixupInitConfig, which only
-// registers override funcs and declares defaults before the config is ready).
-func fixupPostBuildConfig() {
-	fixupInitSystemProbe(SystemProbe())
-}

@@ -8,20 +8,21 @@
 package setup
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// TestFixupInitSystemProbeRunsAfterConfigIsReady is a regression test for a bug where
-// fixupInitSystemProbe read/wrote system-probe config keys before BuildSchema() marked the
-// config ready for use. Under HOST_ETC (any containerized deployment), the guarded getters
-// silently no-op instead of applying the HOST_ETC path rewrite, so apt/yum/zypper repo dirs
-// were never adjusted to point under the host filesystem.
-func TestFixupInitSystemProbeRunsAfterConfigIsReady(t *testing.T) {
+// Regression test: the HOST_ETC repo dir rewrite used to run before the config was ready
+// (and before HOST_ETC auto-detection), so it silently never applied.
+func TestPostProcessSystemProbeRunsAfterConfigIsReady(t *testing.T) {
 	origDatadog := Datadog().(pkgconfigmodel.BuildableConfig)
 	origSystemProbe := SystemProbe().(pkgconfigmodel.BuildableConfig)
 	t.Cleanup(func() {
@@ -29,9 +30,16 @@ func TestFixupInitSystemProbeRunsAfterConfigIsReady(t *testing.T) {
 		SetSystemProbe(origSystemProbe) // nolint: forbidigo // restoring the singleton after the test
 	})
 
+	InitConfigObjects()
+
 	t.Setenv("HOST_ETC", "/host/etc")
 
-	InitConfigObjects()
+	configPath := filepath.Join(t.TempDir(), "empty_conf.yaml")
+	require.NoError(t, os.WriteFile(configPath, nil, 0o600))
+	Datadog().(pkgconfigmodel.BuildableConfig).SetConfigFile(configPath)
+
+	err := LoadDatadog(Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+	require.NoError(t, err)
 
 	for _, name := range []string{
 		"system_probe_config.apt_config_dir",
