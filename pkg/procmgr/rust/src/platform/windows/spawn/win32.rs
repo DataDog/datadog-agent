@@ -29,6 +29,13 @@ pub(crate) fn env_block_from_token(token: HANDLE) -> Result<Vec<u16>> {
     Ok(env_vars_to_wide_block(&baseline))
 }
 
+pub(crate) fn env_block_for_secret_backend(token: HANDLE) -> Result<Vec<u16>> {
+    let baseline = super::super::baseline_env_vars_from_token(token)
+        .context("build secret backend environment from token")?;
+    let vars = super::super::legacy_scm_env::build_secret_backend_env_vars(baseline);
+    Ok(env_vars_to_wide_block(&vars))
+}
+
 pub(crate) fn env_block_from_baseline_plus_overrides(
     process_name: &str,
     token: HANDLE,

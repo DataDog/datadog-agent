@@ -98,6 +98,41 @@ const LEGACY_SCM_ENV_DENYLIST: &[&str] = &[
     "DD_OTELCOLLECTOR_INSTALLATION_METHOD",
 ];
 
+/// Merge core Agent SCM `Environment` entries into `vars` (e.g. secret backend spawn).
+pub(crate) fn merge_core_agent_scm_env(vars: &mut HashMap<String, String>) {
+    let overrides = core_agent_scm_env_overrides();
+    if overrides.is_empty() {
+        return;
+    }
+    merge_env_overrides(vars, &overrides);
+}
+
+/// Build the environment block for a token-spawned secret backend under the Agent account.
+pub(crate) fn build_secret_backend_env_vars(
+    baseline: HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut vars = baseline;
+    merge_core_agent_scm_env(&mut vars);
+    vars
+}
+
+fn core_agent_scm_env_overrides() -> Vec<(String, String)> {
+    #[cfg(test)]
+    if let Ok(guard) = TEST_CORE_AGENT_SCM_ENV.lock()
+        && let Some(map) = guard.as_ref()
+    {
+        return map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    }
+
+    let guard = core_agent_scm_env_map();
+    guard
+        .as_ref()
+        .expect("initialized scm env")
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect()
+}
+
 /// Build the final child environment: token/process baseline → legacy SCM → processes.d.
 pub(crate) fn build_child_env_vars(
     process_name: &str,
@@ -266,6 +301,24 @@ mod tests {
         );
         assert_eq!(vars.get("DD_CUSTOM").unwrap(), "from-yaml");
         assert_eq!(vars.get("BASE").unwrap(), "1");
+    }
+
+    #[test]
+    fn build_secret_backend_env_vars_merges_core_agent_scm_over_baseline() {
+        set_test_core_agent_scm_env(Some(HashMap::from([
+            ("DD_SECRET_PATH".to_string(), r"C:\secrets".to_string()),
+            ("path".to_string(), r"C:\agent\bin".to_string()),
+        ])));
+        let baseline = HashMap::from([
+            ("BASE".to_string(), "1".to_string()),
+            ("Path".to_string(), "baseline".to_string()),
+        ]);
+        let vars = build_secret_backend_env_vars(baseline);
+        assert_eq!(vars.get("BASE").unwrap(), "1");
+        assert_eq!(vars.get("DD_SECRET_PATH").unwrap(), r"C:\secrets");
+        assert_eq!(vars.get("path").unwrap(), r"C:\agent\bin");
+        assert_eq!(vars.len(), 3);
+        set_test_core_agent_scm_env(None);
     }
 
     #[test]

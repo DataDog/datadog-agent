@@ -37,7 +37,7 @@ use super::secret_backend_rights;
 use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::spawn::user_profile::UserProfileGuard;
 use super::spawn::win32::{
-    build_windows_command_line, duplicate_primary_token, env_block_from_token,
+    build_windows_command_line, duplicate_primary_token, env_block_for_secret_backend,
 };
 use super::wide;
 
@@ -148,7 +148,7 @@ fn spawn_with_pipes(identity: &AgentIdentity, run: &BackendRun<'_>) -> Result<Ca
         .chain([0])
         .collect();
 
-    let env_block = env_block_from_token(identity.token.raw())?;
+    let env_block = env_block_for_secret_backend(identity.token.raw())?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
