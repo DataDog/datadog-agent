@@ -138,6 +138,6 @@ def integration_test(ctx):
         github.com/DataDog/datadog-agent/comp/otelcol/otlp/integrationtest -v"""
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(cmd)

@@ -190,7 +190,7 @@ def build_binaries(
     print(f"Building test binaries using {parallel} parallel workers")
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     e2e_test_dir = Path("test/new-e2e/tests")
     output_path = Path(output_dir).absolute()
@@ -765,7 +765,7 @@ def run(
             f.write("{}")
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     cmd = f"gotestsum --format {gotestsum_format} "
     raw_command = ""
@@ -861,7 +861,6 @@ def run(
             env=env_vars,
             result_junit=partial_result_junit,
             result_json=partial_result_json,
-            test_profiler=None,
             recursive=recursive,
         )
         if test_res is None:
@@ -938,7 +937,6 @@ def run(
             env=env_vars,
             result_junit="",  # No need to store JUnit results for teardown-only runs
             result_json="",  # No need to store results for teardown-only runs
-            test_profiler=None,
         )
 
     # Merge all the partial result JSON files into the final result JSON

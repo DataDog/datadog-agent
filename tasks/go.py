@@ -294,7 +294,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
 
         # TODO: remove once Bazel is used to build the Agent
-        schema_codegen(ctx, keep_orig_order=False, fix=True)
+        schema_codegen(ctx)
 
         with ctx.cd(dummy_folder):
             ctx.run("go mod tidy")

@@ -12,6 +12,21 @@ locally.
 
 ## How the commands fit together
 
+The schema files under `pkg/config/schema/yaml/` are the source of truth and are
+edited by hand (or through `schema.add-setting`). Everything else is derived from
+them:
+
+- `schema.lint` validates the hand-written schema.
+- `schema.codegen` generates the `pkg/config/setup` Go files that register the
+  settings. Bazel runs the same logic automatically via
+  `//pkg/config/setup:codegen_settings`.
+- `schema.template` / `schema.template-all` render the shipped
+  `datadog.yaml.example` and `system-probe.yaml.example` files.
+- `schema.produce-embedded` / `schema.compress` build the artifact embedded into
+  the Agent binary; `schema.produce-jsonschema` builds the pure JSON Schema for
+  external consumers.
+- `schema.locate` finds where a setting is declared.
+
 ## `schema.add-setting`
 
 Interactive wizard to add a new setting to the schema. It prompts for the
@@ -37,8 +52,7 @@ problems are visible.
 ## `schema.lint`
 
 Validate the schema against the schema quality rules and exit
-non-zero on any violation. This is the check enforced in CI
-(`generate_config_schema-linux`).
+non-zero on any violation.
 
 ```bash
 dda inv schema.lint
@@ -138,12 +152,11 @@ dda inv -- schema.locate 'apm_config\..*enabled' --json
 
 ## Typical workflows
 
-**I edited a setting in `pkg/config/setup` and want the schema to reflect it:**
+**I edited a setting in the schema and want the Go code to reflect it:**
 
 ```bash
-dda inv agent.build                                  # rebuild the binary
-dda inv schema.generate --agent-bin=./bin/agent/agent  # regenerate the schema
-dda inv schema.lint                                  # validate it
+dda inv schema.lint            # validate the schema
+dda inv schema.codegen        # regenerate pkg/config/setup from it
 ```
 
 **I want to preview the generated example for one platform:**

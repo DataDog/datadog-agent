@@ -114,7 +114,7 @@ def update_golden_tests(ctx):
     print("Updating golden test files...")
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     test_paths = ["comp/host-profiler/collector/impl/converters", "comp/host-profiler/collector/impl/agentprovider"]
     for path in test_paths:

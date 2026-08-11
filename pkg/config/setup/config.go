@@ -117,36 +117,6 @@ const (
 	Logs string = "logs"
 )
 
-// commonConfigComponents are the config components that are used by all agents, and in particular serverless.
-// Components should only be added here if they are reachable by the serverless agent.
-// Otherwise directly add the configs to initCoreAgentFull in common_settings.go.
-var commonConfigComponents = []func(pkgconfigmodel.Setup){
-	agent,
-	fips,
-	dogstatsd,
-	forwarder,
-	aggregator,
-	serializer,
-	serverless,
-	setupAPM,
-	OTLP,
-	setupMultiRegionFailover,
-	telemetry,
-	autoconfig,
-	remoteconfig,
-	logsagent,
-	containerSyspath,
-	containerd,
-	cri,
-	kubernetes,
-	cloudfoundry,
-	debugging,
-	vector,
-	podman,
-	fleet,
-	autoscaling,
-}
-
 // InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
 // but from the main.
 func InitConfigObjects() {
@@ -154,7 +124,7 @@ func InitConfigObjects() {
 	SetDatadog(create.NewConfig("datadog"))          // nolint: forbidigo // legitimate use of SetDatadog
 	SetSystemProbe(create.NewConfig("system-probe")) // nolint: forbidigo // legitimate use of SetDatadog
 
-	// Configuration defaults, should only be logic-free calls to BindEnvAndSetDefault / BindEnv / SetDefault
+	// This calls the generate code from the schema to declare the configuration (name, defaults, env vars, ...)
 	initConfig()
 
 	// Post-init fixups, custom logic to tweak certain settings
@@ -168,42 +138,11 @@ func InitConfigObjects() {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
-	// -------------------------------------------------------------
-	// NOTE: Do not add more BindEnvAndSetDefault calls to this file
-	// Add them to common_settings.go instead
-	// -------------------------------------------------------------
-
 	// Settings that are shared in common between serverless and the full agent, split up by feature / product
-	initCommonConfigComponents(config)
+	initCommonBase(config)
 	// Settings just for the full agent in general
 	initCoreAgentFull(config)
-	// Settings associated with a feature / product that only appear in the full agent, not in serverless
-	initFullAgentOnlyComponents(config)
 
-	additionalAgentSetup(config)
-}
-
-// settings shared by full agent and serverless
-func initCommonConfigComponents(config pkgconfigmodel.Setup) {
-	for _, f := range commonConfigComponents {
-		f(config)
-	}
-}
-
-// settings that are only initialized by the full agent, not serverless
-func initFullAgentOnlyComponents(config pkgconfigmodel.Setup) {
-	comps := []func(pkgconfigmodel.Setup){
-		setupProcesses,
-		setupPrivateActionRunner,
-		remoteflags,
-		anomalyDetection,
-	}
-	for _, f := range comps {
-		f(config)
-	}
-}
-
-func additionalAgentSetup(_ pkgconfigmodel.Setup) {
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
 	})
