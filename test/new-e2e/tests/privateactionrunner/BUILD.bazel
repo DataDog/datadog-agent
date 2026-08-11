@@ -34,6 +34,7 @@ dd_agent_go_test(
     srcs = [
         "helpers_test.go",
         "private_action_runner_enabled_test.go",
+        "private_action_runner_executor_nix_test.go",
         "private_action_runner_nix_test.go",
         "rshell_k8s_test.go",
     ],
@@ -49,6 +50,7 @@ dd_agent_go_test(
         "//test/new-e2e/tests/agent-platform/common/process",
         "@com_github_google_uuid//:uuid",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )
