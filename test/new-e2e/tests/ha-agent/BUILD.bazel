@@ -16,11 +16,13 @@ dd_agent_go_test(
         "fixtures/snmp_conf.yaml",
     ],
     deps = [
+        "//pkg/remoteconfig/state",
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/resources/aws",
         "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/fakeintake",
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
