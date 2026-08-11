@@ -3,14 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-mod secret_backend;
 mod spawn;
 
-pub(crate) fn embedded_secret_connector_path() -> PathBuf {
-    PathBuf::from("/opt/datadog-agent/embedded/bin/secret-generic-connector")
-}
-
-pub(crate) use secret_backend::exec_secret_backend;
 pub(crate) use spawn::spawn_child_handle;
 
 use nix::sys::signal::{self, Signal};
