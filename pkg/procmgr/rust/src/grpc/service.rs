@@ -7,6 +7,7 @@
 
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
+use crate::grpc::caller_auth::require_privileged_pipe_client;
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
 use crate::process::{ManagedProcess, ProcessOrigin};
@@ -94,6 +95,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
+        require_privileged_pipe_client(&request)?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -452,8 +454,8 @@ mod tests {
             ManagedProcess::new_config("fail-proc".to_string(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let mut handle = proc.take_handle().unwrap();
+        let status = handle.wait().await.unwrap();
         proc.set_last_status(status);
 
         let proto = process_to_proto(&proc);
