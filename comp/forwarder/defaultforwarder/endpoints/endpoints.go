@@ -37,6 +37,8 @@ var (
 	SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"}
 	// V3SketchSeriesEndpoint is the v3 endpoint used to send sketches
 	V3SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/intake/metrics/v3/sketches", Name: "sketches_v3"}
+	// V3BetaSketchSeriesEndpoint is the v3 beta endpoint used to send sketches
+	V3BetaSketchSeriesEndpoint = transaction.Endpoint{Route: "/api/intake/metrics/v3beta/sketches", Name: "sketches_v3beta"}
 	// HostMetadataEndpoint is the v2 endpoint used to send host medatada
 	HostMetadataEndpoint = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
 
