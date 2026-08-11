@@ -62,6 +62,7 @@ properties:
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
       The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+      Mirrored in pkg/procmgr/rust/src/config_gate/env_bindings.rs for procmgr config gates.
   dd_url:
     node_type: setting
     type: string
@@ -7774,6 +7775,9 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: |-
+      Non-default env bindings for keys used by procmgr config gates are mirrored in
+      pkg/procmgr/rust/src/config_gate/env_bindings.rs.
   include_ephemeral_containers:
     node_type: setting
     type: boolean
@@ -8935,14 +8939,14 @@ properties:
         node_type: setting
         type: integer
         default: 0
-      sketches:
+      series:
         node_type: section
         type: object
         properties:
           beta_route:
             node_type: setting
             type: string
-            default: /api/intake/metrics/v3beta/sketches
+            default: /api/intake/metrics/v3beta/series
           endpoints:
             node_type: setting
             type: array
@@ -8960,6 +8964,28 @@ properties:
             - datadoghq.com
             items:
               type: string
+          use_beta:
+            node_type: setting
+            type: boolean
+            default: false
+          validate:
+            node_type: setting
+            type: boolean
+            default: false
+      sketches:
+        node_type: section
+        type: object
+        properties:
+          endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+          validate:
+            node_type: setting
+            type: boolean
+            default: false
   serializer_max_payload_size:
     node_type: setting
     type: integer
