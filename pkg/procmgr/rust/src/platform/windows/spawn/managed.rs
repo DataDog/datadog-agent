@@ -38,9 +38,8 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
     let account = match profile {
-        SpawnProfile::Agent => resolve_agent_account().with_context(|| {
-            format!("[{process_name}] resolve agent service account for spawn")
-        })?,
+        SpawnProfile::Agent => resolve_agent_account()
+            .with_context(|| format!("[{process_name}] resolve agent service account for spawn"))?,
         SpawnProfile::Privileged => AgentAccount::LocalSystem,
     };
 

@@ -365,8 +365,7 @@ impl ProcessManager {
 
         let stopped_for_config_update: std::collections::HashSet<String> =
             modified_running.into_iter().collect();
-        let modified_names: std::collections::HashSet<String> =
-            modified.iter().cloned().collect();
+        let modified_names: std::collections::HashSet<String> = modified.iter().cloned().collect();
         {
             let mut procs = self.processes.write().await;
             for proc in procs.iter_mut() {
@@ -479,7 +478,10 @@ async fn reconcile_process_after_reload(
                 proc.name()
             );
             if let Err(e) = proc.spawn() {
-                warn!("[{}] failed to restart after config change: {e:#}", proc.name());
+                warn!(
+                    "[{}] failed to restart after config change: {e:#}",
+                    proc.name()
+                );
                 queue_restart(proc, restart_tx);
             } else {
                 spawn_watcher(proc, exit_tx.clone());
