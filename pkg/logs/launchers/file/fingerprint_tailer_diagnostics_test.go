@@ -325,6 +325,47 @@ func TestLauncherKeepsFingerprintSkipOpenedDuringInFlightScan(t *testing.T) {
 	assert.Empty(t, setup.launcher.fingerprintSkips, "a genuinely vanished file must still be expired")
 }
 
+// A scan returns at most open_files_limit files, so a result that reached the limit may have left
+// out files that are still matched: a skipped file occupies one of those slots, and rotation renames
+// files, which moves them across the limit boundary at the same moment their fingerprints become
+// unusable. Reporting those as given up on would restart the gap we report for a file that every
+// scan is still retrying.
+func TestLauncherKeepsFingerprintSkipWhenScanHitFileLimit(t *testing.T) {
+	const count = 2048
+	setup := setupFingerprintSkipTest(t, count)
+
+	writeFile(t, setup.path, count-1)
+	setup.scan()
+	skip := setup.launcher.fingerprintSkips[setup.path]
+	require.NotNil(t, skip, "the file must be skipped first")
+	since := skip.since
+
+	// A result that filled every slot, and so cannot be read as everything that is matched.
+	setup.launcher.tailingLimit = 1
+	otherPath := t.TempDir() + "/other.log"
+	writeFile(t, otherPath, count)
+	otherSource := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: otherPath})
+	atLimit := []*filetailer.File{filetailer.NewFile(otherPath, otherSource, false)}
+
+	logs := captureLauncherLogs(t, log.WarnLvl, func() {
+		setup.launcher.resolveActiveTailers(atLimit)
+	})
+
+	require.Len(t, setup.launcher.fingerprintSkips, 1,
+		"a file left out of a scan result that hit the limit must stay tracked")
+	assert.NotContains(t, logs, "Stopped tracking",
+		"a file we are still retrying must not be reported as given up on, got:\n%s", logs)
+	assert.Equal(t, since, setup.launcher.fingerprintSkips[setup.path].since,
+		"the gap must stay continuous rather than restarting")
+
+	// A file that really is gone is still forgotten, so the map stays bounded for an Agent that sits
+	// at its file limit for a long time.
+	require.NoError(t, os.Remove(setup.path))
+	setup.launcher.resolveActiveTailers(atLimit)
+	assert.Empty(t, setup.launcher.fingerprintSkips,
+		"a deleted file must be expired even from a scan result that hit the limit")
+}
+
 // Customers cannot query the Agent's internal telemetry, so the reason a file is not being tailed
 // has to reach them through `agent status`, next to the "N files tailed out of M matching" message
 // that otherwise reports the shortfall without explaining it.
@@ -339,8 +380,12 @@ func TestLauncherReportsFingerprintSkipOnSourceStatus(t *testing.T) {
 	require.Len(t, messages, 1, "the source must carry exactly one message for the skipped file")
 	assert.Contains(t, messages[0], setup.path, "the message must name the file")
 	assert.Contains(t, messages[0], "needs 2048 bytes", "the message must report the threshold and its unit")
-	assert.Contains(t, messages[0], "logs_config.fingerprint_config.count",
-		"the message must name the setting to change")
+	// This source carries its own fingerprint_config, which wins over the global one, so the global
+	// setting is not what would make this file tailable.
+	assert.Contains(t, messages[0], "this source's fingerprint_config.count",
+		"the message must name the setting that actually applies")
+	assert.NotContains(t, messages[0], "logs_config.fingerprint_config.count",
+		"a per-source config cannot be fixed by changing the global setting")
 
 	// The message must not outlive the problem, or status would keep accusing a healthy file.
 	writeFile(t, setup.path, count)
@@ -348,6 +393,75 @@ func TestLauncherReportsFingerprintSkipOnSourceStatus(t *testing.T) {
 	require.Equal(t, 1, setup.launcher.tailers.Count())
 	assert.Empty(t, setup.source.Messages.GetMessages(),
 		"the message must be cleared once the file is tailed")
+}
+
+// Remediation advice is only worth printing if it applies: the count a file fell short of can come
+// from the source, from the global config, or from a built-in fallback that answers to no setting.
+func TestFingerprintCountSetting(t *testing.T) {
+	tests := []struct {
+		name     string
+		source   types.FingerprintConfigSource
+		expected string
+	}{
+		{"per-source wins over global", types.FingerprintConfigSourcePerSource, "this source's fingerprint_config.count"},
+		// GlobalFingerprintConfig unmarshals into a bare config, so the global case arrives unstamped.
+		{"global", types.FingerprintConfigSourceGlobal, "logs_config.fingerprint_config.count"},
+		{"unstamped global", "", "logs_config.fingerprint_config.count"},
+		{"built-in fallback has no setting", types.FingerprintConfigSourceDefault, ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fingerprint := &types.Fingerprint{Config: &types.FingerprintConfig{Source: test.source}}
+			assert.Equal(t, test.expected, fingerprintCountSetting(fingerprint))
+		})
+	}
+
+	// A file with no resolved config gives us nothing to point at, and a guess would be wrong.
+	assert.Empty(t, fingerprintCountSetting(nil), "a missing fingerprint must not name a setting")
+	assert.Empty(t, fingerprintCountSetting(&types.Fingerprint{}),
+		"a fingerprint with no config must not name a setting")
+}
+
+// count is read only after seeking past count_to_skip, so a file larger than count can still be too
+// short. Reporting count on its own would tell operators a file needs a size it already exceeds.
+func TestFingerprintRequirementReportsSkippedData(t *testing.T) {
+	requirement := func(strategy types.FingerprintStrategy, count, countToSkip int) string {
+		return fingerprintRequirement(&types.Fingerprint{Config: &types.FingerprintConfig{
+			FingerprintStrategy: strategy, Count: count, CountToSkip: countToSkip,
+		}})
+	}
+
+	// count_to_skip defaults to 0, so the common case says nothing about it.
+	assert.Equal(t, "2048 bytes", requirement(types.FingerprintStrategyByteChecksum, 2048, 0))
+	assert.Equal(t, "5 lines", requirement(types.FingerprintStrategyLineChecksum, 5, 0))
+
+	assert.Equal(t, "2048 bytes after the first 1000", requirement(types.FingerprintStrategyByteChecksum, 2048, 1000))
+	assert.Equal(t, "5 lines after the first 3", requirement(types.FingerprintStrategyLineChecksum, 5, 3))
+
+	assert.Equal(t, "more data", fingerprintRequirement(nil), "an unknown threshold must not invent a number")
+}
+
+// The file can only be measured with stat, which counts bytes. Reporting that size against a
+// threshold in lines would compare two different units and tell operators nothing.
+func TestFingerprintFileSizeMatchesThresholdUnit(t *testing.T) {
+	path := t.TempDir() + "/measured.log"
+	writeFile(t, path, 2047)
+
+	size := func(strategy types.FingerprintStrategy) string {
+		return fingerprintFileSize(path, &types.Fingerprint{
+			Config: &types.FingerprintConfig{FingerprintStrategy: strategy},
+		})
+	}
+
+	assert.Equal(t, "2047 bytes", size(types.FingerprintStrategyByteChecksum))
+	assert.Equal(t, "The file", size(types.FingerprintStrategyLineChecksum),
+		"a line threshold must not be measured against a byte count")
+
+	// Best effort throughout: an unreadable or unknown file still has to report as not tailed.
+	assert.Equal(t, "The file", fingerprintFileSize(path, nil))
+	assert.Equal(t, "The file", fingerprintFileSize(t.TempDir()+"/missing.log",
+		&types.Fingerprint{Config: &types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyByteChecksum}}))
 }
 
 // A source can be removed and re-registered for the same path, by a config reload or by
@@ -387,4 +501,22 @@ func TestLauncherMovesFingerprintSkipMessageToReplacementSource(t *testing.T) {
 	require.Equal(t, 1, setup.launcher.tailers.Count())
 	assert.Empty(t, replacement.Messages.GetMessages(),
 		"the message must be cleared from the replacement source once the file is tailed")
+}
+
+// A launcher does not only stop when the Agent does: switching transport stops the launchers and
+// keeps the sources, then builds new ones over them. The replacement launcher has no skip state to
+// clear, so anything left on a source at stop is left there for the lifetime of the process.
+func TestLauncherClearsFingerprintSkipMessagesOnStop(t *testing.T) {
+	const count = 2048
+	setup := setupFingerprintSkipTest(t, count)
+
+	writeFile(t, setup.path, count-1)
+	setup.scan()
+	require.Len(t, setup.source.Messages.GetMessages(), 1, "the file must be reported as skipped first")
+
+	setup.launcher.cleanup()
+
+	assert.Empty(t, setup.launcher.fingerprintSkips, "stopping must drop the skip state")
+	assert.Empty(t, setup.source.Messages.GetMessages(),
+		"stopping must take the message off the source that outlives the launcher")
 }

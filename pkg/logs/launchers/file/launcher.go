@@ -8,8 +8,6 @@ package file
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"sync"
@@ -89,54 +87,6 @@ const (
 type oldTailerInfo struct {
 	Pattern      *regexp.Regexp
 	InfoRegistry *status.InfoRegistry
-}
-
-// fingerprintSkipReason tells apart the two ways a fingerprint can end up unusable. The
-// fingerprinter reports both as an invalid fingerprint, and only the error distinguishes them,
-// so the reason is resolved once at the point where we decide not to tail a file.
-type fingerprintSkipReason string
-
-const (
-	// fingerprintSkipInsufficientData means the file currently holds less data than the configured
-	// fingerprint count, so no fingerprint could be computed yet. This happens right after a
-	// rotation when the replacement file is still smaller than the count, and resolves on its own
-	// once the application writes enough data.
-	fingerprintSkipInsufficientData fingerprintSkipReason = "insufficient_data"
-	// fingerprintSkipError means computing the fingerprint failed outright, for instance because
-	// the file could not be opened or read.
-	fingerprintSkipError fingerprintSkipReason = "error"
-)
-
-// fingerprintSkipOutcome says how the launcher stopped skipping a file, and picks which closing log
-// line to write. The two outcomes mean opposite things, so they cannot share one message: the file
-// either started being tailed, or was never tailed at all.
-type fingerprintSkipOutcome string
-
-const (
-	// fingerprintSkipRecovered means a tailer was eventually started for the file.
-	fingerprintSkipRecovered fingerprintSkipOutcome = "recovered"
-	// fingerprintSkipAbandoned means the launcher stopped skipping the file without ever tailing it,
-	// because it stopped being expected (deleted, or its source was removed) or because the launcher
-	// shut down. The reported duration is a lower bound on how long logs went uncollected: it stops
-	// where we lost track of the file.
-	fingerprintSkipAbandoned fingerprintSkipOutcome = "abandoned"
-)
-
-// fingerprintSkip records that no tailer was started for a file because its fingerprint was
-// unusable. The launcher retries on every scan, so this exists to report when a file starts and
-// stops being skipped rather than the steady state in between.
-type fingerprintSkip struct {
-	// file is kept so the paths that stop the skipping can name the file and clear its status
-	// message without needing the scan to hand them one. It is refreshed on every check, see
-	// recordFingerprintSkip.
-	file   *tailer.File
-	reason fingerprintSkipReason
-	// since is when we first declined to tail this file, so the closing line can report how long
-	// logs went uncollected.
-	since time.Time
-	// warned latches the warning so a file that stays unfingerprintable does not produce one
-	// line per scan period.
-	warned bool
 }
 
 // NewLauncher returns a new launcher.
@@ -269,11 +219,11 @@ func (s *Launcher) cleanup() {
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
-	// Files still being skipped when the launcher stops never got a tailer. Report them as one line
-	// rather than one per file: a shutdown is not the same event as a file we gave up on, and an
-	// Agent stopped while many files were too short should not bury its own shutdown in warnings.
 	if stillSkipped := len(s.fingerprintSkips); stillSkipped > 0 {
 		log.Warnf("Stopping with %d file(s) still not tailed because their fingerprint was unusable.", stillSkipped)
+		for _, skip := range s.fingerprintSkips {
+			removeFingerprintSkipMessage(skip.file)
+		}
 		s.fingerprintSkips = make(map[string]*fingerprintSkip)
 	}
 }
@@ -293,6 +243,11 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	// added during a concurrent scan.  In order to mitigate that possibility, any
 	// tailers started while FilesToTail() is running need to be merged with the
 	// result of FilesToTail() to prevent scan() from unscheudling them.
+	// FilesToTail returns at most tailingLimit files, so a result that reached the limit may have
+	// left out files that are still matched. Read before the merge below, which can push the count
+	// past the limit on its own.
+	hitFileLimit := len(files) >= s.tailingLimit
+
 	files = append(files, s.filesTailedBetweenScans...)
 	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
 	filesTailed := make(map[string]bool)
@@ -453,7 +408,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 	// Files that are no longer expected to be tailed can't recover, so drop their skip state.
 	if expireSkips {
-		s.forgetVanishedFiles(filesExpected)
+		s.forgetVanishedFiles(filesExpected, hitFileLimit)
 	}
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
@@ -463,180 +418,6 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	} else {
 		log.Debugf("Could not read the Agent process file statistics, skipping the open file limit check: %v", err)
 	}
-}
-
-// recordFingerprintSkip reports that no tailer was started for file because its fingerprint could
-// not be used, which means the file is not being tailed at all and its logs are being lost.
-//
-// This runs on every scan, and again whenever a source is added, so warning unconditionally would
-// produce one line per file per check for as long as the condition lasts. Instead the warning is
-// latched: the first check warns, and closeFingerprintSkip reports when the file stops being
-// skipped.
-func (s *Launcher) recordFingerprintSkip(file *tailer.File, fingerprint *types.Fingerprint, err error) {
-	// An invalid fingerprint with a nil error means the file simply does not hold enough data yet;
-	// anything else is a genuine failure to read it.
-	reason := fingerprintSkipInsufficientData
-	if err != nil {
-		reason = fingerprintSkipError
-	}
-
-	scanKey := file.GetScanKey()
-	skip, isSkipped := s.fingerprintSkips[scanKey]
-	if !isSkipped {
-		// file is set here as well as below so the field is never nil once stored: the paths that
-		// stop the skipping report skip.file.Path unguarded.
-		skip = &fingerprintSkip{file: file, reason: reason, since: time.Now()}
-		s.fingerprintSkips[scanKey] = skip
-	} else if skip.reason != reason {
-		// The file is still untailed, it is just failing differently now, so the gap is continuous:
-		// keep the start time and only re-arm the warning. Resetting it here would report one long
-		// gap as two shorter ones.
-		skip.reason = reason
-		skip.warned = false
-	}
-
-	// Every check hands us a freshly built File wrapping whatever source currently matches the path,
-	// so adopt it instead of keeping the one from the first check: a source removed and re-added for
-	// the same path has to end up carrying the message. Hand the message over rather than just
-	// copying it, because this is the last point that still knows about the source losing the file,
-	// and a message left there outlives the skip entirely.
-	if previous := skip.file; fingerprintSkipMessages(previous) != fingerprintSkipMessages(file) {
-		removeFingerprintSkipMessage(previous)
-	}
-	skip.file = file
-	setFingerprintSkipMessage(file, reason, fingerprint, err)
-
-	if skip.warned {
-		return
-	}
-	skip.warned = true
-
-	// How to resolve this lives on the status page rather than being repeated here, so the log line
-	// stays scannable.
-	if reason == fingerprintSkipError {
-		log.Warnf("Unable to tail %s. Its fingerprint could not be computed: %v. Logs are not collected until this is resolved.",
-			file.Path, err)
-		return
-	}
-
-	log.Warnf("Unable to tail %s. %s is too short for fingerprinting (needs %s). Logs are not collected until the file grows.",
-		file.Path, fingerprintFileSize(file.Path), fingerprintRequirement(fingerprint))
-}
-
-// resolveFingerprintSkip stops tracking file as skipped, now that a tailer has been started for it.
-func (s *Launcher) resolveFingerprintSkip(file *tailer.File) {
-	scanKey := file.GetScanKey()
-	if skip, isSkipped := s.fingerprintSkips[scanKey]; isSkipped {
-		s.closeFingerprintSkip(scanKey, skip, fingerprintSkipRecovered)
-	}
-}
-
-// forgetVanishedFiles drops the per-file state of files that are no longer expected to be tailed,
-// so neither map grows with every path that rotates away.
-func (s *Launcher) forgetVanishedFiles(expected map[string]bool) {
-	for scanKey, skip := range s.fingerprintSkips {
-		if !expected[scanKey] {
-			// These files never got a tailer and we are about to lose track of them, so this is the
-			// last chance to report the gap.
-			s.closeFingerprintSkip(scanKey, skip, fingerprintSkipAbandoned)
-		}
-	}
-}
-
-// closeFingerprintSkip stops tracking a skipped file, however that came about. Routing both
-// outcomes through one function keeps them from drifting apart in what they clean up.
-func (s *Launcher) closeFingerprintSkip(scanKey string, skip *fingerprintSkip, outcome fingerprintSkipOutcome) {
-	delete(s.fingerprintSkips, scanKey)
-	removeFingerprintSkipMessage(skip.file)
-
-	// Only files we warned about get a closing line, so every gap reported in the log is also
-	// reported as closed and neither half appears on its own.
-	if !skip.warned {
-		return
-	}
-	waited := time.Since(skip.since).Truncate(time.Second)
-	if outcome == fingerprintSkipRecovered {
-		log.Infof("Now tailing %s, %v after it was first skipped for an unusable fingerprint (%s). Logs written during that gap were not collected.",
-			skip.file.Path, waited, skip.reason)
-		return
-	}
-	log.Warnf("Stopped tracking %s, never tailed for %v because of an unusable fingerprint (%s). Logs written during that gap were not collected.",
-		skip.file.Path, waited, skip.reason)
-}
-
-// setFingerprintSkipMessage puts the reason a file is not being tailed on the status page of the
-// source that matched it, right next to the "N files tailed out of M files matching" message that
-// otherwise reports the shortfall without explaining it. Customers cannot query the Agent's
-// internal telemetry, so `agent status` and the Agent log are the only two places this can reach
-// them, and status is the one they look at first.
-func setFingerprintSkipMessage(file *tailer.File, reason fingerprintSkipReason, fingerprint *types.Fingerprint, err error) {
-	messages := fingerprintSkipMessages(file)
-	if messages == nil {
-		return
-	}
-
-	if reason == fingerprintSkipError {
-		messages.AddMessage(fingerprintSkipMessageKey(file),
-			fmt.Sprintf("Not tailing %s: its fingerprint could not be computed (%v)", file.Path, err))
-		return
-	}
-
-	// count is the setting to change, so name it rather than describing it.
-	messages.AddMessage(fingerprintSkipMessageKey(file),
-		fmt.Sprintf("Not tailing %s: too short to fingerprint (needs %s). Lower logs_config.fingerprint_config.count if this persists",
-			file.Path, fingerprintRequirement(fingerprint)))
-}
-
-// removeFingerprintSkipMessage clears the status message once the file stops being skipped, whether
-// it ended up being tailed or went away.
-func removeFingerprintSkipMessage(file *tailer.File) {
-	if messages := fingerprintSkipMessages(file); messages != nil {
-		messages.RemoveMessage(fingerprintSkipMessageKey(file))
-	}
-}
-
-// fingerprintSkipMessages returns the message set of the source that matched file, or nil when
-// there is no source to report against.
-func fingerprintSkipMessages(file *tailer.File) *config.Messages {
-	if file == nil || file.Source == nil {
-		return nil
-	}
-	source := file.Source.UnderlyingSource()
-	if source == nil {
-		return nil
-	}
-	return source.Messages
-}
-
-// fingerprintSkipMessageKey keys the message per file rather than per source, so a source matching
-// several files reports each of them.
-func fingerprintSkipMessageKey(file *tailer.File) string {
-	return "fingerprintSkip:" + file.GetScanKey()
-}
-
-// fingerprintFileSize renders how much data the file currently holds, as the subject of a sentence
-// so the message still reads if the size cannot be read. Best effort: failing to stat the file must
-// never get in the way of reporting that we are not tailing it.
-func fingerprintFileSize(path string) string {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "The file"
-	}
-	return fmt.Sprintf("%d bytes", info.Size())
-}
-
-// fingerprintRequirement renders the threshold the file is measured against, in the unit the
-// configured strategy actually uses. logs_config.fingerprint_config.count counts lines under
-// line_checksum and bytes under byte_checksum, so reporting the bare number would not tell anyone
-// what the file needs more of.
-func fingerprintRequirement(fingerprint *types.Fingerprint) string {
-	if fingerprint == nil || fingerprint.Config == nil {
-		return "more data"
-	}
-	if fingerprint.Config.FingerprintStrategy == types.FingerprintStrategyByteChecksum {
-		return fmt.Sprintf("%d bytes", fingerprint.Config.Count)
-	}
-	return fmt.Sprintf("%d lines", fingerprint.Config.Count)
 }
 
 // cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
