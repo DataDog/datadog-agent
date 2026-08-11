@@ -523,6 +523,8 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	useHostEtc(config)
 
+	postProcessSystemProbe(SystemProbe())
+
 	err = checkConflictingOptions(config)
 	if err != nil {
 		return err
