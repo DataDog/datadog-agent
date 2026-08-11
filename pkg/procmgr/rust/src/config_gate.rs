@@ -9,8 +9,10 @@
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
 //! configured key evaluates to true. Resolution order matches agent config
 //! (`pkg/config/model/types.go`): agent-runtime transforms, then highest-priority
-//! configured source among fleet policy, secret-backed values, environment
-//! variables, explicit base YAML, then agent default.
+//! configured source among fleet policy, secret-backed values from pre-fleet
+//! layers (base YAML and environment), environment variables, explicit base
+//! YAML, then agent default. Fleet policy `ENC[...]` handles are left unresolved,
+//! matching Agent `MergeFleetPolicy` running after secret resolution.
 //!
 //! When deprecated `process_config.enabled` is set, collection keys follow
 //! `loadProcessTransforms` in `pkg/config/setup/process.go` instead of defaults.
@@ -278,25 +280,32 @@ impl YamlCache {
     ) -> anyhow::Result<Option<Prioritized<T>>> {
         let agent_yaml = agent_datadog_yaml(base_path);
         let mut best: Option<Prioritized<T>> = None;
-        let mut consider = |layer: Option<Prioritized<T>>| {
-            if let Some(candidate) = layer {
-                best = Some(Prioritized::pick_best(best, candidate));
-            }
-        };
 
         if let Some(filename) = fleet_policy_file
             && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && let Some(value) = self.dotted_key_if_exists(&path, key)?
         {
-            consider(layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::FleetPolicies));
+            if let Some(candidate) =
+                layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::FleetPolicies)
+            {
+                best = Some(Prioritized::pick_best(best, candidate));
+            }
         }
 
         if let Some(text) = env_string_for_config_key(key) {
-            consider(layer_from_env(&text, &agent_yaml, ConfigSourcePriority::EnvVar));
+            if let Some(candidate) =
+                layer_from_env(&text, &agent_yaml, ConfigSourcePriority::EnvVar)
+            {
+                best = Some(Prioritized::pick_best(best, candidate));
+            }
         }
 
         if let Some(value) = self.dotted_key_if_exists(base_path, key)? {
-            consider(layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::File));
+            if let Some(candidate) =
+                layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::File)
+            {
+                best = Some(Prioritized::pick_best(best, candidate));
+            }
         }
 
         Ok(best)
@@ -624,7 +633,9 @@ fn prioritized_bool_from_string(
     agent_yaml: &str,
     base_priority: ConfigSourcePriority,
 ) -> Option<Prioritized<bool>> {
-    if let Some((resolved, priority)) = promote_secret_string(text, agent_yaml) {
+    if base_priority != ConfigSourcePriority::FleetPolicies
+        && let Some((resolved, priority)) = promote_secret_string(text, agent_yaml)
+    {
         return parse_agent_bool_string(&resolved).map(|value| Prioritized { value, priority });
     }
     bool_from_config_string(text).map(|value| Prioritized {
@@ -638,7 +649,9 @@ fn prioritized_string_from_raw(
     agent_yaml: &str,
     base_priority: ConfigSourcePriority,
 ) -> Prioritized<String> {
-    if let Some((value, priority)) = promote_secret_string(&text, agent_yaml) {
+    if base_priority != ConfigSourcePriority::FleetPolicies
+        && let Some((value, priority)) = promote_secret_string(&text, agent_yaml)
+    {
         return Prioritized { value, priority };
     }
     Prioritized {
@@ -1807,6 +1820,62 @@ process_config:
                 fleet_dir.to_string_lossy().as_ref(),
             );
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn fleet_policy_enc_is_not_resolved() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+
+            let dir = test_env::tempdir_for_secret_backend();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: ENC[fleet_collection_enabled]\n  process_discovery:\n    enabled: false\n",
+            );
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    "#!/bin/sh\nprintf '{\"fleet_collection_enabled\":{\"value\":\"true\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"fleet_collection_enabled\\\":{\\\"value\\\":\\\"true\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\n{}",
+                    script.to_string_lossy(),
+                    ALL_PROCESS_GATES_OFF
+                ),
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            assert!(
+                !condition_config_any_met(&process_agent_conditions(agent)),
+                "fleet policy ENC handles must stay unresolved like Agent MergeFleetPolicy"
+            );
         });
     }
 

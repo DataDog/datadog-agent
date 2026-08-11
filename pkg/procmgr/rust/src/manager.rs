@@ -366,7 +366,7 @@ impl ProcessManager {
         let stopped_for_config_update: std::collections::HashSet<String> =
             modified_running.into_iter().collect();
         let modified_names: std::collections::HashSet<String> =
-            modified.into_iter().collect();
+            modified.iter().cloned().collect();
         {
             let mut procs = self.processes.write().await;
             for proc in procs.iter_mut() {
