@@ -1636,8 +1636,9 @@ func TestPatchContainerResourcesGOMEMLIMIT(t *testing.T) {
 
 	t.Run("no patch when GOMEMLIMIT already has the right value", func(t *testing.T) {
 		cont := &corev1.Container{
-			Name: "app",
-			Env:  []corev1.EnvVar{{Name: "GOMEMLIMIT", Value: "256MiB"}},
+			Name:      "app",
+			Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+			Env:       []corev1.EnvVar{{Name: "GOMEMLIMIT", Value: "256MiB"}},
 		}
 		runtime := &model.ContainerRuntimeValues{GoMemLimit: "256MiB"}
 		patched := patchContainerResources(reco, runtime, cont)
@@ -1662,8 +1663,9 @@ func TestPatchContainerResourcesGOMEMLIMIT(t *testing.T) {
 
 	t.Run("nil runtime leaves env vars unchanged", func(t *testing.T) {
 		cont := &corev1.Container{
-			Name: "app",
-			Env:  []corev1.EnvVar{{Name: "SOME_VAR", Value: "foo"}},
+			Name:      "app",
+			Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+			Env:       []corev1.EnvVar{{Name: "SOME_VAR", Value: "foo"}},
 		}
 		patched := patchContainerResources(reco, nil, cont)
 		assert.False(t, patched)

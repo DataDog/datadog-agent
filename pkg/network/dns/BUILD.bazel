@@ -171,6 +171,7 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":dns"],
+    gotags_sets = [["linux_bpf"]],
     deps = [
         "//pkg/config/mock",
         "//pkg/network/config",

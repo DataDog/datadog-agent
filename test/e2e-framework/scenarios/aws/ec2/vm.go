@@ -51,14 +51,15 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		c.CloudProvider = pulumi.String(components.CloudProviderAWS).ToStringOutput()
 
 		instanceArgs := ec2.InstanceArgs{
-			AMI:                amiInfo.id,
-			InstanceType:       vmArgs.instanceType,
-			UserData:           vmArgs.userData,
-			InstanceProfile:    vmArgs.instanceProfile,
-			HTTPTokensRequired: vmArgs.httpTokensRequired,
-			Tenancy:            vmArgs.tenancy,
-			HostID:             pulumi.String(vmArgs.hostID),
-			VolumeThroughput:   vmArgs.volumeThroughput,
+			AMI:                   amiInfo.id,
+			InstanceType:          vmArgs.instanceType,
+			UserData:              vmArgs.userData,
+			InstanceProfile:       vmArgs.instanceProfile,
+			HTTPTokensRequired:    vmArgs.httpTokensRequired,
+			Tenancy:               vmArgs.tenancy,
+			HostID:                pulumi.String(vmArgs.hostID),
+			VolumeThroughput:      vmArgs.volumeThroughput,
+			WithoutInternetAccess: vmArgs.withoutInternetAccess,
 			StorageSize:        vmArgs.storageSize,
 		}
 

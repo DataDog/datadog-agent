@@ -65,7 +65,6 @@ from tasks import (
     owners,
     package,
     pipeline,
-    pkg_template,
     pre_commit,
     privateactionrunner,
     process_agent,
@@ -278,7 +277,6 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(schema)
 ns.add_collection(sbomgen)
-ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
 ns.add_collection(files_inventory)
 

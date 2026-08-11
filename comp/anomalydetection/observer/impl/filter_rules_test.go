@@ -101,7 +101,7 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 
 	tags := []string{"env:prod"}
 	h := seriesKeyHash("check", "system.cpu.user", tags)
-	filter.setMuted(map[uint64]struct{}{h: {}})
+	filter.publishMutedSnapshot(map[uint64]struct{}{h: {}})
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
 	assert.True(t, filter.isAllowed("system.mem.used", "check", tags))
