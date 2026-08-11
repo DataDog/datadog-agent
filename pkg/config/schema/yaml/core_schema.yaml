@@ -4331,6 +4331,19 @@ properties:
             visibility: public
             description: Enable collection of VPN tunnels and route table data
             example: 'true'
+          ignore_network_and_broadcast_addresses:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: |-
+              When enabled, the network and broadcast addresses of each scanned subnet
+              are skipped during autodiscovery. These addresses are often assigned to
+              floating/virtual IPs (such as HSRP/VRRP gateways) that multiple devices can
+              answer on, which corrupts per-device metrics such as interface bandwidth
+              usage. Can be overridden per subnet in `configs`. Only applies to IPv4
+              subnets with a prefix of /30 or larger.
+            example: 'true'
           ping:
             node_type: section
             type: object
@@ -4464,6 +4477,13 @@ properties:
                   ignored_ip_addresses:
                     - <IP_ADDRESS_1>
                     - <IP_ADDRESS_2>
+
+                  # @param ignore_network_and_broadcast_addresses - boolean - optional - default: false
+                  # When enabled, skip the network and broadcast addresses of this subnet
+                  # during discovery. Overrides the top-level autodiscovery setting.
+                  # Only applies to IPv4 subnets with a prefix of /30 or larger.
+
+                  # ignore_network_and_broadcast_addresses: true
 
                   # @param port - integer - optional - default: 161
                   # The UDP port to use when connecting to SNMP devices.

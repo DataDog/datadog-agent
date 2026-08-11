@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    SNMP autodiscovery: add ``ignore_network_and_broadcast_addresses`` (settable
+    under ``network_devices.autodiscovery`` and overridable per subnet). When
+    enabled, the network and broadcast addresses of each scanned IPv4 subnet
+    (prefix ``/30`` or larger) are skipped during discovery. Disabled by default.

@@ -1050,3 +1050,106 @@ network_devices:
 
 	assert.False(t, conf.Deduplicate)
 }
+
+func Test_IgnoreNetworkAndBroadcastAddresses(t *testing.T) {
+	t.Run("disabled by default", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 10.0.0.0/24
+`)
+		conf, err := snmp.NewListenerConfig()
+		assert.NoError(t, err)
+		assert.False(t, conf.Configs[0].IgnoreNetworkAndBroadcastAddresses)
+		assert.NotContains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.0")
+		assert.NotContains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.255")
+	})
+
+	t.Run("top-level enabled adds network and broadcast", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    ignore_network_and_broadcast_addresses: true
+    configs:
+     - network: 10.0.0.0/24
+`)
+		conf, err := snmp.NewListenerConfig()
+		assert.NoError(t, err)
+		assert.True(t, conf.Configs[0].IgnoreNetworkAndBroadcastAddresses)
+		assert.Contains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.0")
+		assert.Contains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.255")
+	})
+
+	t.Run("per-config overrides top-level", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    ignore_network_and_broadcast_addresses: true
+    configs:
+     - network: 10.0.0.0/24
+       ignore_network_and_broadcast_addresses: false
+     - network: 10.0.1.0/24
+`)
+		conf, err := snmp.NewListenerConfig()
+		assert.NoError(t, err)
+		// overridden off: network/broadcast not added
+		assert.False(t, conf.Configs[0].IgnoreNetworkAndBroadcastAddresses)
+		assert.NotContains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.0")
+		assert.NotContains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.255")
+		// inherits top-level true
+		assert.True(t, conf.Configs[1].IgnoreNetworkAndBroadcastAddresses)
+		assert.Contains(t, conf.Configs[1].IgnoredIPAddresses, "10.0.1.0")
+		assert.Contains(t, conf.Configs[1].IgnoredIPAddresses, "10.0.1.255")
+	})
+
+	t.Run("preserves explicitly ignored addresses", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    ignore_network_and_broadcast_addresses: true
+    configs:
+     - network: 10.0.0.0/24
+       ignored_ip_addresses:
+         - 10.0.0.42
+`)
+		conf, err := snmp.NewListenerConfig()
+		assert.NoError(t, err)
+		assert.Contains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.42")
+		assert.Contains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.0")
+		assert.Contains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.255")
+	})
+
+	t.Run("skipped for /31 and /32", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    ignore_network_and_broadcast_addresses: true
+    configs:
+     - network: 10.0.0.0/31
+     - network: 10.0.1.5/32
+`)
+		conf, err := snmp.NewListenerConfig()
+		assert.NoError(t, err)
+		// /31: both addresses are usable hosts (RFC 3021), nothing skipped
+		assert.Empty(t, conf.Configs[0].IgnoredIPAddresses)
+		// /32: single host, nothing skipped
+		assert.Empty(t, conf.Configs[1].IgnoredIPAddresses)
+	})
+
+	t.Run("larger subnet uses true network and broadcast", func(t *testing.T) {
+		configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    ignore_network_and_broadcast_addresses: true
+    configs:
+     - network: 10.0.0.0/23
+`)
+		conf, err := snmp.NewListenerConfig()
+		assert.NoError(t, err)
+		// network is 10.0.0.0, broadcast is 10.0.1.255; the .0 host 10.0.1.0 is NOT skipped
+		assert.Contains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.0.0")
+		assert.Contains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.1.255")
+		assert.NotContains(t, conf.Configs[0].IgnoredIPAddresses, "10.0.1.0")
+	})
+}
