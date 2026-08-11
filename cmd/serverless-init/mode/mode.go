@@ -35,9 +35,12 @@ func DetectMode() Conf {
 	envToSet := map[string]string{
 		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
 		"DD_REMOTE_CONFIGURATION_ENABLED":      "false",
-		"DD_HOSTNAME":                          "none",
-		"DD_APM_ENABLED":                       "true",
-		"DD_TRACE_ENABLED":                     "true",
+		// DD_HOSTNAME is intentionally NOT set here. Serverless agents have no host;
+		// the inventoryagent payload uses the cloud resource_name as UUID (PR #22542
+		// pattern). Setting hostname="none" would cause Subotka to key the row on the
+		// literal string "none" instead of the UUID, breaking Fleet lookups.
+		"DD_APM_ENABLED":   "true",
+		"DD_TRACE_ENABLED": "true",
 	}
 
 	if len(os.Args) == 1 {
