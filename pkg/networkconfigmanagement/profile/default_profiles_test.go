@@ -142,7 +142,8 @@ func Test_PanOSGetRunningValidator(t *testing.T) {
 }
 
 func Test_PanOSRedaction(t *testing.T) {
-	// The phash password hash must be redacted in both output formats.
+	// The phash password hash and SNMP community string must be redacted in both
+	// output formats.
 	rules := DefaultProfile(t, ProfilePanOS).Redactions
 
 	// XML format
@@ -156,6 +157,18 @@ func Test_PanOSRedaction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, string(curlyRedacted), "ljjdxeva")
 	assert.Contains(t, string(curlyRedacted), "phash <secret hidden>;")
+
+	// SNMP community string — XML format
+	xmlSNMP, err := Redact([]byte("<snmp-community-string>ndm-lab-snmp</snmp-community-string>\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(xmlSNMP), "ndm-lab-snmp")
+	assert.Contains(t, string(xmlSNMP), "<snmp-community-string><secret hidden></snmp-community-string>")
+
+	// SNMP community string — curly-brace format
+	curlySNMP, err := Redact([]byte("              snmp-community-string ndm-lab-snmp;\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(curlySNMP), "ndm-lab-snmp")
+	assert.Contains(t, string(curlySNMP), "snmp-community-string <secret hidden>;")
 }
 
 func Test_DefaultProfiles_Startup(t *testing.T) {

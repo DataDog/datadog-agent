@@ -438,10 +438,16 @@ var DefaultProfiles = Map{
 			GetVersion: MkCommand("show system info"),
 		},
 		Redactions: []RedactionRule{
+			// Admin password hash.
 			// XML output: <phash>...</phash>
 			MkRedaction(`<phash>.*?</phash>`, WithReplacement("<phash><secret hidden></phash>")),
 			// Curly-brace output: phash $5$...;
 			MkRedaction(`phash\s+\S+;`, WithReplacement("phash <secret hidden>;")),
+			// SNMP community string (effectively a password).
+			// XML output: <snmp-community-string>...</snmp-community-string>
+			MkRedaction(`<snmp-community-string>.*?</snmp-community-string>`, WithReplacement("<snmp-community-string><secret hidden></snmp-community-string>")),
+			// Curly-brace output: snmp-community-string foo;
+			MkRedaction(`snmp-community-string\s+\S+;`, WithReplacement("snmp-community-string <secret hidden>;")),
 		},
 	},
 
