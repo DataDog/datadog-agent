@@ -347,7 +347,8 @@ func buildCustomPayload(tl BootTimeline, gp *GroupPolicyDetails) map[string]inte
 	// Omitted entirely when no extension invocation was measured end to end.
 	// Whether a pass ran at all is already answered by boot_timeline, which
 	// carries a computer_group_policy / user_group_policy milestone exactly when
-	// that pass's start was observed.
+	// that pass's start was observed - the same event that lets a scope here
+	// claim any invocations at all, so a populated array always has its parent.
 	if gp != nil {
 		custom["group_policy_details"] = gp
 	}

@@ -383,7 +383,8 @@ func TestBuildCustomPayload_ExistingKeysUnchanged(t *testing.T) {
 		assert.JSONEq(t, string(before), string(after), "%s must be unaffected", key)
 	}
 
-	// submitEvent formats this value with %d, so its Go type is load-bearing.
+	// An integer on the wire, not a float: the payload is a shipped contract and
+	// a change to a float64 would render as 28394.0 for every consumer.
 	durations := withGP["durations"].(map[string]interface{})
 	_, isInt64 := durations["total_boot_duration_ms"].(int64)
 	assert.True(t, isInt64, "total_boot_duration_ms must stay an int64")
@@ -439,16 +440,28 @@ func TestSubmitEvent_GroupPolicyReachesTheWire(t *testing.T) {
 	assert.Contains(t, custom, "boot_timeline")
 }
 
-func TestSubmitEvent_PayloadSizeStaysUnderWarnThreshold(t *testing.T) {
-	// A pessimistic but realistic worst case: Windows registers roughly 30
-	// extensions per scope, so 60 per pass is double that, and 20 applicable
-	// GPOs per extension is far past what a normal domain applies. This is the
-	// empirical backing for inlining GPOs instead of pooling them in a shared
-	// table, and it fails here rather than as an invisible intake rejection if
-	// a future field blows the budget.
+func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
+	// The largest payload the caps actually permit, so the number below is what
+	// the code can emit rather than what it is expected to emit. Windows registers
+	// on the order of 57 policy extensions, so 60 invocations per pass is past what
+	// either scope can produce, and every GPO list is at maxGPOsPerCSE with
+	// maximum-length names.
+	//
+	// This is a growth tripwire, not a wire limit: nothing in the event-management
+	// pipeline enforces a size (it streams one event per request with no size
+	// check) and the body is compressed before it is sent, so a payload of highly
+	// repetitive GUIDs and names is far smaller in flight. The ceiling exists so
+	// that a future field multiplied across every invocation fails here instead of
+	// quietly tripling the event.
 	const (
 		invocationsPerPass = 60
-		gposPerInvocation  = 20
+		gposPerInvocation  = maxGPOsPerCSE
+
+		// Derivation: a GPORef at maxGPONameBytes is ~313 bytes and an invocation
+		// without its array ~292, so an invocation at the cap is ~20 KB and 120 of
+		// them are ~2.45 MB. The ceiling leaves room for the boot_timeline and
+		// durations blocks without leaving room for a new per-GPO field.
+		maxWorstCaseBytes = 3 * 1024 * 1024
 	)
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 
@@ -482,8 +495,8 @@ func TestSubmitEvent_PayloadSizeStaysUnderWarnThreshold(t *testing.T) {
 		GroupPolicy: &GroupPolicyDetails{Computer: pass(), User: pass()},
 	})
 
-	assert.Less(t, size, payloadSizeWarnBytes,
-		"a worst-case payload must stay under the size warning threshold (was %d bytes)", size)
+	assert.Less(t, size, maxWorstCaseBytes,
+		"the largest payload the caps permit must stay under the ceiling (was %d bytes)", size)
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {

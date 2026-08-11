@@ -22,10 +22,15 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Property values in these tests are the exact strings TDH produces for each
-// declared out-type, confirmed against the Microsoft-Windows-GroupPolicy
-// manifest: a braced uppercase GUID for win:GUID, "0x…" for win:HexInt32,
-// decimal for win:UInt32, and "true"/"false" for win:Boolean.
+// Property values in these tests are in the form TDH produces for each declared
+// out-type, per the Microsoft-Windows-GroupPolicy manifest: a braced GUID for
+// win:GUID, decimal for win:UInt32, and "true"/"false" for win:Boolean.
+//
+// ErrorCode is written as "0x…" here because it is declared with the
+// win:HexInt32 out-type, but the manifest pins only the prefix, not the padding
+// or the case, and a real capture rendered a zero code as plain "0". So the exact
+// spelling is not a contract: parseUint32 uses base 0 and accepts every form,
+// which TestFormatErrorCode covers directly.
 
 const (
 	cseRegistryGUID  = "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"
@@ -65,6 +70,17 @@ func (f *gpFixture) send(activity windows.GUID, id uint16, offset time.Duration,
 	f.t.Helper()
 	e := makeEvent(guidGroupPolicy, id, gpTestBoot.Add(offset), props...)
 	e.activityID = activity
+	processEvent(f.coll, e)
+}
+
+// sendPartial dispatches an event whose TDH decode failed after the properties
+// given, which is what a partial bulk decode looks like: the properties before
+// the failure are recovered and everything after it is absent.
+func (f *gpFixture) sendPartial(activity windows.GUID, id uint16, offset time.Duration, failedAt string, props ...property) {
+	f.t.Helper()
+	e := makeEvent(guidGroupPolicy, id, gpTestBoot.Add(offset), props...)
+	e.activityID = activity
+	e.propsErr = fmt.Errorf("failed to parse property %q", failedAt)
 	processEvent(f.coll, e)
 }
 
@@ -110,11 +126,6 @@ func (f *gpFixture) cseStop(activity windows.GUID, offset time.Duration, id uint
 	)
 }
 
-// gpoInventory emits a 5312 applicable-GPO list.
-func (f *gpFixture) gpoInventory(activity windows.GUID, offset time.Duration, list string) {
-	f.send(activity, evtGPOListApplicable, offset, property{Name: "GPOInfoList", Value: list})
-}
-
 // details finalizes and requires a non-nil block.
 func (f *gpFixture) details() *GroupPolicyDetails {
 	f.t.Helper()
@@ -128,12 +139,24 @@ func (f *gpFixture) finalize() *GroupPolicyDetails {
 	return f.coll.groupPolicy.finalize(f.coll.timeline)
 }
 
-// gpoFragment builds a GPOInfoList value: a rootless sequence of <GPO> siblings.
+// gpoFragment builds an ApplicableGPOList value: a rootless sequence of <GPO>
+// siblings, which is what a boot capture showed the provider emitting.
 func gpoFragment(entries ...string) string {
 	return strings.Join(entries, "")
 }
 
+// gpoEntry is one entry in the shape a real 4016 carries: ID attribute and Name
+// only.
 func gpoEntry(id, name string) string {
+	return fmt.Sprintf(`<GPO ID="%s"><Name>%s</Name></GPO>`, id, name)
+}
+
+// gpoRichEntry is the fuller entry shape the 5312 inventory carries, which
+// embeds the applying extensions' own GUIDs. 5312 is not collected, so this is
+// never what the parser sees in production - it is here to prove the walk reads
+// ID attributes rather than scanning for braces, which is the precondition that
+// makes the fallback scan safe.
+func gpoRichEntry(id, name string) string {
 	return fmt.Sprintf(
 		`<GPO ID="%s"><Name>%s</Name><Version>65539</Version><SOM>DC=corp,DC=example</SOM><FSPath>\\corp\SysVol</FSPath><Extensions>[{35378EAC-683F-11D2-A89A-00C04FBBCFA2}]</Extensions></GPO>`,
 		id, name)
@@ -406,11 +429,11 @@ func TestZeroActivityIDNeverPins(t *testing.T) {
 	assert.Nil(t, f.finalize())
 }
 
-func TestUserPassRecoveredFromStopEventAlone(t *testing.T) {
-	// Replays a real trace: 4000/8000 carried one activity, then the user pass
-	// ran and emitted 8001 under a second activity with no 4001 anywhere. The
-	// stop event identifies the pass just as well, so its invocations are still
-	// attributed rather than discarded.
+func TestPassStopAloneNeverPins(t *testing.T) {
+	// Only a pass start claims a scope. A stop event arriving without its start
+	// leaves the scope unclaimed, so its invocations are not attributed - which is
+	// what keeps this block from describing slices of a pass boot_timeline has no
+	// milestone for, since the milestone comes from the same start event.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.endComputerPass()
@@ -419,11 +442,25 @@ func TestUserPassRecoveredFromStopEventAlone(t *testing.T) {
 	f.cseStop(gpUserActivity, 32*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
 	f.send(gpUserActivity, evtUserGPEnd, 33*time.Second)
 
+	assert.Nil(t, f.finalize())
+	assert.False(t, f.coll.timeline.UserGPEnd.IsZero(), "the stop still sets its timeline field")
+	assert.True(t, f.coll.timeline.UserGPStart.IsZero(), "no user pass start was observed")
+}
+
+func TestPassActivityIsNotSharedBetweenScopes(t *testing.T) {
+	// One activity cannot be both passes. If it were accepted for the second
+	// scope, buildScope would read the same bucket twice and emit every
+	// invocation under computer and user alike.
+	f := newGPFixture(t)
+	f.startComputerPass()
+	f.send(gpTestActivity, evtUserGPStart, 30*time.Second)
+
+	f.cseStart(gpTestActivity, 31*time.Second, cseRegistryGUID, "Registry", false, "")
+	f.cseStop(gpTestActivity, 32*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+
 	d := f.details()
-	assert.Empty(t, d.Computer)
-	require.Len(t, d.User, 1)
-	assert.Equal(t, cseRegistryGUID, d.User[0].CSEID)
-	assert.Equal(t, int64(1000), d.User[0].DurationMs)
+	require.Len(t, d.Computer, 1)
+	assert.Empty(t, d.User, "the user scope never claimed the computer pass's activity")
 }
 
 // --- Offsets share the boot_timeline axis ---
@@ -468,12 +505,11 @@ func TestGPOInlinedPerInvocation(t *testing.T) {
 	// pooled in a shared table, so a consumer rendering the tree needs no join.
 	f := newGPFixture(t)
 	f.startComputerPass()
-	f.gpoInventory(gpTestActivity, 12100*time.Millisecond,
-		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
 
+	list := gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy"))
 	for i, guid := range []string{cseRegistryGUID, cseFolderRedGUID, cseAuditGUID} {
 		start := time.Duration(13+i) * time.Second
-		f.cseStart(gpTestActivity, start, guid, "ext", false, gpoDefaultDomainGUID)
+		f.cseStart(gpTestActivity, start, guid, "ext", false, list)
 		f.cseStop(gpTestActivity, start+500*time.Millisecond, evtCSEStopSuccess, guid, "ext", "0x00000000")
 	}
 
@@ -486,14 +522,16 @@ func TestGPOInlinedPerInvocation(t *testing.T) {
 	}
 }
 
-func TestGPONamesFromApplicableListAloneNeedNo5312(t *testing.T) {
-	// A boot capture confirms ApplicableGPOList carries the same
-	// <GPO ID="…"><Name> entries as the 5312 inventory, so names are available
-	// from 4016 alone and no inventory event is required.
+func TestGPONamesComeFromTheApplicableList(t *testing.T) {
+	// A boot capture confirms ApplicableGPOList carries ID and Name, so 4016 is
+	// the only event needed and the 5312 inventory is not collected. The fuller
+	// inventory shape is fed here to prove the walk reads ID attributes rather
+	// than scanning: a scan would report the GUID inside <Extensions>, which is an
+	// extension's own identity and not an applicable GPO.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
-		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
+		gpoFragment(gpoRichEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
 
 	gpos := f.details().Computer[0].GPOs
@@ -503,14 +541,15 @@ func TestGPONamesFromApplicableListAloneNeedNo5312(t *testing.T) {
 }
 
 func TestGPONamesSurviveUnescapedAmpersand(t *testing.T) {
-	// Windows concatenates ApplicableGPOList without escaping display names, so
-	// a GPO named "R&D Baseline" arrives carrying a bare ampersand - a boot
-	// capture carried exactly that, in the first position of every list. Under
-	// strict XML parsing the walk aborts on that entry and every GPO behind it
-	// loses its name, while the braced-GUID fallback still recovers the IDs; the
-	// payload then shows GUIDs with no names at all. When the offending name is
-	// not first, the fallback does not even fire and the references themselves
-	// are dropped, which is why the mid-list position is covered too.
+	// Windows concatenates ApplicableGPOList without escaping display names, so a
+	// GPO named "R&D Baseline" arrives carrying a bare ampersand - a boot capture
+	// carried exactly that, in the first position of every list. Non-strict
+	// decoding leaves the malformed entity alone, so the whole list still parses.
+	//
+	// Under strict parsing the walk would abort on that entry: with the offending
+	// name first the fallback recovers the IDs and the payload shows GUIDs with no
+	// names at all, and with it mid-list the walk returns a prefix and the tail is
+	// dropped outright. Both positions are covered here for that reason.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
@@ -528,47 +567,58 @@ func TestGPONamesSurviveUnescapedAmpersand(t *testing.T) {
 	}, f.details().Computer[0].GPOs)
 }
 
-func TestGPOInventoryResolvesNameArrivingAfterTheInvocation(t *testing.T) {
-	// Names are resolved at finalize, so event ordering does not matter.
+func TestGPONameSharedFromAnotherInvocationsList(t *testing.T) {
+	// The name lookup spans the trace and resolves at finalize, so an invocation
+	// whose own list carried no name still gets one from a list that did - even a
+	// later one. That is what supplies names on the degraded path, where the walk
+	// ended early and the fallback scan recovered GUIDs without their names.
 	f := newGPFixture(t)
 	f.startComputerPass()
+
+	// This invocation's list is a bare GUID: no name available from it.
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, gpoDefaultDomainGUID)
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
-	f.gpoInventory(gpTestActivity, 15*time.Second,
-		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
 
-	assert.Equal(t, "Default Domain Policy", f.details().Computer[0].GPOs[0].Name)
+	// A later invocation names the same object.
+	f.cseStart(gpTestActivity, 15*time.Second, cseFolderRedGUID, "Folder Redirection", false,
+		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
+	f.cseStop(gpTestActivity, 16*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection", "0x00000000")
+
+	invs := f.details().Computer
+	require.Len(t, invs, 2)
+	assert.Equal(t, "Default Domain Policy", invs[0].GPOs[0].Name,
+		"the earlier invocation picks up the later list's name")
 }
 
 func TestGPOMultiplePerCSE(t *testing.T) {
 	f := newGPFixture(t)
 	f.startComputerPass()
-	f.gpoInventory(gpTestActivity, 12100*time.Millisecond, gpoFragment(
+	f.cseStart(gpTestActivity, 12100*time.Millisecond, cseAuditGUID, "Audit", false, gpoFragment(
 		gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy"),
 		gpoEntry(gpoDomainCtlGUID, "Default Domain Controllers Policy"),
 	))
+	f.cseStop(gpTestActivity, 12200*time.Millisecond, evtCSEStopSuccess, cseAuditGUID, "Audit", "0x00000000")
+
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
 		gpoDefaultDomainGUID+";"+gpoDomainCtlGUID+";"+gpoThirdGUID)
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
 
-	gpos := f.details().Computer[0].GPOs
+	gpos := f.details().Computer[1].GPOs
 	require.Len(t, gpos, 3)
 	assert.Equal(t, "Default Domain Policy", gpos[0].Name)
 	assert.Equal(t, "Default Domain Controllers Policy", gpos[1].Name)
 	assert.Equal(t, gpoThirdGUID, gpos[2].ID)
-	assert.Empty(t, gpos[2].Name, "no inventory entry, so the ID stands alone")
+	assert.Empty(t, gpos[2].Name, "no list named this one, so the ID stands alone")
 }
 
 func TestGPODuplicateDisplayNamesStayDistinct(t *testing.T) {
 	// The GUID is the identity. Two GPOs may legitimately share a display name.
 	f := newGPFixture(t)
 	f.startComputerPass()
-	f.gpoInventory(gpTestActivity, 12100*time.Millisecond, gpoFragment(
+	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, gpoFragment(
 		gpoEntry(gpoDefaultDomainGUID, "Baseline"),
 		gpoEntry(gpoDomainCtlGUID, "Baseline"),
 	))
-	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
-		gpoDefaultDomainGUID+" "+gpoDomainCtlGUID)
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
 
 	gpos := f.details().Computer[0].GPOs
@@ -578,67 +628,158 @@ func TestGPODuplicateDisplayNamesStayDistinct(t *testing.T) {
 	assert.Equal(t, "Baseline", gpos[1].Name)
 }
 
-func TestGPOInventoryAloneEmitsNothing(t *testing.T) {
+func TestGPONamesWithoutASurvivingInvocationEmitNothing(t *testing.T) {
 	// The name lookup is not an inventory: an entry reaches the wire only when a
-	// surviving invocation references it. This is also what keeps an inventory
-	// from an unrelated processing run out of the payload.
+	// surviving invocation references it. Here the list was parsed and its name
+	// recorded, but the invocation never closed, so nothing is emitted.
 	f := newGPFixture(t)
 	f.startComputerPass()
-	f.gpoInventory(gpTestActivity, 12100*time.Millisecond,
+	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
 		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
 
 	assert.Nil(t, f.finalize())
 }
 
-func TestGPOIDsFromList(t *testing.T) {
-	// A boot capture confirms the XML shape, and the scan stays as a fallback
-	// for a fragment the walk cannot finish or a value with another delimiter.
+func TestGPORefsFromList(t *testing.T) {
+	// A boot capture confirms the XML shape, and the scan stays as a fallback for
+	// a fragment the walk cannot finish or a value with another delimiter.
 	cases := []struct {
-		name string
-		raw  string
-		want []string
+		name      string
+		raw       string
+		wantIDs   []string
+		wantNames map[string]string
 	}{
-		{"empty", "", nil},
-		// gpoEntry models the fuller 5312 GPOInfoList entry, which embeds an
-		// <Extensions>[{CSE GUID}]</Extensions> element; a bare braced-GUID scan
-		// over it would report the extension's own GUID as an applicable GPO.
-		// The XML tier reads the ID attributes instead, which is why it exists.
-		// A real 4016 ApplicableGPOList carries ID and Name only.
-		{"xml fragment reads id attributes only", gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")), []string{gpoDefaultDomainGUID}},
-		// An unescaped ampersand in a display name must not cost the IDs. First
-		// position is what a boot capture carried; mid-list is the worse case,
-		// where a partial XML tier would short-circuit the scan fallback and
-		// silently drop the tail of the list.
-		{"unescaped ampersand first keeps every id", gpoFragment(
-			gpoEntry(gpoDefaultDomainGUID, "R&D Baseline"),
-			gpoEntry(gpoDomainCtlGUID, "Plain Name"),
-		), []string{gpoDefaultDomainGUID, gpoDomainCtlGUID}},
-		{"unescaped ampersand mid-list keeps every id", gpoFragment(
-			gpoEntry(gpoDefaultDomainGUID, "Plain Name"),
-			gpoEntry(gpoDomainCtlGUID, "R&D Baseline"),
-			gpoEntry(gpoThirdGUID, "Sales & Marketing"),
-		), []string{gpoDefaultDomainGUID, gpoDomainCtlGUID, gpoThirdGUID}},
-		{"xml fragment with several entries", gpoFragment(
-			gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy"),
-			gpoEntry(gpoDomainCtlGUID, "Default Domain Controllers Policy"),
-		), []string{gpoDefaultDomainGUID, gpoDomainCtlGUID}},
-		{"semicolon delimited", gpoDefaultDomainGUID + ";" + gpoDomainCtlGUID, []string{gpoDefaultDomainGUID, gpoDomainCtlGUID}},
-		{"newline delimited", gpoDefaultDomainGUID + "\n" + gpoDomainCtlGUID, []string{gpoDefaultDomainGUID, gpoDomainCtlGUID}},
-		{"prose", "Applied " + gpoDefaultDomainGUID + " to the OU", []string{gpoDefaultDomainGUID}},
-		{"lowercase is normalized", strings.ToLower(gpoDefaultDomainGUID), []string{gpoDefaultDomainGUID}},
-		{"duplicates collapse", gpoDefaultDomainGUID + ";" + gpoDefaultDomainGUID, []string{gpoDefaultDomainGUID}},
-		{"no guids", "<GPO><Name>Nameless</Name></GPO>", nil},
-		{"truncated xml still yields its guid", `<GPO ID="` + gpoDefaultDomainGUID + `"><Nam`, []string{gpoDefaultDomainGUID}},
+		{name: "empty"},
+		{
+			// The fuller inventory shape embeds <Extensions>[{CSE GUID}]</Extensions>.
+			// A bare braced-GUID scan over it would report the extension's own GUID
+			// as an applicable GPO; the walk reads ID attributes instead.
+			name:      "xml fragment reads id attributes only",
+			raw:       gpoFragment(gpoRichEntry(gpoDefaultDomainGUID, "Default Domain Policy")),
+			wantIDs:   []string{gpoDefaultDomainGUID},
+			wantNames: map[string]string{gpoDefaultDomainGUID: "Default Domain Policy"},
+		},
+		{
+			name: "real 4016 shape yields ids and names",
+			raw: gpoFragment(
+				gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy"),
+				gpoEntry(gpoDomainCtlGUID, "Default Domain Controllers Policy"),
+			),
+			wantIDs: []string{gpoDefaultDomainGUID, gpoDomainCtlGUID},
+			wantNames: map[string]string{
+				gpoDefaultDomainGUID: "Default Domain Policy",
+				gpoDomainCtlGUID:     "Default Domain Controllers Policy",
+			},
+		},
+		{
+			name:      "rooted variant parses too",
+			raw:       "<GPOList>" + gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy") + "</GPOList>",
+			wantIDs:   []string{gpoDefaultDomainGUID},
+			wantNames: map[string]string{gpoDefaultDomainGUID: "Default Domain Policy"},
+		},
+		{
+			name:      "id attribute casing does not matter",
+			raw:       `<GPO id="` + gpoDefaultDomainGUID + `"><Name>Default Domain Policy</Name></GPO>`,
+			wantIDs:   []string{gpoDefaultDomainGUID},
+			wantNames: map[string]string{gpoDefaultDomainGUID: "Default Domain Policy"},
+		},
+		{
+			name:      "entry without a guid is dropped",
+			raw:       `<GPO><Name>Nameless</Name></GPO>` + gpoEntry(gpoDefaultDomainGUID, "Real"),
+			wantIDs:   []string{gpoDefaultDomainGUID},
+			wantNames: map[string]string{gpoDefaultDomainGUID: "Real"},
+		},
+		// An unescaped ampersand does not end the walk: non-strict decoding leaves
+		// the malformed entity in the character data. Both positions are covered
+		// because strict decoding would fail differently in each - IDs kept and
+		// names lost when it is first, tail dropped when it is not.
+		{
+			name: "unescaped ampersand first keeps every id and name",
+			raw: gpoFragment(
+				gpoEntry(gpoDefaultDomainGUID, "R&D Baseline"),
+				gpoEntry(gpoDomainCtlGUID, "Plain Name"),
+			),
+			wantIDs: []string{gpoDefaultDomainGUID, gpoDomainCtlGUID},
+			wantNames: map[string]string{
+				gpoDefaultDomainGUID: "R&D Baseline",
+				gpoDomainCtlGUID:     "Plain Name",
+			},
+		},
+		{
+			name: "unescaped ampersand mid-list keeps every id and name",
+			raw: gpoFragment(
+				gpoEntry(gpoDefaultDomainGUID, "Plain Name"),
+				gpoEntry(gpoDomainCtlGUID, "R&D Baseline"),
+				gpoEntry(gpoThirdGUID, "Sales & Marketing"),
+			),
+			wantIDs: []string{gpoDefaultDomainGUID, gpoDomainCtlGUID, gpoThirdGUID},
+			wantNames: map[string]string{
+				gpoDefaultDomainGUID: "Plain Name",
+				gpoDomainCtlGUID:     "R&D Baseline",
+				gpoThirdGUID:         "Sales & Marketing",
+			},
+		},
+		// Non-strict decoding forgives malformed entities and missing end tags but
+		// not broken tag syntax, so a display name whose "<" does not open a
+		// well-formed tag really does end the walk. (A name containing "<Test>"
+		// would not: that parses as a nested element and only costs the text after
+		// it.) These are the rows that exercise the fallback on a partial walk -
+		// without a completeness signal the parser would return only the entries
+		// before the break and drop the rest of the list outright.
+		{
+			name: "unparsable angle bracket first recovers every id",
+			raw: gpoFragment(
+				gpoEntry(gpoDefaultDomainGUID, "Legacy <Test Baseline"),
+				gpoEntry(gpoDomainCtlGUID, "Plain Name"),
+			),
+			wantIDs: []string{gpoDefaultDomainGUID, gpoDomainCtlGUID},
+		},
+		{
+			name: "unparsable angle bracket mid-list recovers the tail",
+			raw: gpoFragment(
+				gpoEntry(gpoDefaultDomainGUID, "Plain Name"),
+				gpoEntry(gpoDomainCtlGUID, "Legacy <Test Baseline"),
+				gpoEntry(gpoThirdGUID, "Third Policy"),
+			),
+			wantIDs:   []string{gpoDefaultDomainGUID, gpoDomainCtlGUID, gpoThirdGUID},
+			wantNames: map[string]string{gpoDefaultDomainGUID: "Plain Name"},
+		},
+		{
+			// A mismatched end tag is the subtler case: the offending entry decodes
+			// without error and is reported, and the walk only fails on the token
+			// after it. So ids is non-empty at the break and the completeness signal
+			// is the only thing that saves the tail.
+			name: "mismatched end tag mid-list recovers the tail",
+			raw: `<GPO ID="` + gpoDefaultDomainGUID + `"><Name>Plain Name</Nam></GPO>` +
+				gpoEntry(gpoDomainCtlGUID, "Second Policy"),
+			wantIDs:   []string{gpoDefaultDomainGUID, gpoDomainCtlGUID},
+			wantNames: map[string]string{gpoDefaultDomainGUID: "Plain Name"},
+		},
+		{
+			name:    "truncated xml still yields its guid",
+			raw:     `<GPO ID="` + gpoDefaultDomainGUID + `"><Nam`,
+			wantIDs: []string{gpoDefaultDomainGUID},
+		},
+		{name: "semicolon delimited", raw: gpoDefaultDomainGUID + ";" + gpoDomainCtlGUID, wantIDs: []string{gpoDefaultDomainGUID, gpoDomainCtlGUID}},
+		{name: "newline delimited", raw: gpoDefaultDomainGUID + "\n" + gpoDomainCtlGUID, wantIDs: []string{gpoDefaultDomainGUID, gpoDomainCtlGUID}},
+		{name: "prose", raw: "Applied " + gpoDefaultDomainGUID + " to the OU", wantIDs: []string{gpoDefaultDomainGUID}},
+		{name: "lowercase is normalized", raw: strings.ToLower(gpoDefaultDomainGUID), wantIDs: []string{gpoDefaultDomainGUID}},
+		{name: "duplicates collapse", raw: gpoDefaultDomainGUID + ";" + gpoDefaultDomainGUID, wantIDs: []string{gpoDefaultDomainGUID}},
+		{name: "no guids", raw: "<GPO><Name>Nameless</Name></GPO>"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, gpoIDsFromList(tc.raw))
+			ids, names := gpoRefsFromList(tc.raw)
+			assert.Equal(t, tc.wantIDs, ids)
+			assert.Equal(t, tc.wantNames, names)
 		})
 	}
 
 	t.Run("oversize list is rejected before scanning", func(t *testing.T) {
-		assert.Nil(t, gpoIDsFromList(strings.Repeat(gpoDefaultDomainGUID, maxGPOListBytes)))
+		ids, names := gpoRefsFromList(strings.Repeat("x", maxGPOListBytes+1))
+		assert.Nil(t, ids)
+		assert.Nil(t, names)
 	})
 
 	t.Run("references are bounded per invocation", func(t *testing.T) {
@@ -646,86 +787,49 @@ func TestGPOIDsFromList(t *testing.T) {
 		for i := 0; i < maxGPOsPerCSE+20; i++ {
 			fmt.Fprintf(&b, "{%08X-0000-0000-0000-000000000000};", i)
 		}
-		assert.Len(t, gpoIDsFromList(b.String()), maxGPOsPerCSE)
-	})
-}
-
-func TestGPONamesFromInventory(t *testing.T) {
-	t.Run("rootless fragment yields every entry", func(t *testing.T) {
-		names := gpoNamesFromInventory(gpoFragment(
-			gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy"),
-			gpoEntry(gpoDomainCtlGUID, "Default Domain Controllers Policy"),
-		))
-		assert.Equal(t, map[string]string{
-			gpoDefaultDomainGUID: "Default Domain Policy",
-			gpoDomainCtlGUID:     "Default Domain Controllers Policy",
-		}, names)
+		ids, _ := gpoRefsFromList(b.String())
+		assert.Len(t, ids, maxGPOsPerCSE)
 	})
 
-	t.Run("rooted variant parses too", func(t *testing.T) {
-		raw := "<GPOList>" + gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy") + "</GPOList>"
-		assert.Equal(t, map[string]string{gpoDefaultDomainGUID: "Default Domain Policy"}, gpoNamesFromInventory(raw))
-	})
-
-	t.Run("id attribute casing does not matter", func(t *testing.T) {
-		raw := `<GPO id="` + gpoDefaultDomainGUID + `"><Name>Default Domain Policy</Name></GPO>`
-		assert.Equal(t, map[string]string{gpoDefaultDomainGUID: "Default Domain Policy"}, gpoNamesFromInventory(raw))
-	})
-
-	t.Run("entry without a guid is dropped", func(t *testing.T) {
-		raw := `<GPO><Name>Nameless</Name></GPO>` + gpoEntry(gpoDefaultDomainGUID, "Real")
-		assert.Equal(t, map[string]string{gpoDefaultDomainGUID: "Real"}, gpoNamesFromInventory(raw))
-	})
-
-	t.Run("malformed remainder keeps what parsed", func(t *testing.T) {
-		raw := gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy") + `<GPO ID="` + gpoDomainCtlGUID + `"><Nam`
-		assert.Equal(t, map[string]string{gpoDefaultDomainGUID: "Default Domain Policy"}, gpoNamesFromInventory(raw))
-	})
-
-	t.Run("unescaped ampersand truncates nothing", func(t *testing.T) {
-		// The provider does not escape display names, so a bare ampersand is
-		// well-formed input as far as this parser is concerned. Strict parsing
-		// would return an empty map here rather than dropping one entry.
-		raw := gpoFragment(
-			gpoEntry(gpoDefaultDomainGUID, "R&D Baseline"),
-			gpoEntry(gpoDomainCtlGUID, "Sales & Marketing"),
-			gpoEntry(gpoThirdGUID, "Plain Name"),
-		)
-		assert.Equal(t, map[string]string{
-			gpoDefaultDomainGUID: "R&D Baseline",
-			gpoDomainCtlGUID:     "Sales & Marketing",
-			gpoThirdGUID:         "Plain Name",
-		}, gpoNamesFromInventory(raw))
-	})
-
-	t.Run("empty and oversize yield nothing", func(t *testing.T) {
-		// A real trace carried a 5312 with an empty GPOInfoList.
-		assert.Nil(t, gpoNamesFromInventory(""))
-		assert.Nil(t, gpoNamesFromInventory(strings.Repeat("<GPO/>", maxGPOListBytes)))
+	t.Run("names are bounded with the ids they belong to", func(t *testing.T) {
+		var b strings.Builder
+		for i := 0; i < maxGPOsPerCSE+20; i++ {
+			b.WriteString(gpoEntry(fmt.Sprintf("{%08X-0000-0000-0000-000000000000}", i), "Policy"))
+		}
+		ids, names := gpoRefsFromList(b.String())
+		assert.Len(t, ids, maxGPOsPerCSE)
+		assert.Len(t, names, maxGPOsPerCSE, "a name is only kept for an ID that was taken")
 	})
 }
 
 // --- Collection gate ---
 
-func TestAcceptedIDsCoversGroupPolicySwitch(t *testing.T) {
-	// acceptedIDs is a hard pre-parse gate: analyzeETL hands it to the ETW
-	// filter and processEvent never re-checks it, so an ID the parser handles
-	// but the map omits is dropped in production with nothing else to catch it.
+func TestAcceptedGroupPolicyIDsSnapshot(t *testing.T) {
+	// acceptedIDs is a hard pre-parse gate: analyzeETL hands it to the ETW filter
+	// and processEvent never re-checks it, so an ID the parser handles but the map
+	// omits is dropped in production with nothing else to catch it.
+	//
+	// This is a snapshot, not a derivation. It catches an ID being removed from
+	// the map, and it documents the intended set - but because want is a literal
+	// rather than the switch's own cases, it cannot catch a new case being added
+	// to Parse without a matching entry here. Closing that would take an AST walk
+	// over Parse; until then the gate is a two-place edit by construction.
 	want := map[uint16]struct{}{
 		evtMachineGPStart: {}, evtMachineGPEnd: {},
 		evtUserGPStart: {}, evtUserGPEnd: {},
 		evtCSEStart:       {},
 		evtCSEStopSuccess: {}, evtCSEStopWarning: {}, evtCSEStopError: {},
-		evtGPOListApplicable: {},
 	}
 	got := newCollector().providers[guidGroupPolicy].acceptedIDs
 	assert.Equal(t, want, got)
 
-	// The non-boot activity starts stay out: 4002/4003 are network-state
-	// change, 4004/4005 manual gpupdate, 4006/4007 periodic refresh. None of
-	// them is the boot pass boot_timeline reports.
-	for _, id := range []uint16{4002, 4003, 4004, 4005, 4006, 4007} {
-		assert.NotContains(t, got, id, "non-boot activity start %d must not be collected", id)
+	// Documenting what the set deliberately excludes, and why. 4002/4003 are
+	// network-state change, 4004/4005 manual processing, 4006/4007 periodic
+	// refresh; each has its own start/stop pair, so none is the boot pass
+	// boot_timeline reports. 5312/5313 are the applicable and filtered-out GPO
+	// inventories, which 4016's own list makes redundant.
+	for _, id := range []uint16{4002, 4003, 4004, 4005, 4006, 4007, 5312, 5313} {
+		assert.NotContains(t, got, id, "event %d must not be collected", id)
 	}
 }
 
@@ -733,21 +837,62 @@ func TestActivityIDOfNilEventIsZero(t *testing.T) {
 	assert.Equal(t, windows.GUID{}, activityIDOf(nil))
 }
 
-func TestEventPropertyReaderFallsBackOnDecodeFailure(t *testing.T) {
-	// A 4016 carries seven properties, three of them long strings. TDH stops at
-	// the first it cannot decode, and EventProperties returns what it recovered
-	// alongside the error; the reader must use that partial result rather than
-	// discard every field on the event.
+func TestEventPropertyReaderUsesThePartialBulkDecode(t *testing.T) {
+	// A 4016 carries seven properties. TDH stops at the first it cannot decode,
+	// and EventProperties returns what it recovered alongside the error. The
+	// per-property path returns "" for the whole event in that case, so reading
+	// the partial bulk result is the only way these values survive.
 	e := makeEvent(guidGroupPolicy, evtCSEStart, gpTestBoot,
 		property{Name: "CSEExtensionId", Value: cseRegistryGUID},
 		property{Name: "CSEExtensionName", Value: "Registry"},
 	)
 	e.propsErr = errors.New(`failed to parse property [2] "IsExtensionAsyncProcessing"`)
+	require.Empty(t, getEventPropString(e, "CSEExtensionName"),
+		"the per-property path yields nothing on a failed decode")
 
 	prop := eventPropertyReader(e)
 	assert.Equal(t, cseRegistryGUID, prop("CSEExtensionId"))
 	assert.Equal(t, "Registry", prop("CSEExtensionName"))
 	assert.Empty(t, prop("ApplicableGPOList"), "a property after the failure is absent, not garbage")
+}
+
+func TestPartialDecodeDegradesAStartButDropsAStop(t *testing.T) {
+	// The two templates order CSEExtensionId differently: first on 4016, last on
+	// 5016/6016/7016. Since a partial decode recovers only the properties before
+	// the failure, the same failure costs a start its trailing fields but costs a
+	// stop the identity itself - and with it the whole invocation.
+	t.Run("a partial start keeps its identity and interval", func(t *testing.T) {
+		f := newGPFixture(t)
+		f.startComputerPass()
+		// Decode died at IsExtensionAsyncProcessing, so the async flag and the GPO
+		// list are gone but the GUID and name are not.
+		f.sendPartial(gpTestActivity, evtCSEStart, 13*time.Second, "IsExtensionAsyncProcessing",
+			property{Name: "CSEExtensionId", Value: cseRegistryGUID},
+			property{Name: "CSEExtensionName", Value: "Registry"},
+		)
+		f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+
+		invs := f.details().Computer
+		require.Len(t, invs, 1)
+		assert.Equal(t, int64(1000), invs[0].DurationMs)
+		assert.False(t, invs[0].Async, "the flag was never decoded, so it reads as synchronous")
+		assert.Empty(t, invs[0].GPOs)
+	})
+
+	t.Run("a partial stop loses the invocation", func(t *testing.T) {
+		f := newGPFixture(t)
+		f.startComputerPass()
+		f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
+		// CSEExtensionId is the last property on this template, so a decode that
+		// died at CSEExtensionName never reaches it. Without the identity the stop
+		// cannot be paired, and the start is dropped at finalize.
+		f.sendPartial(gpTestActivity, evtCSEStopSuccess, 14*time.Second, "CSEExtensionName",
+			property{Name: "CSEElaspedTimeInMilliSeconds", Value: "999999"},
+			property{Name: "ErrorCode", Value: "0x00000000"},
+		)
+
+		assert.Nil(t, f.finalize(), "both endpoints were in the trace, but the pairing key was not")
+	})
 }
 
 // --- Scalar helpers ---
@@ -800,8 +945,10 @@ func TestFormatErrorCode(t *testing.T) {
 }
 
 func TestParseETWBool(t *testing.T) {
-	// TDH renders win:Boolean as "true"/"false", but the same real trace showed
-	// the sibling IsMachine field rendering as "1" and "0" on other events.
+	// TDH renders win:Boolean as "true"/"false". The numeric spellings are
+	// accepted because the provider declares the sibling IsMachine as win:Boolean
+	// on version 0 of the pass boundary events and win:UInt32 on version 1, so a
+	// same-named field really can arrive either way across builds.
 	cases := []struct {
 		in    string
 		want  bool

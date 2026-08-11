@@ -9,7 +9,9 @@ package logondurationimpl
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"sort"
 	"strconv"
@@ -27,19 +29,29 @@ import (
 // Group Policy pass, and the Group Policy objects that fed each one.
 //
 // Windows times CSE invocations but not GPOs. Event 4016 starts an invocation
-// and 5016/6016/7016 end it, giving a real measured interval. Event 5312
-// enumerates applicable GPOs and carries no timing fields whatsoever, so a GPO
-// is emitted as an untimed reference and never inherits a CSE's duration.
+// and 5016/6016/7016 end it, giving a real measured interval. The GPOs feeding
+// an invocation come from that same 4016 and carry no timing fields whatsoever,
+// so a GPO is emitted as an untimed reference and never inherits a CSE's
+// duration.
 
 const (
-	// maxGPOListBytes rejects an implausibly large GPOInfoList/ApplicableGPOList
-	// before any parsing work happens.
+	// maxGPOListBytes rejects an implausibly large ApplicableGPOList before any
+	// parsing work happens.
 	maxGPOListBytes = 256 * 1024
 
 	// maxGPOsPerCSE bounds the GPO references carried by one invocation. GPOs
 	// are inlined per invocation rather than pooled in a shared table, so this
 	// is what keeps a pathological ApplicableGPOList - 256 KB of braced GUIDs is
 	// roughly 6,700 of them - from being repeated across every invocation.
+	//
+	// It truncates silently, consistent with this component's posture of
+	// omitting rather than annotating: a 64-entry gpos array is indistinguishable
+	// from a machine that genuinely applies 64 objects to one extension. The
+	// number is what keeps the emitted document a sane size, since nothing bounds
+	// the invocation count: at maxGPONameBytes a GPORef is roughly 313 bytes and
+	// an invocation without its array roughly 292, so an invocation at this cap
+	// costs about 20 KB, and Windows registers on the order of 57 extensions, for
+	// a two-pass worst case around 2.4 MB before compression.
 	maxGPOsPerCSE = 64
 
 	// Provider-supplied text is never emitted unbounded.
@@ -78,6 +90,11 @@ const (
 // unmatched terminal event, or an invocation still open when the trace ends has
 // no interval to place on the timeline, and a record without one is a
 // collection diagnostic rather than usable latency data.
+//
+// A populated array implies its parent milestone: a scope is only ever claimed
+// by a pass start event, which is the same event that sets the milestone's
+// timestamp. So there is no shape in which this block describes slices of a
+// pass boot_timeline does not report.
 type GroupPolicyDetails struct {
 	Computer []CSEInvocation `json:"computer,omitempty"`
 	User     []CSEInvocation `json:"user,omitempty"`
@@ -121,8 +138,8 @@ type GPORef struct {
 	// ID is the GPO GUID in canonical braced uppercase form, and is the
 	// identity. Two GPOs sharing a display name remain distinct.
 	ID string `json:"id"`
-	// Name is absent unless the 4016 ApplicableGPOList or a 5312 inventory event
-	// supplied it.
+	// Name is absent unless an ApplicableGPOList supplied it, which a list the
+	// parser could not walk to the end may not.
 	Name string `json:"name,omitempty"`
 }
 
@@ -173,13 +190,14 @@ type cseKey struct {
 	cse      windows.GUID
 }
 
-// gpAccumulator collects Group Policy observations across one ETL trace.
+// gpAccumulator collects Group Policy observations across one ETL trace. Its
+// maps are not guarded: ProcessETLFile drives one trace handle, so callbacks
+// arrive serially on the calling thread.
 type gpAccumulator struct {
 	// passActivity is the activity ID of the boot pass for each scope, taken
-	// from the first boundary event that names it: 4000/8000 for computer,
-	// 4001/8001 for user. Both ends seed it because a real trace can carry the
-	// stop without the start - an observed boot carried 8001 with no 4001 - and
-	// the stop identifies the pass just as well.
+	// from the pass start event that names it: 4000 for computer, 4001 for user.
+	// Only the starts seed it, so a scope cannot claim invocations unless the
+	// same event also set its milestone.
 	//
 	// First-write-wins per scope mirrors MachineGPStart/UserGPStart in
 	// groupPolicyParser.Parse, so the invocations collected here always belong
@@ -189,14 +207,17 @@ type gpAccumulator struct {
 
 	open map[cseKey]*openCSE
 	// done holds completed invocations keyed by the activity ID that produced
-	// them. Bucketing by scope has to wait for finalize: a pass identified only
-	// by its stop event is not known until after its own invocations arrive.
+	// them, and is bucketed into scopes at finalize. Keying on the activity is
+	// what lets buildScope exclude a gpupdate or a periodic refresh by simply
+	// never visiting its key, rather than by testing each record against a rule.
 	done map[windows.GUID][]cseRecord
 
-	// gpoNames maps a GPO GUID to its display name, from a 4016
-	// ApplicableGPOList or a 5312 inventory event. It is a lookup, not an
-	// inventory: an entry only reaches the wire if a surviving invocation
-	// references it.
+	// gpoNames maps a GPO GUID to its display name, harvested from every 4016
+	// ApplicableGPOList in the trace. It is a lookup, not an inventory: an entry
+	// only reaches the wire if a surviving invocation references it. Sharing it
+	// across invocations is what supplies names for a list whose walk ended
+	// early, since the GUID is recovered by the fallback scan but the name is
+	// not.
 	gpoNames map[string]string
 }
 
@@ -210,22 +231,31 @@ func newGPAccumulator() *gpAccumulator {
 
 // notePassActivity records the activity ID of a boot Group Policy pass.
 //
-// The zero GUID is refused. Events outside any pass carry it - 4117, 5324, and
-// 5351 were all observed with a zero ActivityId in a real trace - so accepting
-// it would pin zero for a scope and sweep every unattributed invocation into
-// that pass.
+// The zero GUID is refused. Events outside any pass carry it - a real boot
+// carried 16 such events, including both occurrences of 4117, which fires on the
+// same thread that goes on to emit 4000 or 4001 - so accepting it would pin zero
+// for a scope and sweep every unattributed invocation into that pass.
 func (a *gpAccumulator) notePassActivity(activityID windows.GUID, id uint16) {
 	var scope gpScope
 	switch id {
-	case evtMachineGPStart, evtMachineGPEnd:
+	case evtMachineGPStart:
 		scope = gpScopeComputer
-	case evtUserGPStart, evtUserGPEnd:
+	case evtUserGPStart:
 		scope = gpScopeUser
 	default:
 		return
 	}
 	if activityID == (windows.GUID{}) || a.passPinned[scope] {
 		return
+	}
+	// Two scopes sharing one activity would make buildScope read the same bucket
+	// twice and emit every invocation under both. Real passes each get their own
+	// ID, so this only refuses input that was never going to be interpretable.
+	for other := gpScope(0); other < gpScopeCount; other++ {
+		if a.passPinned[other] && a.passActivity[other] == activityID {
+			log.Debugf("Logon duration: pass activity %s already belongs to another scope", activityID)
+			return
+		}
 	}
 	a.passActivity[scope] = activityID
 	a.passPinned[scope] = true
@@ -266,12 +296,14 @@ func (a *gpAccumulator) finishCSE(activityID windows.GUID, o observedCSEStop, ts
 		log.Debugf("Logon duration: CSE stop for %s with no matching start", o.guidString)
 		return
 	}
-	delete(a.open, key)
 
+	// Validate before consuming the start, so a stop that cannot close this
+	// invocation leaves it open for one that can.
 	if ts.Before(open.start) {
 		log.Debugf("Logon duration: CSE stop for %s precedes its start", o.guidString)
 		return
 	}
+	delete(a.open, key)
 	result, ok := resultForStopEvent(o.eventID)
 	if !ok {
 		return
@@ -303,13 +335,10 @@ func resultForStopEvent(id uint16) (cseResult, bool) {
 	}
 }
 
-// mergeGPONames records the display names from a 5312 inventory event.
-// First non-empty name wins, so a later inventory cannot rename a GPO.
+// mergeGPONames records the display names recovered from one ApplicableGPOList.
+// First name wins, so a later list cannot rename a GPO.
 func (a *gpAccumulator) mergeGPONames(names map[string]string) {
 	for id, name := range names {
-		if name == "" {
-			continue
-		}
 		if _, ok := a.gpoNames[id]; !ok {
 			a.gpoNames[id] = name
 		}
@@ -319,10 +348,9 @@ func (a *gpAccumulator) mergeGPONames(names map[string]string) {
 // finalize assembles the emitted block, returning nil when no invocation was
 // measured end to end.
 func (a *gpAccumulator) finalize(tl BootTimeline) *GroupPolicyDetails {
-	// An invocation still open when the trace ends has no measured interval.
-	// That is the normal tail case - the capture window closes when the Agent
-	// service starts - and not an error.
-	a.open = nil
+	// Anything still in a.open has no measured interval and is simply never
+	// read: only done feeds the output. That is the normal tail case - the
+	// capture window closes when the Agent service starts - and not an error.
 
 	offsetOf := bootOffsetFunc(tl)
 	details := &GroupPolicyDetails{
@@ -375,7 +403,8 @@ func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64
 }
 
 // gpoRefs resolves an invocation's GPO references against the name lookup. It
-// runs at finalize so a 5312 arriving after its 4016 still supplies names.
+// runs at finalize so a name recovered from a later invocation's list is still
+// available to an earlier one that could not supply its own.
 func (a *gpAccumulator) gpoRefs(ids []string) []GPORef {
 	if len(ids) == 0 {
 		return nil
@@ -391,43 +420,64 @@ func (a *gpAccumulator) gpoRefs(ids []string) []GPORef {
 var bracedGUIDPattern = regexp.MustCompile(
 	`\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}`)
 
-// gpoIDsFromList extracts the Group Policy object references carried by a 4016
-// event's ApplicableGPOList.
+// gpoRefsFromList extracts the Group Policy object references carried by a 4016
+// event's ApplicableGPOList: the IDs in document order, and the display names
+// the same walk recovered alongside them.
 //
 // The property is declared win:UnicodeString rather than a TDH array, so TDH
 // hands it over as one opaque string. A boot capture confirms the runtime format
 // is a rootless <GPO ID="{GUID}"><Name>…</Name></GPO> sequence carrying ID and
 // Name only, so the IDs come from the attributes and the names come free.
 //
-// The braced-GUID scan stays as a fallback for a fragment the walk cannot
-// finish - a display name containing a literal "<" defeats even lenient XML -
-// and it also recovers references from a delimited or prose value. It is safe
-// only on ApplicableGPOList: 5312's GPOInfoList embeds an
-// <Extensions>[{CSE GUID}]</Extensions> element in every entry, which a scan
-// would report as applicable GPOs.
-func gpoIDsFromList(raw string) []string {
+// The braced-GUID scan is the fallback for a fragment the walk could not finish,
+// and it also recovers references from a delimited or prose value. It runs
+// whenever the walk ended early, not only when the walk found nothing: a
+// malformation in the middle of a list leaves every entry behind it unparsed, so
+// trusting a prefix would drop the tail of the list outright. The recovered tail
+// carries IDs without names, which is the right way round - the GUID is the
+// identity - and the accumulator's shared lookup may still supply a name from
+// another invocation that listed the same object.
+//
+// It must only ever be called with ApplicableGPOList. The scan reports every
+// braced GUID it sees, and 5312's GPOInfoList embeds an
+// <Extensions>[{CSE GUID}]</Extensions> element in each of its entries, which
+// the scan would report as applicable GPOs. Not collecting 5312 at all is what
+// makes that structural rather than a rule to remember.
+func gpoRefsFromList(raw string) (ids []string, names map[string]string) {
 	if raw == "" {
-		return nil
+		return nil, nil
 	}
 	if len(raw) > maxGPOListBytes {
 		log.Debugf("Logon duration: ApplicableGPOList of %d bytes exceeds the parsable size", len(raw))
-		return nil
+		return nil, nil
 	}
 
-	var ids []string
-	forEachGPOElement(raw, func(id string, _ gpoXML) {
+	complete := forEachGPOElement(raw, func(id, name string) {
+		before := len(ids)
 		ids = appendUniqueGPOID(ids, id)
+		// Only name an ID that was actually taken, which bounds the names by the
+		// same per-invocation cap.
+		if name == "" || len(ids) == before {
+			return
+		}
+		if names == nil {
+			names = make(map[string]string)
+		}
+		names[id] = name
 	})
-	if len(ids) > 0 {
-		return ids
+	if len(ids) > 0 && complete {
+		return ids, names
 	}
 
+	// Appending keeps document order, and appendUniqueGPOID drops what the walk
+	// already found, so a partial walk contributes its names and the scan
+	// contributes the IDs it could not reach.
 	for _, match := range bracedGUIDPattern.FindAllString(raw, -1) {
 		if _, normalized, ok := normalizeGUID(match); ok {
 			ids = appendUniqueGPOID(ids, normalized)
 		}
 	}
-	return ids
+	return ids, names
 }
 
 // appendUniqueGPOID adds an ID unless it is empty, already present, or the
@@ -451,24 +501,8 @@ type gpoXML struct {
 	Name string `xml:"Name"`
 }
 
-// gpoNamesFromInventory extracts GUID-to-display-name pairs from a GPOInfoList
-// or an ApplicableGPOList that turns out to carry the same shape.
-func gpoNamesFromInventory(raw string) map[string]string {
-	if raw == "" || len(raw) > maxGPOListBytes {
-		return nil
-	}
-
-	names := make(map[string]string)
-	forEachGPOElement(raw, func(id string, entry gpoXML) {
-		if name := truncateProviderText(entry.Name, maxGPONameBytes); name != "" {
-			names[id] = name
-		}
-	})
-	return names
-}
-
 // forEachGPOElement walks a <GPO> list fragment, calling fn once per entry that
-// carries a usable GUID.
+// carries a usable GUID, and reports whether it reached the end of the input.
 //
 // The fragment has no root element - a bare sequence of sibling
 // <GPO ID="{GUID}"> entries, as confirmed by a boot capture - so xml.Unmarshal
@@ -482,16 +516,26 @@ func gpoNamesFromInventory(raw string) map[string]string {
 // abandons every entry behind it, so one such name costs the names of all the
 // GPOs that follow it.
 //
+// Non-strict mode leaves malformed entities alone and invents missing end tags,
+// but it does not relax tag syntax: a literal "<" in a display name still ends
+// the walk, and so does a mismatched end tag. That is what the return value is
+// for - the caller cannot tell a complete list from a prefix without it.
+//
 // An entry with no resolvable GUID is skipped: the GUID is the identity, and a
 // display name is neither unique nor stable enough to stand in for it.
-func forEachGPOElement(raw string, fn func(id string, entry gpoXML)) {
+func forEachGPOElement(raw string, fn func(id, name string)) bool {
 	decoder := xml.NewDecoder(strings.NewReader(raw))
 	decoder.Strict = false
 	for {
 		token, err := decoder.Token()
-		if err != nil || token == nil {
-			// End of input, or a malformed remainder. Keep what parsed.
-			break
+		if err != nil {
+			// io.EOF is the only clean end of input. Any other error means a
+			// malformed remainder whose entries were never seen, and the decoder's
+			// error is sticky, so the walk cannot resume past it.
+			return errors.Is(err, io.EOF)
+		}
+		if token == nil {
+			return true
 		}
 		start, ok := token.(xml.StartElement)
 		if !ok || start.Name.Local != "GPO" {
@@ -502,10 +546,10 @@ func forEachGPOElement(raw string, fn func(id string, entry gpoXML)) {
 
 		var entry gpoXML
 		if err := decoder.DecodeElement(&entry, &start); err != nil {
-			break
+			return false
 		}
 		if _, id, ok := normalizeGUID(gpoIDAttr(start)); ok {
-			fn(id, entry)
+			fn(id, truncateProviderText(entry.Name, maxGPONameBytes))
 		}
 	}
 }
@@ -571,10 +615,16 @@ func parseUint32(s string) (uint32, bool) {
 	return uint32(v), true
 }
 
-// parseETWBool interprets a formatted win:Boolean property. TDH renders these
-// as "true"/"false", but the same trace was observed rendering the sibling
-// IsMachine field as "1" and "0" on some events, so the numeric spellings are
-// accepted too.
+// parseETWBool interprets a formatted win:Boolean property. TDH renders these as
+// "true"/"false", and IsExtensionAsyncProcessing - the only such property read
+// here - is declared win:Boolean on the single version of 4016 the provider
+// ships, so that is what it will be.
+//
+// The numeric spellings are accepted anyway, because the provider does declare
+// the same field name with two different types elsewhere: the sibling IsMachine
+// is win:Boolean on version 0 of 4000/4001/8000/8001 and win:UInt32 on version 1,
+// so it renders "true"/"false" or "1"/"0" depending on which version a build
+// emits. Nothing guarantees 4016 will not gain a version with the same skew.
 func parseETWBool(s string) (bool, bool) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "true", "1", "-1":
@@ -594,5 +644,10 @@ func truncateProviderText(s string, maxBytes int) string {
 		return s
 	}
 	const ellipsis = "..."
+	if maxBytes <= len(ellipsis) {
+		// No room for the marker, and TruncateUTF8 would be handed a negative
+		// limit. Every caller passes a constant far above this.
+		return pkgstrings.TruncateUTF8(s, maxBytes)
+	}
 	return pkgstrings.TruncateUTF8(s, maxBytes-len(ellipsis)) + ellipsis
 }

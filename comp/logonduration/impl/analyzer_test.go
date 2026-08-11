@@ -42,6 +42,12 @@ type mockEvent struct {
 }
 
 func (m *mockEvent) GetPropertyString(name string) string {
+	// A real Event routes this through EventProperties and returns "" on any
+	// error, so the same has to hold here. Serving values regardless would make
+	// the bulk-read path unobservable: every test would pass with or without it.
+	if m.propsErr != nil {
+		return ""
+	}
 	if v, ok := m.props[name]; ok {
 		return fmt.Sprintf("%v", v)
 	}
@@ -475,15 +481,14 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(guidWinlogon, 103, boot.Add(8*time.Second)),
 		makeEvent(guidWinlogon, 104, boot.Add(10*time.Second)),
 		withActivity(makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)), machinePass),
-		// A client-side extension invoked inside the computer Group Policy pass,
-		// plus the applicable-object list for that pass.
-		withActivity(makeEvent(guidGroupPolicy, 5312, boot.Add(13*time.Second),
-			property{Name: "GPOInfoList", Value: `<GPO ID="{31B2F340-016D-11D2-945F-00C04FB984F9}"><Name>Default Domain Policy</Name><SOM>DC=corp</SOM></GPO>`}), machinePass),
+		// A client-side extension invoked inside the computer Group Policy pass.
+		// Its ApplicableGPOList is in the shape a boot capture showed: a rootless
+		// <GPO> sequence carrying the ID attribute and the display name.
 		withActivity(makeEvent(guidGroupPolicy, 4016, boot.Add(14*time.Second),
 			property{Name: "CSEExtensionId", Value: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"},
 			property{Name: "CSEExtensionName", Value: "Registry"},
 			property{Name: "IsExtensionAsyncProcessing", Value: "false"},
-			property{Name: "ApplicableGPOList", Value: "{31B2F340-016D-11D2-945F-00C04FB984F9}"}), machinePass),
+			property{Name: "ApplicableGPOList", Value: `<GPO ID="{31B2F340-016D-11D2-945F-00C04FB984F9}"><Name>Default Domain Policy</Name></GPO>`}), machinePass),
 		withActivity(makeEvent(guidGroupPolicy, 5016, boot.Add(17*time.Second),
 			property{Name: "CSEExtensionId", Value: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"},
 			property{Name: "CSEExtensionName", Value: "Registry"},
@@ -572,5 +577,5 @@ func TestCollector_FullBootSequence(t *testing.T) {
 
 	require.Len(t, inv.GPOs, 1)
 	assert.Equal(t, "{31B2F340-016D-11D2-945F-00C04FB984F9}", inv.GPOs[0].ID)
-	assert.Equal(t, "Default Domain Policy", inv.GPOs[0].Name, "name comes from the 5312 inventory")
+	assert.Equal(t, "Default Domain Policy", inv.GPOs[0].Name, "name comes from the 4016 ApplicableGPOList")
 }

@@ -62,14 +62,15 @@ const (
 
 	// Group Policy client-side extensions. The three stop events share an
 	// identical template and differ only in severity.
+	//
+	// The applicable-GPO inventory events 5312 and 5313 are deliberately not
+	// collected: 4016's own ApplicableGPOList carries both the GUID and the
+	// display name of every object feeding that invocation, so an inventory adds
+	// nothing an emitted invocation does not already have.
 	evtCSEStart       uint16 = 4016
 	evtCSEStopSuccess uint16 = 5016
 	evtCSEStopWarning uint16 = 6016
 	evtCSEStopError   uint16 = 7016
-
-	// evtGPOListApplicable enumerates the Group Policy objects found applicable.
-	// Its counterpart 5313 lists the objects filtered out and is not collected.
-	evtGPOListApplicable uint16 = 5312
 
 	// Shell-Core
 	evtExplorerInitStart  uint16 = 9601
@@ -176,13 +177,12 @@ func buildProviders(timeline *BootTimeline, gp *gpAccumulator) map[windows.GUID]
 			// filter, so an ID missing here never reaches the parser at all.
 			// processEvent does not re-check it, which means no unit test that
 			// drives processEvent can catch an omission - see
-			// TestAcceptedIDsCoversGroupPolicySwitch.
+			// TestAcceptedGroupPolicyIDsSnapshot.
 			acceptedIDs: map[uint16]struct{}{
 				evtMachineGPStart: {}, evtMachineGPEnd: {},
 				evtUserGPStart: {}, evtUserGPEnd: {},
 				evtCSEStart:       {},
 				evtCSEStopSuccess: {}, evtCSEStopWarning: {}, evtCSEStopError: {},
-				evtGPOListApplicable: {},
 			},
 			parser: &groupPolicyParser{timeline: timeline, gp: gp},
 		},
@@ -300,6 +300,10 @@ func activityIDOf(e eventWithProperties) windows.GUID {
 // one decode and serves every subsequent lookup from the result. A bulk read
 // that fails part-way still returns the properties preceding the failure, so
 // the partial result is used when it has anything in it.
+//
+// A bulk read that fails having recovered nothing serves empty directly rather
+// than falling through, because the per-property path routes back into the same
+// decode and would re-run the identical failure on every lookup.
 func eventPropertyReader(e eventWithProperties) func(string) string {
 	if e == nil {
 		return func(string) string { return "" }
@@ -308,6 +312,9 @@ func eventPropertyReader(e eventWithProperties) func(string) string {
 		props, err := bulk.EventProperties()
 		if err != nil {
 			log.Debugf("Logon duration: partial property decode (%d properties recovered): %v", len(props), err)
+			if len(props) == 0 {
+				return func(string) string { return "" }
+			}
 		}
 		if len(props) > 0 {
 			return func(name string) string {
@@ -426,9 +433,8 @@ func (p *userProfileParser) Parse(_ eventWithProperties, id uint16, ts time.Time
 }
 
 // groupPolicyParser processes Group Policy events: the aggregate pass
-// milestones (4000/4001 start, 8000/8001 end), the client-side-extension
-// invocations within each pass (4016 start, 5016/6016/7016 stop), and the
-// applicable Group Policy object inventory (5312).
+// milestones (4000/4001 start, 8000/8001 end) and the client-side-extension
+// invocations within each pass (4016 start, 5016/6016/7016 stop).
 type groupPolicyParser struct {
 	timeline *BootTimeline
 	gp       *gpAccumulator
@@ -436,9 +442,10 @@ type groupPolicyParser struct {
 
 func (p *groupPolicyParser) Parse(e eventWithProperties, id uint16, ts time.Time) {
 	switch id {
-	// Both ends of each pass seed the activity table, not just the start: a real
-	// trace was observed carrying 8001 with no 4001, and the stop event
-	// identifies the pass just as well.
+	// Only the pass start events seed the activity table. Taking it from the
+	// same event that sets the milestone is what keeps the two consistent: a
+	// scope can never claim invocations without also reporting the pass they
+	// belong to.
 	case evtMachineGPStart:
 		if p.timeline.MachineGPStart.IsZero() {
 			p.timeline.MachineGPStart = ts
@@ -448,7 +455,6 @@ func (p *groupPolicyParser) Parse(e eventWithProperties, id uint16, ts time.Time
 		if p.timeline.MachineGPEnd.IsZero() {
 			p.timeline.MachineGPEnd = ts
 		}
-		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtUserGPStart:
 		if p.timeline.UserGPStart.IsZero() {
 			p.timeline.UserGPStart = ts
@@ -458,13 +464,10 @@ func (p *groupPolicyParser) Parse(e eventWithProperties, id uint16, ts time.Time
 		if p.timeline.UserGPEnd.IsZero() {
 			p.timeline.UserGPEnd = ts
 		}
-		p.gp.notePassActivity(activityIDOf(e), id)
 	case evtCSEStart:
 		p.parseCSEStart(e, ts)
 	case evtCSEStopSuccess, evtCSEStopWarning, evtCSEStopError:
 		p.parseCSEStop(e, id, ts)
-	case evtGPOListApplicable:
-		p.parseGPOInventory(e)
 	}
 }
 
@@ -485,19 +488,20 @@ func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
 	// common case, and the flag only annotates the duration's meaning.
 	isAsync, _ := parseETWBool(prop("IsExtensionAsyncProcessing"))
 
-	// If ApplicableGPOList carries the same <GPO ID="…"><Name> shape as the 5312
-	// inventory, the display names come straight from here and no inventory
-	// event is needed. If it is a bare list of GUIDs this yields nothing and
-	// 5312 stays the only source of names.
-	gpoList := prop("ApplicableGPOList")
-	p.gp.mergeGPONames(gpoNamesFromInventory(gpoList))
+	// ApplicableGPOList carries the GUID and the display name of every object
+	// feeding this invocation, so one walk yields both. Names go into the
+	// accumulator's shared lookup rather than onto the record: a list this walk
+	// could not finish contributes IDs without their names, and another
+	// invocation that listed the same object successfully fills them in.
+	ids, names := gpoRefsFromList(prop("ApplicableGPOList"))
+	p.gp.mergeGPONames(names)
 
 	p.gp.startCSE(activityIDOf(e), observedCSEStart{
 		guid:       guid,
 		guidString: guidString,
 		name:       prop("CSEExtensionName"),
 		isAsync:    isAsync,
-		gpoIDs:     gpoIDsFromList(gpoList),
+		gpoIDs:     ids,
 	}, ts)
 }
 
@@ -509,6 +513,17 @@ func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
 // kind of wall-clock measurement as the pass duration it is a slice of; a
 // second, differently-derived number would leave consumers without a clear
 // authoritative field.
+//
+// One asymmetry with 4016 is worth knowing about. These templates declare
+// CSEExtensionId last, where 4016 declares it first, and EventProperties
+// recovers only the properties preceding a decode failure. So a partial decode
+// of a 4016 merely loses the async flag and the GPO list, while a partial
+// decode here loses the identity and therefore the whole invocation - its start
+// is left open and dropped at finalize. GetPropertyByName is not the fallback:
+// it reads the property's raw bytes as UTF-16, which turns a 16-byte win:GUID
+// into eight junk runes. Recovering it would need a raw-bytes accessor in the
+// etw package. The first three properties are two fixed-width integers and a
+// string, so the exposure is small.
 func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts time.Time) {
 	prop := eventPropertyReader(e)
 
@@ -529,14 +544,6 @@ func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts ti
 	}
 
 	p.gp.finishCSE(activityIDOf(e), stop, ts)
-}
-
-// parseGPOInventory handles event 5312, the list of applicable Group Policy
-// objects. It is the only source of GPO display names; the objects carry no
-// timing fields, so nothing else is taken from it.
-func (p *groupPolicyParser) parseGPOInventory(e eventWithProperties) {
-	prop := eventPropertyReader(e)
-	p.gp.mergeGPONames(gpoNamesFromInventory(prop("GPOInfoList")))
 }
 
 // shellCoreParser processes Shell-Core events for Explorer startup tracking.
