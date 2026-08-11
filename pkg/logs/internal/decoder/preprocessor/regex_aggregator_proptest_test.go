@@ -359,7 +359,7 @@ func TestRegexAggregator_HeadMarkerOnCarryover_Property(t *testing.T) {
 		ag.Process(newMessage("START a"), startGroup, BorrowedTokens{})
 		ag.Process(newMessage(string(overflowBytes)), aggregate, BorrowedTokens{}) // overflow → emit with tail
 		ag.Process(newMessage(string(shortBytes)), aggregate, BorrowedTokens{})    // accumulate with head marker
-		flushed := captureRegexEmissions(ag.Flush())                  // emits the carry-marked content
+		flushed := captureRegexEmissions(ag.Flush())                               // emits the carry-marked content
 
 		if len(flushed) != 1 {
 			t.Fatalf("HeadMarkerOnCarryover violated: expected 1 flush emission, got %d", len(flushed))
@@ -400,7 +400,7 @@ func TestRegexAggregator_CarryoverConsumed_Property(t *testing.T) {
 		ag.Process(newMessage("START a"), startGroup, BorrowedTokens{})
 		ag.Process(newMessage(string(overflowBytes)), aggregate, BorrowedTokens{}) // emission 1: tail marker, carry set
 		ag.Process(newMessage(string(shortBytes)), aggregate, BorrowedTokens{})    // accumulates with head marker
-		emission2 := captureRegexEmissions(ag.Flush())                // emission 2: head marker
+		emission2 := captureRegexEmissions(ag.Flush())                             // emission 2: head marker
 		// Now carry is consumed (should_truncate is false). Start fresh.
 		ag.Process(newMessage("START second"), startGroup, BorrowedTokens{})
 		ag.Process(newMessage(string(freshBytes)), aggregate, BorrowedTokens{})
