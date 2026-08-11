@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -58,4 +59,17 @@ func TestNewNodeAndNodeMethods(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.True(t, fifthLeaf.IsLeafNode())
+}
+
+func BenchmarkSetDefaultManyKeys(b *testing.B) {
+	for _, n := range []int{100, 500, 1000, 2000} {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				cfg := NewNodeTreeConfig("test", "TEST", nil)
+				for k := 0; k < n; k++ {
+					cfg.SetDefault(fmt.Sprintf("section%d.key%d", k%20, k), k)
+				}
+			}
+		})
+	}
 }

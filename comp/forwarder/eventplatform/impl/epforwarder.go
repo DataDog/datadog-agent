@@ -16,9 +16,8 @@ import (
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -80,6 +80,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getDataObservabilityPipelines,
 		getSoftwareInventoryPipelines,
 		getAgentDiscoveryPipelines,
+		getDataSecurityPipelines,
 	}
 	var descs []passthroughPipelineDesc
 	for _, get := range getters {
@@ -120,6 +121,10 @@ func Diagnose() []diagnose.Diagnosis {
 
 	for _, desc := range getPassthroughPipelines() {
 		if desc.eventType == eventplatform.EventTypeAgentDiscovery && !cfg.GetBool("config_files_discovery.enabled") {
+			continue
+		}
+		// TODO(dsec-182): could we diagnose the SDS result pipeline?
+		if desc.eventType == eventplatform.EventTypeSDSResult && !cfg.GetBool("data_security.enabled") {
 			continue
 		}
 		//nolint:misspell
@@ -284,6 +289,14 @@ type passthroughPipelineDesc struct {
 	useStreamStrategy             bool
 }
 
+// effectiveInputChanSize is the pipeline's own default unless raised above the hardcoded logs one.
+func (desc passthroughPipelineDesc) effectiveInputChanSize(configured int) int {
+	if configured <= constants.DefaultInputChanSize {
+		return desc.defaultInputChanSize
+	}
+	return configured
+}
+
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(
@@ -334,15 +347,13 @@ func newHTTPPassthroughPipeline(
 	if endpoints.BatchMaxConcurrentSend <= 0 {
 		endpoints.BatchMaxConcurrentSend = desc.defaultBatchMaxConcurrentSend
 	}
-	if endpoints.BatchMaxContentSize <= pkgconfigsetup.DefaultBatchMaxContentSize {
+	if endpoints.BatchMaxContentSize <= constants.DefaultBatchMaxContentSize {
 		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
 	}
-	if endpoints.BatchMaxSize <= pkgconfigsetup.DefaultBatchMaxSize {
+	if endpoints.BatchMaxSize <= constants.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	if endpoints.InputChanSize <= pkgconfigsetup.DefaultInputChanSize {
-		endpoints.InputChanSize = desc.defaultInputChanSize
-	}
+	endpoints.InputChanSize = desc.effectiveInputChanSize(endpoints.InputChanSize)
 
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
 
@@ -453,12 +464,18 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component) *defaultEventPlatformForwarder {
+type pipelineFactory func(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (*passthroughPipeline, error)
+
+func newDefaultEventPlatformForwarder(config model.Reader, newPipeline pipelineFactory) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
-		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
+		// TODO(dsec-182): This could be removed if we want to enable the SDS result pipeline by default.
+		if desc.eventType == eventplatform.EventTypeSDSResult && !config.GetBool("data_security.enabled") {
+			continue
+		}
+		p, err := newPipeline(desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -475,10 +492,12 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 	var forwarder *defaultEventPlatformForwarder
 
 	if reqs.Params.UseNoopEventPlatformForwarder {
-		forwarder = newNoopEventPlatformForwarder(reqs.Hostname, reqs.Compression)
+		forwarder = newNoopEventPlatformForwarder(reqs.Hostname)
 	} else if reqs.Params.UseEventPlatformForwarder {
 		hostnameStr := reqs.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, hostnameStr, reqs.Secrets)
+		forwarder = newDefaultEventPlatformForwarder(reqs.Config, func(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (*passthroughPipeline, error) {
+			return newHTTPPassthroughPipeline(reqs.Config, reqs.EventPlatformReceiver, reqs.Compression, desc, destinationsContext, pipelineID, hostnameStr, reqs.Secrets)
+		})
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -498,16 +517,19 @@ func newEventPlatformForwarder(reqs Requires) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) eventplatform.Forwarder {
-	return newNoopEventPlatformForwarder(hostname, compression)
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
+	return newNoopEventPlatformForwarder(hostname)
 }
 
-func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
-	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname, pkgconfigsetup.Datadog()).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
-	// remove the senders
-	for _, p := range f.pipelines {
-		p.strategy = nil
-	}
-	return f
+func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
+	cfg := pkgconfigsetup.Datadog()
+	eventPlatformReceiver := eventplatformreceiverimpl.NewReceiver(hostname, cfg).Comp
+	return newDefaultEventPlatformForwarder(cfg, func(desc passthroughPipelineDesc, _ *client.DestinationsContext, _ int) (*passthroughPipeline, error) {
+		endpointCfg := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
+		// leave sender and strategy unset, but buffer as much as a sending pipeline would
+		return &passthroughPipeline{
+			in:                    make(chan *message.Message, desc.effectiveInputChanSize(endpointCfg.InputChanSize())),
+			eventPlatformReceiver: eventPlatformReceiver,
+		}, nil
+	})
 }

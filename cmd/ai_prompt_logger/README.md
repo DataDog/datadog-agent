@@ -26,6 +26,19 @@ bazelisk build --config=release //cmd/ai_prompt_logger:ai-usage-agent-native-hos
 
 Settings live in **`ai_usage_native_host.yaml`** (see **`ai_usage_native_host.yaml.example`**).
 
+The example ships every setting **commented out** at its compiled-in default. A commented (or
+missing) setting always resolves to that compiled default, so a future Agent upgrade that changes
+a default takes effect on existing installs without needing to edit this file. A setting is only
+active (uncommented) when it has been explicitly set — either by hand, or by the installer for
+`trace_agent_url` when it differs from the default (see below).
+
+The active file itself is **currently regenerated from the packaged template on every install and
+upgrade**, so any hand edit to it — commented or not — is discarded by the next Agent upgrade. This
+is a deliberate short-term measure: it forces already-installed machines onto the shipped defaults
+while those defaults are still settling. Once they are stable (expected within a few Agent
+releases), the installer will go back to preserving an existing `ai_usage_native_host.yaml` and
+only creating it when missing.
+
 - **Explicit file** (same idea as `agent run -c` / `system-probe --config`):
 
   ```bash
@@ -36,14 +49,14 @@ Settings live in **`ai_usage_native_host.yaml`** (see **`ai_usage_native_host.ya
 
 - **No flags**: the binary looks for `ai_usage_native_host.yaml` under the packaged config location. On Windows, it first uses the Agent MSI `ConfigRoot` registry value, then falls back to `%ProgramData%\Datadog\ai_usage_native_host.yaml`; otherwise it searches under `{install_root}/etc/…` inferred from the executable path.
 
-On a **packaged macOS** agent, Chrome is pointed at **`embedded/bin/run_ai_usage_native_host.sh`**, which **`exec`s** the binary with **`--config=$install_root/etc/ai_usage_native_host.yaml`**. On first config creation, the installer generates `trace_agent_url` from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
+On a **packaged macOS** agent, Chrome is pointed at **`embedded/bin/run_ai_usage_native_host.sh`**, which **`exec`s** the binary with **`--config=$install_root/etc/ai_usage_native_host.yaml`**. On every install/upgrade, the installer regenerates the whole file from the packaged template (see **Configuration** above) and activates `trace_agent_url` with the Agent's `apm_config.receiver_port` from `datadog.yaml` only when it differs from the default port `8126`; otherwise the line stays commented at the compiled default.
 
 On a **packaged Windows** agent with End User Device Monitoring enabled, the **ai-usage** fleet installer extension points Chrome directly at the **`ai-usage-agent-native-host.exe`** shipped in the extension layer through a machine-wide HKLM Native Messaging Host registration; no shell wrapper is used.
 
 EVP / Agent URL behaviour (defaults):
 
 - URL: `{trace_agent_url}/evp_proxy/v{evp_proxy_api_version}/api/v2/aiusage` (defaults match trace receiver / EVP v2).
-- Header: `X-Datadog-EVP-Subdomain: {ai_usage_evp_subdomain}` (default `softinv-intake`).
+- Header: `X-Datadog-EVP-Subdomain: {ai_usage_evp_subdomain}` (default `eudm-intake`).
 - The Agent injects `DD-API-KEY` and forwards to the dedicated AI usage intake for your site.
 
 Ensure the Agent is listening on the trace port (default `127.0.0.1:8126`) with EVP proxy enabled.
@@ -71,7 +84,7 @@ Relevant config keys under `desktop_monitoring`:
 
 Broad runtime names such as `node.exe`/`node`, `python.exe`/`python`, and `conhost.exe` are not direct AI-tool matches by default because they need command-line or path inspection to avoid false positives.
 
-Desktop events use the extension-compatible field semantics: tool display name, provider, user ID, and approved flag. The event source is `desktop_app`.
+Desktop events use the extension-compatible field semantics: tool display name, provider, and approved flag. The event source is `desktop_app`.
 
 On Windows, `--desktop-monitor` detaches from the scheduler-created console after startup. When file logging is enabled for diagnostics or startup config errors need to be reported, logs are written to `C:\ProgramData\Datadog\logs\ai-usage-desktop-monitor.log`, falling back to `%LOCALAPPDATA%\Datadog\logs\ai-usage-desktop-monitor.log` if the ProgramData log path is unavailable. Each record includes the process ID and user. The log rotates at 10 MB with one `.1` backup.
 
@@ -104,7 +117,6 @@ Request (shape used by the AI usage extension):
 {
   "type": "SEND_USAGE_EVENT",
   "tool": "example",
-  "user_id": "user-1",
   "approved": true
 }
 ```
@@ -126,7 +138,7 @@ On Windows, the native host is delivered by the `ai-usage` fleet installer exten
 | `C:\ProgramData\Datadog\Installer\packages\datadog-agent\<version>\ext\eudm\ai-usage-agent-native-host.exe` | The host binary (signed), shipped in the extension layer and run in place. |
 | `C:\ProgramData\Datadog\Installer\packages\datadog-agent\<version>\ext\eudm\com.datadoghq.ai_usage_agent.native_host.json` | Chrome Native Messaging Host manifest generated by the extension install hook. |
 | `C:\ProgramData\Datadog\ai_usage_native_host.yaml.example` | Config example. |
-| `C:\ProgramData\Datadog\ai_usage_native_host.yaml` | Active config generated by the extension install hook if missing. |
+| `C:\ProgramData\Datadog\ai_usage_native_host.yaml` | Active config, currently regenerated from the packaged template by the extension install hook on every install and upgrade (see **Configuration** above). |
 
 The extension install hook writes machine-wide registry keys so every Chrome user on the machine can discover the same native host:
 
@@ -135,11 +147,11 @@ HKLM\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.na
 HKLM\SOFTWARE\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host
 ```
 
-The default value for both keys points to the manifest in the extension layer (the `ext\eudm` directory above). The manifest's `path` field points to the host executable in that same directory, and `allowed_origins` uses the installer default Chrome extension ID (`gkmbhgbippkmmmidcikijiblbagbjgjj`). The active config's `trace_agent_url` is generated from the Agent's `apm_config.receiver_port` in `datadog.yaml`.
+The default value for both keys points to the manifest in the extension layer (the `ext\eudm` directory above). The manifest's `path` field points to the host executable in that same directory, and `allowed_origins` uses the installer default Chrome extension ID (`gkmbhgbippkmmmidcikijiblbagbjgjj`). The generated config's `trace_agent_url` is activated from the Agent's `apm_config.receiver_port` in `datadog.yaml` only when it differs from the default port `8126`; otherwise it stays commented at the compiled default.
 
 The extension install hook registers a Task Scheduler logon task named `Datadog AI Usage Agent`. The task launches the same host executable from the extension layer with `--desktop-monitor --config "C:\ProgramData\Datadog\ai_usage_native_host.yaml"` in the interactive user session. Chrome native messaging registration remains separate and continues to launch the host without `--desktop-monitor`. When the `DatadogAgent` service is stopped, the desktop monitor remains resident but skips desktop scans until SCM reports the service running again.
 
-The extension remove hook deletes the scheduled task and Chrome registry keys and stops the running host. The host binary and manifest live in the extension layer and are removed with the extension itself. It preserves the user-editable `C:\ProgramData\Datadog\ai_usage_native_host.yaml`.
+The extension remove hook deletes the scheduled task and Chrome registry keys and stops the running host. The host binary and manifest live in the extension layer and are removed with the extension itself. It leaves `C:\ProgramData\Datadog\ai_usage_native_host.yaml` in place.
 
 ## macOS install (DMG)
 

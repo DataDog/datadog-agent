@@ -36,6 +36,7 @@ func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provision
 	allOpts := []awshost.ProvisionerOption{
 		awshost.WithRunOptions(
 			scenec2.WithDocker(),
+			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 			scenec2.WithAgentOptions(
 				agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
 			),

@@ -33,6 +33,20 @@ func (suite *ConfigTestSuite) SetupTest() {
 	configmock.New(suite.T())
 	suite.T().Setenv("DD_API_KEY", "")
 	suite.T().Setenv("DD_SITE", "")
+	// LoadProxyFromEnv treats a present-but-empty var as set, so these must be
+	// unset rather than set to "" - otherwise DD_PROXY_* short-circuits the
+	// HTTP_PROXY/HTTPS_PROXY/NO_PROXY fallback even when a test sets those.
+	// The lowercase variants are cleared too since LoadProxyFromEnv falls
+	// back to them when the uppercase ones aren't set.
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
 func TestNoURIsProvided(t *testing.T) {
@@ -191,6 +205,27 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlKeysAvailable() {
 	assert.Equal(t, "https://localhost:7777", c.GetString("otelcollector.extension_url"))
 	assert.Equal(t, 5009, c.GetInt("agent_ipc.port"))
 	assert.Equal(t, 60, c.GetInt("agent_ipc.config_refresh_interval"))
+}
+
+// TestStandaloneModeIgnoresCoreAgentIPCEnvVars reproduces OTAGENT-1149: a
+// deployment tool that colocates otel-agent with a core Datadog Agent (e.g.
+// the Datadog Operator's DaemonSet) injects that agent's env vars —
+// DD_REMOTE_CONFIGURATION_ENABLED=true and DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL
+// — into the otel-agent container too. Standalone mode must win regardless,
+// since there is no core agent IPC endpoint for the RC client or configsync
+// to talk to.
+func (suite *ConfigTestSuite) TestStandaloneModeIgnoresCoreAgentIPCEnvVars() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+	t.Setenv("DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL", "60")
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, -1, c.GetInt("cmd_port"))
+	assert.False(t, c.GetBool("remote_configuration.enabled"))
+	assert.Equal(t, 0, c.GetInt("agent_ipc.config_refresh_interval"))
 }
 
 func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
