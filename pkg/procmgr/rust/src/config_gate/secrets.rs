@@ -545,7 +545,7 @@ mod tests {
     fn resolve_config_string_uses_env_secret_backend_command() {
         with_env_lock(|| {
             clear_caches();
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             #[cfg(unix)]
             let script = {
                 let path = dir.path().join("env_secret_backend.sh");
@@ -586,7 +586,7 @@ mod tests {
     fn load_backend_uses_mixed_case_secret_backend_keys() {
         with_env_lock(|| {
             clear_caches();
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             #[cfg(unix)]
             let script = {
                 let path = dir.path().join("mixed_case_secret_backend.sh");
@@ -612,10 +612,7 @@ mod tests {
             let agent_yaml = dir.path().join("datadog.yaml");
             std::fs::write(
                 &agent_yaml,
-                format!(
-                    "Secret_Backend_Command: {}\n",
-                    script.to_string_lossy()
-                ),
+                format!("Secret_Backend_Command: {}\n", script.to_string_lossy()),
             )
             .unwrap();
 
@@ -718,7 +715,7 @@ mod tests {
 
         with_env_lock(|| {
             clear_caches();
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             let secrets_file = dir.path().join("secrets.json");
             std::fs::write(&secrets_file, r#"{"process_enabled": "true"}"#).unwrap();
             let agent_yaml = dir.path().join("datadog.yaml");
@@ -730,10 +727,7 @@ mod tests {
             let _backend_type = EnvGuard::set("DD_SECRET_BACKEND_TYPE", "file.json");
             let _backend_config = EnvGuard::set(
                 "DD_SECRET_BACKEND_CONFIG",
-                &format!(
-                    r#"{{"file_path":"{}"}}"#,
-                    secrets_file.to_string_lossy()
-                ),
+                &format!(r#"{{"file_path":"{}"}}"#, secrets_file.to_string_lossy()),
             );
 
             let backend = load_backend(agent_yaml.to_str().unwrap())
@@ -798,7 +792,7 @@ mod tests {
 
         with_env_lock(|| {
             clear_caches();
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             let secrets_file = dir.path().join("secrets.json");
             std::fs::write(&secrets_file, r#"{"process_enabled": "true"}"#).unwrap();
             let agent_yaml = dir.path().join("datadog.yaml");
@@ -885,7 +879,7 @@ mod tests {
     fn remove_trailing_line_break_honors_agent_bool_env_spelling() {
         with_env_lock(|| {
             clear_caches();
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             #[cfg(unix)]
             let script = {
                 let path = dir.path().join("newline_secret_backend.sh");
@@ -933,7 +927,7 @@ mod tests {
 
     #[test]
     fn exec_backend_times_out_hung_command() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = test_env::tempdir_for_secret_backend();
         #[cfg(unix)]
         let script = {
             let path = dir.path().join("slow_secret_backend.sh");

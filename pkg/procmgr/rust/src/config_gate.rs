@@ -616,12 +616,29 @@ pub(crate) mod test_env {
             unsafe { std::env::remove_var(name) };
         }
     }
+
+    /// `tempfile` directories are mode `0700`; on Linux CI (root) secret backends run as `dd-agent`.
+    #[cfg(unix)]
+    pub(crate) fn open_tempdir_for_agent_user(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+            .expect("open tempdir for agent user");
+    }
+
+    #[cfg(not(unix))]
+    pub(crate) fn open_tempdir_for_agent_user(_path: &std::path::Path) {}
+
+    pub(crate) fn tempdir_for_secret_backend() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        open_tempdir_for_agent_user(dir.path());
+        dir
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::test_env;
+    use super::*;
     use std::io::Write;
     use std::path::Path;
 
@@ -680,7 +697,10 @@ process_config:
     }
 
     fn with_env_lock<F: FnOnce()>(test: F) {
-        test_env::with_lock(test);
+        test_env::with_lock(|| {
+            test_env::clear_secret_backend_env_vars();
+            test();
+        });
     }
 
     fn clear_gated_env_vars() {
@@ -1225,7 +1245,7 @@ process_config:
             clear_gated_env_vars();
             secrets::clear_caches();
 
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             let fleet_dir = dir.path().join("fleet");
             std::fs::create_dir(&fleet_dir).unwrap();
             write_config(
@@ -1854,7 +1874,7 @@ process_config:
         with_env_lock(|| {
             clear_gated_env_vars();
             secrets::clear_caches();
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             #[cfg(unix)]
             let script = dir.path().join("secret_backend.sh");
             #[cfg(unix)]
@@ -2142,7 +2162,7 @@ process_config:
         with_env_lock(|| {
             clear_gated_env_vars();
             secrets::clear_caches();
-            let dir = tempfile::tempdir().unwrap();
+            let dir = test_env::tempdir_for_secret_backend();
             #[cfg(unix)]
             let script = dir.path().join("secret_backend.sh");
             #[cfg(unix)]
