@@ -319,6 +319,21 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
+	payloadInstallerCmd := &cobra.Command{
+		Use:   "installer",
+		Short: "[internal] Print the fleet installer metadata payload.",
+		Long: `
+This command print the installer metadata payload. This payload is used by the 'fleet automation' product.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("installer")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
 	agentTelemetryCmd := &cobra.Command{
 		Use:   "agent-telemetry",
 		Short: "[internal] Print agent telemetry payloads sent by the agent.",
@@ -386,6 +401,7 @@ Health platform must be enabled for issues to be reported.`,
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
+	showPayloadCommand.AddCommand(payloadInstallerCmd)
 	showPayloadCommand.AddCommand(agentTelemetryCmd)
 	showPayloadCommand.AddCommand(agentFullTelemetryCmd)
 	showPayloadCommand.AddCommand(payloadHostSystemInfoCmd)

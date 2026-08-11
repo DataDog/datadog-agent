@@ -9,6 +9,9 @@ go_library(
         "local_api_unix.go",
         "local_api_windows.go",
         "remote_config.go",
+        "status_api.go",
+        "status_api_nix.go",
+        "status_api_windows.go",
         "task_db.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/daemon",
@@ -19,6 +22,7 @@ go_library(
         "//pkg/config/remote/client",
         "//pkg/config/utils",
         "//pkg/fips",
+        "//pkg/fleet/daemon/status",
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/bootstrap",
         "//pkg/fleet/installer/config",
@@ -37,7 +41,53 @@ go_library(
         "@io_etcd_go_bbolt//:bbolt",
         "@org_golang_x_crypto//nacl/box",
     ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/filesystem",
+        ],
         "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
             "@com_github_microsoft_go_winio//:go-winio",
         ],
         "//conditions:default": [],
@@ -50,10 +100,12 @@ dd_agent_go_test(
         "daemon_test.go",
         "local_api_test.go",
         "remote_config_test.go",
+        "status_api_nix_test.go",
         "task_db_test.go",
     ],
     embed = [":daemon"],
     deps = [
+        "//pkg/fleet/daemon/status",
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",

@@ -501,6 +501,10 @@ Package hostgpu exposes the interface for the component to generate the 'host_gp
 
 Package hostsysteminfo exposes the interface for the component to generate the 'host_system_info' metadata payload for inventory.
 
+### [comp/metadata/installer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/installer)
+
+Package installer is the metadata provider for the fleet installer daemon
+
 ### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryagent)
 
 Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
@@ -833,6 +837,10 @@ Package localapiclient provides the local API client component.
 
 Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
 add it to the inventoryagent payload.
+
+### [comp/updater/statusapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/statusapi)
+
+Package statusapi is the installer read-only status api component.
 
 ### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
 

@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["installer.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/installer/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/metadata/installer/def",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/def",
+        "//pkg/fleet/daemon/status",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/http",
+        "//pkg/util/uuid",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["installer_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/mock",
+        "//pkg/fleet/daemon/status",
+        "//pkg/serializer/mocks",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

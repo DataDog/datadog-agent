@@ -1,0 +1,15 @@
+---
+enhancements:
+  - |
+    The installer daemon now exposes a read-only status socket
+    (``/opt/datadog-packages/run/installer-status.sock`` on Linux and macOS,
+    ``\\.\pipe\DD_INSTALLER_STATUS`` on Windows) that the Agent user can read.
+    It serves a single ``GET /status`` route returning the installer version and
+    the available disk space. The existing privileged installer socket is
+    unchanged and remains restricted to root/SYSTEM.
+  - |
+    The Agent now collects an ``installer_metadata`` payload describing the
+    installer daemon running on the host. It can be inspected with
+    ``datadog-agent diagnose show-metadata installer``. When no installer daemon
+    is reachable the payload reports ``installer_reachable: false`` instead of
+    being omitted.

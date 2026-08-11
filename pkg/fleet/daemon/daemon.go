@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
+	daemonstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -80,6 +81,7 @@ type Daemon interface {
 	GetState(ctx context.Context) (map[string]PackageState, error)
 	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
+	GetStatus() daemonstatus.Response
 }
 
 type daemonImpl struct {
@@ -234,6 +236,31 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 	status.DockerInstalled = ssiStatus.DockerInstalled
 	status.DockerInstrumented = ssiStatus.DockerInstrumented
 	return status, nil
+}
+
+// GetStatus returns the daemon state exposed on the read-only status API.
+//
+// Only non-sensitive, read-only fields belong here: this is served over a socket
+// the Agent user can read.
+//
+// Unlike the other exported methods this does not take d.m, on purpose. The lock
+// is held for the whole duration of an install or an experiment promotion, so
+// taking it here would stall the Agent's status request past its timeout and make
+// a busy installer look unreachable. Nothing read here needs it: d.env and
+// d.installer are set once in newDaemon and never reassigned, and
+// AvailableDiskSpace is a statfs with no shared state.
+func (d *daemonImpl) GetStatus() daemonstatus.Response {
+	response := daemonstatus.Response{
+		InstallerVersion: version.AgentVersion,
+	}
+	availableDiskSpace, err := d.installer(d.env).AvailableDiskSpace()
+	if err != nil {
+		// Left nil so consumers can tell "unknown" from a genuine zero.
+		log.Warnf("could not get available disk space: %v", err)
+	} else {
+		response.AvailableDiskSpace = &availableDiskSpace
+	}
+	return response
 }
 
 // GetPackage returns the package with the given name and version.

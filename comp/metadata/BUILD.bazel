@@ -13,6 +13,7 @@ go_library(
         "//comp/metadata/host/fx",
         "//comp/metadata/hostgpu/fx",
         "//comp/metadata/hostsysteminfo/fx",
+        "//comp/metadata/installer/fx",
         "//comp/metadata/inventoryagent/fx",
         "//comp/metadata/inventorychecks/fx",
         "//comp/metadata/inventoryhost/fx",

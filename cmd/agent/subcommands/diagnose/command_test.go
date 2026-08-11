@@ -125,6 +125,14 @@ func TestShowMetadataSecurityAgentCommand(t *testing.T) {
 		func(_ core.BundleParams) {})
 }
 
+func TestShowMetadataInstallerCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "installer"},
+		printPayload,
+		func(_ core.BundleParams) {})
+}
+
 func TestShowAgentTelemetryCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
