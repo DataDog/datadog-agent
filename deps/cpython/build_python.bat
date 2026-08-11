@@ -58,14 +58,38 @@ echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
 :: Without DisableRegistryUse, the VC props fall back to registry lookups and a
 :: host Visual Studio silently wins over everything set below.
 echo "/p:DisableRegistryUse=true" >> %response_file%
-echo "/p:VCTargetsPath=%VCTARGETS_PATH%" >> %response_file%
-echo "/p:VCInstallDir%VC_TOOLSET%=%MSVC_ROOT%" >> %response_file%
-echo "/p:VCToolsInstallDir%VC_TOOLSET%=%MSVC_ROOT%Tools\" >> %response_file%
-echo "/p:VCToolsRedistInstallDir%VC_TOOLSET%=%MSVC_ROOT%Redist\" >> %response_file%
+:: The VC props expect these roots to keep their trailing separator, and MSBuild reads
+:: \" in a response file as an escaped quote, so the final backslash has to be doubled.
+echo "/p:VCTargetsPath=%VCTARGETS_PATH%\" >> %response_file%
+echo "/p:VCInstallDir%VC_TOOLSET%=%MSVC_ROOT%\" >> %response_file%
+echo "/p:VCToolsInstallDir%VC_TOOLSET%=%MSVC_ROOT%Tools\\" >> %response_file%
+echo "/p:VCToolsRedistInstallDir%VC_TOOLSET%=%MSVC_ROOT%Redist\\" >> %response_file%
 echo "/p:VCToolsVersion=%VCTOOLS_VERSION%" >> %response_file%
-echo "/p:WindowsSdkDir_10=%WINSDK_ROOT%" >> %response_file%
-echo "/p:UniversalCRTSdkDir_10=%WINSDK_ROOT%" >> %response_file%
+:: CPython's FindVCRedistDir target expects the Visual Studio layout (Redist\MSVC\<version>\),
+:: while the staged tree flattens it the same way Tools\ is flattened. The target appends the
+:: platform directory itself.
+echo "/p:VCRedistDir=%MSVC_ROOT%Redist\\" >> %response_file%
+echo "/p:WindowsSdkDir_10=%WINSDK_ROOT%\" >> %response_file%
+echo "/p:UniversalCRTSdkDir_10=%WINSDK_ROOT%\" >> %response_file%
 echo "/p:WindowsTargetPlatformVersion=%WINSDK_PLATFORM_VERSION%" >> %response_file%
+:: With DisableRegistryUse the VC props only derive WindowsSdkDir for the 8.1 fallback, and
+:: the SDK's own uCRT.props resolves UCRTContentRoot from the registry either way.
+echo "/p:WindowsSdkDir=%WINSDK_ROOT%\" >> %response_file%
+echo "/p:UCRTContentRoot=%WINSDK_ROOT%\" >> %response_file%
+:: The SDK's DesignTime UAP.props, which normally contributes the headers, libs and tools
+:: below, is not part of the staged tree. Semicolons must be escaped as %%3B, otherwise
+:: MSBuild reads them as switch separators in the response file.
+set "WINSDK_INC=%WINSDK_ROOT%Include\%WINSDK_PLATFORM_VERSION%"
+echo "/p:WindowsSDK_IncludePath=%WINSDK_INC%\um%%3B%WINSDK_INC%\shared%%3B%WINSDK_INC%\winrt%%3B%WINSDK_INC%\cppwinrt" >> %response_file%
+echo "/p:WindowsSDK_LibraryPath_x64=%WINSDK_ROOT%Lib\%WINSDK_PLATFORM_VERSION%\um\x64" >> %response_file%
+echo "/p:WindowsSDK_ExecutablePath_x64=%WINSDK_ROOT%bin\%WINSDK_PLATFORM_VERSION%\x64" >> %response_file%
+:: Only x64-hosted tools are staged, and pcbuild.proj builds the freeze tool for this arch.
+echo "/p:PreferredToolArchitecture=x64" >> %response_file%
+:: The tree ships a single PlatformToolset. Left to itself, python.props picks v143 from
+:: VisualStudioVersion 18.0 and Microsoft.Cpp.Redirect.17.props then resolves it against a
+:: host Visual Studio 2022 install.
+for /d %%D in ("%VCTARGETS_PATH%Platforms\x64\PlatformToolsets\*") do set "PLATFORM_TOOLSET=%%~nxD"
+echo "/p:PlatformToolset=%PLATFORM_TOOLSET%" >> %response_file%
 :: We disable copying around of the OpenSSL libraries (as defined in openssl.props)
 :: This simplifies the requirements on the input files and their names and gives us more control
 echo "/p:SkipCopySSLDLL=1" >> %response_file%
