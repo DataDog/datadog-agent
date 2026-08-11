@@ -14,10 +14,21 @@ every route on it except `/status` installs, removes or promotes packages as roo
 
 Instead the daemon exposes a second, read-only listener — a unix socket at
 `/opt/datadog-packages/run/installer-status.sock`, or the `\\.\pipe\DD_INSTALLER_STATUS`
-named pipe on Windows — permissioned so the Agent user can read it, using the same
-recipe system-probe uses (`0720` + chown to `dd-agent`; a DACL granting the
-`ddagentuser` SID on Windows). This component reads that endpoint. Access control is
-the socket permissions; there is no auth token, as with system-probe.
+named pipe on Windows — permissioned so the Agent user can read it, following
+system-probe (mode `0720` with the socket's group set to the Agent user's; a DACL
+granting the `ddagentuser` SID on Windows). This component reads that endpoint.
+Access control is the socket permissions; there is no auth token, as with
+system-probe.
+
+The values here are therefore only as trustworthy as the local machine: anything
+that can bind the socket path or create the named pipe before the daemon does can
+answer instead of it. Treat this payload as host-reported inventory, not as an
+attested fact.
+
+Note that `comp/updater/daemonchecker` already dials the *local* API to decide
+whether the daemon is running. That check cannot succeed from the Agent for the
+reason above — it gets `EACCES` on the `0700` socket and swallows it — so its result
+is not a usable reachability signal and is not what this component reads.
 
 A host without a running installer daemon is the normal case, not an error. The
 component never fails and never omits the payload: it reports
@@ -30,7 +41,7 @@ The payload is a JSON dict with the following fields
 
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
 - `timestamp` - **int**: the timestamp when the payload was created.
-- `uuid` - **string**: a unique identifier for this agent run.
+- `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `installer_metadata` - **dict of string to JSON type**:
   - `installer_reachable` - **bool**: whether the Agent could reach the installer
     daemon's status API. When false, every other field below is absent.
@@ -38,6 +49,10 @@ The payload is a JSON dict with the following fields
   - `available_disk_space` - **int**: free space, in bytes, on the partition holding
     the packages directory. Absent when the daemon could not determine it — this is
     deliberately distinct from a reported `0`, which means the disk really is full.
+    The daemon also reports this on its Remote Config state
+    (`pbgo.ClientUpdater.AvailableDiskSpace`); the duplication is intentional, as this
+    payload is meant to become the route for host signals that ride on that state
+    today.
 
 ## Example Payload
 

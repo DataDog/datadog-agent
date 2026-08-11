@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -21,16 +23,21 @@ import (
 
 const (
 	statusSocketName = "installer-status.sock"
+
+	// statusSocketMode gives the owning group — the Agent user's group — the write
+	// permission connecting to a unix socket requires, and nothing to anyone else.
+	// Same mode as system-probe's socket (pkg/system-probe/api/server/listener_unix.go).
+	statusSocketMode = 0720
 )
+
+// umaskMu serializes the umask swap in listenStatusSocket. umask is per-process,
+// so any file another goroutine creates while it is swapped would pick it up.
+var umaskMu sync.Mutex
 
 // NewStatusAPI returns a new StatusAPI.
 //
 // The daemon runs as root while the Agent runs as dd-agent, so — unlike the
-// local API's 0700 socket — this one has to be reachable by the Agent user. We
-// use the same recipe as system-probe (pkg/system-probe/api/server/listener_unix.go):
-// 0720 gives the owning group connect rights, and RestrictAccessToUser chowns the
-// socket to dd-agent (_dd-agent on macOS). That call is a no-op when the Agent
-// user does not exist, which is the right behaviour on an installer-only host.
+// local API's 0700 socket — this one has to be reachable by the Agent user.
 func NewStatusAPI(daemon Daemon) (StatusAPI, error) {
 	return newStatusAPI(daemon, statusSocketPath())
 }
@@ -40,28 +47,8 @@ func statusSocketPath() string {
 }
 
 func newStatusAPI(daemon statusProvider, socketPath string) (StatusAPI, error) {
-	// Remove any pre-existing socket, but refuse to unlink something that is not one.
-	if fileInfo, err := os.Stat(socketPath); err == nil {
-		if fileInfo.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("could not reuse %s: path exists and is not a unix socket", socketPath)
-		}
-		if err := os.Remove(socketPath); err != nil {
-			return nil, fmt.Errorf("could not remove stale status socket: %w", err)
-		}
-	}
-
-	listener, err := net.Listen("unix", socketPath)
+	listener, err := listenStatusSocket(socketPath)
 	if err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(socketPath, 0720); err != nil {
-		return nil, fmt.Errorf("error setting status socket permissions: %w", err)
-	}
-	perms, err := filesystem.NewPermission()
-	if err != nil {
-		return nil, err
-	}
-	if err := perms.RestrictAccessToUser(socketPath); err != nil {
 		return nil, err
 	}
 
@@ -70,6 +57,59 @@ func newStatusAPI(daemon statusProvider, socketPath string) (StatusAPI, error) {
 		listener: listener,
 		daemon:   daemon,
 	}, nil
+}
+
+// listenStatusSocket binds the status socket and opens it to the Agent user's group.
+//
+// paths.RunPath is owned by dd-agent and mode 0755 (see the run directory in
+// pkg/fleet/installer/packages/datadog_agent_linux.go), so every step below has to
+// assume an unprivileged process can create, replace or unlink entries in that
+// directory while we work. That is what makes this different from system-probe,
+// whose otherwise identical recipe operates in a root-owned directory:
+//
+//   - Whatever sits at the path is removed, socket or not. Refusing to unlink a
+//     non-socket would let any dd-agent process keep the daemon from starting by
+//     planting a regular file there.
+//   - The mode is set through the umask at bind time instead of with a chmod
+//     afterwards. chmod takes a path, and by the time we called it the path could be
+//     a symlink to a file of the attacker's choosing. There is no fd-based
+//     alternative: fchmod on a socket fd fails with EINVAL.
+//   - The group is set with Lchown, which does not follow symlinks, and only the
+//     group changes so the socket stays owned by root.
+func listenStatusSocket(socketPath string) (net.Listener, error) {
+	if err := os.RemoveAll(socketPath); err != nil {
+		return nil, fmt.Errorf("could not remove existing status socket: %w", err)
+	}
+
+	listener, err := listenWithMode(socketPath, statusSocketMode)
+	if err != nil {
+		return nil, err
+	}
+
+	perms, err := filesystem.NewPermission()
+	if err != nil {
+		listener.Close()
+		return nil, err
+	}
+	// A no-op when the Agent user does not exist, which is the right behaviour on a
+	// host running the installer without an Agent.
+	if err := perms.RestrictGroupAccessNoFollow(socketPath); err != nil {
+		listener.Close()
+		return nil, fmt.Errorf("error setting status socket group: %w", err)
+	}
+
+	return listener, nil
+}
+
+// listenWithMode binds a unix socket with the given mode, set at creation time.
+func listenWithMode(socketPath string, mode os.FileMode) (net.Listener, error) {
+	umaskMu.Lock()
+	defer umaskMu.Unlock()
+
+	previous := syscall.Umask(int(^mode & 0777))
+	defer syscall.Umask(previous)
+
+	return net.Listen("unix", socketPath)
 }
 
 // NewStatusAPIClient returns a new StatusAPIClient.

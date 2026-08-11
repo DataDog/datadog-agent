@@ -36,9 +36,10 @@ const (
 	fetchTimeout = 5 * time.Second
 )
 
-// for testing
-var fetchInstallerStatus = func(ctx context.Context) (daemon.StatusAPIResponse, error) {
-	return daemon.NewStatusAPIClient().Status(ctx)
+// statusFetcher is the part of daemon.StatusAPIClient this component uses. It is an
+// interface so tests can supply a fake without a socket.
+type statusFetcher interface {
+	Status(ctx context.Context) (daemon.StatusAPIResponse, error)
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -58,8 +59,9 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 type inst struct {
 	util.InventoryPayload
 
-	log      log.Component
-	hostname string
+	log       log.Component
+	hostname  string
+	installer statusFetcher
 }
 
 // Requires defines the dependencies for the installer metadata component
@@ -84,6 +86,9 @@ func NewComponent(deps Requires) Provides {
 	i := &inst{
 		log:      deps.Log,
 		hostname: hname,
+		// Built once: the client holds the transport, and a new one per collection
+		// would throw away its connection pooling for no reason.
+		installer: daemon.NewStatusAPIClient(),
 	}
 	i.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, i.getPayload, flareFileName)
 
@@ -119,7 +124,7 @@ func (i *inst) getInstallerMetadata() map[string]interface{} {
 	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
 
-	response, err := fetchInstallerStatus(ctx)
+	response, err := i.installer.Status(ctx)
 	if err != nil {
 		// Debug only: not having an installer daemon is the normal case on a host
 		// without remote updates, and it must not produce recurring error logs.

@@ -77,7 +77,7 @@ func NewStatusAPI(daemon Daemon) (StatusAPI, error) {
 	return newStatusAPI(daemon, statusNamedPipePath)
 }
 
-func newStatusAPI(daemon statusProvider, namedPipePath string) (StatusAPI, error) {
+func newStatusAPI(daemon statusProvider, statusPipePath string) (StatusAPI, error) {
 	sd, err := setupStatusSecurityDescriptor()
 	if err != nil {
 		// The default security descriptor does not include ddagentuser: the Agent's
@@ -87,7 +87,19 @@ func newStatusAPI(daemon statusProvider, namedPipePath string) (StatusAPI, error
 		sd = statusPipeDefaultSecurityDescriptor
 	}
 
-	listener, err := winio.ListenPipe(namedPipePath, &winio.PipeConfig{
+	return newStatusAPIWithSecurityDescriptor(daemon, statusPipePath, sd)
+}
+
+// newStatusAPIWithSecurityDescriptor creates the listener with an explicit security
+// descriptor, so tests do not depend on a ddagentuser existing on the machine.
+//
+// Note that a named pipe is claimed by whoever creates it first: on a host with no
+// installer daemon, any local user can create this pipe and answer in its place.
+// Nothing served here is privileged, and the consequence is a host reporting
+// attacker-chosen metadata about itself, so this is treated the same way
+// system-probe treats its own pipe.
+func newStatusAPIWithSecurityDescriptor(daemon statusProvider, statusPipePath string, sd string) (StatusAPI, error) {
+	listener, err := winio.ListenPipe(statusPipePath, &winio.PipeConfig{
 		SecurityDescriptor: sd,
 		MessageMode:        false,
 	})

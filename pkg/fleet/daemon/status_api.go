@@ -101,7 +101,8 @@ func (s *statusAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 // StatusAPIClient reads the daemon's read-only status API.
 //
 // Unlike LocalAPIClient this takes a context: its caller is the Agent's metadata
-// runner rather than a CLI command, so the collection needs to be cancellable.
+// collector rather than a CLI command, so it needs to bound the request with its
+// own deadline instead of inheriting the client's.
 type StatusAPIClient interface {
 	Status(ctx context.Context) (StatusAPIResponse, error)
 }

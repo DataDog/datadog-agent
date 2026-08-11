@@ -25,16 +25,16 @@ import (
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
-func setupFetcher(t *testing.T, response daemon.StatusAPIResponse, err error) {
-	original := fetchInstallerStatus
-	t.Cleanup(func() { fetchInstallerStatus = original })
-
-	fetchInstallerStatus = func(_ context.Context) (daemon.StatusAPIResponse, error) {
-		return response, err
-	}
+type fakeFetcher struct {
+	response daemon.StatusAPIResponse
+	err      error
 }
 
-func getInstallerComp(t *testing.T) *inst {
+func (f fakeFetcher) Status(_ context.Context) (daemon.StatusAPIResponse, error) {
+	return f.response, f.err
+}
+
+func getInstallerComp(t *testing.T, response daemon.StatusAPIResponse, err error) *inst {
 	r := Requires{
 		Log:        logmock.New(t),
 		Config:     config.NewMock(t),
@@ -45,17 +45,18 @@ func getInstallerComp(t *testing.T) *inst {
 	comp := NewComponent(r).Comp
 	i := comp.(*inst)
 	i.hostname = "test hostname"
+	i.installer = fakeFetcher{response: response, err: err}
 	return i
 }
 
 func TestGetPayload(t *testing.T) {
 	diskSpace := uint64(12884901888)
-	setupFetcher(t, daemon.StatusAPIResponse{
+	i := getInstallerComp(t, daemon.StatusAPIResponse{
 		InstallerVersion:   "7.76.0",
 		AvailableDiskSpace: &diskSpace,
 	}, nil)
 
-	p := getInstallerComp(t).getPayload().(*Payload)
+	p := i.getPayload().(*Payload)
 
 	assert.Equal(t, "test hostname", p.Hostname)
 	assert.True(t, p.Timestamp <= time.Now().UnixNano())
@@ -73,9 +74,9 @@ func TestGetPayload(t *testing.T) {
 // payload must still be produced: returning nil would make the inventory runner skip
 // the submission entirely, which loses the absence signal.
 func TestGetPayloadInstallerUnreachable(t *testing.T) {
-	setupFetcher(t, daemon.StatusAPIResponse{}, errors.New("dial unix: no such file or directory"))
+	i := getInstallerComp(t, daemon.StatusAPIResponse{}, errors.New("dial unix: no such file or directory"))
 
-	p := getInstallerComp(t).getPayload()
+	p := i.getPayload()
 	require.NotNil(t, p)
 
 	assert.Equal(t,
@@ -88,9 +89,9 @@ func TestGetPayloadInstallerUnreachable(t *testing.T) {
 // The daemon leaves available_disk_space unset when it cannot determine it. Reporting
 // it as 0 would read as "disk full", which is a different fact entirely.
 func TestGetPayloadUnknownDiskSpace(t *testing.T) {
-	setupFetcher(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
+	i := getInstallerComp(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
 
-	p := getInstallerComp(t).getPayload().(*Payload)
+	p := i.getPayload().(*Payload)
 
 	assert.Equal(t,
 		map[string]interface{}{
@@ -103,9 +104,9 @@ func TestGetPayloadUnknownDiskSpace(t *testing.T) {
 // The backend routes /api/v1/metadata on the top-level JSON key, so renaming it
 // silently drops the payload.
 func TestPayloadTopLevelKey(t *testing.T) {
-	setupFetcher(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
+	i := getInstallerComp(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
 
-	raw, err := json.Marshal(getInstallerComp(t).getPayload())
+	raw, err := json.Marshal(i.getPayload())
 	require.NoError(t, err)
 
 	var decoded map[string]json.RawMessage
@@ -115,7 +116,7 @@ func TestPayloadTopLevelKey(t *testing.T) {
 
 func TestWritePayload(t *testing.T) {
 	diskSpace := uint64(12884901888)
-	setupFetcher(t, daemon.StatusAPIResponse{
+	i := getInstallerComp(t, daemon.StatusAPIResponse{
 		InstallerVersion:   "7.76.0",
 		AvailableDiskSpace: &diskSpace,
 	}, nil)
@@ -123,7 +124,7 @@ func TestWritePayload(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://fake_url.com", nil)
 	w := httptest.NewRecorder()
 
-	getInstallerComp(t).writePayloadAsJSON(w, req)
+	i.writePayloadAsJSON(w, req)
 
 	resp := w.Result()
 	body, err := io.ReadAll(resp.Body)

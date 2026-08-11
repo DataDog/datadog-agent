@@ -79,6 +79,39 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 	return nil
 }
 
+// RestrictGroupAccessNoFollow sets the file's group owner to the Agent user's
+// group, leaving the user owner untouched, and does not follow symlinks. If the
+// Agent user does not exist, the function returns nil immediately.
+//
+// Prefer this over RestrictAccessToUser for a path inside a directory an
+// unprivileged user can write to. chown(2) follows symlinks, so between creating
+// a file and chowning it by path, a process that can write the directory can
+// substitute a symlink and have the privileged process hand it a file of its
+// choosing. Changing only the group also keeps the file owned by the caller.
+func (p *Permission) RestrictGroupAccessNoFollow(path string) error {
+	usr, err := user.Lookup(agentUsername())
+	if err != nil {
+		return nil
+	}
+
+	grpID, err := strconv.Atoi(usr.Gid)
+	if err != nil {
+		return fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
+	}
+
+	// -1 leaves the user owner as it is.
+	if err := os.Lchown(path, -1, grpID); err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			log.Infof("Cannot change group of '%s', permission denied", path)
+			return nil
+		}
+
+		return fmt.Errorf("couldn't set group owner for %s: %w", path, err)
+	}
+
+	return nil
+}
+
 // RemoveAccessToOtherUsers on Unix this calls RestrictAccessToUser and then removes all access to the file for 'group'
 // and 'other'
 func (p *Permission) RemoveAccessToOtherUsers(path string) error {

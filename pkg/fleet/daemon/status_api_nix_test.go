@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,13 +90,45 @@ func TestStatusAPISocketPermissions(t *testing.T) {
 	assert.Equal(t, os.FileMode(0720), info.Mode().Perm())
 }
 
-// A leftover regular file at the socket path must not be silently unlinked.
-func TestStatusAPIRefusesNonSocketPath(t *testing.T) {
+// The socket lives in a directory dd-agent can write to, so an unprivileged
+// process can plant a regular file at the path. Refusing to start on it would hand
+// that process a way to stop the daemon, so the file is replaced instead.
+func TestStatusAPIReplacesPlantedFile(t *testing.T) {
 	socketPath := tempSocketPath(t)
 	require.NoError(t, os.WriteFile(socketPath, []byte("not a socket"), 0600))
 
-	_, err := newStatusAPI(&testStatusProvider{}, socketPath)
-	assert.ErrorContains(t, err, "not a unix socket")
+	api, err := newStatusAPI(&testStatusProvider{}, socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = api.Stop(context.Background()) })
+
+	info, err := os.Stat(socketPath)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSocket, "expected the planted file to be replaced by a socket")
+	assert.Equal(t, os.FileMode(0720), info.Mode().Perm())
+}
+
+// The mode comes from the umask at bind time rather than a chmod afterwards, so it
+// has to hold whatever the process umask happens to be.
+func TestStatusAPISocketModeIgnoresProcessUmask(t *testing.T) {
+	// Before the swap: the socket's own directory has to stay usable.
+	socketPath := tempSocketPath(t)
+
+	umaskMu.Lock()
+	previous := syscall.Umask(0777)
+	umaskMu.Unlock()
+	t.Cleanup(func() {
+		umaskMu.Lock()
+		syscall.Umask(previous)
+		umaskMu.Unlock()
+	})
+
+	api, err := newStatusAPI(&testStatusProvider{}, socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = api.Stop(context.Background()) })
+
+	info, err := os.Stat(socketPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0720), info.Mode().Perm())
 }
 
 // A stale socket from a previous daemon run must be replaced, not rejected.

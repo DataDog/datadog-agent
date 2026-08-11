@@ -12,6 +12,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -137,4 +138,67 @@ func TestIsAllowedOwner_UnknownUser(t *testing.T) {
 	require.NoError(t, err)
 	unknownUID := uint32(99999)
 	assert.False(t, p.isRootOrAgentUID(unknownUID))
+}
+
+func TestRestrictGroupAccessNoFollow(t *testing.T) {
+	ddAgentUser, err := user.Lookup(agentUsername())
+	if err != nil {
+		t.Skip("agent user not found on this system")
+	}
+	ddAgentGID, err := strconv.Atoi(ddAgentUser.Gid)
+	require.NoError(t, err)
+
+	p, err := NewPermission()
+	require.NoError(t, err)
+
+	root := t.TempDir()
+	testFile := filepath.Join(root, "file")
+	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0644))
+
+	// Only root can chown to another group.
+	if err := os.Lchown(testFile, -1, ddAgentGID); err != nil {
+		t.Skip("Cannot chown to the dd-agent group (run as root to test)")
+	}
+	require.NoError(t, os.Lchown(testFile, -1, os.Getgid()))
+
+	require.NoError(t, p.RestrictGroupAccessNoFollow(testFile))
+
+	stat, err := os.Stat(testFile)
+	require.NoError(t, err)
+	sys := stat.Sys().(*syscall.Stat_t)
+	assert.Equal(t, ddAgentGID, int(sys.Gid))
+	assert.Equal(t, os.Getuid(), int(sys.Uid), "the user owner must be left alone")
+}
+
+// The point of the no-follow variant: a symlink planted at the path must not get the
+// privileged caller to change the group of whatever it points at.
+func TestRestrictGroupAccessNoFollowDoesNotFollowSymlinks(t *testing.T) {
+	ddAgentUser, err := user.Lookup(agentUsername())
+	if err != nil {
+		t.Skip("agent user not found on this system")
+	}
+	ddAgentGID, err := strconv.Atoi(ddAgentUser.Gid)
+	require.NoError(t, err)
+
+	p, err := NewPermission()
+	require.NoError(t, err)
+
+	root := t.TempDir()
+	target := filepath.Join(root, "target")
+	require.NoError(t, os.WriteFile(target, []byte("test"), 0644))
+
+	// Only root can chown to another group.
+	if err := os.Lchown(target, -1, ddAgentGID); err != nil {
+		t.Skip("Cannot chown to the dd-agent group (run as root to test)")
+	}
+	require.NoError(t, os.Lchown(target, -1, os.Getgid()))
+
+	link := filepath.Join(root, "link")
+	require.NoError(t, os.Symlink(target, link))
+
+	require.NoError(t, p.RestrictGroupAccessNoFollow(link))
+
+	stat, err := os.Stat(target)
+	require.NoError(t, err)
+	assert.Equal(t, os.Getgid(), int(stat.Sys().(*syscall.Stat_t).Gid), "the symlink target's group must be untouched")
 }

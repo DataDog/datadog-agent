@@ -100,6 +100,7 @@ dd_agent_go_test(
         "local_api_test.go",
         "remote_config_test.go",
         "status_api_nix_test.go",
+        "status_api_windows_test.go",
         "task_db_test.go",
     ],
     embed = [":daemon"],
