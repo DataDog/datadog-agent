@@ -15,8 +15,6 @@ bespoke manifest interpreter.
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 
 def _pkg_mac_pkg_impl(ctx):
-    # This is a temporary solution. In the future, we'll write the payload
-    # directly from the source inputs, like pkg_tar
     # `pkg_install` produces a `bazel run`-able installer whose CLI insists on
     # an absolute --destdir (or BUILD_WORKSPACE_DIRECTORY for resolving a
     # relative one), since it's normally invoked interactively. Inside a
@@ -144,7 +142,6 @@ def pkg_mac_pkg(
     pkg_install(
         name = name + "_installer",
         srcs = srcs,
-        tags = ["manual"],
         visibility = ["//visibility:private"],
     )
 

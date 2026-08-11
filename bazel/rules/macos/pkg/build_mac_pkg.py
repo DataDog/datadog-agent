@@ -26,7 +26,12 @@ import sys
 import tempfile
 
 
-def parse_args():
+def _install_script(src, dst):
+    shutil.copyfile(src, dst)
+    os.chmod(dst, 0o755)
+
+
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--materialize-root-py", required=True, help="Path to materialize_root.py.")
     parser.add_argument("--root", required=True, help="pkg_install-materialized root directory (symlink farm).")
@@ -38,16 +43,8 @@ def parse_args():
     parser.add_argument("--preinstall", default="", help="Optional path to a preinstall script.")
     parser.add_argument("--postinstall", default="", help="Optional path to a postinstall script.")
     parser.add_argument("--signing-identity", default="", help="Optional pkgbuild --sign identity name.")
-    return parser.parse_args()
 
-
-def _install_script(src, dst):
-    shutil.copyfile(src, dst)
-    os.chmod(dst, 0o755)
-
-
-def main():
-    args = parse_args()
+    args = parser.parse_args()
 
     real_root_dir = tempfile.mkdtemp()
     scripts_dir = tempfile.mkdtemp()
@@ -57,16 +54,13 @@ def main():
             check=True,
         )
 
+        # fmt: off
         pkgbuild_args = [
             args.pkgbuild,
-            "--root",
-            real_root_dir,
-            "--identifier",
-            args.identifier,
-            "--version",
-            args.version,
-            "--install-location",
-            args.install_location,
+            "--root", real_root_dir,
+            "--identifier", args.identifier,
+            "--version", args.version,
+            "--install-location", args.install_location,
         ]
 
         if args.preinstall or args.postinstall:

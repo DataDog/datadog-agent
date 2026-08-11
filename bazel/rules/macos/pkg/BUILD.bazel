@@ -1,3 +1,5 @@
+"""Macos packaging rules."""
+
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load(":pkg_mac_pkg.bzl", "pkg_mac_pkg")
@@ -10,11 +12,6 @@ py_binary(
     tags = ["manual"],
     visibility = ["//visibility:public"],
 )
-
-exports_files([
-    "pkg_mac_pkg.bzl",
-    "materialize_root.py",
-])
 
 # Manual smoke test: exercises the full materialize+pkgbuild pipeline against
 # real pkg_files srcs. Not wired into any real package yet.
