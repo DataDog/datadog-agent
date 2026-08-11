@@ -1,8 +1,8 @@
 diff --git a/extensions.bzl b/extensions.bzl
-index af11d90..30dbd3b 100644
+index af11d90..97789d3 100644
 --- a/extensions.bzl
 +++ b/extensions.bzl
-@@ -50,13 +50,16 @@ load(
+@@ -50,13 +50,17 @@ load(
      "merge_flags",
  )
  load("//private:llvm_repo.bzl", "llvm_repo")
@@ -15,18 +15,21 @@ index af11d90..30dbd3b 100644
      "VALID_MSVC_TARGETS",
 +    "detect_vc_msbuild_toolset",
      "download_and_map",
++    "find_msvc_release_channel",
 +    "get_msbuild_package_ids",
      "get_msvc_package_ids",
      "get_msvc_redist_package_ids",
      "get_winsdk_msi_list",
-@@ -546,6 +549,42 @@ def _extension_impl(module_ctx):
+@@ -546,6 +550,44 @@ def _extension_impl(module_ctx):
              "winsdk_version": winsdk_version,
          })
  
 +    # 5. Construct the MSBuild repo definition. MSBuild is versioned per Visual
 +    # Studio line, not per MSVC toolset, so a single repo is derived from the
-+    # channel that owns the default MSVC version.
-+    msbuild_packages_map = packages_maps[msvc_versions_dict[default_msvc_for_repo]]
++    # channel that released the default MSVC version. Engine and VC project system
++    # both come from it, which keeps VisualStudioVersion, the VCTargetsPath tree and
++    # the PlatformToolset consistent with the pinned compiler.
++    msbuild_packages_map = packages_maps[find_msvc_release_channel(packages_maps, default_msvc_for_repo)]
 +    msbuild_toolset_dir, msbuild_platform_toolset = detect_vc_msbuild_toolset(msbuild_packages_map, all_targets)
 +    msbuild_deps = get_msbuild_package_ids(
 +        msbuild_packages_map,
@@ -62,7 +65,7 @@ index af11d90..30dbd3b 100644
      msiutil_repo(name = "msiutil")
      msiutil_label = "@msiutil//:{}".format("msiutil.exe" if normalize_repository_os(module_ctx.os.name) == "windows" else "msiutil")
  
-@@ -565,6 +604,16 @@ def _extension_impl(module_ctx):
+@@ -565,6 +607,16 @@ def _extension_impl(module_ctx):
              )
              continue
  
@@ -385,7 +388,7 @@ index de153d3..f77afdb 100644
      return ctx.repo_metadata(reproducible = True)
  
 diff --git a/private/vs_channel_manifest.bzl b/private/vs_channel_manifest.bzl
-index 49ab406..0615423 100644
+index 49ab406..ca2d048 100644
 --- a/private/vs_channel_manifest.bzl
 +++ b/private/vs_channel_manifest.bzl
 @@ -57,10 +57,19 @@ def download_and_map(ctx, channel_url):
@@ -510,3 +513,33 @@ index 49ab406..0615423 100644
  # Valid values for hosts: x86, x64, arm64
  VALID_MSVC_HOSTS = ["x86", "x64", "arm64"]
  
+@@ -273,6 +375,29 @@ def list_msvc_version(packages_maps):
+                         versions[version] = package_map_key
+     return {v: versions[v] for v in sorted(versions.keys())}
+ 
++def find_msvc_release_channel(packages_maps, version):
++    """Returns the key of the oldest channel manifest shipping the given MSVC version.
++
++    ``list_msvc_version`` prefers the newest channel when versions overlap, which is
++    the wrong choice for MSBuild: its VC project system has to come from the Visual
++    Studio line that released the toolset, otherwise a pinned compiler is driven by a
++    newer PlatformToolset than it was built for.
++
++    Args:
++        packages_maps: Dict mapping package_map id (e.g., "18", "17") to package_map.
++        version: MSVC toolset version, e.g. "14.44".
++
++    Returns:
++        The packages_maps key of the oldest channel containing that version.
++    """
++    prefix = "Microsoft.VC.{}.".format(version).lower()
++    for package_map_key in sorted(packages_maps.keys()):
++        for pkg_id in packages_maps[package_map_key]:
++            if pkg_id.startswith(prefix):
++                return package_map_key
++
++    fail("No Visual Studio channel manifest ships MSVC {}".format(version))
++
+ def get_msvc_redist_package_ids(
+         packages_map,
+         version,
