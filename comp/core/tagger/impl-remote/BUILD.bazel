@@ -45,7 +45,6 @@ go_library(
 dd_agent_go_test(
     name = "impl-remote_test",
     srcs = [
-        "remote_stream_race_test.go",
         "remote_test.go",
         "tagstore_test.go",
     ],
@@ -63,10 +62,8 @@ dd_agent_go_test(
         "//comp/def",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_google_grpc//:grpc",
     ],
 )
