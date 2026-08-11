@@ -262,14 +262,12 @@ func portIsAlwaysSupported(_ int) ([]*Metric, error) {
 func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
 	totalPorts, err := GetNVLinkCount(device)
 	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
-			return nil, fmt.Errorf("%w: get NVLink link count: %w", errUnsupportedDevice, err)
-		}
-		return nil, fmt.Errorf("get NVLink link count: %w", err)
+		log.Warnf("failed to get NVLink link count on device %s: %s", device.GetDeviceInfo().UUID, err)
+		totalPorts = 1
 	}
 
 	if totalPorts <= 0 {
-		return nil, fmt.Errorf("%w: no NVLink ports found", errUnsupportedDevice)
+		log.Warnf("no NVLink ports found on device %s", device.GetDeviceInfo().UUID)
 	}
 
 	var ports []int

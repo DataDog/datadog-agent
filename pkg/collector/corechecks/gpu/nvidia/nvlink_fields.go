@@ -83,10 +83,10 @@ var nvlinkFieldsMetrics = map[uint32]nvlinkFieldValueMetric{
 }
 
 type nvlinkFieldsCollector struct {
-	device  ddnvml.Device
-	metrics map[uint32]nvlinkFieldValueMetric
-	ports   []int
-	totals  map[uint32]float64
+	device         ddnvml.Device
+	ports          []int
+	metricsPerPort map[int]map[uint32]nvlinkFieldValueMetric
+	totals         map[uint32]float64
 }
 
 func newNVLinkFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
@@ -95,7 +95,7 @@ func newNVLinkFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (C
 		totals: make(map[uint32]float64),
 	}
 
-	c.metrics = maps.Clone(nvlinkFieldsMetrics) // copy all metrics to avoid modifying the original map
+	c.metricsPerPort = make(map[int]map[uint32]nvlinkFieldValueMetric)
 
 	var err error
 	c.ports, err = getSupportedNvlinkPorts(device, c.getPortMetrics)
@@ -132,7 +132,7 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 		metrics = append(metrics, portMetrics...)
 	}
 
-	for fieldValueID, metric := range c.metrics {
+	for fieldValueID, metric := range nvlinkFieldsMetrics {
 		if !metric.addTotalMetric {
 			continue
 		}
@@ -160,14 +160,21 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 }
 
 func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
+	// Initialize the metrics for the port if they don't exist.
+	portMetrics, ok := c.metricsPerPort[port]
+	if !ok {
+		portMetrics = maps.Clone(nvlinkFieldsMetrics)
+		c.metricsPerPort[port] = portMetrics
+	}
+
 	// Metrics might have been removed in the previous run, so we check if there are any metrics to collect.
-	if len(c.metrics) == 0 {
+	if len(portMetrics) == 0 {
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
 
-	fields := make([]nvml.FieldValue, len(c.metrics))
+	fields := make([]nvml.FieldValue, len(portMetrics))
 	fieldIdx := 0
-	for fieldValueID, metric := range c.metrics {
+	for fieldValueID, metric := range portMetrics {
 		fields[fieldIdx].FieldId = fieldValueID
 
 		if metric.forceScopeIDValue != nil {
@@ -186,7 +193,7 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 	var metrics []*Metric
 	var errs []error
 	for _, val := range fields {
-		fieldValueMetric, ok := c.metrics[val.FieldId]
+		fieldValueMetric, ok := portMetrics[val.FieldId]
 		if !ok {
 			errs = append(errs, fmt.Errorf("unexpected field value ID %d", val.FieldId))
 			continue
@@ -196,9 +203,8 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		// this metric from the collector, even if it's after a later run. The assumption here
 		// is that unsupported fields are returned from the start, and their status does not change.
 		// This way, we avoid having different functions to collect metrics and to check for support.
-		// We also assume that if a field is not supported for a port, it's not supported for any other port.
 		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
-			delete(c.metrics, val.FieldId)
+			delete(portMetrics, val.FieldId)
 			log.Warnf("nvlink: fields collector removing metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
 			continue
 		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
@@ -226,7 +232,7 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		}
 	}
 
-	if len(c.metrics) == 0 {
+	if len(portMetrics) == 0 {
 		// All metrics were removed, so we return an error to indicate that the device is unsupported.
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
