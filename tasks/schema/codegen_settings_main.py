@@ -6,7 +6,6 @@ Usage: codegen_settings_main.py <output_dir>
 Intended to be called from a Bazel run_binary action. The working directory
 must be the Bazel execroot so that workspace-relative paths such as
   pkg/config/schema/yaml/core_schema.yaml
-  pkg/config/setup/apm_settings.go          (ordering hints)
 resolve to their declared inputs.
 
 Writes generated *_settings.go files into <output_dir>.  The caller
@@ -41,9 +40,9 @@ def main():
     system_probe_schema = resolve_schema("pkg/config/schema/yaml/system-probe_schema.yaml")
 
     # Core agent settings: every file except system_probe_settings.go
-    run_codegen(core_schema, _filter(False, "system_probe_settings.go"), None, False, output_dir)
+    run_codegen(core_schema, _filter(False, "system_probe_settings.go"), output_dir)
     # System-probe settings: only system_probe_settings.go
-    run_codegen(system_probe_schema, _filter(True, "system_probe_settings.go"), None, False, output_dir)
+    run_codegen(system_probe_schema, _filter(True, "system_probe_settings.go"), output_dir)
     run_constant_codegen(core_schema, system_probe_schema, output_dir)
 
 
