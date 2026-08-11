@@ -7,6 +7,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,6 +54,31 @@ func (c *Client) GetPARTaskResult(taskID string, timeout time.Duration) (*api.PA
 		time.Sleep(2 * time.Second)
 	}
 	return nil, fmt.Errorf("timed out waiting for result of task %s", taskID)
+}
+
+// SetPARSigningKey registers the private half of a signing identity with fakeintake so
+// dequeued tasks carry a genuinely signed envelope. keyID must match the config ID the
+// public key was pushed under via RCAddConfig.
+func (c *Client) SetPARSigningKey(keyID string, privateKey ed25519.PrivateKey, orgID int64, runnerID string) error {
+	body, err := json.Marshal(map[string]interface{}{
+		"key_id":      keyID,
+		"private_key": []byte(privateKey),
+		"org_id":      orgID,
+		"runner_id":   runnerID,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal signing key request: %w", err)
+	}
+	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/signing-key", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("set PAR signing key: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("set PAR signing key: status %d: %s", resp.StatusCode, b)
+	}
+	return nil
 }
 
 // FlushPAR clears all queued PAR tasks and captured results from fakeintake.
