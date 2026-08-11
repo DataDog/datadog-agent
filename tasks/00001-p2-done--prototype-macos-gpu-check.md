@@ -32,11 +32,13 @@ Implement an independent Darwin check behind the same package, factory, configur
    - Add a small Darwin `Check` implementation using `core.CheckBase`, the existing `gpu.enabled` gate, collection interval override, sender lifecycle, and `Cancel` behavior.
    - Keep `pkg/collector/corechecks/gpu/gpu.go` and all NVIDIA collectors Linux/NVML-only and behaviorally unchanged.
 
-3. **Emit a conservative canonical metric set**
-   - Map AGX `Device Utilization %` to `gpu.gr_engine_active` (gauge, percent), the closest existing device-wide graphics-engine activity metric.
-   - Emit `gpu.core.limit` from `gpu-core-count` and `gpu.device.total` for each discovered device.
-   - Do not publish renderer/tiler counters or unified-memory values under misleading existing names, and do not add new public metrics in this prototype.
-   - Attach deterministic, low-cardinality device tags conforming to the existing GPU tag specification: a synthetic host-scoped `gpu_uuid`, normalized `gpu_device`, `gpu_vendor:apple`, `gpu_architecture:apple_silicon`, an Apple model `gpu_type`, `gpu_virtualization_mode:none`, `gpu_slicing_mode:none`, and `gpu_host:true`.
+3. **Emit a conservative Apple-specific metric set**
+   - Emit AGX `Device Utilization %` as `gpu.apple.device.utilization` rather than reusing an NVIDIA-shaped metric.
+   - Emit host inventory as `gpu.apple.device.count` and `gpu.apple.core.count`.
+   - Emit Apple driver-reported memory as `gpu.apple.system_memory.allocated` and `gpu.apple.system_memory.in_use`; document that these are not discrete VRAM or total unified memory.
+   - Do not publish renderer/tiler counters or map any Apple values onto existing NVIDIA-oriented metric names.
+   - Attach deterministic, low-cardinality device tags following existing GPU tag conventions: a synthetic host-scoped `gpu_uuid`, normalized `gpu_device`, `gpu_vendor:apple`, `gpu_architecture:apple_silicon`, an Apple model `gpu_type`, `gpu_virtualization_mode:none`, `gpu_slicing_mode:none`, and `gpu_host:true`.
+   - Keep these experimental Apple metrics outside the current NVIDIA-oriented `spec/gpu_metrics.yaml` and its validator until that tooling has a vendor-aware model.
    - Document how the synthetic ID is derived and keep it stable for the same model/device index across restarts. Avoid serial numbers or other sensitive identifiers.
 
 4. **Graceful degradation and telemetry**
@@ -57,14 +59,14 @@ Implement an independent Darwin check behind the same package, factory, configur
 
 7. **Local validation on this MBP**
    - Run targeted tests with `dda inv test --targets=./pkg/collector/corechecks/gpu/...` and build the Agent with `dda inv agent.build` (never raw `go` commands).
-   - Enable `gpu.enabled`, run the standard `gpu` check, and verify the canonical metrics and Apple device tags through the Agent sender/check output.
-   - Use the installed Ollama (`0.32.5`) and an already-local model to create sustained Metal load. Capture several idle and loaded check samples and confirm `gpu.gr_engine_active` rises materially during generation and falls afterward. Do not pull a model from the network without asking first.
+   - Enable `gpu.enabled`, run the standard `gpu` check, and verify the Apple metrics and device tags through the Agent sender/check output.
+   - Use the installed Ollama (`0.32.5`) and an already-local model to create sustained Metal load. Capture idle, loaded, and unloaded samples; confirm `gpu.apple.device.utilization` tracks generation and the two `gpu.apple.system_memory.*` metrics track model lifetime. Do not pull a model from the network without asking first.
    - Compare the check's utilization qualitatively with repeated unprivileged `ioreg` observations. Use `powermetrics` only as an optional manually authorized reference, never as the implementation dependency.
 
 ## Acceptance criteria
 
 - A Darwin arm64 Agent with cgo registers the existing `gpu` check when `gpu.enabled: true`.
-- On this Apple M5 Pro, the check emits `gpu.gr_engine_active`, `gpu.core.limit`, and `gpu.device.total` with valid Apple GPU device tags.
+- On this Apple M5 Pro, the check emits only the five `gpu.apple.*` metrics defined above, with valid Apple GPU device tags; it emits no existing NVIDIA-oriented metrics.
 - The check runs as the normal unprivileged Agent and does not spawn system tools or link private Apple frameworks.
 - Missing AGX devices or properties degrade safely without preventing Agent startup or suppressing other available metrics.
 - Linux/NVML behavior and tests remain unchanged.

@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    GPU Monitoring can now be enabled experimentally on Apple Silicon macOS hosts. The
+    standard ``gpu`` check reads Apple-specific device utilization, core inventory, and
+    GPU client system-memory metrics from IOKit without requiring root privileges or
+    system-probe. Power, temperature, and per-process GPU metrics are not available on
+    macOS in this initial implementation.

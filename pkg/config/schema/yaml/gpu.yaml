@@ -4,8 +4,10 @@ node_type: section
 type: object
 visibility: public
 description: |-
-  Configuration for GPU Monitoring on non-containerized Linux hosts.
-  Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+  Configuration for GPU Monitoring. On non-containerized Linux hosts, both this section and
+  the gpu_monitoring section in system-probe.yaml must be configured. On Apple Silicon macOS,
+  the experimental device-level check reads best-effort GPU telemetry directly from IOKit and
+  does not require system-probe.
 tags:
 - template_section:Common
 - full-agent-only:true
@@ -16,9 +18,10 @@ properties:
     default: false
     visibility: public
     description: |-
-      Set to true to enable the GPU check in the core Agent.
-      Required for GPU monitoring on non-containerized Linux hosts.
-      Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+      Set to true to enable the GPU check in the core Agent. On non-containerized Linux hosts,
+      this must be used together with gpu_monitoring.enabled: true in system-probe.yaml. On
+      Apple Silicon macOS, this enables experimental Apple-specific device utilization,
+      inventory, and GPU client system-memory metrics from IOKit; system-probe is not required.
   nccl:
     node_type: section
     type: object

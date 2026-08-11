@@ -4,12 +4,29 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "gpu",
     srcs = [
+        "agx_darwin.h",
+        "agx_darwin.m",
+        "agx_reader_darwin.go",
         "config.go",
         "gpu.go",
+        "gpu_darwin.go",
         "gpu_stub.go",
         "tags.go",
         "testutil.go",
     ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework Foundation -framework CoreFoundation -framework IOKit",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@rules_go//go/platform:darwin": [
+            "-x objective-c -fobjc-arc",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu",
     visibility = ["//visibility:public"],
     deps = select({
@@ -56,10 +73,15 @@ go_library(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/core/autodiscovery/integration",
             "//comp/core/tagger/def",
             "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/def",
+            "//pkg/aggregator/sender",
             "//pkg/collector/check",
+            "//pkg/collector/corechecks",
+            "//pkg/config/setup",
+            "//pkg/util/log",
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -188,6 +210,7 @@ go_library(
 dd_agent_go_test(
     name = "gpu_test",
     srcs = [
+        "gpu_darwin_test.go",
         "gpu_test.go",
         "tags_test.go",
     ],
@@ -228,6 +251,14 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
             "@org_uber_go_atomic//:atomic",
             "@org_uber_go_mock//gomock",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/autodiscovery/integration",
+            "//comp/core/telemetry/mock",
+            "//pkg/aggregator/mocksender",
+            "//pkg/config/setup",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/autodiscovery/integration",
