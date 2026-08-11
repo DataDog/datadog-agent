@@ -1,0 +1,97 @@
+# A tracer that takes a long time to publish its metadata is still discovered.
+# The metadata only becomes readable at tick 300, long after the process
+# started, and the retries keep going until it does.
+- !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 300
+  tracer_metadata: {language: "go", service: "slow-to-start"}
+# Attempt 1.
+- !scan {}
+# Attempt 2, 10 ticks later.
+- !advance-time {to: 110}
+- !scan {}
+# Attempt 3, 20 ticks later.
+- !advance-time {to: 130}
+- !scan {}
+# Attempt 4, 40 ticks later.
+- !advance-time {to: 170}
+- !scan {}
+# Attempt 5, 80 ticks later.
+- !advance-time {to: 250}
+- !scan {}
+# Attempt 6, capped at 100 ticks later. The metadata is readable now.
+- !advance-time {to: 350}
+- !scan {}
+- !advance-time {to: 360}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  metadata_available_at: 300
+  tracer_metadata: {language: "go", service: "slow-to-start"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 130}
+---
+command: !scan {}
+state:
+  current_time: 130
+  candidates: [{pid: 1001, start_time: 50, attempts: 3, next_attempt: 170}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 170}
+---
+command: !scan {}
+state:
+  current_time: 170
+  candidates: [{pid: 1001, start_time: 50, attempts: 4, next_attempt: 250}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 250}
+---
+command: !scan {}
+state:
+  current_time: 250
+  candidates: [{pid: 1001, start_time: 50, attempts: 5, next_attempt: 350}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 350}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 50}]
+state:
+  current_time: 350
+  live: [{pid: 1001, start_time: 50}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 360}
+---
+command: !scan {}
+state:
+  current_time: 360
+  live: [{pid: 1001, start_time: 50}]
+  processes_in_procfs: [1001]

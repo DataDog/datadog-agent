@@ -376,7 +376,7 @@ def schema_codegen(ctx, keep_orig_order=False, check=False, fix=False, keeptmp=F
             destination_dir = os.path.dirname(destination)
             if not os.path.isdir(destination_dir):
                 raise Exit(f"Cannot copy generated file {source}: {destination_dir} does not exist", code=1)
-            ctx.run(f"cp {source} {destination}")
+            shutil.copy(source, destination)
 
     if not keeptmp and not display:
         shutil.rmtree(tmpdir)

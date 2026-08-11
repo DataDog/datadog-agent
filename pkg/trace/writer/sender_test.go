@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -455,6 +456,31 @@ func syncTest403ThrottlesRefresh(server *testServer) func(*testing.T) {
 
 		s.Stop()
 	}
+}
+
+// TestIsEnabledConcurrent verifies that concurrent calls to isEnabled on an MRF
+// sender don't race on the enabled field. isEnabled is invoked concurrently in
+// production from multiple producers calling sendPayloads on the same *sender.
+func TestIsEnabledConcurrent(t *testing.T) {
+	server := newTestServer()
+	defer server.Close()
+
+	s, err := newTestSender(server.URL)
+	assert.NoError(t, err)
+	defer s.Stop()
+
+	s.cfg.isMRF = true
+	failover := atomic.NewBool(false)
+	s.cfg.MRFFailoverAPM = failover.Load
+
+	var wg sync.WaitGroup
+	for i := range 50 {
+		wg.Go(func() {
+			failover.Store(i%2 == 0)
+			s.isEnabled()
+		})
+	}
+	wg.Wait()
 }
 
 func TestPayload(t *testing.T) {
