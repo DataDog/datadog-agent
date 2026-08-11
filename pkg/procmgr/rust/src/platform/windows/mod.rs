@@ -13,6 +13,8 @@ mod pipe_caller;
 mod pipe_security;
 mod resolve_executable;
 mod scm_service;
+mod secret_backend;
+mod secret_backend_rights;
 mod sid;
 mod spawn;
 mod wide;
@@ -21,6 +23,13 @@ mod win_handle;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub use scm_service::run_as_service;
+pub(crate) fn embedded_secret_connector_path() -> PathBuf {
+    install_root()
+        .join("bin")
+        .join("secret-generic-connector.exe")
+}
+
+pub(crate) use secret_backend::exec_secret_backend;
 pub(crate) use spawn::spawn_child_handle;
 pub(crate) use spawn::user_profile::UserProfileGuard;
 
