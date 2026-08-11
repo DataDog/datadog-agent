@@ -169,6 +169,12 @@ func Test_PanOSRedaction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, string(curlySNMP), "ndm-lab-snmp")
 	assert.Contains(t, string(curlySNMP), "snmp-community-string <secret hidden>;")
+
+	// SNMP community string — curly-brace format, quoted value with whitespace
+	quotedSNMP, err := Redact([]byte("              snmp-community-string \"ops team secret\";\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(quotedSNMP), "ops team secret")
+	assert.Contains(t, string(quotedSNMP), "snmp-community-string <secret hidden>;")
 }
 
 func Test_DefaultProfiles_Startup(t *testing.T) {
