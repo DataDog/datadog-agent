@@ -93,6 +93,7 @@ func (h *PodStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent, error
 	for _, condition := range pod.Conditions {
 		priorCondition, seen := shadow.conditions[condition.Type]
 		if conditionUnchanged(seen, priorCondition, condition) {
+			shadow.conditions[condition.Type] = condition
 			continue
 		}
 
