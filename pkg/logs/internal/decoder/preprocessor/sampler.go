@@ -58,6 +58,9 @@ var tlmAdaptiveSamplerBytesDropped = telemetryimpl.GetCompatComponent().NewCount
 var tlmAdaptiveSamplerKept = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "kept",
 	[]string{"source"}, "Number of log messages emitted by the adaptive sampler")
 
+var tlmAdaptiveSamplerOutcomes = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "outcomes",
+	[]string{"severity", "outcome"}, "Adaptive sampler keep/drop decisions while an anomaly severity profile is applied")
+
 var tlmAdaptiveSamplerNewPatterns = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "new_patterns",
 	[]string{"source"}, "Number of new log patterns added to the adaptive sampler pattern table")
 
@@ -84,6 +87,19 @@ func adaptiveSamplerLogHashTag(tokens []Token) string {
 		_, _ = h.Write(b[:])
 	}
 	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
+}
+
+func adaptiveSamplerSeverityTag(level severityeventsdef.SeverityLevel) string {
+	switch level {
+	case severityeventsdef.SeverityLow:
+		return "low"
+	case severityeventsdef.SeverityMedium:
+		return "medium"
+	case severityeventsdef.SeverityHigh:
+		return "high"
+	default:
+		return "unknown"
+	}
 }
 
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
@@ -280,6 +296,17 @@ func (s *AdaptiveSampler) applyProfileIfChanged() {
 	s.appliedLevelInitialized = true
 }
 
+// recordSmartSeverityOutcome records a decision made under the severity profile
+// that is currently applied to this sampler. Until the severity provider has
+// supplied a level, the sampler is using its base settings rather than an AAD
+// profile, so no collaboration telemetry is emitted.
+func (s *AdaptiveSampler) recordSmartSeverityOutcome(outcome string) {
+	if !s.config.SmartSeverityProfilesEnabled || !s.appliedLevelInitialized {
+		return
+	}
+	tlmAdaptiveSamplerOutcomes.Inc(adaptiveSamplerSeverityTag(s.appliedLevel), outcome)
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens BorrowedTokens) *message.Message {
@@ -358,8 +385,10 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 
 	if allow {
 		tlmAdaptiveSamplerKept.Inc(s.source)
+		s.recordSmartSeverityOutcome("kept")
 		return msg
 	}
+	s.recordSmartSeverityOutcome("dropped")
 	return s.recordDrop(msg, tb, detectionOnly)
 }
 
@@ -381,6 +410,7 @@ func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens BorrowedT
 		sampled:    0,
 	})
 	tlmAdaptiveSamplerKept.Inc(s.source)
+	s.recordSmartSeverityOutcome("kept")
 	return msg
 }
 

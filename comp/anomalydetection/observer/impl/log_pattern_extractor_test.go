@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -133,6 +134,34 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 
 	// After reset the tagged clusterer is cleared; the same log starts a fresh cluster.
 	require.Empty(t, e.taggedClusterer.GetAllClusters(), "Reset must clear cluster state")
+}
+
+func TestLogPatternExtractorTelemetryTracksActivePatternsAndDuration(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.SetObserverTelemetry(newObserverTelemetry(telComp))
+
+	// These use separate tag groups, so each creates one active pattern even
+	// though neither has reached the metric-emission threshold yet.
+	e.ProcessLog(&mockLogView{
+		content: "GET /users/123 returned 500",
+		status:  "warn",
+		tags:    []string{"service:api"},
+	})
+	e.ProcessLog(&mockLogView{
+		content: "GET /users/123 returned 500",
+		status:  "warn",
+		tags:    []string{"service:worker"},
+	})
+
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+	assert.Equal(t, uint64(2), observerMetric(t, telComp, telemetryLogExtractionProcessingDuration, nil).GetHistogram().GetSampleCount())
+
+	e.Reset()
+	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
 }
 
 func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
