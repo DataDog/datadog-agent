@@ -70,18 +70,20 @@ class TestUpdatePython(unittest.TestCase):
 class TestGetCurrentPythonVersion(unittest.TestCase):
     @unittest.mock.patch('tasks.python_version.Path')
     def test_get_current_python_version(self, mock_path):
-        """Test reading current Python version from omnibus file."""
+        """Test reading current Python version from the Bazel module file."""
         from tasks.python_version import _get_current_python_version
 
         # Mock file content
         mock_file = unittest.mock.MagicMock()
-        mock_file.read_text.return_value = '''name "python3"
+        mock_file.read_text.return_value = '''http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-default_version "3.13.7"
+PYTHON_VERSION = "3.13.7"
 
-unless windows?
-  dependency "libffi"
-end
+http_archive(
+    name = "cpython",
+    sha256 = "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
+    strip_prefix = "Python-{}".format(PYTHON_VERSION),
+)
 '''
         mock_path.return_value = mock_file
 
@@ -95,43 +97,11 @@ end
 
         # Mock file without version
         mock_file = unittest.mock.MagicMock()
-        mock_file.read_text.return_value = 'name "python3"\n# No version here'
+        mock_file.read_text.return_value = 'http_archive(\n    name = "cpython",\n)'
         mock_path.return_value = mock_file
 
         with self.assertRaises(Exit):
             _get_current_python_version()
-
-
-class TestOmnibusUpdate(unittest.TestCase):
-    @unittest.mock.patch('tasks.python_version.Path')
-    def test_update_omnibus_python_version(self, mock_path):
-        """Test preparing version update for omnibus file."""
-        from tasks.python_version import _prepare_omnibus_update
-
-        original_content = '''name "python3"
-
-default_version "3.13.7"
-
-dependency "openssl3"
-
-relative_path "Python-#{version}"
-
-build do
-  license "Python-2.0"
-end
-'''
-
-        # Mock file operations
-        mock_file = unittest.mock.MagicMock()
-        mock_file.read_text.return_value = original_content
-        mock_path.return_value = mock_file
-
-        # Prepare update to new version
-        file_path, new_content = _prepare_omnibus_update("3.13.9")
-
-        # Verify version was updated
-        self.assertIn('default_version "3.13.9"', new_content)
-        self.assertNotIn('default_version "3.13.7"', new_content)
 
 
 class TestBazelUpdate(unittest.TestCase):
