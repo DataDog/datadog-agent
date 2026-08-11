@@ -53,8 +53,6 @@ E2E tests are located in the `test/new-e2e/` directory. After running `dda inv e
 dda inv new-e2e-tests.run --targets=./examples --run=^TestVMSuite$
 ```
 
-If you manage AWS credentials yourself (e.g. via SAML2AWS or another tool), pass `--no-aws-vault` to skip the auto-wrap.
-
 Replace ./examples with your subfolder.
 This also supports the golang testing flag --run and --skip to target specific tests using go test syntax. See go help testflag for details.
 

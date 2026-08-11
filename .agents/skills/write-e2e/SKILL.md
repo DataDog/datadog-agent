@@ -212,13 +212,14 @@ G4 is the only gate that provisions real cloud infrastructure, and it takes 10�
 E2E_DEV_MODE=true dda inv new-e2e-tests.run --targets=./tests/<area>/... --run '^TestX$/^SubB$'
 # 2. The whole suite, reusing that stack.
 E2E_DEV_MODE=true dda inv new-e2e-tests.run --targets=./tests/<area>/...
-# 3. Again — a second green run proves each test left the environment as it found it.
-E2E_DEV_MODE=true dda inv new-e2e-tests.run --targets=./tests/<area>/...
-# 4. Destroy the stack. Without -s this removes only lock files and leaves it billing.
-dda inv new-e2e-tests.clean -s
+# 3. Again, without dev mode — a second green run proves each test left the
+#    environment as it found it, and the suite destroys its own stack on the way out.
+dda inv new-e2e-tests.run --targets=./tests/<area>/...
 ```
 
-Show these commands and get agreement before running any of them, pairing the runs and the cleanup in one approval. Compilation alone is not evidence the test works, so treat skipping G4 as a gap to report rather than a shortcut.
+Dropping `E2E_DEV_MODE` on the last run is what releases the infrastructure, and it releases only this suite's stack. Reach for `dda inv new-e2e-tests.clean -s` only as deliberate housekeeping: it enumerates every local `e2elocal` stack and destroys all of them, including ones belonging to work you are not touching.
+
+Show these commands and get agreement before running any of them. Compilation alone is not evidence the test works, so treat skipping G4 as a gap to report rather than a shortcut.
 
 ## Output
 

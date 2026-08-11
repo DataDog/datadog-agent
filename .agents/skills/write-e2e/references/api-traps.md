@@ -41,7 +41,6 @@ The internal E2E pages carry useful material — the cloud-selection rule, the c
 | `test/new-e2e/pkg/utils/e2e` | `test/e2e-framework/testing/e2e` |
 | framework lives in the `test-infra-definitions` repository | it lives in this repository under `test/e2e-framework/` |
 | `compare_to: main` in a rule | `compare_to: $COMPARE_TO_BRANCH` |
-| wrap commands in `aws-vault exec` | the runner wraps them; pass `--no-aws-vault` only if you manage credentials yourself |
 | `deploy_deb_testing-a7_x64` as an artifact job | `agent_deb-x64-a7` |
 
 ## Fixing what you find
