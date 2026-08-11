@@ -90,11 +90,14 @@ type ComponentSettings struct {
 	configs map[string]any
 }
 
-// ApplyTestbenchDetectorDefaults applies the shorter detector warmups used by
-// the offline testbench. Production builds ComponentSettings from the agent
-// config and never calls this function. An explicit testbench --config entry
-// for a detector takes precedence over this profile.
-func ApplyTestbenchDetectorDefaults(settings ComponentSettings) ComponentSettings {
+// ApplyTestbenchDefaults applies replay-specific defaults used by the offline
+// testbench. Production builds ComponentSettings from the agent config and
+// never calls this function. Explicit testbench --config component entries
+// take precedence over this profile.
+func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
+	if settings.Enabled == nil {
+		settings.Enabled = make(map[string]bool)
+	}
 	if settings.configs == nil {
 		settings.configs = make(map[string]any)
 	}
@@ -116,6 +119,19 @@ func ApplyTestbenchDetectorDefaults(settings ComponentSettings) ComponentSetting
 		if _, explicitlyConfigured := settings.configs[name]; !explicitlyConfigured {
 			settings.configs[name] = cfg
 		}
+	}
+
+	// Evals should score the scorer's correlation episodes. Preserve explicit
+	// component choices in --config, which are used for ablations and manual
+	// comparisons.
+	if _, explicitlyEnabled := settings.Enabled["anomaly_scorer"]; !explicitlyEnabled {
+		settings.Enabled["anomaly_scorer"] = true
+	}
+	if _, explicitlyConfigured := settings.configs["anomaly_scorer"]; !explicitlyConfigured {
+		scorer := DefaultAnomalyScorerConfig()
+		scorer.CorrelationEvents = true
+		scorer.CooldownSecs = 0
+		settings.configs["anomaly_scorer"] = scorer
 	}
 	return settings
 }
