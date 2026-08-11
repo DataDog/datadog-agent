@@ -618,10 +618,14 @@ func TestGetBGPNeighbors(t *testing.T) {
 
 	require.Equal(t, "10.10.1.11", neighbors[0].VmanageSystemIP)
 	require.Equal(t, "ipv4-unicast", neighbors[0].Afi)
-	require.Equal(t, float64(1), neighbors[0].VpnID)
+	require.Equal(t, "1", neighbors[0].VpnID)
 	require.Equal(t, "10.60.1.1", neighbors[0].PeerAddr)
-	require.Equal(t, float64(2024), neighbors[0].AS)
+	require.Equal(t, "2024", neighbors[0].AS)
 	require.Equal(t, "established", neighbors[0].State)
+
+	// A non-numeric VRF name (vpn-id) must deserialize as a string, not be dropped
+	require.Equal(t, "default", neighbors[1].VpnID)
+	require.Equal(t, "10.60.1.2", neighbors[1].PeerAddr)
 
 	// Ensure endpoint has been called once per device
 	require.Equal(t, 1, handler.numberOfCalls())
@@ -657,10 +661,10 @@ func TestGetBGPNeighborsPartialFailureAndBackfill(t *testing.T) {
 	const bgpNeighborNoSystemIP = `
 [
 	{
-		"afi": "ipv4-unicast",
-		"vpn-id": 1,
+		"afi-safi": "ipv4-unicast",
+		"vpn-id": "1",
 		"peer-addr": "10.60.1.1",
-		"as": 2024,
+		"as": "2024",
 		"vmanage-system-ip": "",
 		"state": "established"
 	}
