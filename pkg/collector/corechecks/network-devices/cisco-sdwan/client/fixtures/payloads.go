@@ -438,24 +438,41 @@ const GetCloudExpressMetrics = `
 `
 
 // GetBGPNeighbors /dataservice/device/bgp/neighbors
+//
+// The real-time endpoint returns vpn-id and as as strings (vpn-id is a VRF name
+// and may be non-numeric, e.g. "default") and reports the address family as
+// afi-safi. The second entry exercises the non-numeric VRF case.
 const GetBGPNeighbors = `
 [
 	{
-		"recordId": "0:BGPNeighborNode:1000:500",
 		"vdevice-name": "10.10.1.11",
-		"afi": "ipv4-unicast",
-		"createTimeStamp": 1707919131595,
-		"last-uptime": "Thu Jul 25 13:48:17 2024",
-		"vpn-id": 1,
+		"afi-safi": "ipv4-unicast",
+		"vpn-id": "1",
 		"vdevice-host-name": "DC-cEdge01",
 		"peer-addr": "10.60.1.1",
-		"as": 2024,
-		"vdevice-dataKey": "10.10.1.11-10.60.1.1",
-		"@rid": 100,
+		"as": "2024",
+		"sent-opens": 1,
+		"rcvd-opens": 1,
+		"outq-depth": 0,
+		"vdevice-dataKey": "10.10.1.11-1-10.60.1.1",
 		"vmanage-system-ip": "10.10.1.11",
-		"afi-id": 0,
 		"lastupdated": 1708940180703,
 		"state": "established"
+	},
+	{
+		"vdevice-name": "10.10.1.11",
+		"afi-safi": "ipv4-unicast",
+		"vpn-id": "default",
+		"vdevice-host-name": "DC-cEdge01",
+		"peer-addr": "10.60.1.2",
+		"as": "2024",
+		"sent-opens": 0,
+		"rcvd-opens": 0,
+		"outq-depth": 0,
+		"vdevice-dataKey": "10.10.1.11-default-10.60.1.2",
+		"vmanage-system-ip": "10.10.1.11",
+		"lastupdated": 1708940180703,
+		"state": "closed"
 	}
 ]
 `
