@@ -252,8 +252,8 @@ func startProcmgrIfEnabled(procmgr Servicedef, ok bool) bool {
 // Legacy services are suppressed when procmgr is Running or still StartPending after
 // startup waits, avoiding duplicate workloads; fallback is allowed only on Stopped.
 func waitForProcmgrStartupOutcome(serviceName string) bool {
-	if waitForServiceRunning(serviceName) {
-		return true
+	if running, done := waitForProcmgrInitialState(serviceName); done {
+		return running
 	}
 
 	state, err := winutil.GetServiceState(serviceName)
@@ -282,10 +282,44 @@ func waitForProcmgrStartupOutcome(serviceName string) bool {
 	return finalState == svc.Running
 }
 
-func waitForServiceRunning(serviceName string) bool {
+// waitForProcmgrInitialState polls until dd-procmgr-service reaches Running or Stopped.
+// Returns (running, true) on success/failure terminal states, or (_, false) on timeout.
+func waitForProcmgrInitialState(serviceName string) (running bool, done bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
 	defer cancel()
-	return winutil.WaitForState(ctx, serviceName, svc.Running) == nil
+
+	checkState := func() (svc.State, bool) {
+		state, err := getServiceStateForStartupWait(serviceName)
+		if err != nil {
+			return 0, false
+		}
+		switch state {
+		case svc.Running:
+			return state, true
+		case svc.Stopped:
+			return state, true
+		default:
+			return state, false
+		}
+	}
+
+	if state, terminal := checkState(); terminal {
+		return state == svc.Running, true
+	}
+
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false, false
+		case <-ticker.C:
+			if state, terminal := checkState(); terminal {
+				return state == svc.Running, true
+			}
+		}
+	}
 }
 
 func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
@@ -303,6 +337,9 @@ func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 		}
 	}
 }
+
+// getServiceStateForStartupWait is overridable in tests.
+var getServiceStateForStartupWait = winutil.GetServiceState
 
 func procmgrProcessDefinitionExists(fileName string) bool {
 	installPath, err := procmgrInstallRootForDefinitionCheck()

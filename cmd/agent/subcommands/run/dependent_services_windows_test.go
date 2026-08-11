@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows/svc"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -148,6 +149,46 @@ func TestFindService(t *testing.T) {
 func TestStartProcmgrIfEnabled(t *testing.T) {
 	assert.False(t, startProcmgrIfEnabled(Servicedef{}, false))
 	assert.False(t, startProcmgrIfEnabled(Servicedef{name: "procmgr"}, true))
+}
+
+func TestWaitForProcmgrInitialState(t *testing.T) {
+	prev := getServiceStateForStartupWait
+	t.Cleanup(func() {
+		getServiceStateForStartupWait = prev
+	})
+
+	t.Run("returns immediately on stopped", func(t *testing.T) {
+		getServiceStateForStartupWait = func(string) (svc.State, error) {
+			return svc.Stopped, nil
+		}
+		running, done := waitForProcmgrInitialState("dd-procmgr-service")
+		assert.False(t, running)
+		assert.True(t, done)
+	})
+
+	t.Run("returns immediately on running", func(t *testing.T) {
+		getServiceStateForStartupWait = func(string) (svc.State, error) {
+			return svc.Running, nil
+		}
+		running, done := waitForProcmgrInitialState("dd-procmgr-service")
+		assert.True(t, running)
+		assert.True(t, done)
+	})
+
+	t.Run("waits through start pending until stopped", func(t *testing.T) {
+		calls := 0
+		getServiceStateForStartupWait = func(string) (svc.State, error) {
+			calls++
+			if calls < 3 {
+				return svc.StartPending, nil
+			}
+			return svc.Stopped, nil
+		}
+		running, done := waitForProcmgrInitialState("dd-procmgr-service")
+		assert.False(t, running)
+		assert.True(t, done)
+		assert.GreaterOrEqual(t, calls, 3)
+	})
 }
 
 func TestServicedefNeedsProcmgrStartupGate(t *testing.T) {
