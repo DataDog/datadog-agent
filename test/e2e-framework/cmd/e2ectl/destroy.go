@@ -11,10 +11,13 @@ import (
 	"flag"
 )
 
-// runDestroy tears down the infra described by a TestDefinition. It's kept
-// as its own explicit subcommand, separate from the run wizard's forward
-// progress, since teardown is destructive and shouldn't be one keystroke
-// away inside a menu.
+// runDestroy tears down the infra described by a TestDefinition. It remains
+// a standalone, scriptable subcommand for non-interactive/CI use (no menu,
+// no confirmation prompt — the caller is trusted to mean it). The
+// interactive per-env loop (runEnvLoop, wizard.go) also offers teardown as
+// menu action "4", gated behind confirmDestroy's type-the-name-back
+// confirmation; both paths funnel through doDestroy so there's exactly one
+// teardown implementation.
 func runDestroy(args []string) error {
 	fs := flag.NewFlagSet("destroy", flag.ExitOnError)
 	configPath := fs.String("config", "", "path to the test definition YAML (required)")

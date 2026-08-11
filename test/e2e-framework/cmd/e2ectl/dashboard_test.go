@@ -6,9 +6,12 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,4 +98,35 @@ func TestDiscoverEnvs(t *testing.T) {
 	assert.Equal(t, "good", envs[0].Def.Name)
 	assert.Equal(t, configPath, envs[0].ConfigPath)
 	assert.Equal(t, "provisioned, agent not installed", envs[0].Status)
+}
+
+// TestOpenConfigAndLoopPropagatesQuit guards against the bug where `q`
+// pressed inside the per-env loop opened via the dashboard's "o) open a
+// config..." did not exit the process: openConfigAndLoop must return
+// runEnvLoop's outcome, not discard it.
+func TestOpenConfigAndLoopPropagatesQuit(t *testing.T) {
+	configDir := t.TempDir()
+	configPath := filepath.Join(configDir, "quit-test.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("name: quit-test\nprovisioner:\n  type: kind\n"), 0o644))
+
+	root := t.TempDir()
+	// First line answers "path to test definition YAML:", second line is
+	// "q" at the freshly-entered env loop's menu prompt.
+	scanner := bufio.NewScanner(strings.NewReader(configPath + "\nq\n"))
+
+	outcome, err := openConfigAndLoop(context.Background(), root, scanner)
+	require.NoError(t, err)
+	assert.Equal(t, loopQuit, outcome)
+}
+
+// TestOpenConfigAndLoopEmptyPathBacksToDashboard covers the other outcome
+// openConfigAndLoop can produce without ever reaching runEnvLoop: an
+// empty/whitespace-only path just reprints the dashboard rather than
+// quitting the process.
+func TestOpenConfigAndLoopEmptyPathBacksToDashboard(t *testing.T) {
+	scanner := bufio.NewScanner(strings.NewReader("\n"))
+
+	outcome, err := openConfigAndLoop(context.Background(), t.TempDir(), scanner)
+	require.NoError(t, err)
+	assert.Equal(t, loopBackToDashboard, outcome)
 }

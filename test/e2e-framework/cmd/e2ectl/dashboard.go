@@ -132,8 +132,13 @@ func runDashboard(ctx context.Context, root string) error {
 		case choice == "q":
 			return nil
 		case choice == "o":
-			if err := openConfigAndLoop(ctx, root, scanner); err != nil {
+			outcome, err := openConfigAndLoop(ctx, root, scanner)
+			if err != nil {
 				fmt.Fprintln(os.Stderr, "error:", err)
+				continue
+			}
+			if outcome == loopQuit {
+				return nil
 			}
 		default:
 			idx, ok := parseIndex(choice, len(envs))
@@ -157,30 +162,33 @@ func runDashboard(ctx context.Context, root string) error {
 // openConfigAndLoop prompts for a YAML path not yet known to the
 // dashboard (no state file exists for it yet — nothing here writes one;
 // entering the loop and picking "provision infra" does), loads it, and
-// enters its loop the same way a listed environment would.
-func openConfigAndLoop(ctx context.Context, root string, scanner *bufio.Scanner) error {
+// enters its loop the same way a listed environment would. It returns
+// runEnvLoop's outcome directly so the caller can act on a `q` from inside
+// that loop exactly like it does for an environment picked by number: EOF
+// on stdin here is treated the same as loopQuit, while an empty/invalid
+// path just falls back to loopBackToDashboard so the dashboard reprints.
+func openConfigAndLoop(ctx context.Context, root string, scanner *bufio.Scanner) (loopOutcome, error) {
 	fmt.Print("path to test definition YAML: ")
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("reading config path: %w", err)
+			return loopQuit, fmt.Errorf("reading config path: %w", err)
 		}
-		return nil
+		return loopQuit, nil
 	}
 	configPath := strings.TrimSpace(scanner.Text())
 	if configPath == "" {
-		return nil
+		return loopBackToDashboard, nil
 	}
 
 	absConfigPath, err := filepath.Abs(configPath)
 	if err != nil {
-		return fmt.Errorf("resolving absolute path for %s: %w", configPath, err)
+		return loopBackToDashboard, fmt.Errorf("resolving absolute path for %s: %w", configPath, err)
 	}
 	def, err := loadTestDefinition(absConfigPath)
 	if err != nil {
-		return err
+		return loopBackToDashboard, err
 	}
 	statePath := defaultStatePath(root, def.Name)
 
-	_, err = runEnvLoop(ctx, def, absConfigPath, statePath, true, scanner)
-	return err
+	return runEnvLoop(ctx, def, absConfigPath, statePath, true, scanner)
 }

@@ -279,6 +279,10 @@ func runEnvLoop(ctx context.Context, def TestDefinition, configPath, statePath s
 				fmt.Fprintln(os.Stderr, "error:", err)
 			}
 		case "2":
+			if !provisioned {
+				fmt.Println("infra not provisioned yet — pick 1 first")
+				continue
+			}
 			if installed && agentStatusErr == nil && agentStatus.UpToDate {
 				fmt.Println("agent already installed with matching config, skipping")
 				continue
@@ -287,6 +291,10 @@ func runEnvLoop(ctx context.Context, def TestDefinition, configPath, statePath s
 				fmt.Fprintln(os.Stderr, "error:", err)
 			}
 		case "3":
+			if !provisioned {
+				fmt.Println("infra not provisioned yet — pick 1 first")
+				continue
+			}
 			if err := doTest(ctx, def, statePath); err != nil {
 				fmt.Fprintln(os.Stderr, "error:", err)
 			}
