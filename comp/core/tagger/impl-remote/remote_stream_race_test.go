@@ -147,7 +147,6 @@ func TestRun_AbandonedRecvDoesNotRaceWithStreamField(t *testing.T) {
 		for i := 0; i < trialsPerRun; i++ {
 			wg.Go(func() {
 				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
 
 				rt := &remoteTagger{
 					store:           newTagStore(telemetryStore),
@@ -161,10 +160,21 @@ func TestRun_AbandonedRecvDoesNotRaceWithStreamField(t *testing.T) {
 				}
 				defer rt.telemetryTicker.Stop()
 
-				go rt.run()
+				runDone := make(chan struct{})
+				go func() {
+					defer close(runDone)
+					rt.run()
+				}()
+
 				// Let run() hit the Recv() timeout and write to
 				// t.stream/t.ready, leaving the Recv() goroutine running.
 				time.Sleep(15 * time.Millisecond)
+
+				// Wait for run() to observe cancellation and exit before
+				// this trial returns, so it's not still reading the shared
+				// streamRecvTimeout/logger once the test cleans those up.
+				cancel()
+				<-runDone
 			})
 		}
 		wg.Wait()
