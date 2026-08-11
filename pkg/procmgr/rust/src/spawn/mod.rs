@@ -11,6 +11,6 @@ mod stdio_setting;
 
 #[cfg(windows)]
 pub(crate) use profile::DATADOG_AGENT_PROCESS;
-pub use profile::{SpawnProfile, profile_for};
-pub use request::SpawnRequest;
+pub(crate) use profile::{SpawnProfile, profile_for};
+pub(crate) use request::SpawnRequest;
 pub(crate) use stdio_setting::StdioSetting;
