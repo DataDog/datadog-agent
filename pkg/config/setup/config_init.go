@@ -19,7 +19,11 @@ func fixupInitConfig() {
 	ddcfg := Datadog()
 	fixupInitCommonConfigComponents(ddcfg)
 	fixupInitFullAgentOnlyComponents(ddcfg)
+}
 
-	sysprobe := SystemProbe()
-	fixupInitSystemProbe(sysprobe)
+// fixupPostBuildConfig runs fixups that need to read config values, so they must run after
+// BuildSchema() has marked the config ready for use (unlike fixupInitConfig, which only
+// registers override funcs and declares defaults before the config is ready).
+func fixupPostBuildConfig() {
+	fixupInitSystemProbe(SystemProbe())
 }
