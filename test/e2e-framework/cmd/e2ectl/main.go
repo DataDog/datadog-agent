@@ -6,13 +6,15 @@
 // Command e2ectl provisions an environment, installs a chosen Agent
 // version into it, and runs a go test against it — all without Pulumi,
 // driven by a single YAML test definition (see config.go). Run
-// interactively it prompts for how far to go (infra only / infra+agent /
-// infra+agent+test), adapting the menu to whichever stages a previous run
-// already completed; run with --stage or --yes it skips the prompt for
-// scripted/CI use. Each stage's result lives in a JSON state file (see
-// state.go) with the same shape `go test` already consumes via
-// E2E_ENV_FILE (see test/new-e2e/examples/kind_nopulumi_test.go) — e2ectl
-// only changes how that file gets produced, not what reads it.
+// interactively it drops into a per-environment action loop (provision /
+// install-or-update / run test / destroy / quit) that reprints live status
+// and reoffers every action on every pass, skipping actions whose stage is
+// already done and continuing after both failures and successes; run with
+// --stage or --yes it skips the loop for scripted/CI use. Each stage's
+// result lives in a JSON state file (see state.go) with the same shape
+// `go test` already consumes via E2E_ENV_FILE (see
+// test/new-e2e/examples/kind_nopulumi_test.go) — e2ectl only changes how
+// that file gets produced, not what reads it.
 //
 // Usage:
 //
