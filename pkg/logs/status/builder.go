@@ -317,7 +317,7 @@ func (b *Builder) getIntegrations() []Integration {
 		for _, source := range logSources {
 			sources = append(sources, Source{
 				Type:          source.Config.Type,
-				Configuration: b.toDictionary(source.Config, source.GetTailingMode()),
+				Configuration: b.configToDictionary(source),
 				Status:        b.toString(source.Status()),
 				Inputs:        source.GetInputs(),
 				Messages:      source.Messages.GetMessages(),
@@ -378,9 +378,9 @@ func (b *Builder) toString(status *status.LogStatus) string {
 	return value
 }
 
-// toDictionary returns a representation of the configuration. tailingMode is passed in
-// separately since it's mutated concurrently and must be read through LogSource's lock.
-func (b *Builder) toDictionary(c *config.LogsConfig, tailingMode string) map[string]interface{} {
+// configToDictionary returns a representation of the source's configuration.
+func (b *Builder) configToDictionary(source *sourcesPkg.LogSource) map[string]interface{} {
+	c := source.Config
 	dictionary := make(map[string]interface{})
 	dictionary["Service"] = c.Service
 	dictionary["Source"] = c.Source
@@ -412,7 +412,7 @@ func (b *Builder) toDictionary(c *config.LogsConfig, tailingMode string) map[str
 		}
 	case config.FileType:
 		dictionary["Path"] = c.Path
-		dictionary["TailingMode"] = tailingMode
+		dictionary["TailingMode"] = source.GetTailingMode()
 		dictionary["Identifier"] = c.Identifier
 		if c.Format != "" {
 			dictionary["Format"] = c.Format

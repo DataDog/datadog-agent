@@ -68,7 +68,7 @@ func TestConcurrentTailingModeAndStatusAccess(t *testing.T) {
 		}
 	})
 
-	// reader: mimics (*Builder).toDictionary/getIntegrations reading the source concurrently.
+	// reader: mimics (*Builder).configToDictionary/getIntegrations reading the source concurrently.
 	for i := 0; i < 1000; i++ {
 		_ = source.GetTailingMode()
 		_ = source.Status()
