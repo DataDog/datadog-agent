@@ -7,30 +7,14 @@ package configfilesdiscoveryimpl
 
 import "regexp"
 
-var secretEnvVarNameRegexps = []*regexp.Regexp{
-	regexp.MustCompile(`(^|_)ACCESS_KEY(_|$)`),
-	regexp.MustCompile(`(^|_)CERTIFICATE(_CHAIN)?(_|$)`),
-	regexp.MustCompile(`(^|_)CERTIFICATES?(_|$)`),
-	regexp.MustCompile(`(^|_)CREDENTIALS?(_|$)`),
-	regexp.MustCompile(`(^|_)JAAS(_|$)`),
-	regexp.MustCompile(`(^|_)KEY(_|$)`),
-	// License values end in LICENSE; LICENSE can also namespace safe settings.
-	regexp.MustCompile(`(^|_)LICENSE$`),
-	regexp.MustCompile(`(^|_)PASS(PHRASE|WD)?(_|$)`),
-	regexp.MustCompile(`(^|_)PASSWORDS?(_|$)`),
-	regexp.MustCompile(`(^|_)PRIVATE(_|$)`),
-	regexp.MustCompile(`(^|_)PWD(_|$)`),
-	regexp.MustCompile(`(^|_)SECRET(_|$)`),
-	// Token-valued variables end in TOKEN; names such as TOKEN_ENDPOINT_URL do not.
-	regexp.MustCompile(`(^|_)TOKENS?$`),
-}
+// LICENSE and TOKEN only match suffixes because they can namespace safe settings.
+var secretEnvVarNameRegexp = regexp.MustCompile(
+	`(^|_)(ACCESS_KEY|CERTIFICATE(_CHAIN)?|CERTIFICATES?|CREDENTIALS?|JAAS|KEY|` +
+		`PASS(PHRASE|WD)?|PASSWORDS?|PRIVATE|PWD|SECRET)(_|$)|` +
+		`(^|_)(LICENSE|TOKENS?)$`,
+)
 
-// IsSecretEnvVarName returns whether name contains a common secret-bearing token.
+// IsSecretEnvVarName applies the common secret-name policy used by environment readers.
 func IsSecretEnvVarName(name string) bool {
-	for _, secretNameRegexp := range secretEnvVarNameRegexps {
-		if secretNameRegexp.MatchString(name) {
-			return true
-		}
-	}
-	return false
+	return secretEnvVarNameRegexp.MatchString(name)
 }

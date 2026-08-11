@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"path"
 	"regexp"
-	"sort"
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
@@ -74,7 +73,7 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
 	}
 
-	envVars, err := kafkaReadEnvVars(ctx, reader)
+	envVars, err := readEnvVars(ctx, reader, includeKafkaEnvVar)
 	if err != nil {
 		log.Debugf("config files discovery skipped kafka env var collection: %v", err)
 		envVars = nil
@@ -102,33 +101,6 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
 		EnvVars:     envVars,
 	}, nil
-}
-
-func kafkaReadEnvVars(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) ([]configfilesdiscoveryimpl.ConfigEnvVar, error) {
-	env, err := reader.ReadEnvVars(ctx, includeKafkaEnvVar)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(env) == 0 {
-		return nil, nil
-	}
-
-	envVars := make([]configfilesdiscoveryimpl.ConfigEnvVar, 0, len(env))
-	names := make([]string, 0, len(env))
-	for name := range env {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
-		envVars = append(envVars, configfilesdiscoveryimpl.ConfigEnvVar{
-			Name:  name,
-			Value: env[name],
-		})
-	}
-
-	return envVars, nil
 }
 
 func includeKafkaEnvVar(name string) bool {
