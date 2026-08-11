@@ -48,9 +48,6 @@ type ProcessInfo struct {
 
 	FileEvent model.FileEvent
 
-	// CGroup and ContainerContext are needed when snapshotting rebuilds an event
-	// from this node: hash resolution keys off CGroup.CGroupID and SBOM/package
-	// resolution keys off ContainerContext.ContainerID.
 	CGroup           model.CGroupContext
 	ContainerContext model.ContainerContext
 
@@ -61,7 +58,6 @@ type ProcessInfo struct {
 	ExitTime time.Time
 	ExecTime time.Time
 
-	// Embedded (like model.Process) so promoted accessors such as .UID/.User keep working.
 	model.Credentials
 
 	Argv0         string
@@ -77,7 +73,6 @@ type ProcessInfo struct {
 func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessInfo {
 	pc := *p
 	if resolver != nil {
-		// scrubs ArgsEntry values in place and populates pc.Argv
 		resolver.GetProcessArgvScrubbed(&pc)
 		resolver.GetProcessEnvs(&pc)
 	} else {

@@ -21,9 +21,7 @@ type DNSNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
-	// Requests only retains the DNS question fields; the response payload and
-	// request ID carried by model.DNSEvent are never used nor serialized.
-	Requests []model.DNSQuestion
+	Requests       []model.DNSQuestion
 }
 
 // size approximates this node's heap footprint
