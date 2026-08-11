@@ -80,7 +80,6 @@ dd_agent_go_test(
         "//comp/networkpath/traceroute/def",
         "//comp/rdnsquerier/def",
         "//comp/rdnsquerier/fx-mock",
-        "//comp/serializer/logscompression/fx-mock",
         "//pkg/config/remote/data",
         "//pkg/config/structure",
         "//pkg/logs/message",
