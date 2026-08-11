@@ -182,6 +182,25 @@ dda inv new-e2e-tests.run --targets=./tests/<area>/...
 Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
 SSH in and inspect the agent directly.
 
+## macOS hosts
+
+`awshost.Provisioner` supports macOS (`ec2.WithOS(e2eos.MacOSDefault)`), but two
+constraints shape how a macOS suite must be wired into CI:
+
+- **Dedicated hosts.** `scenarios/aws/ec2/vm.go` allocates a `mac1.metal`
+  (amd64) or `mac2.metal` (arm64) dedicated host, which AWS bills with a 24-hour
+  minimum. Keep macOS jobs manual.
+- **The agent comes from a DMG in the macOS testing bucket.** `host_macos.go`
+  installs via the install script with `DD_REPO_URL` pointing at
+  `pipeline-<id>-<arch>`, which only exists once `deploy_dmg_testing-a7_<arch>`
+  has run. That job has its own rules, so a macOS e2e job must gate on
+  `.on_deploy` and mark the `needs` optional. Note the arch segment there is
+  `x64`, not the descriptor's `x86_64` — `macosPipelineArch` does the mapping.
+
+Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
+(installs by hand, `ec2.WithoutAgent()`) and
+`tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
+
 ## Fakeintake image version
 
 Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
