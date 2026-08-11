@@ -589,13 +589,40 @@ pub fn condition_config_summary(conditions: &[ConditionConfigFile]) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-    use std::path::Path;
+pub(crate) mod test_env {
     use std::sync::Mutex;
 
-    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    /// Serialize tests that mutate process environment (config gates + secret backend).
+    pub(crate) fn with_lock<F: FnOnce()>(test: F) {
+        let _guard = LOCK.lock().unwrap_or_else(|err| err.into_inner());
+        test();
+    }
+
+    /// Clear `DD_SECRET_BACKEND_*` overrides so parallel tests cannot hijack backend resolution.
+    pub(crate) fn clear_secret_backend_env_vars() {
+        const NAMES: &[&str] = &[
+            "DD_SECRET_BACKEND_COMMAND",
+            "DD_SECRET_BACKEND_ARGUMENTS",
+            "DD_SECRET_BACKEND_TYPE",
+            "DD_SECRET_BACKEND_TIMEOUT",
+            "DD_SECRET_BACKEND_OUTPUT_MAX_SIZE",
+            "DD_SECRET_BACKEND_REMOVE_TRAILING_LINE_BREAK",
+        ];
+        for name in NAMES {
+            // SAFETY: callers must hold the test env lock.
+            unsafe { std::env::remove_var(name) };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::test_env;
+    use std::io::Write;
+    use std::path::Path;
 
     fn write_config(dir: &Path, name: &str, body: &str) -> String {
         let path = dir.join(name);
@@ -652,15 +679,15 @@ process_config:
     }
 
     fn with_env_lock<F: FnOnce()>(test: F) {
-        let _lock = ENV_TEST_LOCK.lock().unwrap_or_else(|err| err.into_inner());
-        test();
+        test_env::with_lock(test);
     }
 
     fn clear_gated_env_vars() {
-        // SAFETY: callers must hold ENV_TEST_LOCK.
+        // SAFETY: callers must hold the test env lock.
         unsafe { std::env::remove_var("DD_FLEET_POLICIES_DIR") };
+        test_env::clear_secret_backend_env_vars();
         for env_name in super::env_bindings::all_bound_env_var_names() {
-            // SAFETY: callers must hold ENV_TEST_LOCK.
+            // SAFETY: callers must hold the test env lock.
             unsafe { std::env::remove_var(env_name) };
         }
     }
@@ -1825,6 +1852,7 @@ process_config:
     fn env_bool_resolves_secret_backed_gate_values() {
         with_env_lock(|| {
             clear_gated_env_vars();
+            secrets::clear_caches();
             let dir = tempfile::tempdir().unwrap();
             #[cfg(unix)]
             let script = dir.path().join("secret_backend.sh");

@@ -452,7 +452,7 @@ fn yaml_bool(root: &serde_yaml::Value, key: &str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
+    use crate::config_gate::test_env;
 
     struct EnvGuard {
         name: String,
@@ -476,9 +476,10 @@ mod tests {
     }
 
     fn with_env_lock<F: FnOnce()>(test: F) {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        let _guard = LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
-        test();
+        test_env::with_lock(|| {
+            test_env::clear_secret_backend_env_vars();
+            test();
+        });
     }
 
     #[test]
