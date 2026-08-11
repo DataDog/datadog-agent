@@ -49,6 +49,7 @@ var validProducts = map[string]struct{}{
 	ProductK8SActions:                   {},
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
+	ProductDebug:                        {},
 }
 
 const (
@@ -143,4 +144,7 @@ const (
 	// ProductDataSecurityDBScanTasks remotely triggers Data Security DB scan tasks
 	// TODO(dsec-216): mutualize with pkg/config/remote/data/product.go.
 	ProductDataSecurityDBScanTasks = "DATA_SECURITY_DB_SCAN_TASKS"
+	// ProductDebug is a scratch product served by rc-debug-api in staging only. It carries no schema
+	// and no permission, so it is only ever requested by an explicitly opted-in proof of concept.
+	ProductDebug = "DEBUG"
 )
