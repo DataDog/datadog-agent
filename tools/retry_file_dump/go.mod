@@ -92,3 +92,83 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
+
+replace github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def => ../../comp/core/configstreamconsumer/def
+
+replace github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../comp/core/delegatedauth
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
+
+replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../comp/core/log/def
+
+replace github.com/DataDog/datadog-agent/comp/core/log/mock => ../../comp/core/log/mock
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../comp/core/secrets/def
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../comp/core/secrets/mock
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../comp/core/secrets/noop-impl
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../comp/core/secrets/utils
+
+replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
+
+replace github.com/DataDog/datadog-agent/comp/def => ../../comp/def
+
+replace github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
+
+replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
+
+replace github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
+
+replace github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../pkg/config/buildschema
+
+replace github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
+
+replace github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
+
+replace github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
+
+replace github.com/DataDog/datadog-agent/pkg/config/mock => ../../pkg/config/mock
+
+replace github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/model
+
+replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
+
+replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
+
+replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
+
+replace github.com/DataDog/datadog-agent/pkg/config/utils => ../../pkg/config/utils
+
+replace github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
+
+replace github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
+
+replace github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../pkg/util/defaultpaths
+
+replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../pkg/util/executable
+
+replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../pkg/util/filesystem
+
+replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../pkg/util/fxutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
+
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
+
+replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
+
+replace github.com/DataDog/datadog-agent/pkg/util/system => ../../pkg/util/system
+
+replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
