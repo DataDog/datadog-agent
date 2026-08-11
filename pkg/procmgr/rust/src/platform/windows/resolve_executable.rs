@@ -117,7 +117,9 @@ mod tests {
 
     fn temp_bin_dir() -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().expect("tempdir");
-        let bin = dir.path().join(format!("bin{}", NEXT_ID.fetch_add(1, Ordering::Relaxed)));
+        let bin = dir
+            .path()
+            .join(format!("bin{}", NEXT_ID.fetch_add(1, Ordering::Relaxed)));
         fs::create_dir_all(&bin).expect("create bin dir");
         (dir, bin)
     }
