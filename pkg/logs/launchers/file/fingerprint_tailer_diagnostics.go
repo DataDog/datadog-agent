@@ -148,7 +148,7 @@ func (s *Launcher) closeFingerprintSkip(scanKey string, skip *fingerprintSkip, o
 	}
 	waited := time.Since(skip.since).Truncate(time.Second)
 	if outcome == fingerprintSkipRecovered {
-		log.Infof("Now tailing %s, %v after it was first skipped for an unusable fingerprint (%s). Logs written during that gap were not collected.",
+		log.Infof("Now tailing %s, %v after it was first skipped for an unusable fingerprint (%s).",
 			skip.file.Path, waited, skip.reason)
 		return
 	}
