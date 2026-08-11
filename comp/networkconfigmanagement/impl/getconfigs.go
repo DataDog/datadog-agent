@@ -40,6 +40,11 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 	if err != nil {
 		return nil, false, fmt.Errorf("unable to process rules for %s config for device %s: %s", mode, deviceID, err)
 	}
+
+	// TEMP DEBUG — remove before merge. Dumps the raw and redacted config so we
+	// can confirm the real config is being collected (not a banner/empty).
+	logger.Warnf("TEMP %s config for %s: raw=%d bytes redacted=%d bytes\n--- RAW ---\n%s\n--- REDACTED ---\n%s\n--- END ---",
+		mode, deviceID, len(rawConfig.Output), len(result.Redacted), rawConfig.Output, string(result.Redacted))
 	configID, configHash, stored := "", "", false
 	if configStore != nil {
 		var err error
