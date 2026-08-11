@@ -250,7 +250,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
-		// grpclog.SetLogger is not mutex-protected; skip it to avoid racing with other gRPC clients in-process.
+		// grpclog.SetLoggerV2 is not mutex-protected; skip it to avoid racing with other gRPC clients in-process.
 		SkipSettingGRPCLogger: true,
 	}
 	col, err := otelcol.NewCollector(set)
