@@ -27,7 +27,7 @@ pub(super) struct LogonUserCredentials<'a> {
     password: Option<&'a str>,
 }
 
-pub(super) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredentials<'_> {
+pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredentials<'_> {
     match account {
         AgentAccount::LocalSystem => LogonUserCredentials {
             domain: "NT AUTHORITY",
@@ -63,7 +63,7 @@ pub(super) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
     }
 }
 
-pub(super) fn logon_user_token(
+pub(crate) fn logon_user_token(
     process_name: &str,
     creds: &LogonUserCredentials<'_>,
 ) -> Result<TokenHandle> {
@@ -98,14 +98,18 @@ fn logon_domain(domain: &str) -> &str {
     if domain.is_empty() { "." } else { domain }
 }
 
-pub(super) struct TokenHandle(HANDLE);
+pub(crate) struct TokenHandle(HANDLE);
+
+// SAFETY: Win32 token handles are kernel objects; the kernel serialises access.
+unsafe impl Send for TokenHandle {}
+unsafe impl Sync for TokenHandle {}
 
 impl TokenHandle {
-    pub(super) fn new(handle: HANDLE) -> Self {
+    pub(crate) fn new(handle: HANDLE) -> Self {
         Self(handle)
     }
 
-    pub(super) fn raw(&self) -> HANDLE {
+    pub(crate) fn raw(&self) -> HANDLE {
         self.0
     }
 }

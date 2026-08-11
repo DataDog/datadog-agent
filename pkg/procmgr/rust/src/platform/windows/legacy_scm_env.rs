@@ -42,9 +42,7 @@ pub(crate) fn core_agent_scm_env_var(name: &str) -> Option<String> {
 }
 
 fn core_agent_scm_env_map() -> std::sync::MutexGuard<'static, Option<HashMap<String, String>>> {
-    let mut guard = CORE_AGENT_SCM_ENV
-        .lock()
-        .expect("core agent scm env lock");
+    let mut guard = CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock");
     if guard.is_none() {
         *guard = Some(load_core_agent_scm_environment());
     }
@@ -53,9 +51,7 @@ fn core_agent_scm_env_map() -> std::sync::MutexGuard<'static, Option<HashMap<Str
 
 /// Reread the core Agent SCM `Environment` registry key (e.g. on config reload).
 pub(crate) fn refresh_core_agent_scm_environment() {
-    let mut guard = CORE_AGENT_SCM_ENV
-        .lock()
-        .expect("core agent scm env lock");
+    let mut guard = CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock");
     *guard = Some(load_core_agent_scm_environment());
 }
 

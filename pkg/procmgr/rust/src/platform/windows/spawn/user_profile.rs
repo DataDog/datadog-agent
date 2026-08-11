@@ -23,8 +23,12 @@ pub(crate) struct UserProfileGuard {
     _username_wide: Vec<u16>,
 }
 
+// SAFETY: Profile and token handles are owned kernel objects used from one thread at a time.
+unsafe impl Send for UserProfileGuard {}
+unsafe impl Sync for UserProfileGuard {}
+
 impl UserProfileGuard {
-    pub(super) fn load(process_name: &str, token: HANDLE, account: &AgentAccount) -> Result<Self> {
+    pub(crate) fn load(process_name: &str, token: HANDLE, account: &AgentAccount) -> Result<Self> {
         if account.inherits_supervisor_token() {
             bail!("[{process_name}] internal error: LocalSystem profile load not required");
         }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
@@ -158,7 +158,7 @@ fn local_system_primary_token(process_name: &str) -> Result<HANDLE> {
 
 #[cfg(test)]
 mod tests {
-    use super::win32::{build_windows_command_line, env_vars_to_wide_block};
+    use super::super::win32::{build_windows_command_line, env_vars_to_wide_block};
     use std::collections::HashMap;
 
     #[test]

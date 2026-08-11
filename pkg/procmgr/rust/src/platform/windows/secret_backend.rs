@@ -114,7 +114,7 @@ impl CapturedChild {
             .context("write secret backend payload")?;
         drop(self.stdin);
 
-        let process = self.process.as_handle();
+        let process = SendProcessHandle(self.process.as_handle());
         let stdout = self.stdout;
         let command = run.command;
         let timeout = run.timeout;
@@ -122,9 +122,12 @@ impl CapturedChild {
         wait_with_stdout_drain(
             stdout,
             run.max_output_bytes,
-            move || terminate_process(process),
+            {
+                let process = process;
+                move || terminate_process(process.0)
+            },
             move || {
-                let exit_code = wait_for_exit(process, timeout, command)?;
+                let exit_code = wait_for_exit(process.0, timeout, command)?;
                 if exit_code != 0 {
                     bail!("secret backend {command} exited with code {exit_code}");
                 }
@@ -282,6 +285,14 @@ fn clear_inheritable(handle: HANDLE) -> Result<()> {
 }
 
 struct WinHandle(HANDLE);
+
+// SAFETY: Win32 process handles are kernel objects safe to use from a worker thread.
+unsafe impl Send for WinHandle {}
+
+struct SendProcessHandle(HANDLE);
+
+// SAFETY: Win32 process handles are kernel objects safe to send to a worker thread.
+unsafe impl Send for SendProcessHandle {}
 
 impl WinHandle {
     fn as_handle(&self) -> HANDLE {

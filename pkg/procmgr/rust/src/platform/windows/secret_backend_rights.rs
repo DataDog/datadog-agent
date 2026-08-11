@@ -20,8 +20,11 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{
     ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AclSizeInformation, AllocateAndInitializeSid,
-    DACL_SECURITY_INFORMATION, DOMAIN_ALIAS_RID_ADMINS, EqualSid, FreeSid, GetAce,
-    GetAclInformation, PSID, SECURITY_BUILTIN_DOMAIN_RID, SECURITY_NT_AUTHORITY,
+    DACL_SECURITY_INFORMATION, EqualSid, FreeSid, GetAce, GetAclInformation, PSID,
+    SECURITY_NT_AUTHORITY,
+};
+use windows_sys::Win32::System::SystemServices::{
+    DOMAIN_ALIAS_RID_ADMINS, SECURITY_BUILTIN_DOMAIN_RID,
 };
 
 use super::sid::lookup_account_sid;

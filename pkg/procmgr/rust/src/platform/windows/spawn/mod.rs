@@ -13,6 +13,6 @@ mod privileged;
 mod profiles;
 mod stdio;
 pub(crate) mod user_profile;
-mod win32;
+pub(crate) mod win32;
 
 pub(crate) use managed::spawn_child_handle;
