@@ -380,7 +380,7 @@ func (p *Profile) Snapshot(newEvent func() *model.Event) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.ActivityTree.Snapshot(newEvent)
+	p.ActivityTree.Snapshot(newEvent, p.Metadata.ContainerID)
 }
 
 // GetWorkloadSelector returns the workload selector

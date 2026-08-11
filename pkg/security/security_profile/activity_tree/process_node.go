@@ -49,8 +49,7 @@ type ProcessInfo struct {
 
 	FileEvent model.FileEvent
 
-	CGroup      model.CGroupContext
-	ContainerID containerutils.ContainerID
+	CGroup model.CGroupContext
 
 	TTYName string
 	Comm    string
@@ -90,7 +89,6 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 		IsExecExec:       pc.IsExecExec,
 		FileEvent:        pc.FileEvent,
 		CGroup:           pc.CGroup,
-		ContainerID:      pc.ContainerContext.ContainerID,
 		TTYName:          pc.TTYName,
 		Comm:             pc.Comm,
 		ForkTime:         pc.ForkTime,
@@ -105,8 +103,10 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 	}
 }
 
-// ToModelProcess rebuilds a model.Process from the slim ProcessInfo.
-func (pi *ProcessInfo) ToModelProcess() model.Process {
+// ToModelProcess rebuilds a model.Process from the slim ProcessInfo. The container ID is
+// a workload-level property (constant across the tree), so it is threaded in from the
+// snapshotting profile rather than stored on every node.
+func (pi *ProcessInfo) ToModelProcess(containerID containerutils.ContainerID) model.Process {
 	return model.Process{
 		PIDContext:       model.PIDContext{Pid: pi.Pid, Tid: pi.Tid},
 		PPid:             pi.PPid,
@@ -115,7 +115,7 @@ func (pi *ProcessInfo) ToModelProcess() model.Process {
 		IsExecExec:       pi.IsExecExec,
 		FileEvent:        pi.FileEvent,
 		CGroup:           pi.CGroup,
-		ContainerContext: model.ContainerContext{ContainerID: pi.ContainerID},
+		ContainerContext: model.ContainerContext{ContainerID: containerID},
 		TTYName:          pi.TTYName,
 		Comm:             pi.Comm,
 		ForkTime:         pi.ForkTime,
