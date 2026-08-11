@@ -326,7 +326,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	}
 
 	if !EBPFPreemptCountSupported() {
-		return fmt.Errorf("getting preempt_count in ebpf not supported. Disabling lock contention collector")
+		return errors.New("getting preempt_count in ebpf not supported. Disabling lock contention collector")
 	}
 
 	var ranges uint32
