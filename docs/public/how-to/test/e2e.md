@@ -234,7 +234,7 @@ func (v *vmSuite) TestAgentRunning() {
 
 ## Best Practices
 
-The authoritative rules live in [`test/new-e2e/codereview_guideline.md`](https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/codereview_guideline.md); read it before writing a test. The highlights:
+The authoritative rules live in <<<repo("test/new-e2e/codereview_guideline.md")>>>; read it before writing a test. The highlights:
 
 ### Test Design
 - **Single Responsibility**: Each test should validate one specific workflow
