@@ -316,10 +316,6 @@ func awaitDepth(t *testing.T, m *ebpf.Map, want int32, trigger func()) {
 // enableSysrq makes sure sysrq commands are accepted, restoring the previous
 // setting afterwards. Skips the test when sysrq is unavailable.
 func enableSysrq(t *testing.T) {
-	if !EBPFPreemptCountSupported() {
-		t.Skip("getting preempt_count from ebpf not supported.")
-	}
-
 	const sysrqCfg = "/proc/sys/kernel/sysrq"
 
 	if _, err := os.Stat("/proc/sysrq-trigger"); err != nil {
@@ -346,6 +342,10 @@ func enableSysrq(t *testing.T) {
 }
 
 func TestPreemptNestingDepth(t *testing.T) {
+	if !EBPFPreemptCountSupported() {
+		t.Skip("getting preempt_count from ebpf not supported.")
+	}
+
 	t.Run("Task", func(t *testing.T) {
 		if !tracepointExists("raw_syscalls", "sys_enter") {
 			t.Skip("raw_syscalls:sys_enter tracepoint not available")
