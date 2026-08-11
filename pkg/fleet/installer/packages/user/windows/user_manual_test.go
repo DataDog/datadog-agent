@@ -11,6 +11,7 @@
 package windowsuser
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestValidate(t *testing.T) {
 	disableProcessContextValidation(t)
 
 	user := getTestAgentUser(t)
-	err := ValidateAgentUserRemoteUpdatePrerequisites(user)
+	err := ValidateAgentUserRemoteUpdatePrerequisites(context.Background(), user)
 	assert.NoError(t, err)
 }
 

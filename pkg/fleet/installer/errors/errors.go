@@ -29,6 +29,17 @@ const (
 	ErrConfigNotFound InstallerErrorCode = 5
 	// ErrPasswordNotProvided is the code for a password not provided.
 	ErrPasswordNotProvided InstallerErrorCode = 6
+	// ErrTimeout is the code for an operation that did not complete in time.
+	ErrTimeout InstallerErrorCode = 7
+	// ErrAgentUserNotResolvable is the code for an Agent user account that cannot be
+	// resolved: it does not exist, or its domain could not be reached.
+	ErrAgentUserNotResolvable InstallerErrorCode = 8
+	// ErrGMSANotUsable is the code for an Agent user that looks like a gMSA account
+	// but that this host cannot retrieve the managed password for.
+	ErrGMSANotUsable InstallerErrorCode = 9
+	// ErrDomainControllerUnreachable is the code for a domain controller that could
+	// not be queried.
+	ErrDomainControllerUnreachable InstallerErrorCode = 10
 )
 
 // InstallerError is an error type used by the installer.

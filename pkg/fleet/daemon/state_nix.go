@@ -7,8 +7,10 @@
 
 package daemon
 
+import "context"
+
 // agentUserErrorCode returns "" off Windows: no other platform runs the Agent as
 // an account remote updates can be blocked on, so there is nothing to report.
-func agentUserErrorCode() string {
+func agentUserErrorCode(_ context.Context) string {
 	return ""
 }

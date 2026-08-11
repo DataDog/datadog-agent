@@ -14,6 +14,7 @@ package windowsuser
 import "C"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -41,7 +42,11 @@ var ErrPrivateDataNotFound = errors.New("private data not found")
 //
 // Keep loosely in sync with the MSI ProcessUserCustomActions conditions. Noting the difference between
 // fresh installs and remote updates noted above.
-func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
+//
+// The SID and gMSA lookups below query the domain controller and take no context of their
+// own, so they cannot be interrupted. ctx is checked before each of them: it bounds how far
+// the validation gets, not how long a call already in flight takes.
+func ValidateAgentUserRemoteUpdatePrerequisites(ctx context.Context, userName string) error {
 	if err := validateProcessContext(); err != nil {
 		return err
 	}
@@ -50,6 +55,10 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 	// We always store both parts in the registry so we should always have both here.
 	if err := usernameHasExpectedFormat(userName); err != nil {
 		return err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return installerErrors.Wrap(installerErrors.ErrTimeout, err)
 	}
 
 	// Check if the account exists
@@ -61,7 +70,10 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 		// but this is not a supported or intended scenario.
 		// I think we'll hit this error case in the "golden image" scenario, where the hostname changes, too.
 		// Do not add punctuation after %w, the error message already contains it.
-		return fmt.Errorf("failed to lookup SID for account %s: %w Please ensure the account exists and reinstall the Agent with the username provided", userName, err)
+		return installerErrors.Wrap(
+			installerErrors.ErrAgentUserNotResolvable,
+			fmt.Errorf("failed to lookup SID for account %s: %w Please ensure the account exists and reinstall the Agent with the username provided", userName, err),
+		)
 	}
 
 	if IsSupportedWellKnownAccount(sid) {
@@ -93,6 +105,10 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 	// At this point, we assume the account is a domain account.
 	// If it's a gMSA account, we don't need a password.
 
+	if err := ctx.Err(); err != nil {
+		return installerErrors.Wrap(installerErrors.ErrTimeout, err)
+	}
+
 	isServiceAccount, err := IsServiceAccount(sid)
 	if err != nil {
 		return err
@@ -101,7 +117,10 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 		// gMSA accounts do not have passwords
 		return nil
 	} else if strings.HasSuffix(userName, "$") {
-		return fmt.Errorf("the provided account '%s' ends with '$' but is not recognized as a valid gMSA account. Please ensure the username is correct and this host is a member of PrincipalsAllowedToRetrieveManagedPassword. If the account is a normal account, please reinstall the Agent with the password provided", userName)
+		return installerErrors.Wrap(
+			installerErrors.ErrGMSANotUsable,
+			fmt.Errorf("the provided account '%s' ends with '$' but is not recognized as a valid gMSA account. Please ensure the username is correct and this host is a member of PrincipalsAllowedToRetrieveManagedPassword. If the account is a normal account, please reinstall the Agent with the password provided", userName),
+		)
 	}
 
 	// This is likely from manually upgrading from 7.65 or earlier to 7.66 or later
@@ -229,7 +248,10 @@ func IsServiceAccount(sid *windows.SID) (bool, error) {
 		if errors.Is(err, windows.STATUS_OPEN_FAILED) {
 			// Do not wrap the error message in the error string, it is too verbose and is unrelated to the actual issue
 			// See NetIsServiceAccount docs for more details on the double hop problem.
-			return false, fmt.Errorf("error 0x%X. Please ensure the netlogon service is running, the domain controller is available, and the current process has network credentials that are accepted by the domain controller", int(windows.STATUS_OPEN_FAILED))
+			return false, installerErrors.Wrap(
+				installerErrors.ErrDomainControllerUnreachable,
+				fmt.Errorf("error 0x%X. Please ensure the netlogon service is running, the domain controller is available, and the current process has network credentials that are accepted by the domain controller", int(windows.STATUS_OPEN_FAILED)),
+			)
 		} else if errors.Is(err, windows.STATUS_INVALID_ACCOUNT_NAME) {
 			// This error can be returned by domain clients when querying a different (e.g. trusted/parent) or non-existing domain
 			// when the account does not exist or is not a gMSA account.
@@ -249,18 +271,30 @@ func IsServiceAccount(sid *windows.SID) (bool, error) {
 		}
 
 		// Do not add punctuation after %w, the error message already contains it.
-		return false, fmt.Errorf("failed to check if account '%s' is a service account: %w Please ensure the netlogon service is running and the domain controller is available", user, err)
+		return false, installerErrors.Wrap(
+			installerErrors.ErrDomainControllerUnreachable,
+			fmt.Errorf("failed to check if account '%s' is a service account: %w Please ensure the netlogon service is running and the domain controller is available", user, err),
+		)
 	}
 	switch msaInfo {
 	case MsaInfoNotExist:
-		return false, fmt.Errorf("account '%s' does not exist", user)
+		return false, installerErrors.Wrap(
+			installerErrors.ErrAgentUserNotResolvable,
+			fmt.Errorf("account '%s' does not exist", user),
+		)
 	case MsaInfoNotService:
 		// expected result for regular domain accounts
 		return false, nil
 	case MsaInfoCannotInstall:
-		return false, fmt.Errorf("account '%s' is a gMSA account but cannot be installed. Please ensure the account's KerberosEncryptionType is supported and the host is a member of PrincipalsAllowedToRetrieveManagedPassword", user)
+		return false, installerErrors.Wrap(
+			installerErrors.ErrGMSANotUsable,
+			fmt.Errorf("account '%s' is a gMSA account but cannot be installed. Please ensure the account's KerberosEncryptionType is supported and the host is a member of PrincipalsAllowedToRetrieveManagedPassword", user),
+		)
 	case MsaInfoCanInstall:
-		return false, fmt.Errorf("unexpected status MsaInfoCanInstall for account '%s'. Please ensure the account is a gMSA account and not a sMSA account", user)
+		return false, installerErrors.Wrap(
+			installerErrors.ErrGMSANotUsable,
+			fmt.Errorf("unexpected status MsaInfoCanInstall for account '%s'. Please ensure the account is a gMSA account and not a sMSA account", user),
+		)
 	case MsaInfoInstalled:
 		// expected result for gMSA accounts
 		return true, nil

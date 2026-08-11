@@ -8,12 +8,15 @@
 package windowsuser
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 )
 
 // TestIsWellKnownAccount tests that go can lookup the SID for well known accounts, and that we recognize them as such.
@@ -35,7 +38,7 @@ func TestIsWellKnownAccount(t *testing.T) {
 		isServiceAccount, err := IsServiceAccount(sid)
 		assert.NoError(t, err)
 		assert.True(t, isServiceAccount, "expected %s to be a service account", name)
-		err = ValidateAgentUserRemoteUpdatePrerequisites(name)
+		err = ValidateAgentUserRemoteUpdatePrerequisites(context.Background(), name)
 		assert.NoError(t, err, "validate should succeed for well known service accounts")
 	}
 }
@@ -65,12 +68,26 @@ func TestNonExistingUser(t *testing.T) {
 	disableProcessContextValidation(t)
 
 	user := `.\non-existing-user`
-	err := ValidateAgentUserRemoteUpdatePrerequisites(user)
+	err := ValidateAgentUserRemoteUpdatePrerequisites(context.Background(), user)
 	assert.ErrorContains(t, err, "Please ensure the account exists")
+	assert.Equal(t, installerErrors.ErrAgentUserNotResolvable, installerErrors.GetCode(err))
 
 	user = `non-existing-user`
-	err = ValidateAgentUserRemoteUpdatePrerequisites(user)
+	err = ValidateAgentUserRemoteUpdatePrerequisites(context.Background(), user)
 	assert.ErrorContains(t, err, "not in the expected format domain\\username")
+}
+
+func TestValidateCancelledContext(t *testing.T) {
+	disableProcessContextValidation(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// The format check runs before the first domain controller query, so use a
+	// well-formed name to reach the context check.
+	err := ValidateAgentUserRemoteUpdatePrerequisites(ctx, `NT AUTHORITY\SYSTEM`)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, installerErrors.ErrTimeout, installerErrors.GetCode(err))
 }
 
 func runningInCI() bool {

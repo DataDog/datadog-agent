@@ -79,7 +79,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	// only 6 should be gated on. Absence of the tag means unknown: not Windows, or an
 	// Agent that predates this.
 	var tags []string
-	if code := agentUserErrorCode(); code != "" {
+	if code := agentUserErrorCode(ctx); code != "" {
 		tags = append(tags, "installer_agent_user_error_code:"+code)
 	}
 

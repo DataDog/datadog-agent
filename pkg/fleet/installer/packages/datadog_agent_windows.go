@@ -256,9 +256,9 @@ func ensurePARExecutorProcmgrConfig() error {
 // Performing the checks in the "pre" hook allows us to return an error before the
 // experiment state is created, which allows us to skip stop_experiment which would
 // otherwise unecessarily try to uninstall and then reinstall the stable Agent.
-func preStartExperimentDatadogAgent(_ HookContext) error {
+func preStartExperimentDatadogAgent(ctx HookContext) error {
 	env := getenv()
-	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
+	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(ctx, env.MsiParams.AgentUserName)
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)
 	}
