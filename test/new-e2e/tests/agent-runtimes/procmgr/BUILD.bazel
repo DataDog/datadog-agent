@@ -6,6 +6,7 @@ dd_agent_go_test(
         "par_procmgr_win_test.go",
         "procmgr_common_test.go",
         "procmgr_nix_test.go",
+        "procmgr_win_helpers_test.go",
         "procmgr_win_test.go",
     ],
     deps = [
@@ -13,6 +14,7 @@ dd_agent_go_test(
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",

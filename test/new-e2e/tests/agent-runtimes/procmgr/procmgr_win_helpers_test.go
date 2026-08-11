@@ -54,73 +54,8 @@ func joinWindowsPath(base string, elems ...string) string {
 	return strings.Join(parts, "/")
 }
 
-// normalizeWindowsPathForCompare lowercases and canonicalizes Windows paths/command lines
-// read from WMI so comparisons are stable across slash styles and registry trailing slashes.
-func normalizeWindowsPathForCompare(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = strings.Trim(s, `"`)
-	s = strings.ReplaceAll(s, "/", `\`)
-	for strings.Contains(s, `\\`) {
-		s = strings.ReplaceAll(s, `\\`, `\`)
-	}
-	return s
-}
-
 func ensureWindowsDirPS(dir string) string {
 	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
-}
-
-func psLiteralPathExists(path string) string {
-	return psRemote(`if (-not (Test-Path -LiteralPath '%s')) { exit 1 }`, path)
-}
-
-func psLegacySCMServiceMustNotBeRunning(serviceName string) string {
-	return psRemote(
-		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { exit 0 }; if ($s.Status -eq 'Running') { exit 1 }; exit 0`,
-		serviceName,
-	)
-}
-
-func psClearServiceEnvironment(serviceName string) string {
-	return psRemote(
-		`Remove-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\%s' -Name 'Environment' -ErrorAction SilentlyContinue`,
-		serviceName,
-	)
-}
-
-func psSetServiceEnvironment(serviceName string, env map[string]string) string {
-	elems := make([]string, 0, len(env))
-	for k, v := range env {
-		elems = append(elems, fmt.Sprintf("%s=%s", k, v))
-	}
-	// pslist is raw PowerShell array syntax; do not pass it through psRemote escaping.
-	pslist := fmt.Sprintf("@('%s')", strings.Join(elems, "','"))
-	return psRemote(
-		`Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\%s' -Name 'Environment' -Value `,
-		serviceName,
-	) + pslist + ` -Type MultiString`
-}
-
-func psProcmgrLogContains(logPath, pattern string) string {
-	return psRemote(
-		`$m = Select-String -Path '%s' -Pattern '%s' -SimpleMatch -ErrorAction SilentlyContinue | Select-Object -Last 1; if ($null -eq $m) { exit 1 }; $m.Line`,
-		logPath,
-		pattern,
-	)
-}
-
-func psProcessExistsByName(name string) string {
-	return psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'"; if ($null -eq $p) { exit 1 } else { exit 0 }`,
-		name,
-	)
-}
-
-func psProcessAbsentByName(name string) string {
-	return psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'"; if ($null -eq $p) { exit 0 } else { exit 1 }`,
-		name,
-	)
 }
 
 // writeProcessesDYamlContent writes a processes.d YAML file as UTF-8 without a BOM.
@@ -185,22 +120,6 @@ func waitProcmgrDescribeRunning(
 		pid = p
 	}, timeout, 2*time.Second)
 	return pid
-}
-
-func assertPrivilegedCatalogRejection(
-	ct *assert.CollectT,
-	host *e2ecomponents.RemoteHost,
-	cli string,
-	processName string,
-) {
-	ct.Helper()
-
-	_, err := host.Execute(psProcessAbsentByName("process-agent.exe"))
-	assert.NoError(ct, err)
-
-	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processName))
-	assert.NoError(ct, err)
-	assertField(ct, out, "State", "Failed")
 }
 
 func assertReloadAfterDescriptionChange(
