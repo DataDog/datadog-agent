@@ -99,7 +99,6 @@ impl ProcessEnabledMode {
 }
 
 const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
-const LEGACY_FLEET_POLICY_FILE: &str = "datadog.yaml";
 
 impl GatedKeySpec {
     /// Resolution order (most keys): legacy `process_config.enabled` transform (collection keys only)
@@ -108,8 +107,9 @@ impl GatedKeySpec {
     /// `system_probe_config.enabled` is special: returns [`system_probe::derived_enabled`] only,
     /// mirroring post-`load()`/`Adjust` `GetBool` (module-derived runtime value).
     ///
-    /// Legacy transforms mirror `loadProcessTransforms`. Fleet policy outranks env vars
-    /// (`SourceFleetPolicies` > `SourceEnvVar`).
+    /// Legacy transforms mirror `loadProcessTransforms`, which runs before fleet merge and writes
+    /// collection keys at agent-runtime precedence. The deprecated key is read from env or base YAML
+    /// only (fleet is ignored for this transform).
     fn enabled(&self, base_path: &str, yaml: &mut YamlCache) -> anyhow::Result<bool> {
         if let Some(enabled) = self.legacy_collection_override(base_path, yaml)? {
             return Ok(enabled);
@@ -419,11 +419,7 @@ fn resolve_legacy_process_enabled_mode(
     base_path: &str,
     yaml: &mut YamlCache,
 ) -> anyhow::Result<Option<ProcessEnabledMode>> {
-    if let Some(path) = yaml.fleet_policy_path(LEGACY_FLEET_POLICY_FILE, base_path)?
-        && let Some(mode) = legacy_enabled_mode_from_file(yaml, &path)?
-    {
-        return Ok(Some(mode));
-    }
+    // loadProcessTransforms runs before MergeFleetPolicy; fleet must not drive this transform.
     if let Some(mode) = legacy_enabled_env_mode() {
         return Ok(Some(mode));
     }
@@ -1602,7 +1598,37 @@ process_config:
     }
 
     #[test]
-    fn fleet_legacy_beats_env_for_process_enabled_transform() {
+    fn fleet_legacy_enabled_does_not_override_base_transform() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  enabled: disabled\n  process_discovery:\n    enabled: false\n",
+            );
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  enabled: true\n  process_discovery:\n    enabled: false\n",
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn legacy_env_beats_fleet_for_process_enabled_transform() {
         with_env_lock(|| {
             clear_gated_env_vars();
 
@@ -1624,11 +1650,16 @@ process_config:
                 fleet_dir.to_string_lossy().as_ref(),
             );
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "false");
-            let conditions = vec![ConditionConfigFile {
-                path: agent,
+            let process_collection = vec![ConditionConfigFile {
+                path: agent.clone(),
                 keys: vec!["process_config.process_collection.enabled".into()],
             }];
-            assert!(condition_config_any_met(&conditions));
+            let container_collection = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.container_collection.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&process_collection));
+            assert!(condition_config_any_met(&container_collection));
         });
     }
 
