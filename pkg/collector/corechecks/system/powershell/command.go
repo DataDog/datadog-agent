@@ -57,7 +57,11 @@ func validateIdentifier(kind, name string) error {
 // resolves to the expected module, then invokes the resolved command object
 // itself — so it runs exactly what was validated, not whatever the name might
 // re-resolve to (e.g. a shadowing function from an untrusted module).
-func buildCommand(cmdlet, module string, params []parameterEntry, selectProps []string) (string, error) {
+//
+// A non-empty where clause becomes a Where-Object stage placed before
+// Select-Object, so unwanted rows are discarded in the child process and a
+// property used only for filtering never has to be projected.
+func buildCommand(cmdlet, module string, params []parameterEntry, where []whereEntry, selectProps []string) (string, error) {
 	if err := validateGetCmdletName(cmdlet); err != nil {
 		return "", err
 	}
@@ -65,6 +69,12 @@ func buildCommand(cmdlet, module string, params []parameterEntry, selectProps []
 		if err := validateIdentifier("property", selectProps[i]); err != nil {
 			return "", err
 		}
+	}
+	// Render the filter up front so a bad entry surfaces as a build error rather
+	// than a half-written script.
+	clause, err := whereClause(where)
+	if err != nil {
+		return "", err
 	}
 
 	var b strings.Builder
@@ -82,6 +92,11 @@ func buildCommand(cmdlet, module string, params []parameterEntry, selectProps []
 	// untrusted module. "*" is the explicit opt-out and skips the check.
 	if module != "" && module != "*" {
 		fmt.Fprintf(&b, "if ($c.ModuleName -ne %s) { throw 'powershell check: cmdlet resolved to an unexpected module' }\n", singleQuote(module))
+	}
+	// Resolve Where-Object for the same reason the main cmdlet is resolved: a bare
+	// name in the pipeline could be shadowed by a function from another module.
+	if clause != "" {
+		b.WriteString("$w = Get-Command -Name 'Where-Object' -CommandType Cmdlet -ErrorAction Stop\n")
 	}
 
 	// Build the splat table. Keys are validated identifiers; values are safe literals.
@@ -108,6 +123,11 @@ func buildCommand(cmdlet, module string, params []parameterEntry, selectProps []
 	// Invoke the validated command object ($c) rather than the name, so we run
 	// exactly what was verified above.
 	b.WriteString("ConvertTo-Json -Depth 8 -Compress -InputObject @(& $c @p")
+	// Filter before projecting: Select-Object would drop the properties the filter
+	// needs to test.
+	if clause != "" {
+		fmt.Fprintf(&b, " | & $w { %s }", clause)
+	}
 	if len(selectProps) > 0 {
 		fmt.Fprintf(&b, " | Select-Object %s", strings.Join(selectProps, ","))
 	}

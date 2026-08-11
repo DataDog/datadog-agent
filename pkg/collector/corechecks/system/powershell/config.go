@@ -245,6 +245,7 @@ type instanceConfig struct {
 	Cmdlet     string           `json:"cmdlet" yaml:"cmdlet" required:"true"`
 	Name       string           `json:"name" yaml:"name"`
 	Parameters []parameterEntry `json:"parameters" yaml:"parameters"`
+	Where      []whereEntry     `json:"where" yaml:"where"`
 	Metrics    []metricEntry    `json:"metrics" yaml:"metrics" required:"true" minItems:"1"`
 	TagBy      []tagByEntry     `json:"tag_by" yaml:"tag_by"`
 	Tags       []string         `json:"tags" yaml:"tags"`

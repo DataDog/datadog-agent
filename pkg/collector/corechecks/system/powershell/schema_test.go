@@ -45,6 +45,41 @@ parameters:
 	assert.NoError(t, validateInstanceSchema(data))
 }
 
+func TestSchemaAcceptsWhereForms(t *testing.T) {
+	data := []byte(`
+cmdlet: Get-SmbShare
+metrics:
+  - [1, share]
+where:
+  - [Path, notlike, '*LocalsplOnly*']
+  - property: Length
+    op: gt
+    value: 1024
+`)
+	assert.NoError(t, validateInstanceSchema(data))
+}
+
+func TestSchemaRejectsMalformedWhereTuple(t *testing.T) {
+	// A 2-element tuple matches neither the array branch (exactly 3) nor the object.
+	data := []byte("cmdlet: Get-SmbShare\nmetrics:\n  - [1, share]\nwhere:\n  - [Path, notlike]\n")
+	assert.Error(t, validateInstanceSchema(data))
+}
+
+func TestSchemaRejectsUnsupportedWhereOperator(t *testing.T) {
+	// The operator enum is duplicated in the schema so a typo is reported alongside
+	// any other config error instead of aborting at the first one.
+	data := []byte(`
+cmdlet: Get-SmbShare
+metrics:
+  - [1, share]
+where:
+  - property: Path
+    op: contains
+    value: x
+`)
+	assert.Error(t, validateInstanceSchema(data))
+}
+
 func TestSchemaAllowsCommonInstanceKeys(t *testing.T) {
 	// Keys the Agent injects/accepts must not be rejected.
 	data := []byte(`

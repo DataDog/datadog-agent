@@ -26,6 +26,10 @@
 # Every declared parameter MUST set either allowed_values or pattern: a value
 # constraint is mandatory, and a parameter with neither is rejected at load time
 # (fail closed). `allowed_values` takes precedence over `pattern` when both are set.
+#
+# Values are compared as STRINGS. A boolean or numeric instance value must be
+# listed in its string form - allowed_values: ['false'], not [false] - or it will
+# never match. See Get-SmbShare below.
 
 version: 1
 allowed_cmdlets:
@@ -37,3 +41,11 @@ allowed_cmdlets:
     module: PKI
     parameters:
       Template: { required: false, allowed_values: [WebServer, CodeSigning] }
+  Get-SmbShare:
+    module: SmbShare
+    parameters:
+      # Quoted 'false': the instance passes a YAML boolean, checked as a string.
+      Special: { required: false, allowed_values: ['false'] }
+      # ErrorAction is a common parameter; allowlist it to let the cmdlet skip
+      # individual failing shares instead of aborting the whole run.
+      ErrorAction: { required: false, allowed_values: [SilentlyContinue] }
