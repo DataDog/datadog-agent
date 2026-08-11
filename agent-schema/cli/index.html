@@ -4028,6 +4028,21 @@ pipelines, so you rarely need to invoke them by hand — but they are useful whe
 adding or editing settings, debugging schema problems, or regenerating output
 locally.</p>
 <h2 id="how-the-commands-fit-together">How the commands fit together<a class="headerlink" href="#how-the-commands-fit-together" title="Permanent link">&para;</a></h2>
+<p>The schema files under <code>pkg/config/schema/yaml/</code> are the source of truth and are
+edited by hand (or through <code>schema.add-setting</code>). Everything else is derived from
+them:</p>
+<ul>
+<li><code>schema.lint</code> validates the hand-written schema.</li>
+<li><code>schema.codegen</code> generates the <code>pkg/config/setup</code> Go files that register the
+  settings. Bazel runs the same logic automatically via
+  <code>//pkg/config/setup:codegen_settings</code>.</li>
+<li><code>schema.template</code> / <code>schema.template-all</code> render the shipped
+  <code>datadog.yaml.example</code> and <code>system-probe.yaml.example</code> files.</li>
+<li><code>schema.produce-embedded</code> / <code>schema.compress</code> build the artifact embedded into
+  the Agent binary; <code>schema.produce-jsonschema</code> builds the pure JSON Schema for
+  external consumers.</li>
+<li><code>schema.locate</code> finds where a setting is declared.</li>
+</ul>
 <h2 id="schemaadd-setting"><code>schema.add-setting</code><a class="headerlink" href="#schemaadd-setting" title="Permanent link">&para;</a></h2>
 <p>Interactive wizard to add a new setting to the schema. It prompts for the
 setting name (dotted path), type, default, visibility, and description, then
@@ -4060,8 +4075,7 @@ problems are visible.</p>
 <hr />
 <h2 id="schemalint"><code>schema.lint</code><a class="headerlink" href="#schemalint" title="Permanent link">&para;</a></h2>
 <p>Validate the schema against the schema quality rules and exit
-non-zero on any violation. This is the check enforced in CI
-(<code>generate_config_schema-linux</code>).</p>
+non-zero on any violation.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.lint
 </span></code></pre></div>
 <table>
@@ -4198,10 +4212,9 @@ valid regex it falls back to shell-style glob (<code>fnmatch</code>). Pattern ma
 </span></code></pre></div>
 <hr />
 <h2 id="typical-workflows">Typical workflows<a class="headerlink" href="#typical-workflows" title="Permanent link">&para;</a></h2>
-<p><strong>I edited a setting in <code>pkg/config/setup</code> and want the schema to reflect it:</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>agent.build<span class="w">                                  </span><span class="c1"># rebuild the binary</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.generate<span class="w"> </span>--agent-bin<span class="o">=</span>./bin/agent/agent<span class="w">  </span><span class="c1"># regenerate the schema</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.lint<span class="w">                                  </span><span class="c1"># validate it</span>
+<p><strong>I edited a setting in the schema and want the Go code to reflect it:</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.lint<span class="w">            </span><span class="c1"># validate the schema</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.codegen<span class="w">        </span><span class="c1"># regenerate pkg/config/setup from it</span>
 </span></code></pre></div>
 <p><strong>I want to preview the generated example for one platform:</strong></p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template<span class="w"> </span><span class="se">\</span>
