@@ -407,7 +407,9 @@ fn parse_secret_response(
     let Some(entry) = parsed.get(handle) else {
         bail!("secret backend response missing handle {handle}");
     };
-    if let Some(error) = entry.get("error").and_then(Value::as_str) {
+    if let Some(error) = entry.get("error").and_then(Value::as_str)
+        && !error.is_empty()
+    {
         bail!("secret backend error for {handle}: {error}");
     }
     entry
@@ -531,6 +533,25 @@ mod tests {
         assert_eq!(
             split_secret_handle("process_enabled"),
             ("", "process_enabled")
+        );
+    }
+
+    #[test]
+    fn parse_secret_response_ignores_empty_error_field() {
+        let output = r#"{"process_enabled":{"value":"true","error":""}}"#;
+        assert_eq!(
+            parse_secret_response(output, "process_enabled", false).unwrap(),
+            "true"
+        );
+    }
+
+    #[test]
+    fn parse_secret_response_rejects_non_empty_error_field() {
+        let output = r#"{"process_enabled":{"value":"true","error":"backend failed"}}"#;
+        let err = parse_secret_response(output, "process_enabled", false).unwrap_err();
+        assert!(
+            err.to_string().contains("backend failed"),
+            "unexpected error: {err:#}"
         );
     }
 
