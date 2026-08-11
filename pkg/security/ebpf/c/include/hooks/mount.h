@@ -340,14 +340,23 @@ int hook_mnt_change_mountpoint(ctx_t *ctx)
 
 HOOK_ENTRY("make_visible")
 int hook_make_visible(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree_or_move_mount);
+    struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
-    // check if this mount has already been processed by another hook
-    if (syscall->mount.newmnt == newmnt) {
+
+    if (syscall->type == EVENT_MOUNT) {
+        // attach_recursive_mnt is the only other hook covering plain mounts and it cannot be trusted
+        // since 6.18: its arguments were replaced by a pinned_mountpoint and the compiler usually
+        // leaves only an ISRA clone of it. commit_tree calls us once per propagated copy, the first
+        // one being the mount the syscall was issued for, so take it and re-read its fields here.
+        if (syscall->mount.newmnt && syscall->mount.newmnt != newmnt) {
+            return 0;
+        }
+    } else if (syscall->mount.newmnt && syscall->mount.newmnt == newmnt) {
+        // check if this mount has already been processed by another hook
         return 0;
     }
 
@@ -357,7 +366,10 @@ int hook_make_visible(ctx_t *ctx) {
     struct mountpoint *mp  = get_mount_mountpoint(newmnt);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
-    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
+    // plain mounts are sent from the mount syscall return hook, once the syscall is known to succeed
+    if (syscall->type != EVENT_MOUNT) {
+        handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
+    }
 
     return 0;
 }
