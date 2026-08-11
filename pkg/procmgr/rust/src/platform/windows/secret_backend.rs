@@ -6,7 +6,9 @@
 //! Run `secret_backend_command` under the core Agent service account on Windows.
 //!
 //! Secret resolution must match `datadogagent`, not the dd-procmgr-service supervisor
-//! (LocalSystem) or a [`SpawnProfile::Privileged`] child identity.
+//! (LocalSystem) or a [`SpawnProfile::Privileged`] child identity. Both spawn paths pass
+//! the same merged environment (process baseline + core Agent SCM `Environment`) to
+//! `CreateProcessAsUserW`, including when the Agent account is LocalSystem.
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -25,13 +27,15 @@ use windows_sys::Win32::Storage::FileSystem::{
     OPEN_EXISTING,
 };
 use windows_sys::Win32::System::Pipes::CreatePipe;
+use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessAsUserW, GetExitCodeProcess, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-    STARTUPINFOW, TerminateProcess, WaitForSingleObject,
+    CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, OpenProcessToken,
+    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW, TerminateProcess,
+    WaitForSingleObject,
 };
 
-use crate::secret_backend_exec::{BackendRun, exec_inherited_token, wait_with_stdout_drain};
+use crate::secret_backend_exec::{BackendRun, wait_with_stdout_drain};
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::baseline_env_vars_from_token;
@@ -40,9 +44,7 @@ use super::resolve_executable::resolve_executable_in_env;
 use super::secret_backend_rights;
 use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::spawn::user_profile::UserProfileGuard;
-use super::spawn::win32::{
-    build_windows_command_line, duplicate_primary_token, env_block_for_secret_backend,
-};
+use super::spawn::win32::{build_windows_command_line, duplicate_primary_token, env_vars_to_wide_block};
 use super::wide;
 
 const PROCESS_NAME: &str = "secret-backend";
@@ -57,24 +59,20 @@ pub(crate) fn exec_secret_backend(
 ) -> Result<String> {
     let account =
         resolve_agent_account().context("resolve agent service account for secret backend")?;
-    if supervisor_runs_as_agent_account(&account) {
+    let spawn = if supervisor_runs_as_agent_account(&account) {
         let env = secret_backend_resolution_env(&account, None)?;
-        let resolved_command = resolve_executable_in_env(command, &env)
-            .with_context(|| format!("resolve secret backend executable {command}"))?;
-        validate_secret_backend_command(&resolved_command, skip_acl_check)?;
-        let run = BackendRun {
-            command: &resolved_command,
-            arguments,
-            payload,
-            timeout,
-            max_output_bytes,
-        };
-        return exec_inherited_token(&run);
-    }
+        SecretBackendSpawn::Supervisor {
+            token: TokenHandle::new(supervisor_primary_token()?),
+            env,
+        }
+    } else {
+        let identity = AgentIdentity::load(&account)?;
+        let env = secret_backend_resolution_env(&account, Some(&identity))?;
+        SecretBackendSpawn::Agent { identity, env }
+    };
 
-    let identity = AgentIdentity::load(&account)?;
-    let env = secret_backend_resolution_env(&account, Some(&identity))?;
-    let resolved_command = resolve_executable_in_env(command, &env)
+    let env = spawn.env();
+    let resolved_command = resolve_executable_in_env(command, env)
         .with_context(|| format!("resolve secret backend executable {command}"))?;
     validate_secret_backend_command(&resolved_command, skip_acl_check)?;
     let run = BackendRun {
@@ -84,7 +82,33 @@ pub(crate) fn exec_secret_backend(
         timeout,
         max_output_bytes,
     };
-    exec_as_agent_account(&identity, &run)
+    spawn.exec(&run)
+}
+
+enum SecretBackendSpawn {
+    Supervisor {
+        token: TokenHandle,
+        env: HashMap<String, String>,
+    },
+    Agent {
+        identity: AgentIdentity,
+        env: HashMap<String, String>,
+    },
+}
+
+impl SecretBackendSpawn {
+    fn env(&self) -> &HashMap<String, String> {
+        match self {
+            Self::Supervisor { env, .. } | Self::Agent { env, .. } => env,
+        }
+    }
+
+    fn exec(self, run: &BackendRun<'_>) -> Result<String> {
+        match self {
+            Self::Supervisor { token, env } => exec_with_token_and_env(token, &env, run),
+            Self::Agent { identity, env } => exec_with_token_and_env(identity.token, &env, run),
+        }
+    }
 }
 
 fn validate_secret_backend_command(resolved_command: &str, skip_acl_check: bool) -> Result<()> {
@@ -115,9 +139,32 @@ fn supervisor_runs_as_agent_account(account: &AgentAccount) -> bool {
     account.inherits_supervisor_token()
 }
 
-fn exec_as_agent_account(identity: &AgentIdentity, run: &BackendRun<'_>) -> Result<String> {
-    let child = spawn_with_pipes(identity, run)?;
+fn exec_with_token_and_env(
+    token: TokenHandle,
+    env: &HashMap<String, String>,
+    run: &BackendRun<'_>,
+) -> Result<String> {
+    let child = spawn_with_pipes(token.raw(), run, env)?;
     child.finish(run)
+}
+
+fn supervisor_primary_token() -> Result<HANDLE> {
+    let mut process_token: HANDLE = ptr::null_mut();
+    let ok = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_DUPLICATE,
+            &mut process_token,
+        )
+    };
+    if ok == 0 {
+        bail!(
+            "[{PROCESS_NAME}] OpenProcessToken(GetCurrentProcess()) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let process_token_guard = TokenHandle::new(process_token);
+    duplicate_primary_token(PROCESS_NAME, process_token_guard.raw())
 }
 
 struct AgentIdentity {
@@ -175,7 +222,11 @@ impl CapturedChild {
     }
 }
 
-fn spawn_with_pipes(identity: &AgentIdentity, run: &BackendRun<'_>) -> Result<CapturedChild> {
+fn spawn_with_pipes(
+    token: HANDLE,
+    run: &BackendRun<'_>,
+    env: &HashMap<String, String>,
+) -> Result<CapturedChild> {
     let stdin = Pipe::parent_writes()?;
     let stdout = Pipe::parent_reads()?;
     let stderr = nul_stderr_handle()?;
@@ -186,7 +237,7 @@ fn spawn_with_pipes(identity: &AgentIdentity, run: &BackendRun<'_>) -> Result<Ca
         .chain([0])
         .collect();
 
-    let env_block = env_block_for_secret_backend(identity.token.raw())?;
+    let env_block = env_vars_to_wide_block(env);
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
@@ -199,7 +250,7 @@ fn spawn_with_pipes(identity: &AgentIdentity, run: &BackendRun<'_>) -> Result<Ca
     let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
     let ok = unsafe {
         CreateProcessAsUserW(
-            identity.token.raw(),
+            token,
             std::ptr::null(),
             command_line_w.as_mut_ptr(),
             std::ptr::null(),
@@ -392,5 +443,86 @@ fn wait_for_exit(process: HANDLE, timeout: Duration, command: &str) -> Result<u3
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::legacy_scm_env::set_test_core_agent_scm_env;
+    use std::collections::HashMap;
+
+    fn wide_env_block_to_map(block: &[u16]) -> HashMap<String, String> {
+        let mut vars = HashMap::new();
+        let mut start = 0usize;
+        for (idx, &unit) in block.iter().enumerate() {
+            if unit != 0 {
+                continue;
+            }
+            if idx == start {
+                break;
+            }
+            let entry = String::from_utf16_lossy(&block[start..idx]);
+            if let Some((key, value)) = entry.split_once('=') {
+                vars.insert(key.to_string(), value.to_string());
+            }
+            start = idx + 1;
+        }
+        vars
+    }
+
+    #[test]
+    fn local_system_resolution_env_merges_core_agent_scm_overrides() {
+        set_test_core_agent_scm_env(Some(HashMap::from([(
+            "DD_SECRET_BACKEND_COMMAND".to_string(),
+            r"C:\agent\secret.cmd".to_string(),
+        )])));
+        let env =
+            secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
+        assert_eq!(
+            env.get("DD_SECRET_BACKEND_COMMAND").map(String::as_str),
+            Some(r"C:\agent\secret.cmd"),
+            "LocalSystem secret backend must merge datadogagent SCM Environment"
+        );
+        set_test_core_agent_scm_env(None);
+    }
+
+    #[test]
+    fn local_system_spawn_env_block_carries_core_agent_scm_overrides() {
+        set_test_core_agent_scm_env(Some(HashMap::from([(
+            "DD_CUSTOM_SECRET".to_string(),
+            "from-scm".to_string(),
+        )])));
+        let env =
+            secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
+        let block = env_vars_to_wide_block(&env);
+        let parsed = wide_env_block_to_map(&block);
+        assert_eq!(
+            parsed.get("DD_CUSTOM_SECRET").map(String::as_str),
+            Some("from-scm"),
+            "CreateProcessAsUserW env block must include merged SCM overrides"
+        );
+        set_test_core_agent_scm_env(None);
+    }
+
+    #[test]
+    fn local_system_supervisor_inherited_env_alone_misses_scm_overrides() {
+        set_test_core_agent_scm_env(Some(HashMap::from([(
+            "DD_ONLY_IN_SCM".to_string(),
+            "scm-value".to_string(),
+        )])));
+        let inherited: HashMap<String, String> = std::env::vars().collect();
+        assert!(
+            !inherited.contains_key("DD_ONLY_IN_SCM"),
+            "supervisor inherited env must not include datadogagent SCM-only overrides"
+        );
+        let merged =
+            secret_backend_resolution_env(&AgentAccount::LocalSystem, None).expect("env");
+        assert_eq!(
+            merged.get("DD_ONLY_IN_SCM").map(String::as_str),
+            Some("scm-value"),
+            "spawn must use merged env, not inherited supervisor env alone"
+        );
+        set_test_core_agent_scm_env(None);
     }
 }
