@@ -118,7 +118,6 @@ def pkg_mac_pkg(
         postinstall = None,
         signing_identity = "",
         out = None,
-        target_compatible_with = None,
         **kwargs):
     """Builds a macOS .pkg installer from pkg_filegroup/pkg_files srcs.
 
@@ -137,7 +136,7 @@ def pkg_mac_pkg(
             signing (e.g. Omnibus's SIGN_MAC) should select() this at the
             call site rather than reading the env from within the rule.
         out: output file name. Defaults to "{name}.pkg".
-        **kwargs: forwarded to the underlying targets (e.g. visibility).
+        **kwargs: standard attributes.
     """
     pkg_install(
         name = name + "_installer",
