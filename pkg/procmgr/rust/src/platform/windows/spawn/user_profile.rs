@@ -12,10 +12,13 @@ use windows_sys::Win32::UI::Shell::{LoadUserProfileW, PROFILEINFOW, UnloadUserPr
 use super::super::agent_credentials::AgentAccount;
 use super::super::local_account::computer_name;
 use super::super::wide;
+use super::logon::TokenHandle;
+use super::win32::duplicate_primary_token;
 
 /// Keeps a user profile loaded for the lifetime of the guard.
 pub(crate) struct UserProfileGuard {
-    token: HANDLE,
+    /// Duplicated token kept open until `UnloadUserProfile` runs in `Drop`.
+    token: TokenHandle,
     profile_handle: HANDLE,
     _username_wide: Vec<u16>,
 }
@@ -34,7 +37,10 @@ impl UserProfileGuard {
         profile_info.dwSize = std::mem::size_of::<PROFILEINFOW>() as u32;
         profile_info.lpUserName = username_wide.as_mut_ptr();
 
-        let ok = unsafe { LoadUserProfileW(token, &mut profile_info) };
+        let profile_token = duplicate_primary_token(process_name, token)?;
+        let profile_token = TokenHandle::new(profile_token);
+
+        let ok = unsafe { LoadUserProfileW(profile_token.raw(), &mut profile_info) };
         if ok == 0 {
             bail!(
                 "[{process_name}] LoadUserProfileW({username}) failed: {}",
@@ -46,7 +52,7 @@ impl UserProfileGuard {
         }
 
         Ok(Self {
-            token,
+            token: profile_token,
             profile_handle: profile_info.hProfile,
             _username_wide: username_wide,
         })
@@ -58,7 +64,7 @@ impl Drop for UserProfileGuard {
         if self.profile_handle.is_null() {
             return;
         }
-        let ok = unsafe { UnloadUserProfile(self.token, self.profile_handle) };
+        let ok = unsafe { UnloadUserProfile(self.token.raw(), self.profile_handle) };
         if ok == 0 {
             log::warn!(
                 "UnloadUserProfile failed: {}",
