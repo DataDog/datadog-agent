@@ -6,6 +6,7 @@
 package remote
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -118,7 +119,7 @@ func readUntilPrompt(r io.Reader, prompt *regexp.Regexp) ([]byte, error) {
 		}
 		if readErr != nil {
 			if readErr == io.EOF {
-				return buf, fmt.Errorf("connection closed before reaching prompt")
+				return buf, errors.New("connection closed before reaching prompt")
 			}
 			return buf, readErr
 		}

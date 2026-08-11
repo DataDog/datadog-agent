@@ -20,7 +20,9 @@ import (
 
 const panOSPrompt = "cwadmin@PRDC-IF01> "
 
-// curlyConfig is a trimmed PAN-OS `show config running` capture in the
+const panOSGetRunningCommand = "show config effective-running"
+
+// curlyConfig is a trimmed PAN-OS `show config effective-running` capture in the
 // curly-brace (non-XML) format reported in AGENT-16721.
 const curlyConfig = `config {
   mgt-config {
@@ -46,8 +48,8 @@ func panOSRunningCmd(t *testing.T) *profile.PlainCommand {
 
 func TestInteractiveCommand_PanOSCurlyConfig(t *testing.T) {
 	srv := StartFakeInteractiveSSHServer(t, panOSPrompt, map[string]FakeResponse{
-		"show config running": Ok(curlyConfig),
-		"set cli pager off":   Ok(""),
+		panOSGetRunningCommand: Ok(curlyConfig),
+		"set cli pager off":    Ok(""),
 	})
 	client := MustConnect(t, srv)
 
@@ -61,16 +63,16 @@ func TestInteractiveCommand_PanOSCurlyConfig(t *testing.T) {
 	assert.Contains(t, result.Output, "config {")
 	assert.Contains(t, result.Output, "phash")
 	// The echoed command line and trailing prompt are stripped.
-	assert.NotContains(t, result.Output, "show config running")
+	assert.NotContains(t, result.Output, panOSGetRunningCommand)
 	assert.NotContains(t, result.Output, panOSPrompt)
 
 	// The pager was disabled before the command, and we exited cleanly.
 	received := srv.Received()
 	assert.Contains(t, received, "set cli pager off")
-	assert.Contains(t, received, "show config running")
+	assert.Contains(t, received, panOSGetRunningCommand)
 	assert.Contains(t, received, "exit")
 	// Setup runs before the command.
-	assert.Less(t, indexOf(received, "set cli pager off"), indexOf(received, "show config running"))
+	assert.Less(t, indexOf(received, "set cli pager off"), indexOf(received, panOSGetRunningCommand))
 }
 
 func TestInteractiveCommand_BannerOnlyFails(t *testing.T) {
@@ -78,8 +80,8 @@ func TestInteractiveCommand_BannerOnlyFails(t *testing.T) {
 	// (the AGENT-16721 symptom: only the banner/prompt, no config). The
 	// validator should reject the empty output rather than silently passing.
 	srv := StartFakeInteractiveSSHServer(t, panOSPrompt, map[string]FakeResponse{
-		"show config running": Ok(""),
-		"set cli pager off":   Ok(""),
+		panOSGetRunningCommand: Ok(""),
+		"set cli pager off":    Ok(""),
 	})
 	client := MustConnect(t, srv)
 

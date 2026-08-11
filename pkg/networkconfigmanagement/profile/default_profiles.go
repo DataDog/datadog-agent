@@ -415,15 +415,22 @@ var DefaultProfiles = Map{
 	ProfilePanOS: {
 		Name: ProfilePanOS,
 		Commands: CommandSet{
-			Verify:     MkCommand("show system info", Expect(`model: *PA-`)),
+			Verify: MkCommand("show system info", Expect(`model: *PA-`)),
 			// PAN-OS only emits command output over an interactive TTY; a
 			// non-interactive exec returns just the login banner. Run the command
 			// through an interactive shell with the pager disabled.
 			//
-			// Depending on PAN-OS version, `show config running` returns either
-			// angle-bracket XML (`<config>...</config>`) or curly-brace
-			// hierarchical output (`config { ... }`); accept both.
-			GetRunning: MkCommand("show config running",
+			// Use `show config effective-running` (the final resolved config in
+			// effect, including pushed/shared policy) rather than `show config
+			// running` (raw committed): the raw committed config is not usable for
+			// customers who push policy from Panorama.
+			//
+			// The validator is a lightweight guard that we got config-shaped output
+			// and not a banner/error/empty response (the failure mode this profile
+			// was built to fix). Depending on PAN-OS version the output is either
+			// angle-bracket XML (`<config>...</config>`) or curly-brace hierarchical
+			// (`config { ... }`); accept both.
+			GetRunning: MkCommand("show config effective-running",
 				Expect(`(?s)(<config.*</config>|config\s*\{)`),
 				WithSetup("set cli pager off"),
 				Interactive(panOSPrompt),
