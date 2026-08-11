@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"strings"
 
 	"github.com/Microsoft/go-winio"
@@ -74,10 +73,7 @@ func NewStatusAPI(daemon Daemon) (StatusAPI, error) {
 	if err := paths.IsInstallerDataDirSecure(); err != nil {
 		return nil, err
 	}
-	return newStatusAPI(daemon, statusNamedPipePath)
-}
 
-func newStatusAPI(daemon statusProvider, statusPipePath string) (StatusAPI, error) {
 	sd, err := setupStatusSecurityDescriptor()
 	if err != nil {
 		// The default security descriptor does not include ddagentuser: the Agent's
@@ -87,18 +83,18 @@ func newStatusAPI(daemon statusProvider, statusPipePath string) (StatusAPI, erro
 		sd = statusPipeDefaultSecurityDescriptor
 	}
 
-	return newStatusAPIWithSecurityDescriptor(daemon, statusPipePath, sd)
+	return listenStatusPipe(daemon, statusNamedPipePath, sd)
 }
 
-// newStatusAPIWithSecurityDescriptor creates the listener with an explicit security
-// descriptor, so tests do not depend on a ddagentuser existing on the machine.
+// listenStatusPipe creates the listener with an explicit security descriptor, so
+// tests do not depend on a ddagentuser existing on the machine.
 //
 // Note that a named pipe is claimed by whoever creates it first: on a host with no
 // installer daemon, any local user can create this pipe and answer in its place.
 // Nothing served here is privileged, and the consequence is a host reporting
 // attacker-chosen metadata about itself, so this is treated the same way
 // system-probe treats its own pipe.
-func newStatusAPIWithSecurityDescriptor(daemon statusProvider, statusPipePath string, sd string) (StatusAPI, error) {
+func listenStatusPipe(daemon statusProvider, statusPipePath string, sd string) (StatusAPI, error) {
 	listener, err := winio.ListenPipe(statusPipePath, &winio.PipeConfig{
 		SecurityDescriptor: sd,
 		MessageMode:        false,
@@ -107,11 +103,7 @@ func newStatusAPIWithSecurityDescriptor(daemon statusProvider, statusPipePath st
 		return nil, err
 	}
 
-	return &statusAPIImpl{
-		server:   &http.Server{},
-		listener: listener,
-		daemon:   daemon,
-	}, nil
+	return newStatusAPI(daemon, listener), nil
 }
 
 // NewStatusAPIClient returns a new StatusAPIClient.
@@ -119,15 +111,6 @@ func NewStatusAPIClient() StatusAPIClient {
 	return newStatusAPIClient(statusNamedPipePath)
 }
 
-func newStatusAPIClient(namedPipePath string) StatusAPIClient {
-	return &statusAPIClientImpl{
-		client: &http.Client{
-			Timeout: statusClientTimeout,
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-					return winio.DialPipeContext(ctx, namedPipePath)
-				},
-			},
-		},
-	}
+func dialStatus(ctx context.Context, namedPipePath string) (net.Conn, error) {
+	return winio.DialPipeContext(ctx, namedPipePath)
 }

@@ -27,20 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
-const (
-	flareFileName = "installer.json"
-
-	// fetchTimeout bounds the whole status fetch. The installer daemon answers from
-	// memory plus one statfs, so anything slower means it is wedged and we would
-	// rather report it unreachable than hold up the metadata runner.
-	fetchTimeout = 5 * time.Second
-)
-
-// statusFetcher is the part of daemon.StatusAPIClient this component uses. It is an
-// interface so tests can supply a fake without a socket.
-type statusFetcher interface {
-	Status(ctx context.Context) (daemon.StatusAPIResponse, error)
-}
+const flareFileName = "installer.json"
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
@@ -61,7 +48,7 @@ type inst struct {
 
 	log       log.Component
 	hostname  string
-	installer statusFetcher
+	installer daemon.StatusAPIClient
 }
 
 // Requires defines the dependencies for the installer metadata component
@@ -86,8 +73,8 @@ func NewComponent(deps Requires) Provides {
 	i := &inst{
 		log:      deps.Log,
 		hostname: hname,
-		// Built once: the client holds the transport, and a new one per collection
-		// would throw away its connection pooling for no reason.
+		// The client is stateless and bounds its own requests, so there is nothing to
+		// rebuild per collection.
 		installer: daemon.NewStatusAPIClient(),
 	}
 	i.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, i.getPayload, flareFileName)
@@ -121,10 +108,9 @@ func (i *inst) getInstallerMetadata() map[string]interface{} {
 		"installer_reachable": false,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
-	defer cancel()
-
-	response, err := i.installer.Status(ctx)
+	// The client bounds the request itself; there is no ambient context to inherit
+	// here, as the metadata runner calls getPayload without one.
+	response, err := i.installer.Status(context.Background())
 	if err != nil {
 		// Debug only: not having an installer daemon is the normal case on a host
 		// without remote updates, and it must not produce recurring error logs.

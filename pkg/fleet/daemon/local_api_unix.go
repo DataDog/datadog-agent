@@ -19,6 +19,10 @@ import (
 
 const (
 	socketName = "installer.sock"
+
+	// socketMode keeps the local API root-only: every route on it but /status
+	// installs, removes or promotes packages as root.
+	socketMode = 0700
 )
 
 // NewLocalAPI returns a new LocalAPI.
@@ -28,12 +32,12 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)
 	}
-	listener, err := net.Listen("unix", socketPath)
+	// The mode is set at bind time rather than with a chmod afterwards: this socket
+	// lives in a directory dd-agent can write to, so a chmod by path can be pointed
+	// at a symlink of that user's choosing. See listenStatusSocket.
+	listener, err := listenWithMode(socketPath, socketMode)
 	if err != nil {
 		return nil, err
-	}
-	if err := os.Chmod(socketPath, 0700); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return &localAPIImpl{
 		server:   &http.Server{},

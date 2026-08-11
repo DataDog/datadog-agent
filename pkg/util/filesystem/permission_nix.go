@@ -48,23 +48,38 @@ func agentUsername() string {
 	return "dd-agent"
 }
 
+// agentUserIDs returns the agent user's uid and gid. found is false when the
+// agent user does not exist on this host, which callers treat as "nothing to do"
+// rather than as an error.
+func agentUserIDs() (uid int, gid int, found bool, err error) {
+	usr, err := user.Lookup(agentUsername())
+	if err != nil {
+		return 0, 0, false, nil
+	}
+
+	uid, err = strconv.Atoi(usr.Uid)
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
+	}
+
+	gid, err = strconv.Atoi(usr.Gid)
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
+	}
+
+	return uid, gid, true, nil
+}
+
 // RestrictAccessToUser sets the file user and group to the same as the agent
 // user. On Linux this is "dd-agent"; on macOS it is "_dd-agent". If neither
 // user exists, the function returns nil immediately.
 func (p *Permission) RestrictAccessToUser(path string) error {
-	usr, err := user.Lookup(agentUsername())
+	usrID, grpID, found, err := agentUserIDs()
 	if err != nil {
+		return err
+	}
+	if !found {
 		return nil
-	}
-
-	usrID, err := strconv.Atoi(usr.Uid)
-	if err != nil {
-		return fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
-	}
-
-	grpID, err := strconv.Atoi(usr.Gid)
-	if err != nil {
-		return fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
 	}
 
 	if err = os.Chown(path, usrID, grpID); err != nil {
@@ -79,24 +94,27 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 	return nil
 }
 
-// RestrictGroupAccessNoFollow sets the file's group owner to the Agent user's
+// SetAgentGroupOwnerNoFollow sets the file's group owner to the Agent user's
 // group, leaving the user owner untouched, and does not follow symlinks. If the
 // Agent user does not exist, the function returns nil immediately.
 //
-// Prefer this over RestrictAccessToUser for a path inside a directory an
-// unprivileged user can write to. chown(2) follows symlinks, so between creating
-// a file and chowning it by path, a process that can write the directory can
-// substitute a symlink and have the privileged process hand it a file of its
-// choosing. Changing only the group also keeps the file owned by the caller.
-func (p *Permission) RestrictGroupAccessNoFollow(path string) error {
-	usr, err := user.Lookup(agentUsername())
+// Note that this *grants* the Agent user's group whatever the file's group bits
+// allow, unlike the Restrict* helpers above. Prefer it over RestrictAccessToUser
+// for a path inside a directory an unprivileged user can write to: chown(2)
+// follows symlinks, so between creating a file and chowning it by path, a process
+// that can write the directory can substitute a symlink and have the privileged
+// process hand it a file of its choosing. Changing only the group also keeps the
+// file owned by the caller.
+//
+// It is a plain function rather than a method on Permission because it needs
+// nothing from the receiver, and it is unix-only: Windows has no equivalent.
+func SetAgentGroupOwnerNoFollow(path string) error {
+	_, grpID, found, err := agentUserIDs()
 	if err != nil {
-		return nil
+		return err
 	}
-
-	grpID, err := strconv.Atoi(usr.Gid)
-	if err != nil {
-		return fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
+	if !found {
+		return nil
 	}
 
 	// -1 leaves the user owner as it is.

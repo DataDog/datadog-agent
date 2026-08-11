@@ -140,7 +140,12 @@ func TestIsAllowedOwner_UnknownUser(t *testing.T) {
 	assert.False(t, p.isRootOrAgentUID(unknownUID))
 }
 
-func TestRestrictGroupAccessNoFollow(t *testing.T) {
+// fileOwnedByCurrentGroup creates a file whose group is the current process's,
+// skipping the test unless it can also be chowned to the agent group — only root
+// can, and without that the no-follow chown under test is a no-op.
+func fileOwnedByCurrentGroup(t *testing.T, path string) int {
+	t.Helper()
+
 	ddAgentUser, err := user.Lookup(agentUsername())
 	if err != nil {
 		t.Skip("agent user not found on this system")
@@ -148,20 +153,20 @@ func TestRestrictGroupAccessNoFollow(t *testing.T) {
 	ddAgentGID, err := strconv.Atoi(ddAgentUser.Gid)
 	require.NoError(t, err)
 
-	p, err := NewPermission()
-	require.NoError(t, err)
-
-	root := t.TempDir()
-	testFile := filepath.Join(root, "file")
-	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0644))
-
-	// Only root can chown to another group.
-	if err := os.Lchown(testFile, -1, ddAgentGID); err != nil {
+	require.NoError(t, os.WriteFile(path, []byte("test"), 0644))
+	if err := os.Lchown(path, -1, ddAgentGID); err != nil {
 		t.Skip("Cannot chown to the dd-agent group (run as root to test)")
 	}
-	require.NoError(t, os.Lchown(testFile, -1, os.Getgid()))
+	require.NoError(t, os.Lchown(path, -1, os.Getgid()))
 
-	require.NoError(t, p.RestrictGroupAccessNoFollow(testFile))
+	return ddAgentGID
+}
+
+func TestSetAgentGroupOwnerNoFollow(t *testing.T) {
+	testFile := filepath.Join(t.TempDir(), "file")
+	ddAgentGID := fileOwnedByCurrentGroup(t, testFile)
+
+	require.NoError(t, SetAgentGroupOwnerNoFollow(testFile))
 
 	stat, err := os.Stat(testFile)
 	require.NoError(t, err)
@@ -172,31 +177,15 @@ func TestRestrictGroupAccessNoFollow(t *testing.T) {
 
 // The point of the no-follow variant: a symlink planted at the path must not get the
 // privileged caller to change the group of whatever it points at.
-func TestRestrictGroupAccessNoFollowDoesNotFollowSymlinks(t *testing.T) {
-	ddAgentUser, err := user.Lookup(agentUsername())
-	if err != nil {
-		t.Skip("agent user not found on this system")
-	}
-	ddAgentGID, err := strconv.Atoi(ddAgentUser.Gid)
-	require.NoError(t, err)
-
-	p, err := NewPermission()
-	require.NoError(t, err)
-
+func TestSetAgentGroupOwnerNoFollowDoesNotFollowSymlinks(t *testing.T) {
 	root := t.TempDir()
 	target := filepath.Join(root, "target")
-	require.NoError(t, os.WriteFile(target, []byte("test"), 0644))
-
-	// Only root can chown to another group.
-	if err := os.Lchown(target, -1, ddAgentGID); err != nil {
-		t.Skip("Cannot chown to the dd-agent group (run as root to test)")
-	}
-	require.NoError(t, os.Lchown(target, -1, os.Getgid()))
+	fileOwnedByCurrentGroup(t, target)
 
 	link := filepath.Join(root, "link")
 	require.NoError(t, os.Symlink(target, link))
 
-	require.NoError(t, p.RestrictGroupAccessNoFollow(link))
+	require.NoError(t, SetAgentGroupOwnerNoFollow(link))
 
 	stat, err := os.Stat(target)
 	require.NoError(t, err)

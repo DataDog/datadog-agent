@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
+	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/updater/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,6 +25,7 @@ func runFxWrapper(global *command.GlobalParams) error {
 		getCommonFxOption(global),
 		fx.Invoke(func(_ pid.Component) {}),
 		fx.Invoke(func(_ localapi.Component) {}),
+		fx.Invoke(func(_ statusapi.Component) {}),
 		fx.Invoke(func(_ telemetry.Component) {}),
 		fx.Invoke(startDaemon),
 	)

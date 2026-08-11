@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
+	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/updater/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,6 +48,7 @@ func getFxOptions(global *command.GlobalParams, s *windowsService) []fx.Option {
 		// Force the instantiation of some components
 		fx.Invoke(func(_ pid.Component) {}),
 		fx.Invoke(func(_ localapi.Component) {}),
+		fx.Invoke(func(_ statusapi.Component) {}),
 		fx.Invoke(func(_ telemetry.Component) {}),
 	}
 }

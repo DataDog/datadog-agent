@@ -28,7 +28,10 @@ attested fact.
 Note that `comp/updater/daemonchecker` already dials the *local* API to decide
 whether the daemon is running. That check cannot succeed from the Agent for the
 reason above — it gets `EACCES` on the `0700` socket and swallows it — so its result
-is not a usable reachability signal and is not what this component reads.
+is not a usable reachability signal and is not what this component reads. Repointing
+`daemonchecker` at this socket, so the Agent has a single reachability primitive, is
+a follow-up: it flips the reported state on every Linux host that runs the installer,
+which deserves its own change.
 
 A host without a running installer daemon is the normal case, not an error. The
 component never fails and never omits the payload: it reports

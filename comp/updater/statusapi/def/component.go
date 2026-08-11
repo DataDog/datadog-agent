@@ -6,13 +6,11 @@
 // Package statusapi is the installer read-only status api component.
 package statusapi
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
-)
-
 // team: fleet windows-products
 
 // Component is the interface for the installer status api component.
-type Component interface {
-	daemon.StatusAPI
-}
+//
+// It is empty on purpose: the component's only job is to run the listener for the
+// lifetime of the daemon, and exposing Start/Stop would let a second caller start it
+// again behind the lifecycle's back.
+type Component interface{}

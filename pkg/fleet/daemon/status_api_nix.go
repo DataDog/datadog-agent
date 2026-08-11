@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -39,24 +38,15 @@ var umaskMu sync.Mutex
 // The daemon runs as root while the Agent runs as dd-agent, so — unlike the
 // local API's 0700 socket — this one has to be reachable by the Agent user.
 func NewStatusAPI(daemon Daemon) (StatusAPI, error) {
-	return newStatusAPI(daemon, statusSocketPath())
+	listener, err := listenStatusSocket(statusSocketPath())
+	if err != nil {
+		return nil, err
+	}
+	return newStatusAPI(daemon, listener), nil
 }
 
 func statusSocketPath() string {
 	return filepath.Join(paths.RunPath, statusSocketName)
-}
-
-func newStatusAPI(daemon statusProvider, socketPath string) (StatusAPI, error) {
-	listener, err := listenStatusSocket(socketPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &statusAPIImpl{
-		server:   &http.Server{},
-		listener: listener,
-		daemon:   daemon,
-	}, nil
 }
 
 // listenStatusSocket binds the status socket and opens it to the Agent user's group.
@@ -76,6 +66,11 @@ func newStatusAPI(daemon statusProvider, socketPath string) (StatusAPI, error) {
 //     alternative: fchmod on a socket fd fails with EINVAL.
 //   - The group is set with Lchown, which does not follow symlinks, and only the
 //     group changes so the socket stays owned by root.
+//
+// The alternative that would remove the umask swap altogether is to move the socket
+// into a directory dd-agent cannot write to, which makes the plain chmod recipe safe
+// again. That is a packaging change (and a change to a path we are about to
+// document), so it is deliberately not done here.
 func listenStatusSocket(socketPath string) (net.Listener, error) {
 	if err := os.RemoveAll(socketPath); err != nil {
 		return nil, fmt.Errorf("could not remove existing status socket: %w", err)
@@ -86,14 +81,9 @@ func listenStatusSocket(socketPath string) (net.Listener, error) {
 		return nil, err
 	}
 
-	perms, err := filesystem.NewPermission()
-	if err != nil {
-		listener.Close()
-		return nil, err
-	}
 	// A no-op when the Agent user does not exist, which is the right behaviour on a
 	// host running the installer without an Agent.
-	if err := perms.RestrictGroupAccessNoFollow(socketPath); err != nil {
+	if err := filesystem.SetAgentGroupOwnerNoFollow(socketPath); err != nil {
 		listener.Close()
 		return nil, fmt.Errorf("error setting status socket group: %w", err)
 	}
@@ -101,7 +91,8 @@ func listenStatusSocket(socketPath string) (net.Listener, error) {
 	return listener, nil
 }
 
-// listenWithMode binds a unix socket with the given mode, set at creation time.
+// listenWithMode binds a unix socket with the given mode, set at creation time
+// because chmod'ing it afterwards by path is unsafe — see listenStatusSocket.
 func listenWithMode(socketPath string, mode os.FileMode) (net.Listener, error) {
 	umaskMu.Lock()
 	defer umaskMu.Unlock()
@@ -117,15 +108,6 @@ func NewStatusAPIClient() StatusAPIClient {
 	return newStatusAPIClient(statusSocketPath())
 }
 
-func newStatusAPIClient(socketPath string) StatusAPIClient {
-	return &statusAPIClientImpl{
-		client: &http.Client{
-			Timeout: statusClientTimeout,
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-					return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
-				},
-			},
-		},
-	}
+func dialStatus(ctx context.Context, socketPath string) (net.Conn, error) {
+	return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
 }

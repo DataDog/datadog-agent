@@ -28,42 +28,27 @@ type Provides struct {
 	Comp statusapi.Component
 }
 
-// component owns the read-only status listener. The listener is optional: api is
-// nil when it could not be created.
-type component struct {
-	updater updatercomp.Component
-	api     daemon.StatusAPI
-}
+// nopStatusAPI stands in when the listener could not be created, so that the
+// lifecycle hook stays unconditional.
+type nopStatusAPI struct{}
+
+func (nopStatusAPI) Start(context.Context) error { return nil }
+func (nopStatusAPI) Stop(context.Context) error  { return nil }
 
 // NewComponent creates a new installer status api component.
-func NewComponent(reqs Requires) Provides {
-	c := &component{updater: reqs.Updater}
-	reqs.Lifecycle.Append(compdef.Hook{OnStart: c.Start, OnStop: c.Stop})
-	return Provides{Comp: c}
-}
-
-// Start creates the status listener and serves it.
 //
-// A failure is logged and swallowed rather than returned: this listener only feeds
-// host metadata, while the daemon it belongs to applies remote upgrades. Failing
-// construction would trade a missing metadata payload for a host that no longer
-// takes upgrades at all — and the socket lives in a directory the Agent user can
-// write to, so an unprivileged process has some influence over whether the bind
-// succeeds.
-func (c *component) Start(ctx context.Context) error {
-	api, err := daemon.NewStatusAPI(c.updater)
+// A listener that cannot be created is logged and swallowed rather than returned:
+// this listener only feeds host metadata, while the daemon it belongs to applies
+// remote upgrades. Failing here would trade a missing metadata payload for a host
+// that no longer takes upgrades at all — and the socket lives in a directory the
+// Agent user can write to, so an unprivileged process has some influence over
+// whether the bind succeeds.
+func NewComponent(reqs Requires) Provides {
+	api, err := daemon.NewStatusAPI(reqs.Updater)
 	if err != nil {
-		log.Errorf("Could not start the installer status API, installer metadata will report the installer as unreachable: %v", err)
-		return nil
+		log.Errorf("Could not create the installer status API, installer metadata will report the installer as unreachable: %v", err)
+		api = nopStatusAPI{}
 	}
-	c.api = api
-	return api.Start(ctx)
-}
-
-// Stop stops the status listener if it was started.
-func (c *component) Stop(ctx context.Context) error {
-	if c.api == nil {
-		return nil
-	}
-	return c.api.Stop(ctx)
+	reqs.Lifecycle.Append(compdef.Hook{OnStart: api.Start, OnStop: api.Stop})
+	return Provides{Comp: api}
 }

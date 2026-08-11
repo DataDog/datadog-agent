@@ -7,23 +7,18 @@
 package fx
 
 import (
-	uberfx "go.uber.org/fx"
-
-	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	statusapiimpl "github.com/DataDog/datadog-agent/comp/updater/statusapi/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
+//
+// Nothing depends on this component, so the main that includes this module has to
+// force its instantiation with an fx.Invoke, the way it already does for localapi.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			statusapiimpl.NewComponent,
 		),
-
-		// Nothing depends on statusapi and fx only instantiates components when they're
-		// needed, so a dummy invoke is required to force its instantiation. Without it,
-		// adding 'statusapifx.Module()' to a main would silently do nothing.
-		uberfx.Invoke(func(_ statusapi.Component) {}),
 	)
 }

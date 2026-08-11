@@ -24,6 +24,10 @@ const (
 	// unreachable is better than blocking the collection.
 	statusClientTimeout = 5 * time.Second
 
+	// statusServerReadTimeout bounds how long a client can take to send its request
+	// headers, so a connection that opens and then goes quiet cannot pin a goroutine.
+	statusServerReadTimeout = 10 * time.Second
+
 	// statusMaxResponseSize bounds how much we are willing to decode from the daemon.
 	statusMaxResponseSize = 1 << 20
 )
@@ -67,6 +71,19 @@ type statusAPIImpl struct {
 	server   *http.Server
 }
 
+// newStatusAPI wraps an already-permissioned listener. The listener is what differs
+// between platforms; everything below it does not.
+func newStatusAPI(daemon statusProvider, listener net.Listener) StatusAPI {
+	return &statusAPIImpl{
+		daemon:   daemon,
+		listener: listener,
+		server: &http.Server{
+			ReadHeaderTimeout: statusServerReadTimeout,
+			IdleTimeout:       statusServerReadTimeout,
+		},
+	}
+}
+
 // Start starts the StatusAPI.
 func (s *statusAPIImpl) Start(_ context.Context) error {
 	s.server.Handler = s.handler()
@@ -100,15 +117,31 @@ func (s *statusAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 
 // StatusAPIClient reads the daemon's read-only status API.
 //
-// Unlike LocalAPIClient this takes a context: its caller is the Agent's metadata
-// collector rather than a CLI command, so it needs to bound the request with its
-// own deadline instead of inheriting the client's.
+// Every request is bounded by statusClientTimeout; the context is there for a
+// caller that wants to give up sooner, not to supply the deadline.
 type StatusAPIClient interface {
 	Status(ctx context.Context) (StatusAPIResponse, error)
 }
 
 type statusAPIClientImpl struct {
 	client *http.Client
+}
+
+// newStatusAPIClient builds a client over the platform's status transport. Keep-alive
+// is off: the only caller polls once every few minutes, so a pooled connection would
+// sit idle holding an fd and a read loop on both ends for nothing.
+func newStatusAPIClient(path string) StatusAPIClient {
+	return &statusAPIClientImpl{
+		client: &http.Client{
+			Timeout: statusClientTimeout,
+			Transport: &http.Transport{
+				DisableKeepAlives: true,
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return dialStatus(ctx, path)
+				},
+			},
+		},
+	}
 }
 
 // Status returns the current status of the installer daemon.
