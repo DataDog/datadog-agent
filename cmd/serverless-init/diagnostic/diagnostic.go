@@ -38,17 +38,17 @@ var secretKeywords = []string{"API_KEY", "SECRET", "PASSWORD", "TOKEN"}
 // description shown alongside the value in diagnostic output.
 var envDescriptions = map[string]string{
 	// Datadog configuration
-	"DD_API_KEY":                          "Datadog API key (masked)",
-	"DD_SITE":                             "Datadog intake site (e.g. datadoghq.com, datadoghq.eu)",
-	"DD_SERVICE":                          "Service name used for tagging all telemetry",
-	"DD_ENV":                              "Deployment environment tag (dev/staging/prod)",
-	"DD_VERSION":                          "App version tag for deployments",
-	"DD_LOGS_ENABLED":                     "Enable log collection and forwarding to Datadog",
-	"DD_APM_ENABLED":                      "Enable APM trace collection",
-	"DD_TRACE_ENABLED":                    "Enable distributed tracing via ddtrace",
-	"DD_HOSTNAME":                         "Override the hostname reported to Datadog",
-	"DD_REMOTE_CONFIGURATION_ENABLED":     "Enable Remote Configuration (live config updates from Datadog UI)",
-	"DD_SERVERLESS_DIAGNOSTIC_INFO":       "Enable this diagnostic output on startup",
+	"DD_API_KEY":                           "Datadog API key (masked)",
+	"DD_SITE":                              "Datadog intake site (e.g. datadoghq.com, datadoghq.eu)",
+	"DD_SERVICE":                           "Service name used for tagging all telemetry",
+	"DD_ENV":                               "Deployment environment tag (dev/staging/prod)",
+	"DD_VERSION":                           "App version tag for deployments",
+	"DD_LOGS_ENABLED":                      "Enable log collection and forwarding to Datadog",
+	"DD_APM_ENABLED":                       "Enable APM trace collection",
+	"DD_TRACE_ENABLED":                     "Enable distributed tracing via ddtrace",
+	"DD_HOSTNAME":                          "Override the hostname reported to Datadog",
+	"DD_REMOTE_CONFIGURATION_ENABLED":      "Enable Remote Configuration (live config updates from Datadog UI)",
+	"DD_SERVERLESS_DIAGNOSTIC_INFO":        "Enable this diagnostic output on startup",
 	"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "Send ddtrace instrumentation telemetry to Datadog",
 	// Cloud Run platform
 	"K_SERVICE":                 "Cloud Run service name",
