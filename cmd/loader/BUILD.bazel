@@ -14,7 +14,7 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_files(
     name = "trace_loader_all_files",
     # Temporary: Point to prebuilt trace_loader. When we can stamp module deps
-    # in the file, swap to :next_loader and rename that as trace-loader.
+    # in the file, swap to :loader and rename that as trace-loader.
     srcs = select({
         "//packages/agent:linux_default": [
             "@trace_loader_binary//:trace_loader",
@@ -114,9 +114,9 @@ go_library(
     }),
 )
 
-# This is what we will use in the
+# TODO(ABLD-294): Rename to trace-loader and use this instead of @trace_loader_binary//:trace_loader
 dd_agent_go_binary(
-    name = "next_loader",
+    name = "loader",
     embed = [":loader_lib"],
     # LOADER_TAGS is actually empty. We're including it to keep a consistent style.
     exact_gotags = list(LOADER_TAGS) + select({
