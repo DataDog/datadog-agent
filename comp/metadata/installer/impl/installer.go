@@ -20,7 +20,7 @@ import (
 	installer "github.com/DataDog/datadog-agent/comp/metadata/installer/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
-	installerstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -37,8 +37,8 @@ const (
 )
 
 // for testing
-var fetchInstallerStatus = func(ctx context.Context) (*installerstatus.Response, error) {
-	return installerstatus.NewClient(installerstatus.Address()).Status(ctx)
+var fetchInstallerStatus = func(ctx context.Context) (daemon.StatusAPIResponse, error) {
+	return daemon.NewStatusAPIClient().Status(ctx)
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload

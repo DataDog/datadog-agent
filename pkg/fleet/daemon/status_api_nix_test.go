@@ -17,15 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	daemonstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type testStatusProvider struct {
-	response daemonstatus.Response
+	response StatusAPIResponse
 }
 
-func (t *testStatusProvider) GetStatus() daemonstatus.Response {
+func (t *testStatusProvider) GetStatus() StatusAPIResponse {
 	return t.response
 }
 
@@ -42,7 +41,7 @@ func tempSocketPath(t *testing.T) string {
 	return filepath.Join(dir, "s.sock")
 }
 
-func startTestStatusAPI(t *testing.T, response daemonstatus.Response) string {
+func startTestStatusAPI(t *testing.T, response StatusAPIResponse) string {
 	t.Helper()
 
 	socketPath := tempSocketPath(t)
@@ -56,12 +55,12 @@ func startTestStatusAPI(t *testing.T, response daemonstatus.Response) string {
 
 func TestStatusAPIRoundTrip(t *testing.T) {
 	diskSpace := uint64(12884901888)
-	socketPath := startTestStatusAPI(t, daemonstatus.Response{
+	socketPath := startTestStatusAPI(t, StatusAPIResponse{
 		InstallerVersion:   version.AgentVersion,
 		AvailableDiskSpace: &diskSpace,
 	})
 
-	response, err := daemonstatus.NewClient(socketPath).Status(context.Background())
+	response, err := newStatusAPIClient(socketPath).Status(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, version.AgentVersion, response.InstallerVersion)
 	require.NotNil(t, response.AvailableDiskSpace)
@@ -71,9 +70,9 @@ func TestStatusAPIRoundTrip(t *testing.T) {
 // A daemon that could not determine the free space must leave the field unset
 // rather than report 0, which would read as a full disk.
 func TestStatusAPIOmitsUnknownDiskSpace(t *testing.T) {
-	socketPath := startTestStatusAPI(t, daemonstatus.Response{InstallerVersion: "7.76.0"})
+	socketPath := startTestStatusAPI(t, StatusAPIResponse{InstallerVersion: "7.76.0"})
 
-	response, err := daemonstatus.NewClient(socketPath).Status(context.Background())
+	response, err := newStatusAPIClient(socketPath).Status(context.Background())
 	require.NoError(t, err)
 	assert.Nil(t, response.AvailableDiskSpace)
 }
@@ -82,7 +81,7 @@ func TestStatusAPIOmitsUnknownDiskSpace(t *testing.T) {
 // unlike the daemon's 0700 local API. If the mode regresses the Agent silently
 // starts reporting the installer as unreachable, so pin it.
 func TestStatusAPISocketPermissions(t *testing.T) {
-	socketPath := startTestStatusAPI(t, daemonstatus.Response{})
+	socketPath := startTestStatusAPI(t, StatusAPIResponse{})
 
 	info, err := os.Stat(socketPath)
 	require.NoError(t, err)

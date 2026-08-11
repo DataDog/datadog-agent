@@ -22,7 +22,6 @@ go_library(
         "//pkg/config/remote/client",
         "//pkg/config/utils",
         "//pkg/fips",
-        "//pkg/fleet/daemon/status",
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/bootstrap",
         "//pkg/fleet/installer/config",
@@ -105,7 +104,6 @@ dd_agent_go_test(
     ],
     embed = [":daemon"],
     deps = [
-        "//pkg/fleet/daemon/status",
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",

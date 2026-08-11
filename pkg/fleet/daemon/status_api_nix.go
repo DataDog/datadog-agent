@@ -8,13 +8,19 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 
-	daemonstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+)
+
+const (
+	statusSocketName = "installer-status.sock"
 )
 
 // NewStatusAPI returns a new StatusAPI.
@@ -26,7 +32,11 @@ import (
 // socket to dd-agent (_dd-agent on macOS). That call is a no-op when the Agent
 // user does not exist, which is the right behaviour on an installer-only host.
 func NewStatusAPI(daemon Daemon) (StatusAPI, error) {
-	return newStatusAPI(daemon, daemonstatus.Address())
+	return newStatusAPI(daemon, statusSocketPath())
+}
+
+func statusSocketPath() string {
+	return filepath.Join(paths.RunPath, statusSocketName)
 }
 
 func newStatusAPI(daemon statusProvider, socketPath string) (StatusAPI, error) {
@@ -60,4 +70,22 @@ func newStatusAPI(daemon statusProvider, socketPath string) (StatusAPI, error) {
 		listener: listener,
 		daemon:   daemon,
 	}, nil
+}
+
+// NewStatusAPIClient returns a new StatusAPIClient.
+func NewStatusAPIClient() StatusAPIClient {
+	return newStatusAPIClient(statusSocketPath())
+}
+
+func newStatusAPIClient(socketPath string) StatusAPIClient {
+	return &statusAPIClientImpl{
+		client: &http.Client{
+			Timeout: statusClientTimeout,
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
+				},
+			},
+		},
+	}
 }

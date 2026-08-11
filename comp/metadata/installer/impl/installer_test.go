@@ -21,15 +21,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	installerstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
-func setupFetcher(t *testing.T, response *installerstatus.Response, err error) {
+func setupFetcher(t *testing.T, response daemon.StatusAPIResponse, err error) {
 	original := fetchInstallerStatus
 	t.Cleanup(func() { fetchInstallerStatus = original })
 
-	fetchInstallerStatus = func(_ context.Context) (*installerstatus.Response, error) {
+	fetchInstallerStatus = func(_ context.Context) (daemon.StatusAPIResponse, error) {
 		return response, err
 	}
 }
@@ -50,7 +50,7 @@ func getInstallerComp(t *testing.T) *inst {
 
 func TestGetPayload(t *testing.T) {
 	diskSpace := uint64(12884901888)
-	setupFetcher(t, &installerstatus.Response{
+	setupFetcher(t, daemon.StatusAPIResponse{
 		InstallerVersion:   "7.76.0",
 		AvailableDiskSpace: &diskSpace,
 	}, nil)
@@ -73,7 +73,7 @@ func TestGetPayload(t *testing.T) {
 // payload must still be produced: returning nil would make the inventory runner skip
 // the submission entirely, which loses the absence signal.
 func TestGetPayloadInstallerUnreachable(t *testing.T) {
-	setupFetcher(t, nil, errors.New("dial unix: no such file or directory"))
+	setupFetcher(t, daemon.StatusAPIResponse{}, errors.New("dial unix: no such file or directory"))
 
 	p := getInstallerComp(t).getPayload()
 	require.NotNil(t, p)
@@ -88,7 +88,7 @@ func TestGetPayloadInstallerUnreachable(t *testing.T) {
 // The daemon leaves available_disk_space unset when it cannot determine it. Reporting
 // it as 0 would read as "disk full", which is a different fact entirely.
 func TestGetPayloadUnknownDiskSpace(t *testing.T) {
-	setupFetcher(t, &installerstatus.Response{InstallerVersion: "7.76.0"}, nil)
+	setupFetcher(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
 
 	p := getInstallerComp(t).getPayload().(*Payload)
 
@@ -103,7 +103,7 @@ func TestGetPayloadUnknownDiskSpace(t *testing.T) {
 // The backend routes /api/v1/metadata on the top-level JSON key, so renaming it
 // silently drops the payload.
 func TestPayloadTopLevelKey(t *testing.T) {
-	setupFetcher(t, &installerstatus.Response{InstallerVersion: "7.76.0"}, nil)
+	setupFetcher(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
 
 	raw, err := json.Marshal(getInstallerComp(t).getPayload())
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestPayloadTopLevelKey(t *testing.T) {
 
 func TestWritePayload(t *testing.T) {
 	diskSpace := uint64(12884901888)
-	setupFetcher(t, &installerstatus.Response{
+	setupFetcher(t, daemon.StatusAPIResponse{
 		InstallerVersion:   "7.76.0",
 		AvailableDiskSpace: &diskSpace,
 	}, nil)

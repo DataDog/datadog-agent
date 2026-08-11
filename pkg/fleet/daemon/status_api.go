@@ -8,12 +8,24 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/middleware"
-	daemonstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// statusClientTimeout bounds a single status request. The caller is a metadata
+	// collector on a timer, so failing fast and reporting the installer as
+	// unreachable is better than blocking the collection.
+	statusClientTimeout = 5 * time.Second
+
+	// statusMaxResponseSize bounds how much we are willing to decode from the daemon.
+	statusMaxResponseSize = 1 << 20
 )
 
 // StatusAPI is the read-only API the daemon exposes to the Agent user.
@@ -28,11 +40,25 @@ type StatusAPI interface {
 	Stop(context.Context) error
 }
 
+// StatusAPIResponse is the payload returned by the status API.
+//
+// Only add non-sensitive, read-only fields here: this is served over a socket
+// the Agent user can read.
+type StatusAPIResponse struct {
+	// InstallerVersion is the version of the running installer daemon.
+	InstallerVersion string `json:"installer_version"`
+	// AvailableDiskSpace is the free space, in bytes, on the partition holding
+	// the packages directory. It is nil when the daemon could not determine it —
+	// distinguishing "unknown" from a genuine zero matters, because zero free
+	// bytes is a real precondition failure.
+	AvailableDiskSpace *uint64 `json:"available_disk_space,omitempty"`
+}
+
 // statusProvider is the slice of the daemon the status API is allowed to reach.
 // Narrowing it here keeps the privileged parts of Daemon out of reach of a
 // listener the Agent user can talk to.
 type statusProvider interface {
-	GetStatus() daemonstatus.Response
+	GetStatus() StatusAPIResponse
 }
 
 type statusAPIImpl struct {
@@ -70,4 +96,40 @@ func (s *statusAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	if err := json.NewEncoder(w).Encode(s.daemon.GetStatus()); err != nil {
 		log.Warnf("could not write installer status response: %v", err)
 	}
+}
+
+// StatusAPIClient reads the daemon's read-only status API.
+//
+// Unlike LocalAPIClient this takes a context: its caller is the Agent's metadata
+// runner rather than a CLI command, so the collection needs to be cancellable.
+type StatusAPIClient interface {
+	Status(ctx context.Context) (StatusAPIResponse, error)
+}
+
+type statusAPIClientImpl struct {
+	client *http.Client
+}
+
+// Status returns the current status of the installer daemon.
+func (c *statusAPIClientImpl) Status(ctx context.Context) (StatusAPIResponse, error) {
+	var response StatusAPIResponse
+	// The host part is meaningless over a unix socket / named pipe.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://installer/status", nil)
+	if err != nil {
+		return response, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return response, fmt.Errorf("installer status API returned %s", resp.Status)
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, statusMaxResponseSize)).Decode(&response); err != nil {
+		return response, fmt.Errorf("could not decode installer status: %w", err)
+	}
+	return response, nil
 }

@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
-	daemonstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -81,7 +80,7 @@ type Daemon interface {
 	GetState(ctx context.Context) (map[string]PackageState, error)
 	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
-	GetStatus() daemonstatus.Response
+	GetStatus() StatusAPIResponse
 }
 
 type daemonImpl struct {
@@ -249,8 +248,8 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 // a busy installer look unreachable. Nothing read here needs it: d.env and
 // d.installer are set once in newDaemon and never reassigned, and
 // AvailableDiskSpace is a statfs with no shared state.
-func (d *daemonImpl) GetStatus() daemonstatus.Response {
-	response := daemonstatus.Response{
+func (d *daemonImpl) GetStatus() StatusAPIResponse {
+	response := StatusAPIResponse{
 		InstallerVersion: version.AgentVersion,
 	}
 	availableDiskSpace, err := d.installer(d.env).AvailableDiskSpace()

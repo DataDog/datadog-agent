@@ -8,20 +8,23 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
 	"github.com/Microsoft/go-winio"
 
-	daemonstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
+	statusNamedPipePath = `\\.\pipe\DD_INSTALLER_STATUS`
+
 	// DACL template for the status named pipe, allowing ddagentuser to read it.
 	// SE_DACL_PROTECTED (P), SE_DACL_AUTO_INHERITED (AI)
 	// Allow Administrators (BA), Local System (SY)
@@ -71,7 +74,7 @@ func NewStatusAPI(daemon Daemon) (StatusAPI, error) {
 	if err := paths.IsInstallerDataDirSecure(); err != nil {
 		return nil, err
 	}
-	return newStatusAPI(daemon, daemonstatus.Address())
+	return newStatusAPI(daemon, statusNamedPipePath)
 }
 
 func newStatusAPI(daemon statusProvider, namedPipePath string) (StatusAPI, error) {
@@ -97,4 +100,22 @@ func newStatusAPI(daemon statusProvider, namedPipePath string) (StatusAPI, error
 		listener: listener,
 		daemon:   daemon,
 	}, nil
+}
+
+// NewStatusAPIClient returns a new StatusAPIClient.
+func NewStatusAPIClient() StatusAPIClient {
+	return newStatusAPIClient(statusNamedPipePath)
+}
+
+func newStatusAPIClient(namedPipePath string) StatusAPIClient {
+	return &statusAPIClientImpl{
+		client: &http.Client{
+			Timeout: statusClientTimeout,
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return winio.DialPipeContext(ctx, namedPipePath)
+				},
+			},
+		},
+	}
 }

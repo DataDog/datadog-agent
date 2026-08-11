@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	daemonstatus "github.com/DataDog/datadog-agent/pkg/fleet/daemon/status"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -94,9 +93,9 @@ func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
 	return args.Get(0).(APMInjectionStatus), args.Error(1)
 }
 
-func (m *testDaemon) GetStatus() daemonstatus.Response {
+func (m *testDaemon) GetStatus() StatusAPIResponse {
 	args := m.Called()
-	return args.Get(0).(daemonstatus.Response)
+	return args.Get(0).(StatusAPIResponse)
 }
 
 func (m *testDaemon) SetCatalog(catalog catalog) {
