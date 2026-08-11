@@ -478,6 +478,8 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 						Namespace:       item.GetNamespace(),
 						UID:             item.GetUID(),
 						ResourceVersion: item.GetResourceVersion(),
+						Labels:          item.GetLabels(),
+						Annotations:     item.GetAnnotations(),
 					},
 				})
 			}
@@ -506,6 +508,8 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 						Namespace:       partialObject.GetNamespace(),
 						UID:             partialObject.GetUID(),
 						ResourceVersion: partialObject.GetResourceVersion(),
+						Labels:          partialObject.GetLabels(),
+						Annotations:     partialObject.GetAnnotations(),
 					},
 				}
 

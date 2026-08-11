@@ -1,0 +1,88 @@
+# A wrapper script that execs the real service keeps its pid and its start time,
+# so the scanner sees one process throughout and the executable it is running
+# changes underneath. Nothing about the wrapper is allowed to be a verdict on the
+# service it becomes.
+#
+# Removing and recreating a process at the same pid and start time is how this
+# timeline models the exec.
+#
+# The exec does not reset the schedule, so the service waits out whatever backoff
+# the wrapper accumulated. That bounds how late discovery can be at the cap
+# rather than at the life of the process.
+- !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 100
+  executable: {path: "/bin/sh", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "wrapped-service"}
+# Three looks at the wrapper, each one finding a binary that is not Go.
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+- !advance-time {to: 130}
+- !scan {}
+# The entrypoint finishes its setup and execs the service.
+- !remove-process {pid: 1001}
+- !create-process
+  pid: 1001
+  start_time: 100
+  executable: {path: "/usr/bin/svc", ino: 8}
+  metadata_available_at: 140
+  tracer_metadata: {language: "go", service: "wrapped-service"}
+# The next look due resolves the new executable and discovers the service.
+- !advance-time {to: 170}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 100
+  executable: {path: "/bin/sh", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "wrapped-service"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 100, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 100, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 130}
+---
+command: !scan {}
+state:
+  current_time: 130
+  candidates: [{pid: 1001, start_time: 100, attempts: 3, next_attempt: 170}]
+  processes_in_procfs: [1001]
+---
+command: !remove-process {pid: 1001}
+---
+command: !create-process
+  pid: 1001
+  start_time: 100
+  executable: {path: "/usr/bin/svc", ino: 8}
+  metadata_available_at: 140
+  tracer_metadata: {language: "go", service: "wrapped-service"}
+---
+command: !advance-time {to: 170}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 100}]
+state:
+  current_time: 170
+  live: [{pid: 1001, start_time: 100}]
+  processes_in_procfs: [1001]
