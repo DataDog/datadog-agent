@@ -80,7 +80,8 @@ common:windows --repo_env=PIP_CACHE_DIR # https://pip.pypa.io/en/stable/topics/c
 common:windows --repo_env=SYSTEMDRIVE # needed by vswhere to locate the VS installer instance database
 common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed by vswhere
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
-common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
+common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel; MSBuild-only
+common:windows --repo_env=BAZEL_TOOLCHAINS_MSVC_ACCEPT_MICROSOFT_VISUAL_STUDIO_BUILDTOOLS_EULA=1 # @toolchains_msvc
 common:windows --run_env=__COMPAT_LAYER=RunAsInvoker # install*.exe may otherwise fail claiming unneeded admin elevation
 common:windows --test_env=__COMPAT_LAYER=RunAsInvoker # same, for bazel test
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
