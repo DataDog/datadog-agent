@@ -57,7 +57,7 @@ func validateIdentifier(kind, name string) error {
 // resolves to the expected module, then invokes the resolved command object
 // itself — so it runs exactly what was validated, not whatever the name might
 // re-resolve to (e.g. a shadowing function from an untrusted module).
-func buildCommand(cmdlet, module string, filters []filterEntry, selectProps []string) (string, error) {
+func buildCommand(cmdlet, module string, params []parameterEntry, selectProps []string) (string, error) {
 	if err := validateGetCmdletName(cmdlet); err != nil {
 		return "", err
 	}
@@ -86,18 +86,18 @@ func buildCommand(cmdlet, module string, filters []filterEntry, selectProps []st
 
 	// Build the splat table. Keys are validated identifiers; values are safe literals.
 	b.WriteString("$p = @{")
-	for i := range filters {
-		if err := validateIdentifier("parameter", filters[i].Name); err != nil {
+	for i := range params {
+		if err := validateIdentifier("parameter", params[i].Name); err != nil {
 			return "", err
 		}
-		lit, err := powershellLiteral(filters[i].Value)
+		lit, err := powershellLiteral(params[i].Value)
 		if err != nil {
-			return "", fmt.Errorf("filter %q: %w", filters[i].Name, err)
+			return "", fmt.Errorf("parameter %q: %w", params[i].Name, err)
 		}
 		if i > 0 {
 			b.WriteString("; ")
 		}
-		fmt.Fprintf(&b, "%s = %s", filters[i].Name, lit)
+		fmt.Fprintf(&b, "%s = %s", params[i].Name, lit)
 	}
 	b.WriteString("}\n")
 

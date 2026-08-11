@@ -23,7 +23,7 @@
 #   ##                                 # function). Must match (Get-Command <cmdlet>).ModuleName.
 #   ##                                 # Use "*" to explicitly skip the module check.
 #   ##       parameters:               # optional; the parameters an instance may pass
-#   ##         <ParameterName>:        # parameter name ([A-Za-z0-9_]); an instance `filter`
+#   ##         <ParameterName>:        # parameter name ([A-Za-z0-9_]); an instance `parameters` entry
 #   ##           required: <bool>      # optional (default false); instance must pass it
 #   ##           allowed_values:       # optional; exact-match whitelist of values
 #   ##             - <value1>
@@ -32,7 +32,7 @@
 #   ##
 #   ## Rules enforced at configure time (any violation fails the instance closed):
 #   ##   - An instance's `cmdlet` must be a key under `allowed_cmdlets`.
-#   ##   - Every parameter an instance passes via `filters` must be declared under
+#   ##   - Every parameter an instance passes via `parameters` must be declared under
 #   ##     that cmdlet's `parameters`; undeclared parameters are rejected.
 #   ##   - A parameter value must satisfy `allowed_values` (if set) OR `pattern` (if
 #   ##     set). `allowed_values` takes precedence; if neither is set, any value is
@@ -78,12 +78,12 @@
 #     #
 #     name: windows_service
 #
-#     ## @param filters - list - optional
+#     ## @param parameters - list - optional
 #     ## Named cmdlet parameters, bound as data (never interpolated). Each entry is
 #     ## either a [Name, Value] tuple or a {name: ..., value: ...} mapping. Every
 #     ## parameter and value must be permitted by the allowlist.
 #     #
-#     filters:
+#     parameters:
 #       - [Name, Dnscache]
 #
 #     ## @param metrics - list - required

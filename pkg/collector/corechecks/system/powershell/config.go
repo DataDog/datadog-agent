@@ -96,25 +96,25 @@ func (m *metricEntry) isVirtual() bool {
 	return m.Property == "1"
 }
 
-// filterEntry is a cmdlet named parameter and its value. It is bound (splatted)
+// parameterEntry is a cmdlet named parameter and its value. It is bound (splatted)
 // to the cmdlet as data, never interpolated into the command text.
 //
 // Accepts [Name, Value] or {name: Name, value: Value}.
-type filterEntry struct {
+type parameterEntry struct {
 	Name  string
 	Value interface{}
 }
 
 // UnmarshalYAML implements dual (positional tuple / mapping) parsing.
-func (f *filterEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p *parameterEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var seq []interface{}
 	if err := unmarshal(&seq); err == nil && len(seq) > 0 {
 		if len(seq) != 2 {
-			return fmt.Errorf("filter tuple must be [Name, Value], got %d elements", len(seq))
+			return fmt.Errorf("parameter tuple must be [Name, Value], got %d elements", len(seq))
 		}
-		f.Name = scalarToString(seq[0])
-		f.Value = seq[1]
-		return f.finalize()
+		p.Name = scalarToString(seq[0])
+		p.Value = seq[1]
+		return p.finalize()
 	}
 
 	var mp struct {
@@ -124,23 +124,23 @@ func (f *filterEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&mp); err != nil {
 		return err
 	}
-	f.Name = mp.Name
-	f.Value = mp.Value
-	return f.finalize()
+	p.Name = mp.Name
+	p.Value = mp.Value
+	return p.finalize()
 }
 
-func (f *filterEntry) finalize() error {
-	if f.Name == "" {
-		return errors.New("filter is missing a parameter name")
+func (p *parameterEntry) finalize() error {
+	if p.Name == "" {
+		return errors.New("parameter entry is missing a name")
 	}
 	// Values must be scalars. A value is validated against the allowlist as a
 	// string (scalarToString) and encoded into the command as a literal
 	// (powershellLiteral); those two encodings agree only for scalars, so
 	// rejecting lists/maps keeps validate == execute.
-	switch f.Value.(type) {
+	switch p.Value.(type) {
 	case nil, bool, string, int, int64, float64:
 	default:
-		return fmt.Errorf("filter %q value must be a scalar (string, number, or boolean)", f.Name)
+		return fmt.Errorf("parameter %q value must be a scalar (string, number, or boolean)", p.Name)
 	}
 	return nil
 }
@@ -242,14 +242,14 @@ func (q *tagQueryEntry) finalize() error {
 // struct tags drive the reflected validation schema (see schema.go); the entry
 // types supply their own dual-form schema via JSONSchemaBytes.
 type instanceConfig struct {
-	Cmdlet     string          `json:"cmdlet" yaml:"cmdlet" required:"true"`
-	Name       string          `json:"name" yaml:"name"`
-	Filters    []filterEntry   `json:"filters" yaml:"filters"`
-	Metrics    []metricEntry   `json:"metrics" yaml:"metrics" required:"true" minItems:"1"`
-	TagBy      []tagByEntry    `json:"tag_by" yaml:"tag_by"`
-	Tags       []string        `json:"tags" yaml:"tags"`
-	TagQueries []tagQueryEntry `json:"tag_queries" yaml:"tag_queries"`
-	Timeout    int             `json:"timeout" yaml:"timeout"`
+	Cmdlet     string           `json:"cmdlet" yaml:"cmdlet" required:"true"`
+	Name       string           `json:"name" yaml:"name"`
+	Parameters []parameterEntry `json:"parameters" yaml:"parameters"`
+	Metrics    []metricEntry    `json:"metrics" yaml:"metrics" required:"true" minItems:"1"`
+	TagBy      []tagByEntry     `json:"tag_by" yaml:"tag_by"`
+	Tags       []string         `json:"tags" yaml:"tags"`
+	TagQueries []tagQueryEntry  `json:"tag_queries" yaml:"tag_queries"`
+	Timeout    int              `json:"timeout" yaml:"timeout"`
 }
 
 // parseInstanceConfig unmarshals and validates a single instance's YAML.

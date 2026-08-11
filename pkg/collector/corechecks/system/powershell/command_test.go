@@ -17,7 +17,7 @@ import (
 
 func TestBuildCommandBasic(t *testing.T) {
 	script, err := buildCommand("Get-ClusterNode", "",
-		[]filterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
+		[]parameterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
 		[]string{"Id", "Name", "NodeWeight"})
 	require.NoError(t, err)
 
@@ -36,7 +36,7 @@ func TestBuildCommandBasic(t *testing.T) {
 
 func TestBuildCommandModuleCheck(t *testing.T) {
 	script, err := buildCommand("Get-Service", "Microsoft.PowerShell.Management",
-		[]filterEntry{{Name: "Name", Value: "Dnscache"}}, []string{"Status"})
+		[]parameterEntry{{Name: "Name", Value: "Dnscache"}}, []string{"Status"})
 	require.NoError(t, err)
 
 	// The module pin is enforced at runtime against the resolved command.
@@ -57,7 +57,7 @@ func TestBuildCommandModuleWildcardSkipsCheck(t *testing.T) {
 func TestBuildCommandInjectionSafe(t *testing.T) {
 	hostile := `PROD-CL01'; Remove-Item C:\ -Recurse #`
 	script, err := buildCommand("Get-ClusterNode", "",
-		[]filterEntry{{Name: "Cluster", Value: hostile}},
+		[]parameterEntry{{Name: "Cluster", Value: hostile}},
 		nil)
 	require.NoError(t, err)
 
@@ -68,7 +68,7 @@ func TestBuildCommandInjectionSafe(t *testing.T) {
 }
 
 func TestBuildCommandRejectsBadIdentifiers(t *testing.T) {
-	_, err := buildCommand("Get-X", "", []filterEntry{{Name: "Bad Name", Value: "x"}}, nil)
+	_, err := buildCommand("Get-X", "", []parameterEntry{{Name: "Bad Name", Value: "x"}}, nil)
 	assert.Error(t, err)
 
 	_, err = buildCommand("Get-X", "", nil, []string{"Bad Prop"})

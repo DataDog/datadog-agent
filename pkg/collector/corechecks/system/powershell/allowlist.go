@@ -101,7 +101,7 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 // rejects any cmdlet, parameter, or value that policy does not permit — this is
 // the primary enforcement layer.
 func (a *allowlist) validateInstance(inst *instanceConfig) error {
-	if err := a.validateCmdletUse(inst.Cmdlet, inst.Filters); err != nil {
+	if err := a.validateCmdletUse(inst.Cmdlet, inst.Parameters); err != nil {
 		return err
 	}
 	// tag_queries invoke additional cmdlets; those must be allowlisted too.
@@ -114,24 +114,24 @@ func (a *allowlist) validateInstance(inst *instanceConfig) error {
 	return nil
 }
 
-// validateCmdletUse verifies a cmdlet is allowlisted and that the given filters
-// satisfy the policy for that cmdlet.
-func (a *allowlist) validateCmdletUse(cmdlet string, filters []filterEntry) error {
+// validateCmdletUse verifies a cmdlet is allowlisted and that the given
+// parameters satisfy the policy for that cmdlet.
+func (a *allowlist) validateCmdletUse(cmdlet string, params []parameterEntry) error {
 	policy, ok := a.AllowedCmdlets[cmdlet]
 	if !ok {
 		return fmt.Errorf("cmdlet %q is not in the allowlist", cmdlet)
 	}
 
-	provided := make(map[string]struct{}, len(filters))
-	for i := range filters {
-		f := filters[i]
-		provided[f.Name] = struct{}{}
-		p, ok := policy.Parameters[f.Name]
+	provided := make(map[string]struct{}, len(params))
+	for i := range params {
+		entry := params[i]
+		provided[entry.Name] = struct{}{}
+		p, ok := policy.Parameters[entry.Name]
 		if !ok {
-			return fmt.Errorf("parameter %q of cmdlet %q is not permitted by the allowlist", f.Name, cmdlet)
+			return fmt.Errorf("parameter %q of cmdlet %q is not permitted by the allowlist", entry.Name, cmdlet)
 		}
-		if err := p.validateValue(scalarToString(f.Value)); err != nil {
-			return fmt.Errorf("cmdlet %q parameter %q: %w", cmdlet, f.Name, err)
+		if err := p.validateValue(scalarToString(entry.Value)); err != nil {
+			return fmt.Errorf("cmdlet %q parameter %q: %w", cmdlet, entry.Name, err)
 		}
 	}
 

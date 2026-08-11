@@ -59,9 +59,9 @@ func (metricEntry) JSONSchemaBytes() ([]byte, error) {
 }`), nil
 }
 
-// JSONSchemaBytes lets filterEntry accept either a [Name, Value] tuple or a
+// JSONSchemaBytes lets parameterEntry accept either a [Name, Value] tuple or a
 // {name, value} mapping.
-func (filterEntry) JSONSchemaBytes() ([]byte, error) {
+func (parameterEntry) JSONSchemaBytes() ([]byte, error) {
 	return []byte(`{
   "oneOf": [
     { "type": "array", "minItems": 2, "maxItems": 2 },

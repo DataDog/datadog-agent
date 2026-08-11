@@ -107,7 +107,7 @@ func (c *PowershellCheck) Run() error {
 		return err
 	}
 
-	rows, err := c.runCmdlet(c.instance.Cmdlet, c.instance.Filters, c.instance.selectProperties())
+	rows, err := c.runCmdlet(c.instance.Cmdlet, c.instance.Parameters, c.instance.selectProperties())
 	if err != nil {
 		return fmt.Errorf("cmdlet %q failed: %w", c.instance.Cmdlet, err)
 	}
@@ -199,13 +199,13 @@ func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[
 
 // runCmdlet builds the injection-safe command, spawns a one-shot powershell.exe
 // under a timeout with a restricted environment, and parses the JSON output.
-func (c *PowershellCheck) runCmdlet(cmdlet string, filters []filterEntry, selectProps []string) ([]map[string]interface{}, error) {
+func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, selectProps []string) ([]map[string]interface{}, error) {
 	// The allowlist may pin the cmdlet to a module; enforce it at runtime.
 	var module string
 	if c.allowlist != nil {
 		module = c.allowlist.AllowedCmdlets[cmdlet].Module
 	}
-	script, err := buildCommand(cmdlet, module, filters, selectProps)
+	script, err := buildCommand(cmdlet, module, params, selectProps)
 	if err != nil {
 		return nil, err
 	}
