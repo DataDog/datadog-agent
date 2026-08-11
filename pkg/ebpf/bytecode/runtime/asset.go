@@ -366,7 +366,9 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 		if !ok {
 			return false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
 		}
-		if verr := verifyDirComponent(p, info.Mode(), stat.Uid); verr != nil {
+		// index 0 is the leaf output directory, which is held to the stricter
+		// no-group/other-write rule (see verifyDirComponent).
+		if verr := verifyDirComponent(p, info.Mode(), stat.Uid, i == 0); verr != nil {
 			// Reclaim only a real, wrong-owner/permission directory that is below
 			// the sticky boundary, inside the agent's dedicated subtree, and only
 			// as root. info.Mode().IsDir() is false for a symlink or a regular
@@ -426,11 +428,19 @@ func reclaimDirComponent(p string) error {
 // verifyDirComponent enforces the runtime-directory policy on a single path
 // component, described by the mode returned from Lstat and its owning uid: it
 // must be a real (non-symlink) directory owned by root and not writable by other
-// users. A group/other-writable directory is only accepted when the sticky bit
-// is set (as for the default /var/tmp parent). It is kept separate from the
-// filesystem walk above so the policy can be unit-tested with synthetic values,
-// without needing to build a root-owned directory tree.
-func verifyDirComponent(p string, mode os.FileMode, uid uint32) error {
+// users. It is kept separate from the filesystem walk above so the policy can be
+// unit-tested with synthetic values, without needing to build a root-owned
+// directory tree.
+//
+// The group/other-writable-but-sticky exception applies to ancestors only. It
+// exists for the shared parent the default lives under (/var/tmp is 1777), which
+// the agent does not own and cannot expect to tighten. The leaf output directory
+// is different: it is where object files are written and re-read under
+// predictable names, so a group/other-writable leaf would let another user
+// interpose an entry at one of those names between our check and the compiler's
+// write. The leaf must therefore have no group/other write bits regardless of the
+// sticky bit; isLeaf selects that stricter rule.
+func verifyDirComponent(p string, mode os.FileMode, uid uint32, isLeaf bool) error {
 	if mode&os.ModeSymlink != 0 {
 		return fmt.Errorf("refusing to use compiler output directory: %s is a symlink", p)
 	}
@@ -440,8 +450,8 @@ func verifyDirComponent(p string, mode os.FileMode, uid uint32) error {
 	if uid != 0 {
 		return fmt.Errorf("refusing to use compiler output directory: %s is not owned by root (uid=%d)", p, uid)
 	}
-	if mode.Perm()&0022 != 0 && mode&os.ModeSticky == 0 {
-		return fmt.Errorf("refusing to use compiler output directory: %s is writable by non-root and not sticky (mode=%#o)", p, mode.Perm())
+	if mode.Perm()&0022 != 0 && (isLeaf || mode&os.ModeSticky == 0) {
+		return fmt.Errorf("refusing to use compiler output directory: %s is writable by non-root (mode=%#o)", p, mode.Perm())
 	}
 	return nil
 }

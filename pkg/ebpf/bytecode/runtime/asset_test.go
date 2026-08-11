@@ -262,6 +262,52 @@ func TestSecureRuntimeDirRefusesSharedNonDedicatedAncestor(t *testing.T) {
 	require.False(t, hasReclaimedLeftover(t, sticky))
 }
 
+// A group/other-writable leaf output directory inside the agent's own subtree is
+// repaired to 0700, even when it carries the sticky bit (which is tolerated on
+// ancestors but not on the leaf, where object files are written under predictable
+// names).
+func TestSecureRuntimeDirRepairsWritableStickyLeaf(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root")
+	}
+	_, build := stickyParent(t)
+	require.NoError(t, os.MkdirAll(build, 0700))
+	// Pre-existing leaf that is root-owned but sticky + world-writable.
+	require.NoError(t, os.Chmod(build, 0777|os.ModeSticky))
+
+	require.NoError(t, secureRuntimeDir(build))
+	require.Equal(t, uint32(0), dirUID(t, build), "leaf must be root-owned")
+	info, err := os.Lstat(build)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0700), info.Mode().Perm(), "writable leaf must be repaired to 0700")
+	require.Equal(t, os.FileMode(0), info.Mode()&os.ModeSticky, "sticky bit must be gone after repair")
+}
+
+// A root-owned but group/other-writable leaf that is NOT inside the agent's
+// dedicated subtree must be refused (not reclaimed): tightening or deleting a
+// shared/system directory the agent does not own would be destructive, so it
+// fails closed instead.
+func TestSecureRuntimeDirRefusesWritableLeafOutsideSubtree(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root")
+	}
+	// t.TempDir lives under sticky /tmp, so there is a sticky ancestor, but no
+	// component is named datadog-agent.
+	base := filepath.Join(t.TempDir(), "shared")
+	require.NoError(t, os.Mkdir(base, 0755))
+	leaf := filepath.Join(base, "build")
+	require.NoError(t, os.Mkdir(leaf, 0700))
+	require.NoError(t, os.Chmod(leaf, 0777|os.ModeSticky)) // root-owned, sticky, world-writable
+
+	err := secureRuntimeDir(leaf)
+	require.Error(t, err, "a writable leaf outside the dedicated subtree must be refused")
+	info, lerr := os.Lstat(leaf)
+	require.NoError(t, lerr)
+	require.Equal(t, os.FileMode(0777), info.Mode().Perm(), "the leaf must be left untouched, not tightened")
+	require.NotEqual(t, os.FileMode(0), info.Mode()&os.ModeSticky, "the leaf must be left untouched, not reclaimed")
+	require.False(t, hasReclaimedLeftover(t, base))
+}
+
 // verifyDirComponent is the pure policy behind the ancestor walk in
 // secureRuntimeDir. Exercising it directly covers the accept/reject logic
 // regardless of the euid the suite runs under (the filesystem-level test above
@@ -275,20 +321,27 @@ func TestVerifyDirComponent(t *testing.T) {
 		name    string
 		mode    os.FileMode
 		uid     uint32
+		isLeaf  bool
 		wantErr bool
 	}{
-		{"root-owned 0700 dir", os.ModeDir | 0700, rootUID, false},
-		{"root-owned 0755 dir", os.ModeDir | 0755, rootUID, false},
-		{"root-owned sticky 1777 dir (/var/tmp)", os.ModeDir | os.ModeSticky | 0777, rootUID, false},
-		{"symlink", os.ModeSymlink | 0777, rootUID, true},
-		{"regular file", 0644, rootUID, true},
-		{"non-root-owned dir", os.ModeDir | 0700, nonRootUID, true},
-		{"group-writable dir without sticky", os.ModeDir | 0770, rootUID, true},
-		{"world-writable dir without sticky", os.ModeDir | 0777, rootUID, true},
+		{"root-owned 0700 dir", os.ModeDir | 0700, rootUID, false, false},
+		{"root-owned 0755 dir", os.ModeDir | 0755, rootUID, false, false},
+		{"root-owned sticky 1777 dir (/var/tmp)", os.ModeDir | os.ModeSticky | 0777, rootUID, false, false},
+		{"symlink", os.ModeSymlink | 0777, rootUID, false, true},
+		{"regular file", 0644, rootUID, false, true},
+		{"non-root-owned dir", os.ModeDir | 0700, nonRootUID, false, true},
+		{"group-writable dir without sticky", os.ModeDir | 0770, rootUID, false, true},
+		{"world-writable dir without sticky", os.ModeDir | 0777, rootUID, false, true},
+		// The leaf output directory is held to a stricter rule: no group/other
+		// write bits even when the sticky bit is set.
+		{"leaf root-owned 0700 dir", os.ModeDir | 0700, rootUID, true, false},
+		{"leaf root-owned 0755 dir", os.ModeDir | 0755, rootUID, true, false},
+		{"leaf sticky 1777 dir", os.ModeDir | os.ModeSticky | 0777, rootUID, true, true},
+		{"leaf group-writable sticky dir", os.ModeDir | os.ModeSticky | 0770, rootUID, true, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := verifyDirComponent("/some/path", tc.mode, tc.uid)
+			err := verifyDirComponent("/some/path", tc.mode, tc.uid, tc.isLeaf)
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {
