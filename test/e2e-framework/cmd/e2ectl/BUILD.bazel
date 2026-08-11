@@ -5,6 +5,7 @@ go_library(
     name = "e2ectl_lib",
     srcs = [
         "config.go",
+        "dashboard.go",
         "destroy.go",
         "main.go",
         "provisioners.go",
@@ -32,6 +33,7 @@ dd_agent_go_test(
     name = "e2ectl_test",
     srcs = [
         "config_test.go",
+        "dashboard_test.go",
         "state_test.go",
         "wizard_test.go",
     ],

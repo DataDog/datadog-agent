@@ -35,20 +35,19 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
-
 	var err error
-	switch os.Args[1] {
-	case "run":
-		err = runRun(os.Args[2:])
-	case "destroy":
-		err = runDestroy(os.Args[2:])
-	default:
-		usage()
-		os.Exit(2)
+	if len(os.Args) < 2 {
+		err = runMainDashboard()
+	} else {
+		switch os.Args[1] {
+		case "run":
+			err = runRun(os.Args[2:])
+		case "destroy":
+			err = runDestroy(os.Args[2:])
+		default:
+			usage()
+			os.Exit(2)
+		}
 	}
 
 	if err != nil {
@@ -57,8 +56,22 @@ func main() {
 	}
 }
 
+// runMainDashboard is the no-argument entry point: `e2ectl` alone launches
+// the dashboard (dashboard.go); `run`/`destroy` remain the scriptable
+// subcommands, unchanged.
+func runMainDashboard() error {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return errors.New("stdin is not a terminal — the dashboard requires an interactive terminal; use 'run'/'destroy' with --config for scripted use")
+	}
+	root, err := repoRoot(context.Background())
+	if err != nil {
+		return err
+	}
+	return runDashboard(context.Background(), root)
+}
+
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: e2ectl <run|destroy> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: e2ectl [run|destroy] [flags]  (no subcommand launches the interactive dashboard)")
 }
 
 func runRun(args []string) error {
