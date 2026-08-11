@@ -61,6 +61,7 @@ go_library(
 dd_agent_go_test(
     name = "setup_test",
     srcs = [
+        "config_init_test.go",
         "config_secret_test.go",
         "config_test.go",
         "privateactionrunner_test.go",
