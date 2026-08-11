@@ -8,6 +8,7 @@
 //! Secret resolution must match `datadogagent`, not the dd-procmgr-service supervisor
 //! (LocalSystem) or a [`SpawnProfile::Privileged`] child identity.
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::FromRawHandle;
@@ -33,6 +34,9 @@ use windows_sys::Win32::System::Threading::{
 use crate::secret_backend_exec::{BackendRun, exec_inherited_token, wait_with_stdout_drain};
 
 use super::agent_credentials::{AgentAccount, resolve_agent_account};
+use super::baseline_env_vars_from_token;
+use super::legacy_scm_env::build_secret_backend_env_vars;
+use super::resolve_executable::resolve_executable_in_env;
 use super::secret_backend_rights;
 use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::spawn::user_profile::UserProfileGuard;
@@ -51,24 +55,59 @@ pub(crate) fn exec_secret_backend(
     max_output_bytes: usize,
     skip_acl_check: bool,
 ) -> Result<String> {
-    if !skip_acl_check {
-        secret_backend_rights::check_secret_backend_command_rights(command)
-            .with_context(|| format!("validate secret backend executable {command}"))?;
+    let account =
+        resolve_agent_account().context("resolve agent service account for secret backend")?;
+    if supervisor_runs_as_agent_account(&account) {
+        let env = secret_backend_resolution_env(&account, None)?;
+        let resolved_command = resolve_executable_in_env(command, &env)
+            .with_context(|| format!("resolve secret backend executable {command}"))?;
+        validate_secret_backend_command(&resolved_command, skip_acl_check)?;
+        let run = BackendRun {
+            command: &resolved_command,
+            arguments,
+            payload,
+            timeout,
+            max_output_bytes,
+        };
+        return exec_inherited_token(&run);
     }
 
+    let identity = AgentIdentity::load(&account)?;
+    let env = secret_backend_resolution_env(&account, Some(&identity))?;
+    let resolved_command = resolve_executable_in_env(command, &env)
+        .with_context(|| format!("resolve secret backend executable {command}"))?;
+    validate_secret_backend_command(&resolved_command, skip_acl_check)?;
     let run = BackendRun {
-        command,
+        command: &resolved_command,
         arguments,
         payload,
         timeout,
         max_output_bytes,
     };
-    let account =
-        resolve_agent_account().context("resolve agent service account for secret backend")?;
-    if supervisor_runs_as_agent_account(&account) {
-        return exec_inherited_token(&run);
+    exec_as_agent_account(&identity, &run)
+}
+
+fn validate_secret_backend_command(resolved_command: &str, skip_acl_check: bool) -> Result<()> {
+    if skip_acl_check {
+        return Ok(());
     }
-    exec_as_agent_account(&run, &account)
+    secret_backend_rights::check_secret_backend_command_rights(resolved_command)
+        .with_context(|| format!("validate secret backend executable {resolved_command}"))
+}
+
+fn secret_backend_resolution_env(
+    account: &AgentAccount,
+    identity: Option<&AgentIdentity>,
+) -> Result<HashMap<String, String>> {
+    let baseline = if account.inherits_supervisor_token() {
+        std::env::vars().collect()
+    } else {
+        let token = identity
+            .map(|loaded| loaded.token.raw())
+            .context("agent identity required for secret backend PATH resolution")?;
+        baseline_env_vars_from_token(token)?
+    };
+    Ok(build_secret_backend_env_vars(baseline))
 }
 
 fn supervisor_runs_as_agent_account(account: &AgentAccount) -> bool {
@@ -76,9 +115,8 @@ fn supervisor_runs_as_agent_account(account: &AgentAccount) -> bool {
     account.inherits_supervisor_token()
 }
 
-fn exec_as_agent_account(run: &BackendRun<'_>, account: &AgentAccount) -> Result<String> {
-    let identity = AgentIdentity::load(account)?;
-    let child = spawn_with_pipes(&identity, run)?;
+fn exec_as_agent_account(identity: &AgentIdentity, run: &BackendRun<'_>) -> Result<String> {
+    let child = spawn_with_pipes(identity, run)?;
     child.finish(run)
 }
 

@@ -11,6 +11,7 @@ mod local_account;
 mod managed_service_account;
 mod pipe_caller;
 mod pipe_security;
+mod resolve_executable;
 mod scm_service;
 mod secret_backend;
 mod secret_backend_rights;
