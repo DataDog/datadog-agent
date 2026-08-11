@@ -127,6 +127,7 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "TC-UPG-DC-001_install_last_stable.log")))
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
+	suite.Env().FakeIntake.Client().FlushServerAndResetAggregators() // flush to reset memory usage and avoid OOM
 
 	tc := suite.NewTestClientForHost(suite.Env().RemoteHost)
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
@@ -135,6 +136,7 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 		windowsAgent.WithPackage(suite.AgentPackage),
 		windowsAgent.WithInstallLogFile(filepath.Join(suite.SessionOutputDir(), "TC-UPG-DC-001_upgrade.log")))
 	suite.Require().NoError(err, "should succeed to upgrade an Agent on a Domain Controller")
+	suite.Env().FakeIntake.Client().FlushServerAndResetAggregators() // flush to reset memory usage and avoid OOM
 
 	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
