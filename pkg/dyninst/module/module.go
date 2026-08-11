@@ -308,6 +308,9 @@ func (m *Module) GetStats() map[string]any {
 	if m.runtimeStats != nil {
 		stats["runtime"] = m.runtimeStats.asStats()
 	}
+	if sub := m.shutdown.realDependencies.procSubscriber; sub != nil {
+		stats["processDiscovery"] = sub.Stats()
+	}
 	return stats
 }
 

@@ -1,0 +1,82 @@
+# A restart is a full re-sweep. The second !initialize builds a scanner with no
+# memory of either process: the one that is instrumentable is discovered again,
+# and the one whose metadata is not readable yet goes back to being retried.
+# Discovery never depends on having been running when a process started.
+- !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata: {language: "go", service: "already-running"}
+- !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 500
+  tracer_metadata: {language: "go", service: "slow-to-start"}
+- !scan {}
+- !advance-time {to: 200}
+- !scan {}
+- !initialize
+  current_time: 300
+  backoff_base: 10
+  backoff_cap: 100
+- !scan {}
+- !advance-time {to: 500}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata: {language: "go", service: "already-running"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 500
+  tracer_metadata: {language: "go", service: "slow-to-start"}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 50}]
+state:
+  current_time: 100
+  live: [{pid: 1001, start_time: 50}]
+  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001, 1002]
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+state:
+  current_time: 200
+  live: [{pid: 1001, start_time: 50}]
+  candidates: [{pid: 1002, start_time: 50, attempts: 2, next_attempt: 220}]
+  processes_in_procfs: [1001, 1002]
+---
+command: !initialize
+  current_time: 300
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 50}]
+state:
+  current_time: 300
+  live: [{pid: 1001, start_time: 50}]
+  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 310}]
+  processes_in_procfs: [1001, 1002]
+---
+command: !advance-time {to: 500}
+---
+command: !scan {}
+new: [{pid: 1002, start_time: 50}]
+state:
+  current_time: 500
+  live: [{pid: 1001, start_time: 50}, {pid: 1002, start_time: 50}]
+  processes_in_procfs: [1001, 1002]
