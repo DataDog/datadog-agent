@@ -41,10 +41,14 @@ dd_agent_go_test(
         "rollback_deployment_test.go",
     ],
     embed = [":executors"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "@com_github_datadog_agent_payload_v5//kubeactions",
         "@com_github_stretchr_testify//assert",

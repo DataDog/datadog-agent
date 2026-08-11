@@ -165,7 +165,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 			{
 				Type: autoscaler.ExternalMetricSourceType,
 				External: &autoscaler.ExternalMetricSource{
-					MetricName: "datadogmetric@default:dd-metric-0",
+					MetricName: "datadogmetric@dd-metric-0",
 				},
 			},
 		}),
@@ -180,7 +180,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		newFakeWatermarkPodAutoscaler("ns0", "wpa0", []interface{}{
 			map[string]interface{}{
 				"external": map[string]interface{}{
-					"metricName": "datadogmetric@default:dd-metric-1",
+					"metricName": "datadogmetric@dd-metric-1",
 				},
 				"type": "External",
 			},
@@ -188,7 +188,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	}
 
 	ddm := model.DatadogMetricInternal{
-		ID:         "default/dd-metric-0",
+		ID:         "ns0/dd-metric-0",
 		Active:     false,
 		Valid:      true,
 		Value:      10.0,
@@ -196,10 +196,10 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query0")
-	f.store.Set("default/dd-metric-0", ddm, "utest")
+	f.store.Set("ns0/dd-metric-0", ddm, "utest")
 
 	ddm = model.DatadogMetricInternal{
-		ID:         "default/dd-metric-1",
+		ID:         "ns0/dd-metric-1",
 		Active:     true,
 		Valid:      true,
 		Value:      11.0,
@@ -207,7 +207,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query1")
-	f.store.Set("default/dd-metric-1", ddm, "utest")
+	f.store.Set("ns0/dd-metric-1", ddm, "utest")
 
 	ddm = model.DatadogMetricInternal{
 		ID:                   "default/dd-metric-2",
@@ -226,7 +226,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	// Check internal store content
 	assert.Equal(t, 3, f.store.Count())
 	ddm = model.DatadogMetricInternal{
-		ID:                   "default/dd-metric-0",
+		ID:                   "ns0/dd-metric-0",
 		Active:               true,
 		Valid:                true,
 		Value:                10.0,
@@ -235,10 +235,10 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		AutoscalerReferences: "hpa:ns0/hpa0",
 	}
 	ddm.SetQueries("metric query0")
-	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-0"))
+	compareDatadogMetricInternal(t, &ddm, f.store.Get("ns0/dd-metric-0"))
 
 	ddm = model.DatadogMetricInternal{
-		ID:                   "default/dd-metric-1",
+		ID:                   "ns0/dd-metric-1",
 		Active:               true,
 		Valid:                true,
 		Value:                11.0,
@@ -247,7 +247,7 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		AutoscalerReferences: "wpa:ns0/wpa0",
 	}
 	ddm.SetQueries("metric query1")
-	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-1"))
+	compareDatadogMetricInternal(t, &ddm, f.store.Get("ns0/dd-metric-1"))
 
 	ddm = model.DatadogMetricInternal{
 		ID:                   "default/dd-metric-2",
@@ -260,6 +260,62 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 	}
 	ddm.SetQueries("metric query2")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-2"))
+}
+
+// The namespace part of a `datadogmetric@<namespace>:<name>` reference is ignored, the DatadogMetric
+// is always resolved in the namespace of the autoscaler, so a reference to another namespace never
+// activates the DatadogMetric it points to.
+func TestAutoscalerWatcherIgnoresDatadogMetricReferenceNamespace(t *testing.T) {
+	f := newAutoscalerFixture(t)
+	updateTime := time.Now()
+
+	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
+		newFakeHorizontalPodAutoscaler("tenant-a", "hpa0", []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@shared:dd-metric-0",
+				},
+			},
+		}),
+	}
+
+	f.wpaLister = []*unstructured.Unstructured{
+		newFakeWatermarkPodAutoscaler("tenant-b", "wpa0", []interface{}{
+			map[string]interface{}{
+				"external": map[string]interface{}{
+					"metricName": "datadogmetric@shared:dd-metric-0",
+				},
+				"type": "External",
+			},
+		}),
+	}
+
+	ddm := model.DatadogMetricInternal{
+		ID:         "shared/dd-metric-0",
+		Active:     false,
+		Valid:      true,
+		Value:      10.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("shared/dd-metric-0", ddm, "utest")
+
+	f.runWatcherUpdate()
+
+	assert.Equal(t, 1, f.store.Count())
+	ddm = model.DatadogMetricInternal{
+		ID:                   "shared/dd-metric-0",
+		Active:               false,
+		Valid:                true,
+		Value:                10.0,
+		UpdateTime:           updateTime,
+		Error:                nil,
+		AutoscalerReferences: "",
+	}
+	ddm.SetQueries("metric query0")
+	compareDatadogMetricInternal(t, &ddm, f.store.Get("shared/dd-metric-0"))
 }
 
 func TestCreateAutogenDatadogMetrics(t *testing.T) {
@@ -523,7 +579,7 @@ func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 			{
 				Type: autoscaler.ExternalMetricSourceType,
 				External: &autoscaler.ExternalMetricSource{
-					MetricName: "datadogmetric@default:dd-metric-ref",
+					MetricName: "datadogmetric@ns0:dd-metric-ref",
 				},
 			},
 		}),
@@ -571,7 +627,7 @@ func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 	}
 
 	ddm := model.DatadogMetricInternal{
-		ID:         "default/dd-metric-ref",
+		ID:         "ns0/dd-metric-ref",
 		Active:     false,
 		Valid:      true,
 		Value:      20.0,
@@ -579,7 +635,7 @@ func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 		Error:      nil,
 	}
 	ddm.SetQueries("metric query ref")
-	f.store.Set("default/dd-metric-ref", ddm, "utest")
+	f.store.Set("ns0/dd-metric-ref", ddm, "utest")
 
 	// Parse a selector that excludes autoscalers with app.kubernetes.io/managed-by=keda-operator
 	selector, err := labels.Parse("app.kubernetes.io/managed-by!=keda-operator")
@@ -617,7 +673,7 @@ func TestAutoscalerAutogenLabelSelectorFiltering(t *testing.T) {
 	assert.True(t, foundHpa0Ref, "hpa0 should be included (matches label selector)")
 
 	// hpa1 has datadogmetric@ reference — dd-metric-ref should be active despite failing label selector
-	refMetric := f.store.Get("default/dd-metric-ref")
+	refMetric := f.store.Get("ns0/dd-metric-ref")
 	assert.NotNil(t, refMetric)
 	assert.True(t, refMetric.Active)
 	assert.Equal(t, "hpa:ns0/hpa1", refMetric.AutoscalerReferences)

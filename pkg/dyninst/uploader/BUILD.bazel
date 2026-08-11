@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "uploader",
@@ -20,7 +21,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "uploader_test",
     srcs = [
         "batcher_snapshot_test.go",
@@ -30,11 +31,8 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":uploader"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
     deps = [
         "//pkg/dyninst/dyninsttest",
         "@com_github_stretchr_testify//assert",

@@ -297,7 +297,6 @@ new-e2e-containers-k8s-rc-latest:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
   rules:
-    - when: never # disabled — RC not newer than latest stable
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
@@ -305,7 +304,7 @@ new-e2e-containers-k8s-rc-latest:
     TARGETS: ./tests/containers
     TEAM: container-integrations
     ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.36.0-rc.1@sha256:d7fcd0fa9939dd3d1f6691bd9ad9144aecc08e43b8888820a9a75017594644d6"
+    EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.37.0-rc.0@sha256:a11b5b8063555e8ef8a5e1100459cad9e100543f61e37cb7fd722ec576c9be89"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
@@ -464,6 +463,7 @@ new-e2e-agent-telemetry:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
     - qa_agent_linux
+    - qa_agent_full
     - qa_dca
   rules:
     - !reference [.on_agenttelemetry_or_e2e_changes]
@@ -652,6 +652,21 @@ new-e2e-amp-adp:
     EXTRA_PARAMS: --run "ADP"
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
+
+# Agent Data Plane preflight mode (comp/dataplane/preflightmode).
+#
+# One job per platform rather than one job running all three: preflight mode's eligibility rules
+# and DogStatsD transport differ per platform, so a shared job would leave it ambiguous which
+# platform regressed. The Windows job lives in .gitlab/windows/test/e2e/windows.yml.
+new-e2e-adp-preflight-mode:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_adp_preflight_mode_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-data-plane/preflight-mode
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "TestPreflightModeLinuxSuite"
 
 new-e2e-alp:
   extends: .new_e2e_template
