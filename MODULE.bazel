@@ -262,14 +262,15 @@ use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_hea
 ## Compilers and toolchains        ##
 ####################################
 
-git_override(
+archive_override(
     module_name = "toolchains_msvc",
-    commit = "8e2aa4624bbb5a53a94f135e90995f307875d1ad",
     patch_strip = 1,
     # Adds MSBuild + the VC project system, and whole-tree filegroups, so MSBuild-driven
     # builds (CPython) can run against the same hermetic toolchain as rules_cc.
     patches = ["//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch"],
-    remote = "https://github.com/Dragnalith/toolchains_msvc",
+    sha256 = "1ab52698bd8b1eac2e005a07e25e62538daed471e9657586213b88d7cd7cb14d",
+    strip_prefix = "toolchains_msvc-8e2aa4624bbb5a53a94f135e90995f307875d1ad",
+    urls = ["https://github.com/Dragnalith/toolchains_msvc/archive/8e2aa4624bbb5a53a94f135e90995f307875d1ad.tar.gz"],
 )
 
 archive_override(
