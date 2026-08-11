@@ -9,8 +9,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
-	"os"
 )
 
 // runDestroy tears down the infra described by a TestDefinition. It's kept
@@ -41,21 +39,6 @@ func runDestroy(args []string) error {
 		}
 		*statePath = defaultStatePath(root, def.Name)
 	}
-	cfg, err := def.provisionConfig()
-	if err != nil {
-		return err
-	}
-	p, err := resolveProvisioner(cfg)
-	if err != nil {
-		return err
-	}
 
-	if err := p.Destroy(ctx, def.Name, os.Stdout); err != nil {
-		return err
-	}
-	if err := os.Remove(*statePath); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	fmt.Printf("environment %q destroyed, %s removed\n", def.Name, *statePath)
-	return nil
+	return doDestroy(ctx, def, *statePath)
 }

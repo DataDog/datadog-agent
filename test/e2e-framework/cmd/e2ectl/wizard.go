@@ -8,7 +8,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -54,22 +53,15 @@ func parseStage(s string) (stage, error) {
 	}
 }
 
-// runLifecycle drives the def through as many of provision/install/test as
-// target requires, skipping stages the state file already reflects. If
-// target is nil, it prompts interactively for how far to go — the menu
-// adapts to which stages are already done.
-func runLifecycle(ctx context.Context, def TestDefinition, configPath, statePath string, target *stage) error {
+// runLifecycle drives def through provision -> install -> test up to
+// target, skipping stages the state file already reflects. Used only for
+// non-interactive runs (--stage or --yes) — interactive runs use
+// runEnvLoop instead, which offers every stage on every pass rather than
+// picking one target up front.
+func runLifecycle(ctx context.Context, def TestDefinition, configPath, statePath string, target stage) error {
 	st, err := readStateFile(statePath)
 	if err != nil {
 		return fmt.Errorf("reading state file %s: %w", statePath, err)
-	}
-
-	if target == nil {
-		chosen, err := promptForStage(st, def)
-		if err != nil {
-			return err
-		}
-		target = &chosen
 	}
 
 	provisioned, installed := stagesCompleted(st)
@@ -81,7 +73,7 @@ func runLifecycle(ctx context.Context, def TestDefinition, configPath, statePath
 	} else {
 		fmt.Println("infra already provisioned, skipping")
 	}
-	if *target == stageProvision {
+	if target == stageProvision {
 		return nil
 	}
 
@@ -100,72 +92,11 @@ func runLifecycle(ctx context.Context, def TestDefinition, configPath, statePath
 	} else {
 		fmt.Println("agent already installed with matching config, skipping")
 	}
-	if *target == stageInstall {
+	if target == stageInstall {
 		return nil
 	}
 
 	return doTest(ctx, def, statePath)
-}
-
-// promptForStage prints a menu adapted to st's completed stages and reads
-// the user's choice from stdin. Callers must have already verified stdin is
-// a terminal (see main.go) — this only handles the read/parse loop.
-func promptForStage(st envState, def TestDefinition) (stage, error) {
-	provisioned, installed := stagesCompleted(st)
-	upToDate := false
-	if installed {
-		status, err := installers.Status(def.Agent.Installer, st, installParamsFor(def))
-		if err != nil {
-			return 0, err
-		}
-		upToDate = status.UpToDate
-	}
-
-	type option struct {
-		s     stage
-		label string
-	}
-	var options []option
-	switch {
-	case !provisioned:
-		options = []option{
-			{stageProvision, "provision infra only"},
-			{stageInstall, "provision infra + install agent"},
-			{stageTest, "provision infra + install agent + run test"},
-		}
-	case !upToDate:
-		options = []option{
-			{stageInstall, "install/update agent"},
-			{stageTest, "install/update agent + run test"},
-		}
-	default:
-		options = []option{
-			{stageTest, "run test"},
-		}
-	}
-
-	fmt.Println("How far should this run go?")
-	for i, opt := range options {
-		fmt.Printf("  %d) %s\n", i+1, opt.label)
-	}
-
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
-				return 0, fmt.Errorf("reading stage selection: %w", err)
-			}
-			return 0, errors.New("no input read for stage selection")
-		}
-		choice := strings.TrimSpace(scanner.Text())
-		for i, opt := range options {
-			if choice == fmt.Sprintf("%d", i+1) {
-				return opt.s, nil
-			}
-		}
-		fmt.Printf("please enter a number between 1 and %d\n", len(options))
-	}
 }
 
 func doProvision(ctx context.Context, def TestDefinition, configPath, statePath string) error {
@@ -268,4 +199,167 @@ func repoRoot(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("resolving repository root: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// loopOutcome tells a per-env loop's caller what to do next: exit the
+// process entirely, or (only reachable when the loop was entered from the
+// dashboard) return to it.
+type loopOutcome int
+
+const (
+	loopQuit loopOutcome = iota
+	loopBackToDashboard
+)
+
+// runEnvLoop is e2ectl's interactive per-environment menu: unlike
+// runLifecycle (which drives straight through to one target stage and
+// exits), it reprints def's live status and offers every action on every
+// pass, looping after each one — including after a failure, which is
+// printed but never ends the loop — until the user quits or (if
+// cameFromDashboard) asks to go back. Both `e2ectl run --config=...`
+// (interactively, cameFromDashboard=false) and the dashboard
+// (cameFromDashboard=true, see dashboard.go) enter through here, sharing
+// one *bufio.Scanner so no buffered stdin bytes are lost switching between
+// the two.
+func runEnvLoop(ctx context.Context, def TestDefinition, configPath, statePath string, cameFromDashboard bool, scanner *bufio.Scanner) (loopOutcome, error) {
+	for {
+		st, err := readStateFile(statePath)
+		if err != nil {
+			return loopQuit, fmt.Errorf("reading state file %s: %w", statePath, err)
+		}
+		provisioned, installed := stagesCompleted(st)
+
+		var agentStatus installers.InstallStatus
+		var agentStatusErr error
+		if installed {
+			agentStatus, agentStatusErr = installers.Status(def.Agent.Installer, st, installParamsFor(def))
+		}
+
+		fmt.Printf("\n%s  (%s)\n", def.Name, configPath)
+		if provisioned {
+			fmt.Println("  infra:  provisioned")
+		} else {
+			fmt.Println("  infra:  not provisioned")
+		}
+		switch {
+		case !installed:
+			fmt.Println("  agent:  not installed")
+		case agentStatusErr != nil:
+			fmt.Println("  agent:  installed (status unavailable:", agentStatusErr, ")")
+		default:
+			fmt.Printf("  agent:  %s\n", agentStatus.Summary)
+		}
+		fmt.Printf("  test:   %s%s\n", def.Test.Package, testRunSuffix(def.Test.Run))
+
+		fmt.Println()
+		fmt.Println("1) provision infra")
+		fmt.Println("2) install/update agent")
+		fmt.Println("3) run test")
+		fmt.Println("4) destroy environment")
+		if cameFromDashboard {
+			fmt.Println("b) back to dashboard")
+		}
+		fmt.Println("q) quit")
+		fmt.Print("> ")
+
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				return loopQuit, fmt.Errorf("reading menu selection: %w", err)
+			}
+			return loopQuit, nil
+		}
+
+		switch strings.TrimSpace(scanner.Text()) {
+		case "1":
+			if provisioned {
+				fmt.Println("infra already provisioned, skipping")
+				continue
+			}
+			if err := doProvision(ctx, def, configPath, statePath); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+			}
+		case "2":
+			if installed && agentStatusErr == nil && agentStatus.UpToDate {
+				fmt.Println("agent already installed with matching config, skipping")
+				continue
+			}
+			if err := doInstall(ctx, def, statePath); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+			}
+		case "3":
+			if err := doTest(ctx, def, statePath); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+			}
+		case "4":
+			confirmed, err := confirmDestroy(scanner, def.Name)
+			if err != nil {
+				return loopQuit, err
+			}
+			if !confirmed {
+				fmt.Println("destroy cancelled")
+				continue
+			}
+			if err := doDestroy(ctx, def, statePath); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+				continue
+			}
+			if cameFromDashboard {
+				return loopBackToDashboard, nil
+			}
+		case "b":
+			if cameFromDashboard {
+				return loopBackToDashboard, nil
+			}
+			fmt.Println("please enter one of the listed options")
+		case "q":
+			return loopQuit, nil
+		default:
+			fmt.Println("please enter one of the listed options")
+		}
+	}
+}
+
+// confirmDestroy asks the user to type name back before a destroy proceeds
+// — the one action in the loop that's hard to undo.
+func confirmDestroy(scanner *bufio.Scanner, name string) (bool, error) {
+	fmt.Printf("type the environment name (%s) to confirm destroy: ", name)
+	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return false, fmt.Errorf("reading destroy confirmation: %w", err)
+		}
+		return false, nil
+	}
+	return strings.TrimSpace(scanner.Text()) == name, nil
+}
+
+// doDestroy tears down def's infra and removes its state file. Shared by
+// the `destroy` subcommand (destroy.go) and the loop's "4) destroy
+// environment" action.
+func doDestroy(ctx context.Context, def TestDefinition, statePath string) error {
+	cfg, err := def.provisionConfig()
+	if err != nil {
+		return err
+	}
+	p, err := resolveProvisioner(cfg)
+	if err != nil {
+		return err
+	}
+
+	if err := p.Destroy(ctx, def.Name, os.Stdout); err != nil {
+		return err
+	}
+	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	fmt.Printf("environment %q destroyed, %s removed\n", def.Name, statePath)
+	return nil
+}
+
+// testRunSuffix formats def.Test.Run for display: "" if no -run pattern is
+// set, " -run <pattern>" otherwise.
+func testRunSuffix(run string) string {
+	if run == "" {
+		return ""
+	}
+	return " -run " + run
 }

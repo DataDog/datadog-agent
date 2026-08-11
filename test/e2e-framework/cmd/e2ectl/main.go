@@ -21,6 +21,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -103,5 +104,11 @@ func runRun(args []string) error {
 		return errors.New("stdin is not a terminal — pass --stage or --yes for non-interactive use")
 	}
 
-	return runLifecycle(ctx, def, absConfigPath, *statePath, target)
+	if target != nil {
+		return runLifecycle(ctx, def, absConfigPath, *statePath, *target)
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	_, err = runEnvLoop(ctx, def, absConfigPath, *statePath, false, scanner)
+	return err
 }
