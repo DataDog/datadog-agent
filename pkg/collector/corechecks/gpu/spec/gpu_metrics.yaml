@@ -177,6 +177,54 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  clock.throttle_reasons.hw_power_brake_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled due to an external power brake assertion
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttle_reasons.hw_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled by hardware slowdown
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttle_reasons.hw_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled by hardware thermal slowdown
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   clock.throttle_reasons.none:
     metadata:
       metric_type: gauge
@@ -234,6 +282,24 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttled_while_active:
+    metadata:
+      metric_type: gauge
+      description: Whether the GPU clock is throttled for a reason other than the GPU being idle
+      aggregation: sensor_data
+    tagsets:
+      - device
+    custom_tags:
+      - throttle_reason
     validator:
       values: [0, 1]
     support:
@@ -361,6 +427,23 @@ metrics:
         mig: false
         physical: true
         vgpu: true
+  errors.ecc.corrected.volatile:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Corrected ECC (Error Correcting Code) errors since the last driver load
+        or device reset. Recurring corrected errors can be an early sign of
+        degrading memory or underlying hardware issues.
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
   errors.ecc.uncorrected.total:
     metadata:
       metric_type: gauge
@@ -371,6 +454,23 @@ metrics:
         to data corruption, application crashes, or incorrect computation
         results. The counter reports errors seen for the entire lifetime of the device.
       aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
+  errors.ecc.uncorrected.volatile:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Uncorrectable ECC (Error Correcting Code) errors since the last driver
+        load or device reset. These errors can lead to data corruption,
+        application crashes, or incorrect computation results.
     tagsets:
       - device
     custom_tags:
@@ -405,6 +505,29 @@ metrics:
       description: >-
         Aggregate SRAM uncorrectable ECC errors split by subtype. The counter reports errors seen for the entire
         lifetime of the device.
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+      - error_subtype
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
+  errors.ecc.sram.uncorrected_by_subtype.volatile:
+    metadata:
+      metric_type: gauge
+      description: >-
+        SRAM uncorrectable ECC errors since the last driver load or device reset,
+        split by subtype.
     tagsets:
       - device
     custom_tags:

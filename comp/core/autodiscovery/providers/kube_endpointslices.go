@@ -151,6 +151,8 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
 func (k *kubeEndpointSlicesConfigProvider) IsUpToDate(context.Context) (bool, error) {
+	k.RLock()
+	defer k.RUnlock()
 	return k.upToDate, nil
 }
 
@@ -379,6 +381,10 @@ func generateConfigFromSlice(tpl integration.Config, resolveMode endpointResolve
 	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, namespace, serviceName)
 
 	for _, endpoint := range slice.Endpoints {
+		if !apiserver.IsEndpointServing(&endpoint) {
+			continue
+		}
+
 		for _, ip := range endpoint.Addresses {
 			// Set a new entity containing the endpoint's IP
 			entity := apiserver.EntityForEndpoints(namespace, serviceName, ip)

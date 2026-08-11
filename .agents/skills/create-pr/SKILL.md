@@ -22,7 +22,7 @@ Create a pull request for the current branch following the Datadog Agent contrib
    DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||')
    codex review --base "$DEFAULT_BRANCH"
    ```
-   Show the review output to the user. If codex is not installed, skip this step silently.
+   `codex review` is an LLM-based review and can take several minutes — do not bound it with a short Bash `timeout`, and do not let it get killed mid-run. Run it with `run_in_background: true` and wait for completion (or pass a generous `timeout`, e.g. the Bash tool max of 600000ms). If it's still running when you check back, keep waiting rather than treating it as done or skipping it, up to that 10-minute ceiling — if it still hasn't finished by then, note that to the user and proceed without it rather than stalling PR creation indefinitely. Show the review output to the user. If codex is not installed, skip this step silently.
 6. **Push the branch** to origin if needed
 7. **Open the PR**: By default, open as **Draft** using `gh pr create --draft`. If `$ARGUMENTS` contains `--real`, open as a regular (non-draft) PR instead (omit the `--draft` flag). Remove `--real` from `$ARGUMENTS` before processing remaining arguments as labels.
 8. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
@@ -39,6 +39,7 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
    - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
+11. Once the PR is pushed, ask the user if they want to follow CI status for this PR. If yes, invoke the `/follow-pr` skill.
 
 ## PR Description Guidelines (from CONTRIBUTING.md)
 
@@ -86,4 +87,5 @@ EOF
 
 ## Output
 
-Return the PR URL when done.
+If you are not following the PR status (step 11): Return the PR URL when done.
+Otherwise, defer to `/follow-pr`.

@@ -67,11 +67,11 @@ dd_agent_go_test(
         "image_test.go",
     ],
     embed = [":containerd"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "containerd",
+    ]],
+    include_default = False,
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core/config",

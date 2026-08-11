@@ -90,10 +90,14 @@ dd_agent_go_test(
         "verticalpodautoscaler_test.go",
     ],
     embed = [":k8s"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/util/kubernetes",
