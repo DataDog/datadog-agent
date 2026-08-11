@@ -8,8 +8,9 @@
 //! Mirrors the Windows legacy SCM startup checks in
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
 //! configured key evaluates to true. Resolution order matches agent config
-//! (`pkg/config/model/types.go`): agent-runtime transforms, then fleet policy,
-//! environment variables, explicit base YAML, then agent default.
+//! (`pkg/config/model/types.go`): agent-runtime transforms, then highest-priority
+//! configured source among fleet policy, secret-backed values, environment
+//! variables, explicit base YAML, then agent default.
 //!
 //! When deprecated `process_config.enabled` is set, collection keys follow
 //! `loadProcessTransforms` in `pkg/config/setup/process.go` instead of defaults.
@@ -102,7 +103,7 @@ const LEGACY_PROCESS_ENABLED_KEY: &str = "process_config.enabled";
 
 impl GatedKeySpec {
     /// Resolution order (most keys): legacy `process_config.enabled` transform (collection keys only)
-    /// → fleet policy → env → base YAML → agent default.
+    /// → highest-priority configured source (fleet, secret, env, file) → agent default.
     ///
     /// `system_probe_config.enabled` is special: returns [`system_probe::derived_enabled`] only,
     /// mirroring post-`load()`/`Adjust` `GetBool` (module-derived runtime value).
@@ -119,16 +120,12 @@ impl GatedKeySpec {
             // runtime enabled is module-derived, not the literal YAML/env knob alone.
             return system_probe::derived_enabled(base_path, yaml);
         }
-        if let Some(enabled) = self.fleet_policy_value(base_path, yaml)? {
-            return Ok(enabled);
-        }
-        if let Some(enabled) = self.env_override(base_path) {
-            return Ok(enabled);
-        }
-        if let Some(enabled) = yaml.bool_key_if_exists(base_path, self.key)? {
-            return Ok(enabled);
-        }
-        Ok(self.default)
+        yaml.resolve_bool_by_source_priority(
+            base_path,
+            self.key,
+            self.fleet_policy_file,
+            self.default,
+        )
     }
 
     fn uses_legacy_process_enabled(&self) -> bool {
@@ -156,24 +153,6 @@ impl GatedKeySpec {
             _ => unreachable!(),
         };
         Ok(Some(enabled))
-    }
-
-    fn fleet_policy_value(
-        &self,
-        base_path: &str,
-        yaml: &mut YamlCache,
-    ) -> anyhow::Result<Option<bool>> {
-        let Some(filename) = self.fleet_policy_file else {
-            return Ok(None);
-        };
-        let Some(path) = yaml.fleet_policy_path(filename, base_path)? else {
-            return Ok(None);
-        };
-        yaml.bool_key_if_exists(&path, self.key)
-    }
-
-    fn env_override(&self, base_path: &str) -> Option<bool> {
-        env_bool_for_config_key(self.key, &agent_datadog_yaml(base_path))
     }
 }
 
@@ -243,23 +222,28 @@ impl YamlCache {
         }))
     }
 
-    /// Fleet policy → env bindings → base YAML → `false`.
+    /// Highest-priority configured source among fleet, secret, env, and base YAML.
+    pub(super) fn resolve_bool_by_source_priority(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+        default: bool,
+    ) -> anyhow::Result<bool> {
+        Ok(self
+            .best_bool_layer(base_path, key, fleet_policy_file)?
+            .map(|layer| layer.value)
+            .unwrap_or(default))
+    }
+
+    /// Highest-priority configured source among fleet, secret, env, and base YAML.
     pub(super) fn resolve_bool(
         &mut self,
         base_path: &str,
         key: &str,
         fleet_policy_file: Option<&str>,
     ) -> anyhow::Result<bool> {
-        if let Some(filename) = fleet_policy_file
-            && let Some(path) = self.fleet_policy_path(filename, base_path)?
-            && let Some(value) = self.bool_key_if_exists(&path, key)?
-        {
-            return Ok(value);
-        }
-        if let Some(enabled) = env_bool_for_config_key(key, &agent_datadog_yaml(base_path)) {
-            return Ok(enabled);
-        }
-        Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(false))
+        self.resolve_bool_by_source_priority(base_path, key, fleet_policy_file, false)
     }
 
     /// Like [`Self::resolve_bool`] but uses `default` when the key is unset everywhere.
@@ -270,16 +254,7 @@ impl YamlCache {
         fleet_policy_file: Option<&str>,
         default: bool,
     ) -> anyhow::Result<bool> {
-        if let Some(filename) = fleet_policy_file
-            && let Some(path) = self.fleet_policy_path(filename, base_path)?
-            && let Some(value) = self.bool_key_if_exists(&path, key)?
-        {
-            return Ok(value);
-        }
-        if let Some(enabled) = env_bool_for_config_key(key, &agent_datadog_yaml(base_path)) {
-            return Ok(enabled);
-        }
-        Ok(self.bool_key_if_exists(base_path, key)?.unwrap_or(default))
+        self.resolve_bool_by_source_priority(base_path, key, fleet_policy_file, default)
     }
 
     pub(super) fn resolve_string(
@@ -288,21 +263,80 @@ impl YamlCache {
         key: &str,
         fleet_policy_file: Option<&str>,
     ) -> anyhow::Result<Option<String>> {
+        Ok(self
+            .best_string_layer(base_path, key, fleet_policy_file)?
+            .map(|layer| layer.value))
+    }
+
+    fn best_config_layer<T>(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+        layer_from_yaml: impl Fn(&serde_yaml::Value, &str, ConfigSourcePriority) -> Option<Prioritized<T>>,
+        layer_from_env: impl Fn(&str, &str, ConfigSourcePriority) -> Option<Prioritized<T>>,
+    ) -> anyhow::Result<Option<Prioritized<T>>> {
         let agent_yaml = agent_datadog_yaml(base_path);
-        let resolve = |text: String| secrets::resolve_config_string(&text, &agent_yaml);
+        let mut best: Option<Prioritized<T>> = None;
+        let mut consider = |layer: Option<Prioritized<T>>| {
+            if let Some(candidate) = layer {
+                best = Some(Prioritized::pick_best(best, candidate));
+            }
+        };
+
         if let Some(filename) = fleet_policy_file
             && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && let Some(value) = self.dotted_key_if_exists(&path, key)?
         {
-            return Ok(Self::string_value(value)?.map(resolve));
+            consider(layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::FleetPolicies));
         }
+
         if let Some(text) = env_string_for_config_key(key) {
-            return Ok(Some(resolve(text)));
+            consider(layer_from_env(&text, &agent_yaml, ConfigSourcePriority::EnvVar));
         }
-        match self.dotted_key_if_exists(base_path, key)? {
-            Some(value) => Ok(Self::string_value(value)?.map(resolve)),
-            None => Ok(None),
+
+        if let Some(value) = self.dotted_key_if_exists(base_path, key)? {
+            consider(layer_from_yaml(value, &agent_yaml, ConfigSourcePriority::File));
         }
+
+        Ok(best)
+    }
+
+    fn best_bool_layer(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+    ) -> anyhow::Result<Option<Prioritized<bool>>> {
+        self.best_config_layer(
+            base_path,
+            key,
+            fleet_policy_file,
+            prioritized_bool_from_yaml_value,
+            prioritized_bool_from_string,
+        )
+    }
+
+    fn best_string_layer(
+        &mut self,
+        base_path: &str,
+        key: &str,
+        fleet_policy_file: Option<&str>,
+    ) -> anyhow::Result<Option<Prioritized<String>>> {
+        self.best_config_layer(
+            base_path,
+            key,
+            fleet_policy_file,
+            |value, agent_yaml, priority| {
+                YamlCache::string_value(value)
+                    .ok()
+                    .flatten()
+                    .map(|text| prioritized_string_from_raw(text, agent_yaml, priority))
+            },
+            |text, agent_yaml, priority| {
+                Some(prioritized_string_from_raw(text.to_owned(), agent_yaml, priority))
+            },
+        )
     }
 
     /// Whether `key` is present in the base YAML file only (not fleet policy or env).
@@ -541,13 +575,94 @@ fn lookup_dotted_key_in_mapping<'a>(
     lookup_dotted_key_in_mapping(next, rest)
 }
 
-fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
+/// Mirrors `pkg/config/model/types.go` source precedence for user-provided layers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ConfigSourcePriority {
+    File = 3,
+    EnvVar = 4,
+    FleetPolicies = 5,
+    Secret = 7,
+}
+
+struct Prioritized<T> {
+    value: T,
+    priority: ConfigSourcePriority,
+}
+
+impl<T> Prioritized<T> {
+    fn pick_best(current: Option<Self>, candidate: Self) -> Self {
+        match current {
+            Some(existing) if existing.priority >= candidate.priority => existing,
+            _ => candidate,
+        }
+    }
+}
+
+fn prioritized_bool_from_yaml_value(
+    value: &serde_yaml::Value,
+    agent_yaml: &str,
+    base_priority: ConfigSourcePriority,
+) -> Option<Prioritized<bool>> {
     match value {
-        serde_yaml::Value::Bool(enabled) => Some(*enabled),
-        serde_yaml::Value::Number(number) => yaml_number_as_bool(number),
-        serde_yaml::Value::String(text) => bool_from_config_string(text, agent_yaml),
+        serde_yaml::Value::Bool(enabled) => Some(Prioritized {
+            value: *enabled,
+            priority: base_priority,
+        }),
+        serde_yaml::Value::Number(number) => yaml_number_as_bool(number).map(|value| Prioritized {
+            value,
+            priority: base_priority,
+        }),
+        serde_yaml::Value::String(text) => {
+            prioritized_bool_from_string(text, agent_yaml, base_priority)
+        }
         _ => None,
     }
+}
+
+fn prioritized_bool_from_string(
+    text: &str,
+    agent_yaml: &str,
+    base_priority: ConfigSourcePriority,
+) -> Option<Prioritized<bool>> {
+    if let Some((resolved, priority)) = promote_secret_string(text, agent_yaml) {
+        return parse_agent_bool_string(&resolved).map(|value| Prioritized { value, priority });
+    }
+    bool_from_config_string(text).map(|value| Prioritized {
+        value,
+        priority: base_priority,
+    })
+}
+
+fn prioritized_string_from_raw(
+    text: String,
+    agent_yaml: &str,
+    base_priority: ConfigSourcePriority,
+) -> Prioritized<String> {
+    if let Some((value, priority)) = promote_secret_string(&text, agent_yaml) {
+        return Prioritized { value, priority };
+    }
+    Prioritized {
+        value: text,
+        priority: base_priority,
+    }
+}
+
+fn promote_secret_string(
+    text: &str,
+    agent_yaml: &str,
+) -> Option<(String, ConfigSourcePriority)> {
+    if !secrets::is_enc(text) {
+        return None;
+    }
+    let resolved = secrets::resolve_config_string(text, agent_yaml);
+    if secrets::is_enc(&resolved) {
+        return None;
+    }
+    Some((resolved, ConfigSourcePriority::Secret))
+}
+
+fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
+    prioritized_bool_from_yaml_value(value, agent_yaml, ConfigSourcePriority::File).map(|layer| layer.value)
 }
 
 /// Mirrors Go `cast.ToBoolE` for numeric YAML scalars (integers and floats).
@@ -555,15 +670,11 @@ fn yaml_number_as_bool(number: &serde_yaml::Number) -> Option<bool> {
     number.as_f64().map(|n| n != 0.0)
 }
 
-fn bool_from_config_string(text: &str, agent_yaml: &str) -> Option<bool> {
-    let resolved = secrets::resolve_config_string(text, agent_yaml);
-    if let Some(enabled) = parse_agent_bool_string(&resolved) {
-        return Some(enabled);
-    }
+fn bool_from_config_string(text: &str) -> Option<bool> {
     if secrets::is_enc(text) {
         return None;
     }
-    Some(parse_agent_bool_string(text).unwrap_or(false))
+    parse_agent_bool_string(text).or(Some(false))
 }
 
 /// Mirrors Go `GetBool` / `strconv.ParseBool` for env and YAML bool strings.
@@ -1643,6 +1754,58 @@ process_config:
             let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
             let _collection =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
+            assert!(condition_config_any_met(&process_agent_conditions(agent)));
+        });
+    }
+
+    #[test]
+    fn secret_resolved_value_beats_fleet_policy() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+
+            let dir = test_env::tempdir_for_secret_backend();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+            );
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    "#!/bin/sh\nprintf '{\"process_collection_enabled\":{\"value\":\"true\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"process_collection_enabled\\\":{\\\"value\\\":\\\"true\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\nprocess_config:\n  enabled: false\n  process_collection:\n    enabled: ENC[process_collection_enabled]\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n",
+                    script.to_string_lossy()
+                ),
+            );
+            let _fleet = EnvGuard::set(
+                "DD_FLEET_POLICIES_DIR",
+                fleet_dir.to_string_lossy().as_ref(),
+            );
             assert!(condition_config_any_met(&process_agent_conditions(agent)));
         });
     }
