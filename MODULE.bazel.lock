@@ -798,7 +798,7 @@
     },
     "@@toolchains_msvc+//:extensions.bzl%toolchain": {
       "general": {
-        "bzlTransitiveDigest": "FhwF/hZPi9zQWz9ULaykcCwv6SRZ2a8iguryZ5s2wuo=",
+        "bzlTransitiveDigest": "+QP/UpRjiVuOX5ytBDv5/iGOjdHBo+6V9CZrORq0hc0=",
         "usagesDigest": "rQ5JelGlBEEO9mtDwwXu7F62svHOfgjJMqsjzBzagCk=",
         "recordedInputs": [
           "ENV:BAZEL_TOOLCHAINS_MSVC_ACCEPT_MICROSOFT_VISUAL_STUDIO_BUILDTOOLS_EULA 1",

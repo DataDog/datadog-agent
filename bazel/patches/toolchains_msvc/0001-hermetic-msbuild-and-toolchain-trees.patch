@@ -20,7 +20,7 @@ index af11d90..97789d3 100644
      "get_msvc_package_ids",
      "get_msvc_redist_package_ids",
      "get_winsdk_msi_list",
-@@ -546,6 +550,44 @@ def _extension_impl(module_ctx):
+@@ -546,6 +550,45 @@ def _extension_impl(module_ctx):
              "winsdk_version": winsdk_version,
          })
  
@@ -63,9 +63,11 @@ index af11d90..97789d3 100644
 +    })
 +
      msiutil_repo(name = "msiutil")
-     msiutil_label = "@msiutil//:{}".format("msiutil.exe" if normalize_repository_os(module_ctx.os.name) == "windows" else "msiutil")
+-    msiutil_label = "@msiutil//:{}".format("msiutil.exe" if normalize_repository_os(module_ctx.os.name) == "windows" else "msiutil")
++    # Windows-only toolchain: lockfile must stay stable when bazel mod tidy runs on macOS/Linux.
++    msiutil_label = "@msiutil//:msiutil.exe"
  
-@@ -565,6 +607,16 @@ def _extension_impl(module_ctx):
+@@ -565,6 +608,16 @@ def _extension_impl(module_ctx):
              )
              continue
  
