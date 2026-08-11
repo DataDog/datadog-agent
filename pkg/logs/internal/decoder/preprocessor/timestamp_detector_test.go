@@ -52,6 +52,16 @@ var inputs = []testInput{
 	// A case where the timestamp has a non-matching token in the midddle of it.
 	{startGroup, "acb def 10:10:10 foo 2024-05-15 hijk lmop"},
 
+	// IIS W3C extended log format. Every record is a complete single-line entry
+	// prefixed with a timestamp, so each one must start its own group. The client
+	// address field is what makes these interesting: an address tokenizing to
+	// DD.D.DD.DD extends the matched subsequence far enough past the timestamp to
+	// drag the reported probability down to exactly the default match threshold.
+	{startGroup, "2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET /ZenIT/Service/v13/core/Consent land=DE 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 19571 1051"},
+	{startGroup, "2026-08-11 10:34:50 W3SVC1 10.1.48.10 POST /ZenIT/Service/v13/core/Logger - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 204 0 0 504 6"},
+	{startGroup, "2026-08-11 10:34:49 W3SVC1 fe80::b045:52da:3136:3f1c%3 GET /ZenIT/Service/v13/colibriApi/api/Auftrag/Reklamation 443 NDL\\SVC-Zenit-NDL0167 - 200 0 0 945 7"},
+	{startGroup, "2026-08-11 10:34:51 W3SVC1 192.168.1.1 GET /ZenIT/Service/v13/core/Consent - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 1586 51"},
+
 	// Likely do not contain timestamps for aggreagtion
 	{aggregate, "12:30:2017 - info App started successfully"},
 	{aggregate, "12:30:20 - info App started successfully"},

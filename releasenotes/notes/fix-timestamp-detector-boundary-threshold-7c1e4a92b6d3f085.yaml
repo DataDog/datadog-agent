@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Auto multi-line detection no longer misclassifies single-line logs whose
+    timestamp match probability lands exactly on
+    ``logs_config.auto_multi_line.timestamp_detector_match_threshold``. The
+    comparison was strictly greater-than, so a log scoring precisely at the
+    threshold was treated as a continuation line and appended to the preceding
+    log instead of starting a new one. This was observed on IIS W3C extended
+    format access logs, where a client address tokenizing to ``DD.D.DD.DD``
+    (for example ``10.1.48.10``) extends the matched token subsequence far
+    enough past the timestamp to bring the reported probability down to exactly
+    the ``0.5`` default, causing consecutive single-line entries to be
+    concatenated into one log.

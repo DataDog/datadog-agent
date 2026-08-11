@@ -114,7 +114,12 @@ func (t *TimestampDetector) ProcessAndContinue(context *messageContext) bool {
 		return true
 	}
 
-	if t.tokenGraph.MatchProbability(context.tokens.Borrow()).probability > t.matchThreshold {
+	// The comparison is inclusive: a probability landing exactly on the threshold
+	// is a match. Some single-line formats score precisely at the default (0.5) --
+	// IIS W3C records whose client address tokenizes to DD.D.DD.DD are one -- and
+	// excluding them here silently demotes them to the labeler's default aggregate
+	// label, concatenating consecutive single-line records into one log.
+	if t.tokenGraph.MatchProbability(context.tokens.Borrow()).probability >= t.matchThreshold {
 		context.label = startGroup
 		context.labelAssignedBy = "timestamp_detector"
 	}
