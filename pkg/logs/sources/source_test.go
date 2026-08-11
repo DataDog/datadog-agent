@@ -6,6 +6,7 @@
 package sources
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,6 +34,34 @@ func (s *LogSourceSuite) TestDump() {
 	s.source = NewLogSource("mysource", nil)
 	dump := s.source.Dump(true)
 	assert.Contains(s.T(), dump, "mysource")
+}
+
+// TestDumpConcurrentWithProcessingInfo runs Dump() concurrently with ProcessingInfo.Inc() to catch races (-race).
+func (s *LogSourceSuite) TestDumpConcurrentWithProcessingInfo() {
+	source := NewLogSource("racesource", nil)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				source.ProcessingInfo.Inc("exclude_rule")
+			}
+		}
+	})
+
+	wg.Go(func() {
+		for i := 0; i < 1000; i++ {
+			source.Dump(true)
+		}
+		close(stop)
+	})
+
+	wg.Wait()
 }
 
 func TestTrackerSuite(t *testing.T) {
