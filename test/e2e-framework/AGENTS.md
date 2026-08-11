@@ -129,6 +129,159 @@ and the standalone driver — keep them in sync.
 Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
 retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
 
+## No-Pulumi local provisioning (`cmd/e2ectl`)
+
+For a local `kind` cluster, Pulumi is pure DAG-engine overhead around shelled-out
+`kind`/`helm` commands (see `testing/provisioners/local/kubernetes/kind.go`).
+`cmd/e2ectl` is a standalone CLI (no Pulumi, no testify) that owns the whole
+local test lifecycle — provision infra, install the agent, run the `go test` —
+described by a single YAML test definition. What's actually been created is
+tracked in a separate, auto-generated JSON state file, centralized under
+`test/e2e-framework/.e2ectl-state/<name>.state.json` (gitignored) — `name` is
+the YAML's `name:` field, already required to be unique since it's reused for
+the kind cluster name, the fakeintake container name, and the Helm release
+namespace/labels, so it doubles as a safe state-file key. Centralizing state
+this way (rather than colocating it with each YAML) is what lets `e2ectl`'s
+dashboard (see below) discover every environment on the machine regardless of
+which directory it's invoked from.
+
+**Each test that uses this flow keeps its own YAML test definition colocated
+with its `_test.go` file** (same basename, `.yaml` extension) rather than
+sharing one config — e.g. `test/new-e2e/examples/kind_nopulumi_test.yaml` next
+to `kind_nopulumi_test.go`:
+
+```yaml
+# test/new-e2e/examples/kind_nopulumi_test.yaml
+name: kind-nopulumi
+provisioner:
+  type: kind                    # registry key, see cmd/e2ectl/provisioners.go
+  options:
+    kubeVersion: "1.31"
+    withoutFakeIntake: false
+agent:
+  installer: helm-k8s            # optional; auto-detected if omitted
+  agentVersion: latest
+  clusterAgentVersion: latest
+  namespace: datadog
+test:
+  package: ./examples/...        # --targets for `dda inv new-e2e-tests.run`
+  run: TestKindNoPulumi          # -run pattern
+```
+
+```bash
+cd test/e2e-framework
+go run ./cmd/e2ectl                                              # interactive dashboard: lists every known environment
+CFG=../new-e2e/examples/kind_nopulumi_test.yaml
+go run ./cmd/e2ectl run --config=$CFG                            # interactive: per-env menu for just this one
+go run ./cmd/e2ectl run --config=$CFG --stage=provision          # non-interactive: infra only
+go run ./cmd/e2ectl run --config=$CFG --stage=test --yes         # non-interactive: provision+install+test
+go run ./cmd/e2ectl destroy --config=$CFG                        # tear down
+```
+
+**Dashboard (`e2ectl` with no arguments, `dashboard.go`):** globs
+`.e2ectl-state/*.state.json`, follows each one's recorded `_source` metadata
+entry back to the YAML that produced it, and lists one line per environment
+with a live status summary (`provisioned, agent 7.81 / cluster-agent latest
+(up to date)`, `... — drifted`, `not provisioned`), plus `o) open a
+config...` for a YAML with no state yet and `q) quit`. Picking an entry (or
+`o`) enters that environment's loop.
+
+**Per-env loop (`runEnvLoop`, `wizard.go`):** replaces what used to be a
+one-shot "how far should this run go?" prompt. Reached either directly
+(`e2ectl run --config=...` without `--stage`/`--yes`) or via the dashboard,
+it reprints a status block (infra provisioned? agent status/drift? which test
+would run?) and a fixed menu — `1) provision infra`, `2) install/update
+agent`, `3) run test`, `4) destroy environment`, `b) back to dashboard` (only
+when entered via the dashboard), `q) quit` — after every action, including a
+failed one: an action's error is printed and the loop continues rather than
+exiting the process, so a transient failure (network blip, port conflict)
+doesn't cost you the whole session. `4) destroy` requires typing the
+environment's `name` back to confirm — the one action here that's hard to
+undo. If stdin isn't a terminal and neither `--stage` nor `--yes` was given
+(covers both the dashboard and `run`), `e2ectl` errors out instead of
+hanging, so a misconfigured CI job fails fast rather than stalling.
+
+The install stage isn't just "skip if already installed": `installers.Status`
+(`testing/installers/installers.go`) compares the state file's recorded
+`agent` entry (versions, namespace) against what the YAML currently asks for,
+so editing `agentVersion`/`clusterAgentVersion`/`namespace` and re-running
+`e2ectl run` (or picking "install/update agent" again from the loop)
+re-installs (a real Helm upgrade, via `installOrUpgradeHelmRelease`'s
+release-history check) instead of silently skipping — no need to `e2ectl
+destroy` first just to pick up a version bump. This comparison is an
+`Installer`-interface method (`status`), not logic living in `cmd/e2ectl`
+itself, precisely so a future non-Kubernetes installer can describe its own
+notion of "up to date" without `cmd/e2ectl` needing to know its output shape;
+`stagesCompleted`'s "is infra provisioned" check is similarly generic — any
+state-file entry other than `agent` and `_`-prefixed metadata counts, so it
+isn't hardcoded to `kind`'s `kubernetesCluster` key either.
+
+The provisioning stage dispatches through a `provisionerRegistry` keyed by the
+YAML `provisioner.type` field (`cmd/e2ectl/provisioners.go`); the install stage
+is a thin wrapper around `testing/installers.UpdateAgent`, which dispatches
+through its own installer registry, chosen explicitly via `agent.installer` or
+auto-detected from the shape of the state file. Only `kind` (via
+`testing/provisioners/local/kubernetes/kindinfra`) and `helm-k8s` (Helm Go SDK,
+installing the public `datadog` chart) are implemented — adding another
+environment type means registering a new provisioner/installer (and, for the
+installer side, implementing `status`), not changing `main.go`, which
+intentionally has zero environment-specific imports. The test stage shells out
+to `dda inv new-e2e-tests.run --targets=<package> [--run=<pattern>]` (this
+repo's mandated test runner) with `E2E_ENV_FILE` set to the state file's
+absolute path.
+
+`testing/installers` exists as its own importable package (rather than living
+in `cmd/e2ectl`, `package main`) so the install step can be called in-process,
+not just from the CLI: a running `go test` can call
+`installers.UpdateAgent(ctx, envPath, installerName, params)` directly to
+change agent config mid-suite, the same operation `e2ectl run`'s install stage
+performs, with no subprocess/`exec` involved. `installers.Status(installerName,
+envEntries, desired)` is exported the same way, for any caller that wants a
+read-only drift check without performing an install — it's what both the
+dashboard and the per-env loop use to render agent status.
+`installers.ResolveAPIKeys()` (env vars, falling back to
+`~/.test_infra_config.yaml`) is exported for the same in-process-callable
+reason. See `test/new-e2e/examples/kind_nopulumi_test.go`'s `installAgent`
+suite helper for the pattern.
+
+The resulting state file is consumed by `provisioners.NewSingleFileProvisioner[Env]`
+(`testing/provisioners/file_provisioner.go`), instantiated per-environment-type
+(e.g. `NewSingleFileProvisioner[environments.Kubernetes](...)`). Its
+`ProvisionEnv` reads that one JSON file's top-level keys as `RawResources`,
+same shape as `FileProvisioner` (directory of JSON files) or any Pulumi
+provisioner. It also hashes the file's content into an unexported
+`fingerprint` field at construction time, so that calling `BaseSuite.UpdateEnv`
+again with the same `{id, path}` after `installers.UpdateAgent` has rewritten
+the file is detected as a real change — `UpdateEnv`/`reconcileEnv`
+(`testing/e2e/suite.go`) decides whether to re-provision purely via
+`reflect.DeepEqual` on the provisioner struct, and `{id, path}` alone would
+compare equal across calls despite the file's content differing. See
+`test/new-e2e/examples/kind_nopulumi_test.go` for a full `go test` reading
+`E2E_ENV_FILE`, asserting `datadog-cluster-agent status`, then changing the
+cluster agent's version mid-suite via `installAgent` + `UpdateEnv` and
+asserting on the new version (`TestClusterAgentVersionUpdate`).
+
+**Why it's `TypedProvisioner[Env]`, not `UntypedProvisioner`:**
+`environments.BuildEnvFromResources` looks up each importable env field by
+`Importable.Key()`, which for a freshly-allocated component is empty — the
+only code path that ever sets it (`components.Export` → `SetKey`) runs
+inside a live `pulumi.Context`, and only for `TypedProvisioner[Env]`s, since
+those alone receive the live `*Env` to mutate during `ProvisionEnv`. Fields
+without `import:"..."` tags (true of every stock `environments.*` struct)
+have no other way to get a key. `SingleFileProvisioner[Env]` works around
+this by receiving `*Env` itself and calling `SetKey` via reflection
+(`assignImportKeys`), matching each importable field to a same-named (or
+tag-named) top-level entry in the JSON file before returning
+`RawResources`. If you write a new `UntypedProvisioner` meant to feed a
+stock environment struct, it will fail with `"... has no import key set and
+no annotation"` — make it a `TypedProvisioner[Env]` instead.
+
+This is a POC: no Helm-values parity with the Pulumi path (no
+kube-state-metrics/SBOM/autoscaling/APM-instrumentation/OTel/Windows/FIPS/JMX),
+`SingleFileProvisioner.Destroy` is a no-op (only `e2ectl destroy` tears down —
+`go test` never provisions or destroys anything here), and `e2ectl destroy`
+trusts the caller to pass the same `--config`/`--state` used at `run` time.
+
 ## Beyond out of the box environments
 
 The stock environments are highly customizable via provisioner options (OS,
@@ -210,6 +363,10 @@ strictly-increasing CI check, publish jobs).
 - `testing/e2e/suite_params.go` — `SuiteOption` (WithProvisioner, WithDevMode, etc.)
 - `testing/standalone/standalone.go` — non-test driver (`Provision`/`Destroy`/`Context`)
 - `cmd/ai-sandbox/main.go` — standalone consumer (provision + run AI agent + retrieve dir)
+- `cmd/e2ectl/` — no-Pulumi CLI: no-argument dashboard (`dashboard.go`) across every known environment, `run` (per-env interactive loop, or `--stage`/`--yes`-driven) / `destroy`; the install stage is a thin wrapper over `testing/installers`
+- `testing/installers/installers.go` — `UpdateAgent`/`Status`/`ResolveAPIKeys`, the in-process install/status API shared by `cmd/e2ectl` and tests that change agent config mid-suite
+- `testing/provisioners/local/kubernetes/kindinfra/provisioner.go` — no-Pulumi kind cluster provisioner
+- `testing/provisioners/file_provisioner.go` — `FileProvisioner` (`UntypedProvisioner`, unused) / `SingleFileProvisioner[Env]` (`TypedProvisioner[Env]`, sets import keys via reflection, fingerprints file content so `UpdateEnv` detects out-of-band changes)
 - `testing/environments/host.go` — Host environment definition
 - `testing/environments/environments.go` — `CreateEnv` / `BuildEnvFromResources` (shared import loop)
 - `testing/provisioners/aws/host/host.go` — AWS host provisioner
