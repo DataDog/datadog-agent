@@ -52,7 +52,6 @@ go_library(
         "//comp/forwarder/eventplatform/impl",
         "//comp/forwarder/orchestrator/def",
         "//comp/haagent/def",
-        "//comp/serializer/logscompression/def",
         "//comp/serializer/metricscompression/def",
         "//pkg/aggregator/ckey",
         "//pkg/aggregator/internal/tags",
