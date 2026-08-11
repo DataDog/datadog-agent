@@ -1,8 +1,9 @@
 # Global build settings
 # gazelle:dd_agent_go_test on
-# gazelle:go_canonical_test_tag_set docker kubelet
 # gazelle:go_canonical_test_tag_set cel clusterchecks kubeapiserver kubelet orchestrator
 # gazelle:go_canonical_test_tag_set linux_bpf
+# gazelle:go_canonical_test_tag_set containerd cel
+# gazelle:go_canonical_test_tag_set docker kubelet cel
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
