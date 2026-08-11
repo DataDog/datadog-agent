@@ -1,17 +1,11 @@
 import json
 import os
-import shlex
 import tempfile
 import unittest
-from types import SimpleNamespace
-from unittest.mock import Mock
-
-from invoke import Context
 
 from tasks.anomalydetection import (
     _bayesian_evaluation_inputs,
     _load_completed_bayesian_report,
-    eval_scenarios,
 )
 from tasks.libs.anomalydetection.eval import (
     ABLATION_CORRELATORS,
@@ -22,7 +16,6 @@ from tasks.libs.anomalydetection.eval import (
     _combo_to_config,
     _full_stack_combo,
     _sample_component_params,
-    default_eval_config,
     random_component_combinations,
 )
 
@@ -36,60 +29,6 @@ class MinimumTrial:
 
 
 class TestAblationConfig(unittest.TestCase):
-    def test_default_eval_config_uses_scorer_and_keeps_testbench_defaults(self):
-        components = default_eval_config()["components"]
-
-        self.assertEqual(set(components), {"anomaly_scorer", "time_cluster"})
-        self.assertTrue(components["anomaly_scorer"]["enabled"])
-        self.assertTrue(components["anomaly_scorer"]["correlation_events"])
-        self.assertEqual(components["anomaly_scorer"]["cooldown_secs"], 0)
-        self.assertFalse(components["time_cluster"]["enabled"])
-
-    def test_eval_scenarios_passes_default_scorer_config_to_testbench(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            scenario = "scenario-a"
-            parquet_dir = os.path.join(tmpdir, scenario, "parquet")
-            os.makedirs(parquet_dir)
-            with open(os.path.join(parquet_dir, "input.parquet"), "w"):
-                pass
-
-            report_path = os.path.join(tmpdir, "report.json")
-
-            def run(command, **_kwargs):
-                args = shlex.split(command)
-                if args[0] == "bin/anomalydetection-testbench":
-                    output_path = args[args.index("--output") + 1]
-                    with open(output_path, "w") as f:
-                        json.dump({}, f)
-                    return SimpleNamespace(failed=False, stderr="", stdout="")
-                return SimpleNamespace(
-                    failed=False,
-                    stderr="",
-                    stdout=(
-                        '{"f1": 1.0, "precision": 1.0, "recall": 1.0, '
-                        '"alpha": 0, "num_predictions": 1, "num_baseline_fps": 0, '
-                        '"num_filtered_warmup": 0, "num_filtered_cascading": 0}'
-                    ),
-                )
-
-            ctx = Context()
-            ctx.run = Mock(side_effect=run)
-            eval_scenarios(
-                ctx,
-                scenario=scenario,
-                scenarios_dir=tmpdir,
-                build=False,
-                main_report_path=report_path,
-                scenario_output_dir=tmpdir,
-            )
-
-            testbench_args = shlex.split(ctx.run.call_args_list[0].args[0])
-            config_path = testbench_args[testbench_args.index("--config") + 1]
-            with open(config_path) as f:
-                components = json.load(f)["components"]
-            self.assertTrue(components["anomaly_scorer"]["enabled"])
-            self.assertFalse(components["time_cluster"]["enabled"])
-
     def test_generated_configs_enable_scorer_and_disable_time_cluster(self):
         self.assertEqual(ABLATION_CORRELATORS, ["anomaly_scorer"])
         self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "cross_signal", "time_cluster"])

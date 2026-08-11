@@ -466,21 +466,6 @@ def _component_base_config(name: str, enabled: bool) -> dict:
     return cfg
 
 
-def default_eval_config() -> dict:
-    """Build the standard F1-eval config around scorer-produced episodes.
-
-    The testbench defaults to the time-cluster correlator and leaves the scorer
-    disabled. Keep all detector and extractor defaults intact, while making the
-    correlator that users will see the source of evaluated anomaly periods.
-    """
-    return {
-        "components": {
-            "anomaly_scorer": _component_base_config("anomaly_scorer", True),
-            "time_cluster": _component_base_config("time_cluster", False),
-        }
-    }
-
-
 def _combo_to_config(
     detectors: list,
     correlators: list,
