@@ -20,6 +20,20 @@ const (
 	kafkaConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
 )
 
+// kafkaDefaultConfigPathGroups contains final config paths passed to Kafka by
+// known distribution image startup scripts, ordered by priority. Strimzi's
+// generated config takes precedence over the packaged Apache config that its
+// image also contains. Apache and Confluent images ship other example configs,
+// but their startup scripts do not pass those files to Kafka.
+var kafkaDefaultConfigPathGroups = [][]string{
+	{"/tmp/strimzi.properties"},
+	{
+		"/opt/kafka/config/server.properties",
+		"/etc/kafka/kafka.properties",
+		"/opt/bitnami/kafka/config/server.properties",
+	},
+}
+
 type kafkaConfigCollector struct{}
 
 func NewKafka() configfilesdiscoveryimpl.ConfigCollector {
@@ -38,19 +52,15 @@ func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscove
 }
 
 func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	configPath, ok, err := findConfigPath(ctx, reader, kafkaGetConfigArgFromCommandline)
+	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, kafkaDefaultConfigPathGroups...)
 	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka command lines: %w", err)
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
 	}
 	if !ok {
-		log.Debugf("config files discovery skipped kafka config collection: no explicit broker properties file path detected")
+		log.Debugf("config files discovery skipped kafka config collection: no unique broker properties file path detected")
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
-	file, err := reader.ReadFile(ctx, configPath)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka config file %q: %w", configPath, err)
-	}
 	file.PayloadFormat = kafkaConfigPayloadFormat
 
 	return configfilesdiscoveryimpl.CollectedConfig{
@@ -69,6 +79,11 @@ func kafkaGetConfigArgFromCommandline(args []string) (string, bool) {
 		return "", false
 	}
 	return kafkaGetConfigArg(kafkaArgs)
+}
+
+func kafkaMatchesCommandline(args []string) bool {
+	_, ok := kafkaGetArgs(unwrapShellCommandline(args))
+	return ok
 }
 
 func kafkaGetArgs(args []string) ([]string, bool) {
