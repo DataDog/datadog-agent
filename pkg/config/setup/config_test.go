@@ -1625,6 +1625,42 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
+// TestInitConfigRegistersSystemProbeKeysAsKnown verifies that InitConfig registers
+// system-probe schema keys as known in the core agent config so that checkKnownKey
+// does not emit false-positive warnings when the core agent reads a datadog.yaml
+// that contains system_probe_config.*, network_config.*, etc. sections.
+// Regression test for https://github.com/DataDog/datadog-agent/issues/54747.
+func TestInitConfigRegistersSystemProbeKeysAsKnown(t *testing.T) {
+	conf := newEmptyMockConf(t)
+	InitConfig(conf)
+
+	// Keys from the bug report must be known after InitConfig.
+	for _, key := range []string{
+		"system_probe_config.enable_oom_kill",
+		"system_probe_config.enable_co_re",
+		"system_probe_config.enable_runtime_compiler",
+		"system_probe_config.enable_kernel_header_download",
+		"system_probe_config.allow_prebuilt_fallback",
+		"system_probe_config.telemetry_enabled",
+		"system_probe_config.max_conns_per_message",
+		"network_config.collect_tcp_v4",
+		"network_config.collect_tcp_v6",
+		"network_config.collect_udp_v4",
+		"network_config.collect_udp_v6",
+		"network_config.enable_protocol_classification",
+		"network_config.enable_gateway_lookup",
+		"network_config.enable_root_netns",
+		"runtime_security_config.enabled",
+		"service_monitoring_config.enabled",
+	} {
+		assert.True(t, conf.IsKnown(key), "expected system-probe key %q to be known in core agent config", key)
+	}
+
+	// System-probe keys must not have defaults set in the core agent config.
+	assert.Nil(t, conf.Get("system_probe_config.enable_oom_kill"))
+	assert.Nil(t, conf.Get("network_config.collect_tcp_v4"))
+}
+
 func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
 	conf := newEmptyMockConf(t)

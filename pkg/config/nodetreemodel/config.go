@@ -453,6 +453,13 @@ func (c *ntmConfig) parentOfNode(node *nodeImpl, key string) (*nodeImpl, string,
 	return node, lastPart, nil
 }
 
+// SetKnown marks a key as known without setting a default value or env binding.
+func (c *ntmConfig) SetKnown(key string) {
+	c.Lock()
+	defer c.Unlock()
+	c.addToKnownKeys(strings.ToLower(key))
+}
+
 func (c *ntmConfig) addToKnownKeys(key string) {
 	if _, ok := c.knownKeys[key]; ok {
 		return
