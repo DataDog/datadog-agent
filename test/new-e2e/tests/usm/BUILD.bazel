@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "usm",
+    srcs = [
+        "config.go",
+        "helpers.go",
+    ],
+    data = ["config/usm.yaml"],
+    embedsrcs = ["config/usm.yaml"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/usm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "usm_test",
+    srcs = [
+        "linux_remote_service_tags_test.go",
+        "windows_remote_service_tags_test.go",
+    ],
+    embed = [":usm"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/new-e2e/tests/windows",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "dogstatsd-unit",
+    srcs = ["docs.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/dogstatsd-unit",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "dogstatsd-unit_test",
+    srcs = ["dogstatsd_unit_nix_test.go"],
+    embed = [":dogstatsd-unit"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/new-e2e/tests/agent-metric-pipelines/common",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
