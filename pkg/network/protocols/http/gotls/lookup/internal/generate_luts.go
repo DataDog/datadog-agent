@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package main for luts generator.
 package main
 
 import (
