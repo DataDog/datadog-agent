@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "service-test",
+    srcs = ["diagnostics.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/service-test",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/testing/components"],
+)
+
+dd_agent_go_test(
+    name = "service-test_test",
+    srcs = ["startstop_test.go"],
+    data = [
+        "fixtures/datadog.yaml",
+        "fixtures/datadog-di-disabled.yaml",
+        "fixtures/datadog-pa-disabled.yaml",
+        "fixtures/datadog-rc-enabled.yaml",
+        "fixtures/datadog-ta-disabled.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/security-agent-disabled.yaml",
+        "fixtures/system-probe.yaml",
+        "fixtures/system-probe-disabled.yaml",
+        "fixtures/system-probe-nofim.yaml",
+    ],
+    embed = [":service-test"],
+    embedsrcs = [
+        "fixtures/datadog-di-disabled.yaml",
+        "fixtures/datadog-pa-disabled.yaml",
+        "fixtures/datadog-rc-enabled.yaml",
+        "fixtures/datadog-ta-disabled.yaml",
+        "fixtures/datadog.yaml",
+        "fixtures/security-agent-disabled.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe-disabled.yaml",
+        "fixtures/system-probe-nofim.yaml",
+        "fixtures/system-probe.yaml",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = [
+        "//pkg/util/testutil/flake",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_stretchr_testify//suite",
+    ],
+)
