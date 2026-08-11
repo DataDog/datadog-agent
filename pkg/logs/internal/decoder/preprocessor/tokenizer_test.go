@@ -722,7 +722,7 @@ func TestTokenizer_ByteClassification(t *testing.T) {
 	tok := NewTokenizer(0)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			tokens, _ := tok.tokenize([]byte{tc.input})
+			tokens, _ := tok.Tokenize([]byte{tc.input})
 			assert.Equal(t, tc.expected, TokensToString(tokens),
 				"byte 0x%02x classified incorrectly", tc.input)
 		})
@@ -749,7 +749,7 @@ func FuzzTokenizerByteClassification(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, b byte) {
 		tok := NewTokenizer(0)
-		tokens, _ := tok.tokenize([]byte{b})
+		tokens, _ := tok.Tokenize([]byte{b})
 		expected := referenceTokenize([]byte{b})
 		assert.Equal(t, expected, tokens,
 			"byte 0x%02x: expected tokens %v, got %v", b, expected, tokens)
@@ -783,7 +783,7 @@ func TestTokenizer_RunLengthEncoding(t *testing.T) {
 	tok := NewTokenizer(0)
 	for _, tc := range cases {
 		t.Run(tc.input, func(t *testing.T) {
-			tokens, _ := tok.tokenize([]byte(tc.input))
+			tokens, _ := tok.Tokenize([]byte(tc.input))
 			assert.Equal(t, tc.expected, TokensToString(tokens))
 		})
 	}
@@ -809,7 +809,7 @@ func FuzzTokenizerRunLengthEncoding(f *testing.F) {
 		}
 		input := strings.Repeat("5", int(n))
 		tok := NewTokenizer(0)
-		tokens, _ := tok.tokenize([]byte(input))
+		tokens, _ := tok.Tokenize([]byte(input))
 		assert.Len(t, tokens, 1,
 			"homogeneous digit run of length %d must produce exactly one token, got %d",
 			n, len(tokens))
@@ -867,7 +867,7 @@ func TestTokenizer_SpecialTokenPromotion(t *testing.T) {
 	tok := NewTokenizer(0)
 	for _, tc := range cases {
 		t.Run(tc.input, func(t *testing.T) {
-			tokens, _ := tok.tokenize([]byte(tc.input))
+			tokens, _ := tok.Tokenize([]byte(tc.input))
 			assert.Equal(t, tc.expected, TokensToString(tokens))
 		})
 	}

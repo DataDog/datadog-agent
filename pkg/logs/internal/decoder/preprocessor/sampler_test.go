@@ -636,7 +636,7 @@ func TestAdaptiveSampler_EmptyContentIgnored(t *testing.T) {
 func TestAdaptiveSampler_EmptyTokensNewPattern(t *testing.T) {
 	s := newSampler(10, 5.0, 0)
 	msg := testMsg()
-	out := s.Process(msg, nil)
+	out := s.Process(msg, BorrowedTokens{})
 	assert.NotNil(t, out, "empty-token message should be allowed as new pattern")
 	require.Len(t, s.entries, 1)
 }

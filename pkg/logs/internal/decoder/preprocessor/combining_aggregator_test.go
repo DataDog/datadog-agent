@@ -49,13 +49,13 @@ func TestCombiningAggregator_TokensFromAggregateLeader_Combined(t *testing.T) {
 	continuationTokens := []Token{C5, Space, D1}
 
 	// Build a 2-line bucket via startGroup + aggregate.
-	require.Empty(t, ag.Process(newMessage("leader"), startGroup, leaderTokens))
-	require.Empty(t, ag.Process(newMessage("cont"), aggregate, continuationTokens))
+	require.Empty(t, ag.Process(newMessage("leader"), startGroup, newBorrowedTokens(leaderTokens, nil)))
+	require.Empty(t, ag.Process(newMessage("cont"), aggregate, newBorrowedTokens(continuationTokens, nil)))
 
 	// Force flush → combined emission.
 	emitted := ag.Flush()
 	require.Len(t, emitted, 1)
-	assert.Equal(t, leaderTokens, emitted[0].Tokens,
+	assert.Equal(t, leaderTokens, emitted[0].Tokens.Borrow(),
 		"combined emission must carry the leader's tokens, not the continuation's")
 }
 

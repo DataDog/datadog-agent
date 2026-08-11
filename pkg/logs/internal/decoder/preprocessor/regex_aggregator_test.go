@@ -95,18 +95,18 @@ func TestRegexAggregator_TokensFromAggregateLeader(t *testing.T) {
 	finalTokens := []Token{D2}
 
 	// First line matches — becomes the leader. Buffered, no emission yet.
-	emitted := ag.Process(newMessage("START group"), aggregate, leaderTokens)
+	emitted := ag.Process(newMessage("START group"), aggregate, newBorrowedTokens(leaderTokens, nil))
 	require.Empty(t, emitted)
 
 	// Continuation line, different tokens. Still buffered.
-	emitted = ag.Process(newMessage("continuation"), aggregate, continuationTokens)
+	emitted = ag.Process(newMessage("continuation"), aggregate, newBorrowedTokens(continuationTokens, nil))
 	require.Empty(t, emitted)
 
 	// Next match — flushes the prior aggregate. The emitted tokens
 	// must be the leader's, not the continuation's.
-	emitted = ag.Process(newMessage("START next group"), aggregate, finalTokens)
+	emitted = ag.Process(newMessage("START next group"), aggregate, newBorrowedTokens(finalTokens, nil))
 	require.Len(t, emitted, 1)
-	assert.Equal(t, leaderTokens, emitted[0].Tokens,
+	assert.Equal(t, leaderTokens, emitted[0].Tokens.Borrow(),
 		"emitted tokens must be the aggregate leader's tokens, not the continuation's or the trigger's")
 }
 

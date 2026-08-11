@@ -72,7 +72,7 @@ func genRegexAggregatorCall() *rapid.Generator[regexAggregatorCall] {
 func runCalls(ag *RegexAggregator, calls []regexAggregatorCall) []string {
 	var out []string
 	for _, c := range calls {
-		emitted := ag.Process(newMessage(c.content), c.label, c.tokens)
+		emitted := ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		for _, e := range emitted {
 			out = append(out, string(e.Msg.GetContent()))
 		}
@@ -141,7 +141,7 @@ func TestRegexAggregator_IsEmptyAfterFlush_Property(t *testing.T) {
 		calls := rapid.SliceOfN(genRegexAggregatorCall(), 0, 10).Draw(t, "calls")
 		ag := NewRegexAggregator(re, 100, false, status.NewInfoRegistry(), "multi_line")
 		for _, c := range calls {
-			ag.Process(newMessage(c.content), c.label, c.tokens)
+			ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		}
 		ag.Flush()
 		if !ag.IsEmpty() {
@@ -166,7 +166,7 @@ func TestRegexAggregator_FlushIdempotentOnEmpty_Property(t *testing.T) {
 		calls := rapid.SliceOfN(genRegexAggregatorCall(), 0, 10).Draw(t, "calls")
 		ag := NewRegexAggregator(re, 100, false, status.NewInfoRegistry(), "multi_line")
 		for _, c := range calls {
-			ag.Process(newMessage(c.content), c.label, c.tokens)
+			ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		}
 		ag.Flush()
 		second := ag.Flush()
@@ -213,7 +213,7 @@ func TestRegexAggregator_FlushEqualsTotalEmissions_Property(t *testing.T) {
 		calls[len(calls)-1].content = "trailing non-match"
 		ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
 		for _, c := range calls {
-			ag.Process(newMessage(c.content), c.label, c.tokens)
+			ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		}
 		flushed := ag.Flush()
 		if len(flushed) != 1 {
@@ -264,15 +264,15 @@ func TestRegexAggregator_PassThroughUnderThreshold_Property(t *testing.T) {
 		nContinuations := rapid.IntRange(0, 3).Draw(t, "nContinuations")
 		ag := NewRegexAggregator(re, 200, false, status.NewInfoRegistry(), "multi_line")
 
-		ag.Process(newMessage("START first"), startGroup, nil)
+		ag.Process(newMessage("START first"), startGroup, BorrowedTokens{})
 		for i := 0; i < nContinuations; i++ {
 			line := string(rapid.SliceOfN(
 				rapid.SampledFrom([]byte("abcdef")),
 				1, 8,
 			).Draw(t, "cont"))
-			ag.Process(newMessage(line), aggregate, nil)
+			ag.Process(newMessage(line), aggregate, BorrowedTokens{})
 		}
-		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, nil))
+		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission from pattern-boundary, got %d", len(emitted))
@@ -313,8 +313,8 @@ func TestRegexAggregator_MidAggregateTruncation_Property(t *testing.T) {
 		contBytes := bytes.Repeat([]byte("x"), contLen)
 
 		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
-		ag.Process(newMessage("START a"), startGroup, nil)
-		emitted := captureRegexEmissions(ag.Process(newMessage(string(contBytes)), aggregate, nil))
+		ag.Process(newMessage("START a"), startGroup, BorrowedTokens{})
+		emitted := captureRegexEmissions(ag.Process(newMessage(string(contBytes)), aggregate, BorrowedTokens{}))
 
 		if len(emitted) == 0 {
 			t.Fatal("MidAggregateTruncation violated: expected emission after overflow, got none")
@@ -356,9 +356,9 @@ func TestRegexAggregator_HeadMarkerOnCarryover_Property(t *testing.T) {
 		shortBytes := bytes.Repeat([]byte("a"), rapid.IntRange(1, 3).Draw(t, "shortLen"))
 
 		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
-		ag.Process(newMessage("START a"), startGroup, nil)
-		ag.Process(newMessage(string(overflowBytes)), aggregate, nil) // overflow → emit with tail
-		ag.Process(newMessage(string(shortBytes)), aggregate, nil)    // accumulate with head marker
+		ag.Process(newMessage("START a"), startGroup, BorrowedTokens{})
+		ag.Process(newMessage(string(overflowBytes)), aggregate, BorrowedTokens{}) // overflow → emit with tail
+		ag.Process(newMessage(string(shortBytes)), aggregate, BorrowedTokens{})    // accumulate with head marker
 		flushed := captureRegexEmissions(ag.Flush())                  // emits the carry-marked content
 
 		if len(flushed) != 1 {
@@ -397,13 +397,13 @@ func TestRegexAggregator_CarryoverConsumed_Property(t *testing.T) {
 		freshBytes := bytes.Repeat([]byte("b"), rapid.IntRange(1, 3).Draw(t, "freshLen"))
 
 		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
-		ag.Process(newMessage("START a"), startGroup, nil)
-		ag.Process(newMessage(string(overflowBytes)), aggregate, nil) // emission 1: tail marker, carry set
-		ag.Process(newMessage(string(shortBytes)), aggregate, nil)    // accumulates with head marker
+		ag.Process(newMessage("START a"), startGroup, BorrowedTokens{})
+		ag.Process(newMessage(string(overflowBytes)), aggregate, BorrowedTokens{}) // emission 1: tail marker, carry set
+		ag.Process(newMessage(string(shortBytes)), aggregate, BorrowedTokens{})    // accumulates with head marker
 		emission2 := captureRegexEmissions(ag.Flush())                // emission 2: head marker
 		// Now carry is consumed (should_truncate is false). Start fresh.
-		ag.Process(newMessage("START second"), startGroup, nil)
-		ag.Process(newMessage(string(freshBytes)), aggregate, nil)
+		ag.Process(newMessage("START second"), startGroup, BorrowedTokens{})
+		ag.Process(newMessage(string(freshBytes)), aggregate, BorrowedTokens{})
 		emission3 := captureRegexEmissions(ag.Flush()) // emission 3: no markers
 
 		marker := message.TruncatedFlag
@@ -451,17 +451,17 @@ func TestRegexAggregator_UpstreamFlagIgnored_Property(t *testing.T) {
 		shortBytes := bytes.Repeat([]byte("a"), rapid.IntRange(1, 8).Draw(t, "shortLen"))
 
 		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
-		ag.Process(newMessage("START first"), startGroup, nil)
+		ag.Process(newMessage("START first"), startGroup, BorrowedTokens{})
 		// All continuation messages arrive upstream-flagged but
 		// well under the buffer limit.
 		nFlagged := rapid.IntRange(1, 4).Draw(t, "nFlagged")
 		for i := 0; i < nFlagged; i++ {
 			msg := newMessage(string(shortBytes))
 			msg.ParsingExtra.IsTruncated = true
-			ag.Process(msg, aggregate, nil)
+			ag.Process(msg, aggregate, BorrowedTokens{})
 		}
 		// Pattern boundary triggers emission of the prior group.
-		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, nil))
+		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("UpstreamFlagIgnored: expected 1 emission from boundary, got %d", len(emitted))
@@ -503,8 +503,8 @@ func TestRegexAggregator_TruncationTagging_Property(t *testing.T) {
 		overflowBytes := bytes.Repeat([]byte("x"), lineLimit+5)
 
 		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
-		ag.Process(newMessage("START a"), startGroup, nil)
-		emitted := captureRegexEmissions(ag.Process(newMessage(string(overflowBytes)), aggregate, nil))
+		ag.Process(newMessage("START a"), startGroup, BorrowedTokens{})
+		emitted := captureRegexEmissions(ag.Process(newMessage(string(overflowBytes)), aggregate, BorrowedTokens{}))
 
 		for i, e := range emitted {
 			if e.isTruncated {
@@ -552,8 +552,8 @@ func TestRegexAggregator_TagDisabledNoTag_Property(t *testing.T) {
 		overflowBytes := bytes.Repeat([]byte("x"), lineLimit+5)
 
 		ag := NewRegexAggregator(re, lineLimit, false, status.NewInfoRegistry(), "multi_line")
-		ag.Process(newMessage("START a"), startGroup, nil)
-		emitted := captureRegexEmissions(ag.Process(newMessage(string(overflowBytes)), aggregate, nil))
+		ag.Process(newMessage("START a"), startGroup, BorrowedTokens{})
+		emitted := captureRegexEmissions(ag.Process(newMessage(string(overflowBytes)), aggregate, BorrowedTokens{}))
 
 		for i, e := range emitted {
 			for _, tag := range e.tags {
@@ -588,12 +588,12 @@ func TestRegexAggregator_MultiLineTagging_Property(t *testing.T) {
 		nContinuations := rapid.IntRange(1, 4).Draw(t, "nContinuations")
 		ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
 
-		ag.Process(newMessage("START first"), startGroup, nil)
+		ag.Process(newMessage("START first"), startGroup, BorrowedTokens{})
 		for i := 0; i < nContinuations; i++ {
-			ag.Process(newMessage("more"), aggregate, nil)
+			ag.Process(newMessage("more"), aggregate, BorrowedTokens{})
 		}
 		// Pattern boundary triggers emission of the multi-line group.
-		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, nil))
+		emitted := captureRegexEmissions(ag.Process(newMessage("START second"), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission from boundary, got %d", len(emitted))
@@ -634,15 +634,15 @@ func TestRegexAggregator_TokensFromAggregateLeader_Property(t *testing.T) {
 		continuationTokens := []Token{Token(7), Token(8)}
 
 		ag := NewRegexAggregator(re, 200, false, status.NewInfoRegistry(), "multi_line")
-		ag.Process(newMessage("START leader"), startGroup, leaderTokens)
-		ag.Process(newMessage("continuation"), aggregate, continuationTokens)
+		ag.Process(newMessage("START leader"), startGroup, newBorrowedTokens(leaderTokens, nil))
+		ag.Process(newMessage("continuation"), aggregate, newBorrowedTokens(continuationTokens, nil))
 		// Boundary triggers emission of the prior group.
-		emitted := ag.Process(newMessage("START next"), startGroup, []Token{Token(0)})
+		emitted := ag.Process(newMessage("START next"), startGroup, newBorrowedTokens([]Token{Token(0)}, nil))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission from boundary, got %d", len(emitted))
 		}
-		gotTokens := emitted[0].Tokens
+		gotTokens := emitted[0].Tokens.Borrow()
 		if len(gotTokens) != len(leaderTokens) {
 			t.Fatalf("TokensFromAggregateLeader violated: emission has %d tokens, leader had %d", len(gotTokens), len(leaderTokens))
 		}
@@ -681,7 +681,7 @@ func TestRegexAggregator_PreMatchSinglePass_Property(t *testing.T) {
 				rapid.SampledFrom([]byte("abcdef0123")),
 				1, 20,
 			).Draw(t, "line"))
-			emittedTotal += len(ag.Process(newMessage(line), aggregate, nil))
+			emittedTotal += len(ag.Process(newMessage(line), aggregate, BorrowedTokens{}))
 		}
 		emittedTotal += len(ag.Flush())
 

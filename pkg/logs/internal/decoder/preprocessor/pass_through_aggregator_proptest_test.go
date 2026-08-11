@@ -85,13 +85,13 @@ func runOne(ag *PassThroughAggregator, in passThroughInput) (content []byte, isT
 	msg := message.NewMessage(append([]byte(nil), in.content...), nil, message.StatusInfo, 0)
 	msg.RawDataLen = len(in.content)
 	msg.ParsingExtra.IsTruncated = in.upstreamIsTruncated
-	emitted := ag.Process(msg, in.label, in.tokens)
+	emitted := ag.Process(msg, in.label, newBorrowedTokens(in.tokens, nil))
 	if len(emitted) != 1 {
 		return nil, false, nil
 	}
 	content = append([]byte(nil), emitted[0].Msg.GetContent()...)
 	isTruncated = emitted[0].Msg.ParsingExtra.IsTruncated
-	tokens = append([]Token(nil), emitted[0].Tokens...)
+	tokens = append([]Token(nil), emitted[0].Tokens.Borrow()...)
 	return content, isTruncated, tokens
 }
 
@@ -113,7 +113,7 @@ func TestPassThroughAggregator_NoGrouping_Property(t *testing.T) {
 			msg := message.NewMessage(append([]byte(nil), in.content...), nil, message.StatusInfo, 0)
 			msg.RawDataLen = len(in.content)
 			msg.ParsingExtra.IsTruncated = in.upstreamIsTruncated
-			emitted := ag.Process(msg, in.label, in.tokens)
+			emitted := ag.Process(msg, in.label, newBorrowedTokens(in.tokens, nil))
 			if len(emitted) != 1 {
 				t.Fatalf("NoGrouping violated: call %d emitted %d messages, expected exactly 1", i, len(emitted))
 			}
@@ -224,16 +224,17 @@ func TestPassThroughAggregator_TokensForwarded_Property(t *testing.T) {
 		msg := message.NewMessage(append([]byte(nil), in.content...), nil, message.StatusInfo, 0)
 		msg.RawDataLen = len(in.content)
 		msg.ParsingExtra.IsTruncated = in.upstreamIsTruncated
-		emitted := ag.Process(msg, in.label, in.tokens)
+		emitted := ag.Process(msg, in.label, newBorrowedTokens(in.tokens, nil))
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission, got %d", len(emitted))
 		}
-		if len(in.tokens) != len(emitted[0].Tokens) {
-			t.Fatalf("TokensForwarded violated: length %d → %d", len(in.tokens), len(emitted[0].Tokens))
+		gotTokens := emitted[0].Tokens.Borrow()
+		if len(in.tokens) != len(gotTokens) {
+			t.Fatalf("TokensForwarded violated: length %d → %d", len(in.tokens), len(gotTokens))
 		}
 		for i := range in.tokens {
-			if in.tokens[i] != emitted[0].Tokens[i] {
-				t.Fatalf("TokensForwarded violated: tokens[%d] %v → %v", i, in.tokens[i], emitted[0].Tokens[i])
+			if in.tokens[i] != gotTokens[i] {
+				t.Fatalf("TokensForwarded violated: tokens[%d] %v → %v", i, in.tokens[i], gotTokens[i])
 			}
 		}
 	})
@@ -259,7 +260,7 @@ func TestPassThroughAggregator_ByteConservation_Property(t *testing.T) {
 		msg := message.NewMessage(append([]byte(nil), in.content...), nil, message.StatusInfo, 0)
 		msg.RawDataLen = len(in.content)
 		msg.ParsingExtra.IsTruncated = in.upstreamIsTruncated
-		emitted := ag.Process(msg, in.label, in.tokens)
+		emitted := ag.Process(msg, in.label, newBorrowedTokens(in.tokens, nil))
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission, got %d", len(emitted))
 		}
@@ -565,7 +566,7 @@ func TestPassThroughAggregator_TagOnTruncation_Property(t *testing.T) {
 			msg := message.NewMessage(append([]byte(nil), in.content...), nil, message.StatusInfo, 0)
 			msg.RawDataLen = len(in.content)
 			msg.ParsingExtra.IsTruncated = in.upstreamIsTruncated
-			emitted := ag.Process(msg, in.label, in.tokens)
+			emitted := ag.Process(msg, in.label, newBorrowedTokens(in.tokens, nil))
 			if len(emitted) != 1 {
 				t.Fatalf("call %d: expected 1 emission, got %d", i, len(emitted))
 			}
@@ -609,7 +610,7 @@ func TestPassThroughAggregator_TagDisabledNoTag_Property(t *testing.T) {
 			msg := message.NewMessage(append([]byte(nil), in.content...), nil, message.StatusInfo, 0)
 			msg.RawDataLen = len(in.content)
 			msg.ParsingExtra.IsTruncated = in.upstreamIsTruncated
-			emitted := ag.Process(msg, in.label, in.tokens)
+			emitted := ag.Process(msg, in.label, newBorrowedTokens(in.tokens, nil))
 			if len(emitted) != 1 {
 				t.Fatalf("call %d: expected 1 emission, got %d", i, len(emitted))
 			}

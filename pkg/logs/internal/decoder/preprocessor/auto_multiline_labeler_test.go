@@ -47,7 +47,7 @@ func TestAutoMultilineLabeler_HeuristicReceivesRawMessage(t *testing.T) {
 			return true
 		}},
 	}, nil)
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.Equal(t, []byte("test 123"), seen)
 }
 
@@ -65,7 +65,7 @@ func TestAutoMultilineLabeler_DefaultLabelIsAggregate(t *testing.T) {
 			return false
 		}},
 	}, nil)
-	assert.Equal(t, aggregate, labeler.Label([]byte("test 123"), nil, nil))
+	assert.Equal(t, aggregate, labeler.Label([]byte("test 123"), BorrowedTokens{}))
 }
 
 // TestAutoMultilineLabeler_DefaultLabelAssignedByIsSentinel anchors:
@@ -86,7 +86,7 @@ func TestAutoMultilineLabeler_DefaultLabelAssignedByIsSentinel(t *testing.T) {
 			return true
 		}},
 	}, nil)
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.Equal(t, defaultLabelSource, seen)
 }
 
@@ -100,7 +100,7 @@ func TestAutoMultilineLabeler_DefaultLabelAssignedByIsSentinel(t *testing.T) {
 // evaluation procedure's edge case at the lower boundary.
 func TestAutoMultilineLabeler_EmptyChainsReturnDefault(t *testing.T) {
 	labeler := NewLabeler(nil, nil)
-	assert.Equal(t, aggregate, labeler.Label([]byte("test 123"), nil, nil))
+	assert.Equal(t, aggregate, labeler.Label([]byte("test 123"), BorrowedTokens{}))
 }
 
 // TestAutoMultilineLabeler_LabellingChainProceedsOnTrue anchors:
@@ -122,7 +122,7 @@ func TestAutoMultilineLabeler_LabellingChainProceedsOnTrue(t *testing.T) {
 			return true
 		}},
 	}, nil)
-	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123"), nil, nil))
+	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123"), BorrowedTokens{}))
 }
 
 // TestAutoMultilineLabeler_LabellingChainTerminatesOnFalse anchors:
@@ -149,7 +149,7 @@ func TestAutoMultilineLabeler_LabellingChainTerminatesOnFalse(t *testing.T) {
 			return true
 		}},
 	}, nil)
-	result := labeler.Label([]byte("test 123"), nil, nil)
+	result := labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.Equal(t, startGroup, result,
 		"second labelling heuristic should not have overwritten the label")
 	assert.False(t, secondCalled,
@@ -174,7 +174,7 @@ func TestAutoMultilineLabeler_LabellingChainHonoursOrder(t *testing.T) {
 	labeler := NewLabeler([]Heuristic{
 		makeRecording(0), makeRecording(1), makeRecording(2),
 	}, nil)
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.Equal(t, []int{0, 1, 2}, order)
 }
 
@@ -199,7 +199,7 @@ func TestAutoMultilineLabeler_AnalyticsChainRunsAfterEarlyTermination(t *testing
 			return true
 		}},
 	})
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.True(t, analyticsCalled,
 		"analytics heuristic should run even after labelling chain terminated early")
 }
@@ -225,7 +225,7 @@ func TestAutoMultilineLabeler_AnalyticsChainRunsAfterExhaustion(t *testing.T) {
 			return true
 		}},
 	})
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.True(t, analyticsCalled,
 		"analytics heuristic should run when labelling chain exhausts naturally")
 }
@@ -250,7 +250,7 @@ func TestAutoMultilineLabeler_AnalyticsChainReturnValueIgnored(t *testing.T) {
 			return true
 		}},
 	})
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.True(t, secondCalled,
 		"second analytics heuristic should run despite first returning false")
 }
@@ -273,7 +273,7 @@ func TestAutoMultilineLabeler_AnalyticsChainHonoursOrder(t *testing.T) {
 	labeler := NewLabeler(nil, []Heuristic{
 		makeRecording(0), makeRecording(1), makeRecording(2),
 	})
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.Equal(t, []int{0, 1, 2}, order)
 }
 
@@ -296,7 +296,7 @@ func TestAutoMultilineLabeler_AnalyticsChainRunsAfterLabelling(t *testing.T) {
 		return true
 	}}
 	labeler := NewLabeler([]Heuristic{labellingH}, []Heuristic{analyticsH})
-	labeler.Label([]byte("test 123"), nil, nil)
+	labeler.Label([]byte("test 123"), BorrowedTokens{})
 	assert.Equal(t, []string{"labelling", "analytics"}, order)
 }
 
@@ -323,7 +323,7 @@ func TestAutoMultilineLabeler_AnalyticsChainMayModifyLabel(t *testing.T) {
 			return false
 		}},
 	})
-	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123"), nil, nil))
+	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123"), BorrowedTokens{}))
 }
 
 // TestAutoMultilineLabeler_ReturnsContextLabel anchors:
@@ -349,5 +349,5 @@ func TestAutoMultilineLabeler_ReturnsContextLabel(t *testing.T) {
 			return true
 		}},
 	})
-	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123"), nil, nil))
+	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123"), BorrowedTokens{}))
 }

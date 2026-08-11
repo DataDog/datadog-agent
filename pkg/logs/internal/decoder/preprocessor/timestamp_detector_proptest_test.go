@@ -71,8 +71,7 @@ func genTimestampDetectorInput() *rapid.Generator[timestampDetectorInput] {
 func makeTimestampContext(in timestampDetectorInput) *messageContext {
 	return &messageContext{
 		rawMessage:      append([]byte(nil), in.rawMessage...),
-		tokens:          append([]Token(nil), in.tokens...),
-		tokenIndicies:   append([]int(nil), in.tokenIndicies...),
+		tokens:          newBorrowedTokens(append([]Token(nil), in.tokens...), append([]int(nil), in.tokenIndicies...)),
 		label:           in.label,
 		labelAssignedBy: in.labelAssignedBy,
 	}
@@ -210,28 +209,30 @@ func TestTimestampDetector_InputImmutability_Property(t *testing.T) {
 		ctx := makeTimestampContext(in)
 
 		rawSnapshot := append([]byte(nil), ctx.rawMessage...)
-		tokensSnapshot := append([]Token(nil), ctx.tokens...)
-		indicesSnapshot := append([]int(nil), ctx.tokenIndicies...)
+		tokensSnapshot := append([]Token(nil), ctx.tokens.Borrow()...)
+		indicesSnapshot := append([]int(nil), ctx.tokens.Indices()...)
 
 		d.ProcessAndContinue(ctx)
 
 		if !bytes.Equal(rawSnapshot, ctx.rawMessage) {
 			t.Fatalf("InputImmutability violated: raw_message mutated\nbefore: %q\nafter:  %q", rawSnapshot, ctx.rawMessage)
 		}
-		if len(tokensSnapshot) != len(ctx.tokens) {
-			t.Fatalf("InputImmutability violated: tokens length changed %d → %d", len(tokensSnapshot), len(ctx.tokens))
+		gotTokens := ctx.tokens.Borrow()
+		if len(tokensSnapshot) != len(gotTokens) {
+			t.Fatalf("InputImmutability violated: tokens length changed %d → %d", len(tokensSnapshot), len(gotTokens))
 		}
 		for i := range tokensSnapshot {
-			if tokensSnapshot[i] != ctx.tokens[i] {
-				t.Fatalf("InputImmutability violated: tokens[%d] %v → %v", i, tokensSnapshot[i], ctx.tokens[i])
+			if tokensSnapshot[i] != gotTokens[i] {
+				t.Fatalf("InputImmutability violated: tokens[%d] %v → %v", i, tokensSnapshot[i], gotTokens[i])
 			}
 		}
-		if len(indicesSnapshot) != len(ctx.tokenIndicies) {
-			t.Fatalf("InputImmutability violated: token_indices length changed %d → %d", len(indicesSnapshot), len(ctx.tokenIndicies))
+		gotIndices := ctx.tokens.Indices()
+		if len(indicesSnapshot) != len(gotIndices) {
+			t.Fatalf("InputImmutability violated: token_indices length changed %d → %d", len(indicesSnapshot), len(gotIndices))
 		}
 		for i := range indicesSnapshot {
-			if indicesSnapshot[i] != ctx.tokenIndicies[i] {
-				t.Fatalf("InputImmutability violated: token_indices[%d] %v → %v", i, indicesSnapshot[i], ctx.tokenIndicies[i])
+			if indicesSnapshot[i] != gotIndices[i] {
+				t.Fatalf("InputImmutability violated: token_indices[%d] %v → %v", i, indicesSnapshot[i], gotIndices[i])
 			}
 		}
 	})
@@ -315,8 +316,7 @@ func TestTimestampDetector_KnownFormatsClaim_Property(t *testing.T) {
 		tokens, indices := tok.Tokenize(content)
 		ctx := &messageContext{
 			rawMessage:      content,
-			tokens:          tokens,
-			tokenIndicies:   indices,
+			tokens:          newBorrowedTokens(tokens, indices),
 			label:           aggregate,
 			labelAssignedBy: defaultLabelSource,
 		}

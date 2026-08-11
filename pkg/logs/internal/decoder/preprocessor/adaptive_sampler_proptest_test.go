@@ -27,7 +27,7 @@ import (
 // samplerCall bundles one process call's worth of input.
 type samplerCall struct {
 	content         []byte
-	tokens          []Token
+	tokens          BorrowedTokens
 	inputTags       []string
 	advanceMs       int64
 	isImportantCall bool // when true, draw an ERROR-tagged token sequence
@@ -42,7 +42,7 @@ func genSamplerCall() *rapid.Generator[samplerCall] {
 	return rapid.Custom(func(t *rapid.T) samplerCall {
 		content := rapid.SliceOfN(rapid.Byte(), 0, 40).Draw(t, "content")
 		patternChoice := rapid.IntRange(0, 2).Draw(t, "patternChoice")
-		var tokens []Token
+		var tokens BorrowedTokens
 		switch patternChoice {
 		case 0:
 			tokens = tokenize("2024-01-15 10:30:45 INFO request id=123")

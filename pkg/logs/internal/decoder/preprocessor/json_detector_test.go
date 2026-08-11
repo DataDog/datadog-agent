@@ -125,8 +125,7 @@ func TestJSONDetector_InputImmutability(t *testing.T) {
 
 			ctx := &messageContext{
 				rawMessage:      rawBefore,
-				tokens:          tokensBefore,
-				tokenIndicies:   indicesBefore,
+				tokens:          newBorrowedTokens(tokensBefore, indicesBefore),
 				label:           aggregate,
 				labelAssignedBy: defaultLabelSource,
 			}

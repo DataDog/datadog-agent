@@ -100,8 +100,8 @@ func TestAutoMultilineLabeler_Determinism_Property(t *testing.T) {
 		input := genLabelInput().Draw(t, "input")
 
 		labeler := NewLabeler(labelling, analytics)
-		first := labeler.Label(input.content, input.tokens, input.tokenIndicies)
-		second := labeler.Label(input.content, input.tokens, input.tokenIndicies)
+		first := labeler.Label(input.content, newBorrowedTokens(input.tokens, input.tokenIndicies))
+		second := labeler.Label(input.content, newBorrowedTokens(input.tokens, input.tokenIndicies))
 		if first != second {
 			t.Fatalf("Determinism violated: first=%v second=%v", first, second)
 		}
@@ -133,7 +133,7 @@ func TestAutoMultilineLabeler_Totality_Property(t *testing.T) {
 		input := genLabelInput().Draw(t, "input")
 
 		labeler := NewLabeler(labelling, analytics)
-		result := labeler.Label(input.content, input.tokens, input.tokenIndicies)
+		result := labeler.Label(input.content, newBorrowedTokens(input.tokens, input.tokenIndicies))
 		switch result {
 		case startGroup, noAggregate, aggregate:
 			// ok — value is in the Label enum

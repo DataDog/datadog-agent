@@ -152,19 +152,19 @@ func TestDetectingAggregator_TokensFromSameCall(t *testing.T) {
 	tokensC := []Token{D2}
 
 	// start_group A buffers, no emission.
-	emitted := ag.Process(newMessage("A"), startGroup, tokensA)
+	emitted := ag.Process(newMessage("A"), startGroup, newBorrowedTokens(tokensA, nil))
 	require.Empty(t, emitted)
 
 	// aggregate B emits A (with A's tokens, plus detection tag) then B (with B's tokens).
-	emitted = ag.Process(newMessage("B"), aggregate, tokensB)
+	emitted = ag.Process(newMessage("B"), aggregate, newBorrowedTokens(tokensB, nil))
 	require.Len(t, emitted, 2)
-	assert.Equal(t, tokensA, emitted[0].Tokens, "emission of buffered start_group must carry that call's tokens, not the triggering aggregate's tokens")
-	assert.Equal(t, tokensB, emitted[1].Tokens, "emission of aggregate must carry that call's tokens")
+	assert.Equal(t, tokensA, emitted[0].Tokens.Borrow(), "emission of buffered start_group must carry that call's tokens, not the triggering aggregate's tokens")
+	assert.Equal(t, tokensB, emitted[1].Tokens.Borrow(), "emission of aggregate must carry that call's tokens")
 
 	// no_aggregate C emits C (with C's tokens).
-	emitted = ag.Process(newMessage("C"), noAggregate, tokensC)
+	emitted = ag.Process(newMessage("C"), noAggregate, newBorrowedTokens(tokensC, nil))
 	require.Len(t, emitted, 1)
-	assert.Equal(t, tokensC, emitted[0].Tokens)
+	assert.Equal(t, tokensC, emitted[0].Tokens.Borrow())
 }
 
 // TestDetectingAggregator_FlushIdempotentOnEmpty anchors:

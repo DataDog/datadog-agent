@@ -199,7 +199,7 @@ func TestTimestampDetector_EmptyTokensNoAction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &messageContext{
 				rawMessage:      []byte("2024-03-28T13:45:30.123456Z any content"),
-				tokens:          tc.tokens,
+				tokens:          newBorrowedTokens(tc.tokens, nil),
 				label:           aggregate,
 				labelAssignedBy: defaultLabelSource,
 			}
@@ -228,8 +228,7 @@ func TestTimestampDetector_LabelDomain_OnClaim(t *testing.T) {
 	tokens, indices := tok.Tokenize(content)
 	ctx := &messageContext{
 		rawMessage:      content,
-		tokens:          tokens,
-		tokenIndicies:   indices,
+		tokens:          newBorrowedTokens(tokens, indices),
 		label:           aggregate,
 		labelAssignedBy: defaultLabelSource,
 	}
@@ -256,8 +255,7 @@ func TestTimestampDetector_LabelAssignedByConsistency_OnClaim(t *testing.T) {
 	tokens, indices := tok.Tokenize(content)
 	ctx := &messageContext{
 		rawMessage:      content,
-		tokens:          tokens,
-		tokenIndicies:   indices,
+		tokens:          newBorrowedTokens(tokens, indices),
 		label:           aggregate,
 		labelAssignedBy: defaultLabelSource,
 	}
@@ -304,8 +302,7 @@ func TestTimestampDetector_LabelAssignedByConsistency_OnNoClaim(t *testing.T) {
 			}
 			ctx := &messageContext{
 				rawMessage:      content,
-				tokens:          tokens,
-				tokenIndicies:   indices,
+				tokens:          newBorrowedTokens(tokens, indices),
 				label:           aggregate,
 				labelAssignedBy: tc.labelAssignedBy,
 			}
@@ -349,8 +346,7 @@ func TestTimestampDetector_TerminationSemantics_AlwaysContinues(t *testing.T) {
 			}
 			ctx := &messageContext{
 				rawMessage:      content,
-				tokens:          tokens,
-				tokenIndicies:   indices,
+				tokens:          newBorrowedTokens(tokens, indices),
 				label:           aggregate,
 				labelAssignedBy: tc.labelAssignedBy,
 			}
@@ -398,8 +394,7 @@ func TestTimestampDetector_InputImmutability(t *testing.T) {
 
 			ctx := &messageContext{
 				rawMessage:      content,
-				tokens:          tokens,
-				tokenIndicies:   indices,
+				tokens:          newBorrowedTokens(tokens, indices),
 				label:           aggregate,
 				labelAssignedBy: defaultLabelSource,
 			}

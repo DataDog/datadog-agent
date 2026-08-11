@@ -94,9 +94,9 @@ func TestPassThroughAggregator_TokensForwarded(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ag := NewPassThroughAggregator(1000)
-			emitted := ag.Process(newMessage("content"), aggregate, tc.tokens)
+			emitted := ag.Process(newMessage("content"), aggregate, newBorrowedTokens(tc.tokens, nil))
 			require.Len(t, emitted, 1)
-			assert.Equal(t, tc.tokens, emitted[0].Tokens,
+			assert.Equal(t, tc.tokens, emitted[0].Tokens.Borrow(),
 				"tokens must be forwarded unchanged onto the emitted AggregatedMessageWithTokens")
 		})
 	}

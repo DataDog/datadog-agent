@@ -59,14 +59,14 @@ func runCombiningCalls(lineLimit int, tagTrunc, tagMulti bool, calls []combining
 	ag := NewCombiningAggregator(lineLimit, tagTrunc, tagMulti, status.NewInfoRegistry())
 	var out []combiningEmission
 	for _, c := range calls {
-		emitted := ag.Process(newMessage(c.content), c.label, c.tokens)
+		emitted := ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		for _, e := range emitted {
 			out = append(out, combiningEmission{
 				content:     string(e.Msg.GetContent()),
 				isTruncated: e.Msg.ParsingExtra.IsTruncated,
 				isMultiLine: e.Msg.ParsingExtra.IsMultiLine,
 				tagsLen:     len(e.Msg.ParsingExtra.Tags),
-				tokensLen:   len(e.Tokens),
+				tokensLen:   e.Tokens.Len(),
 			})
 		}
 	}
@@ -76,7 +76,7 @@ func runCombiningCalls(lineLimit int, tagTrunc, tagMulti bool, calls []combining
 			isTruncated: e.Msg.ParsingExtra.IsTruncated,
 			isMultiLine: e.Msg.ParsingExtra.IsMultiLine,
 			tagsLen:     len(e.Msg.ParsingExtra.Tags),
-			tokensLen:   len(e.Tokens),
+			tokensLen:   e.Tokens.Len(),
 		})
 	}
 	return out
@@ -122,7 +122,7 @@ func TestCombiningAggregator_FlushClearsBucket_Property(t *testing.T) {
 		calls := rapid.SliceOfN(genCombiningCall(), 0, 12).Draw(t, "calls")
 		ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 		for _, c := range calls {
-			ag.Process(newMessage(c.content), c.label, c.tokens)
+			ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		}
 		ag.Flush()
 		if !ag.IsEmpty() {
@@ -185,7 +185,7 @@ func TestCombiningAggregator_NoCombinedOverflow_Property(t *testing.T) {
 			}
 		}
 		for _, c := range calls {
-			check(ag.Process(newMessage(c.content), c.label, c.tokens))
+			check(ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil)))
 		}
 		check(ag.Flush())
 	})
@@ -222,7 +222,7 @@ func TestCombiningAggregator_NoAggregateClearsCarry_Property(t *testing.T) {
 		oversized := strings.Repeat("y", lineLimit*2)
 		msg := newMessage(oversized)
 		msg.RawDataLen = len(oversized)
-		first := ag.Process(msg, startGroup, nil)
+		first := ag.Process(msg, startGroup, BorrowedTokens{})
 		if len(first) != 1 {
 			return // skip degenerate cases where startGroup doesn't immediately flush
 		}
@@ -230,7 +230,7 @@ func TestCombiningAggregator_NoAggregateClearsCarry_Property(t *testing.T) {
 		// no_aggregate next: should NOT receive the prepended marker.
 		nextMsg := newMessage(content)
 		nextMsg.RawDataLen = len(content)
-		emitted := ag.Process(nextMsg, noAggregate, nil)
+		emitted := ag.Process(nextMsg, noAggregate, BorrowedTokens{})
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission for fitting no_aggregate, got %d", len(emitted))
 		}
@@ -290,7 +290,7 @@ func TestCombiningAggregator_PassThroughUnderThreshold_Property(t *testing.T) {
 		content := strings.Repeat("a", rapid.IntRange(1, lineLimit/2).Draw(t, "len"))
 
 		ag := NewCombiningAggregator(lineLimit, false, false, status.NewInfoRegistry())
-		emitted := captureCombiningEmissions(ag.Process(newMessage(content), noAggregate, nil))
+		emitted := captureCombiningEmissions(ag.Process(newMessage(content), noAggregate, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission for fitting noAggregate, got %d", len(emitted))
@@ -325,7 +325,7 @@ func TestCombiningAggregator_SingleLineOversizedTailMarker_Property(t *testing.T
 		oversized := strings.Repeat("x", lineLimit+rapid.IntRange(1, 30).Draw(t, "extra"))
 
 		ag := NewCombiningAggregator(lineLimit, false, false, status.NewInfoRegistry())
-		emitted := captureCombiningEmissions(ag.Process(newMessage(oversized), startGroup, nil))
+		emitted := captureCombiningEmissions(ag.Process(newMessage(oversized), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission for oversized startGroup, got %d", len(emitted))
@@ -360,13 +360,13 @@ func TestCombiningAggregator_HeadMarkerOnCarryover_Property(t *testing.T) {
 
 		ag := NewCombiningAggregator(lineLimit, false, false, status.NewInfoRegistry())
 		// Oversized startGroup: emits single-line truncated, carry set.
-		first := captureCombiningEmissions(ag.Process(newMessage(oversized), startGroup, nil))
+		first := captureCombiningEmissions(ag.Process(newMessage(oversized), startGroup, BorrowedTokens{}))
 		if len(first) != 1 {
 			return // skip degenerate
 		}
 		// Next aggregate-on-empty-bucket: under threshold, carry
 		// is consumed → head marker.
-		second := captureCombiningEmissions(ag.Process(newMessage(next), aggregate, nil))
+		second := captureCombiningEmissions(ag.Process(newMessage(next), aggregate, BorrowedTokens{}))
 
 		if len(second) != 1 {
 			t.Fatalf("expected 1 emission for aggregate-on-empty, got %d", len(second))
@@ -417,11 +417,11 @@ func TestCombiningAggregator_BucketFlushIgnoresUpstreamFlag_Property(t *testing.
 
 		ag := NewCombiningAggregator(lineLimit, false, false, status.NewInfoRegistry())
 		// Leader: startGroup, no flag.
-		ag.Process(newMessage(leader), startGroup, nil)
+		ag.Process(newMessage(leader), startGroup, BorrowedTokens{})
 		// Continuation: aggregate, UPSTREAM-FLAGGED.
-		ag.Process(msgWithFlag(flagged, true), aggregate, nil)
+		ag.Process(msgWithFlag(flagged, true), aggregate, BorrowedTokens{})
 		// Trigger emission via boundary.
-		emitted := captureCombiningEmissions(ag.Process(newMessage("trigger"), startGroup, nil))
+		emitted := captureCombiningEmissions(ag.Process(newMessage("trigger"), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 combined emission, got %d", len(emitted))
@@ -471,10 +471,10 @@ func TestCombiningAggregator_ExplosionPathHonorsUpstream_Property(t *testing.T) 
 		flagged := strings.Repeat("f", flaggedLen)
 
 		ag := NewCombiningAggregator(lineLimit, false, false, status.NewInfoRegistry())
-		ag.Process(newMessage(leader), startGroup, nil)
-		ag.Process(newMessage(cont), aggregate, nil)
+		ag.Process(newMessage(leader), startGroup, BorrowedTokens{})
+		ag.Process(newMessage(cont), aggregate, BorrowedTokens{})
 		// Bucket now ~ 2/3 lineLimit. Next aggregate pushes over.
-		emitted := captureCombiningEmissions(ag.Process(msgWithFlag(flagged, true), aggregate, nil))
+		emitted := captureCombiningEmissions(ag.Process(msgWithFlag(flagged, true), aggregate, BorrowedTokens{}))
 
 		// Explosion: emits 2 buffered lines + the current line.
 		// Skip if we didn't actually hit explosion (e.g. the
@@ -519,7 +519,7 @@ func TestCombiningAggregator_TruncationTaggingSingleLine_Property(t *testing.T) 
 		oversized := strings.Repeat("x", lineLimit+rapid.IntRange(1, 30).Draw(t, "extra"))
 
 		ag := NewCombiningAggregator(lineLimit, true, false, status.NewInfoRegistry())
-		emitted := captureCombiningEmissions(ag.Process(newMessage(oversized), startGroup, nil))
+		emitted := captureCombiningEmissions(ag.Process(newMessage(oversized), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission for oversized startGroup, got %d", len(emitted))
@@ -569,14 +569,14 @@ func TestCombiningAggregator_TruncationTaggingAutoMultiline_Property(t *testing.
 		ag := NewCombiningAggregator(lineLimit, true, false, status.NewInfoRegistry())
 		// Oversized startGroup: emits single-line truncated,
 		// carry set.
-		ag.Process(newMessage(oversized), startGroup, nil)
+		ag.Process(newMessage(oversized), startGroup, BorrowedTokens{})
 		// startGroup with short content: flushes nothing
 		// (prior bucket already empty after the oversized
 		// flush). Actually wait — bucket is empty after the
 		// oversized flush. Hmm.
 		// Use noAggregate to reset carry. NO — we WANT the
 		// carry. Use aggregate-on-empty instead.
-		ag.Process(newMessage(short1), aggregate, nil) // emits with head marker, lineCount=1
+		ag.Process(newMessage(short1), aggregate, BorrowedTokens{}) // emits with head marker, lineCount=1
 		// Hmm that's already emitted. Let me restructure.
 		// To get a multi-line combined with carry, we need:
 		//   1. Carry set
@@ -585,11 +585,11 @@ func TestCombiningAggregator_TruncationTaggingAutoMultiline_Property(t *testing.
 
 		// Reset and try again with the correct sequence.
 		ag = NewCombiningAggregator(lineLimit, true, false, status.NewInfoRegistry())
-		ag.Process(newMessage(oversized), startGroup, nil)                                 // emit + carry
-		ag.Process(newMessage("S"), startGroup, nil)                                       // new group leader (no emit, carry still set)
-		ag.Process(newMessage(short1), aggregate, nil)                                     // accumulate
-		ag.Process(newMessage(short2), aggregate, nil)                                     // accumulate (2-line bucket)
-		emitted := captureCombiningEmissions(ag.Process(newMessage("T"), startGroup, nil)) // flush combined
+		ag.Process(newMessage(oversized), startGroup, BorrowedTokens{})                                 // emit + carry
+		ag.Process(newMessage("S"), startGroup, BorrowedTokens{})                                       // new group leader (no emit, carry still set)
+		ag.Process(newMessage(short1), aggregate, BorrowedTokens{})                                     // accumulate
+		ag.Process(newMessage(short2), aggregate, BorrowedTokens{})                                     // accumulate (2-line bucket)
+		emitted := captureCombiningEmissions(ag.Process(newMessage("T"), startGroup, BorrowedTokens{})) // flush combined
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 combined emission, got %d", len(emitted))
@@ -636,12 +636,12 @@ func TestCombiningAggregator_StartGroupBoundary_Property(t *testing.T) {
 		nContinuations := rapid.IntRange(0, 3).Draw(t, "nContinuations")
 
 		ag := NewCombiningAggregator(200, false, false, status.NewInfoRegistry())
-		ag.Process(newMessage("S1 leader"), startGroup, nil)
+		ag.Process(newMessage("S1 leader"), startGroup, BorrowedTokens{})
 		for i := 0; i < nContinuations; i++ {
-			ag.Process(newMessage("cont"), aggregate, nil)
+			ag.Process(newMessage("cont"), aggregate, BorrowedTokens{})
 		}
 		// New startGroup should flush prior bucket.
-		emitted := captureCombiningEmissions(ag.Process(newMessage("S2 leader"), startGroup, nil))
+		emitted := captureCombiningEmissions(ag.Process(newMessage("S2 leader"), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("StartGroupBoundary violated: expected exactly 1 emission (the prior bucket flushed), got %d", len(emitted))
@@ -678,12 +678,12 @@ func TestCombiningAggregator_NoAggregateFlushes_Property(t *testing.T) {
 		nContinuations := rapid.IntRange(1, 3).Draw(t, "nContinuations")
 
 		ag := NewCombiningAggregator(200, false, false, status.NewInfoRegistry())
-		ag.Process(newMessage("S leader"), startGroup, nil)
+		ag.Process(newMessage("S leader"), startGroup, BorrowedTokens{})
 		for i := 0; i < nContinuations; i++ {
-			ag.Process(newMessage("cont"), aggregate, nil)
+			ag.Process(newMessage("cont"), aggregate, BorrowedTokens{})
 		}
 		// noAggregate should flush prior bucket + emit current.
-		emitted := captureCombiningEmissions(ag.Process(newMessage("naX"), noAggregate, nil))
+		emitted := captureCombiningEmissions(ag.Process(newMessage("naX"), noAggregate, BorrowedTokens{}))
 
 		if len(emitted) != 2 {
 			t.Fatalf("NoAggregateFlushes violated: expected 2 emissions (prior bucket + current), got %d", len(emitted))
@@ -727,15 +727,15 @@ func TestCombiningAggregator_TokensFromAggregateLeader_Property(t *testing.T) {
 		contTokens := []Token{Token(7), Token(8)}
 
 		ag := NewCombiningAggregator(200, false, false, status.NewInfoRegistry())
-		ag.Process(newMessage("S leader"), startGroup, leaderTokens)
-		ag.Process(newMessage("cont"), aggregate, contTokens)
+		ag.Process(newMessage("S leader"), startGroup, newBorrowedTokens(leaderTokens, nil))
+		ag.Process(newMessage("cont"), aggregate, newBorrowedTokens(contTokens, nil))
 		// Boundary triggers emission of the prior group.
-		emitted := ag.Process(newMessage("S next"), startGroup, []Token{Token(0)})
+		emitted := ag.Process(newMessage("S next"), startGroup, newBorrowedTokens([]Token{Token(0)}, nil))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission, got %d", len(emitted))
 		}
-		gotTokens := emitted[0].Tokens
+		gotTokens := emitted[0].Tokens.Borrow()
 		if len(gotTokens) != len(leaderTokens) {
 			t.Fatalf("TokensFromAggregateLeader violated: emission has %d tokens, leader had %d", len(gotTokens), len(leaderTokens))
 		}
@@ -767,11 +767,11 @@ func TestCombiningAggregator_MultiLineSourceTag_Property(t *testing.T) {
 		nContinuations := rapid.IntRange(1, 4).Draw(t, "nContinuations")
 
 		ag := NewCombiningAggregator(lineLimit, false, true, status.NewInfoRegistry())
-		ag.Process(newMessage("leader"), startGroup, nil)
+		ag.Process(newMessage("leader"), startGroup, BorrowedTokens{})
 		for i := 0; i < nContinuations; i++ {
-			ag.Process(newMessage("more"), aggregate, nil)
+			ag.Process(newMessage("more"), aggregate, BorrowedTokens{})
 		}
-		emitted := captureCombiningEmissions(ag.Process(newMessage("trigger"), startGroup, nil))
+		emitted := captureCombiningEmissions(ag.Process(newMessage("trigger"), startGroup, BorrowedTokens{}))
 
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 combined emission, got %d", len(emitted))

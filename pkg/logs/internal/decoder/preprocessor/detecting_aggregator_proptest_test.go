@@ -62,13 +62,13 @@ func runDetectingCalls(lineLimit int, tagTruncated bool, calls []detectingCall) 
 	ag := NewDetectingAggregator(status.NewInfoRegistry(), lineLimit, tagTruncated, false)
 	var out []detectingEmission
 	for _, c := range calls {
-		emitted := ag.Process(newMessage(c.content), c.label, c.tokens)
+		emitted := ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		for _, e := range emitted {
 			out = append(out, detectingEmission{
 				content:     string(e.Msg.GetContent()),
 				isTruncated: e.Msg.ParsingExtra.IsTruncated,
 				tagsLen:     len(e.Msg.ParsingExtra.Tags),
-				tokensLen:   len(e.Tokens),
+				tokensLen:   e.Tokens.Len(),
 			})
 		}
 	}
@@ -77,7 +77,7 @@ func runDetectingCalls(lineLimit int, tagTruncated bool, calls []detectingCall) 
 			content:     string(e.Msg.GetContent()),
 			isTruncated: e.Msg.ParsingExtra.IsTruncated,
 			tagsLen:     len(e.Msg.ParsingExtra.Tags),
-			tokensLen:   len(e.Tokens),
+			tokensLen:   e.Tokens.Len(),
 		})
 	}
 	return out
@@ -152,7 +152,7 @@ func TestDetectingAggregator_FlushClearsState_Property(t *testing.T) {
 		calls := rapid.SliceOfN(genDetectingCall(), 0, 12).Draw(t, "calls")
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 		for _, c := range calls {
-			ag.Process(newMessage(c.content), c.label, c.tokens)
+			ag.Process(newMessage(c.content), c.label, newBorrowedTokens(c.tokens, nil))
 		}
 		ag.Flush()
 		if !ag.IsEmpty() {
@@ -224,7 +224,7 @@ func TestDetectingAggregator_PassThroughUnderThreshold_Property(t *testing.T) {
 		).Draw(t, "raw")
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), lineLimit, false, false)
-		emitted := ag.Process(makeDetectingMessage(raw, false), aggregate, nil)
+		emitted := ag.Process(makeDetectingMessage(raw, false), aggregate, BorrowedTokens{})
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission, got %d", len(emitted))
 		}
@@ -270,7 +270,7 @@ func TestDetectingAggregator_TailMarkerOnOverThreshold_Property(t *testing.T) {
 		).Draw(t, "raw")
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), lineLimit, false, false)
-		emitted := ag.Process(makeDetectingMessage(raw, false), aggregate, nil)
+		emitted := ag.Process(makeDetectingMessage(raw, false), aggregate, BorrowedTokens{})
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission, got %d", len(emitted))
 		}
@@ -316,8 +316,8 @@ func TestDetectingAggregator_HeadMarkerOnCarryover_Property(t *testing.T) {
 		).Draw(t, "second")
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), lineLimit, false, false)
-		ag.Process(makeDetectingMessage(first, false), aggregate, nil)
-		emitted := ag.Process(makeDetectingMessage(second, false), aggregate, nil)
+		ag.Process(makeDetectingMessage(first, false), aggregate, BorrowedTokens{})
+		emitted := ag.Process(makeDetectingMessage(second, false), aggregate, BorrowedTokens{})
 		if len(emitted) != 1 {
 			t.Fatalf("expected 1 emission on call 2, got %d", len(emitted))
 		}
@@ -365,9 +365,9 @@ func TestDetectingAggregator_CarryoverConsumed_Property(t *testing.T) {
 		).Draw(t, "third")
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), lineLimit, false, false)
-		ag.Process(makeDetectingMessage(first, false), aggregate, nil)
-		emittedB := captureDetectingEmissions(ag.Process(makeDetectingMessage(second, false), aggregate, nil))
-		emittedC := captureDetectingEmissions(ag.Process(makeDetectingMessage(third, false), aggregate, nil))
+		ag.Process(makeDetectingMessage(first, false), aggregate, BorrowedTokens{})
+		emittedB := captureDetectingEmissions(ag.Process(makeDetectingMessage(second, false), aggregate, BorrowedTokens{}))
+		emittedC := captureDetectingEmissions(ag.Process(makeDetectingMessage(third, false), aggregate, BorrowedTokens{}))
 		if len(emittedB) != 1 || len(emittedC) != 1 {
 			t.Fatalf("expected 1 emission each on calls 2 and 3, got %d / %d", len(emittedB), len(emittedC))
 		}
@@ -419,8 +419,8 @@ func TestDetectingAggregator_UpstreamFlagPropagation_Property(t *testing.T) {
 		).Draw(t, "raw2")
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), lineLimit, false, false)
-		emittedA := captureDetectingEmissions(ag.Process(makeDetectingMessage(raw, true), aggregate, nil))
-		emittedB := captureDetectingEmissions(ag.Process(makeDetectingMessage(raw2, false), aggregate, nil))
+		emittedA := captureDetectingEmissions(ag.Process(makeDetectingMessage(raw, true), aggregate, BorrowedTokens{}))
+		emittedB := captureDetectingEmissions(ag.Process(makeDetectingMessage(raw2, false), aggregate, BorrowedTokens{}))
 		if len(emittedA) != 1 || len(emittedB) != 1 {
 			t.Fatalf("expected 1 emission each, got %d / %d", len(emittedA), len(emittedB))
 		}
@@ -473,7 +473,7 @@ func TestDetectingAggregator_TagOnTruncation_Property(t *testing.T) {
 		for i, c := range calls {
 			// Force aggregate label so the message is emitted
 			// immediately rather than potentially buffered.
-			emitted := ag.Process(makeDetectingMessage([]byte(c.content), false), aggregate, c.tokens)
+			emitted := ag.Process(makeDetectingMessage([]byte(c.content), false), aggregate, newBorrowedTokens(c.tokens, nil))
 			for j, em := range emitted {
 				e := em.Msg
 				if e.ParsingExtra.IsTruncated {
@@ -520,7 +520,7 @@ func TestDetectingAggregator_TagDisabledNoTag_Property(t *testing.T) {
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), lineLimit, false, false)
 		for i, c := range calls {
-			emitted := ag.Process(makeDetectingMessage([]byte(c.content), false), aggregate, c.tokens)
+			emitted := ag.Process(makeDetectingMessage([]byte(c.content), false), aggregate, newBorrowedTokens(c.tokens, nil))
 			for j, em := range emitted {
 				for _, tag := range em.Msg.ParsingExtra.Tags {
 					if tag == suppressedTag {
@@ -562,7 +562,7 @@ func TestDetectingAggregator_StartGroupBufferedUntilNextCall_Property(t *testing
 		).Draw(t, "content"))
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), 200, false, false)
-		emitted := ag.Process(makeDetectingMessage([]byte(content), false), startGroup, nil)
+		emitted := ag.Process(makeDetectingMessage([]byte(content), false), startGroup, BorrowedTokens{})
 		if len(emitted) != 0 {
 			t.Fatalf("StartGroupBufferedUntilNextCall violated: startGroup on fresh aggregator emitted %d messages, expected 0", len(emitted))
 		}
@@ -609,8 +609,8 @@ func TestDetectingAggregator_MultiLineDetectionTag_Property(t *testing.T) {
 		).Draw(t, "contentB"))
 
 		ag := NewDetectingAggregator(status.NewInfoRegistry(), 200, false, false)
-		ag.Process(makeDetectingMessage([]byte(contentA), false), startGroup, nil)
-		emitted := captureDetectingEmissions(ag.Process(makeDetectingMessage([]byte(contentB), false), aggregate, nil))
+		ag.Process(makeDetectingMessage([]byte(contentA), false), startGroup, BorrowedTokens{})
+		emitted := captureDetectingEmissions(ag.Process(makeDetectingMessage([]byte(contentB), false), aggregate, BorrowedTokens{}))
 
 		if len(emitted) != 2 {
 			t.Fatalf("MultiLineDetectionTag setup: expected 2 emissions (pending + current), got %d", len(emitted))
@@ -674,7 +674,7 @@ func TestDetectingAggregator_PerEmissionTruncationFlow_Property(t *testing.T) {
 
 		// Call 1: startGroup with over-threshold content. The
 		// message is buffered; no emission yet.
-		emitted1 := ag.Process(makeDetectingMessage(startGroupContent, false), startGroup, nil)
+		emitted1 := ag.Process(makeDetectingMessage(startGroupContent, false), startGroup, BorrowedTokens{})
 		if len(emitted1) != 0 {
 			t.Fatalf("PerEmissionTruncationFlow precondition: call 1 (startGroup) should buffer and emit nothing, got %d emissions", len(emitted1))
 		}
@@ -682,7 +682,7 @@ func TestDetectingAggregator_PerEmissionTruncationFlow_Property(t *testing.T) {
 		// Call 2: aggregate with under-threshold content. Should
 		// emit pending (over-threshold → tail marker, carry set)
 		// then current (under-threshold + carry → head marker).
-		emitted2 := ag.Process(makeDetectingMessage(aggregateContent, false), aggregate, nil)
+		emitted2 := ag.Process(makeDetectingMessage(aggregateContent, false), aggregate, BorrowedTokens{})
 		if len(emitted2) != 2 {
 			t.Fatalf("PerEmissionTruncationFlow violated: expected 2 emissions on call 2 (aggregate-with-pending), got %d", len(emitted2))
 		}
