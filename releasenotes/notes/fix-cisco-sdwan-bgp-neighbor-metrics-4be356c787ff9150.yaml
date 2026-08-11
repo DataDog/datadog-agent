@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix missing BGP neighbor metrics in the Cisco SD-WAN integration. The
+    ``cisco_sdwan.bgp.neighbor`` metric now populates its ``neighbor``,
+    ``remote_as``, ``peer_state``, ``vpn_id`` and ``afi`` tags correctly. The
+    integration previously failed to parse the response from vManage, which
+    reports ``vpn-id`` and ``as`` as strings (``vpn-id`` may be a non-numeric
+    VRF name such as ``default``), silently dropping the affected neighbors.
