@@ -466,7 +466,7 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 		// create new node
 		imdsNode := NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTagID)
 		if pn.IMDSEvents == nil {
-			pn.IMDSEvents = make(map[model.IMDSEvent]*IMDSNode)
+			pn.IMDSEvents = make(map[IMDSInfo]*IMDSNode)
 		}
 		pn.IMDSEvents[key] = imdsNode
 		stats.IMDSNodes++
