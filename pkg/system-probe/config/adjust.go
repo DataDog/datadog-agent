@@ -34,6 +34,7 @@ func Adjust(cfg model.Config) {
 		!cfg.GetBool(smNS("enabled")) {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
+		// Keep this rule in sync with npm_enabled() in pkg/procmgr/rust/src/config_gate/system_probe.rs.
 		log.Warn(deprecationMessage(spNS("enabled"), netNS("enabled")))
 		// ensure others can key off of this single config value for NPM status
 		cfg.Set(netNS("enabled"), true, model.SourceAgentRuntime)
