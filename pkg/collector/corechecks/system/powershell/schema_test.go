@@ -17,7 +17,7 @@ func TestSchemaAcceptsTupleForm(t *testing.T) {
 	data := []byte(`
 cmdlet: Get-ClusterNode
 name: failover_cluster_node
-filters:
+parameters:
   - [Cluster, PROD-CL01]
 metrics:
   - [NodeWeight, cluster.node.weight, gauge]
@@ -38,7 +38,7 @@ metrics:
   - property: Status
     name: service.status
     type: gauge
-filters:
+parameters:
   - name: Name
     value: Spooler
 `)

@@ -54,8 +54,8 @@ func TestParseAllowlistErrors(t *testing.T) {
 func TestValidateInstanceAccepts(t *testing.T) {
 	al := mustAllowlist(t)
 	inst := &instanceConfig{
-		Cmdlet:  "Get-ClusterNode",
-		Filters: []filterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
+		Cmdlet:     "Get-ClusterNode",
+		Parameters: []parameterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
 		TagQueries: []tagQueryEntry{
 			{LinkSourceProperty: "Id", TargetCmdlet: "Get-ClusterGroup", LinkTargetProperty: "OwnerNode", TargetProperty: "Name"},
 		},
@@ -72,8 +72,8 @@ func TestValidateInstanceRejectsUnlistedCmdlet(t *testing.T) {
 func TestValidateInstanceRejectsUndeclaredParam(t *testing.T) {
 	al := mustAllowlist(t)
 	err := al.validateInstance(&instanceConfig{
-		Cmdlet:  "Get-ClusterNode",
-		Filters: []filterEntry{{Name: "Name", Value: "x"}},
+		Cmdlet:     "Get-ClusterNode",
+		Parameters: []parameterEntry{{Name: "Name", Value: "x"}},
 	})
 	assert.Error(t, err)
 }
@@ -81,8 +81,8 @@ func TestValidateInstanceRejectsUndeclaredParam(t *testing.T) {
 func TestValidateInstanceRejectsValueNotAllowed(t *testing.T) {
 	al := mustAllowlist(t)
 	err := al.validateInstance(&instanceConfig{
-		Cmdlet:  "Get-ClusterNode",
-		Filters: []filterEntry{{Name: "Cluster", Value: "EVIL-CL"}},
+		Cmdlet:     "Get-ClusterNode",
+		Parameters: []parameterEntry{{Name: "Cluster", Value: "EVIL-CL"}},
 	})
 	assert.Error(t, err)
 }
@@ -90,14 +90,14 @@ func TestValidateInstanceRejectsValueNotAllowed(t *testing.T) {
 func TestValidateInstanceRejectsPatternMismatch(t *testing.T) {
 	al := mustAllowlist(t)
 	err := al.validateInstance(&instanceConfig{
-		Cmdlet:  "Get-Certificate",
-		Filters: []filterEntry{{Name: "Template", Value: "bad;value"}},
+		Cmdlet:     "Get-Certificate",
+		Parameters: []parameterEntry{{Name: "Template", Value: "bad;value"}},
 	})
 	assert.Error(t, err)
 
 	assert.NoError(t, al.validateInstance(&instanceConfig{
-		Cmdlet:  "Get-Certificate",
-		Filters: []filterEntry{{Name: "Template", Value: "datadog agent"}},
+		Cmdlet:     "Get-Certificate",
+		Parameters: []parameterEntry{{Name: "Template", Value: "datadog agent"}},
 	}))
 }
 
@@ -127,8 +127,8 @@ allowed_cmdlets:
 	assert.Error(t, err) // missing required param
 
 	assert.NoError(t, al.validateInstance(&instanceConfig{
-		Cmdlet:  "Get-Thing",
-		Filters: []filterEntry{{Name: "Scope", Value: "all"}},
+		Cmdlet:     "Get-Thing",
+		Parameters: []parameterEntry{{Name: "Scope", Value: "all"}},
 	}))
 }
 
@@ -169,13 +169,13 @@ allowed_cmdlets:
 	require.NoError(t, err)
 
 	assert.NoError(t, al.validateInstance(&instanceConfig{
-		Cmdlet:  "Get-ClusterNode",
-		Filters: []filterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
+		Cmdlet:     "Get-ClusterNode",
+		Parameters: []parameterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
 	}))
 
 	assert.Error(t, al.validateInstance(&instanceConfig{
-		Cmdlet:  "Get-ClusterNode",
-		Filters: []filterEntry{{Name: "Cluster", Value: "PROD-CL01' OR '1'='1"}},
+		Cmdlet:     "Get-ClusterNode",
+		Parameters: []parameterEntry{{Name: "Cluster", Value: "PROD-CL01' OR '1'='1"}},
 	}))
 }
 

@@ -18,7 +18,7 @@ func TestParseInstanceConfigPositional(t *testing.T) {
 	data := []byte(`
 cmdlet: Get-ClusterNode
 name: failover_cluster_node
-filters:
+parameters:
   - [Cluster, PROD-CL01]
 metrics:
   - [NodeWeight, cluster.node.weight, gauge]
@@ -36,9 +36,9 @@ tag_queries:
 	assert.Equal(t, "Get-ClusterNode", inst.Cmdlet)
 	assert.Equal(t, "failover_cluster_node", inst.Name)
 
-	require.Len(t, inst.Filters, 1)
-	assert.Equal(t, "Cluster", inst.Filters[0].Name)
-	assert.Equal(t, "PROD-CL01", inst.Filters[0].Value)
+	require.Len(t, inst.Parameters, 1)
+	assert.Equal(t, "Cluster", inst.Parameters[0].Name)
+	assert.Equal(t, "PROD-CL01", inst.Parameters[0].Value)
 
 	require.Len(t, inst.Metrics, 1)
 	assert.Equal(t, "NodeWeight", inst.Metrics[0].Property)
@@ -69,7 +69,7 @@ metrics:
   - property: Status
     name: service.status
     type: gauge
-filters:
+parameters:
   - name: Name
     value: Spooler
 `)
@@ -78,9 +78,9 @@ filters:
 	require.Len(t, inst.Metrics, 1)
 	assert.Equal(t, "Status", inst.Metrics[0].Property)
 	assert.Equal(t, "service.status", inst.Metrics[0].Name)
-	require.Len(t, inst.Filters, 1)
-	assert.Equal(t, "Name", inst.Filters[0].Name)
-	assert.Equal(t, "Spooler", inst.Filters[0].Value)
+	require.Len(t, inst.Parameters, 1)
+	assert.Equal(t, "Name", inst.Parameters[0].Name)
+	assert.Equal(t, "Spooler", inst.Parameters[0].Value)
 }
 
 func TestMetricTypeDefaultsToGauge(t *testing.T) {
@@ -133,24 +133,24 @@ func TestParseInstanceConfigRejectsNonGetCmdlet(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestParseInstanceConfigAcceptsScalarFilterValues(t *testing.T) {
+func TestParseInstanceConfigAcceptsScalarParameterValues(t *testing.T) {
 	// string, number, and boolean scalars are all accepted.
 	inst, err := parseInstanceConfig([]byte(
-		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nfilters:\n  - [Name, Spooler]\n  - [Depth, 3]\n  - [Recurse, true]\n"))
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nparameters:\n  - [Name, Spooler]\n  - [Depth, 3]\n  - [Recurse, true]\n"))
 	require.NoError(t, err)
-	require.Len(t, inst.Filters, 3)
+	require.Len(t, inst.Parameters, 3)
 }
 
-func TestParseInstanceConfigRejectsNonScalarFilterValue(t *testing.T) {
+func TestParseInstanceConfigRejectsNonScalarParameterValue(t *testing.T) {
 	// a list value would be validated as one string but executed as another, so
 	// it is rejected at parse time.
 	_, err := parseInstanceConfig([]byte(
-		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nfilters:\n  - name: Name\n    value: [a, b]\n"))
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nparameters:\n  - name: Name\n    value: [a, b]\n"))
 	assert.Error(t, err)
 
 	// a mapping value is likewise rejected.
 	_, err = parseInstanceConfig([]byte(
-		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nfilters:\n  - name: Name\n    value: {k: v}\n"))
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nparameters:\n  - name: Name\n    value: {k: v}\n"))
 	assert.Error(t, err)
 }
 
