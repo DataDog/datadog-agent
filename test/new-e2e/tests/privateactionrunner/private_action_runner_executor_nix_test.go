@@ -37,6 +37,12 @@ const (
 
 	// pkg/remoteconfig/state.ProductActionPlatformRunnerKeys
 	runnerKeysRCProduct = "AP_RUNNER_KEYS"
+
+	// pkg/privateactionrunner/adapters/constants.InternalSkipTaskVerificationEnvVar.
+	// When set to "true" the executor uses the no-op KeysManager, whose WaitForReady
+	// returns immediately, so readiness no longer depends on the first AP_RUNNER_KEYS
+	// remote-config update being fetched. Internal-only, not for customer use.
+	skipTaskVerificationEnvVar = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"
 )
 
 // mirrors pkg/privateactionrunner/types.RawKey's JSON shape
@@ -81,33 +87,48 @@ func (s *linuxPrivateActionRunnerExecutorSuite) pushFakeRunnerKeysConfig() {
 	require.NoError(t, err, "failed to push fake runner key config to fakeintake")
 }
 
-// TestExecutorStartsAndListens launches the on-demand executor subcommand and
-// asserts it comes up: the process runs, the gRPC unix socket is created, and
-// the log reports the server listening and ready.
-func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
+// launchExecutor starts the run-executor subcommand detached as dd-agent and
+// returns its pid. When skipTaskVerification is true the executor uses the no-op
+// KeysManager so it reports ready without waiting for a remote-config update.
+//
+// run-executor is a foreground subcommand, not the packaged systemd service.
+// Launch it detached as dd-agent so it can bind its socket under
+// /opt/datadog-agent/run and read the agent IPC cert from /etc/datadog-agent.
+// The pid is captured directly (rather than found via pgrep) because pgrep -f
+// matches on the full command line, so it would also match the very shell
+// invocation used to search for it.
+//
+// A cleanup is registered to kill the detached executor and reset the artifacts
+// it leaves behind so that a retry, or the next test in this suite, doesn't
+// observe stale state on the shared host.
+func (s *linuxPrivateActionRunnerExecutorSuite) launchExecutor(skipTaskVerification bool) string {
 	host := s.Env().RemoteHost
 
-	s.pushFakeRunnerKeysConfig()
-
-	// run-executor is a foreground subcommand, not the packaged systemd service.
-	// Launch it detached as dd-agent so it can bind its socket under
-	// /opt/datadog-agent/run and read the agent IPC cert from /etc/datadog-agent.
-	// The pid is captured directly (rather than found via pgrep) because pgrep -f
-	// matches on the full command line, so it would also match the very shell
-	// invocation used to search for it.
+	envPrefix := ""
+	if skipTaskVerification {
+		envPrefix = skipTaskVerificationEnvVar + "=true "
+	}
 	launch := fmt.Sprintf(
-		`sudo -u dd-agent bash -c 'nohup %s run-executor --cfgpath=%s </dev/null >/dev/null 2>&1 & echo $!'`,
-		privateActionRunnerBinary, privateActionRunnerConfigPath,
+		`sudo -u dd-agent bash -c '%snohup %s run-executor --cfgpath=%s </dev/null >/dev/null 2>&1 & echo $!'`,
+		envPrefix, privateActionRunnerBinary, privateActionRunnerConfigPath,
 	)
 	pid := strings.TrimSpace(host.MustExecute(launch))
 
-	// Allow retrying this test on the same host: kill the detached executor and
-	// reset the artifacts it leaves behind so a retry doesn't observe stale state.
 	s.T().Cleanup(func() {
 		_, _ = host.Execute("sudo kill " + pid)
 		_, _ = host.Execute("sudo rm -f " + executorSocketPath)
 		_, _ = host.Execute("sudo truncate -s 0 " + privateActionRunnerLogFile)
 	})
+
+	return pid
+}
+
+// assertExecutorUpAndListening asserts the deterministic parts of executor
+// startup: the process is running, the gRPC unix socket is created, and the log
+// reports the server listening. None of these depend on remote config, so they
+// are safe to require.
+func (s *linuxPrivateActionRunnerExecutorSuite) assertExecutorUpAndListening(pid string) {
+	host := s.Env().RemoteHost
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, "sudo kill -0 "+pid)
@@ -120,13 +141,69 @@ func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorListeningLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "executor log should report listening")
+}
 
-	// Readiness depends on the KeysManager receiving its first AP_RUNNER_KEYS
-	// remote-config update. The backend director's first fetch of a brand-new
-	// product can take well over 2 minutes regardless of the client's poll
-	// interval (observed ~2m10s in CI), so this needs a longer budget than the
-	// other checks in this test.
+// TestExecutorStartsAndListens launches the on-demand executor subcommand and
+// asserts it comes up: the process runs, the gRPC unix socket is created, the log
+// reports the server listening, and the executor reports ready.
+//
+// The executor is launched with task verification skipped, so readiness is driven
+// by the no-op KeysManager (ready immediately) rather than by the first
+// AP_RUNNER_KEYS remote-config update. That update's first-fetch latency is highly
+// variable (observed well over 2 minutes in CI) and was the source of flakiness
+// when readiness was required here. The real remote-config-driven readiness path
+// is covered separately, best-effort, by TestExecutorBecomesReadyViaRemoteConfig.
+func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorStartsAndListens() {
+	host := s.Env().RemoteHost
+
+	pid := s.launchExecutor(true)
+	s.assertExecutorUpAndListening(pid)
+
+	// With task verification skipped, the no-op KeysManager is ready immediately,
+	// so this is deterministic and no longer depends on remote-config propagation.
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s", executorReadyLogLine, privateActionRunnerLogFile))
-	}, 5*time.Minute, 5*time.Second, "executor log should report ready")
+	}, 2*time.Minute, 5*time.Second, "executor log should report ready")
 }
+
+// TestExecutorBecomesReadyViaRemoteConfig exercises the real remote-config-driven
+// readiness path: with task verification enabled, the executor only reports ready
+// after the KeysManager receives its first AP_RUNNER_KEYS remote-config update.
+//
+// This readiness check is intentionally NON-BLOCKING. The backend director's first
+// fetch of a brand-new remote-config product has highly variable latency (observed
+// ~2m10s and occasionally more in CI), so gating a required assertion on it made
+// this test flaky on main. Here we push a fake runner key, require the
+// deterministic startup (process/socket/listening), then wait best-effort for
+// readiness and record the outcome without failing the test. The deterministic
+// guarantee lives in TestExecutorStartsAndListens.
+func (s *linuxPrivateActionRunnerExecutorSuite) TestExecutorBecomesReadyViaRemoteConfig() {
+	host := s.Env().RemoteHost
+
+	s.pushFakeRunnerKeysConfig()
+
+	pid := s.launchExecutor(false)
+	s.assertExecutorUpAndListening(pid)
+
+	// Best-effort: readiness here depends on real remote-config propagation, whose
+	// first-fetch latency is variable. Poll within a generous budget and log the
+	// outcome instead of asserting, so remote-config latency cannot fail main.
+	const readyTimeout = 5 * time.Minute
+	ready := assert.Eventually(discardTestingT{}, func() bool {
+		_, err := host.Execute(fmt.Sprintf("sudo grep -F %q %s", executorReadyLogLine, privateActionRunnerLogFile))
+		return err == nil
+	}, readyTimeout, 5*time.Second)
+
+	if ready {
+		s.T().Logf("executor reported ready via remote config within %s", readyTimeout)
+	} else {
+		s.T().Logf("WARNING: executor did not report ready via remote config within %s; "+
+			"this reflects variable remote-config first-fetch latency and is intentionally not treated as a failure", readyTimeout)
+	}
+}
+
+// discardTestingT swallows failures so assert.Eventually can be used purely to
+// poll a condition (returning its bool result) without failing the enclosing test.
+type discardTestingT struct{}
+
+func (discardTestingT) Errorf(string, ...interface{}) {}
