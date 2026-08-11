@@ -1,12 +1,14 @@
 [package]
 name = "example"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
-anyhow = "1.0.100"
+anyhow.workspace = true
 core = { path = "../../core" }
-libc = "0.2.182"
+libc.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

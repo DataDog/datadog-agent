@@ -18,6 +18,11 @@ type Filter struct {
 	Type        FilterType
 	matchDomain *regexp.Regexp
 	matchIPCidr netip.Prefix
+
+	// TestConfigID preserves RC filter provenance so a Dynamic Test payload can
+	// identify the remote configuration responsible for admitting its path. It
+	// is empty for built-in and local filters.
+	TestConfigID string
 }
 
 // ConnFilter class
@@ -75,6 +80,8 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 			Type:        cfg.Type,
 			matchDomain: matchDomainRe,
 			matchIPCidr: matchIPCidr,
+
+			TestConfigID: cfg.TestConfigID,
 		})
 	}
 	return &ConnFilter{
@@ -84,7 +91,15 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 
 // IsIncluded return true if the matching domain and ip of a connection should be included
 func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
+	isIncluded, _ := f.Evaluate(domain, ip)
+	return isIncluded
+}
+
+// Evaluate returns whether a connection is included and the test config ID of
+// the winning rule. Local and built-in rules have no test config ID.
+func (f *ConnFilter) Evaluate(domain string, ip netip.Addr) (bool, string) {
 	isIncluded := true
+	testConfigID := ""
 	if domain == "" {
 		isIncluded = false
 	}
@@ -101,6 +116,7 @@ func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
 			}
 		}
 		if matched {
+			testConfigID = filter.TestConfigID
 			if filter.Type == FilterTypeExclude {
 				isIncluded = false
 			} else {
@@ -108,5 +124,8 @@ func (f *ConnFilter) IsIncluded(domain string, ip netip.Addr) bool {
 			}
 		}
 	}
-	return isIncluded
+	if !isIncluded {
+		return false, ""
+	}
+	return true, testConfigID
 }

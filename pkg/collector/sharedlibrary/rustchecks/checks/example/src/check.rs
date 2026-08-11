@@ -27,3 +27,12 @@ pub fn check(check: &AgentCheck) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    // TODO: replace with a real assertion once a test stub for AgentCheck exists.
+    #[test]
+    fn test_check_placeholder() {
+        assert_eq!(1, 1);
+    }
+}

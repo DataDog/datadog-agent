@@ -17,6 +17,7 @@ go_library(
         "sysinfo_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/usm",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/command",
@@ -64,7 +65,11 @@ go_test(
         "sysinfo_linux_test.go",
     ],
     embed = [":usm"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//cmd/system-probe/command",
         "//pkg/util/fxutil",

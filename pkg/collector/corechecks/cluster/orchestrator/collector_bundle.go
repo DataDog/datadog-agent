@@ -117,6 +117,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		ClusterID:             runCfg.ClusterID,
 		Config:                runCfg.Config,
 		MsgGroupRef:           runCfg.MsgGroupRef,
+		AgentVersion:          runCfg.AgentVersion,
 		TerminatedResources:   true,
 	}
 

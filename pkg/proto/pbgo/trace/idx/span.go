@@ -1010,29 +1010,33 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 		return
 	}
 	if cap(c.Spans) >= int(numSpans) {
-		c.Spans = c.Spans[:numSpans]
+		c.Spans = c.Spans[:0]
 	} else {
-		c.Spans = make([]*InternalSpan, numSpans)
+		c.Spans = make([]*InternalSpan, 0, numSpans)
 	}
 	convertedFields := NewSpanConvertedFields()
 	var rootSampling RootSamplingMergeState
-	for i := range c.Spans {
+	for i := 0; i < int(numSpans); i++ {
+		// Drop nil span entries rather than storing them: every downstream V1
+		// path (normalizeTraceChunkV1, GetRootV1, ProcessV1) dereferences each
+		// span and would panic on a nil. The nil element is still read to
+		// advance the buffer.
 		if msgp.IsNil(bts) {
 			bts, err = msgp.ReadNilBytes(bts)
 			if err != nil {
 				return
 			}
-			c.Spans[i] = nil
-		} else {
-			c.Spans[i] = NewInternalSpan(c.Strings, &Span{})
-			c.Spans[i].SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
-			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, convertedFields)
-			if err != nil {
-				err = msgp.WrapError(err, i)
-				return
-			}
-			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, c.Spans[i].ParentID())
+			continue
 		}
+		span := NewInternalSpan(c.Strings, &Span{})
+		span.SetSpanKind(SpanKind_SPAN_KIND_INTERNAL) // default to internal span kind
+		bts, err = span.UnmarshalMsgConverted(bts, convertedFields)
+		if err != nil {
+			err = msgp.WrapError(err, i)
+			return
+		}
+		rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, span.ParentID())
+		c.Spans = append(c.Spans, span)
 	}
 	c.ApplyPromotedFields(convertedFields, chunkConvertedFields)
 	o = bts
@@ -1180,25 +1184,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetaFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaFields)
 			}
-			for numMetaFields > 0 {
-				var metaVal uint32
-				numMetaFields--
-				var metaKey uint32
-				metaKey, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetaFields > 0 {
+				if err = checkSlabCount(numMetaFields, bts); err != nil {
 					err = msgp.WrapError(err, "Meta")
 					return
 				}
-				metaVal, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Meta", metaKey)
-					return
-				}
-				s.handlePromotedMetaFields(metaKey, metaVal, convertedFields)
-				s.span.Attributes[metaKey] = &AnyValue{
-					Value: &AnyValue_StringValueRef{
-						StringValueRef: metaVal,
-					},
+				// Slab-allocate the AnyValue containers and their string-ref oneof
+				// wrappers for every meta entry in two allocations, rather than two per
+				// entry. The map holds pointers into these backing arrays.
+				values := make([]AnyValue, numMetaFields)
+				refs := make([]AnyValue_StringValueRef, numMetaFields)
+				for i := uint32(0); i < numMetaFields; i++ {
+					var metaKey, metaVal uint32
+					metaKey, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Meta")
+						return
+					}
+					metaVal, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Meta", metaKey)
+						return
+					}
+					s.handlePromotedMetaFields(metaKey, metaVal, convertedFields)
+					refs[i].StringValueRef = metaVal
+					values[i].Value = &refs[i]
+					s.span.Attributes[metaKey] = &values[i]
 				}
 			}
 		case "metrics":
@@ -1215,25 +1226,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetricsFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetricsFields)
 			}
-			for numMetricsFields > 0 {
-				var value float64
-				numMetricsFields--
-				var key uint32
-				key, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetricsFields > 0 {
+				if err = checkSlabCount(numMetricsFields, bts); err != nil {
 					err = msgp.WrapError(err, "Metrics")
 					return
 				}
-				value, bts, err = parseFloat64Bytes(bts)
-				if err != nil {
-					err = msgp.WrapError(err, "Metrics", key)
-					return
-				}
-				s.handlePromotedMetricsFields(key, value, convertedFields)
-				s.span.Attributes[key] = &AnyValue{
-					Value: &AnyValue_DoubleValue{
-						DoubleValue: value,
-					},
+				// Slab-allocate the AnyValue containers and their double oneof wrappers
+				// for every metric in two allocations, rather than two per metric.
+				values := make([]AnyValue, numMetricsFields)
+				doubles := make([]AnyValue_DoubleValue, numMetricsFields)
+				for i := uint32(0); i < numMetricsFields; i++ {
+					var value float64
+					var key uint32
+					key, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Metrics")
+						return
+					}
+					value, bts, err = parseFloat64Bytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Metrics", key)
+						return
+					}
+					s.handlePromotedMetricsFields(key, value, convertedFields)
+					doubles[i].DoubleValue = value
+					values[i].Value = &doubles[i]
+					s.span.Attributes[key] = &values[i]
 				}
 			}
 		case "type":
@@ -1257,24 +1275,32 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if s.span.Attributes == nil && numMetaStructFields > 0 {
 				s.span.Attributes = make(map[uint32]*AnyValue, numMetaStructFields)
 			}
-			for numMetaStructFields > 0 {
-				var value []byte
-				numMetaStructFields--
-				var key uint32
-				key, bts, err = parseStringBytesRef(s.Strings, bts)
-				if err != nil {
+			if numMetaStructFields > 0 {
+				if err = checkSlabCount(numMetaStructFields, bts); err != nil {
 					err = msgp.WrapError(err, "MetaStruct")
 					return
 				}
-				value, bts, err = msgp.ReadBytesBytes(bts, value)
-				if err != nil {
-					err = msgp.WrapError(err, "MetaStruct", key)
-					return
-				}
-				s.span.Attributes[key] = &AnyValue{
-					Value: &AnyValue_BytesValue{
-						BytesValue: value,
-					},
+				// Slab-allocate the AnyValue containers and their bytes oneof wrappers
+				// for every meta_struct entry in two allocations, rather than two per
+				// entry.
+				values := make([]AnyValue, numMetaStructFields)
+				byteVals := make([]AnyValue_BytesValue, numMetaStructFields)
+				for i := uint32(0); i < numMetaStructFields; i++ {
+					var value []byte
+					var key uint32
+					key, bts, err = parseStringBytesRef(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "MetaStruct")
+						return
+					}
+					value, bts, err = msgp.ReadBytesBytes(bts, value)
+					if err != nil {
+						err = msgp.WrapError(err, "MetaStruct", key)
+						return
+					}
+					byteVals[i].BytesValue = value
+					values[i].Value = &byteVals[i]
+					s.span.Attributes[key] = &values[i]
 				}
 			}
 		case "span_links":
@@ -1285,27 +1311,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Links) >= int(numSpanLinks) {
-				s.span.Links = (s.span.Links)[:numSpanLinks]
+				s.span.Links = (s.span.Links)[:0]
 			} else {
-				s.span.Links = make([]*SpanLink, numSpanLinks)
+				s.span.Links = make([]*SpanLink, 0, numSpanLinks)
 			}
-			for i := range s.span.Links {
+			for i := 0; i < int(numSpanLinks); i++ {
+				// Drop nil link entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each link and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Links[i] = nil
-				} else {
-					if s.span.Links[i] == nil {
-						s.span.Links[i] = new(SpanLink)
-					}
-					bts, err = s.span.Links[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanLinks", i)
-						return
-					}
+					continue
 				}
+				link := new(SpanLink)
+				bts, err = link.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanLinks", i)
+					return
+				}
+				s.span.Links = append(s.span.Links, link)
 			}
 		case "span_events":
 			var numEvents uint32
@@ -1315,27 +1343,29 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				return
 			}
 			if cap(s.span.Events) >= int(numEvents) {
-				s.span.Events = (s.span.Events)[:numEvents]
+				s.span.Events = (s.span.Events)[:0]
 			} else {
-				s.span.Events = make([]*SpanEvent, numEvents)
+				s.span.Events = make([]*SpanEvent, 0, numEvents)
 			}
-			for i := range s.span.Events {
+			for i := 0; i < int(numEvents); i++ {
+				// Drop nil event entries rather than storing them: every
+				// downstream V1 path (normalization, replacement, Msgsize,
+				// MarshalMsg) dereferences each event and would panic on a nil.
+				// The nil element is still read to advance the buffer.
 				if msgp.IsNil(bts) {
 					bts, err = msgp.ReadNilBytes(bts)
 					if err != nil {
 						return
 					}
-					s.span.Events[i] = nil
-				} else {
-					if s.span.Events[i] == nil {
-						s.span.Events[i] = new(SpanEvent)
-					}
-					bts, err = s.span.Events[i].UnmarshalMsgConverted(s.Strings, bts)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanEvents", i)
-						return
-					}
+					continue
 				}
+				event := new(SpanEvent)
+				bts, err = event.UnmarshalMsgConverted(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanEvents", i)
+					return
+				}
+				s.span.Events = append(s.span.Events, event)
 			}
 		default:
 			bts, err = msgp.Skip(bts)

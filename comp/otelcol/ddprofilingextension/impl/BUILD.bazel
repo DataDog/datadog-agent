@@ -25,6 +25,10 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = ["extension_test.go"],
+    data = [
+        "config.schema.yaml",
+        "metadata.yaml",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/log/impl",

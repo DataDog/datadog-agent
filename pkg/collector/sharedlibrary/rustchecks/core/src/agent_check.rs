@@ -183,6 +183,7 @@ impl AgentCheck {
     }
 
     /// Send Event
+    #[allow(clippy::too_many_arguments)]
     pub fn event(
         &self,
         title: &str,
@@ -212,6 +213,7 @@ impl AgentCheck {
     }
 
     /// Send Histogram Bucket
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_histogram_bucket(
         &self,
         metric_name: &str,

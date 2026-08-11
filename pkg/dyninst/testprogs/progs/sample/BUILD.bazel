@@ -7,6 +7,7 @@ go_library(
         "basics.go",
         "complex.go",
         "context.go",
+        "context_impl_capture.go",
         "continuation.go",
         "continuation_strings.go",
         "esoteric.go",

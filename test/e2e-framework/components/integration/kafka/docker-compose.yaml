@@ -1,0 +1,93 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2025-present Datadog, Inc.
+#
+# KRaft-mode Kafka broker plus seed-topic and continuous producer/consumer
+# workload containers for the Datadog kafka JMX integration lab. The broker
+# publishes its JMX port on the host at localhost:9999 so the host-resident
+# Datadog Agent (JMXFetch) can collect the bundled "kafka" JMX metrics.
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka-lab-broker
+    # Publish the plaintext broker port and the JMX port on the host so the
+    # host-resident Datadog Agent (JMXFetch) can reach JMX on localhost:9999.
+    ports:
+      - "9092:9092"
+      - "9999:9999"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: localhost
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  # One-shot job: create the seed topics. Shares the broker network namespace so
+  # localhost:9092 reaches the broker (advertised listener is localhost).
+  kafka-init:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka-lab-init
+    network_mode: "service:kafka"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "Creating seed topics..."
+        kafka-topics --create --if-not-exists --topic marvel --partitions 2 --replication-factor 1 --bootstrap-server localhost:9092
+        kafka-topics --create --if-not-exists --topic dc --partitions 2 --replication-factor 1 --bootstrap-server localhost:9092
+        echo "Topics created."
+
+  # Continuous, bounded-random workload: produce to and consume from the seed
+  # topics in a loop so the broker's JMX beans (producer/consumer/log/network/
+  # controller domains) show ongoing activity for JMXFetch to observe.
+  kafka-load:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka-lab-load
+    network_mode: "service:kafka"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -uo pipefail
+        topics=(marvel dc)
+        heroes=(ironman thor hulk batman superman flash wolverine spiderman)
+        iteration=0
+        # Background consumers keep consumer-group/fetch beans active.
+        kafka-console-consumer --bootstrap-server localhost:9092 --topic marvel --group lab-consumer-marvel >/dev/null 2>&1 &
+        kafka-console-consumer --bootstrap-server localhost:9092 --topic dc --group lab-consumer-dc >/dev/null 2>&1 &
+        while true; do
+          iteration=$$((iteration + 1))
+          topic=$${topics[$$((RANDOM % $${#topics[@]}))]}
+          hero=$${heroes[$$((RANDOM % $${#heroes[@]}))]}
+          batch=$$((1 + RANDOM % 20))
+          for i in $$(seq 1 "$$batch"); do
+            echo "{\"hero\":\"$$hero\",\"iter\":$$iteration,\"n\":$$i}"
+          done | kafka-console-producer --bootstrap-server localhost:9092 --topic "$$topic" >/dev/null 2>&1
+          # Periodically list/describe to exercise admin + controller beans.
+          if [ $$((iteration % 10)) -eq 0 ]; then
+            kafka-topics --bootstrap-server localhost:9092 --describe >/dev/null 2>&1 || true
+            kafka-consumer-groups --bootstrap-server localhost:9092 --describe --all-groups >/dev/null 2>&1 || true
+          fi
+          sleep $$((1 + RANDOM % 4))
+        done

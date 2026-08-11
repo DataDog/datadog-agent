@@ -36,6 +36,8 @@ func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
 	assert.Contains(v.T(), inventory, `"feature_networks_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_traceroute_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_synthetics_collector_enabled": false`)
+	assert.Contains(v.T(), inventory, `"feature_network_path_remote_config_enabled": false`)
+	assert.Contains(v.T(), inventory, `"feature_network_path_connections_monitoring_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": false`)
@@ -51,6 +53,11 @@ compliance_config:
   enabled: true
 synthetics:
   collector:
+    enabled: true
+network_path:
+  remote_config:
+    enabled: true
+  connections_monitoring:
     enabled: true`
 
 	systemProbeConfiguration := `runtime_security_config:
@@ -76,6 +83,8 @@ traceroute:
 	assert.Contains(v.T(), inventory, `"feature_networks_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_traceroute_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_synthetics_collector_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_network_path_remote_config_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_network_path_connections_monitoring_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": true`)

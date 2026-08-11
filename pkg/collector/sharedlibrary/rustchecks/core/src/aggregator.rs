@@ -118,10 +118,12 @@ impl Aggregator {
         }
     }
 
+    #[allow(clippy::not_unsafe_ptr_arg_deref, clippy::clone_on_copy)]
     pub fn from_ptr(ptr: *const Aggregator) -> Self {
         unsafe { *ptr }.clone()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_metric(
         &self,
         check_id: &str,
@@ -180,6 +182,7 @@ impl Aggregator {
 
         Ok(())
     }
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_event(
         &self,
         check_id: &str,
@@ -226,6 +229,7 @@ impl Aggregator {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_histogram_bucket(
         &self,
         check_id: &str,

@@ -335,6 +335,17 @@ def _parse_bep(bep_path: Path) -> tuple[list[Path], dict[str, bool]]:
     return xml_paths, cache_status
 
 
+def _is_gotestsum_shaped(suite: ET.Element) -> bool:
+    """True if every testcase in this testsuite has a classname attribute.
+
+    Bazel synthesizes a minimal single-testcase XML (no classname) for test
+    rules that don't emit their own JUnit report (diff_test, sh_test, rust
+    tests, ...); downstream JUnit processing assumes gotestsum's schema,
+    where classname is always present.
+    """
+    return all("classname" in tc.attrib for tc in suite.iter("testcase"))
+
+
 def _annotate_junit_cache_status(xml_path: Path, cache_status: dict[str, bool]) -> None:
     """Add a bazel.cached <property> to each <testsuite> whose import path is known.
 
@@ -407,6 +418,8 @@ def collect_junit(ctx, flavor, output_tgz, bep_file):
             )
             for ts in suites:
                 if int(ts.get("tests", "0")) == 0:
+                    continue
+                if not _is_gotestsum_shaped(ts):
                     continue
                 merged.append(ts)
                 collected += 1

@@ -8,7 +8,6 @@ package setup
 import (
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
@@ -135,8 +134,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.instrumentation.targets", []interface{}{}, "DD_APM_INSTRUMENTATION_TARGETS")
 	config.ParseEnvJSON("apm_config.instrumentation.targets", []interface{}{})
 	config.BindEnvAndSetDefault("apm_config.receiver_socket", GetPlatformDefault(map[string]interface{}{
-		"linux": defaultpaths.GetDefaultReceiverSocket(),
-		"aix":   defaultpaths.GetDefaultReceiverSocket(),
+		"linux": "/var/run/datadog/apm.socket",
+		"aix":   "/var/run/datadog/apm.socket",
 		"other": "",
 	}), "DD_APM_RECEIVER_SOCKET")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_name", "", "DD_APM_WINDOWS_PIPE_NAME")

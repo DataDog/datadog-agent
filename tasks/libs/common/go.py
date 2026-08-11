@@ -98,23 +98,19 @@ def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
     return (ldflags + suffix) if ldflags else suffix.lstrip()
 
 
-def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str] | None:
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str]:
     """
     Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
     build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
     build image's default mingw is ld 2.43, whose `--pdb` output those tools
-    can't parse (WINA-2770). Returns env unchanged if it can't be resolved.
+    can't parse (WINA-2770).
 
     TODO: remove once migrated fully to the Bazel MinGW toolchain.
     """
     # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
-    if not (
-        gcc := bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True, ignore_errors=True)
-    ):
-        return env
-    if not (output_base := bazel(ctx, "info", "output_base", capture_output=True, ignore_errors=True)):
-        return env
-    mingw_bin = Path(output_base.strip(), gcc.strip()).parent
+    gcc = bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
+    output_base = bazel(ctx, "info", "output_base", capture_output=True).strip()
+    mingw_bin = Path(output_base, gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
 
@@ -167,7 +163,7 @@ def go_build(
     if echo:
         cmd += " -x"
     if build_tags:
-        cmd += f" -tags \"{' '.join(build_tags)}\""
+        cmd += f" -tags \"{','.join(build_tags)}\""
     if bin_path:
         cmd += f" -o {bin_path}"
     if gcflags:

@@ -65,7 +65,7 @@ go_library(
 go_test(
     name = "flare_test",
     srcs = [
-        "command_darwin_test.go",
+        "command_nosysprobe_test.go",
         "command_other_test.go",
         "command_test.go",
         "command_windows_test.go",

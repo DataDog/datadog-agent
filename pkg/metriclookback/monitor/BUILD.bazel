@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "monitor",
+    srcs = ["monitor.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metriclookback/monitor",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/telemetry/impl"],
+)
+
+go_test(
+    name = "monitor_test",
+    srcs = ["monitor_test.go"],
+    embed = [":monitor"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

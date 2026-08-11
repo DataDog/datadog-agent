@@ -45,26 +45,18 @@ type configCollectionWork struct {
 	readerFactory configReaderFactory
 }
 
-type collectedConfig struct {
-	Integration string
-	Runtime     RuntimeType
-	RuntimeID   string
-	ConfigFiles []ConfigFile
-	EnvVars     []ConfigEnvVar
-}
-
 type collectedConfigSender interface {
-	SendCollectedConfigs([]collectedConfig) error
+	SendCollectedConfigs([]CollectedConfig) error
 }
 
 type noopCollectedConfigSender struct{}
 
-func (noopCollectedConfigSender) SendCollectedConfigs([]collectedConfig) error {
+func (noopCollectedConfigSender) SendCollectedConfigs([]CollectedConfig) error {
 	return nil
 }
 
 type collectedConfigBatch struct {
-	configs        []collectedConfig
+	configs        []CollectedConfig
 	rawConfigBytes int
 }
 
@@ -72,7 +64,7 @@ func (b *collectedConfigBatch) hasConfigs() bool {
 	return len(b.configs) > 0
 }
 
-func (b *collectedConfigBatch) add(config collectedConfig) {
+func (b *collectedConfigBatch) add(config CollectedConfig) {
 	b.configs = append(b.configs, config)
 	b.rawConfigBytes += collectedConfigRawBytes(config)
 }
@@ -81,22 +73,25 @@ func (b *collectedConfigBatch) shouldFlush() bool {
 	return len(b.configs) >= configCollectionBatchMaxCollectedConfigs || b.rawConfigBytes >= configCollectionBatchMaxRawConfigBytes
 }
 
-func (b *collectedConfigBatch) wouldExceedByteLimit(config collectedConfig) bool {
+func (b *collectedConfigBatch) wouldExceedByteLimit(config CollectedConfig) bool {
 	return b.hasConfigs() && b.rawConfigBytes+collectedConfigRawBytes(config) > configCollectionBatchMaxRawConfigBytes
 }
 
-func (b *collectedConfigBatch) takeConfigs() []collectedConfig {
-	configs := make([]collectedConfig, len(b.configs))
+func (b *collectedConfigBatch) takeConfigs() []CollectedConfig {
+	configs := make([]CollectedConfig, len(b.configs))
 	copy(configs, b.configs)
 	b.configs = nil
 	b.rawConfigBytes = 0
 	return configs
 }
 
-func collectedConfigRawBytes(config collectedConfig) int {
+func collectedConfigRawBytes(config CollectedConfig) int {
 	var size int
 	for _, file := range config.ConfigFiles {
 		size += len(file.Content)
+	}
+	for _, envVar := range config.EnvVars {
+		size += len(envVar.Name) + len(envVar.Value)
 	}
 	return size
 }
@@ -205,7 +200,7 @@ func (s *adScheduler) runCollectionWorker() {
 			case <-s.ctx.Done():
 				return false
 			default:
-				log.Warnf("failed to send collected config files batch with %d collected configs: %v", len(configs), err)
+				log.Warnf("failed to send collected config batch with %d collected configs: %v", len(configs), err)
 			}
 		}
 		return true
@@ -240,43 +235,39 @@ func (s *adScheduler) runCollectionWorker() {
 }
 
 // runCollection executes one queued config collection. Returns a collected
-// config and true when collection succeeds and produces at least one config
-// file. Returns an empty collected config and false when there is nothing to add
-// to the batch.
-func (s *adScheduler) runCollection(work configCollectionWork) (collectedConfig, bool) {
+// config and true when collection succeeds and produces config data. Returns an
+// empty collected config and false when there is nothing to add to the batch.
+func (s *adScheduler) runCollection(work configCollectionWork) (CollectedConfig, bool) {
 	reader, err := work.readerFactory(work.target)
 	if err != nil {
 		log.Warnf("failed to build config reader for integration %q service %q runtime %q: %v", work.config.Name, work.config.ServiceID, work.target.runtime, err)
-		return collectedConfig{}, false
+		return CollectedConfig{}, false
 	}
 	defer reader.Close()
 
-	files, err := work.collector.Collect(s.ctx, reader)
+	collected, err := work.collector.Collect(s.ctx, reader)
 	if err != nil {
 		select {
 		case <-s.ctx.Done():
-			return collectedConfig{}, false
+			return CollectedConfig{}, false
 		default:
-			log.Warnf("failed to collect config files for integration %q service %q: %v", work.config.Name, work.config.ServiceID, err)
-			return collectedConfig{}, false
+			log.Warnf("failed to collect config data for integration %q service %q: %v", work.config.Name, work.config.ServiceID, err)
+			return CollectedConfig{}, false
 		}
 	}
 
-	if len(files) == 0 {
-		return collectedConfig{}, false
+	if len(collected.ConfigFiles) == 0 && len(collected.EnvVars) == 0 {
+		return CollectedConfig{}, false
 	}
 
-	config := collectedConfig{
-		Integration: work.config.Name,
-		Runtime:     work.target.runtime,
-		RuntimeID:   work.target.entityID,
-		ConfigFiles: files,
-	}
+	collected.Integration = work.config.Name
+	collected.Runtime = work.target.runtime
+	collected.RuntimeID = work.target.entityID
 
-	for _, file := range files {
+	for _, file := range collected.ConfigFiles {
 		log.Debugf("config files discovery collected config file: integration %q path %q size_bytes %d truncated %t", work.config.Name, file.Path, len(file.Content), file.Truncated)
 	}
-	return config, true
+	return collected, true
 }
 
 // Unschedule is required by the autodiscovery scheduler interface. Config file

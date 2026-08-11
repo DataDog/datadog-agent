@@ -136,6 +136,7 @@ go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/trace/config/def",
         "//pkg/config/env",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/trace/config",
         "//pkg/util/fxutil",

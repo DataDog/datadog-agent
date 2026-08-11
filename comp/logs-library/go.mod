@@ -31,7 +31,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
-	golang.org/x/net v0.56.0
+	golang.org/x/net v0.57.0
 )
 
 require (

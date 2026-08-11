@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -253,6 +253,9 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 	s.Require().NoError(err)
 
 	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+
+	err = s.waitForAgentMSIInstalledState()
 	s.Require().NoError(err)
 
 	s.Require().Host(s.Env().RemoteHost).

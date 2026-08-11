@@ -1489,7 +1489,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	return s
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContext) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
 		Device:           newNetworkDeviceSerializer(&networkCtx.Device, e),

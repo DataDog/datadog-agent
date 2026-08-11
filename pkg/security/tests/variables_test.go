@@ -15,7 +15,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 
@@ -92,7 +92,7 @@ func TestVariablePrivateField(t *testing.T) {
 	}
 	defer os.Remove(filename)
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg("test_rule_private_variable")
 		if msg == nil {
 			return errors.New("message not found")
@@ -108,7 +108,7 @@ func TestVariablePrivateField(t *testing.T) {
 		})
 
 		return nil
-	})
+	}, backoff.WithMaxTries(10))
 	if err != nil {
 		t.Error(err)
 	}

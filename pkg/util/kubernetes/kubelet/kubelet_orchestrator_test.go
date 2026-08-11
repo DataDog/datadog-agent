@@ -11,7 +11,6 @@ import (
 	"context"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -29,8 +28,6 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 
 	ResetGlobalKubeUtil()
 	ResetCache()
-
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
 	mockConfig.SetInTest("kubelet_client_crt", "")
 	mockConfig.SetInTest("kubelet_client_key", "")

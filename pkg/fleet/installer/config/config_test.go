@@ -650,6 +650,101 @@ func TestConfig_SimpleStartStop(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
+// otelConfigSeed is a minimal but realistic DDOT collector config (a subset of
+// cmd/otel-agent/dist/otel-config.yaml) used to exercise config experiments against the deeply
+// nested /otel-config.yaml file.
+const otelConfigSeed = `receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+exporters:
+  debug:
+    verbosity: detailed
+processors:
+  infraattributes:
+    cardinality: 2
+service:
+  pipelines:
+    traces:
+      receivers:
+      - otlp
+      processors:
+      - infraattributes
+      exporters:
+      - debug
+`
+
+func TestConfig_OTelConfigStartPromote(t *testing.T) {
+	stableDir := t.TempDir()
+	experimentDir := t.TempDir()
+
+	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
+
+	dirs := &Directories{StablePath: stableDir, ExperimentPath: experimentDir}
+
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "otel-exp-001",
+		FileOperations: []FileOperation{
+			// Deep-merge a nested collector value without clobbering sibling keys.
+			{FileOperationType: FileOperationMergePatch, FilePath: "/otel-config.yaml", Patch: []byte(`{"processors":{"infraattributes":{"cardinality":1}}}`)},
+			// jq transform on the same nested config.
+			{FileOperationType: FileOperationJQ, FilePath: "/otel-config.yaml", Transform: `.exporters.debug.verbosity = "normal"`},
+		},
+	})
+	assert.NoError(t, err)
+
+	err = dirs.PromoteExperiment(context.Background())
+	assert.NoError(t, err)
+
+	// After promote the stable config reflects the merge-patch + jq transform with sibling keys preserved.
+	// (Asserted on the stable dir so the test is OS-agnostic: nix applies the ops in the experiment
+	// dir and swaps on promote, Windows applies them in place to the stable dir.)
+	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	assert.NoError(t, err)
+	assertOTelExperimentConfig(t, string(stableContent))
+}
+
+func TestConfig_OTelConfigStartStop(t *testing.T) {
+	stableDir := t.TempDir()
+	experimentDir := t.TempDir()
+
+	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
+	original, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	assert.NoError(t, err)
+
+	dirs := &Directories{StablePath: stableDir, ExperimentPath: experimentDir}
+
+	err = dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "otel-exp-002",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/otel-config.yaml", Patch: []byte(`{"processors":{"infraattributes":{"cardinality":1}}}`)},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Rolling back restores the stable config to its original content (OS-agnostic).
+	err = dirs.RemoveExperiment(context.Background())
+	assert.NoError(t, err)
+
+	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(original), string(stableContent))
+}
+
+// assertOTelExperimentConfig checks that both the merge-patch (cardinality 2 -> 1) and the jq
+// transform (verbosity detailed -> normal) were applied while the untouched sibling sections
+// (receivers, service pipelines) survived the deep merge.
+func assertOTelExperimentConfig(t *testing.T, content string) {
+	t.Helper()
+	assert.Contains(t, content, "cardinality: 1")
+	assert.NotContains(t, content, "cardinality: 2")
+	assert.Contains(t, content, "verbosity: normal")
+	assert.NotContains(t, content, "verbosity: detailed")
+	assert.Contains(t, content, "otlp:")
+	assert.Contains(t, content, "pipelines:")
+}
+
 func TestOperationApply_MultipleAPIKeysWithDuplicateKeys(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")

@@ -291,6 +291,11 @@ func defaultCatalog() *componentCatalog {
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("anomaly_scorer: failed to parse JSON config: %w", err)
 					}
+					threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold)
+					if err != nil {
+						return nil, fmt.Errorf("anomaly_scorer: invalid correlation_event_threshold: %w", err)
+					}
+					cfg.CorrelationEventThreshold = threshold
 					return cfg, nil
 				},
 			},

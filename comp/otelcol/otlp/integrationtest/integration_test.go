@@ -193,7 +193,7 @@ func TestIntegration(t *testing.T) {
 
 	// 2. Start in-process collector
 	params := &subcommands.GlobalParams{
-		ConfPaths:  []string{"integration_test_config.yaml"},
+		ConfPaths:  []string{"testdata/integration_test_config.yaml"},
 		ConfigName: "datadog-otel",
 		LoggerName: "OTELCOL",
 	}

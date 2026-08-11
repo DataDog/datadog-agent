@@ -14,7 +14,6 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -22,6 +21,7 @@ from typing import Any
 from invoke import task
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.utils import _resolve_target_platform
 
 # Load the shared Starlark/Python data file. It is valid Python (set([...])
 # literals, set operators/methods), so we exec it and rebind the names below.
@@ -174,23 +174,6 @@ def build_tags_codegen_payload() -> dict[str, object]:
     }
 
 
-_GOOS_TO_SYS_PLATFORM = {
-    "windows": "win32",
-}
-
-
-def _resolve_platform(platform=None):
-    """Return the effective target platform as a sys.platform-style string.
-
-    If platform is explicitly provided, normalize it from GOOS format to
-    sys.platform format (e.g. "windows" -> "win32"). Otherwise fall back to
-    the GOOS env var, then sys.platform.
-    """
-    if platform is None:
-        platform = os.getenv("GOOS") or sys.platform
-    return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
-
-
 def compute_build_tags_for_flavor(
     build: str,
     build_include: str | None,
@@ -207,12 +190,12 @@ def compute_build_tags_for_flavor(
 
     Then, remove from these the provided list of tags to exclude.
     """
-    platform = _resolve_platform(platform)
+    target_platform = _resolve_target_platform(platform)
 
     build_include = (
-        get_default_build_tags(build=build, flavor=flavor, platform=platform)
+        get_default_build_tags(build=build, flavor=flavor, platform=target_platform)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), platform=platform)
+        else filter_incompatible_tags(build_include.split(","), platform=target_platform)
     )
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -249,14 +232,14 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    platform = _resolve_platform(platform)
+    target_platform = _resolve_target_platform(platform)
     include = build_tags[flavor].get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
 
     include = include.union(COMMON_TAGS)
-    return sorted(filter_incompatible_tags(include, platform=platform))
+    return sorted(filter_incompatible_tags(include, platform=target_platform))
 
 
 def filter_incompatible_tags(include, platform=None):
@@ -264,19 +247,19 @@ def filter_incompatible_tags(include, platform=None):
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
-    platform = _resolve_platform(platform)
+    target_platform = _resolve_target_platform(platform)
     exclude = set()
-    if not platform.startswith("linux"):
+    if not target_platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if platform == "win32":
+    if target_platform == "win32":
         include = include.union(WINDOWS_INCLUDED_TAGS)
         exclude = exclude.union(WINDOWS_EXCLUDED_TAGS)
 
-    if platform == "darwin":
+    if target_platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
 
-    if platform == "aix":
+    if target_platform == "aix":
         exclude = exclude.union(AIX_EXCLUDED_TAGS)
 
     return get_build_tags(include, exclude)
@@ -304,48 +287,6 @@ def get_build_tags(include, exclude):
         print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.", file=sys.stderr)
 
     return list(known_include - known_exclude)
-
-
-@task
-def audit_tag_impact(ctx, build_exclude=None, csv=False):
-    """
-    Measure each tag's contribution to the binary size
-    """
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    tags_to_audit = ALL_TAGS.difference(set(build_exclude)).difference(set(IOT_AGENT_TAGS))
-
-    max_size = _compute_build_size(ctx, build_exclude=','.join(build_exclude))
-    print(f"size with all tags is {max_size / 1000} kB")
-
-    iot_agent_size = _compute_build_size(ctx, flavor=AgentFlavor.iot)
-    print(f"iot agent size is {iot_agent_size / 1000} kB\n")
-
-    report = {"unaccounted": max_size - iot_agent_size, "iot_agent": iot_agent_size}
-
-    for tag in tags_to_audit:
-        exclude_string = ','.join(build_exclude + [tag])
-        size = _compute_build_size(ctx, build_exclude=exclude_string)
-        delta = max_size - size
-        print(f"tag {tag} adds {delta / 1000} kB (excludes: {exclude_string})")
-        report[tag] = delta
-        report["unaccounted"] -= delta
-
-    if csv:
-        print("\nCSV output in bytes:")
-        for k, v in report.items():
-            print(f"{k};{v}")
-
-
-def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
-    import os
-
-    from .agent import build as agent_build
-
-    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, flavor=flavor)
-
-    statinfo = os.stat('bin/agent/agent')
-    return statinfo.st_size
 
 
 def compute_config_build_tags(

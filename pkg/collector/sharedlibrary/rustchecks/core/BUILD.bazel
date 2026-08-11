@@ -1,0 +1,23 @@
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+# Rust shared-library checks are Linux-only (see the omnibus/agent.build wiring;
+# the loader only ships them on Linux).
+_LINUX = ["@platforms//os:linux"]
+
+# Shared runtime used by every Rust check crate. The `generate_ffi!` macro and
+# the Aggregator/AgentCheck API live here. Third-party crates come from the root
+# `@crates` hub (all of core's deps already live there).
+rust_library(
+    name = "core",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "core",
+    edition = "2024",
+    target_compatible_with = _LINUX,
+    visibility = ["//pkg/collector/sharedlibrary/rustchecks:__subpackages__"],
+    deps = [
+        "@crates//:anyhow",
+        "@crates//:libc",
+        "@crates//:serde",
+        "@crates//:serde_yaml",
+    ],
+)

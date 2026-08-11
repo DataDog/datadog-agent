@@ -37,13 +37,13 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
-	networkpathprovider "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/networkpath"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
+	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -152,6 +152,7 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
+	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
@@ -286,6 +287,7 @@ func run(log log.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookback metriclookbackdef.Component,
 	_ serializer.MetricSerializer,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
@@ -372,6 +374,7 @@ func run(log log.Component,
 		ac,
 		rcclient,
 		demultiplexer,
+		metricLookback,
 		invChecks,
 		logReceiver,
 		collector,
@@ -470,6 +473,7 @@ func getSharedFxOption() fx.Option {
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		filterlist.Module(),
+		metriclookbackModule(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -491,6 +495,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -640,6 +645,7 @@ func startAgent(
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	demultiplexer demultiplexer.Component,
+	metricLookback metriclookbackdef.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
@@ -709,11 +715,6 @@ func startAgent(
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
 
-		if cfg.GetBool("network_path.remote_config.enabled") {
-			networkPathProvider := networkpathprovider.NewProvider()
-			rcclient.Subscribe(data.ProductNetworkPath, networkPathProvider.Update)
-			ac.AddConfigProvider(networkPathProvider, false, 0)
-		}
 	}
 
 	// start clc runner server
@@ -749,7 +750,9 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
+	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
+	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
+	ac.AddScheduler("check", checkScheduler, true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

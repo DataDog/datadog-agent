@@ -38,7 +38,7 @@ var moduleOrder = []types.ModuleName{
 	config.LogonDurationModule,
 }
 
-// nolint: deadcode, unused // may be unused with certain build tag combinations
+//nolint:unused // may be unused with certain build tag combinations
 func registerModule(mod *module.Factory) {
 	if mod.Name == "" {
 		return

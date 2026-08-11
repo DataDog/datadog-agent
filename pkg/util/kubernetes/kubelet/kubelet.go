@@ -67,7 +67,7 @@ type KubeUtil struct {
 	kubeletClient        *kubeletClient
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration time.Duration     // a duration of 0 disables the cache
-	podUnmarshaller      *podUnmarshaller
+	podUnmarshaller      *PodUnmarshaller
 	podResourcesClient   *PodResourcesClient
 	devicePluginsClient  DevicePluginClient
 
@@ -137,7 +137,7 @@ func NewKubeUtil() *KubeUtil {
 	return &KubeUtil{
 		rawConnectionInfo:    make(map[string]string),
 		podListCacheDuration: pkgconfigsetup.Datadog().GetDuration("kubelet_cache_pods_duration") * time.Second,
-		podUnmarshaller:      newPodUnmarshaller(),
+		podUnmarshaller:      NewPodUnmarshaller(),
 	}
 }
 
@@ -259,7 +259,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data)))
 	}
 
-	err = ku.podUnmarshaller.unmarshal(data, &pods)
+	err = ku.podUnmarshaller.Unmarshal(data, &pods)
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("unable to unmarshal podlist, invalid or null: %w", err))
 	}

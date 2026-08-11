@@ -25,6 +25,7 @@ common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_default_to_explicit_init_py # https://github.com/bazel-contrib/rules_python/issues/2945
 common --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
+common --nobuild_event_json_file_path_conversion # don't fail the build on a transient BEP-upload error (no such host)
 common --remote_instance_name=ci/datadog-agent # entries missing from datadog-agent will be searched in remote-caching
 common --remote_local_fallback # best-effort on transient connection errors (no such host)
 common --remote_retries=1

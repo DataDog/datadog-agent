@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
@@ -150,6 +151,46 @@ func Test_pathtestStore_add_when_full(t *testing.T) {
 	pt2Ctx := store.contexts[pt2.GetHash()]
 	assert.Equal(t, *pt1, *pt1Ctx.Pathtest)
 	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
+}
+
+func TestPathtestStoreClearsStaleAttribution(t *testing.T) {
+	setMockTimeNow(mockTimeJan2)
+	store := NewPathtestStore(Config{
+		ContextsLimit: 1,
+		TTL:           10 * time.Minute,
+		Interval:      time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, mockTimeNow)
+
+	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a", TestConfigSource: "remote"}
+	store.Add(initial)
+	setMockTimeNow(mockTimeJan2.Add(time.Minute))
+	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443})
+
+	assert.Len(t, store.contexts, 1)
+	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.TestConfigID)
+	assert.Empty(t, store.contexts[initial.GetHash()].Pathtest.TestConfigSource)
+	assert.Equal(t, mockTimeJan2.Add(11*time.Minute), store.contexts[initial.GetHash()].runUntil)
+}
+
+func TestPathtestStoreFlushReturnsImmutableSnapshot(t *testing.T) {
+	setMockTimeNow(mockTimeJan2)
+	store := NewPathtestStore(Config{
+		ContextsLimit: 1,
+		TTL:           10 * time.Minute,
+		Interval:      time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, mockTimeNow)
+
+	initial := &common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-a", TestConfigSource: "remote"}
+	store.Add(initial)
+	flushed := store.Flush()
+	require.Len(t, flushed, 1)
+
+	store.Add(&common.Pathtest{Hostname: "api.example.com", Port: 443, TestConfigID: "dynamic-b", TestConfigSource: "remote"})
+
+	assert.Equal(t, "dynamic-a", flushed[0].Pathtest.TestConfigID)
+	assert.Equal(t, "dynamic-b", store.contexts[initial.GetHash()].Pathtest.TestConfigID)
+	assert.NotSame(t, flushed[0], store.contexts[initial.GetHash()])
+	assert.NotSame(t, flushed[0].Pathtest, store.contexts[initial.GetHash()].Pathtest)
 }
 
 func Test_pathtestStore_flush(t *testing.T) {

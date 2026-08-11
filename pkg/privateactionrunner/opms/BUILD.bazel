@@ -37,6 +37,7 @@ go_test(
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient",
         "@com_github_datadog_jsonapi//:jsonapi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

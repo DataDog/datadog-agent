@@ -412,6 +412,12 @@ send logs.
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
+### [comp/logs/severityprovider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/severityprovider)
+
+*Datadog Team*: agent-log-pipelines q-branch
+
+Package severityprovider defines the severity provider component.
+
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
 Package streamlogs is metadata provider for streamlogs
@@ -890,6 +896,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: windows-products
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
+
+### [comp/metriclookback](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metriclookback)
+
+*Datadog Team*: q-branch
+
+Package metriclookback defines the metric lookback component.
 
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 

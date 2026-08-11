@@ -20,9 +20,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const testAPIKey = "123"
@@ -66,7 +67,7 @@ func TestMaxConns(t *testing.T) {
 func TestIsRetriable(t *testing.T) {
 	for code, want := range map[int]bool{
 		400: false,
-		403: true,
+		403: false, // 403 is only retried when API key refresh is available
 		404: false,
 		408: true,
 		409: false,
@@ -340,6 +341,52 @@ func TestSender(t *testing.T) {
 			s.Push(expectResponses(403))
 			s.Stop()
 		})
+	})
+
+	t.Run("403_refresh_disabled_not_retried", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(time.Nanosecond)()
+
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+
+		// Refresh wired but disabled (throttle == 0): a 403 must not be retried.
+		callbackInvoked := false
+		s.apiKeyManager.refreshFn = func() (string, error) {
+			callbackInvoked = true
+			return "secrets refreshed", nil
+		}
+		s.apiKeyManager.throttleInterval = 0
+
+		s.Push(expectResponses(403, 403, 403, 403, 200))
+		s.Stop()
+
+		assert.Equal(1, server.Total(), "403 must not be retried when refresh is disabled")
+		assert.False(callbackInvoked, "refresh must not run when disabled")
+	})
+
+	t.Run("403_not_retried_when_key_not_from_secret", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(time.Nanosecond)()
+
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+
+		// Refresh enabled, but the key isn't secret-backed: refresh can't change it, so no retry.
+		callbackInvoked := false
+		s.apiKeyManager.refreshFn = func() (string, error) { callbackInvoked = true; return "", nil }
+		s.apiKeyManager.throttleInterval = 100 * time.Millisecond
+		s.apiKeyManager.isFromSecret = func(string) bool { return false }
+
+		s.Push(expectResponses(403, 403, 403, 403, 200))
+		s.Stop()
+
+		assert.Equal(1, server.Total(), "403 must not be retried when key is not secret-backed")
+		assert.False(callbackInvoked, "refresh must not run when key is not secret-backed")
 	})
 
 	t.Run("403_retries_with_backoff", func(t *testing.T) {

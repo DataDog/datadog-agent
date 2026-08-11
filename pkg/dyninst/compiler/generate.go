@@ -880,6 +880,15 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			return fid, needed, err
 		}
 	case *ir.GoContextImplementationType:
+		// An impl that is not a chain link (no parent context or key/value
+		// payload) has nothing to walk, so capture its fields via the normal
+		// struct-descent program like any other struct.
+		if !t.HasChainData() {
+			if err := structureTypeHandler(t.StructureType); err != nil {
+				return fid, needed, err
+			}
+			break
+		}
 		// Concrete context.Context implementations (cancelCtx, valueCtx,
 		// timerCtx, …) override the normal struct-descent program with a
 		// chain-walk subroutine. INIT rewrites the just-serialized data
@@ -965,7 +974,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// behavior on a pointer-typed item is to read sm->di_0's payload
 		// (8 bytes containing the user-memory pointer) and use it as the
 		// chain start. See pkg/dyninst/irgen/trace_context.md.
-		if impl, isImpl := t.Pointee.(*ir.GoContextImplementationType); isImpl {
+		if impl, isImpl := t.Pointee.(*ir.GoContextImplementationType); isImpl && impl.HasChainData() {
 			needed = true
 			offsetShift = 0
 			ops = []Op{
@@ -1213,6 +1222,17 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		var err error
 		switch t := t.(type) {
 		case *ir.StructureType:
+			if err := collectFields(t.RawFields, offset); err != nil {
+				return err
+			}
+		// The context-impl and dd-trace-span wrappers lay out exactly like the
+		// struct they wrap; the extra metadata they carry is irrelevant to
+		// register/stack layout.
+		case *ir.GoContextImplementationType:
+			if err := collectFields(t.RawFields, offset); err != nil {
+				return err
+			}
+		case *ir.DDTraceSpanType:
 			if err := collectFields(t.RawFields, offset); err != nil {
 				return err
 			}

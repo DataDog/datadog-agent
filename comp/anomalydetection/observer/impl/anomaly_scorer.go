@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,9 +151,13 @@ type AnomalyScorerConfig struct {
 	observerdef.AnomalyScorerConfig
 	// Logs controls whether severity transitions are logged via pkglog.
 	Logs bool `json:"logs"`
-	// CorrelationEvents controls whether High-severity episodes are tracked
+	// CorrelationEvents controls whether scorer severity episodes are tracked
 	// and returned by ActiveCorrelations() for the reporter pipeline.
 	CorrelationEvents bool `json:"correlation_events"`
+	// CorrelationEventThreshold is the lowest severity that opens a correlation
+	// episode. Supported values are "medium" and "high"; "low" is invalid
+	// because Low is the scorer's no-evidence baseline.
+	CorrelationEventThreshold string `json:"correlation_event_threshold"`
 	// CooldownSecs is the minimum interval between de-escalation callbacks
 	// from the internal watcher subscription.
 	CooldownSecs int64 `json:"cooldown_secs"`
@@ -187,10 +192,11 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 				"scanwelch": {8, 10, 15, 25},
 			},
 		},
-		Logs:                false,
-		CorrelationEvents:   false,
-		CooldownSecs:        300,
-		MaxEpisodeAnomalies: 50,
+		Logs:                      false,
+		CorrelationEvents:         false,
+		CorrelationEventThreshold: "high",
+		CooldownSecs:              300,
+		MaxEpisodeAnomalies:       50,
 	}
 }
 
@@ -232,6 +238,13 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	outPrefix := prefix + "output."
 	cfg.Logs = r.GetBool(outPrefix + "logs")
 	cfg.CorrelationEvents = r.GetBool(outPrefix + "correlation_events")
+	thresholdKey := outPrefix + "correlation_event_threshold"
+	threshold, err := normalizeCorrelationEventThreshold(r.GetString(thresholdKey))
+	if err != nil {
+		pkglog.Warnf("anomaly_scorer: %s %v; using default %q", thresholdKey, err, defaults.CorrelationEventThreshold)
+	} else {
+		cfg.CorrelationEventThreshold = threshold
+	}
 	key = outPrefix + "cooldown"
 	d = r.GetDuration(key)
 	if d < 0 {
@@ -242,6 +255,26 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	cfg.MaxEpisodeAnomalies = r.GetInt(outPrefix + "max_anomalies")
 
 	return cfg
+}
+
+func normalizeCorrelationEventThreshold(value string) (string, error) {
+	switch normalized := strings.ToLower(strings.TrimSpace(value)); normalized {
+	case "", "high":
+		return "high", nil
+	case "medium":
+		return "medium", nil
+	case "low":
+		return "", errors.New("must be \"medium\" or \"high\"; \"low\" is the baseline state")
+	default:
+		return "", fmt.Errorf("must be \"medium\" or \"high\", got %q", value)
+	}
+}
+
+func correlationEventSeverity(threshold string) severityeventsdef.SeverityLevel {
+	if threshold == "medium" {
+		return severityeventsdef.SeverityMedium
+	}
+	return severityeventsdef.SeverityHigh
 }
 
 // ---------------------------------------------------------------------------
@@ -255,10 +288,9 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 //     window, computes saturation + EWMA per second tick.
 //  2. Event manager: a severityevents dispatcher that receives the scorer's
 //     derived per-second severity levels and manages push subscriptions.
-//  3. Internal watcher (optional): self-subscribes to the event manager when
-//     telemetry gauges are provided; on each transition it sets gauges, optionally
-//     logs the event, and optionally tracks High-severity episodes for
-//     ActiveCorrelations() output.
+//  3. Internal watcher (optional): self-subscribes to the event manager; on each
+//     transition it sets configured gauges, optionally logs the event, and
+//     optionally tracks configured-severity episodes for ActiveCorrelations().
 //
 // Implements observerdef.Correlator so the engine treats it like any other
 // correlator. Also exposes Subscribe/LastScore/ScoreState for testbench replay.
@@ -272,7 +304,7 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 //	                   compute saturation + EWMA from window,
 //	                   derive the raw severity level, push ewmaGauge, and
 //	                   feed the severityevents dispatcher.
-//	ActiveCorrelations → returns closed High-severity episodes when enabled.
+//	ActiveCorrelations → returns the open configured-threshold episode when enabled.
 //	ScoreState()   → returns accumulated telemetry snapshot.
 //	Reset()        → clears all internal state for reanalysis.
 type anomalyScorer struct {
@@ -315,12 +347,12 @@ type anomalyScorer struct {
 	// filter/cooldown state machine.
 	dispatchers []*severityeventsimpl.Dispatcher
 
-	// Internal watcher fields (non-nil only when constructed with telemetry).
+	// Internal watcher fields (gauges may be nil when replay only needs episodes).
 	ewmaGauge  telemetry.Gauge // may be nil; set on every Advance tick
 	stateGauge telemetry.Gauge // may be nil; set on severity transitions
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
-	// openEpisode is the currently open High-severity period; nil when Low/Medium.
+	// openEpisode is the currently open configured-threshold severity period.
 	// Closed episodes are no longer buffered here — they are emitted as EpisodeEnded
 	// CorrelatorEvents via PendingEvents() and accumulated by the engine from there.
 	openEpisode *observerdef.ActiveCorrelation
@@ -355,6 +387,12 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	if cfg.SaturationK <= 0 {
 		cfg.SaturationK = defaults.SaturationK
 	}
+	if threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold); err != nil {
+		pkglog.Warnf("anomaly_scorer: correlation_event_threshold %v; using default %q", err, defaults.CorrelationEventThreshold)
+		cfg.CorrelationEventThreshold = defaults.CorrelationEventThreshold
+	} else {
+		cfg.CorrelationEventThreshold = threshold
+	}
 	return &anomalyScorer{
 		config:    cfg,
 		pending:   make(map[int64][]observerdef.Anomaly),
@@ -384,8 +422,8 @@ func (s *anomalyScorer) advanceRawLevel(ewma float64) severityeventsdef.Severity
 }
 
 // newAnomalyScorerWithTelemetry creates a scorer with the watcher enabled.
-// stateGauge and ewmaGauge are written on each severity transition and EWMA tick
-// respectively. The watcher self-subscribes using cfg.CooldownSecs.
+// Non-nil stateGauge and ewmaGauge values are written on each severity transition
+// and EWMA tick respectively. The watcher self-subscribes using cfg.CooldownSecs.
 func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGauge telemetry.Gauge) *anomalyScorer {
 	s := newAnomalyScorerBase(cfg)
 	s.ewmaGauge = ewmaGauge
@@ -406,8 +444,8 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, stateGauge, ewmaGaug
 // ---------------------------------------------------------------------------
 
 // OnSeverityTransition is called by the self-subscription on each severity
-// transition. It sets the state gauge, optionally logs the event, manages
-// High-severity episodes, and optionally sends a v2 change event.
+// transition. It sets the state gauge, optionally logs the event, and manages
+// episodes while severity is at or above the configured event threshold.
 func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
 	direction := "escalation"
 	if evt.Direction == severityeventsdef.SeverityEventDeescalation {
@@ -430,10 +468,12 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 
 	if s.config.CorrelationEvents {
 		s.mu.Lock()
-		if evt.ToLevel == severityeventsdef.SeverityHigh {
+		threshold := correlationEventSeverity(s.config.CorrelationEventThreshold)
+		if evt.FromLevel < threshold && evt.ToLevel >= threshold {
+			thresholdName := s.config.CorrelationEventThreshold
 			s.openEpisode = &observerdef.ActiveCorrelation{
-				Pattern:     fmt.Sprintf("anomaly_scorer_high:%d", evt.Timestamp),
-				Title:       "Anomaly scorer: high severity period",
+				Pattern:     fmt.Sprintf("anomaly_scorer_%s:%d", thresholdName, evt.Timestamp),
+				Title:       fmt.Sprintf("Anomaly scorer: %s-or-higher severity period", thresholdName),
 				FirstSeen:   evt.Timestamp,
 				LastUpdated: evt.Timestamp,
 			}
@@ -445,7 +485,7 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 				FromLevel:      evt.FromLevel,
 				ToLevel:        evt.ToLevel,
 			})
-		} else if evt.FromLevel == severityeventsdef.SeverityHigh && s.openEpisode != nil {
+		} else if evt.FromLevel >= threshold && evt.ToLevel < threshold && s.openEpisode != nil {
 			ep := *s.openEpisode
 			ep.LastUpdated = evt.Timestamp
 			s.openEpisode = nil
@@ -471,7 +511,7 @@ func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 // ProcessAnomaly buffers the anomaly into the pending map keyed by its second.
 // If the anomaly's timestamp is in the past (already advanced past), it is
 // clamped to lastAdvancedSec+1 so it participates in the next Advance call.
-// Also appends to the open High-severity episode if one is active.
+// Also appends to the open scorer episode if one is active.
 func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -557,7 +597,7 @@ func (s *anomalyScorer) PendingEvents() []observerdef.CorrelatorEvent {
 	return evts
 }
 
-// ActiveCorrelations returns the currently open High-severity episode (if any).
+// ActiveCorrelations returns the currently open scorer episode (if any).
 // Closed episodes are no longer buffered here; they are emitted as EpisodeEnded
 // events via PendingEvents() and accumulated by the engine from there.
 // Returns nil when correlationEvents is false or no episode is open.

@@ -17,16 +17,13 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("go_core_dump", false)
 	config.BindEnvAndSetDefault("system_probe_config.disable_thp", true)
 
-	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
 
-	// statsd
 	config.BindEnvAndSetDefault("bind_host", "localhost")
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125)
 
-	// logging
 	config.BindEnvAndSetDefault("system_probe_config.log_file", "")
 	config.BindEnvAndSetDefault("system_probe_config.log_level", "")
 	config.BindEnvAndSetDefault("log_file", "${log_path}/system-probe.log")
@@ -41,7 +38,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 
-	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
@@ -49,7 +45,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
-	// settings for system-probe in general
 	config.BindEnvAndSetDefault("system_probe_config.enabled", false, "DD_SYSTEM_PROBE_ENABLED")
 	config.BindEnvAndSetDefault("system_probe_config.external", false, "DD_SYSTEM_PROBE_EXTERNAL")
 	config.SetDefault("system_probe_config.adjusted", false)
@@ -89,7 +84,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("system_probe_config.memory_controller.pressure_levels", map[string]string{})
 	config.BindEnvAndSetDefault("system_probe_config.memory_controller.thresholds", map[string]string{})
 
-	// ebpf general settings
 	config.BindEnvAndSetDefault("system_probe_config.bpf_debug", false, "DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG", "BPF_DEBUG")
 	config.BindEnvAndSetDefault("system_probe_config.bpf_dir", "${install_path}/embedded/share/system-probe/ebpf", "DD_SYSTEM_PROBE_BPF_DIR")
 	config.BindEnvAndSetDefault("system_probe_config.excluded_linux_versions", []string{})
@@ -112,7 +106,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("system_probe_config.zypper_repos_dir", suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
 	config.BindEnvAndSetDefault("system_probe_config.attach_kprobes_with_kprobe_events_abi", false, "DD_ATTACH_KPROBES_WITH_KPROBE_EVENTS_ABI")
 
-	// Dynamic Instrumentation settings
 	config.BindEnvAndSetDefault("dynamic_instrumentation.enabled", false, "DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 	config.BindEnvAndSetDefault("dynamic_instrumentation.offline_mode", false, "DD_DYNAMIC_INSTRUMENTATION_OFFLINE_MODE")
 	config.BindEnvAndSetDefault("dynamic_instrumentation.probes_file_path", false, "DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH")
@@ -129,7 +122,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.all_probes_cpu_limit", float64(0.5))
 	config.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
-	// network_tracer settings
 	config.BindEnvAndSetDefault("network_config.enabled", false, "DD_SYSTEM_PROBE_NETWORK_ENABLED")
 	config.BindEnvAndSetDefault("system_probe_config.disable_tcp", false, "DD_DISABLE_TCP_TRACING")
 	config.BindEnvAndSetDefault("system_probe_config.disable_udp", false, "DD_DISABLE_UDP_TRACING")
@@ -216,25 +208,18 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_config.enable_fentry", false)
 	config.BindEnvAndSetDefault("network_config.enable_sk_tracer", false)
 
-	// TLS cert collection
 	config.BindEnvAndSetDefault("network_config.enable_cert_collection", false)
 	config.BindEnvAndSetDefault("network_config.cert_collection_map_cleaner_interval", 30*time.Second)
 
-	// windows config
 	config.BindEnvAndSetDefault("system_probe_config.windows.enable_monotonic_count", false)
 
-	// oom_kill module
 	config.BindEnvAndSetDefault("system_probe_config.enable_oom_kill", false)
 
-	// tcp_queue_length module
 	config.BindEnvAndSetDefault("system_probe_config.enable_tcp_queue_length", false)
-	// process module
 	// nested within system_probe_config to not conflict with process-agent's process_config
 	config.BindEnvAndSetDefault("system_probe_config.process_config.enabled", false, "DD_SYSTEM_PROBE_PROCESS_ENABLED")
-	// ebpf module
 	config.BindEnvAndSetDefault("ebpf_check.enabled", false)
 	config.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
-	// noisy neighbor module
 	config.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
 	// Per-PMU-event toggles. Default false because each enabled event
 	// adds non-trivial overhead.
@@ -246,7 +231,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.branch_misses", false)
 	config.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cpu_migrations", false)
 
-	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps
 	config.BindEnvAndSetDefault("ebpf_check.entry_count.max_keys_buffer_size_bytes", 512*1024)
 	config.BindEnvAndSetDefault("ebpf_check.entry_count.max_values_buffer_size_bytes", 1024*1024)
@@ -257,7 +241,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	// single-item iteration
 	config.BindEnvAndSetDefault("ebpf_check.entry_count.entries_for_iteration_restart_detection", 100)
 
-	// event monitoring
 	config.BindEnvAndSetDefault("event_monitoring_config.network_process.enabled", true, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.enable_all_probes", false)
 	eventMonitorBindEnvAndSetDefault(config, "event_monitoring_config.enable_kernel_filters", true)
@@ -317,19 +300,14 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	// enable/disable use of root net namespace
 	config.BindEnvAndSetDefault("network_config.enable_root_netns", true)
 
-	// Windows crash detection
 	config.BindEnvAndSetDefault("windows_crash_detection.enabled", false)
 
-	// Ping
 	config.BindEnvAndSetDefault("ping.enabled", false)
 
-	// Traceroute
 	config.BindEnvAndSetDefault("traceroute.enabled", false)
 
-	// CCM config
 	config.BindEnvAndSetDefault("ccm_network_config.enabled", false)
 
-	// Discovery config
 	config.BindEnvAndSetDefault("discovery.enabled", GetPlatformDefault(map[string]interface{}{
 		"fargate": false,
 		"linux":   true,
@@ -346,16 +324,13 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("discovery.service_collection_min_process_age", time.Minute)
 	config.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
-	// Privileged Logs config
 	config.BindEnvAndSetDefault("privileged_logs.enabled", false)
 
 	// Logon Duration config (macOS)
 	config.BindEnvAndSetDefault("logon_duration.enabled", false)
 
-	// Fleet policies
 	config.BindEnvAndSetDefault("fleet_policies_dir", "")
 
-	// GPU monitoring
 	config.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", true)
 	config.BindEnvAndSetDefault("gpu_monitoring.nvml_lib_path", "")
@@ -376,7 +351,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	// Windows Injector telemetry, enabled by default
 	config.BindEnvAndSetDefault("injector.enable_telemetry", true)
 
-	// gpu - stream config
 	config.BindEnvAndSetDefault("gpu_monitoring.streams.max_kernel_launches", 1000)
 	config.BindEnvAndSetDefault("gpu_monitoring.streams.max_mem_alloc_events", 1000)
 	config.BindEnvAndSetDefault("gpu_monitoring.streams.max_pending_kernel_spans", 1000)
@@ -388,7 +362,6 @@ func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 }
 
 func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
-	// CWS - general config
 	// the following entries are platform specific
 	// - runtime_security_config.policies.dir
 	// - runtime_security_config.socket
@@ -401,7 +374,6 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 		"windows": "${conf_path}/runtime-security.d",
 	}))
 
-	// CWS - general config
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
@@ -441,7 +413,6 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.SetDefault("runtime_security_config.windows_write_event_rate_limiter_max_allowed", 4096)
 	config.SetDefault("runtime_security_config.windows_write_event_rate_limiter_period", "1s")
 
-	// CWS - activity dump
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.trace_systemd_cgroups", false)
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", "30s")
@@ -468,7 +439,6 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.workload_deny_list", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.activity_dump.auto_suppression.enabled", true)
 
-	// CWS - SBOM
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_interval", "1m")
@@ -477,7 +447,6 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.generate_policies", false)
 
-	// CWS - Event sampling (per-type)
 	config.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.rate", 500)
 	config.BindEnvAndSetDefault("runtime_security_config.event_sampling.connect.enabled", false)
@@ -487,7 +456,6 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.rate", 500)
 
-	// CWS - Security Profiles
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
@@ -499,17 +467,14 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.node_eviction_timeout", "0s") // Disabled for now - waiting for another PR to be merged
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
-	// CWS - Security Profile V2
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect", "open"})
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.sample_refresh_period", "30s")
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.max_dump_size", 5120)
 
-	// CWS - Auto suppression
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.event_types", []string{"exec", "dns"})
 
-	// CWS - Anomaly detection
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.event_types", []string{"exec"})
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period", "900s")
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period.exec", "900s")
@@ -524,7 +489,6 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.enabled", true)
 
-	// CWS - Hash algorithms
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.event_types", []string{"exec", "open"})
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_file_size", (1<<20)*5) // 5 MB
@@ -533,7 +497,6 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	config.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 
-	// CWS - SysCtl
 	config.BindEnvAndSetDefault("runtime_security_config.sysctl.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.sysctl.ebpf.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.enabled", true)
@@ -541,23 +504,18 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})
 	config.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.kernel_compilation_flags", []string{})
 
-	// CWS - UserSessions
 	config.BindEnvAndSetDefault("runtime_security_config.user_sessions.ssh.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
 
-	// CWS - Capture all syscall errors
 	// When enabled, the eBPF IS_UNHANDLED_ERROR filter treats every negative syscall
 	// return as handled (constant patched at probe load). Defaults to false.
 	config.BindEnvAndSetDefault("runtime_security_config.syscalls.capture_all_errors.enabled", false)
 
-	// CWS -eBPF Less
 	config.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)
 
-	// CWS - IMDS
 	config.BindEnvAndSetDefault("runtime_security_config.imds_ipv4", "169.254.169.254")
 
-	// CWS enforcement capabilities
 	config.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", false)
 	config.BindEnvAndSetDefault("runtime_security_config.enforcement.exclude_binaries", []string{})
@@ -569,16 +527,12 @@ func initCWSSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.max_allowed", 5)
 	config.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.period", "1m")
 
-	// CWS - File metadata
 	config.BindEnvAndSetDefault("runtime_security_config.file_metadata_resolver.enabled", false)
 
 	config.BindEnvAndSetDefault("runtime_security_config.network_monitoring.enabled", false)
 }
 
 func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
-	// ========================================
-	// General USM Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.enabled", false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 	// max_concurrent_requests default of 0 is intentional: adjustUSM applies a
 	// dynamic default (max_tracked_connections) via applyDefault when this key
@@ -600,9 +554,6 @@ func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("service_monitoring_config.direct_consumer.channel_size", 1000)
 	config.BindEnvAndSetDefault("service_monitoring_config.direct_consumer.kernel_buffer_size_per_cpu", 65536) // 64KB per CPU base size
 
-	// ========================================
-	// HTTP Protocol Configuration
-	// ========================================
 	// New tree structure with backward compatibility
 	config.BindEnvAndSetDefault("service_monitoring_config.http.enabled", true)
 	// Deprecated flat keys for backward compatibility
@@ -641,7 +592,6 @@ func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("service_monitoring_config.http.use_direct_consumer", true)
 
-	// HTTP replace rules configuration
 	config.BindEnvAndSetDefault("service_monitoring_config.http.replace_rules", []map[string]string{})
 	// Deprecated flat keys for backward compatibility
 	config.BindEnvAndSetDefault("service_monitoring_config.http_replace_rules", []map[string]string{})
@@ -651,10 +601,6 @@ func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.ParseEnvJSON("service_monitoring_config.http_replace_rules", []map[string]string{})
 	config.ParseEnvJSON("network_config.http_replace_rules", []map[string]string{})
 
-	// ========================================
-	// HTTP/2 Protocol Configuration
-	// ========================================
-	// Tree structure
 	config.BindEnvAndSetDefault("service_monitoring_config.http2.enabled", false)
 	config.BindEnvAndSetDefault("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 30)
 
@@ -662,9 +608,6 @@ func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("service_monitoring_config.enable_http2_monitoring", false)
 	config.BindEnvAndSetDefault("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 30)
 
-	// ========================================
-	// Kafka Protocol Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.kafka.enabled", false)
 	// For backward compatibility
 	config.BindEnvAndSetDefault("service_monitoring_config.enable_kafka_monitoring", false)
@@ -673,23 +616,14 @@ func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
 	// For backward compatibility
 	config.BindEnvAndSetDefault("service_monitoring_config.max_kafka_stats_buffered", 100000)
 
-	// ========================================
-	// PostgreSQL Protocol Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.postgres.enabled", false)
 	config.BindEnvAndSetDefault("service_monitoring_config.postgres.max_stats_buffered", 100000)
 	config.BindEnvAndSetDefault("service_monitoring_config.postgres.max_telemetry_buffer", 160)
 
-	// ========================================
-	// Redis Protocol Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.redis.enabled", false)
 	config.BindEnvAndSetDefault("service_monitoring_config.redis.track_resources", false)
 	config.BindEnvAndSetDefault("service_monitoring_config.redis.max_stats_buffered", 100000)
 
-	// ========================================
-	// Native TLS Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.tls.native.enabled", true)
 	// For backward compatibility. Default is false because the canonical key
 	// (service_monitoring_config.tls.native.enabled, defaulted to true above)
@@ -697,9 +631,6 @@ func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
 	// alias when it is explicitly configured.
 	config.BindEnvAndSetDefault("network_config.enable_https_monitoring", false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 
-	// ========================================
-	// Go TLS Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.tls.go.enabled", true)
 	// For backward compatibility. Default is false because the canonical key
 	// (service_monitoring_config.tls.go.enabled, defaulted to true above) is
@@ -708,14 +639,8 @@ func initUSMSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("service_monitoring_config.enable_go_tls_support", false)
 	config.BindEnvAndSetDefault("service_monitoring_config.tls.go.exclude_self", true)
 
-	// ========================================
-	// Istio TLS Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.tls.istio.enabled", true)
 	config.BindEnvAndSetDefault("service_monitoring_config.tls.istio.envoy_path", defaultEnvoyPath)
 
-	// ========================================
-	// Node.js TLS Configuration
-	// ========================================
 	config.BindEnvAndSetDefault("service_monitoring_config.tls.nodejs.enabled", false)
 }
