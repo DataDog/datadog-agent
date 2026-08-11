@@ -6,6 +6,10 @@
 mod secret_backend;
 mod spawn;
 
+pub(crate) fn embedded_secret_connector_path() -> PathBuf {
+    PathBuf::from("/opt/datadog-agent/embedded/bin/secret-generic-connector")
+}
+
 pub(crate) use secret_backend::exec_secret_backend;
 pub(crate) use spawn::spawn_child_handle;
 

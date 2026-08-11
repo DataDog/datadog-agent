@@ -49,9 +49,12 @@ pub(crate) fn exec_secret_backend(
     payload: &str,
     timeout: Duration,
     max_output_bytes: usize,
+    skip_acl_check: bool,
 ) -> Result<String> {
-    secret_backend_rights::check_secret_backend_command_rights(command)
-        .with_context(|| format!("validate secret backend executable {command}"))?;
+    if !skip_acl_check {
+        secret_backend_rights::check_secret_backend_command_rights(command)
+            .with_context(|| format!("validate secret backend executable {command}"))?;
+    }
 
     let run = BackendRun {
         command,

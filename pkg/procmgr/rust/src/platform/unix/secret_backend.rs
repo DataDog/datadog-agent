@@ -27,6 +27,7 @@ pub(crate) fn exec_secret_backend(
     payload: &str,
     timeout: std::time::Duration,
     max_output_bytes: usize,
+    _skip_acl_check: bool,
 ) -> Result<String> {
     let run = BackendRun {
         command,
