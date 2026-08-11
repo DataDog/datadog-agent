@@ -59,14 +59,46 @@ type ExcludeMetricConfig struct {
 	Tags       []string `yaml:"tags,omitempty"`
 }
 
+// MetricsRoute selects the backend destination a metric's payload is delivered to.
+//
+// The numeric values are a wire contract with the backend, which routes on them. Only
+// ever append new values: renumbering or inserting in the middle silently misroutes
+// live traffic, since the two sides are released independently.
+type MetricsRoute int
+
+const (
+	// RouteDDCoat is the default destination, used whenever 'route' is unset. It must
+	// remain the zero value so that an omitted route decodes back to it.
+	RouteDDCoat MetricsRoute = iota
+	// RouteOrg2 routes the metric to org2.
+	RouteOrg2
+)
+
+// metricsRoutes maps the 'route' yaml value to its enum. The empty string is accepted
+// so an omitted attribute resolves to the default without the call site special-casing it.
+var metricsRoutes = map[string]MetricsRoute{
+	"":       RouteDDCoat,
+	"ddcoat": RouteDDCoat,
+	"org2":   RouteOrg2,
+}
+
+// parseMetricsRoute resolves a configured 'route' value to its enum, reporting whether
+// the value is known.
+func parseMetricsRoute(route string) (MetricsRoute, bool) {
+	r, ok := metricsRoutes[strings.ToLower(strings.TrimSpace(route))]
+	return r, ok
+}
+
 // MetricConfig is a list of metric selecting subset of telemetry.Gather() metrics to be included in agent
 type MetricConfig struct {
 	Name           string   `yaml:"name"` // required
+	Route          string   `yaml:"route,omitempty"`
 	PreserveTags   []string `yaml:"preserve_tags,omitempty"`
 	AggregateTags  []string `yaml:"aggregate_tags,omitempty"` // deprecated: use preserve_tags
 	AggregateTotal bool     `yaml:"aggregate_total"`
 
 	// compiled
+	route              MetricsRoute
 	preserveTagsExists bool
 	preserveTagsMap    map[string]any
 }
@@ -113,6 +145,12 @@ type Event struct {
 // and similar APIs, "metric group" corresponds to the "subsystem" parameter, and "metric name"
 // corresponds to the "name" parameter. Do not use the "Options.NoDoubleUnderscoreSep" option
 // in these APIs, as it is not supported in agent telemetry.
+//
+// profiles[].metric.metrics[].route (optional)
+// ---------------------------------------------
+// Selects the backend destination the metric is delivered to. Accepted values are "ddcoat"
+// (the default, also used when the attribute is omitted) and "org2". An unrecognized value
+// fails config parsing rather than silently falling back to the default.
 //
 // profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
@@ -250,6 +288,13 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	// Options.NoDoubleUnderscoreSep.
 	promName := fmt.Sprintf("%s_%s", names[0], names[1])
 	p.metricsMap[promName] = m
+
+	// Compile route (optional, defaults to RouteDDCoat)
+	route, ok := parseMetricsRoute(m.Route)
+	if !ok {
+		return fmt.Errorf("profile '%s' metric '%s' has unknown 'route' value '%s'", p.Name, m.Name, m.Route)
+	}
+	m.route = route
 
 	// Compile preserve tags (optional). AggregateTags is a deprecated alias for PreserveTags;
 	// if both are set, PreserveTags takes precedence.
