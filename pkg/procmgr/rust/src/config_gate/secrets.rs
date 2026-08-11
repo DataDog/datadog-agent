@@ -268,7 +268,7 @@ fn load_backend_type(root: Option<&serde_yaml::Value>) -> Option<String> {
 }
 
 fn load_backend_config(root: Option<&serde_yaml::Value>) -> Option<Value> {
-    root.and_then(|yaml| yaml.get("secret_backend_config"))
+    root.and_then(|yaml| yaml_get(yaml, "secret_backend_config"))
         .and_then(|value| serde_json::to_value(value).ok())
         .filter(|value| !value.is_null())
 }
@@ -276,7 +276,7 @@ fn load_backend_config(root: Option<&serde_yaml::Value>) -> Option<Value> {
 fn load_multi_backends(
     root: Option<&serde_yaml::Value>,
 ) -> Option<HashMap<String, MultiBackendEntry>> {
-    let mapping = root?.get("multi_secret_backends")?.as_mapping()?;
+    let mapping = yaml_get(root?, "multi_secret_backends")?.as_mapping()?;
     let mut backends = HashMap::new();
     for (name, entry) in mapping {
         let Some(name) = name.as_str() else {
@@ -285,12 +285,10 @@ fn load_multi_backends(
         let Some(entry) = entry.as_mapping() else {
             continue;
         };
-        let backend_type = entry
-            .get(serde_yaml::Value::from("type"))
+        let backend_type = super::lookup_mapping_case_insensitive(entry, "type")
             .and_then(|value| value.as_str())
             .filter(|text| !text.is_empty())?;
-        let config = entry
-            .get(serde_yaml::Value::from("config"))
+        let config = super::lookup_mapping_case_insensitive(entry, "config")
             .and_then(|value| serde_json::to_value(value).ok());
         backends.insert(
             name.to_ascii_lowercase(),
@@ -406,8 +404,13 @@ fn normalize_secret_value(value: &str, remove_trailing_line_break: bool) -> Stri
     }
 }
 
+fn yaml_get<'a>(root: &'a serde_yaml::Value, key: &str) -> Option<&'a serde_yaml::Value> {
+    let mapping = root.as_mapping()?;
+    super::lookup_mapping_case_insensitive(mapping, key)
+}
+
 fn yaml_string(root: &serde_yaml::Value, key: &str) -> Option<String> {
-    root.get(key)
+    yaml_get(root, key)
         .and_then(|value| match value {
             serde_yaml::Value::String(text) => Some(text.clone()),
             serde_yaml::Value::Number(number) => Some(number.to_string()),
@@ -418,7 +421,7 @@ fn yaml_string(root: &serde_yaml::Value, key: &str) -> Option<String> {
 }
 
 fn yaml_string_list(root: &serde_yaml::Value, key: &str) -> Vec<String> {
-    root.get(key)
+    yaml_get(root, key)
         .and_then(|value| value.as_sequence())
         .map(|items| {
             items
@@ -430,7 +433,7 @@ fn yaml_string_list(root: &serde_yaml::Value, key: &str) -> Vec<String> {
 }
 
 fn yaml_u64(root: &serde_yaml::Value, key: &str) -> Option<u64> {
-    root.get(key).and_then(|value| match value {
+    yaml_get(root, key).and_then(|value| match value {
         serde_yaml::Value::Number(number) => number.as_u64(),
         serde_yaml::Value::String(text) => text.parse().ok(),
         _ => None,
@@ -442,7 +445,7 @@ fn yaml_usize(root: &serde_yaml::Value, key: &str) -> Option<usize> {
 }
 
 fn yaml_bool(root: &serde_yaml::Value, key: &str) -> Option<bool> {
-    root.get(key).and_then(|value| match value {
+    yaml_get(root, key).and_then(|value| match value {
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
         serde_yaml::Value::String(text) => text.parse().ok(),
         _ => None,
@@ -553,6 +556,78 @@ mod tests {
             assert_eq!(
                 resolve_config_string("ENC[process_enabled]", agent_yaml.to_str().unwrap()),
                 "true"
+            );
+        });
+    }
+
+    #[test]
+    fn load_backend_uses_mixed_case_secret_backend_keys() {
+        with_env_lock(|| {
+            clear_caches();
+            let dir = tempfile::tempdir().unwrap();
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("mixed_case_secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    "#!/bin/sh\nprintf '{\"process_enabled\":{\"value\":\"true\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("mixed_case_secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"process_enabled\\\":{\\\"value\\\":\\\"true\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent_yaml = dir.path().join("datadog.yaml");
+            std::fs::write(
+                &agent_yaml,
+                format!(
+                    "Secret_Backend_Command: {}\n",
+                    script.to_string_lossy()
+                ),
+            )
+            .unwrap();
+
+            assert_eq!(
+                resolve_config_string("ENC[process_enabled]", agent_yaml.to_str().unwrap()),
+                "true"
+            );
+        });
+    }
+
+    #[test]
+    fn load_backend_parses_mixed_case_multi_secret_backends() {
+        with_env_lock(|| {
+            clear_caches();
+            let dir = tempfile::tempdir().unwrap();
+            let agent_yaml = dir.path().join("datadog.yaml");
+            std::fs::write(
+                &agent_yaml,
+                "Multi_Secret_Backends:\n  file:\n    Type: file.yaml\n    Config:\n      file_path: /tmp/secrets.yaml\n",
+            )
+            .unwrap();
+
+            let backend = load_backend(agent_yaml.to_str().unwrap())
+                .unwrap()
+                .expect("backend");
+            let entry = backend
+                .multi_backends
+                .as_ref()
+                .and_then(|backends| backends.get("file"))
+                .expect("file backend");
+            assert_eq!(entry.backend_type, "file.yaml");
+            assert_eq!(
+                entry.config.as_ref().and_then(|c| c.get("file_path")),
+                Some(&Value::String("/tmp/secrets.yaml".into()))
             );
         });
     }

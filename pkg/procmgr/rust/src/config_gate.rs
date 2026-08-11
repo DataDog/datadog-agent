@@ -490,7 +490,7 @@ fn config_key_enabled(path: &str, key: &str, yaml: &mut YamlCache) -> anyhow::Re
         .enabled(path, yaml)
 }
 
-fn lookup_mapping_case_insensitive<'a>(
+pub(super) fn lookup_mapping_case_insensitive<'a>(
     mapping: &'a serde_yaml::Mapping,
     key: &str,
 ) -> Option<&'a serde_yaml::Value> {
