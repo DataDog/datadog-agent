@@ -231,14 +231,11 @@ func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
 		spec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		require.NoError(t, err)
 
-		// Mirror LockContentionCollector.Initialize: read the per-cpu
-		// __preempt_count symbol when the kernel exports it, otherwise fall
-		// back to pcpu_hot, for x86.
-		if v, ok := spec.Variables["use_preempt_count"]; ok {
-			missing, err := VerifyKernelFuncs("__preempt_count")
-			require.NoError(t, err)
-			if len(missing) == 0 {
-				require.NoError(t, v.Set(uint64(1)))
+		constants, err := PreemptCountConstants()
+		require.NoError(t, err)
+		for k, v := range constants {
+			if constant, ok := spec.Variables[k]; ok {
+				require.NoError(t, constant.Set(v))
 			}
 		}
 
@@ -319,6 +316,10 @@ func awaitDepth(t *testing.T, m *ebpf.Map, want int32, trigger func()) {
 // enableSysrq makes sure sysrq commands are accepted, restoring the previous
 // setting afterwards. Skips the test when sysrq is unavailable.
 func enableSysrq(t *testing.T) {
+	if !EBPFPreemptCountSupported() {
+		t.Skip("getting preempt_count from ebpf not supported.")
+	}
+
 	const sysrqCfg = "/proc/sys/kernel/sysrq"
 
 	if _, err := os.Stat("/proc/sysrq-trigger"); err != nil {

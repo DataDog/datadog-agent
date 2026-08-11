@@ -325,9 +325,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 	}
 
-	preemptCountMissing, err := VerifyKernelFuncs("__preempt_count")
-	if err != nil {
-		return fmt.Errorf("error verifying kernel symbol: %w", err)
+	if !EBPFPreemptCountSupported() {
+		return fmt.Errorf("getting preempt_count in ebpf not supported. Disabling lock contention collector")
 	}
 
 	var ranges uint32
@@ -361,8 +360,13 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			constants[ksym] = addr
 		}
 
-		if len(preemptCountMissing) == 0 {
-			constants["use_preempt_count"] = 1
+		enablePreemptCount, err := PreemptCountConstants()
+		if err != nil {
+			return fmt.Errorf("failed to get constants to enable preempt_count support: %w", err)
+		}
+
+		for k, v := range enablePreemptCount {
+			constants[k] = v
 		}
 
 		constants["num_of_ranges"] = uint64(ranges)
