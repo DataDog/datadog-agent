@@ -302,6 +302,26 @@ package-local tag combinations from `//go:build` constraints. Dependency-only op
 tags it names. Gazelle uses those combinations instead of unsafe partial modes and only considers
 embedded library constraints when a configured combination satisfies them.
 
+Some `//go:build` constraints name a tag that a canonical set covers *and* a tag that no canonical
+set mentions. `//go:build trivy && containerd` is one: `containerd` belongs to the canonical set
+`containerd cel`, but no canonical set mentions `trivy`, so that set on its own cannot compile the
+file. Gazelle does not give up there — it derives the minimal combination the constraint needs
+(`containerd trivy`) and adds every canonical set that shares a tag with it, producing
+`cel containerd trivy`. The canonical grouping is still honoured, and the sources still get a test
+target.
+
+This only applies when the canonical set and the constraint can coexist. A constraint that
+contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
+test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
+`kubeapiserver` and `kubelet` share the canonical set
+`cel clusterchecks kubeapiserver kubelet orchestrator` — and the result then fails the constraint's
+own `!kubelet`.
+
+Combinations built this way can be long, and target names are budgeted against the Windows runfiles
+path length (see the Windows section). When `dd_agent_go_test` fails with a path-length error, add a
+short suffix for the combination to `_TAG_SET_SUFFIX_ALIASES` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:

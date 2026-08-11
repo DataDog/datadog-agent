@@ -473,9 +473,9 @@ require (
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
-	golang.org/x/arch v0.29.0
+	golang.org/x/arch v0.30.0
 	golang.org/x/crypto v0.54.0
-	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597
+	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743
 	golang.org/x/mod v0.38.0
 	golang.org/x/net v0.57.0
 	golang.org/x/oauth2 v0.36.0
@@ -1313,7 +1313,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ./pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ./pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ./pkg/config/remote
-	github.com/DataDog/datadog-agent/pkg/config/render_config => ./pkg/config/render_config
 	github.com/DataDog/datadog-agent/pkg/config/schema => ./pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ./pkg/config/setup/constants

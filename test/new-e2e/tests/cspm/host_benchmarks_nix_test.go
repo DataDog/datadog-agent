@@ -365,6 +365,7 @@ func testHostBenchmarks(t *testing.T, d distro) {
 	if d.latestAMI {
 		instanceOpts = append(instanceOpts, ec2.WithLatestAMI())
 	}
+	instanceOpts = append(instanceOpts, ec2.WithInternetAccess())
 	e2e.Run(t, &hostBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-host-"+d.name),
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(

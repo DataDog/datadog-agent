@@ -8,7 +8,7 @@ import yaml
 def _sample_core_schema():
     """Minimal enriched-schema shape sufficient to exercise generate_template.
 
-    Mirrors the shape produced by `dda inv schema.generate` for the core
+    Mirrors the shape from the schema for the core
     agent: a top-level `properties` dict whose entries each carry the
     enrichment fields (visibility, description, tags, default, type).
     Two settings is enough to verify both the per-entry rendering path
