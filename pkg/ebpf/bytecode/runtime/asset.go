@@ -203,6 +203,16 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	return out, err
 }
 
+// dedicatedDirName is the agent-owned top-level component of the runtime
+// compiler cache path (the default is /var/tmp/datadog-agent/system-probe/build).
+// Reclaim is confined to this subtree: a wrong-owner component is only ever
+// renamed aside and deleted once we are provably inside .../datadog-agent/...,
+// so a misconfigured or attacker-supplied output_dir nested under a shared,
+// non-dedicated directory (e.g. /var/tmp/shared/datadog/build) is refused rather
+// than causing that shared directory to be destroyed. Keep this in sync with the
+// runtime_compiler_output_dir default (pkg/config/setup/system_probe_settings.go).
+const dedicatedDirName = "datadog-agent"
+
 // secureRuntimeDir creates the runtime-compiler output directory (root-only,
 // 0700) and verifies that it, and every ancestor up to the filesystem root, is a
 // real directory owned by root and not writable by other users. The compiler
@@ -220,17 +230,23 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 // (left over from a previous install, or created by another process). Rather
 // than refusing in that case for the lifetime of the process - which would break
 // upgraded hosts and leave runtime compilation disabled - secureRuntimeDir
-// repairs the common case: a wrong-owner directory below the sticky boundary is
-// renamed aside and the path recreated fresh as root. Only root can rename
-// entries inside a sticky directory, so the repair is not subject to
-// interference, and renaming aside (rather than reusing or chown-ing the
-// existing tree) means we never write through whatever it previously contained.
+// repairs the common case: a wrong-owner directory that is both below the sticky
+// boundary and inside the agent's own datadog-agent subtree is renamed aside and
+// the path recreated fresh as root. Only root can rename entries inside a sticky
+// directory, so the repair is not subject to interference, and renaming aside
+// (rather than reusing or chown-ing the existing tree) means we never write
+// through whatever it previously contained.
 //
 // The repair is deliberately narrow (see verifyRuntimeDirChain): it happens only
-// as root, only below a verified root-owned sticky directory, and only for a real
-// directory with the wrong owner/permissions. A symlink, a non-directory, or
-// anything at or above the sticky boundary is still refused, so unexpected or
-// broken layouts fail closed rather than being silently rewritten.
+// as root, only below a verified root-owned sticky directory, only inside the
+// agent's own dedicated subtree (dedicatedDirName), and only for a real directory
+// with the wrong owner/permissions. This last condition is what keeps a
+// misconfigured or attacker-supplied output_dir nested under a shared directory
+// (e.g. /var/tmp/shared/datadog/build) from causing that shared directory to be
+// renamed aside and recursively deleted. A symlink, a non-directory, anything at
+// or above the sticky boundary, and anything outside the datadog-agent subtree
+// are all still refused, so unexpected or broken layouts fail closed rather than
+// being silently rewritten.
 func secureRuntimeDir(outputDir string) error {
 	if err := os.MkdirAll(outputDir, 0700); err != nil {
 		return fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
@@ -274,7 +290,12 @@ func secureRuntimeDir(outputDir string) error {
 //     must not start renaming directories it happens not to own,
 //   - the component lies strictly below a verified root-owned sticky directory
 //     (a shared, writable-by-anyone parent such as /var/tmp, whose sticky bit
-//     means only root can rename the entries beneath it), and
+//     means only root can rename the entries beneath it),
+//   - the component lies inside the agent's own dedicated subtree (at or below a
+//     component named dedicatedDirName). Without this, the first insecure
+//     ancestor on a custom output_dir could be a shared directory unrelated to
+//     the agent (e.g. /var/tmp/shared), which reclaim would then rename aside and
+//     recursively delete along with its contents, and
 //   - the component is itself a real directory that merely has the wrong owner or
 //     permissions. A symlink or non-directory at a path component is unexpected
 //     rather than a routine leftover, so it is still refused (fail-closed)
@@ -297,10 +318,18 @@ func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err
 	}
 
 	// Walk root -> leaf so we know a component sits below a verified sticky
-	// boundary before we decide whether its failure is reclaimable.
+	// boundary, and inside the agent's dedicated subtree, before we decide
+	// whether its failure is reclaimable.
 	belowStickyBoundary := false
+	inDedicatedSubtree := false
 	for i := len(components) - 1; i >= 0; i-- {
 		p := components[i]
+		// A component named dedicatedDirName marks the start of the agent's own
+		// subtree; it and anything deeper may be repaired. Set this before the
+		// verify below so the datadog-agent component itself is repairable.
+		if filepath.Base(p) == dedicatedDirName {
+			inDedicatedSubtree = true
+		}
 		info, lerr := os.Lstat(p)
 		if lerr != nil {
 			return p, false, fmt.Errorf("unable to verify compiler output directory component %s: %w", p, lerr)
@@ -310,10 +339,12 @@ func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err
 			return p, false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
 		}
 		if verr := verifyDirComponent(p, info.Mode(), stat.Uid); verr != nil {
-			// Reclaim only a real, wrong-owner/permission directory below the
-			// sticky boundary, and only as root. info.Mode().IsDir() is false for
-			// a symlink or a regular file, so those remain fail-closed.
-			healable := belowStickyBoundary && os.Geteuid() == 0 && info.Mode().IsDir()
+			// Reclaim only a real, wrong-owner/permission directory that is below
+			// the sticky boundary, inside the agent's dedicated subtree, and only
+			// as root. info.Mode().IsDir() is false for a symlink or a regular
+			// file, so those remain fail-closed; requiring the dedicated subtree
+			// keeps reclaim from ever deleting a shared, non-agent directory.
+			healable := belowStickyBoundary && inDedicatedSubtree && os.Geteuid() == 0 && info.Mode().IsDir()
 			return p, healable, verr
 		}
 		// This component is verified good. If it is a sticky directory it marks
@@ -327,11 +358,15 @@ func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err
 
 // reclaimDirComponent moves a stale path component aside and removes it. The
 // caller must only invoke this for a component that verifyRuntimeDirChain
-// reported as repairable (below a verified root-owned sticky directory), which
-// guarantees the parent is root-owned so root can rename the entry regardless of
-// who owns it, and the sticky bit means the rename cannot be interfered with.
-// Renaming aside (never reusing or chown-ing the existing entry) ensures we do
-// not follow a symlink or reuse whatever the entry previously contained.
+// reported as repairable (below a verified root-owned sticky directory and inside
+// the agent's dedicated datadog-agent subtree), which guarantees the parent is
+// root-owned so root can rename the entry regardless of who owns it. Renaming
+// aside (never reusing or chown-ing the existing entry) ensures we do not follow
+// a symlink or reuse whatever the entry previously contained; even if the
+// component's non-root owner races us (they may rename their own entry in a
+// sticky parent), os.Rename does not dereference a symlink at p and we recreate
+// the path fresh afterwards, so the worst case is a transient error, never
+// loading or writing through an attacker-controlled path.
 func reclaimDirComponent(p string) error {
 	// os.Rename does not follow a symlink at p: a symlinked component is moved as
 	// the link itself. The aside name is in the same (root-owned) parent so the

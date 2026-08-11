@@ -232,6 +232,36 @@ func TestSecureRuntimeDirRefusesNonRootWithoutStickyAncestor(t *testing.T) {
 	require.Equal(t, uint32(1), dirUID(t, parent), "the component must be left untouched, not reclaimed")
 }
 
+// A non-root component that sits below a sticky boundary but OUTSIDE the agent's
+// dedicated (datadog-agent) subtree must be refused, never reclaimed. Reclaiming
+// it would rename the shared parent aside and recursively delete it along with
+// unrelated contents, so this guards that data-loss regression for a custom
+// output_dir nested under a shared directory (e.g. /var/tmp/shared/datadog/build).
+func TestSecureRuntimeDirRefusesSharedNonDedicatedAncestor(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("test must run as root to create the non-root component")
+	}
+
+	// Root-owned sticky parent standing in for /var/tmp.
+	sticky := filepath.Join(t.TempDir(), "sticky")
+	require.NoError(t, os.Mkdir(sticky, 0777))
+	require.NoError(t, os.Chmod(sticky, 0777|os.ModeSticky))
+
+	// A shared, non-root-owned directory that is NOT named datadog-agent and
+	// holds unrelated data.
+	shared := filepath.Join(sticky, "shared")
+	require.NoError(t, os.Mkdir(shared, 0777))
+	require.NoError(t, syscall.Chown(shared, 1, 1))
+	bystander := filepath.Join(shared, "unrelated.txt")
+	require.NoError(t, os.WriteFile(bystander, []byte("keep me"), 0644))
+
+	err := secureRuntimeDir(filepath.Join(shared, "datadog", "build"))
+	require.Error(t, err, "a non-dedicated shared ancestor must be refused, not reclaimed")
+	require.FileExists(t, bystander, "unrelated contents must be preserved")
+	require.Equal(t, uint32(1), dirUID(t, shared), "the shared dir must be left untouched, not reclaimed")
+	require.False(t, hasReclaimedLeftover(t, sticky))
+}
+
 // verifyDirComponent is the pure policy behind the ancestor walk in
 // secureRuntimeDir. Exercising it directly covers the accept/reject logic
 // regardless of the euid the suite runs under (the filesystem-level test above
