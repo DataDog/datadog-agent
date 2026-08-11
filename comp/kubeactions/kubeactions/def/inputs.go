@@ -1,0 +1,228 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package kubeactions
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+)
+
+// ResourceRef identifies the Kubernetes resource an action targets. It is the
+// workflow-input equivalent of the protobuf KubeResource message used by the
+// remote-config implementation.
+//
+// The JSON tags are camelCase (resourceId, apiVersion, ...) because these
+// structs deserialize the workflow action inputs dispatched by
+// wf-actions-server, which follow the action-platform manifest input
+// convention shared by the other kubernetes bundles. This is deliberately
+// distinct from the snake_case EVP payload the reporter emits
+// (impl.ActionResultEvent, matching agent-payload's KubeAction.json) — that
+// event schema is a separate hop and is unchanged.
+type ResourceRef struct {
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	Namespace  string `json:"namespace"`
+	ResourceID string `json:"resourceId"`
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// ActionID and RequestedBy are action-lifecycle metadata (not resource
+	// fields). When the action is dispatched by the kubernetes-actions backend
+	// via wf-actions-server, they carry that service's DB action_id and the
+	// requester so the EVP action_received/action_executed events correlate back
+	// to the kube-actions row. Empty when the action is driven some other way
+	// (the handler then falls back to the PAR job id for ActionID).
+	ActionID    string `json:"actionId,omitempty"`
+	RequestedBy string `json:"requestedBy,omitempty"`
+}
+
+// DeletePodInputs are the inputs for the delete_pod action.
+type DeletePodInputs struct {
+	ResourceRef
+	GracePeriodSeconds *int64 `json:"gracePeriodSeconds,omitempty"`
+}
+
+// RestartDeploymentInputs are the inputs for the restart_deployment action.
+type RestartDeploymentInputs struct {
+	ResourceRef
+}
+
+// PatchDeploymentInputs are the inputs for the patch_deployment action.
+type PatchDeploymentInputs struct {
+	ResourceRef
+	// Patch is the raw JSON patch body applied to the deployment.
+	Patch json.RawMessage `json:"patch"`
+	// PatchStrategy selects the Kubernetes patch type: "merge", "json", or
+	// (default) strategic merge.
+	PatchStrategy string `json:"patchStrategy,omitempty"`
+}
+
+// PatchDaemonSetInputs are the inputs for the patch_daemonset action.
+type PatchDaemonSetInputs struct {
+	ResourceRef
+	// Patch is the raw JSON patch body applied to the daemonset.
+	Patch json.RawMessage `json:"patch"`
+	// PatchStrategy selects the Kubernetes patch type: "merge", "json", or
+	// (default) strategic merge.
+	PatchStrategy string `json:"patchStrategy,omitempty"`
+}
+
+// PatchStatefulSetInputs are the inputs for the patch_statefulset action.
+type PatchStatefulSetInputs struct {
+	ResourceRef
+	// Patch is the raw JSON patch body applied to the statefulset.
+	Patch json.RawMessage `json:"patch"`
+	// PatchStrategy selects the Kubernetes patch type: "merge", "json", or
+	// (default) strategic merge.
+	PatchStrategy string `json:"patchStrategy,omitempty"`
+}
+
+// RollbackDeploymentInputs are the inputs for the rollback_deployment action.
+type RollbackDeploymentInputs struct {
+	ResourceRef
+	// TargetRevision is the revision to roll back to; 0 (default) means the
+	// previous revision (matching kubectl behaviour).
+	TargetRevision int64 `json:"targetRevision,omitempty"`
+}
+
+// GetResourceInputs are the inputs for the get_resource action.
+type GetResourceInputs struct {
+	ResourceRef
+}
+
+// protectedNamespaces are Kubernetes system namespaces where actions must not
+// be executed.
+var protectedNamespaces = map[string]struct{}{
+	"kube-system":     {},
+	"kube-public":     {},
+	"kube-node-lease": {},
+}
+
+// protectedKinds are resource kinds that get_resource must never return, even
+// when the caller has RBAC permission to read them.
+var protectedKinds = map[string]struct{}{
+	"pods":            {},
+	"secrets":         {},
+	"serviceaccounts": {},
+}
+
+func isProtectedKind(kind string) bool {
+	_, ok := protectedKinds[strings.ToLower(kind)]
+	return ok
+}
+
+// validateCommon enforces the preflight checks shared by every action: required
+// resource fields and the protected-namespace block.
+//
+// ResourceID (the resource UID) is intentionally NOT required: it is an optional
+// safety guard. When provided, executors verify the live object's UID matches it
+// before mutating; when empty, the guard is skipped and the action targets the
+// resource by namespace+name alone.
+func (r ResourceRef) validateCommon() error {
+	if r.Kind == "" {
+		return errors.New("resource.kind is required")
+	}
+	if r.Name == "" {
+		return errors.New("resource.name is required")
+	}
+	if r.Namespace == "" {
+		return errors.New("resource.namespace is required")
+	}
+	if _, ok := protectedNamespaces[r.Namespace]; ok {
+		return fmt.Errorf("actions are not allowed on protected namespace %q", r.Namespace)
+	}
+	return nil
+}
+
+// Validate checks the delete_pod inputs.
+func (in DeletePodInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "Pod" {
+		return errors.New("resource.kind must be 'Pod' for delete_pod action")
+	}
+	return nil
+}
+
+// Validate checks the restart_deployment inputs.
+func (in RestartDeploymentInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "Deployment" {
+		return errors.New("resource.kind must be 'Deployment' for restart_deployment action")
+	}
+	return nil
+}
+
+// Validate checks the patch_deployment inputs.
+func (in PatchDeploymentInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "Deployment" {
+		return errors.New("resource.kind must be 'Deployment' for patch_deployment action")
+	}
+	if len(in.Patch) == 0 {
+		return errors.New("patch is required for patch_deployment action")
+	}
+	return nil
+}
+
+// Validate checks the patch_daemonset inputs.
+func (in PatchDaemonSetInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "DaemonSet" {
+		return errors.New("resource.kind must be 'DaemonSet' for patch_daemonset action")
+	}
+	if len(in.Patch) == 0 {
+		return errors.New("patch is required for patch_daemonset action")
+	}
+	return nil
+}
+
+// Validate checks the patch_statefulset inputs.
+func (in PatchStatefulSetInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "StatefulSet" {
+		return errors.New("resource.kind must be 'StatefulSet' for patch_statefulset action")
+	}
+	if len(in.Patch) == 0 {
+		return errors.New("patch is required for patch_statefulset action")
+	}
+	return nil
+}
+
+// Validate checks the rollback_deployment inputs.
+func (in RollbackDeploymentInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.Kind != "Deployment" {
+		return errors.New("resource.kind must be 'Deployment' for rollback_deployment action")
+	}
+	return nil
+}
+
+// Validate checks the get_resource inputs.
+func (in GetResourceInputs) Validate() error {
+	if err := in.validateCommon(); err != nil {
+		return err
+	}
+	if in.APIVersion == "" {
+		return errors.New("resource.api_version must be set for get_resource action")
+	}
+	if isProtectedKind(in.Kind) {
+		return fmt.Errorf("actions are not allowed to get protected kind %s", in.Kind)
+	}
+	return nil
+}

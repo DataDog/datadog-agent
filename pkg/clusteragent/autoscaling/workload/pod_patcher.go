@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -150,13 +151,11 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 
 	// TODO: Implementation is slow
 	podAutoscalers := pa.store.List(func(podAutoscaler model.PodAutoscalerInternal) bool {
-		if podAutoscaler.Namespace() == pod.Namespace &&
+		return podAutoscaler.Namespace() == pod.Namespace &&
 			podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
 			podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&
-			podAutoscaler.Spec().TargetRef.APIVersion == ownerRef.APIVersion {
-			return true
-		}
-		return false
+			podAutoscaler.Spec().TargetRef.APIVersion == ownerRef.APIVersion &&
+			(podAutoscaler.Spec().ApplyPolicy == nil || podAutoscaler.Spec().ApplyPolicy.Mode != datadoghq.DatadogPodAutoscalerApplyModePreview)
 	})
 
 	if len(podAutoscalers) == 0 {
