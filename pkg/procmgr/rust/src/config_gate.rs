@@ -606,6 +606,7 @@ pub(crate) mod test_env {
             "DD_SECRET_BACKEND_COMMAND",
             "DD_SECRET_BACKEND_ARGUMENTS",
             "DD_SECRET_BACKEND_TYPE",
+            "DD_SECRET_BACKEND_CONFIG",
             "DD_SECRET_BACKEND_TIMEOUT",
             "DD_SECRET_BACKEND_OUTPUT_MAX_SIZE",
             "DD_SECRET_BACKEND_REMOVE_TRAILING_LINE_BREAK",

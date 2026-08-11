@@ -268,9 +268,28 @@ fn load_backend_type(root: Option<&serde_yaml::Value>) -> Option<String> {
 }
 
 fn load_backend_config(root: Option<&serde_yaml::Value>) -> Option<Value> {
-    root.and_then(|yaml| yaml_get(yaml, "secret_backend_config"))
-        .and_then(|value| serde_json::to_value(value).ok())
-        .filter(|value| !value.is_null())
+    match env_string("DD_SECRET_BACKEND_CONFIG") {
+        Some(text) => parse_env_json_map(&text),
+        None => root
+            .and_then(|yaml| yaml_get(yaml, "secret_backend_config"))
+            .and_then(|value| serde_json::to_value(value).ok()),
+    }
+    .filter(|value| !value.is_null())
+}
+
+fn parse_env_json_map(text: &str) -> Option<Value> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    match serde_json::from_str::<Value>(trimmed) {
+        Ok(value) if !value.is_null() => Some(value),
+        Ok(_) => None,
+        Err(err) => {
+            debug!("ignore invalid JSON in DD_SECRET_BACKEND_CONFIG: {err}");
+            None
+        }
+    }
 }
 
 fn load_multi_backends(
@@ -686,6 +705,51 @@ mod tests {
                     .as_ref()
                     .and_then(|c| c.get("file_path")),
                 Some(&Value::String("/tmp/secrets.json".into()))
+            );
+        });
+    }
+
+    #[test]
+    fn load_backend_uses_env_secret_backend_config() {
+        let connector = crate::platform::embedded_secret_connector_path();
+        if !connector.is_file() {
+            return;
+        }
+
+        with_env_lock(|| {
+            clear_caches();
+            let dir = tempfile::tempdir().unwrap();
+            let secrets_file = dir.path().join("secrets.json");
+            std::fs::write(&secrets_file, r#"{"process_enabled": "true"}"#).unwrap();
+            let agent_yaml = dir.path().join("datadog.yaml");
+            std::fs::write(
+                &agent_yaml,
+                "secret_backend_type: file.json\nsecret_backend_config:\n  file_path: /nonexistent/secrets.json\n",
+            )
+            .unwrap();
+            let _backend_type = EnvGuard::set("DD_SECRET_BACKEND_TYPE", "file.json");
+            let _backend_config = EnvGuard::set(
+                "DD_SECRET_BACKEND_CONFIG",
+                &format!(
+                    r#"{{"file_path":"{}"}}"#,
+                    secrets_file.to_string_lossy()
+                ),
+            );
+
+            let backend = load_backend(agent_yaml.to_str().unwrap())
+                .unwrap()
+                .expect("backend");
+            assert_eq!(backend.global_backend_type.as_deref(), Some("file.json"));
+            assert_eq!(
+                backend
+                    .global_backend_config
+                    .as_ref()
+                    .and_then(|c| c.get("file_path")),
+                Some(&Value::String(secrets_file.to_string_lossy().into_owned()))
+            );
+            assert_eq!(
+                resolve_config_string("ENC[process_enabled]", agent_yaml.to_str().unwrap()),
+                "true"
             );
         });
     }
