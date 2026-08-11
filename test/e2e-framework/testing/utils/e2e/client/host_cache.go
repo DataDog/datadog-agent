@@ -30,10 +30,9 @@ const (
 
 	awsCliRemoteInstallLogPath = `C:\Windows\Temp\awscli-install.log`
 
-	// msiExitSuccessRebootRequired/msiExitSuccessRebootInitiated are successful msiexec exit codes.
-	// See https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
-	msiExitSuccessRebootRequired  = 3010
-	msiExitSuccessRebootInitiated = 1641
+	// msiExitSuccessRebootRequired is the successful msiexec exit code returned when /norestart
+	// defers a pending reboot. See https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+	msiExitSuccessRebootRequired = 3010
 )
 
 type unimplementedHostCache struct{}
@@ -88,8 +87,8 @@ func (c *windowsAWSCLI) ensureInstalled() error {
 		// Start-Process's own exit code only reflects whether it launched msiexec, not whether the
 		// install succeeded, so capture the process with -PassThru and check its ExitCode explicitly.
 		_, err := c.sshExecutor.Execute(fmt.Sprintf(
-			`$p = Start-Process msiexec.exe -Wait -PassThru -ArgumentList "/i https://awscli.amazonaws.com/AWSCLIV2.msi /qn /norestart /L*V %s"; if ($p.ExitCode -ne 0 -and $p.ExitCode -ne %d -and $p.ExitCode -ne %d) { throw "msiexec exited with code $($p.ExitCode)" }`,
-			awsCliRemoteInstallLogPath, msiExitSuccessRebootRequired, msiExitSuccessRebootInitiated))
+			`$p = Start-Process msiexec.exe -Wait -PassThru -ArgumentList "/i https://awscli.amazonaws.com/AWSCLIV2.msi /qn /norestart /L*V %s"; if ($p.ExitCode -ne 0 -and $p.ExitCode -ne %d) { throw "msiexec exited with code $($p.ExitCode)" }`,
+			awsCliRemoteInstallLogPath, msiExitSuccessRebootRequired))
 		return nil, err
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(awsRetryInterval)), backoff.WithMaxTries(awsCliInstallRetries))
 	c.collectInstallLog()
