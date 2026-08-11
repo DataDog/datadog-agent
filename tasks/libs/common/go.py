@@ -139,7 +139,7 @@ def go_build(
         check_deadcode = False
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, fix=True)
+    schema_codegen(ctx)
 
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
