@@ -701,4 +701,29 @@ func TestPodStateHandlerHandle(t *testing.T) {
 		assert.Nil(t, les[0].ProtoEvent.GetPod().GetTransition().LastObservedState)
 		assert.Equal(t, "Pending", les[0].ProtoEvent.GetPod().GetTransition().GetNewState().GetPhase())
 	})
+
+	t.Run("reason-only change with unchanged status and last-transition time emits nothing", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "eva-lu-ator", Kind: workloadmeta.KindKubernetesPod}
+		now := time.Now()
+
+		_, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True", Reason: "PodReady", LastTransitionTime: now}},
+			},
+		})
+		require.NoError(t, err)
+
+		les, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True", Reason: "ContainersReady", LastTransitionTime: now}},
+			},
+		})
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
 }

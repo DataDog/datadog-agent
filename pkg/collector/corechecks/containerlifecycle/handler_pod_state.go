@@ -146,9 +146,9 @@ func phaseChanged(prior, current string) bool {
 	return current != "" && current != prior
 }
 
-// conditionUnchanged reports whether a condition has already been observed and is identical to its prior value.
+// conditionUnchanged reports whether a condition has already been observed and is identical to its prior value, barring reason changes.
 func conditionUnchanged(seen bool, prior, current workloadmeta.KubernetesPodCondition) bool {
-	return seen && prior == current
+	return seen && prior.Status == current.Status && prior.LastTransitionTime.Equal(current.LastTransitionTime)
 }
 
 // conditionMissedIntermediate reports PROVEN when status is unchanged but LastTransitionTime advanced,
