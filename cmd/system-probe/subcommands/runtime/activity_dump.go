@@ -353,7 +353,7 @@ func diffADSubtree(p1, p2 []*activity_tree.ProcessNode, states map[string]bool) 
 NEXT:
 	for _, n := range p2 {
 		for _, n2 := range p1 {
-			n2Process := n2.Process.ToModelProcess()
+			n2Process := n2.Process.ToModelProcess("")
 			if n.Matches(&n2Process, false, false) {
 				newNode := *n
 				processID := utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode))
@@ -372,7 +372,7 @@ NEXT:
 NEXT2:
 	for _, n := range p1 {
 		for _, n2 := range p2 {
-			n2Process := n2.Process.ToModelProcess()
+			n2Process := n2.Process.ToModelProcess("")
 			if n.Matches(&n2Process, false, false) {
 				continue NEXT2
 			}
