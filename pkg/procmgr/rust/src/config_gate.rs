@@ -288,17 +288,19 @@ impl YamlCache {
         key: &str,
         fleet_policy_file: Option<&str>,
     ) -> anyhow::Result<Option<String>> {
+        let agent_yaml = agent_datadog_yaml(base_path);
+        let resolve = |text: String| secrets::resolve_config_string(&text, &agent_yaml);
         if let Some(filename) = fleet_policy_file
             && let Some(path) = self.fleet_policy_path(filename, base_path)?
             && let Some(value) = self.dotted_key_if_exists(&path, key)?
         {
-            return Self::string_value(value);
+            return Ok(Self::string_value(value)?.map(resolve));
         }
         if let Some(text) = env_string_for_config_key(key) {
-            return Ok(Some(text));
+            return Ok(Some(resolve(text)));
         }
         match self.dotted_key_if_exists(base_path, key)? {
-            Some(value) => Self::string_value(value),
+            Some(value) => Ok(Self::string_value(value)?.map(resolve)),
             None => Ok(None),
         }
     }
@@ -2072,6 +2074,49 @@ process_config:
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)
             ));
+        });
+    }
+
+    #[test]
+    fn derived_secret_infrastructure_mode_enables_system_probe_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            secrets::clear_caches();
+            let dir = tempfile::tempdir().unwrap();
+            #[cfg(unix)]
+            let script = dir.path().join("secret_backend.sh");
+            #[cfg(unix)]
+            {
+                std::fs::write(
+                    &script,
+                    "#!/bin/sh\nprintf '{\"eudm\":{\"value\":\"end_user_device\"}}'\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"eudm\\\":{\\\"value\\\":\\\"end_user_device\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!(
+                    "secret_backend_command: {}\nprocess_config:\n  process_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\ninfrastructure_mode: ENC[eudm]\n",
+                    script.to_string_lossy()
+                ),
+            );
+            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            assert!(condition_config_any_met(&process_agent_windows_conditions(
+                agent, sysprobe
+            )));
         });
     }
 
