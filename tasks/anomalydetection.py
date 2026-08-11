@@ -30,6 +30,7 @@ from tasks.libs.anomalydetection.eval import (
     _prepare_eval_output_dir,
     _scenario_f1_from_bayesian_report,
     aggregate_eval_component_results,
+    default_eval_config,
     print_eval_bayesian_summary,
     print_eval_component_summary,
     print_eval_scenarios_summary,
@@ -205,13 +206,14 @@ def eval_scenarios(
     source of truth for anomaly detection accuracy.
 
     Uses testbench --only to control which components are active.
-    Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
+    Default (no --only or --config): uses default testbench detectors and
+      extractors, with anomaly_scorer enabled and time_cluster disabled.
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
     With --config: JSON params file for testbench; overrides --only when both are set.
 
     Examples:
-        dda inv anomalydetection.eval-scenarios                            # defaults
+        dda inv anomalydetection.eval-scenarios                            # scorer-based defaults
         dda inv anomalydetection.eval-scenarios --only scanmw              # scanmw + time_cluster (auto)
         dda inv anomalydetection.eval-scenarios --only bocpd,time_cluster  # explicit
         dda inv anomalydetection.eval-scenarios --config /tmp/params.json  # custom params
@@ -239,10 +241,17 @@ def eval_scenarios(
         print(color_message(f"Only: {only_flag}", Color.BLUE))
 
     config_obj = None
+    config_path = config
     if config:
         print(color_message(f"Config: {config}", Color.BLUE))
         with open(config) as f:
             config_obj = json.load(f)
+    elif not only:
+        config_obj = default_eval_config()
+        config_path = f"{os.path.splitext(main_report_path)[0]}-config.json"
+        with open(config_path, "w") as f:
+            json.dump(config_obj, f, indent=4)
+        print(color_message(f"Default scorer config: {config_path}", Color.BLUE))
 
     if build:
         build_testbench(ctx)
@@ -271,7 +280,7 @@ def eval_scenarios(
         scenario_logger.step(name)
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
-        config_part = f" --config {shlex.quote(config)}" if config else ""
+        config_part = f" --config {shlex.quote(config_path)}" if config_path else ""
         scenario_start = time.monotonic()
         try:
             ctx.run(
