@@ -51,12 +51,9 @@ import (
 )
 
 const (
-	cacheExpiration = 1 * time.Minute
+	streamRecvTimeout = 10 * time.Minute
+	cacheExpiration   = 1 * time.Minute
 )
-
-// streamRecvTimeout is the max time run() waits for a single Recv() before
-// re-establishing the stream. A var so tests can lower it.
-var streamRecvTimeout = 10 * time.Minute
 
 // Requires defines the dependencies for the remote tagger.
 type Requires struct {
