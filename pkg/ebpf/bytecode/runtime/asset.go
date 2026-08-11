@@ -213,11 +213,20 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 // runtime_compiler_output_dir default (pkg/config/setup/system_probe_settings.go).
 const dedicatedDirName = "datadog-agent"
 
-// secureRuntimeDir creates the runtime-compiler output directory (root-only,
-// 0700) and verifies that it, and every ancestor up to the filesystem root, is a
-// real directory owned by root and not writable by other users. The compiler
+// secureRuntimeDir ensures the runtime-compiler output directory exists, is
+// root-only (0700), and that it and every ancestor up to the filesystem root is
+// a real directory owned by root and not writable by other users. The compiler
 // writes object files here and system-probe later re-reads them to load into the
 // kernel as root, so the whole path must be under root's control.
+//
+// It verifies the already-existing prefix of the path before creating anything,
+// then creates only the missing tail one component at a time. Creation never
+// follows a symlink: every existing ancestor is verified as a real (non-symlink)
+// root-owned directory first, so os.Mkdir of the next component resolves only
+// through verified directories and returns EEXIST rather than traversing an entry
+// that appeared underneath it. This is deliberately not os.MkdirAll over the
+// whole path, which would resolve - and create through - a symlinked component
+// before any check ran.
 //
 // It rejects the directory if any ancestor is a symlink, is not a directory, is
 // not owned by root, or is writable by group or other without the sticky bit
@@ -237,7 +246,7 @@ const dedicatedDirName = "datadog-agent"
 // (rather than reusing or chown-ing the existing tree) means we never write
 // through whatever it previously contained.
 //
-// The repair is deliberately narrow (see verifyRuntimeDirChain): it happens only
+// The repair is deliberately narrow (see ensureRuntimeDirChain): it happens only
 // as root, only below a verified root-owned sticky directory, only inside the
 // agent's own dedicated subtree (dedicatedDirName), and only for a real directory
 // with the wrong owner/permissions. This last condition is what keeps a
@@ -248,44 +257,66 @@ const dedicatedDirName = "datadog-agent"
 // are all still refused, so unexpected or broken layouts fail closed rather than
 // being silently rewritten.
 func secureRuntimeDir(outputDir string) error {
-	if err := os.MkdirAll(outputDir, 0700); err != nil {
-		return fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
+	components, err := runtimeDirComponents(outputDir)
+	if err != nil {
+		return err
 	}
 
-	// Anything re-creating the component between the rename and the recreate
-	// cannot take effect (the recreated component is root-owned and, under a
-	// sticky parent, only root can replace it), so a single repair pass is
-	// sufficient; the retry is only a safety bound.
+	// A single pass verifies the existing prefix, repairs one offending
+	// component if needed, and creates the missing tail. The bounded retry only
+	// guards against a concurrent actor racing a component between our check and
+	// our create (os.Mkdir returning EEXIST on a freshly appeared entry); it is
+	// not needed in the normal single-process case.
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		badPath, healable, err := verifyRuntimeDirChain(outputDir)
+		retryable, err := ensureRuntimeDirChain(components)
 		if err == nil {
 			return nil
 		}
-		if !healable {
+		if !retryable {
 			return err
-		}
-		if rErr := reclaimDirComponent(badPath); rErr != nil {
-			return fmt.Errorf("%w (attempted reclaim failed: %v)", err, rErr)
-		}
-		logRuntimeDirReclaimed(badPath)
-		// Recreate the freshly reclaimed path before re-verifying.
-		if mErr := os.MkdirAll(outputDir, 0700); mErr != nil {
-			return fmt.Errorf("unable to recreate compiler output directory %s after reclaim: %w", outputDir, mErr)
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("unable to secure compiler output directory %s after %d reclaim attempts: %w", outputDir, maxAttempts, lastErr)
+	return fmt.Errorf("unable to secure compiler output directory %s after %d attempts: %w", outputDir, maxAttempts, lastErr)
 }
 
-// verifyRuntimeDirChain walks outputDir and every ancestor up to the filesystem
-// root, enforcing verifyDirComponent on each. On the first failure it reports the
-// offending path and whether that failure is safely reclaimable.
+// runtimeDirComponents returns the absolute form of outputDir and every ancestor
+// up to the filesystem root, ordered leaf-first: index 0 is the leaf and the last
+// element is the filesystem root ("/").
+func runtimeDirComponents(outputDir string) ([]string, error) {
+	abs, err := filepath.Abs(outputDir)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve compiler output directory %s: %w", outputDir, err)
+	}
+	var components []string
+	for p := filepath.Clean(abs); ; {
+		components = append(components, p)
+		parent := filepath.Dir(p)
+		if parent == p {
+			break
+		}
+		p = parent
+	}
+	return components, nil
+}
+
+// ensureRuntimeDirChain walks the components root -> leaf, enforcing
+// verifyDirComponent on each one that already exists, creating each one that does
+// not, and reclaiming (rename-aside + delete + recreate) a repairable wrong-owner
+// component. Verifying the existing prefix before creating the missing tail is
+// what makes creation symlink-safe: os.Mkdir of a component only ever resolves
+// through ancestors already verified as real (non-symlink) root-owned
+// directories.
 //
-// A failure is reclaimable only when all of the following hold, so the repair
-// stays conservative and never runs in a context where it could damage unrelated
-// directories:
+// It returns whether the failure it hit (if any) is worth retrying: a race on
+// creation (os.Mkdir returning EEXIST because something appeared underneath a
+// verified parent) is retryable; a policy refusal or a failed reclaim is
+// terminal.
+//
+// A component is reclaimable only when all of the following hold, so the repair
+// stays conservative and never damages unrelated directories:
 //   - we are running as root (system-probe's normal state); a non-root process
 //     must not start renaming directories it happens not to own,
 //   - the component lies strictly below a verified root-owned sticky directory
@@ -300,23 +331,7 @@ func secureRuntimeDir(outputDir string) error {
 //     permissions. A symlink or non-directory at a path component is unexpected
 //     rather than a routine leftover, so it is still refused (fail-closed)
 //     instead of being rewritten.
-func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err error) {
-	abs, err := filepath.Abs(outputDir)
-	if err != nil {
-		return "", false, fmt.Errorf("unable to resolve compiler output directory %s: %w", outputDir, err)
-	}
-
-	// Collect every path component from outputDir up to the filesystem root.
-	var components []string
-	for p := filepath.Clean(abs); ; {
-		components = append(components, p)
-		parent := filepath.Dir(p)
-		if parent == p {
-			break
-		}
-		p = parent
-	}
-
+func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 	// Walk root -> leaf so we know a component sits below a verified sticky
 	// boundary, and inside the agent's dedicated subtree, before we decide
 	// whether its failure is reclaimable.
@@ -330,13 +345,26 @@ func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err
 		if filepath.Base(p) == dedicatedDirName {
 			inDedicatedSubtree = true
 		}
+
 		info, lerr := os.Lstat(p)
-		if lerr != nil {
-			return p, false, fmt.Errorf("unable to verify compiler output directory component %s: %w", p, lerr)
+		if os.IsNotExist(lerr) {
+			// This component and everything below it are the missing tail. Every
+			// existing ancestor was verified above as a real (non-symlink)
+			// root-owned directory, so os.Mkdir resolves only through verified
+			// directories and will not create through a symlink at p.
+			if mErr := os.Mkdir(p, 0700); mErr != nil {
+				// A racing actor may have created p first; re-walking re-checks it.
+				return true, fmt.Errorf("unable to create compiler output directory component %s: %w", p, mErr)
+			}
+			continue
 		}
+		if lerr != nil {
+			return false, fmt.Errorf("unable to verify compiler output directory component %s: %w", p, lerr)
+		}
+
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok {
-			return p, false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
+			return false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
 		}
 		if verr := verifyDirComponent(p, info.Mode(), stat.Uid); verr != nil {
 			// Reclaim only a real, wrong-owner/permission directory that is below
@@ -345,7 +373,19 @@ func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err
 			// file, so those remain fail-closed; requiring the dedicated subtree
 			// keeps reclaim from ever deleting a shared, non-agent directory.
 			healable := belowStickyBoundary && inDedicatedSubtree && os.Geteuid() == 0 && info.Mode().IsDir()
-			return p, healable, verr
+			if !healable {
+				return false, verr
+			}
+			if rErr := reclaimDirComponent(p); rErr != nil {
+				return false, fmt.Errorf("%w (attempted reclaim failed: %v)", verr, rErr)
+			}
+			logRuntimeDirReclaimed(p)
+			// Recreate this component fresh; deeper components were removed with
+			// the reclaimed subtree and are created as the walk continues.
+			if mErr := os.Mkdir(p, 0700); mErr != nil {
+				return true, fmt.Errorf("unable to recreate compiler output directory component %s after reclaim: %w", p, mErr)
+			}
+			continue
 		}
 		// This component is verified good. If it is a sticky directory it marks
 		// the shared-parent boundary; anything deeper may be repaired.
@@ -353,11 +393,11 @@ func verifyRuntimeDirChain(outputDir string) (badPath string, healable bool, err
 			belowStickyBoundary = true
 		}
 	}
-	return "", false, nil
+	return false, nil
 }
 
 // reclaimDirComponent moves a stale path component aside and removes it. The
-// caller must only invoke this for a component that verifyRuntimeDirChain
+// caller must only invoke this for a component that ensureRuntimeDirChain
 // reported as repairable (below a verified root-owned sticky directory and inside
 // the agent's dedicated datadog-agent subtree), which guarantees the parent is
 // root-owned so root can rename the entry regardless of who owns it. Renaming
