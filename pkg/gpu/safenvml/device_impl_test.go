@@ -124,6 +124,27 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	require.Equal(t, nvml.ERROR_INVALID_ARGUMENT, nvmlErr.NvmlErrorCode)
 }
 
+func TestNewDeviceMemoryInfoFailureUsesNonZeroFallback(t *testing.T) {
+	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithSymbolsMock(allSymbols),
+	)
+	WithMockNVML(t, mockNvml)
+
+	mockDevice := testutil.GetDeviceMock(0, func(device *nvmlmock.Device) {
+		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_UNKNOWN
+		}
+		device.GetMigModeFunc = func() (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		}
+	})
+
+	device, err := NewPhysicalDevice(mockDevice)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), device.Memory)
+}
+
 func TestDeviceWithMissingSymbol(t *testing.T) {
 	// Create mock with MaxClockInfo symbol missing, not critical, should succeed
 	symbols := maps.Clone(allSymbols)
