@@ -94,6 +94,7 @@ dd_agent_go_test(
         "sampler_test.go",
         "stack_trace_aggregator_test.go",
         "timestamp_detector_test.go",
+        "token_graph_benchmark_test.go",
         "token_graph_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
