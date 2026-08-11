@@ -396,6 +396,8 @@ impl YamlCache {
 /// Drop cached secret handles and backend settings before config-gate re-evaluation.
 pub(crate) fn clear_secret_caches() {
     secrets::clear_caches();
+    #[cfg(windows)]
+    crate::platform::refresh_core_agent_scm_environment();
 }
 
 /// Returns true when `conditions` is empty or any `(path, key)` pair is enabled.

@@ -12,14 +12,14 @@
 //! and merge into the child env block before `processes.d` overrides.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::Mutex;
 
 use super::merge_env_overrides;
 
 /// Core Agent SCM service whose `Environment` registry values drive agent config on Windows.
 const CORE_AGENT_SERVICE_NAME: &str = "datadogagent";
 
-static CORE_AGENT_SCM_ENV: OnceLock<HashMap<String, String>> = OnceLock::new();
+static CORE_AGENT_SCM_ENV: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
 #[cfg(test)]
 static TEST_CORE_AGENT_SCM_ENV: std::sync::Mutex<Option<HashMap<String, String>>> =
@@ -37,8 +37,26 @@ pub(crate) fn core_agent_scm_env_var(name: &str) -> Option<String> {
         return scm_env_lookup(map, name);
     }
 
-    let env = CORE_AGENT_SCM_ENV.get_or_init(load_core_agent_scm_environment);
-    scm_env_lookup(env, name)
+    let guard = core_agent_scm_env_map();
+    scm_env_lookup(guard.as_ref().expect("initialized scm env"), name)
+}
+
+fn core_agent_scm_env_map() -> std::sync::MutexGuard<'static, Option<HashMap<String, String>>> {
+    let mut guard = CORE_AGENT_SCM_ENV
+        .lock()
+        .expect("core agent scm env lock");
+    if guard.is_none() {
+        *guard = Some(load_core_agent_scm_environment());
+    }
+    guard
+}
+
+/// Reread the core Agent SCM `Environment` registry key (e.g. on config reload).
+pub(crate) fn refresh_core_agent_scm_environment() {
+    let mut guard = CORE_AGENT_SCM_ENV
+        .lock()
+        .expect("core agent scm env lock");
+    *guard = Some(load_core_agent_scm_environment());
 }
 
 fn scm_env_lookup(env: &HashMap<String, String>, name: &str) -> Option<String> {
@@ -267,6 +285,31 @@ mod tests {
             Some("false".to_string())
         );
         set_test_core_agent_scm_env(None);
+    }
+
+    #[test]
+    fn refresh_core_agent_scm_environment_replaces_stale_cache() {
+        set_test_core_agent_scm_env(None);
+        {
+            let mut guard = CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock");
+            *guard = Some(HashMap::from([(
+                "DD_STALE_PROCMGR_SCM_CACHE".to_string(),
+                "stale".to_string(),
+            )]));
+        }
+        assert_eq!(
+            core_agent_scm_env_var("DD_STALE_PROCMGR_SCM_CACHE"),
+            Some("stale".to_string())
+        );
+
+        refresh_core_agent_scm_environment();
+
+        assert_ne!(
+            core_agent_scm_env_var("DD_STALE_PROCMGR_SCM_CACHE"),
+            Some("stale".to_string()),
+            "reload refresh should replace the cached SCM Environment map"
+        );
+        *CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock") = None;
     }
 
     #[test]
