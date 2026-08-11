@@ -779,7 +779,7 @@ func TestFindMatchingConfig_TemplatedIdentifiersDistinguishPorts(t *testing.T) {
 				Type:          "self-hosted",
 				Host:          fmt.Sprintf("do-test-postgres-staging:%d", port),
 				AgentHostname: "do-test-postgres-staging",
-			})
+			}, nil)
 			require.NoError(t, err)
 			assert.Equal(t, port, instance["port"])
 		})
@@ -1041,6 +1041,67 @@ func TestOnRCUpdate_PortlessMatchedInstance_KeepsPortedSiblingInRemainder(t *tes
 	assert.Equal(t, siblingPort, remainderInstance["port"], "remainder must keep the ported sibling, not drop it via the portless matched identity")
 }
 
+// TestOnRCUpdate_SameHostDifferentPorts_RejectsAmbiguousMatch verifies that a literal SQL Server
+// host cannot silently select the first of two enabled local instances that differ only by port.
+func TestOnRCUpdate_SameHostDifferentPorts_RejectsAmbiguousMatch(t *testing.T) {
+	const sharedHost = "sqlserver.internal"
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: " + sharedHost + "\nport: 1433\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: " + sharedHost + "\nport: 1434\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payloadJSON, err := json.Marshal(DOQueryPayload{
+		ConfigID:     "cfg-same-host",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: sharedHost},
+		Queries:      []QuerySpec{{DBName: "master", Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	})
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-same-host": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-same-host"].State)
+	assert.Contains(t, statuses["path/cfg-same-host"].Error, "ambiguous SQL Server instance match")
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, changes.Unschedule)
+	assert.Empty(t, c.activeConfigs)
+}
+
+// TestOnRCUpdate_DuplicateLocalInstances_RejectsAmbiguousMatch verifies that duplicate enabled
+// local instances are rejected instead of resolving to whichever one appears first.
+func TestOnRCUpdate_DuplicateLocalInstances_RejectsAmbiguousMatch(t *testing.T) {
+	const instanceYAML = "host: duplicate.example.com\nport: 1433\ndata_observability:\n  enabled: true\n"
+	sqlserverCfg := integration.Config{
+		Name:      "sqlserver",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data(instanceYAML), integration.Data(instanceYAML)},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payloadJSON, err := json.Marshal(DOQueryPayload{
+		ConfigID:     "cfg-duplicate",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "duplicate.example.com"},
+		Queries:      []QuerySpec{{DBName: "master", Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	})
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-duplicate": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-duplicate"].State)
+	assert.Contains(t, statuses["path/cfg-duplicate"].Error, "ambiguous SQL Server instance match")
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, changes.Unschedule)
+	assert.Empty(t, c.activeConfigs)
+}
+
 // TestOnRCUpdate_MultipleDOConfigsSameBase verifies that two DO configs targeting two different
 // instances of the same base config never leave an instance both in the remainder and as a DO
 // check (which would double-run it). With both instances targeted, no remainder is scheduled.
@@ -1203,8 +1264,8 @@ func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
 }
 
 // TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres
-// instance's YAML is malformed, the error message from findPostgresConfig mentions the
-// parse failure, not just "identifier not found".
+// instance's YAML is malformed, the error message from findPostgresConfig mentions
+// the parse failure, not just "identifier not found".
 func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 	postgresCfg := integration.Config{
 		Name:      "postgres",
@@ -1515,4 +1576,259 @@ func TestOnRCUpdate_SecondUpdateReusesStoredBase(t *testing.T) {
 		queries, _ := doSection["queries"].([]any)
 		assert.NotEmpty(t, queries, "scheduled config has no DO queries — looks like the wrongly-restored original")
 	}
+}
+
+// --- SQL Server tests ---
+
+// TestOnRCUpdate_SQLServer_SchedulesCheck verifies that a sqlserver integration config
+// is matched and scheduled using the correct integration name (not "postgres").
+func TestOnRCUpdate_SQLServer_SchedulesCheck(t *testing.T) {
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		NodeName: "node1",
+		Instances: []integration.Data{
+			integration.Data("host: sqlserver.example.com\nport: 1433\nusername: datadog\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-sqlserver",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "sqlserver.example.com"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       10,
+				Type:            "run_query",
+				Query:           "SELECT count(*) FROM sys.tables",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "sqlserver", Database: "master", Table: "sys.tables"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-sqlserver": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-sqlserver"}},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-sqlserver"].State)
+	require.Len(t, changes.Schedule, 1)
+	assert.Equal(t, "sqlserver", changes.Schedule[0].Name, "scheduled check must use sqlserver integration name")
+	assert.Equal(t, "file", changes.Schedule[0].Provider)
+	assert.Equal(t, "node1", changes.Schedule[0].NodeName)
+	require.Contains(t, c.activeConfigs, "cfg-sqlserver")
+}
+
+// TestMatchesIdentifier_SQLServer_HostOnly verifies that a self-hosted or Azure VM SQL Server
+// instance matches by host only (no Azure SQL DB deployment_type present).
+func TestMatchesIdentifier_SQLServer_HostOnly(t *testing.T) {
+	instance := map[string]any{
+		"host": "sqlserver.internal",
+		"port": 1433,
+	}
+
+	t.Run("matching host with different query databases", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "sqlserver.internal"}
+		queries := []QuerySpec{{DBName: "master"}, {DBName: "msdb"}}
+		assert.True(t, evaluateInstanceIdentifier(instance, *dbID, "sqlserver", queries).matched)
+	})
+
+	t.Run("mismatching host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "other.internal"}
+		assert.False(t, evaluateInstanceIdentifier(instance, *dbID, "sqlserver", nil).matched)
+	})
+}
+
+// TestMatchesIdentifier_AzureSQLDB_HostAndDatabase verifies that Azure SQL Database instances
+// require host equality and case-insensitive database equality for every query.
+func TestMatchesIdentifier_AzureSQLDB_HostAndDatabase(t *testing.T) {
+	instance := map[string]any{
+		"host":     "myserver.database.windows.net",
+		"database": "MyDB",
+		"azure": map[string]any{
+			"deployment_type": "sql_database",
+		},
+	}
+	dbID := &DBIdentifier{Type: "self-hosted", Host: "myserver.database.windows.net"}
+
+	t.Run("host and same-case query databases match", func(t *testing.T) {
+		queries := []QuerySpec{{DBName: "MyDB"}, {DBName: "MyDB"}}
+		assert.True(t, evaluateInstanceIdentifier(instance, *dbID, "sqlserver", queries).matched)
+	})
+
+	t.Run("host matches but query database does not", func(t *testing.T) {
+		queries := []QuerySpec{{DBName: "OtherDB"}}
+		assert.False(t, evaluateInstanceIdentifier(instance, *dbID, "sqlserver", queries).matched)
+	})
+
+	t.Run("database matching is case-insensitive", func(t *testing.T) {
+		queries := []QuerySpec{{DBName: "mydb"}}
+		assert.True(t, evaluateInstanceIdentifier(instance, *dbID, "sqlserver", queries).matched, "MyDB must match mydb")
+	})
+
+	t.Run("mixed query databases do not match", func(t *testing.T) {
+		queries := []QuerySpec{{DBName: "MyDB"}, {DBName: "OtherDB"}}
+		assert.False(t, evaluateInstanceIdentifier(instance, *dbID, "sqlserver", queries).matched)
+
+		otherInstance := map[string]any{
+			"host":     "myserver.database.windows.net",
+			"database": "OtherDB",
+			"azure": map[string]any{
+				"deployment_type": "sql_database",
+			},
+		}
+		assert.False(t, evaluateInstanceIdentifier(otherInstance, *dbID, "sqlserver", queries).matched)
+	})
+
+	t.Run("empty queries do not match", func(t *testing.T) {
+		assert.False(t, evaluateInstanceIdentifier(instance, *dbID, "sqlserver", nil).matched)
+	})
+
+	t.Run("host does not match", func(t *testing.T) {
+		otherDBID := &DBIdentifier{Type: "self-hosted", Host: "otherserver.database.windows.net"}
+		assert.False(t, evaluateInstanceIdentifier(instance, *otherDBID, "sqlserver", []QuerySpec{{DBName: "MyDB"}}).matched)
+	})
+}
+
+// TestOnRCUpdate_EmptyIdentifierHost verifies that an empty db_identifier.host is rejected before
+// any local instance can be selected.
+func TestOnRCUpdate_EmptyIdentifierHost(t *testing.T) {
+	sqlserverCfg := integration.Config{
+		Name:      "sqlserver",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: sqlserver.example.com\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payloadJSON, err := json.Marshal(DOQueryPayload{
+		ConfigID:     "cfg-empty-host",
+		DBIdentifier: DBIdentifier{Type: "self-hosted"},
+		Queries:      []QuerySpec{{DBName: "master", Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	})
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-empty-host": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateError, statuses["path/cfg-empty-host"].State)
+	assert.Equal(t, "empty db_identifier.host", statuses["path/cfg-empty-host"].Error)
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, changes.Unschedule)
+}
+
+// TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload verifies that an RC payload targeting
+// another database cannot be injected into a MyDB instance sharing the same Azure SQL Server host.
+func TestOnRCUpdate_AzureSQLDB_RejectsCrossDBPayload(t *testing.T) {
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: myserver.database.windows.net\ndatabase: MyDB\nazure:\n  deployment_type: sql_database\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-wrongdb",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "myserver.database.windows.net"},
+		Queries:      []QuerySpec{{DBName: "OtherDB", Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-wrongdb": {Config: payloadJSON},
+	})
+
+	assert.Equal(t, state.ApplyStateError, statuses["path/cfg-wrongdb"].State)
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, c.activeConfigs)
+}
+
+// TestOnRCUpdate_AzureSQLDB_PreservesSiblingDatabase checks that targeting one Azure SQL
+// database does not remove another database that shares the server host.
+func TestOnRCUpdate_AzureSQLDB_PreservesSiblingDatabase(t *testing.T) {
+	const host = "myserver.database.windows.net"
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		Instances: []integration.Data{
+			integration.Data("host: " + host + "\ndatabase: MyDB\nazure:\n  deployment_type: sql_database\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: " + host + "\ndatabase: OtherDB\nazure:\n  deployment_type: sql_database\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-my-db",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: host},
+		Queries:      []QuerySpec{{DBName: "mydb", Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-my-db": {Config: payloadJSON},
+	})
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-my-db"].State)
+	require.Len(t, changes.Unschedule, 1, "should unschedule the original two-instance config")
+	require.Len(t, changes.Schedule, 2, "should schedule the targeted check and the sibling remainder")
+
+	databasesWithQueries := make(map[string]bool)
+	for _, cfg := range changes.Schedule {
+		for _, instanceData := range cfg.Instances {
+			var instance map[string]any
+			require.NoError(t, yaml.Unmarshal(instanceData, &instance))
+			database, _ := instance["database"].(string)
+			dataObservability, ok := instance["data_observability"].(map[string]any)
+			require.True(t, ok)
+			_, hasQueries := dataObservability["queries"]
+			databasesWithQueries[database] = hasQueries
+		}
+	}
+
+	assert.True(t, databasesWithQueries["MyDB"], "the targeted database must receive queries")
+	assert.False(t, databasesWithQueries["OtherDB"], "the sibling must remain unchanged")
+}
+
+// TestOnRCUpdate_SQLServer_DisableRestoresOriginalConfig verifies that sending an empty
+// queries list for a previously active SQL Server config re-schedules the original config.
+func TestOnRCUpdate_SQLServer_DisableRestoresOriginalConfig(t *testing.T) {
+	sqlserverCfg := integration.Config{
+		Name:     "sqlserver",
+		Provider: "file",
+		NodeName: "node1",
+		Instances: []integration.Data{
+			integration.Data("host: sqlserver.example.com\nport: 1433\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{sqlserverCfg})
+
+	// First: schedule a DO config so the base config becomes managed.
+	enable := DOQueryPayload{
+		ConfigID:     "cfg-sqlserver-disable",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "sqlserver.example.com"},
+		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
+	}
+	enableJSON, err := json.Marshal(enable)
+	require.NoError(t, err)
+	collectStatuses(c, map[string]state.RawConfig{"path/config": {Config: enableJSON}})
+	require.Contains(t, c.activeConfigs, "cfg-sqlserver-disable")
+
+	// Now: empty queries disables the DO config and restores the original sqlserver config.
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/config": {Config: []byte(`{"config_id": "cfg-sqlserver-disable", "queries": []}`)},
+	})
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/config"].State)
+	assert.Empty(t, c.activeConfigs)
+	require.Len(t, changes.Unschedule, 1, "should unschedule the DO sqlserver check")
+	require.Len(t, changes.Schedule, 1, "should re-schedule the original base sqlserver config")
+	assert.Equal(t, sqlserverCfg, changes.Schedule[0])
+	assert.Equal(t, "sqlserver", changes.Schedule[0].Name)
 }
