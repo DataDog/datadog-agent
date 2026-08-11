@@ -250,9 +250,12 @@ func TestIntegration(t *testing.T) {
 		select {
 		case tracesBytes := <-tracesRec.ReqChan:
 			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
-			gz := getZstdReader(tracesBytes)
-			slurp, err := io.ReadAll(gz)
+			zr := getZstdReader(tracesBytes)
+			slurp, err := io.ReadAll(zr)
 			require.NoError(t, err)
+			// Close immediately (not via defer): this runs once per loop iteration and
+			// the reader is cgo-backed — deferring would pile up C allocations.
+			require.NoError(t, zr.Close())
 			var traces pb.AgentPayload
 			require.NoError(t, proto.Unmarshal(slurp, &traces))
 			for _, tps := range traces.TracerPayloads {
@@ -377,6 +380,11 @@ func getGzipReader(t *testing.T, reqBytes []byte) io.Reader {
 // getZstdReader decodes a zstd-compressed payload. DDOT compresses traces with
 // zstd (comp/trace/compression/fx-zstd), so trace payloads must be read with this
 // reader rather than getGzipReader. APM stats remain gzip-compressed.
-func getZstdReader(reqBytes []byte) io.Reader {
+//
+// The returned io.ReadCloser is cgo-backed (a ZSTD_DStream* plus a buffer borrowed
+// from a package-level sync.Pool); callers MUST Close() it once done reading, or
+// each call leaks the C allocation and permanently drains a pooled buffer (the GC
+// does not see the C memory, and the finalizer fallback does not return the buffer).
+func getZstdReader(reqBytes []byte) io.ReadCloser {
 	return zstd.NewReader(bytes.NewBuffer(reqBytes))
 }

@@ -34,7 +34,7 @@ func TestDDOTCompressionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	const wantAlgo = "zstd"
-	const wantLevel = 3
+	const wantLevel = ddotZstdCompressionLevel
 
 	metricsKind := c.GetString("serializer_compressor_kind")
 	logsKind := c.GetString("logs_config.compression_kind")
@@ -96,7 +96,7 @@ func TestDDOTHostMetadataCompression(t *testing.T) {
 
 	assert.Equal(t, "zstd", c.GetString("serializer_compressor_kind"),
 		"host metadata shares the metrics compressor (serializer_compressor_kind); both must be zstd")
-	assert.Equal(t, 3, c.GetInt("serializer_zstd_compressor_level"),
+	assert.Equal(t, ddotZstdCompressionLevel, c.GetInt("serializer_zstd_compressor_level"),
 		"host metadata uses the metrics zstd level")
 }
 

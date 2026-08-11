@@ -48,6 +48,11 @@ const (
 	off
 )
 
+// ddotZstdCompressionLevel is the default zstd compression level DDOT applies to
+// every signal that exposes a configurable level (metrics and logs). It stays
+// overridable via the DD_*_ZSTD_*_LEVEL env vars; this is only the default.
+const ddotZstdCompressionLevel = 3
+
 // datadog agent log levels: trace, debug, info, warn, error, critical, and off
 // otel log levels: disabled, debug, info, warn, error
 var logLevelMap = map[string]logLevel{
@@ -202,7 +207,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// zstd is v3-compatible, but moving to v3 is a separate effort, so v3 is disabled
 	// here regardless of the compressor.
 	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
-	pkgconfig.Set("serializer_zstd_compressor_level", 3, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
 	pkgconfig.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
@@ -226,7 +231,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// if a non-Datadog log endpoint is ever added. The zstd level defaults to 3,
 	// overridable via DD_LOGS_CONFIG_ZSTD_COMPRESSION_LEVEL.
 	pkgconfig.Set("logs_config.compression_kind", constants.DefaultLogCompressionKind, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("logs_config.zstd_compression_level", 3, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("logs_config.zstd_compression_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceDefault)
