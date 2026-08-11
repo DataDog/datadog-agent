@@ -23,7 +23,7 @@ import (
 //
 // The top-level fields (required cmdlet, integer timeout, metrics minItems, ...)
 // are derived from the struct tags — a single source of truth, exactly like the
-// windows_certificate check. The four dual-form entry types each supply their
+// windows_certificate check. The five dual-form entry types each supply their
 // own `oneOf` schema via JSONSchemaBytes (the jsonschema.RawExposer interface),
 // so both the positional-tuple (JSON array) and mapping (JSON object) YAML shapes
 // validate — a duality that exists in the YAML, not in the Go types, so it is the
@@ -77,6 +77,30 @@ func (tagByEntry) JSONSchemaBytes() ([]byte, error) {
   "oneOf": [
     { "type": "string" },
     { "type": "object" }
+  ]
+}`), nil
+}
+
+// JSONSchemaBytes lets whereEntry accept either a [Property, Op, Value] tuple or
+// a {property, op, value} mapping. The operator is constrained here as well as in
+// whereOps so a typo is reported by schema validation alongside any other config
+// errors, rather than aborting at the first one.
+func (whereEntry) JSONSchemaBytes() ([]byte, error) {
+	return []byte(`{
+  "oneOf": [
+    { "type": "array", "minItems": 3, "maxItems": 3 },
+    {
+      "type": "object",
+      "required": ["property", "op"],
+      "properties": {
+        "property": { "type": "string" },
+        "op": {
+          "type": "string",
+          "enum": ["eq","ne","like","notlike","match","notmatch","gt","ge","lt","le"]
+        },
+        "value": {}
+      }
+    }
   ]
 }`), nil
 }

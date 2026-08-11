@@ -18,6 +18,7 @@ import (
 func TestBuildCommandBasic(t *testing.T) {
 	script, err := buildCommand("Get-ClusterNode", "",
 		[]parameterEntry{{Name: "Cluster", Value: "PROD-CL01"}},
+		nil,
 		[]string{"Id", "Name", "NodeWeight"})
 	require.NoError(t, err)
 
@@ -36,7 +37,7 @@ func TestBuildCommandBasic(t *testing.T) {
 
 func TestBuildCommandModuleCheck(t *testing.T) {
 	script, err := buildCommand("Get-Service", "Microsoft.PowerShell.Management",
-		[]parameterEntry{{Name: "Name", Value: "Dnscache"}}, []string{"Status"})
+		[]parameterEntry{{Name: "Name", Value: "Dnscache"}}, nil, []string{"Status"})
 	require.NoError(t, err)
 
 	// The module pin is enforced at runtime against the resolved command.
@@ -46,10 +47,67 @@ func TestBuildCommandModuleCheck(t *testing.T) {
 
 func TestBuildCommandModuleWildcardSkipsCheck(t *testing.T) {
 	// "*" is the explicit opt-out: no module check is emitted.
-	script, err := buildCommand("Get-Service", "*", nil, []string{"Status"})
+	script, err := buildCommand("Get-Service", "*", nil, nil, []string{"Status"})
 	require.NoError(t, err)
 	assert.NotContains(t, script, "$c.ModuleName")
 	assert.Contains(t, script, "@(& $c @p")
+}
+
+func TestBuildCommandWherePipeline(t *testing.T) {
+	script, err := buildCommand("Get-SmbShare", "SmbShare",
+		[]parameterEntry{{Name: "Special", Value: false}},
+		[]whereEntry{{Property: "Path", Op: "notlike", Value: "*LocalsplOnly*"}},
+		[]string{"Name", "Path"})
+	require.NoError(t, err)
+
+	// Where-Object is resolved like the main cmdlet rather than invoked by bare
+	// name, so it cannot be shadowed from another module.
+	assert.Contains(t, script, "$w = Get-Command -Name 'Where-Object' -CommandType Cmdlet -ErrorAction Stop")
+	// One contiguous substring, which also pins the stage order: filtering must
+	// precede projection or Select-Object would discard the property being tested.
+	assert.Contains(t, script, "| & $w { ($_.Path -notlike '*LocalsplOnly*') } | Select-Object Name,Path")
+}
+
+func TestBuildCommandWhereAbsent(t *testing.T) {
+	script, err := buildCommand("Get-Service", "", nil, nil, []string{"Status"})
+	require.NoError(t, err)
+	assert.NotContains(t, script, "Where-Object")
+	assert.NotContains(t, script, "$w")
+	// The pipeline goes straight from the invocation to the projection.
+	assert.Contains(t, script, "@(& $c @p | Select-Object Status)")
+}
+
+func TestBuildCommandWhereOnlyPropertyIsNotProjected(t *testing.T) {
+	// Path is filtered on but never projected: Where-Object runs first, so a
+	// filter-only property does not need to cross the process boundary.
+	script, err := buildCommand("Get-SmbShare", "", nil,
+		[]whereEntry{{Property: "Path", Op: "notlike", Value: "*x*"}},
+		[]string{"Name"})
+	require.NoError(t, err)
+	assert.Contains(t, script, "Select-Object Name)")
+	assert.NotContains(t, script, "Select-Object Name,Path")
+}
+
+func TestBuildCommandWhereAndsEntries(t *testing.T) {
+	script, err := buildCommand("Get-SmbShare", "", nil,
+		[]whereEntry{
+			{Property: "Path", Op: "notlike", Value: "*x*"},
+			{Property: "Name", Op: "like", Value: "dd*"},
+		}, nil)
+	require.NoError(t, err)
+	assert.Contains(t, script, "{ ($_.Path -notlike '*x*') -and ($_.Name -like 'dd*') }")
+}
+
+// A hostile where value must stay inside its single-quoted literal, exactly as a
+// parameter value does.
+func TestBuildCommandWhereInjectionSafe(t *testing.T) {
+	script, err := buildCommand("Get-SmbShare", "", nil,
+		[]whereEntry{{Property: "Path", Op: "like", Value: `*'; Remove-Item C:\ -Recurse #`}},
+		nil)
+	require.NoError(t, err)
+	// The single quote is doubled, so the value cannot close the literal.
+	assert.Contains(t, script, `($_.Path -like '*''; Remove-Item C:\ -Recurse #')`)
+	assert.NotContains(t, script, "'; Remove-Item C:\\ -Recurse #' }")
 }
 
 // The core security property: a hostile parameter value must remain inside a
@@ -58,7 +116,7 @@ func TestBuildCommandInjectionSafe(t *testing.T) {
 	hostile := `PROD-CL01'; Remove-Item C:\ -Recurse #`
 	script, err := buildCommand("Get-ClusterNode", "",
 		[]parameterEntry{{Name: "Cluster", Value: hostile}},
-		nil)
+		nil, nil)
 	require.NoError(t, err)
 
 	// The single quote in the value is doubled, keeping it inside the literal.
@@ -68,13 +126,17 @@ func TestBuildCommandInjectionSafe(t *testing.T) {
 }
 
 func TestBuildCommandRejectsBadIdentifiers(t *testing.T) {
-	_, err := buildCommand("Get-X", "", []parameterEntry{{Name: "Bad Name", Value: "x"}}, nil)
+	_, err := buildCommand("Get-X", "", []parameterEntry{{Name: "Bad Name", Value: "x"}}, nil, nil)
 	assert.Error(t, err)
 
-	_, err = buildCommand("Get-X", "", nil, []string{"Bad Prop"})
+	_, err = buildCommand("Get-X", "", nil, nil, []string{"Bad Prop"})
 	assert.Error(t, err)
 
-	_, err = buildCommand("Remove-Item", "", nil, nil)
+	_, err = buildCommand("Remove-Item", "", nil, nil, nil)
+	assert.Error(t, err)
+
+	// A where entry naming an invalid property must fail the build too.
+	_, err = buildCommand("Get-X", "", nil, []whereEntry{{Property: "Bad Prop", Op: "like", Value: "x"}}, nil)
 	assert.Error(t, err)
 }
 

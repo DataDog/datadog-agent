@@ -107,9 +107,14 @@ func (c *PowershellCheck) Run() error {
 		return err
 	}
 
-	rows, err := c.runCmdlet(c.instance.Cmdlet, c.instance.Parameters, c.instance.selectProperties())
+	rows, err := c.runCmdlet(c.instance.Cmdlet, c.instance.Parameters, c.instance.Where, c.instance.selectProperties())
 	if err != nil {
 		return fmt.Errorf("cmdlet %q failed: %w", c.instance.Cmdlet, err)
+	}
+	// Filtering happens inside the command, so the pre-filter row count is not
+	// observable here — only the rows that were kept.
+	if len(c.instance.Where) > 0 {
+		log.Debugf("powershell check: cmdlet %q returned %d rows after where filtering", c.instance.Cmdlet, len(rows))
 	}
 
 	joins := c.runTagQueries()
@@ -137,7 +142,9 @@ func (c *PowershellCheck) runTagQueries() []map[string]string {
 	joins := make([]map[string]string, len(c.instance.TagQueries))
 	for i := range c.instance.TagQueries {
 		q := &c.instance.TagQueries[i]
-		rows, err := c.runCmdlet(q.TargetCmdlet, nil, []string{q.LinkTargetProperty, q.TargetProperty})
+		// Joins resolve against the full target set: a where clause narrows this
+		// instance's own rows, not the rows it looks tags up in.
+		rows, err := c.runCmdlet(q.TargetCmdlet, nil, nil, []string{q.LinkTargetProperty, q.TargetProperty})
 		if err != nil {
 			log.Warnf("powershell check: tag_queries cmdlet %q failed, skipping join: %s", q.TargetCmdlet, err)
 			continue
@@ -199,13 +206,13 @@ func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[
 
 // runCmdlet builds the injection-safe command, spawns a one-shot powershell.exe
 // under a timeout with a restricted environment, and parses the JSON output.
-func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, selectProps []string) ([]map[string]interface{}, error) {
+func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, where []whereEntry, selectProps []string) ([]map[string]interface{}, error) {
 	// The allowlist may pin the cmdlet to a module; enforce it at runtime.
 	var module string
 	if c.allowlist != nil {
 		module = c.allowlist.AllowedCmdlets[cmdlet].Module
 	}
-	script, err := buildCommand(cmdlet, module, params, selectProps)
+	script, err := buildCommand(cmdlet, module, params, where, selectProps)
 	if err != nil {
 		return nil, err
 	}

@@ -45,6 +45,10 @@
 #   ## so a partial/substring match never passes. Values are always bound to the cmdlet as data (never
 #   ## interpolated).
 #   ##
+#   ## Note: values are compared as STRINGS. A boolean or numeric instance value must
+#   ## be allowlisted in its string form - `allowed_values: ['false']`, not
+#   ## `[false]` - otherwise it never matches.
+#   ##
 #   ## Example allowlist:
 #   ##
 #   ##   version: 1
@@ -82,9 +86,38 @@
 #     ## Named cmdlet parameters, bound as data (never interpolated). Each entry is
 #     ## either a [Name, Value] tuple or a {name: ..., value: ...} mapping. Every
 #     ## parameter and value must be permitted by the allowlist.
+#     ##
+#     ## Common parameters work here too. To make a cmdlet skip individual failing
+#     ## items rather than abort the run, pass ErrorAction and allowlist it with
+#     ## `ErrorAction: { allowed_values: [SilentlyContinue] }`.
 #     #
 #     parameters:
 #       - [Name, Dnscache]
+#
+#     ## @param where - list - optional
+#     ## Keep only the output rows matching every entry. Compiled into a
+#     ## Where-Object stage of the command, so comparisons use PowerShell's own
+#     ## semantics. Each entry is either a [Property, Op, Value] tuple or a
+#     ## {property: ..., op: ..., value: ...} mapping.
+#     ##
+#     ## Operators: eq, ne, like, notlike, match, notmatch, gt, ge, lt, le
+#     ##   like/notlike   - PowerShell wildcards (* and ?), case-insensitive
+#     ##   match/notmatch - .NET regular expression, case-insensitive, NOT anchored
+#     ##   eq/ne          - case-insensitive string comparison
+#     ##   gt/ge/lt/le    - numeric; a non-numeric property value never matches
+#     ##
+#     ## An absent property is $null, so `notlike` on a missing property is TRUE,
+#     ## exactly as in PowerShell. A `where` property does not need to appear in
+#     ## `metrics` or `tag_by`: filtering happens before projection, so a
+#     ## filter-only property is never collected.
+#     ##
+#     ## Note: filtering reduces what is submitted, and because it runs inside the
+#     ## command it also reduces what is transferred - but the cmdlet still runs in
+#     ## full. To limit what the cmdlet returns in the first place, use one of its
+#     ## own parameters above.
+#     #
+#     where:
+#       - [Status, eq, Running]
 #
 #     ## @param metrics - list - required
 #     ## How to map cmdlet output properties to metrics. Each entry is either a
