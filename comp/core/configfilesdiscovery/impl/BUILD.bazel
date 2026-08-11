@@ -67,10 +67,14 @@ dd_agent_go_test(
     embed = [":impl"],
     gotags_sets = [
         [
+            "cel",
             "containerd",
             "cri",
+            "docker",
+            "kubelet",
         ],
         [
+            "cel",
             "docker",
             "kubelet",
         ],
