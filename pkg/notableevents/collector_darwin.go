@@ -85,9 +85,11 @@ type darwinBookmarkState struct {
 
 // darwinThermalPressureState tracks edge-trigger arming for the macOS
 // thermal-pressure notable event so a restart during a sustained elevated
-// episode does not re-emit the event.
+// episode does not re-emit the event. ArmedLevel is the highest thermal
+// pressure level (thermalPressureWarningLevel or thermalPressureErrorLevel)
+// already reported since the level last dropped to <= 1; 0 means unarmed.
 type darwinThermalPressureState struct {
-	Armed bool `json:"armed,omitempty"`
+	ArmedLevel int `json:"armed_level,omitempty"`
 }
 
 type darwinBookmarkStore interface {
@@ -370,18 +372,39 @@ func (c *Collector) Ack(ids []string) error {
 	return nil
 }
 
-// pollThermalPressure reads the current macOS thermal pressure level and,
-// on an edge transition across thermalPressureElevatedLevel, arms/disarms
-// state and (on the rising edge) enqueues a pending notable event. It
-// follows Ack's simpler clone/reserve-commit/Save-outside-lock/publish
-// pattern rather than the staged-scan pipeline, since thermal pressure has
-// no per-directory retry semantics.
+// nextThermalPressureArmedLevel computes the next ArmedLevel latch and
+// whether a notable event should be emitted, given the current latch and the
+// raw thermal pressure level read this poll:
+//   - level <= 1 resets the latch so a future rise re-arms from scratch.
+//   - level == thermalPressureWarningLevel emits once until reset.
+//   - level == thermalPressureErrorLevel emits once until reset, even if a
+//     warning was already latched (an escalation must still notify).
+//   - level == 2 (Heavy), or a level already covered by the current latch,
+//     is a no-op: the latch only clears on a drop to <= 1.
+func nextThermalPressureArmedLevel(armedLevel, level int) (next int, shouldEmit bool) {
+	if level <= 1 {
+		return 0, false
+	}
+	if level == thermalPressureWarningLevel && armedLevel < thermalPressureWarningLevel {
+		return thermalPressureWarningLevel, true
+	}
+	if level == thermalPressureErrorLevel && armedLevel < thermalPressureErrorLevel {
+		return thermalPressureErrorLevel, true
+	}
+	return armedLevel, false
+}
+
+// pollThermalPressure reads the current macOS thermal pressure level and, on
+// a latch transition (see nextThermalPressureArmedLevel), updates arming
+// state and enqueues a pending notable event. It follows Ack's simpler
+// clone/reserve-commit/Save-outside-lock/publish pattern rather than the
+// staged-scan pipeline, since thermal pressure has no per-directory retry
+// semantics.
 func (c *Collector) pollThermalPressure() {
 	level, ok := c.readThermalPressure()
 	if !ok {
 		return
 	}
-	elevated := level >= thermalPressureElevatedLevel
 
 	c.stateMu.Lock()
 	if c.closed {
@@ -391,7 +414,9 @@ func (c *Collector) pollThermalPressure() {
 	c.wg.Add(1)
 	defer c.wg.Done()
 
-	if elevated == c.state.ThermalPressure.Armed {
+	armedLevel := c.state.ThermalPressure.ArmedLevel
+	nextArmedLevel, shouldEmit := nextThermalPressureArmedLevel(armedLevel, level)
+	if nextArmedLevel == armedLevel {
 		c.stateMu.Unlock()
 		return
 	}
@@ -402,8 +427,8 @@ func (c *Collector) pollThermalPressure() {
 	}
 
 	next := cloneDarwinBookmarkStateForAck(c.state)
-	next.ThermalPressure.Armed = elevated
-	if elevated && len(next.Pending) < maxDarwinPendingEvents {
+	next.ThermalPressure.ArmedLevel = nextArmedLevel
+	if shouldEmit && len(next.Pending) < maxDarwinPendingEvents {
 		event := newThermalPressureEvent(c.currentTime(), level)
 		next.Pending[event.ID] = event
 	}

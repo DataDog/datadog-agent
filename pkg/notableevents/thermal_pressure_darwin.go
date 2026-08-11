@@ -21,10 +21,15 @@ import (
 	notableeventtypes "github.com/DataDog/datadog-agent/pkg/notableevents/types"
 )
 
-// thermalPressureElevatedLevel is the raw kOSThermalPressureLevel* threshold
-// (Heavy) at or above which the collector emits a notable event. See
-// notes/NOTIFY_THERMAL_STATE.md for the full level table.
-const thermalPressureElevatedLevel = 2
+// thermalPressureWarningLevel and thermalPressureErrorLevel are the raw
+// kOSThermalPressureLevel* thresholds (Trapping, Sleeping) at which the
+// collector emits a "warning" and "error" notable event respectively. Level
+// 2 (Heavy) does not emit an event. See notes/NOTIFY_THERMAL_STATE.md for
+// the full level table.
+const (
+	thermalPressureWarningLevel = 3
+	thermalPressureErrorLevel   = 4
+)
 
 // thermalPressureNotificationName is the private, undocumented Darwin
 // notification name posted by /usr/libexec/thermald. See
@@ -49,6 +54,7 @@ func rawThermalPressureLevel() (level int, ok bool) {
 	if C.notify_get_state(token, &state) != C.NOTIFY_STATUS_OK {
 		return 0, false
 	}
+
 	return int(state), true
 }
 
@@ -78,8 +84,18 @@ func thermalPressureEventID(now time.Time) string {
 	return notableeventtypes.ThermalEventIDPrefix + hashString(fmt.Sprintf("thermal-pressure-episode:%d", now.UnixNano()))
 }
 
+// thermalPressureStatus reports the event severity for level (thermalPressureWarningLevel
+// or thermalPressureErrorLevel). Callers must not invoke this for any other level.
+func thermalPressureStatus(level int) string {
+	if level >= thermalPressureErrorLevel {
+		return "error"
+	}
+	return "warn"
+}
+
 // newThermalPressureEvent builds the sanitized notable event for a rise into
-// elevated thermal pressure (see thermalPressureElevatedLevel).
+// warning (thermalPressureWarningLevel) or error (thermalPressureErrorLevel)
+// thermal pressure.
 func newThermalPressureEvent(now time.Time, level int) Event {
 	levelName := thermalPressureLevelName(level)
 	return Event{
@@ -88,6 +104,7 @@ func newThermalPressureEvent(now time.Time, level int) Event {
 		EventType: "Critical Temperature",
 		Title:     "macOS thermal pressure reached " + levelName,
 		Message:   fmt.Sprintf("The system's thermal pressure level reached %q (level %d).", levelName, level),
+		Status:    thermalPressureStatus(level),
 		Custom: map[string]interface{}{
 			"macos_thermal_pressure": map[string]interface{}{
 				"level":      level,

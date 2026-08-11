@@ -51,6 +51,9 @@ type Event struct {
 	Title     string                 `json:"title"`
 	Message   string                 `json:"message"`
 	Custom    map[string]interface{} `json:"custom,omitempty"`
+	// Status is the severity reported to the event platform (e.g. "warning",
+	// "error"). Empty means the submitter falls back to its default.
+	Status string `json:"status,omitempty"`
 }
 
 // UnmarshalJSON preserves exact JSON numbers and validates the wire contract.

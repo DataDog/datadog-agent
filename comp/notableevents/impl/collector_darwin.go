@@ -153,6 +153,7 @@ processEvents:
 			Title:      event.Title,
 			Message:    event.Message,
 			Custom:     event.Custom,
+			Status:     event.Status,
 			completion: completion,
 		}
 		select {

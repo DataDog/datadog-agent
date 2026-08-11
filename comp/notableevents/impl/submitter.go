@@ -27,6 +27,7 @@ type eventPayload struct {
 	Title      string                 // Short title for display
 	Message    string                 // Detailed message
 	Custom     map[string]interface{} // Event-specific data (e.g., windows_event_log or macos_diagnostic_report)
+	Status     string                 // Severity reported to the event platform; defaults to "error" when empty
 	completion chan<- error           // Optional forwarding result for collectors requiring acknowledgement
 }
 
@@ -95,7 +96,7 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 					"event_type": payload.EventType,
 				},
 				"attributes": map[string]interface{}{
-					"status":   "error",
+					"status":   statusOrDefault(payload.Status),
 					"priority": "5",
 					"custom":   payload.Custom,
 				},
@@ -128,4 +129,13 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 
 	log.Debugf("Successfully submitted notable event: title=%s", payload.Title)
 	return nil
+}
+
+// statusOrDefault falls back to "error" so event sources that don't set
+// Status keep today's behavior unchanged.
+func statusOrDefault(status string) string {
+	if status == "" {
+		return "error"
+	}
+	return status
 }
