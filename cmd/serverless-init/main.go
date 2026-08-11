@@ -65,7 +65,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/diagnostic"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
@@ -284,8 +283,6 @@ func main() {
 	// that Subotka accepts. cloudCCRID is still logged in SERVERLESS_DIAGNOSTIC
 	// and sent as a tag for cloud resource linking.
 	log.Debugf("Agent UUID for inventoryagent payload: %s", uuid.GetUUID())
-
-	diagnostic.LogIfEnabled(modeConf, cloudService)
 
 	// Compute tags after the early LoadDatadog so that yaml-configured
 	// `tags` and `extra_tags` (read by configUtils.GetConfiguredTags inside
