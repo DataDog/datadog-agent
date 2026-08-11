@@ -278,7 +278,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		taskDB,
 		30*time.Second,
 		1*time.Hour,
-		0, // reachability probing disabled: unit tests must not reach the network
+		0, // registry ping disabled: unit tests must not reach the network
 		secretsPubKey,
 		secretsPrivKey,
 	)
@@ -528,7 +528,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		taskDB,
 		30*time.Second,
 		1*time.Hour,
-		0, // reachability probing disabled: unit tests must not reach the network
+		0, // registry ping disabled: unit tests must not reach the network
 		secretsPubKey,
 		secretsPrivKey,
 	)
@@ -671,4 +671,14 @@ func TestDecryptSecrets(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decrypt secret")
 	})
+}
+
+func TestRegistryReachableTags(t *testing.T) {
+	reachable, unreachable := true, false
+
+	// Absent, not false: a host that has not been pinged yet is unknown. Reading
+	// it as unreachable would reject hosts that work.
+	assert.Empty(t, registryReachableTags(nil))
+	assert.Equal(t, []string{"fleet_registry_reachable:true"}, registryReachableTags(&reachable))
+	assert.Equal(t, []string{"fleet_registry_reachable:false"}, registryReachableTags(&unreachable))
 }

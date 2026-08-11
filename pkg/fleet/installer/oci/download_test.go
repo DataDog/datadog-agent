@@ -10,6 +10,7 @@ package oci
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"runtime"
@@ -548,4 +549,104 @@ func TestGetRefAndKeychains(t *testing.T) {
 			}
 		})
 	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func pingResponder(t *testing.T, byHost map[string]int) (roundTripperFunc, *[]string) {
+	var seen []string
+	return func(r *http.Request) (*http.Response, error) {
+		// http.Client only enforces the context inside the transport, so a fake
+		// one has to honour it the way http.Transport does.
+		if err := r.Context().Err(); err != nil {
+			return nil, err
+		}
+		assert.Equal(t, "https", r.URL.Scheme)
+		assert.Equal(t, "/v2/", r.URL.Path)
+		seen = append(seen, r.URL.Host)
+		status, ok := byHost[r.URL.Host]
+		if !ok {
+			return nil, errors.New("no route to host")
+		}
+		return &http.Response{StatusCode: status, Body: http.NoBody}, nil
+	}, &seen
+}
+
+func TestIsRegistryReachable(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   int
+		expected bool
+	}{
+		// Both 200 and 401 are valid registry pings: 401 only says the pull that
+		// would follow needs credentials. install.datadoghq.com answers 200 and
+		// gcr.io answers 401, so rejecting 401 would report gcr.io unreachable
+		// on every host.
+		{name: "ok", status: http.StatusOK, expected: true},
+		{name: "unauthorized", status: http.StatusUnauthorized, expected: true},
+		{name: "forbidden", status: http.StatusForbidden, expected: false},
+		{name: "not found", status: http.StatusNotFound, expected: false},
+		{name: "proxy blocked", status: http.StatusBadGateway, expected: false},
+		{name: "server error", status: http.StatusInternalServerError, expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt, seen := pingResponder(t, map[string]int{"fake.io": tt.status})
+			d := NewDownloader(&env.Env{RegistryOverride: "fake.io"}, &http.Client{Transport: rt})
+
+			assert.Equal(t, tt.expected, d.IsRegistryReachable(context.Background()))
+			assert.Equal(t, []string{"fake.io"}, *seen)
+		})
+	}
+}
+
+func TestIsRegistryReachableNoRoute(t *testing.T) {
+	rt, _ := pingResponder(t, nil)
+	d := NewDownloader(&env.Env{RegistryOverride: "fake.io"}, &http.Client{Transport: rt})
+
+	assert.False(t, d.IsRegistryReachable(context.Background()))
+}
+
+func TestIsRegistryReachableFallback(t *testing.T) {
+	// A download tries the default registries in order and succeeds if any of
+	// them serves the package, so reachability must too: a host that can only
+	// reach the fallback is not unreachable.
+	rt, seen := pingResponder(t, map[string]int{"gcr.io": http.StatusUnauthorized})
+	d := NewDownloader(&env.Env{}, &http.Client{Transport: rt})
+
+	assert.True(t, d.IsRegistryReachable(context.Background()))
+	assert.Equal(t, []string{"install.datadoghq.com", "gcr.io"}, *seen)
+}
+
+func TestIsRegistryReachableAllRegistriesDown(t *testing.T) {
+	rt, seen := pingResponder(t, nil)
+	d := NewDownloader(&env.Env{}, &http.Client{Transport: rt})
+
+	assert.False(t, d.IsRegistryReachable(context.Background()))
+	assert.Equal(t, []string{"install.datadoghq.com", "gcr.io"}, *seen)
+}
+
+func TestIsRegistryReachableStopsAtFirstAnswer(t *testing.T) {
+	rt, seen := pingResponder(t, map[string]int{"install.datadoghq.com": http.StatusOK, "gcr.io": http.StatusOK})
+	d := NewDownloader(&env.Env{}, &http.Client{Transport: rt})
+
+	assert.True(t, d.IsRegistryReachable(context.Background()))
+	assert.Equal(t, []string{"install.datadoghq.com"}, *seen)
+}
+
+func TestIsRegistryReachableCanceledContext(t *testing.T) {
+	rt, _ := pingResponder(t, map[string]int{"install.datadoghq.com": http.StatusOK})
+	d := NewDownloader(&env.Env{}, &http.Client{Transport: rt})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.False(t, d.IsRegistryReachable(ctx))
+}
+
+func TestDefaultRegistries(t *testing.T) {
+	assert.Equal(t, defaultRegistriesProd, defaultRegistries(&env.Env{}))
+	assert.Equal(t, defaultRegistriesProd, defaultRegistries(&env.Env{Site: "datadoghq.eu"}))
+	assert.Equal(t, defaultRegistriesStaging, defaultRegistries(&env.Env{Site: "datad0g.com"}))
 }

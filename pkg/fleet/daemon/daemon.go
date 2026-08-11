@@ -102,15 +102,12 @@ type daemonImpl struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 
-	// reachability holds the registry-reachability signal reported to the
-	// backend. It is nil when probing is disabled.
-	reachability *oci.ReachabilityCache
-	// reachabilityInterval is how often reachability is re-probed. Zero or less
-	// disables probing entirely.
+	// reachabilityInterval is how often the package registry is pinged. Zero or
+	// less disables the check entirely.
 	reachabilityInterval time.Duration
-	// probeReachability requests an out-of-band re-probe. Buffered with size 1
-	// so a request coalesces rather than blocking the caller.
-	probeReachability chan struct{}
+	// registryReachable is the last ping result, nil until the first ping. Read
+	// and written under m.
+	registryReachable *bool
 
 	secretsPubKey, secretsPrivKey *[32]byte
 }
@@ -202,14 +199,6 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		cancel:          cancel,
 
 		reachabilityInterval: reachabilityInterval,
-		probeReachability:    make(chan struct{}, 1),
-	}
-	if reachabilityInterval > 0 {
-		i.reachability = oci.NewReachabilityCache(
-			oci.NewDownloader(env, env.HTTPClient()),
-			reachabilityInterval,
-			oci.DefaultProbeImage,
-		)
 	}
 	return i
 }
@@ -358,10 +347,8 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		return nil
 	}
 
-	if d.reachability != nil {
-		// Probe once at startup so the backend has a signal without waiting a
-		// full interval, and so a host that never upgrades still reports one.
-		d.triggerReachabilityProbe()
+	if d.reachabilityInterval > 0 {
+		go d.pingRegistryLoop()
 	}
 
 	go func() {
@@ -369,16 +356,10 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		defer gcTicker.Stop()
 		refreshStateTicker := time.NewTicker(d.refreshInterval)
 		defer refreshStateTicker.Stop()
-		reachabilityTicker := newOptionalTicker(d.reachabilityInterval)
-		defer reachabilityTicker.Stop()
 		for {
 			select {
 			case <-d.ctx.Done():
 				return
-			case <-reachabilityTicker.C:
-				d.probeReachabilityAndRefresh()
-			case <-d.probeReachability:
-				d.probeReachabilityAndRefresh()
 			case <-gcTicker.C:
 				d.m.Lock()
 				err := d.installer(d.env).GarbageCollect(d.ctx)
@@ -643,7 +624,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		return fmt.Errorf("couldn't verify state: %w", err)
 	}
 
-	defer func() { d.setRequestDone(ctx, err) }()
+	defer func() { setRequestDone(ctx, err) }()
 
 	switch request.Method {
 	case methodInstallPackage:
@@ -806,62 +787,37 @@ func setRequestInvalid(ctx context.Context) {
 	state.State = pbgo.TaskState_INVALID_STATE
 }
 
-func (d *daemonImpl) setRequestDone(ctx context.Context, err error) {
+func setRequestDone(ctx context.Context, err error) {
 	state := ctx.Value(requestStateKey).(*requestState)
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
 		state.Err = err.Error()
 		state.ErrorCode = installerErrors.GetCode(err)
+	}
+}
 
-		// A failed task means the held reachability result can no longer be
-		// trusted. Re-probe rather than deriving a result from the failure: the
-		// task ran in a datadog-installer subprocess and its error reaches us as
-		// opaque text, so we cannot tell a registry problem from any other
-		// reason it failed. Probing answers the question directly, and the
-		// backend gets a fresh classified signal within seconds of the failure
-		// instead of waiting out the interval.
-		if d.reachability != nil {
-			d.reachability.Invalidate()
-			d.triggerReachabilityProbe()
+// pingRegistryLoop keeps the registry-reachability tag fresh, starting with a
+// ping before the first tick so a host that never upgrades still reports one.
+//
+// It runs in its own goroutine and pings without holding d.m: the ping is a
+// network call that can take seconds, and the daemon lock is on the path of
+// every incoming request and of garbage collection.
+func (d *daemonImpl) pingRegistryLoop() {
+	ticker := time.NewTicker(d.reachabilityInterval)
+	defer ticker.Stop()
+	for {
+		reachable := oci.NewDownloader(d.env, d.env.HTTPClient()).IsRegistryReachable(d.ctx)
+		d.m.Lock()
+		d.registryReachable = &reachable
+		d.refreshState(d.ctx)
+		d.m.Unlock()
+		select {
+		case <-d.ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
-}
-
-// triggerReachabilityProbe asks the daemon goroutine to re-probe. It never
-// blocks: if a probe is already queued, this one is redundant and dropped.
-func (d *daemonImpl) triggerReachabilityProbe() {
-	select {
-	case d.probeReachability <- struct{}{}:
-	default:
-	}
-}
-
-// probeReachabilityAndRefresh probes the registry and reports the result.
-//
-// The probe deliberately runs without holding d.m: it makes network calls that
-// can take seconds, and the daemon lock is on the path of every incoming
-// request and of garbage collection. ReachabilityCache has its own lock.
-func (d *daemonImpl) probeReachabilityAndRefresh() {
-	if d.reachability == nil {
-		return
-	}
-	d.reachability.Get(d.ctx)
-	d.m.Lock()
-	defer d.m.Unlock()
-	d.refreshState(d.ctx)
-}
-
-// newOptionalTicker returns a ticker firing at the given interval, or one that
-// never fires when the interval is zero or less.
-func newOptionalTicker(interval time.Duration) *time.Ticker {
-	if interval <= 0 {
-		// A stopped ticker never delivers, so selecting on it blocks forever.
-		t := time.NewTicker(time.Hour)
-		t.Stop()
-		return t
-	}
-	return time.NewTicker(interval)
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
@@ -927,70 +883,26 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		SecretsPubKey:      base64.StdEncoding.EncodeToString(d.secretsPubKey[:]),
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
-		// Peek, never Get: refreshState runs on every task transition and on a
-		// 30s tick, and must not block on a network probe. Probing is the
-		// reachability ticker's job. An empty list means "not probed yet", which
-		// the backend must read as unknown rather than unreachable.
-		Tags: reachabilityTags(d.reachabilityResult()),
+		// Read the cached result, never ping here: refreshState runs on every
+		// task transition and on a 30s tick, so it must not block on the
+		// network. Pinging is pingRegistryLoop's job.
+		Tags: registryReachableTags(d.registryReachable),
 	})
 }
 
-// reachabilityResult returns the last known reachability result without
-// probing, or nil when probing is disabled or nothing has been probed yet.
-func (d *daemonImpl) reachabilityResult() *oci.Reachability {
-	if d.reachability == nil {
+// tagRegistryReachable reports whether the host can reach a package registry.
+const tagRegistryReachable = "fleet_registry_reachable"
+
+// registryReachableTags encodes the registry ping result as ClientUpdater tags.
+// Tags rather than a dedicated field so the signal ships without changing the
+// remote-config protobuf.
+//
+// A nil result yields no tag, so "not pinged yet" is the absence of the tag
+// rather than a value. The backend must read that as unknown, not as
+// unreachable — rejecting a never-pinged host would reject hosts that work.
+func registryReachableTags(reachable *bool) []string {
+	if reachable == nil {
 		return nil
 	}
-	return d.reachability.Peek()
-}
-
-const (
-	// tagRegistryReachable reports whether the host can reach any package
-	// registry. Absent means not probed yet.
-	tagRegistryReachable = "fleet_registry_reachable"
-	// tagRegistryFailureKind reports why a registry could not be reached, using
-	// oci.FailureKind.String(). Emitted once per distinct cause.
-	tagRegistryFailureKind = "fleet_registry_failure_kind"
-)
-
-// reachabilityTags encodes a reachability result as ClientUpdater tags.
-//
-// Tags rather than dedicated fields so the signal ships without changing the
-// remote-config protobuf. The cost is real and worth stating: a tag list is a
-// flat set, so this drops the two things the structured form carried — which
-// registry failed, and the underlying error text. Neither can go in a tag
-// anyway; error strings embed host-specific detail and have unbounded
-// cardinality. What survives is what the eligibility gate actually needs: can
-// this host download, and if not, whose problem it is.
-//
-// Returns an empty list for a nil result, so "not probed yet" is the absence of
-// the tag rather than a value. The backend must read that as unknown, not as
-// unreachable — reporting a never-probed host as unreachable would reject hosts
-// that work.
-func reachabilityTags(r *oci.Reachability) []string {
-	if r == nil {
-		return nil
-	}
-	tags := []string{fmt.Sprintf("%s:%t", tagRegistryReachable, r.Reachable())}
-
-	// Emit a cause for every registry we actually attempted and failed, even
-	// when a later one succeeded: a fleet quietly running on its fallback
-	// registry is worth seeing before the fallback goes too.
-	//
-	// Err is the discriminator, not Reachable. Registries after the first
-	// success are reported not-reachable with a nil Err, meaning not attempted,
-	// and their FailureKind is a zero value that would otherwise be published as
-	// a spurious "unknown" cause.
-	seen := make(map[oci.FailureKind]struct{}, len(r.Registries))
-	for _, s := range r.Registries {
-		if s.Reachable || s.Err == nil {
-			continue
-		}
-		if _, dup := seen[s.FailureKind]; dup {
-			continue
-		}
-		seen[s.FailureKind] = struct{}{}
-		tags = append(tags, fmt.Sprintf("%s:%s", tagRegistryFailureKind, s.FailureKind))
-	}
-	return tags
+	return []string{fmt.Sprintf("%s:%t", tagRegistryReachable, *reachable)}
 }

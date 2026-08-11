@@ -137,6 +137,9 @@ func collectRegistryErrors(err error, out *[]*RegistryError) {
 const (
 	layerMaxSize   = 3 << 30 // 3GiB
 	networkRetries = 3
+	// registryPingTimeout bounds a whole IsRegistryReachable call, every
+	// registry included.
+	registryPingTimeout = 10 * time.Second
 )
 
 var (
@@ -353,6 +356,69 @@ func formatImageRef(override string) string {
 	log.Warnf("ignoring userinfo in registry override URL; use installer.registry.username / installer.registry.password instead")
 	u.User = nil
 	return strings.TrimPrefix(u.String(), "https://")
+}
+
+// defaultRegistries returns the registries tried, in order, when no override is set.
+func defaultRegistries(e *env.Env) []string {
+	if e.Site == "datad0g.com" {
+		return defaultRegistriesStaging
+	}
+	return defaultRegistriesProd
+}
+
+// roundTripper returns the transport a download goes through, mirror included.
+func (d *Downloader) roundTripper() (http.RoundTripper, error) {
+	rt := telemetry.WrapRoundTripper(d.client.Transport)
+	if d.env.Mirror == "" {
+		return rt, nil
+	}
+	rt, err := newMirrorTransport(rt, d.env.Mirror)
+	if err != nil {
+		return nil, fmt.Errorf("could not create mirror transport: %w", err)
+	}
+	return rt, nil
+}
+
+// IsRegistryReachable reports whether any registry a download would use answers
+// its /v2/ endpoint. Both 200 and 401 count as answered: per the OCI
+// distribution spec a registry replies 401 when the pull that follows needs
+// credentials, so install.datadoghq.com answers 200 while gcr.io answers 401.
+// Anything else, a transport error included, means that registry did not answer.
+//
+// This is a connectivity check and nothing more. It goes through the
+// downloader's transport, so a mirror is honoured, but it does not parse image
+// references or resolve credentials — a host whose registry-auth file is
+// unusable still reports reachable, and will still fail to download.
+func (d *Downloader) IsRegistryReachable(ctx context.Context) bool {
+	transport, err := d.roundTripper()
+	if err != nil {
+		return false
+	}
+	registries := defaultRegistries(d.env)
+	if d.env.RegistryOverride != "" {
+		registries = []string{d.env.RegistryOverride}
+	}
+	ctx, cancel := context.WithTimeout(ctx, registryPingTimeout)
+	defer cancel()
+	client := &http.Client{Transport: transport}
+	for _, registry := range registries {
+		host, _, _ := strings.Cut(registry, "/")
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+"/v2/", nil)
+		if err != nil {
+			continue
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Debugf("registry %s did not answer /v2/: %s", host, err)
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized {
+			return true
+		}
+		log.Debugf("registry %s answered /v2/ with status %d", host, resp.StatusCode)
+	}
+	return false
 }
 
 // downloadRegistry downloads the image from a remote registry.
