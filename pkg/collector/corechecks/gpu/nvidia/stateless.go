@@ -490,25 +490,8 @@ func clockThrottleReasonMetrics(reasons uint64) []Metric {
 	return allMetrics
 }
 
-// maxClockInfoSample handles max clock metrics, which are not supported for vGPU devices.
-// Returning an unsupported API error lets filterSupportedAPIs remove this API from the
-// collector during initialization, so it is not retried on every collection cycle.
-func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricName string) ([]Metric, uint64, error) {
-	virtMode, err := device.GetVirtualizationMode()
-	if err == nil && virtMode == nvml.GPU_VIRTUALIZATION_MODE_VGPU {
-		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMaxClockInfo", nvml.ERROR_NOT_SUPPORTED)
-	}
-
-	clock, err := device.GetMaxClockInfo(clockType)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return []Metric{{Name: metricName, Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
-}
-
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
-func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
+func createStatelessAPIs(deps *CollectorDependencies, includeMaxClockInfo bool) []apiCallInfo {
 	apis := []apiCallInfo{
 		// Memory collector APIs
 		{
@@ -702,30 +685,6 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		},
 		{
-			Name: "max_clock_speed_sm",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return maxClockInfoSample(device, nvml.CLOCK_SM, "clock.speed.sm.max")
-			},
-		},
-		{
-			Name: "max_clock_speed_memory",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return maxClockInfoSample(device, nvml.CLOCK_MEM, "clock.speed.memory.max")
-			},
-		},
-		{
-			Name: "max_clock_speed_graphics",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return maxClockInfoSample(device, nvml.CLOCK_GRAPHICS, "clock.speed.graphics.max")
-			},
-		},
-		{
-			Name: "max_clock_speed_video",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return maxClockInfoSample(device, nvml.CLOCK_VIDEO, "clock.speed.video.max")
-			},
-		},
-		{
 			Name: "energy_consumption",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				energy, err := device.GetTotalEnergyConsumption()
@@ -843,6 +802,53 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 	}
 
+	// GetMaxClockInfo can return errors other than ERROR_NOT_SUPPORTED for vGPU devices,
+	// so gate these API calls directly on the device type.
+	if includeMaxClockInfo {
+		apis = append(apis,
+			apiCallInfo{
+				Name: "max_clock_speed_sm",
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					clock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{Name: "clock.speed.sm.max", Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+				},
+			},
+			apiCallInfo{
+				Name: "max_clock_speed_memory",
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					clock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{Name: "clock.speed.memory.max", Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+				},
+			},
+			apiCallInfo{
+				Name: "max_clock_speed_graphics",
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					clock, err := device.GetMaxClockInfo(nvml.CLOCK_GRAPHICS)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{Name: "clock.speed.graphics.max", Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+				},
+			},
+			apiCallInfo{
+				Name: "max_clock_speed_video",
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					clock, err := device.GetMaxClockInfo(nvml.CLOCK_VIDEO)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{Name: "clock.speed.video.max", Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+				},
+			},
+		)
+	}
+
 	// Create APIs for corrected and uncorrected ECC errors.
 	for errorType, errorTypeName := range eccErrorTypeToName {
 		// Handlers close over these values and run after the loops finish, so rebind
@@ -890,5 +896,12 @@ var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
 func newStatelessCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(stateless, device, statelessAPIFactory(deps))
+	physicalDevice := device
+	if migDevice, ok := device.(*ddnvml.MIGDevice); ok {
+		physicalDevice = migDevice.Parent
+	}
+
+	virtMode, err := physicalDevice.GetVirtualizationMode()
+	includeMaxClockInfo := err != nil || virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU
+	return NewBaseCollector(stateless, device, statelessAPIFactory(deps, includeMaxClockInfo))
 }

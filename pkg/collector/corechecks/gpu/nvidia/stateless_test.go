@@ -214,7 +214,7 @@ func TestAllECCAPIHandlers(t *testing.T) {
 				testutil.WithCustomHook(configureEccAPIs),
 			)
 
-			apis := createStatelessAPIs(&CollectorDependencies{})
+			apis := createStatelessAPIs(&CollectorDependencies{}, true)
 			var metricsOut []Metric
 			for _, api := range apis {
 				if api.Name != "sram_ecc_error_status" && !strings.HasPrefix(api.Name, "ecc_errors.") {
@@ -256,10 +256,14 @@ func TestNewStatelessCollector(t *testing.T) {
 }
 
 func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
-	var maxClockInfoCalls int
+	var maxClockInfoCalls, virtualizationModeCalls int
 	device := setupMockDevice(t,
 		testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
 		testutil.WithCustomHook(func(device *mock.Device) {
+			device.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				virtualizationModeCalls++
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
+			}
 			device.GetMaxClockInfoFunc = func(nvml.ClockType) (uint32, nvml.Return) {
 				maxClockInfoCalls++
 				return 0, nvml.ERROR_UNKNOWN
@@ -269,6 +273,7 @@ func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
 
 	collector, err := newStatelessCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
+	require.Equal(t, 1, virtualizationModeCalls, "vGPU status should be queried once during collector initialization")
 	require.Zero(t, maxClockInfoCalls, "vGPU collector should not probe max clock info")
 
 	baseCollector := collector.(*baseCollector)
@@ -324,7 +329,7 @@ func TestCollectProcessMemory(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies, _ bool) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
@@ -353,7 +358,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
+	statelessAPIFactory = func(_ *CollectorDependencies, _ bool) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
@@ -382,7 +387,7 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
+	statelessAPIFactory = func(_ *CollectorDependencies, _ bool) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
@@ -465,7 +470,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies, _ bool) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
@@ -555,7 +560,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies, _ bool) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
@@ -672,7 +677,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies, _ bool) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
@@ -810,7 +815,7 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 
 			device := setupMockDevice(t)
 			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
+			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta}, true)
 			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
 
 			gotMetrics, _, err := deviceUnhealthyAPI.Handler(device, 0)
