@@ -8,6 +8,8 @@
 package nvidia
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -35,11 +37,10 @@ func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 	collector := &nvlinkFieldsCollector{
 		device: device,
 		ports:  []int{1, 2, 3},
-		metrics: []nvlinkFieldValueMetric{
-			{
-				name:         "nvlink.tx.discards",
-				fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
-				metricType:   metrics.GaugeType,
+		metrics: map[uint32]nvlinkFieldValueMetric{
+			nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS: {
+				name:       "nvlink.tx.discards",
+				metricType: metrics.GaugeType,
 			},
 		},
 	}
@@ -74,25 +75,22 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 	collector := &nvlinkFieldsCollector{
 		device: device,
 		ports:  []int{1, 2, 3},
-		metrics: []nvlinkFieldValueMetric{
-			{
+		metrics: map[uint32]nvlinkFieldValueMetric{
+			nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX: {
 				name:                "nvlink.throughput.data.rx",
-				fieldValueID:        nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
 				addTotalMetric:      true,
 				metricType:          metrics.GaugeType,
 				rateCalculationMode: PerSecondRateCalculation,
 			},
-			{
+			nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX: {
 				name:                "nvlink.throughput.raw.tx",
-				fieldValueID:        nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX,
 				addTotalMetric:      true,
 				metricType:          metrics.GaugeType,
 				rateCalculationMode: PerSecondRateCalculation,
 			},
-			{
-				name:         "nvlink.tx.discards",
-				fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
-				metricType:   metrics.GaugeType,
+			nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS: {
+				name:       "nvlink.tx.discards",
+				metricType: metrics.GaugeType,
 			},
 		},
 	}
@@ -149,18 +147,16 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	collector := &nvlinkFieldsCollector{
 		device: device,
 		ports:  []int{1, 2},
-		metrics: []nvlinkFieldValueMetric{
-			{
+		metrics: map[uint32]nvlinkFieldValueMetric{
+			nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX: {
 				name:                "nvlink.throughput.data.rx",
-				fieldValueID:        nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
 				addTotalMetric:      true,
 				metricType:          metrics.GaugeType,
 				rateCalculationMode: PerSecondRateCalculation,
 			},
-			{
-				name:         "nvlink.tx.discards",
-				fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
-				metricType:   metrics.GaugeType,
+			nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX: {
+				name:       "nvlink.tx.discards",
+				metricType: metrics.GaugeType,
 			},
 		},
 	}
@@ -173,7 +169,7 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	}
 
 	require.Len(t, collector.metrics, 1)
-	require.Equal(t, uint32(nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX), collector.metrics[0].fieldValueID)
+	require.Contains(t, collector.metrics, uint32(nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX))
 	require.Contains(t, requestedFieldsByScope[0], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
 	require.NotContains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
 }
@@ -194,11 +190,10 @@ func TestNVLinkFieldsCollectorCollectDoesNotPanicWhenMetricsBecomeEmpty(t *testi
 	collector := &nvlinkFieldsCollector{
 		device: device,
 		ports:  []int{1, 2},
-		metrics: []nvlinkFieldValueMetric{
-			{
-				name:         "nvlink.tx.discards",
-				fieldValueID: nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
-				metricType:   metrics.GaugeType,
+		metrics: map[uint32]nvlinkFieldValueMetric{
+			nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS: {
+				name:       "nvlink.tx.discards",
+				metricType: metrics.GaugeType,
 			},
 		},
 	}
@@ -209,6 +204,13 @@ func TestNVLinkFieldsCollectorCollectDoesNotPanicWhenMetricsBecomeEmpty(t *testi
 	})
 	require.ErrorIs(t, err, errUnsupportedDevice)
 	require.ErrorContains(t, err, "no metrics to collect")
+}
+
+func TestNVlinkFieldsIsDisabledWhenNoMetricsAreSupported(t *testing.T) {
+	allFields := slices.Collect(maps.Keys(nvlinkFieldsMetrics))
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(allFields...))
+	_, err := newNVLinkFieldsCollector(device, nil)
+	require.ErrorIs(t, err, errUnsupportedDevice)
 }
 
 func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {

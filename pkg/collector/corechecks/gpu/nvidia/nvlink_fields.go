@@ -222,7 +222,7 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		})
 
 		if fieldValueMetric.addTotalMetric {
-			c.totals[fieldValueMetric.fieldValueID] += value
+			c.totals[val.FieldId] += value
 		}
 	}
 
