@@ -49,7 +49,7 @@ exports_files(glob(
 
 exports_files(["go.mod"])
 
-# TODO(ABLD-519): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
+# TODO(ABLD-519): remove below `gazelle:exclude` directives
 # gazelle:exclude cmd/serverless-init/*.go
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
