@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "installers",
+    srcs = ["installers.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/testing/runner/parameters",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@io_k8s_cli_runtime//pkg/genericclioptions",
+        "@sh_helm_helm_v3//pkg/action",
+        "@sh_helm_helm_v3//pkg/chart/loader",
+        "@sh_helm_helm_v3//pkg/cli",
+        "@sh_helm_helm_v3//pkg/storage/driver",
+    ],
+)
+
+dd_agent_go_test(
+    name = "installers_test",
+    srcs = ["installers_test.go"],
+    embed = [":installers"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
