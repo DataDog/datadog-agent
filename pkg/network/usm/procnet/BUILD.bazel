@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "procnet",
@@ -7,6 +8,7 @@ go_library(
         "procnet.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/procnet",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/kernel",
@@ -14,14 +16,15 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "procnet_test",
     srcs = [
         "parser_test.go",
         "procnet_test.go",
     ],
     embed = [":procnet"],
-    gotags = ["test"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
     deps = [
         "//pkg/network/protocols/http/testutil",
         "@com_github_stretchr_testify//assert",

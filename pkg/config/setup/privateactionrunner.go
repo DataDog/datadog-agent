@@ -25,22 +25,18 @@ const (
 	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
-	// Executor mode (split deployment)
-	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
-
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths     = "private_action_runner.restricted_shell.allowed_paths"
-	PARRestrictedShellAllowedCommands  = "private_action_runner.restricted_shell.allowed_commands"
-	RShellCommandNamespacePrefix       = "rshell:"
-	RShellCommandAllowAllWildcard      = RShellCommandNamespacePrefix + "*"
-	RShellPathAllowAll                 = "/"
-	RShellPathAllowMapContainerizedKey = "containerized"
-	RShellPathAllowMapDefaultKey       = "default"
+	PARRestrictedShellAllowedPaths          = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands       = "private_action_runner.restricted_shell.allowed_commands"
+	PARRestrictedShellAllowedSystemServices = "private_action_runner.restricted_shell.allowed_system_services"
+	RShellPathAllowAll                      = "/"
+	RShellPathAllowMapContainerizedKey      = "containerized"
+	RShellPathAllowMapDefaultKey            = "default"
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"

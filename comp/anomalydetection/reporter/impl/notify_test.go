@@ -345,6 +345,30 @@ func makeLogPatternAnomaly(ts int64) observerdef.Anomaly {
 	}
 }
 
+func TestLogPatternRatesSumRepresentedLogCounts(t *testing.T) {
+	const ts = int64(10_000)
+	var aggregates []observerdef.Aggregate
+	storage := &sumRangeStorage{
+		fn: func(_ observerdef.SeriesRef, _ int64, _ int64, agg observerdef.Aggregate) float64 {
+			aggregates = append(aggregates, agg)
+			return 300
+		},
+	}
+	a := makeLogPatternAnomaly(ts)
+
+	curr, currOK := logPatternRate(a, storage)
+	prev, prevOK := logPatternPrevRate(a, storage)
+
+	assert.True(t, currOK)
+	assert.True(t, prevOK)
+	assert.Equal(t, 5.0, curr)
+	assert.Equal(t, 1.0, prev)
+	assert.Equal(t, []observerdef.Aggregate{
+		observerdef.AggregateSum,
+		observerdef.AggregateSum,
+	}, aggregates)
+}
+
 func TestBuildChangeMessage_RateChangedDisplay(t *testing.T) {
 	const ts = int64(10000)
 	// prev window: 6 logs/s, curr window: 0.5 log/s — large drop, should show "changed from"

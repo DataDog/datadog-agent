@@ -10,6 +10,7 @@ go_library(
     deps = [
         "//cmd/internal/runcmd",
         "//cmd/otel-agent/command",
+        "//comp/logs-library/metrics",
         "//pkg/util/flavor",
         "//pkg/version",
     ],

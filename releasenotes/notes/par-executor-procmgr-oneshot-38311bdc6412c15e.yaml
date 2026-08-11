@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    On Windows and Linux, the fleet installer now also registers the Private Action Runner's
+    on-demand executor with ``dd-procmgr``.

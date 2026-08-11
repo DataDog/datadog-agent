@@ -7,6 +7,8 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -39,12 +41,41 @@ func newInfraAttributesLogsProcessor(
 func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
-		resourceAttributes := rls.At(i).Resource().Attributes()
+		rl := rls.At(i)
+		resourceAttributes := rl.Resource().Attributes()
+
+		var ddtags []string
+
 		// trace_container_tag_promotion only makes sense for traces: it exists to
 		// feed trace-agent's `_dd.tags.container` promotion
 		// (ConsumeContainerTagsFromResource), which logs never go through.
 		// Always pass "off" here regardless of the configured mode.
-		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.cfg.AllowHostnameOverride, ContainerTagPromotionOff)
+		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, ialp.cfg.LogsTagsAsDDTags, &ddtags)
+
+		if len(ddtags) == 0 {
+			continue
+		}
+		slices.Sort(ddtags)
+		newTags := strings.Join(ddtags, ",")
+		writeDdtagsToLogRecords(rl, newTags)
 	}
 	return ld, nil
+}
+
+// writeDdtagsToLogRecords appends newTags to the `ddtags` attribute of every
+// log record under rl, merging with any value the record already carries
+// rather than overwriting it.
+func writeDdtagsToLogRecords(rl plog.ResourceLogs, newTags string) {
+	sls := rl.ScopeLogs()
+	for i := 0; i < sls.Len(); i++ {
+		lrs := sls.At(i).LogRecords()
+		for j := 0; j < lrs.Len(); j++ {
+			attrs := lrs.At(j).Attributes()
+			if existing, ok := attrs.Get("ddtags"); ok && existing.AsString() != "" {
+				attrs.PutStr("ddtags", existing.AsString()+","+newTags)
+			} else {
+				attrs.PutStr("ddtags", newTags)
+			}
+		}
+	}
 }

@@ -38,11 +38,11 @@ dd_agent_go_test(
         "namespaces_test.go",
     ],
     embed = [":containerd"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "containerd",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/config/mock",
         "//pkg/util/containerd/fake",

@@ -16,6 +16,19 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
+// CollectorBuilder creates a collector for a device. It is exposed only in test builds.
+type CollectorBuilder = subsystemBuilder
+
+// WithCollectorFactoryForTest temporarily replaces the collector factory.
+func WithCollectorFactoryForTest(t testing.TB, testFactory map[CollectorName]CollectorBuilder) {
+	t.Helper()
+	previousFactory := factory
+	factory = testFactory
+	t.Cleanup(func() {
+		factory = previousFactory
+	})
+}
+
 // SetStatsForTest replaces the cached stats. Intended for testing only.
 func (c *SystemProbeCache) SetStatsForTest(stats *model.GPUStats) {
 	c.stats = stats

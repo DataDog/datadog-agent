@@ -36,7 +36,7 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 	}
 
 	deviceID := dc.device.DeviceID()
-	result, err := dc.profile.ProcessConfig(rawConfig)
+	result, err := dc.profile.ProcessConfig([]byte(rawConfig.Output))
 	if err != nil {
 		return nil, false, fmt.Errorf("unable to process rules for %s config for device %s: %s", mode, deviceID, err)
 	}

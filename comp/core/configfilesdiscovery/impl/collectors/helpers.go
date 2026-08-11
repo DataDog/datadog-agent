@@ -6,15 +6,13 @@
 package collectors
 
 import (
+	"context"
+	"fmt"
 	"path"
 	"strings"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 )
-
-func commandlineArgs(commandline configfilesdiscoveryimpl.TargetCommandline) []string {
-	return unwrapShellCommandline(commandline.Args)
-}
 
 func unwrapShellCommandline(args []string) []string {
 	if len(args) < 3 || !isShellExecutable(args[0]) || args[1] != "-c" {
@@ -43,4 +41,102 @@ func resolveConfigPath(configPath string, workingDir string) (string, bool) {
 		return "", false
 	}
 	return path.Clean(path.Join(workingDir, configPath)), true
+}
+
+// findConfigPath tries the runtime-native command first, then falls back to
+// command lines discovered from live processes. Returns the resolved path and
+// whether a command line for the service was found.
+func findConfigPath(
+	ctx context.Context,
+	reader configfilesdiscoveryimpl.ConfigReader,
+	findConfigArg func([]string) (string, bool),
+	matchesCommandline func([]string) bool,
+) (string, bool, error) {
+	commandline, runtimeErr := reader.ReadRuntimeCommandline(ctx)
+	runtimeCommandMatched := false
+	if runtimeErr == nil {
+		runtimeCommandMatched = matchesCommandline(commandline.Args)
+		if configArg, found := findConfigArg(commandline.Args); found {
+			runtimeCommandMatched = true
+			if configPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
+				return configPath, true, nil
+			}
+		}
+	}
+
+	var configPath string
+	liveCommandMatched := false
+	for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
+		if matchesCommandline(commandline.Args) {
+			liveCommandMatched = true
+		}
+		configArg, found := findConfigArg(commandline.Args)
+		if !found {
+			continue
+		}
+		resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+		if !resolved {
+			return "", true, runtimeErr
+		}
+		if configPath != "" && configPath != resolvedPath {
+			return "", true, runtimeErr
+		}
+		configPath = resolvedPath
+	}
+	if configPath != "" {
+		return configPath, true, nil
+	}
+	if liveCommandMatched {
+		return "", true, nil
+	}
+	return "", runtimeCommandMatched, runtimeErr
+}
+
+// readConfigFile discovers and reads an explicit config file, or falls back to
+// ordered groups of default paths when no command line for the service is
+// found. The first group with readable files wins, and exactly one file must be
+// readable within that group. Returns the file and whether one was selected.
+func readConfigFile(
+	ctx context.Context,
+	reader configfilesdiscoveryimpl.ConfigReader,
+	findConfigArg func([]string) (string, bool),
+	matchesCommandline func([]string) bool,
+	defaultPathGroups ...[]string,
+) (configfilesdiscoveryimpl.ConfigFile, bool, error) {
+	configPath, commandMatched, commandlineErr := findConfigPath(ctx, reader, findConfigArg, matchesCommandline)
+	if configPath != "" {
+		file, err := reader.ReadFile(ctx, configPath)
+		if err != nil {
+			return configfilesdiscoveryimpl.ConfigFile{}, false, fmt.Errorf("read explicit config file %q: %w", configPath, err)
+		}
+		return file, true, nil
+	}
+	if commandMatched {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+	}
+
+	for _, defaultPaths := range defaultPathGroups {
+		files := make([]configfilesdiscoveryimpl.ConfigFile, 0, len(defaultPaths))
+		for _, path := range defaultPaths {
+			file, err := reader.ReadFile(ctx, path)
+			if err != nil {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return configfilesdiscoveryimpl.ConfigFile{}, false, ctxErr
+				}
+				continue
+			}
+			files = append(files, file)
+		}
+
+		switch len(files) {
+		case 0:
+			continue
+		case 1:
+			return files[0], true, nil
+		default:
+			return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
+		}
+	}
+
+	return configfilesdiscoveryimpl.ConfigFile{}, false, commandlineErr
 }

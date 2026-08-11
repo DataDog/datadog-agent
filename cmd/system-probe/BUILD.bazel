@@ -1,7 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
-#gazelle:dd_linux_bpf on
-
 go_library(
     name = "system-probe_lib",
     srcs = [
@@ -82,6 +80,7 @@ go_library(
             "//cmd/system-probe/command",
             "//cmd/system-probe/subcommands",
             "//cmd/system-probe/windows/service",
+            "//pkg/util/flavor",
             "//pkg/util/log",
             "//pkg/util/winutil/servicemain",
         ],

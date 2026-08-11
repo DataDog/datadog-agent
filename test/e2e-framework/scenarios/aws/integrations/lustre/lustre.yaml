@@ -1,0 +1,12 @@
+## Lustre client-node config (finalized during live exploration).
+## node_type/min_collection_interval are the baseline client options.
+## enable_extra_params unlocks the client mdc/osc/ldlm stat families
+## (EXTRA_STATS, node_type=client). enable_lnetctl_detailed raises lnetctl
+## verbosity to 3 for per-NI/per-peer LNET detail.
+init_config:
+
+instances:
+  - node_type: client
+    min_collection_interval: 15
+    enable_extra_params: true
+    enable_lnetctl_detailed: true

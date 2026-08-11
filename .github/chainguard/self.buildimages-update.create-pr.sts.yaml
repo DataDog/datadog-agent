@@ -12,3 +12,6 @@ claim_pattern:
 permissions:
   contents: write
   pull_requests: write
+  # Required when targeting a non-main branch: the new PR branch lags main under
+  # .github/workflows, which GitHub refuses to create without this
+  workflows: write

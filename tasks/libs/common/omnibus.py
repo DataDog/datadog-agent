@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import platform
 import sys
 from datetime import datetime
 
@@ -55,7 +56,6 @@ ENV_PASSHTROUGH = {
     'CI_JOB_ID': 'CI Job ID',
     'CI_PROJECT_NAME': 'CI Project Name',
     'CI_JOB_NAME_SLUG': 'CI Job Name Slug',
-    'AGENT_DATA_PLANE_SOURCE_URL_BASE': 'Override URL base for Agent Data Plane tarball downloads',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -374,13 +374,22 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
         print(r.text)
 
 
-def install_dir_for_project(project):
-    if project == "agent" or project == "iot-agent":
+def install_dir_for_project(project, *, for_platform: str | None = None):
+    if project in {"agent", "agent-binaries", "ddot", "iot-agent"}:
         folder = 'datadog-agent'
     elif project == 'dogstatsd':
         folder = 'datadog-dogstatsd'
+    elif project == 'eudm':
+        folder = 'datadog-agent-eudm'
     elif project == 'installer':
         folder = 'datadog-installer'
     else:
         raise NotImplementedError(f'Unknown project {project}')
-    return os.path.join('opt', folder)
+
+    if (for_platform or platform.system()).lower() == "windows":
+        # Note: this is the path used by Omnibus to build the agent, the final install
+        # dir will be determined by the Windows installer. This path must not contain
+        # spaces because Omnibus doesn't quote the Git commands it launches.
+        return f"C:/opt/{folder}"
+
+    return f"/opt/{folder}"

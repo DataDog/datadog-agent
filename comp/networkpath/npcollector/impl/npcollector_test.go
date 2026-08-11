@@ -499,6 +499,7 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 			Origin:           payload.PathOriginNetflow,
 			TestConfigID:     "dynamic-a",
 			TestConfigSource: payload.TestConfigSourceRemote,
+			Tags:             []string{"team:payments", "env:prod"},
 		},
 	})
 
@@ -507,6 +508,7 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 	assert.Equal(t, "netflow-ns", emittedPath.Namespace)
 	assert.Equal(t, "dynamic-a", emittedPath.TestConfigID)
 	assert.Equal(t, payload.TestConfigSourceRemote, emittedPath.TestConfigSource)
+	assert.Equal(t, []string{"team:payments", "env:prod"}, emittedPath.Tags)
 }
 
 func Test_NpCollector_runTracerouteForPath_RequiresOrigin(t *testing.T) {
@@ -1184,6 +1186,7 @@ func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
 		Type:         connfilter.FilterTypeInclude,
 		MatchDomain:  "remote.example.com",
 		TestConfigID: "dynamic-a",
+		Tags:         []string{"team:payments"},
 	}}, "", false)
 	require.Empty(t, errs)
 	collector.filter = filter
@@ -1208,9 +1211,11 @@ func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
 	assert.Equal(t, "remote.example.com", remote.Hostname)
 	assert.Equal(t, "dynamic-a", remote.TestConfigID)
 	assert.Equal(t, payload.TestConfigSourceRemote, remote.TestConfigSource)
+	assert.Equal(t, []string{"team:payments"}, remote.Tags)
 	assert.Equal(t, "local.example.com", local.Hostname)
 	assert.Empty(t, local.TestConfigID)
 	assert.Empty(t, local.TestConfigSource)
+	assert.Empty(t, local.Tags)
 }
 
 func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {

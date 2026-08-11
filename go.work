@@ -70,6 +70,7 @@ use (
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	comp/otelcol/otlp/components/connector/datadogconnector
+	comp/otelcol/otlp/components/datadogconfig
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -104,9 +105,9 @@ use (
 	pkg/config/model
 	pkg/config/nodetreemodel
 	pkg/config/remote
-	pkg/config/render_config
 	pkg/config/schema
 	pkg/config/setup
+	pkg/config/setup/constants
 	pkg/config/structure
 	pkg/config/utils
 	pkg/discovery/tracermetadata/model

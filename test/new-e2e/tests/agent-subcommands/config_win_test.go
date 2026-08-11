@@ -24,7 +24,7 @@ func TestWindowsConfigSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &windowsConfigSuite{baseConfigSuite: baseConfigSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
-			scenec2.WithEC2InstanceOptions(scenec2.WithOS(os.WindowsServerDefault)),
+			scenec2.WithEC2InstanceOptions(scenec2.WithOS(os.WindowsServerDefault), scenec2.WithInternetAccess()),
 		),
 	)))
 }

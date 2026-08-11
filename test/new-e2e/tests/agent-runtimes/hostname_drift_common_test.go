@@ -37,7 +37,7 @@ func (v *baseHostnameDriftSuite) getSuiteOptions(osInstance osVM.Descriptor) []e
 				ec2.WithAgentOptions(
 					agentparams.WithAgentConfig(agentConfig),
 				),
-				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance), ec2.WithInternetAccess()),
 			),
 		),
 	))

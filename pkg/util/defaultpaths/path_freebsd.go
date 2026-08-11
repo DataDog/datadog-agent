@@ -6,14 +6,15 @@
 package defaultpaths
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
-// Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
-// FreeBSD follows BSD conventions: configuration files live under /usr/local/etc, while runtime
-// and log files match the layout used on Linux.
+// Private default path constants for reference. Agent configuration defaults use getter functions at runtime.
+// FreeBSD follows BSD conventions: configuration files live under /usr/local/etc, while runtime and log files match the
+// layout used on Linux.
 const (
 	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty
 	defaultCommonRoot = "/opt/datadog-agent"

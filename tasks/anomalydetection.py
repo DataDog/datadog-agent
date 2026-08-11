@@ -37,6 +37,7 @@ from tasks.libs.anomalydetection.eval import (
     random_component_combinations,
 )
 from tasks.libs.common.color import Color, color_message
+from tasks.schema.generate import schema_codegen
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,9 @@ def build_scorer(ctx):
     """
     Builds the anomalydetection-scorer binary to bin/anomalydetection-scorer.
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run("go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
 
 
@@ -73,6 +77,9 @@ def build_testbench(ctx):
     """
     Builds the anomalydetection-testbench binary to bin/anomalydetection-testbench.
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(
         "go build -C internal/qbranch/anomalydetection-testbench -tags python -o ../../../bin/anomalydetection-testbench ."
     )
