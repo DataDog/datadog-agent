@@ -72,40 +72,41 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	return &Config{
-		MaxBackoff:                maxBackoff,
-		MinBackoff:                minBackoff,
-		MaxAttempts:               maxAttempts,
-		WaitBeforeRetry:           waitBeforeRetry,
-		LoopInterval:              loopInterval,
-		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
-		HealthCheckInterval:       healthCheckInterval,
-		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
-		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
-		HTTPTimeout:               httpTimeout,
-		TaskTimeoutSeconds:        taskTimeoutSeconds,
-		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
-		Port:                      defaultPort,
-		JWTRefreshInterval:        defaultJwtRefreshInterval,
-		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
-		HeartbeatInterval:         heartbeatInterval,
-		Version:                   version.AgentVersion,
-		MetricsClient:             metricsClient,
-		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:        rshellAllowedPaths(config),
-		RShellAllowedCommands:     rshellAllowedCommands(config),
-		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                    ddHost,
-		DDApiHost:                 "api." + ddSite,
-		Modes:                     []modes.Mode{modes.ModePull},
-		OrgId:                     orgID,
-		PrivateKey:                privateKey,
-		RunnerId:                  runnerID,
-		Urn:                       urn,
-		DatadogSite:               ddSite,
+		MaxBackoff:                  maxBackoff,
+		MinBackoff:                  minBackoff,
+		MaxAttempts:                 maxAttempts,
+		WaitBeforeRetry:             waitBeforeRetry,
+		LoopInterval:                loopInterval,
+		OpmsRequestTimeout:          opmsRequestTimeout,
+		RunnerPoolSize:              config.GetInt32(setup.PARTaskConcurrency),
+		HealthCheckInterval:         healthCheckInterval,
+		HttpServerReadTimeout:       defaultHTTPServerReadTimeout,
+		HttpServerWriteTimeout:      defaultHTTPServerWriteTimeout,
+		HTTPTimeout:                 httpTimeout,
+		TaskTimeoutSeconds:          taskTimeoutSeconds,
+		RunnerAccessTokenHeader:     runnerAccessTokenHeader,
+		RunnerAccessTokenIdHeader:   runnerAccessTokenIDHeader,
+		Port:                        defaultPort,
+		JWTRefreshInterval:          defaultJwtRefreshInterval,
+		HealthCheckEndpoint:         defaultHealthCheckEndpoint,
+		HeartbeatInterval:           heartbeatInterval,
+		Version:                     version.AgentVersion,
+		MetricsClient:               metricsClient,
+		ActionsAllowlist:            makeActionsAllowlist(config),
+		Allowlist:                   config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:           config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		RShellAllowedPaths:          rshellAllowedPaths(config),
+		RShellAllowedCommands:       rshellAllowedCommands(config),
+		RShellAllowedSystemServices: rshellAllowedSystemServices(config),
+		OpmsExtraHeaders:            config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                      ddHost,
+		DDApiHost:                   "api." + ddSite,
+		Modes:                       []modes.Mode{modes.ModePull},
+		OrgId:                       orgID,
+		PrivateKey:                  privateKey,
+		RunnerId:                    runnerID,
+		Urn:                         urn,
+		DatadogSite:                 ddSite,
 	}, nil
 }
 
@@ -119,6 +120,13 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		} else {
 			actionFqns = append(actionFqns, DefaultActionFQNs...)
 		}
+	}
+
+	// When the kubeactions subsystem is enabled, auto-allow its bundle so the
+	// kubernetes-actions backend (dispatching via wf-actions-server) works
+	// without operators having to set actions_allowlist manually.
+	if config.GetBool("kubeactions.enabled") {
+		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 
 	for _, fqn := range actionFqns {
@@ -153,6 +161,14 @@ func rshellAllowedCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
 	warnUnnamespacedCommands(commands)
 	return commands
+}
+
+// Nil means unset; a configured empty map is the explicit deny-all policy.
+func rshellAllowedSystemServices(config config.Component) map[string][]string {
+	if !config.IsConfigured(setup.PARRestrictedShellAllowedSystemServices) {
+		return nil
+	}
+	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
 }
 
 func warnUnnamespacedCommands(commands []string) {

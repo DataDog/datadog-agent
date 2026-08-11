@@ -12,10 +12,9 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-
 func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("my_setting", "abc")
 }
 
-func initEverything(config pkgconfigmodel.Setup) {
+func initCommonBase(config pkgconfigmodel.Setup) {
 }

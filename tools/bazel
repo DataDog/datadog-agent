@@ -51,6 +51,17 @@ else
   fi
 fi
 
+# Local developer remote cache selection (CI selects its own endpoint above).
+if [ -z "${CI-}" ]; then
+  remote_cache_select="$(dirname "$0")/../bazel/tools/remote-cache-select.sh"
+  if [ -f "$remote_cache_select" ]; then
+    # shellcheck source=/dev/null
+    . "$remote_cache_select"
+    cache_config=$(_remote_cache_config "$@") || :
+    [ -n "$cache_config" ] && extra_args+=("$cache_config")
+  fi
+fi
+
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."
 if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   args=()

@@ -548,9 +548,10 @@ Existing tags:
 - `generate_const:<name>`: generate a Go constant from this setting's default value.
 
   Adding `generate_const:<name>` to a setting tells the code generator to emit a Go constant named
-  `<name>` in the `pkg/config/setup` package whose value is this setting's default. Reference that
-  constant from your Go code instead of hardcoding the value, so the constant and the setting default
-  can never drift apart — the schema stays the single source of truth.
+  `<name>` in the `pkg/config/setup/constants` package (in `constants/generated.go`) whose value is
+  this setting's default. Reference that constant from your Go code instead of hardcoding the value,
+  so the constant and the setting default can never drift apart — the schema stays the single source
+  of truth.
 
   Use it when a Go constant in the Agent must always equal a setting's default (for example, a default
   port, timeout, or path that other code needs to read directly).

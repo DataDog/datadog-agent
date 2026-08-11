@@ -184,14 +184,14 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 
 	payloadData := make(checksMetadata)
 	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
-	withConfigs = withConfigs && invChecksEnabled
+	includeCheckConfigs := withConfigs && invChecksEnabled
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		foundInCollector := map[string]struct{}{}
 
 		coll.MapOverChecks(func(checks []check.Info) {
 			for _, c := range checks {
-				cm := check.GetMetadata(c, withConfigs)
+				cm := check.GetMetadata(c, includeCheckConfigs)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
 					maps.Copy(cm, checkData.metadata)
@@ -235,8 +235,8 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 				logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
 					"config": string(parsedJSON),
 					"state": map[string]string{
-						"error":  logSource.Status.GetError(),
-						"status": logSource.Status.String(),
+						"error":  logSource.Status().GetError(),
+						"status": logSource.Status().String(),
 					},
 					"service":                  logSource.Config.Service,
 					"source":                   logSource.Config.Source,
@@ -249,7 +249,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		}
 	}
 
-	jmxMetadata := ic.getJMXChecksMetadata()
+	jmxMetadata := ic.getJMXChecksMetadata(withConfigs)
 	for checkName, checks := range jmxMetadata {
 		if _, ok := payloadData[checkName]; !ok {
 			payloadData[checkName] = []metadata{}
@@ -257,7 +257,11 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		payloadData[checkName] = append(payloadData[checkName], checks...)
 	}
 
-	filesMetadata := ic.getFilesMetadata()
+	// Never expose config file contents on the unauthenticated expvar payload.
+	filesMetadata := metadata{}
+	if withConfigs {
+		filesMetadata = ic.getFilesMetadata()
+	}
 
 	return &Payload{
 		Hostname:      ic.hostname,

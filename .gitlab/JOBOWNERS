@@ -54,9 +54,6 @@ cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 secret_generic_connector-build*      @DataDog/fleet-automation
 build_windows_container_entrypoint   @DataDog/windows-products
-generate_config_schema-linux         @DataDog/fleet-automation
-generate_config_schema-macos         @DataDog/fleet-automation
-generate_config_schema-windows       @DataDog/fleet-automation
 # Cross-compiled binary builds for validation purpose
 cross_build_agent-binary_aix_ppc64        @DataDog/agent-build
 cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
@@ -215,6 +212,7 @@ new-e2e-agent-configuration*            @DataDog/fleet-automation
 new-e2e-agent-subcommands*              @DataDog/fleet-remediation
 new-e2e-agent-runtimes*                 @DataDog/agent-runtimes
 new-e2e-agent-health                    @DataDog/fleet-remediation
+new-e2e-agent-telemetry                 @DataDog/fleet-remediation
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---

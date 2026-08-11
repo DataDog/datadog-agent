@@ -22,6 +22,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/corechecks/ebpf/probe/noisyneighbor/model",
@@ -45,7 +46,6 @@ dd_agent_go_test(
     # keep: split from noisyneighbor_test; see comment above.
     srcs = ["ebpf_types_linux_test.go"],
     embed = [":noisyneighbor"],
-    target_compatible_with = ["@platforms//os:linux"],  # keep
     # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
     deps = select({
         "@rules_go//go/platform:android": [
@@ -63,7 +63,7 @@ dd_agent_go_test(
     # keep: split from noisyneighbor_types_test; see comment above.
     srcs = ["probe_test.go"],
     embed = [":noisyneighbor"],
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    gotags_sets = [["linux_bpf"]],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [
         "//pkg/ebpf",

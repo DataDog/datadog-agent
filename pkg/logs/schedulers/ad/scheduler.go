@@ -287,7 +287,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
-			source.Status.Error(err)
+			source.Status().Error(err)
 			continue
 		}
 	}

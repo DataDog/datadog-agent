@@ -8,7 +8,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
-from tasks.schema.codegen_init_settings import as_go_value, override_stubs, try_parse_duration
+from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -24,7 +24,6 @@ def filter_not_sysprobe(filename):
 class TestCodegenInitSettings(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        override_stubs('', '')
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -38,13 +37,13 @@ class TestCodegenInitSettings(unittest.TestCase):
     def test_basic_codegen(self):
         with open(fixture('basic_schema.yaml')) as f:
             schema = yaml.safe_load(f)
-        codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
+        codegen.run_codegen(schema, filter_not_sysprobe, self.tmpdir)
         self.validate_generated_code(fixture('basic_settings.gen'))
 
     def test_codegen_full_agent_setting(self):
         with open(fixture('basic_full_agent_schema.yaml')) as f:
             schema = yaml.safe_load(f)
-        codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
+        codegen.run_codegen(schema, filter_not_sysprobe, self.tmpdir)
         self.validate_generated_code(fixture('basic_full_agent_settings.gen'))
 
     def test_as_go_value(self):
@@ -136,6 +135,10 @@ class TestGenerateConst(unittest.TestCase):
     def _setting(default, const, type_='string'):
         return {'node_type': 'setting', 'type': type_, 'default': default, 'tags': [f'generate_const:{const}']}
 
+    @staticmethod
+    def _outputs():
+        return {name: [] for name in codegen.constant_outputs}
+
     def test_dedup_agreeing_refs_across_schemas(self):
         # DefaultSite is referenced by two core settings and one system-probe setting, all agreeing.
         core = {
@@ -161,17 +164,19 @@ class TestGenerateConst(unittest.TestCase):
                 }
             }
         }
-        core_out, sysprobe_out = [], []
-        codegen.gen_generate_const(core, sysprobe, core_out, sysprobe_out)
+        outputs = self._outputs()
+        codegen.gen_generate_const(core, sysprobe, outputs)
 
-        src = '\n'.join(core_out)
+        # The constants live in their own package, not in the `setup` ones.
+        src = '\n'.join(outputs['constants'])
         # Remove white space added by codegen's formatter
         contents = re.sub(' +', ' ', src)
         # DefaultSite is emitted exactly once despite three references, and the block is valid Go.
         self.assertEqual(contents.count('DefaultSite ='), 1)
         self.assertIn('DefaultSecurityAgentCmdPort = 5010', contents)
         self.assertIn('DefaultSite = "datadoghq.com"', contents)
-        self.assertEqual(sysprobe_out, [])
+        self.assertEqual(outputs['core'], [])
+        self.assertEqual(outputs['system_probe'], [])
 
     def test_conflicting_defaults_raise(self):
         # Same constant tagged on two settings with different defaults must fail codegen.
@@ -182,14 +187,14 @@ class TestGenerateConst(unittest.TestCase):
             }
         }
         with self.assertRaises(RuntimeError) as ctx:
-            codegen.gen_generate_const(core, {'properties': {}}, [], [])
+            codegen.gen_generate_const(core, {'properties': {}}, self._outputs())
         self.assertIn('DefaultAuditorTTL', str(ctx.exception))
 
     def test_no_tags_emits_nothing(self):
         core = {'properties': {'a': {'node_type': 'setting', 'type': 'string', 'default': 'x'}}}
-        core_out = []
-        codegen.gen_generate_const(core, {'properties': {}}, core_out, [])
-        self.assertEqual(core_out, [])
+        outputs = self._outputs()
+        codegen.gen_generate_const(core, {'properties': {}}, outputs)
+        self.assertEqual(outputs, self._outputs())
 
 
 if __name__ == "__main__":

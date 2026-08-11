@@ -54,6 +54,14 @@ int hook_filename_create(ctx_t *ctx) {
     return filename_create_common(p);
 }
 
+// __filename_create is the pre-5.15 upstream (and some el9 z-streams') name for
+// the same function: identical signature, third arg is struct path *.
+HOOK_ENTRY("__filename_create")
+int hook___filename_create(ctx_t *ctx) {
+    struct path *p = (struct path *)CTX_PARM3(ctx);
+    return filename_create_common(p);
+}
+
 HOOK_ENTRY("security_path_mkdir")
 int hook_security_path_mkdir(ctx_t *ctx) {
     struct path *p = (struct path *)CTX_PARM1(ctx);
