@@ -12,6 +12,8 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SafeDevice represents a safe wrapper around NVML device operations.
@@ -365,6 +367,8 @@ func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
 
 	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
 		d.VirtualizationMode = virtualizationMode
+	} else if logLimiter.ShouldLog() {
+		log.Errorf("error getting device virtualization mode: %v", err)
 	}
 
 	return nil
