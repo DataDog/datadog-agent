@@ -127,8 +127,7 @@ Usage pattern in `MODULE.bazel`:
 
 ```python
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
-# TODO: simplify to //:go.work once all Go modules are migrated (see deps/go.MODULE.bazel)
-go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.from_file(go_work = "//:go.work")
 use_repo(go_deps, "com_github_some_dep", ...)
 ```
 
