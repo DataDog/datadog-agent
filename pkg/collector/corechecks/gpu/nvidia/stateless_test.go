@@ -256,16 +256,22 @@ func TestNewStatelessCollector(t *testing.T) {
 }
 
 func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
-	var maxClockInfoCalls int
+	var maxClockInfoCalls, virtualizationModeCalls int
 	device := setupMockDevice(t,
 		testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
 		testutil.WithCustomHook(func(device *mock.Device) {
+			device.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				virtualizationModeCalls++
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
+			}
 			device.GetMaxClockInfoFunc = func(nvml.ClockType) (uint32, nvml.Return) {
 				maxClockInfoCalls++
 				return 0, nvml.ERROR_UNKNOWN
 			}
 		}),
 	)
+	require.Equal(t, 1, virtualizationModeCalls, "virtualization mode should be cached during device initialization")
+	require.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, device.GetDeviceInfo().VirtualizationMode)
 
 	collector, err := newStatelessCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)

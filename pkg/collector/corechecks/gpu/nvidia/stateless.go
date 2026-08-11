@@ -490,12 +490,10 @@ func clockThrottleReasonMetrics(reasons uint64) []Metric {
 	return allMetrics
 }
 
-// maxClockInfoSample handles max clock metrics, which are not supported for vGPU devices.
-// Returning an unsupported API error lets filterSupportedAPIs remove this API from the
-// collector during initialization, so it is not retried on every collection cycle.
+// vGPU environments may return an error other than ERROR_NOT_SUPPORTED from GetMaxClockInfo,
+// so check the cached device virtualization mode before calling it.
 func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricName string) ([]Metric, uint64, error) {
-	virtMode, err := device.GetVirtualizationMode()
-	if err == nil && virtMode == nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+	if device.GetDeviceInfo().VirtualizationMode == nvml.GPU_VIRTUALIZATION_MODE_VGPU {
 		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMaxClockInfo", nvml.ERROR_NOT_SUPPORTED)
 	}
 

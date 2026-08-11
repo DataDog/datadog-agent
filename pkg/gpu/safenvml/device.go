@@ -143,11 +143,12 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion    uint32
-	UUID         string
-	Name         string
-	CoreCount    int
-	Architecture nvml.DeviceArchitecture
+	SMVersion          uint32
+	UUID               string
+	Name               string
+	CoreCount          int
+	Architecture       nvml.DeviceArchitecture
+	VirtualizationMode nvml.GpuVirtualizationMode
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -360,6 +361,10 @@ func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
 	d.Index, err = dev.GetIndex()
 	if err != nil {
 		return err
+	}
+
+	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
+		d.VirtualizationMode = virtualizationMode
 	}
 
 	return nil
