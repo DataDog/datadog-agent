@@ -327,7 +327,9 @@ fn env_u64(name: &str) -> Option<u64> {
 }
 
 fn env_bool(name: &str) -> Option<bool> {
-    env_string(name).and_then(|text| text.parse().ok())
+    env_string(name)
+        .as_deref()
+        .and_then(super::parse_agent_bool_string)
 }
 
 fn env_usize(name: &str) -> Option<usize> {
@@ -447,7 +449,8 @@ fn yaml_usize(root: &serde_yaml::Value, key: &str) -> Option<usize> {
 fn yaml_bool(root: &serde_yaml::Value, key: &str) -> Option<bool> {
     yaml_get(root, key).and_then(|value| match value {
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
-        serde_yaml::Value::String(text) => text.parse().ok(),
+        serde_yaml::Value::Number(number) => number.as_f64().map(|n| n != 0.0),
+        serde_yaml::Value::String(text) => super::parse_agent_bool_string(text),
         _ => None,
     })
 }
@@ -812,6 +815,48 @@ mod tests {
             normalize_secret_value("true\r\n", false),
             "true\r\n".to_string()
         );
+    }
+
+    #[test]
+    fn remove_trailing_line_break_honors_agent_bool_env_spelling() {
+        with_env_lock(|| {
+            clear_caches();
+            let dir = tempfile::tempdir().unwrap();
+            #[cfg(unix)]
+            let script = {
+                let path = dir.path().join("newline_secret_backend.sh");
+                std::fs::write(
+                    &path,
+                    "#!/bin/sh\ncat <<'EOF'\n{\"process_enabled\":{\"value\":\"true\\n\"}}\nEOF\n",
+                )
+                .unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            #[cfg(windows)]
+            let script = {
+                let path = dir.path().join("newline_secret_backend.cmd");
+                std::fs::write(
+                    &path,
+                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"process_enabled\\\":{\\\"value\\\":\\\"true`n\\\"}}'\"\r\n",
+                )
+                .unwrap();
+                path
+            };
+            let agent_yaml = dir.path().join("datadog.yaml");
+            std::fs::write(&agent_yaml, "# no secret backend in yaml\n").unwrap();
+            let _command = EnvGuard::set(
+                "DD_SECRET_BACKEND_COMMAND",
+                script.to_string_lossy().as_ref(),
+            );
+            let _strip = EnvGuard::set("DD_SECRET_BACKEND_REMOVE_TRAILING_LINE_BREAK", "1");
+
+            assert_eq!(
+                resolve_config_string("ENC[process_enabled]", agent_yaml.to_str().unwrap()),
+                "true"
+            );
+        });
     }
 
     #[test]
