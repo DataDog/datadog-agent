@@ -446,8 +446,9 @@ var DefaultProfiles = Map{
 			// SNMP community string (effectively a password).
 			// XML output: <snmp-community-string>...</snmp-community-string>
 			MkRedaction(`<snmp-community-string>.*?</snmp-community-string>`, WithReplacement("<snmp-community-string><secret hidden></snmp-community-string>")),
-			// Curly-brace output: snmp-community-string foo;
-			MkRedaction(`snmp-community-string\s+\S+;`, WithReplacement("snmp-community-string <secret hidden>;")),
+			// Curly-brace output: snmp-community-string foo; or, when the community
+			// contains whitespace, snmp-community-string "ops team secret";
+			MkRedaction(`snmp-community-string\s+("[^"]*"|\S+);`, WithReplacement("snmp-community-string <secret hidden>;")),
 		},
 	},
 
