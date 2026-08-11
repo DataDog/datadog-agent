@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -283,8 +284,8 @@ func secureRuntimeDir(outputDir string) error {
 }
 
 // runtimeDirComponents returns the absolute form of outputDir and every ancestor
-// up to the filesystem root, ordered leaf-first: index 0 is the leaf and the last
-// element is the filesystem root ("/").
+// up to the filesystem root, ordered root-first: index 0 is the filesystem root
+// ("/") and the last element is the leaf output directory.
 func runtimeDirComponents(outputDir string) ([]string, error) {
 	abs, err := filepath.Abs(outputDir)
 	if err != nil {
@@ -299,6 +300,8 @@ func runtimeDirComponents(outputDir string) ([]string, error) {
 		}
 		p = parent
 	}
+	// Collected leaf-first; reverse so the walk below can range root -> leaf.
+	slices.Reverse(components)
 	return components, nil
 }
 
@@ -337,8 +340,7 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 	// whether its failure is reclaimable.
 	belowStickyBoundary := false
 	inDedicatedSubtree := false
-	for i := len(components) - 1; i >= 0; i-- {
-		p := components[i]
+	for i, p := range components {
 		// A component named dedicatedDirName marks the start of the agent's own
 		// subtree; it and anything deeper may be repaired. Set this before the
 		// verify below so the datadog-agent component itself is repairable.
@@ -366,9 +368,9 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 		if !ok {
 			return false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
 		}
-		// index 0 is the leaf output directory, which is held to the stricter
-		// no-group/other-write rule (see verifyDirComponent).
-		if verr := verifyDirComponent(p, info.Mode(), stat.Uid, i == 0); verr != nil {
+		// The last component is the leaf output directory, which is held to the
+		// stricter no-group/other-write rule (see verifyDirComponent).
+		if verr := verifyDirComponent(p, info.Mode(), stat.Uid, i == len(components)-1); verr != nil {
 			// Reclaim only a real, wrong-owner/permission directory that is below
 			// the sticky boundary, inside the agent's dedicated subtree, and only
 			// as root. info.Mode().IsDir() is false for a symlink or a regular
