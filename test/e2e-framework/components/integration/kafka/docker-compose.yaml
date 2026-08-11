@@ -9,7 +9,7 @@
 # Datadog Agent (JMXFetch) can collect the bundled "kafka" JMX metrics.
 services:
   kafka:
-    image: confluentinc/cp-kafka:7.7.0
+    image: confluentinc/cp-kafka:7.9.8
     container_name: kafka-lab-broker
     # Publish the plaintext broker port and the JMX port on the host so the
     # host-resident Datadog Agent (JMXFetch) can reach JMX on localhost:9999.
@@ -39,7 +39,7 @@ services:
   # One-shot job: create the seed topics. Shares the broker network namespace so
   # localhost:9092 reaches the broker (advertised listener is localhost).
   kafka-init:
-    image: confluentinc/cp-kafka:7.7.0
+    image: confluentinc/cp-kafka:7.9.8
     container_name: kafka-lab-init
     network_mode: "service:kafka"
     depends_on:
@@ -59,7 +59,7 @@ services:
   # topics in a loop so the broker's JMX beans (producer/consumer/log/network/
   # controller domains) show ongoing activity for JMXFetch to observe.
   kafka-load:
-    image: confluentinc/cp-kafka:7.7.0
+    image: confluentinc/cp-kafka:7.9.8
     container_name: kafka-lab-load
     network_mode: "service:kafka"
     depends_on:
