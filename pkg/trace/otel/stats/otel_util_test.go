@@ -523,7 +523,7 @@ func TestOTLPTracesToConcentratorInputsSkipsResourceWhenSpanIsClientComputed(t *
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
 	attributesTranslator, err := attributes.NewTranslator(set)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	traces := ptrace.NewTraces()
 	computedResourceSpans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
