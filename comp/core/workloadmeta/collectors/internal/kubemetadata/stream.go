@@ -282,6 +282,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 	}
 
 	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
+	resolvedTargets, _ := p.dcaStream.getResolvedTargets(pod.Namespace, pod.Name)
 
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
@@ -295,6 +296,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 				// the kubelet collector
 			},
 			KubeServices:         services,
+			ResolvedTargets:      resolvedTargets,
 			NamespaceLabels:      nsLabels,
 			NamespaceAnnotations: nsAnnotations,
 		},
@@ -466,7 +468,8 @@ type dcaStreamClient struct {
 	cfg      configmodel.Reader
 
 	mu                   sync.RWMutex
-	podServices          map[string][]string          // "namespace/podName" -> services
+	podServices          map[string][]string // "namespace/podName" -> services
+	resolvedTargets      map[string][]workloadmeta.KubernetesResolvedTarget
 	namespaces           map[string]namespaceMetadata // namespace name -> labels/annotations
 	kueueQueues          map[string]*workloadmeta.KubernetesKueueQueue
 	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
@@ -488,6 +491,7 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		nodeName:             nodeName,
 		cfg:                  cfg,
 		podServices:          make(map[string][]string),
+		resolvedTargets:      make(map[string][]workloadmeta.KubernetesResolvedTarget),
 		namespaces:           make(map[string]namespaceMetadata),
 		kueueQueues:          make(map[string]*workloadmeta.KubernetesKueueQueue),
 		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
@@ -544,6 +548,14 @@ func (sc *dcaStreamClient) getServices(namespace, podName string) ([]string, boo
 	key := namespace + "/" + podName
 	svcs, ok := sc.podServices[key]
 	return svcs, ok
+}
+
+func (sc *dcaStreamClient) getResolvedTargets(namespace, podName string) ([]workloadmeta.KubernetesResolvedTarget, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	targets, ok := sc.resolvedTargets[namespace+"/"+podName]
+	return targets, ok
 }
 
 func (sc *dcaStreamClient) getNamespaceMetadata(namespace string) (labels, annotations map[string]string, found bool) {
@@ -719,6 +731,13 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.podServices = newPodServices
 
+		newResolvedTargets := make(map[string][]workloadmeta.KubernetesResolvedTarget, len(resp.ResolvedTargets))
+		for _, podTargets := range resp.ResolvedTargets {
+			key := podTargets.Namespace + "/" + podTargets.PodName
+			newResolvedTargets[key] = workloadmetaResolvedTargets(podTargets.Targets)
+		}
+		sc.resolvedTargets = newResolvedTargets
+
 		newNamespaces := make(map[string]namespaceMetadata, len(resp.NamespaceMetadata))
 		for _, ns := range resp.NamespaceMetadata {
 			newNamespaces[ns.Namespace] = namespaceMetadata{
@@ -783,7 +802,7 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.ResolvedTargets) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -797,6 +816,23 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 			delete(sc.podServices, key)
 		default:
 			log.Errorf("Unknown event type %d for pod-service mapping %s", mapping.Type, key)
+			continue
+		}
+		if sc.pendingUpdate.updatedPods == nil {
+			sc.pendingUpdate.updatedPods = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedPods[key] = struct{}{}
+	}
+
+	for _, podTargets := range resp.ResolvedTargets {
+		key := podTargets.Namespace + "/" + podTargets.PodName
+		switch podTargets.Type {
+		case pb.KubeMetadataEventType_SET:
+			sc.resolvedTargets[key] = workloadmetaResolvedTargets(podTargets.Targets)
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.resolvedTargets, key)
+		default:
+			log.Errorf("Unknown event type %d for resolved workload targets %s", podTargets.Type, key)
 			continue
 		}
 		if sc.pendingUpdate.updatedPods == nil {
@@ -890,9 +926,24 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedKueueWorkloads[workloadID] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 {
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.ResolvedTargets) > 0 {
 		sc.notifyUpdate()
 	}
+}
+
+func workloadmetaResolvedTargets(targets []*pb.ResolvedTarget) []workloadmeta.KubernetesResolvedTarget {
+	resolved := make([]workloadmeta.KubernetesResolvedTarget, 0, len(targets))
+	for _, target := range targets {
+		resolved = append(resolved, workloadmeta.KubernetesResolvedTarget{
+			Group:     target.Group,
+			Version:   target.Version,
+			Kind:      target.Kind,
+			Namespace: target.Namespace,
+			Name:      target.Name,
+			ID:        target.Uid,
+		})
+	}
+	return resolved
 }
 
 func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQueue {

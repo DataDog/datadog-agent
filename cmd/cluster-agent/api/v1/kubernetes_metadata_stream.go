@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	instrumentationtargets "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/targets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -88,11 +89,14 @@ type metadataSnapshot struct {
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
 // labels/annotations from the DCA to node agents.
 type KubeMetadataStreamServer struct {
-	store *controllers.MetaBundleStore
-	wmeta workloadmeta.Component
+	store    *controllers.MetaBundleStore
+	wmeta    workloadmeta.Component
+	resolver *instrumentationtargets.Resolver
 
-	metadataMutex sync.RWMutex
-	metadata      metadataSnapshot
+	metadataMutex   sync.RWMutex
+	metadata        metadataSnapshot
+	resolvedTargets map[string]resolvedTargetsSnapshot
+	podNodes        map[string]string
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
@@ -101,13 +105,19 @@ type KubeMetadataStreamServer struct {
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
-func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component) *KubeMetadataStreamServer {
-	return &KubeMetadataStreamServer{
+func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component, resolvers ...*instrumentationtargets.Resolver) *KubeMetadataStreamServer {
+	srv := &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
 		metadata:             newMetadataSnapshot(),
+		resolvedTargets:      make(map[string]resolvedTargetsSnapshot),
+		podNodes:             make(map[string]string),
 		namespaceSubscribers: make(map[string][]chan struct{}),
 	}
+	if len(resolvers) > 0 {
+		srv.resolver = resolvers[0]
+	}
+	return srv
 }
 
 func newMetadataSnapshot() metadataSnapshot {
@@ -159,7 +169,8 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
 	lastSentMetadataState := srv.buildMetadataSnapshot()
-	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState)
+	lastSentResolvedTargetsState := srv.buildResolvedTargetsSnapshot(nodeName)
+	initialResp := fullStateResponse(lastSentPodServicesState, lastSentMetadataState, lastSentResolvedTargetsState)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
 		tracer.Tag("node_name", nodeName),
@@ -211,10 +222,13 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 		case <-namespacesNotifyCh:
 			currentMetadataState := srv.buildMetadataSnapshot()
 			metadataDiff := computeMetadataDiff(lastSentMetadataState, currentMetadataState)
-			if metadataDiff.isEmpty() {
+			currentResolvedTargetsState := srv.buildResolvedTargetsSnapshot(nodeName)
+			resolvedTargetsDiff := computeResolvedTargetsDiff(lastSentResolvedTargetsState, currentResolvedTargetsState)
+			if metadataDiff.isEmpty() && len(resolvedTargetsDiff) == 0 {
 				continue
 			}
 			resp := metadataDiff.response(false)
+			resp.ResolvedTargets = resolvedTargetsDiff
 			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
 				tracer.ResourceName("sendDiff"),
 				tracer.Tag("node_name", nodeName),
@@ -229,6 +243,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			}
 			sendSpan.Finish()
 			lastSentMetadataState = currentMetadataState
+			lastSentResolvedTargetsState = currentResolvedTargetsState
 			ticker.Reset(keepAliveInterval)
 
 		case <-ticker.C:
@@ -250,35 +265,45 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 }
 
 func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Event) {
-	srv.metadataMutex.Lock()
-	defer srv.metadataMutex.Unlock()
-
 	changed := false
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
+		case *workloadmeta.KubernetesPod:
+			srv.processPodEvent(event.Type, entity)
+			continue
 		case *workloadmeta.KubernetesMetadata:
+			srv.metadataMutex.Lock()
 			if srv.metadata.processNamespaceEvent(event.Type, entity) {
 				changed = true
 			}
+			srv.metadataMutex.Unlock()
 		case *workloadmeta.KubernetesKueueQueue:
+			srv.metadataMutex.Lock()
 			if srv.metadata.processKueueQueueEvent(event.Type, entity) {
 				changed = true
 			}
+			srv.metadataMutex.Unlock()
 		case *workloadmeta.KubernetesKueueResourceFlavor:
+			srv.metadataMutex.Lock()
 			if srv.metadata.processKueueResourceFlavorEvent(event.Type, entity) {
 				changed = true
 			}
+			srv.metadataMutex.Unlock()
 		case *workloadmeta.KubernetesKueueWorkload:
+			srv.metadataMutex.Lock()
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
 				changed = true
 			}
+			srv.metadataMutex.Unlock()
 		default:
 			log.Errorf("Unexpected workloadmeta entity %T in kube metadata stream", event.Entity)
 		}
 	}
 
 	if changed {
+		srv.metadataMutex.Lock()
 		srv.notifyNamespaceSubscribers()
+		srv.metadataMutex.Unlock()
 	}
 }
 
@@ -483,7 +508,7 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
+	).AddKind(workloadmeta.KindKubernetesPod).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -503,7 +528,7 @@ func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) 
 
 // fullStateResponse creates a KubeMetadataStreamResponse with
 // is_full_state=true containing all current mappings and metadata.
-func fullStateResponse(podServices map[string]podServiceEntry, metadata metadataSnapshot) *pb.KubeMetadataStreamResponse {
+func fullStateResponse(podServices map[string]podServiceEntry, metadata metadataSnapshot, resolvedTargetSnapshots ...resolvedTargetsSnapshot) *pb.KubeMetadataStreamResponse {
 	mappings := make([]*pb.PodServiceMapping, 0, len(podServices))
 	for _, entry := range podServices {
 		mappings = append(mappings, &pb.PodServiceMapping{
@@ -516,6 +541,9 @@ func fullStateResponse(podServices map[string]podServiceEntry, metadata metadata
 
 	resp := computeMetadataDiff(newMetadataSnapshot(), metadata).response(true)
 	resp.Mappings = mappings
+	if len(resolvedTargetSnapshots) > 0 {
+		resp.ResolvedTargets = computeResolvedTargetsDiff(nil, resolvedTargetSnapshots[0])
+	}
 	return resp
 }
 

@@ -116,6 +116,13 @@ func TestShouldHavePodStore(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			name: "custom instrumentation workload targets",
+			cfg: map[string]interface{}{
+				"instrumentation_crd_controller.custom_workload_targets": []map[string]interface{}{{"kind": "CloneSet"}},
+			},
+			expected: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -215,6 +222,13 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 				"autoscaling.workload.enabled": true,
 			},
 			expected: false,
+		},
+		{
+			name: "custom instrumentation workload targets",
+			cfg: map[string]interface{}{
+				"instrumentation_crd_controller.custom_workload_targets": []map[string]interface{}{{"kind": "CloneSet"}},
+			},
+			expected: true,
 		},
 	}
 

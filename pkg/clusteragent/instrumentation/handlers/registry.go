@@ -10,6 +10,7 @@ package handlers
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/targets"
 )
 
 // Deps contains dependencies used to construct DatadogInstrumentation product handlers.
@@ -26,6 +27,9 @@ type Deps struct {
 	// ServiceCheckTemplateStore holds check templates for Service-targeted DDI CRs.
 	// Shared with the endpoint slices CR config provider that resolves templates into endpoint configs.
 	ServiceCheckTemplateStore *ServiceCheckTemplateStore
+
+	// TargetRegistry contains built-in and configured workload target kinds.
+	TargetRegistry *targets.Registry
 }
 
 // DefaultHandlers returns the product handlers registered for the shared controller.
