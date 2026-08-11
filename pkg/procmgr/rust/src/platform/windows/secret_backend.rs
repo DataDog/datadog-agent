@@ -42,6 +42,7 @@ use super::baseline_env_vars_from_token;
 use super::legacy_scm_env::build_secret_backend_env_vars;
 use super::resolve_executable::resolve_executable_in_env;
 use super::secret_backend_rights;
+use super::win_handle::WinHandle;
 use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::spawn::user_profile::UserProfileGuard;
 use super::spawn::win32::{build_windows_command_line, duplicate_primary_token, env_vars_to_wide_block};
@@ -270,7 +271,7 @@ fn spawn_with_pipes(
     // Child ends are inherited by the process; close our copies.
     drop(stdin.child);
     drop(stdout.child);
-    drop(WinHandle(stderr));
+    drop(WinHandle::new(stderr));
 
     if ok == 0 {
         bail!(
@@ -285,7 +286,7 @@ fn spawn_with_pipes(
     }
 
     Ok(CapturedChild {
-        process: WinHandle(pi.hProcess),
+        process: WinHandle::new(pi.hProcess),
         stdin: stdin.parent,
         stdout: stdout.parent,
     })
@@ -314,7 +315,7 @@ impl Pipe {
         set_inheritable(child_read)?;
         Ok(Self {
             parent: unsafe { std::fs::File::from_raw_handle(parent_write) },
-            child: WinHandle(child_read),
+            child: WinHandle::new(child_read),
         })
     }
 
@@ -323,7 +324,7 @@ impl Pipe {
         set_inheritable(child_write)?;
         Ok(Self {
             parent: unsafe { std::fs::File::from_raw_handle(parent_read) },
-            child: WinHandle(child_write),
+            child: WinHandle::new(child_write),
         })
     }
 }
@@ -373,37 +374,10 @@ fn clear_inheritable(handle: HANDLE) -> Result<()> {
     Ok(())
 }
 
-struct WinHandle(HANDLE);
-
-// SAFETY: Win32 process handles are kernel objects safe to use from a worker thread.
-unsafe impl Send for WinHandle {}
-
 struct SendProcessHandle(HANDLE);
 
 // SAFETY: Win32 process handles are kernel objects safe to send to a worker thread.
 unsafe impl Send for SendProcessHandle {}
-
-impl WinHandle {
-    fn as_handle(&self) -> HANDLE {
-        self.0
-    }
-
-    fn raw(self) -> HANDLE {
-        let handle = self.0;
-        std::mem::forget(self);
-        handle
-    }
-}
-
-impl Drop for WinHandle {
-    fn drop(&mut self) {
-        if !self.0.is_null() {
-            unsafe {
-                CloseHandle(self.0);
-            }
-        }
-    }
-}
 
 fn terminate_process(process: HANDLE) {
     unsafe {

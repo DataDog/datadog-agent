@@ -3,15 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Windows child spawning by spawn profile (`CreateProcessAsUserW` vs inherited LocalSystem).
+//! Windows child spawning by spawn profile (`CreateProcessAsUserW`).
 
-mod command;
-pub(crate) mod logon;
+mod logon;
 mod managed;
 mod primary_token;
 mod privileged;
-mod profiles;
 mod stdio;
+mod suspended;
 pub(crate) mod user_profile;
 pub(crate) mod win32;
 

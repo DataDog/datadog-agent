@@ -4,20 +4,22 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::{info, warn};
+use log::info;
 
 use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 
 use super::super::JobObject;
+use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
+use super::primary_token::spawn_as_primary_token;
 use super::privileged;
-use super::profiles::{spawn_agent_profile, spawn_privileged_profile};
 
 /// Build a [`SpawnRequest`], spawn the child, and assign it to a supervision job.
 ///
 /// Post-spawn `AssignProcessToJobObject` runs here (not in profile modules) because
 /// `CreateProcessAsUserW` cannot pass `PROC_THREAD_ATTRIBUTE_JOB_LIST` under impersonation.
+/// Children are created suspended and resumed only after job assignment.
 ///
 /// Caller must hold [`super::super::console_lock`] on Windows (see `ManagedProcess::try_spawn`).
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
@@ -35,34 +37,20 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
     let job = JobObject::new()
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
-    let (handle, user_profile) = match profile {
-        SpawnProfile::Agent => spawn_agent_profile(process_name, &request)?,
-        SpawnProfile::Privileged => (spawn_privileged_profile(process_name, request)?, None),
+    let account = match profile {
+        SpawnProfile::Agent => resolve_agent_account().with_context(|| {
+            format!("[{process_name}] resolve agent service account for spawn")
+        })?,
+        SpawnProfile::Privileged => AgentAccount::LocalSystem,
     };
+
+    let (suspended, user_profile) = spawn_as_primary_token(process_name, &request, &account)
+        .with_context(|| format!("[{process_name}] CreateProcessAsUserW spawn failed"))?;
     if let Some(profile) = user_profile {
         process.set_user_profile_guard(profile);
     }
 
-    assign_supervision_job(process, &handle, job)?;
-    Ok(handle)
-}
-
-/// Assign the child to a pre-created job and store it on the process only when assignment succeeds.
-///
-/// Assignment failure is best-effort: an empty job would make `force_kill`'s
-/// `TerminateJobObject` a no-op while skipping the `TerminateProcess` fallback.
-fn assign_supervision_job(
-    process: &mut ManagedProcess,
-    handle: &ProcessHandle,
-    job: JobObject,
-) -> Result<()> {
-    let Some(pid) = handle.id() else {
-        return Ok(());
-    };
-    let process_name = process.name();
-    match job.assign_process(pid) {
-        Ok(()) => process.set_job_object(job),
-        Err(e) => warn!("[{process_name}] failed to assign to job object: {e:#}"),
-    }
-    Ok(())
+    suspended
+        .supervise(process, job)
+        .with_context(|| format!("[{process_name}] start supervised child"))
 }

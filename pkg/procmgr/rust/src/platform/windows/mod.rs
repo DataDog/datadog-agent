@@ -18,6 +18,7 @@ mod secret_backend_rights;
 mod sid;
 mod spawn;
 mod wide;
+mod win_handle;
 
 pub(crate) use legacy_scm_env::core_agent_scm_env_var;
 pub(crate) use legacy_scm_env::refresh_core_agent_scm_environment;
@@ -131,9 +132,8 @@ impl JobObject {
 
     /// Assign a process (by PID) to this Job Object post-spawn.
     ///
-    /// Prefer `PROC_THREAD_ATTRIBUTE_JOB_LIST` at `CreateProcessAsUserW` time when
-    /// possible. When using this fallback, call before the child spawns its own
-    /// children for complete coverage.
+    /// Managed children are created with `CREATE_SUSPENDED` and resumed only after
+    /// this assignment so early descendants inherit job membership.
     pub fn assign_process(&self, pid: u32) -> Result<()> {
         unsafe {
             let proc_handle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
@@ -210,13 +210,6 @@ fn detach_console() {
         let _ = FreeConsole();
     }
     reset_std_handles();
-}
-
-/// Give the child its own hidden console plus a new process group so
-/// `GenerateConsoleCtrlEvent` / `AttachConsole` graceful shutdown can work (null stdio alone
-/// often leaves no attachable console).
-pub fn setup_process_group(cmd: &mut tokio::process::Command) {
-    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NEW_CONSOLE | CREATE_NO_WINDOW);
 }
 
 /// While injecting CTRL_BREAK for a child, treat any console control delivered to this process as

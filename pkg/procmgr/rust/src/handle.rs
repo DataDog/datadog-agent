@@ -10,12 +10,8 @@ use std::process::ExitStatus;
 use tokio::process::Child;
 
 #[cfg(windows)]
-use tokio::process::Child as TokioChild;
-
-#[cfg(windows)]
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 
-/// Owned Win32 process handle for token-based spawns (`CreateProcessAsUserW`).
 #[cfg(windows)]
 struct OwnedProcessHandle {
     handle: HANDLE,
@@ -50,24 +46,15 @@ impl Drop for OwnedProcessHandle {
 /// Platform-agnostic process handle for procmgr supervision.
 ///
 /// On Unix we wrap `tokio::process::Child`.
-/// On Windows we also support a raw process handle path for token-based
-/// spawning (e.g. `CreateProcessAsUserW`), while preserving the same
-/// `wait`/`kill` interface for the supervisor.
+/// On Windows we wrap a raw process handle from `CreateProcessAsUserW`.
 pub struct ProcessHandle {
     #[cfg(not(windows))]
     child: Child,
 
     #[cfg(windows)]
-    inner: ProcessHandleInner,
-}
-
-#[cfg(windows)]
-enum ProcessHandleInner {
-    Tokio(Box<TokioChild>),
-    Raw {
-        pid: u32,
-        process_handle: OwnedProcessHandle,
-    },
+    pid: u32,
+    #[cfg(windows)]
+    process_handle: OwnedProcessHandle,
 }
 
 impl ProcessHandle {
@@ -77,20 +64,11 @@ impl ProcessHandle {
     }
 
     #[cfg(windows)]
-    pub fn from_child(child: TokioChild) -> Self {
-        Self {
-            inner: ProcessHandleInner::Tokio(Box::new(child)),
-        }
-    }
-
-    #[cfg(windows)]
     pub fn from_raw(pid: u32, process_handle: HANDLE) -> Self {
         Self {
-            inner: ProcessHandleInner::Raw {
-                pid,
-                process_handle: OwnedProcessHandle {
-                    handle: process_handle,
-                },
+            pid,
+            process_handle: OwnedProcessHandle {
+                handle: process_handle,
             },
         }
     }
@@ -101,9 +79,8 @@ impl ProcessHandle {
             self.child.id()
         }
         #[cfg(windows)]
-        match &self.inner {
-            ProcessHandleInner::Tokio(child) => child.id(),
-            ProcessHandleInner::Raw { pid, .. } => Some(*pid),
+        {
+            Some(self.pid)
         }
     }
 
@@ -114,12 +91,7 @@ impl ProcessHandle {
         }
         #[cfg(windows)]
         {
-            match &mut self.inner {
-                ProcessHandleInner::Tokio(child) => Ok(child.wait().await?),
-                ProcessHandleInner::Raw { process_handle, .. } => {
-                    raw_wait_exit_code(process_handle.get() as usize).await
-                }
-            }
+            raw_wait_exit_code(self.process_handle.get() as usize).await
         }
     }
 
@@ -131,15 +103,7 @@ impl ProcessHandle {
         }
         #[cfg(windows)]
         {
-            match &mut self.inner {
-                ProcessHandleInner::Tokio(child) => {
-                    child.kill().await?;
-                    Ok(())
-                }
-                ProcessHandleInner::Raw { process_handle, .. } => {
-                    raw_terminate_process(process_handle.get())
-                }
-            }
+            raw_terminate_process(self.process_handle.get())
         }
     }
 }
@@ -156,7 +120,7 @@ async fn raw_wait_exit_code(process_handle: usize) -> Result<ExitStatus> {
 
     // Wait synchronously on the blocking pool so the future stays Send (required by
     // supervisor tasks spawned via tokio::spawn). The process HANDLE remains owned by
-    // ProcessHandleInner::Raw for the duration of this wait.
+    // ProcessHandle for the duration of this wait.
     let exit_code = tokio::task::spawn_blocking(move || -> Result<u32> {
         let process_handle = process_handle as HANDLE;
         let wait_result = unsafe { WaitForSingleObject(process_handle, INFINITE) };

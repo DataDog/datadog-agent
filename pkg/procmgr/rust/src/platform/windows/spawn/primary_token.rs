@@ -4,23 +4,24 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Result, bail};
+use std::mem;
 use std::os::windows::ffi::OsStrExt;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessAsUserW, GetCurrentProcess, OpenProcessToken, PROCESS_INFORMATION,
-    STARTF_USESTDHANDLES, STARTUPINFOW,
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
+    CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW, GetCurrentProcess, OpenProcessToken,
+    PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
 };
 
-use crate::handle::ProcessHandle;
 use crate::spawn::SpawnRequest;
 
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
 use super::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
+use super::suspended::SuspendedChild;
 use super::user_profile::UserProfileGuard;
 use super::win32::{
     build_windows_command_line, duplicate_primary_token, env_block_from_baseline_plus_overrides,
@@ -30,7 +31,7 @@ pub(super) fn spawn_as_primary_token(
     process_name: &str,
     request: &SpawnRequest,
     account: &AgentAccount,
-) -> Result<(ProcessHandle, Option<UserProfileGuard>)> {
+) -> Result<(SuspendedChild, Option<UserProfileGuard>)> {
     // Map stdio to explicit Win32 handles for CreateProcessAsUserW.
     let stdout_handle = map_stdio_setting(
         process_name,
@@ -83,14 +84,15 @@ pub(super) fn spawn_as_primary_token(
     )?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
-    let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
-    si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
+    let mut si: STARTUPINFOW = unsafe { mem::zeroed() };
+    si.cb = mem::size_of::<STARTUPINFOW>() as u32;
     si.dwFlags = STARTF_USESTDHANDLES;
     si.hStdInput = stdin_handle.raw();
     si.hStdOutput = stdout_handle.raw();
     si.hStdError = stderr_handle.raw();
 
-    let dw_creation_flags = CREATE_NEW_PROCESS_GROUP
+    let dw_creation_flags = CREATE_SUSPENDED
+        | CREATE_NEW_PROCESS_GROUP
         | CREATE_NEW_CONSOLE
         | CREATE_NO_WINDOW
         | CREATE_UNICODE_ENVIRONMENT;
@@ -98,8 +100,8 @@ pub(super) fn spawn_as_primary_token(
     // Run as the supervisor (LocalSystem): pass the target primary token via `hToken`.
     // Do not impersonate here — a job object handle created by LocalSystem is not valid
     // in an impersonated thread context (CreateProcessAsUserW returns ERROR_INVALID_HANDLE).
-    // Job assignment is done post-spawn by the caller.
-    let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+    // Spawn suspended; the caller assigns the job and resumes the initial thread.
+    let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {
         CreateProcessAsUserW(
             primary_token_guard.raw(),
@@ -127,12 +129,8 @@ pub(super) fn spawn_as_primary_token(
         );
     }
 
-    unsafe {
-        let _ = CloseHandle(pi.hThread);
-    }
-
     Ok((
-        ProcessHandle::from_raw(pi.dwProcessId, pi.hProcess),
+        SuspendedChild::new(pi.dwProcessId, pi.hProcess, pi.hThread),
         profile_guard,
     ))
 }
