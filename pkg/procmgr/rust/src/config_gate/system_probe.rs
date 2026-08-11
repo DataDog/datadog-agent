@@ -10,8 +10,9 @@
 //! Mirrors `load()` in `pkg/system-probe/config/config.go` and the NPM back-compat
 //! rule in `pkg/system-probe/config/adjust.go`. Sk-tracer disables USM in
 //! `pkg/system-probe/config/adjust_npm.go`; discovery conflicts in
-//! `pkg/system-probe/config/adjust_discovery.go`. Module knob resolution uses fleet →
-//! env → YAML ([`super::env_bindings`], `pkg/config/model/types.go` precedence).
+//! `pkg/system-probe/config/adjust_discovery.go`. Module knob resolution uses
+//! highest-priority configured source among fleet, secret (pre-fleet layers only),
+//! env, and YAML ([`super::env_bindings`], `pkg/config/model/types.go` precedence).
 //!
 //! **When module enablement changes in Go, update `derived_enabled` below.**
 
