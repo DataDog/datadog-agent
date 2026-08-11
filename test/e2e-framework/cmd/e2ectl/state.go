@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -17,6 +18,12 @@ import (
 // E2E_ENV_FILE. e2ectl only adds a writer/inspector on top; the format
 // itself is unchanged from what cmd/envctl wrote.
 type envState map[string]json.RawMessage
+
+// sourceKey is state.go's own reserved metadata entry recording the
+// absolute path to the YAML TestDefinition that produced this state file,
+// so the dashboard (dashboard.go, Task 5) can map a discovered state file
+// back to its config without a separate registry.
+const sourceKey = "_source"
 
 // readStateFile reads the state file at path, returning an empty state if
 // it doesn't exist yet (a fresh run before any stage has completed).
@@ -39,6 +46,9 @@ func readStateFile(path string) (envState, error) {
 // writeStateFileAtomic writes st to path via a temp file + rename, so a
 // crash mid-write never leaves a corrupted/partial state file behind.
 func writeStateFileAtomic(path string, st envState) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return err
@@ -66,4 +76,27 @@ func stagesCompleted(st envState) (provisioned, installed bool) {
 	}
 	_, installed = st["agent"]
 	return provisioned, installed
+}
+
+// sourcePath returns st's recorded "_source" entry, if present.
+func sourcePath(st envState) (string, bool) {
+	raw, ok := st[sourceKey]
+	if !ok {
+		return "", false
+	}
+	var p string
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return "", false
+	}
+	return p, true
+}
+
+// setSourcePath records path as st's "_source" entry.
+func setSourcePath(st envState, path string) error {
+	raw, err := json.Marshal(path)
+	if err != nil {
+		return err
+	}
+	st[sourceKey] = raw
+	return nil
 }

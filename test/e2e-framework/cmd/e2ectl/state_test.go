@@ -63,3 +63,27 @@ func TestStagesCompleted(t *testing.T) {
 		})
 	}
 }
+
+func TestSourcePathRoundTrip(t *testing.T) {
+	st := envState{}
+	require.NoError(t, setSourcePath(st, "/abs/path/to/config.yaml"))
+
+	got, ok := sourcePath(st)
+	require.True(t, ok)
+	assert.Equal(t, "/abs/path/to/config.yaml", got)
+}
+
+func TestSourcePathMissing(t *testing.T) {
+	_, ok := sourcePath(envState{})
+	assert.False(t, ok)
+}
+
+func TestWriteStateFileAtomicCreatesParentDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "dir", "state.json")
+
+	require.NoError(t, writeStateFileAtomic(path, envState{"kubernetesCluster": json.RawMessage(`{}`)}))
+
+	got, err := readStateFile(path)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{}`, string(got["kubernetesCluster"]))
+}

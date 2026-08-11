@@ -58,7 +58,7 @@ func parseStage(s string) (stage, error) {
 // target requires, skipping stages the state file already reflects. If
 // target is nil, it prompts interactively for how far to go — the menu
 // adapts to which stages are already done.
-func runLifecycle(ctx context.Context, def TestDefinition, statePath string, target *stage) error {
+func runLifecycle(ctx context.Context, def TestDefinition, configPath, statePath string, target *stage) error {
 	st, err := readStateFile(statePath)
 	if err != nil {
 		return fmt.Errorf("reading state file %s: %w", statePath, err)
@@ -75,7 +75,7 @@ func runLifecycle(ctx context.Context, def TestDefinition, statePath string, tar
 	provisioned, installed := stagesCompleted(st)
 
 	if !provisioned {
-		if err := doProvision(ctx, def, statePath); err != nil {
+		if err := doProvision(ctx, def, configPath, statePath); err != nil {
 			return err
 		}
 	} else {
@@ -168,7 +168,7 @@ func promptForStage(st envState, def TestDefinition) (stage, error) {
 	}
 }
 
-func doProvision(ctx context.Context, def TestDefinition, statePath string) error {
+func doProvision(ctx context.Context, def TestDefinition, configPath, statePath string) error {
 	cfg, err := def.provisionConfig()
 	if err != nil {
 		return err
@@ -184,9 +184,15 @@ func doProvision(ctx context.Context, def TestDefinition, statePath string) erro
 		return err
 	}
 
-	st := make(envState, len(resources))
+	st, err := readStateFile(statePath)
+	if err != nil {
+		return fmt.Errorf("reading state file %s: %w", statePath, err)
+	}
 	for k, v := range resources {
 		st[k] = v
+	}
+	if err := setSourcePath(st, configPath); err != nil {
+		return err
 	}
 	if err := writeStateFileAtomic(statePath, st); err != nil {
 		return err

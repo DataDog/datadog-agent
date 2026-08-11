@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "e2ectl_lib",
+    srcs = [
+        "config.go",
+        "destroy.go",
+        "main.go",
+        "provisioners.go",
+        "state.go",
+        "wizard.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//test/e2e-framework/testing/installers",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/local/kubernetes/kindinfra",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_golang_x_term//:term",
+    ],
+)
+
+go_binary(
+    name = "e2ectl",
+    embed = [":e2ectl_lib"],
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "e2ectl_test",
+    srcs = [
+        "config_test.go",
+        "state_test.go",
+    ],
+    embed = [":e2ectl_lib"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
