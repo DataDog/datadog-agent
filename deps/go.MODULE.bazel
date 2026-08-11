@@ -567,15 +567,10 @@ go_deps.module_override(
 # the absolute, per-invocation sandbox path (.../processwrapper-sandbox/<N>/...). That
 # makes zstd.a non-reproducible build-to-build, so every test linking it always misses
 # the remote cache. -DNDEBUG drops the asserts (also a perf win), yielding a stable,
-# path-independent object. Both the modern fork and the older github.com/DataDog/zstd_0
-# (a separate module pulled in by the OTel collector components) need the same treatment.
+# path-independent object.
 go_deps.gazelle_override(
     directives = ["gazelle:go_copts -DNDEBUG"],
     path = "github.com/DataDog/zstd",
-)
-go_deps.gazelle_override(
-    directives = ["gazelle:go_copts -DNDEBUG"],
-    path = "github.com/DataDog/zstd_0",
 )
 
 # sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
