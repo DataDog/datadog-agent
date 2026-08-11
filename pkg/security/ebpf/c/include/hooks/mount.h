@@ -346,12 +346,18 @@ int hook_make_visible(ctx_t *ctx) {
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
+    u32 ns_inum = get_mount_mount_ns_inum(newmnt);
 
     if (syscall->type == EVENT_MOUNT) {
-        // attach_recursive_mnt is the only other hook covering plain mounts and it cannot be trusted
+        // copy_tree attaches the copies of a recursive bind mount before the mount itself is made visible, so
+        // we skip these copies here, commit_tree will call us again with the mount the syscall was issued for,
+        // once it joined the namespace. (ns_inum == 0 because the copies aren't part of any namespace at this point).
+        if (!ns_inum) {
+            return 0;
+        }
+        // attach_recursive_mnt is the only other hook covering regular mount syscalls and it cannot be trusted
         // since 6.18: its arguments were replaced by a pinned_mountpoint and the compiler usually
-        // leaves only an ISRA clone of it. commit_tree calls us once per propagated copy, the first
-        // one being the mount the syscall was issued for, so take it and re-read its fields here.
+        // leaves an ISRA clone of it. It records the same mount as we do here, but only a older kernel versions (< 6.18).
         if (syscall->mount.newmnt && syscall->mount.newmnt != newmnt) {
             return 0;
         }
@@ -360,7 +366,7 @@ int hook_make_visible(ctx_t *ctx) {
         return 0;
     }
 
-    syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
+    syscall->mount.ns_inum = ns_inum;
     syscall->mount.newmnt  = newmnt;
     syscall->mount.parent  = get_mount_parent(newmnt);
     struct mountpoint *mp  = get_mount_mountpoint(newmnt);
