@@ -110,6 +110,21 @@ func GetServiceStatus(host *components.RemoteHost, service string) (string, erro
 	return strings.TrimSpace(out), err
 }
 
+// GetServiceStatusOrAbsent returns the service status. If the service is not installed,
+// present is false and status is empty.
+func GetServiceStatusOrAbsent(host *components.RemoteHost, service string) (status string, present bool, err error) {
+	cmd := fmt.Sprintf(`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { Write-Output 'Absent' } else { Write-Output $s.Status }`, service)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return "", false, err
+	}
+	out = strings.TrimSpace(out)
+	if strings.EqualFold(out, "Absent") {
+		return "", false, nil
+	}
+	return out, true, nil
+}
+
 // StopService stops the service.
 // It retries on failure because Windows SCM can transiently return CouldNotStopService
 // while child processes or tooling (e.g. debuggers) delay shutdown.

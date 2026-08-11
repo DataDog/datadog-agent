@@ -211,6 +211,13 @@ var (
 		PIDDir:           "",
 		Stable:           true,
 	}
+	windowsProcessCodegenData = installerTemplateData{
+		InstallDir:       "__PROCESS_INSTALL_ROOT__",
+		EtcDir:           "__PROCESS_ETC_ROOT__",
+		FleetPoliciesDir: "__PROCESS_FLEET_POLICIES_DIR__",
+		PIDDir:           "__PROCESS_INSTALL_ROOT__",
+		Stable:           true,
+	}
 
 	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
 	// and -nocap (instead of -nc)
@@ -232,6 +239,7 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-process.yaml", "datadog-agent-process-windows.yaml", windowsProcessCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
 	}
 )

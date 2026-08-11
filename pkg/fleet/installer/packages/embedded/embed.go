@@ -57,6 +57,12 @@ var ADPWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-action.yaml
 var PARWindowsProcmgrConfig string
 
+// ProcessWindowsProcmgrConfig is the codegen-rendered process manager config for process-agent
+// on Windows (see embedded/tmpl/main.go). Install time replaces __PROCESS_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-process.yaml
+var ProcessWindowsProcmgrConfig string
+
 // PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
 // on-demand executor on Windows (see embedded/tmpl/main.go).
 //

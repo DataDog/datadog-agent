@@ -61,6 +61,7 @@ go_library(
         "tmpl/datadog-agent-ddot-windows.yaml.tmpl",
         "tmpl/datadog-agent-installer.service.tmpl",
         "tmpl/datadog-agent-process.service.tmpl",
+        "tmpl/datadog-agent-process-windows.yaml.tmpl",
         "tmpl/datadog-agent-procmgr.service.tmpl",
         "tmpl/datadog-agent-security.service.tmpl",
         "tmpl/datadog-agent-sysprobe.service.tmpl",
@@ -88,6 +89,8 @@ go_test(
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

@@ -763,12 +763,29 @@ func (s *BaseSuite) WaitForAgentService(state string) error {
 }
 
 // WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
+// Services must be installed; use WaitForStoppedServicesAllowAbsent when a missing service should count as stopped.
 func (s *BaseSuite) WaitForServicesWithBackoff(state string, services []string, opts ...backoff.RetryOption) error {
+	return s.waitForServicesWithBackoff(state, services, false, opts...)
+}
+
+// WaitForStoppedServicesAllowAbsent waits for services to be stopped, treating uninstalled services as stopped.
+// Use only for legacy SCM shells that may not be registered on minimal agent installs (see LegacySCMServices).
+func (s *BaseSuite) WaitForStoppedServicesAllowAbsent(services []string, opts ...backoff.RetryOption) error {
+	return s.waitForServicesWithBackoff("Stopped", services, true, opts...)
+}
+
+func (s *BaseSuite) waitForServicesWithBackoff(state string, services []string, allowAbsentAsStopped bool, opts ...backoff.RetryOption) error {
 	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		for _, service := range services {
-			status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, service)
+			status, present, err := windowscommon.GetServiceStatusOrAbsent(s.Env().RemoteHost, service)
 			if err != nil {
 				return nil, err
+			}
+			if !present {
+				if allowAbsentAsStopped && strings.EqualFold(state, "Stopped") {
+					continue
+				}
+				return nil, fmt.Errorf("service %s is not installed", service)
 			}
 			if !strings.Contains(status, state) {
 				return nil, fmt.Errorf("service %s is not in state %s, status: %s", service, state, status)

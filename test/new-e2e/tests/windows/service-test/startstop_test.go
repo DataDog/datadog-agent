@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -32,6 +31,8 @@ import (
 
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -80,10 +81,6 @@ const defaultTimeoutScale = 1
 // Default scaling of timeouts for tests with driver verifier. This needs to be generous.
 const driverVerifierTimeoutScale = 10
 
-// Driver Verifier adds substantial kernel-mode overhead; use a 4-vCPU VM so
-// user-mode services aren't starved for CPU and can still make SCM deadlines.
-const driverVerifierInstanceType = "t3.xlarge"
-
 type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
 
 // TestServiceBehaviorInstallerWithRemoteConfig tests that the installer runs
@@ -104,10 +101,12 @@ func (s *installerWithRemoteConfigSuite) SetupSuite() {
 
 	// With remote_configuration enabled, the installer should run even in FIPS mode
 	s.runningUserServices = func() []string {
-		return s.getInstalledUserServices()
+		return s.filterLegacySCMServices(s.getInstalledUserServices())
 	}
 	s.runningServices = func() []string {
-		return s.getInstalledServices()
+		user := s.filterLegacySCMServices(s.getInstalledUserServices())
+		kernel := s.getInstalledKernelServices()
+		return append(slices.Clone(user), kernel...)
 	}
 }
 
@@ -208,7 +207,7 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
 		"datadog-trace-agent",
-		"datadog-process-agent",
+		"dd-procmgr-service",
 		"datadog-security-agent",
 		"datadog-system-probe",
 		// stop core agent last since it will trigger stop of other services
@@ -341,6 +340,42 @@ type agentServiceDisabledProcessAgentSuite struct {
 	agentServiceDisabledSuite
 }
 
+// TestProcessAgentNotRunningUnderProcmgrWhenDisabled ensures dd-procmgr does not keep
+// process-agent.exe running when all process-agent config triggers are off. Legacy SCM
+// already stays stopped; this covers the procmgr supervision path.
+func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderProcmgrWhenDisabled() {
+	host := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+
+	processBin := installPath + `\bin\agent\process-agent.exe`
+	procmgrCfg := installPath + `\processes.d\datadog-agent-process.yaml`
+	procmgrCLI := installPath + `\bin\agent\dd-procmgr.exe`
+
+	if _, err := host.Execute(psLiteralPathMustExist(processBin)); err != nil {
+		s.T().Skip("process-agent.exe not installed; skipping procmgr process-agent assertion")
+	}
+	if _, err := host.Execute(psLiteralPathMustExist(procmgrCfg)); err != nil {
+		s.T().Skip("process-agent processes.d config not installed; skipping procmgr process-agent assertion")
+	}
+
+	s.startAgent()
+	s.assertServiceState("Running", "dd-procmgr-service", nil)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		_, err := host.Execute(psWin32ProcessAbsent("process-agent.exe"))
+		assert.NoError(ct, err, "process-agent.exe should not be running under dd-procmgr when disabled in config")
+	}, (2*s.timeoutScale)*time.Minute, 3*time.Second)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := host.Execute(fmt.Sprintf(`& "%s" describe datadog-agent-process`, procmgrCLI))
+		assert.NoError(ct, err)
+		state := procmgrDescribeField(out, "State")
+		assert.NotEmpty(ct, state)
+		assert.NotEqual(ct, "Running", state, "dd-procmgr should not supervise a running process-agent when disabled")
+	}, (2*s.timeoutScale)*time.Minute, 3*time.Second)
+}
+
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	s := &agentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
@@ -378,7 +413,7 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
 		runningServices := []string{}
-		for _, service := range s.getInstalledUserServices() {
+		for _, service := range s.filterLegacySCMServices(s.getInstalledUserServices()) {
 			if !slices.Contains(s.disabledServices, service) {
 				runningServices = append(runningServices, service)
 			}
@@ -386,13 +421,12 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 		return runningServices
 	}
 	s.runningServices = func() []string {
-		runningServices := []string{}
-		for _, service := range s.getInstalledServices() {
-			if !slices.Contains(s.disabledServices, service) {
-				runningServices = append(runningServices, service)
-			}
-		}
-		return runningServices
+		user := s.runningUserServices()
+		kernel := s.getInstalledKernelServices()
+		runningServices := append(slices.Clone(user), kernel...)
+		return slices.DeleteFunc(runningServices, func(service string) bool {
+			return slices.Contains(s.disabledServices, service)
+		})
 	}
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
@@ -447,20 +481,18 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 	s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
 }
 
-func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string, extraRunOpts ...scenwindows.RunOption) {
-	runOpts := []scenwindows.RunOption{
-		scenwindows.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		),
-		scenwindows.WithAgentClientOptions(
-			agentclientparams.WithSkipWaitForAgentReady(),
-		),
-	}
-	runOpts = append(runOpts, extraRunOpts...)
+func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithRunOptions(runOpts...),
+		awsHostWindows.WithRunOptions(
+			scenwindows.WithAgentOptions(
+				agentparams.WithAgentConfig(agentConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			),
+			scenwindows.WithAgentClientOptions(
+				agentclientparams.WithSkipWaitForAgentReady(),
+			),
+		),
 	))}
 	e2e.Run(t, s, opts...)
 }
@@ -531,8 +563,8 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
-		// skip the installer since it doesn't have a registered provider
-		if providerName == "Datadog Installer" {
+		// skip services that don't register an Application event log provider
+		if providerName == "Datadog Installer" || providerName == "dd-procmgr-service" {
 			continue
 		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
@@ -633,7 +665,7 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	// Setup default expected services
 	s.runningUserServices = func() []string {
-		services := s.getInstalledUserServices()
+		services := s.filterLegacySCMServices(s.getInstalledUserServices())
 		if s.Env().Agent.FIPSEnabled {
 			// TODO: This service is not supported in FIPS mode yet
 			services = slices.DeleteFunc(services, func(svc string) bool {
@@ -643,7 +675,9 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return services
 	}
 	s.runningServices = func() []string {
-		services := s.getInstalledServices()
+		user := s.runningUserServices()
+		kernel := s.getInstalledKernelServices()
+		services := append(slices.Clone(user), kernel...)
 		if s.Env().Agent.FIPSEnabled {
 			// TODO: This service is not supported in FIPS mode yet
 			services = slices.DeleteFunc(services, func(svc string) bool {
@@ -963,11 +997,51 @@ func (s *baseStartStopSuite) stopAllServices() {
 	}
 }
 
+// legacySCMServices are SCM shells superseded by dd-procmgr; they stay Stopped while
+// dd-procmgr-service supervises the workload.
+func (s *baseStartStopSuite) legacySCMServices() []string {
+	return []string{
+		"datadog-process-agent",
+	}
+}
+
+func (s *baseStartStopSuite) filterLegacySCMServices(services []string) []string {
+	return slices.DeleteFunc(slices.Clone(services), func(svc string) bool {
+		return slices.Contains(s.legacySCMServices(), svc)
+	})
+}
+
+func escapePSSingleQuotedLiteral(s string) string {
+	return strings.ReplaceAll(s, `'`, `''`)
+}
+
+func psLiteralPathMustExist(path string) string {
+	return fmt.Sprintf(`if (-not (Test-Path -LiteralPath '%s')) { exit 1 }`, escapePSSingleQuotedLiteral(path))
+}
+
+func psWin32ProcessAbsent(processName string) string {
+	return fmt.Sprintf(
+		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'"; if ($null -eq $p) { exit 0 } else { exit 1 }`,
+		escapePSSingleQuotedLiteral(processName),
+	)
+}
+
+func procmgrDescribeField(output, label string) string {
+	prefix := label + ":"
+	for _, line := range strings.Split(output, "\n") {
+		if idx := strings.Index(line, prefix); idx >= 0 {
+			return strings.TrimSpace(line[idx+len(prefix):])
+		}
+	}
+	return ""
+}
+
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
 	return []string{
 		"datadogagent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
+		"dd-procmgr-service",
 		"datadog-security-agent",
 		"datadog-system-probe",
 		"Datadog Installer",
@@ -992,10 +1066,9 @@ func (s *baseStartStopSuite) getInstalledServices() []string {
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
 	providerNames := s.getInstalledUserServices()
-	// remove the Datadog Installer service from the list of provider names
-	// we do not have an event log for it
+	// remove services that do not register an Application event log provider
 	providerNames = slices.DeleteFunc(providerNames, func(s string) bool {
-		return s == "Datadog Installer"
+		return s == "Datadog Installer" || s == "dd-procmgr-service"
 	})
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
@@ -1125,8 +1198,7 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig,
-		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
 
 // TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
@@ -1135,8 +1207,7 @@ func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig,
-		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe tests the same as TestServiceBehaviorWhenDisabledSystemProbe
@@ -1151,8 +1222,7 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled,
-		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
+	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled)
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent tests the same as TestServiceBehaviorWhenDisabledProcessAgent
@@ -1168,8 +1238,7 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled,
-		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
+	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled)
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
@@ -1181,8 +1250,7 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig,
-		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
+	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig)
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
@@ -1194,8 +1262,7 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig,
-		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
 }
 
 // Driver verifier tests end

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "processmanager",
@@ -18,6 +19,22 @@ go_library(
             "//pkg/fleet/installer/paths",
             "//pkg/util/log",
             "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "processmanager_test",
+    srcs = ["procmgr_yaml_placeholders_windows_test.go"],
+    embed = [":processmanager"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/packages/embedded",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),
