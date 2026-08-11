@@ -27,6 +27,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 const Epsilon = 0.001 // Used for floating point comparisons
@@ -216,7 +217,7 @@ func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 		{11, 15, 10},
 		{16, 20, 15},
 		{21, 25, 20},
-		{26, 35, pkgconfigsetup.MaxNumWorkers},
+		{26, 35, constants.MaxNumWorkers},
 	}
 
 	for _, testCase := range testCases {

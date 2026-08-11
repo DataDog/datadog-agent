@@ -24,6 +24,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -143,10 +144,7 @@ def build(
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
 
-    # AIX build hosts do not have bazel; the compressed schema files are
-    # committed to the repo and do not need regeneration there.
-    if sys.platform != "aix":
-        schema_compress(ctx)
+    schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
         go_build(
@@ -455,10 +453,11 @@ def hacky_dev_image_build(
     copy_checks_d = ""
     copy_checks_d_final = ""
     if sys.platform.startswith("linux"):
-        from tasks.rust_shared_checks import build as rust_shared_checks_build
-
+        # Stage the enabled Rust shared-library checks via Bazel (single source
+        # of truth: ENABLED_CHECKS in the rustchecks BUILD.bazel). The `:install`
+        # target lays each cdylib into <destdir>/checks.d with 0500 perms.
         checks_d_staging = "bin/agent/dist/checks.d"
-        rust_shared_checks_build(ctx, checks_d_dir=checks_d_staging)
+        bazel(ctx, "run", "//pkg/collector/sharedlibrary/rustchecks:install", "--", "--destdir=bin/agent/dist")
         if os.path.isdir(checks_d_staging) and any(
             f.startswith("libdatadog-agent-") for f in os.listdir(checks_d_staging)
         ):

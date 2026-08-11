@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//tasks:build_tags.bzl", "COMMON_TAGS", "HOST_PROFILER_TAGS")
+load("//tasks:build_tags.bzl", "HOST_PROFILER_TAGS")
 
 # gazelle:dd_agent_go_test on
 
@@ -33,7 +33,7 @@ go_library(
 dd_agent_go_binary(
     name = "host-profiler",
     embed = [":host-profiler_lib"],
-    gotags = sorted(COMMON_TAGS | HOST_PROFILER_TAGS),
+    gotags = HOST_PROFILER_TAGS,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

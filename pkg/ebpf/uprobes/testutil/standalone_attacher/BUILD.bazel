@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "standalone_attacher_lib",
+    srcs = ["standalone_attacher.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/uprobes/testutil/standalone_attacher",
+    tags = ["manual"],  # keep
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/ebpf/uprobes"],
+)
+
+go_binary(
+    name = "standalone_attacher",
+    embed = [":standalone_attacher_lib"],
+    gotags = [
+        "linux_bpf",
+        "test",
+    ],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)

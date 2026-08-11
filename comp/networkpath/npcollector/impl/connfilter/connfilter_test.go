@@ -429,7 +429,7 @@ filters:
 
 func TestEvaluateReturnsWinningRuleTestConfigID(t *testing.T) {
 	filter, errs := NewConnFilter([]Config{
-		{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a"},
+		{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a", Tags: []string{"team:payments"}},
 		{Type: FilterTypeInclude, MatchDomain: "local.example.com"},
 		{Type: FilterTypeExclude, MatchDomain: "excluded.example.com", TestConfigID: "remote-a"},
 	}, "", false)
@@ -450,4 +450,15 @@ func TestEvaluateReturnsWinningRuleTestConfigID(t *testing.T) {
 	included, testConfigID = filter.Evaluate("unmatched.test", netip.Addr{})
 	assert.True(t, included)
 	assert.Empty(t, testConfigID)
+
+	included, testConfigID, tags := filter.EvaluateWithTags("remote.example.com", netip.Addr{})
+	assert.True(t, included)
+	assert.Equal(t, "remote-a", testConfigID)
+	assert.Equal(t, []string{"team:payments"}, tags)
+
+	_, _, tags = filter.EvaluateWithTags("local.example.com", netip.Addr{})
+	assert.Empty(t, tags, "a later local rule must clear RC tags")
+
+	_, _, tags = filter.EvaluateWithTags("excluded.example.com", netip.Addr{})
+	assert.Empty(t, tags, "excluded connections never produce tagged payloads")
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
-// Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
+// Private default path constants for reference. Agent configuration defaults use getter functions at runtime.
 // These are the raw, untransformed paths. Use getter functions for correct runtime transformed paths.
 const (
 	// defaultCommonRoot is the default path used when DD_COMMON_ROOT is set but empty

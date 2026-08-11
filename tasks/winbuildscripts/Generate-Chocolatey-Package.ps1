@@ -42,8 +42,14 @@ Param(
     [bool] $InstallDeps = $true
 )
 
+. "$PSScriptRoot\common.ps1"
+
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
+
+if ($env:CI) {
+    Initialize-CIIdentity
+}
 
 if ($InstallDeps) {
     # Install chocolatey

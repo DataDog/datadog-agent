@@ -62,14 +62,14 @@ If using virtual environments when running the built Agent, you may need to over
 PYTHONPATH="./venv/lib/python<<<PYTHON_VERSION>>>/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
-See also some notes in [./checks](https://github.com/DataDog/datadog-agent/tree/main/docs/dev/checks) about running custom python checks.
+See also some notes in <<<repo("docs/dev/checks")>>> about running custom python checks.
 
 ## Golang
 
 You must [install Golang](https://golang.org/doc/install) version `<<<GO_VERSION>>>` or later. Make sure that `$GOPATH/bin` is in your `$PATH`, otherwise [tooling](required.md#tooling) cannot use any additional tool it might need.
 
 /// note
-Versions of Golang that aren't an exact match to the version specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/c025473ee467ee6d884d532e4c12c7d982ce8fe1/circleci/Dockerfile#L43)) may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader) binary properly.
+Versions of Golang that aren't an exact match to the version specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/c025473ee467ee6d884d532e4c12c7d982ce8fe1/circleci/Dockerfile#L43)) may not be able to build the agent and/or the <<<repo("rtloader", "rtloader")>>> binary properly.
 ///
 
 ### Installing tools
@@ -112,9 +112,9 @@ sudo yum install systemd-devel
 
 ## Doxygen
 
-We use [Doxygen](http://www.doxygen.nl) to generate the documentation for the `rtloader` part of the Agent.
+We use [Doxygen](https://www.doxygen.nl) to generate the documentation for the `rtloader` part of the Agent.
 
-To generate it (using the `dda inv rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](http://www.doxygen.nl/manual/install.html). Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
+To generate it (using the `dda inv rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](https://www.doxygen.nl/manual/install.html). Alternatively, you can use already-compiled Doxygen binaries from [here](https://www.doxygen.nl/download.html).
 
 To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.
 

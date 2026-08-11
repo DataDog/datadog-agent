@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -141,7 +142,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Timeout = firstNonZero(
 		time.Duration(instance.TimeoutMs)*time.Millisecond,
 		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
-		setup.DefaultNetworkPathTimeout*time.Millisecond,
+		constants.DefaultNetworkPathTimeout*time.Millisecond,
 	)
 	if c.Timeout <= 0 {
 		return nil, errors.New("timeout must be > 0")
@@ -150,19 +151,19 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.MaxTTL = firstNonZero(
 		instance.MaxTTL,
 		initConfig.MaxTTL,
-		setup.DefaultNetworkPathMaxTTL,
+		constants.DefaultNetworkPathMaxTTL,
 	)
 
 	c.TracerouteQueries = firstNonZero(
 		instance.TracerouteQueries,
 		initConfig.TracerouteQueries,
-		setup.DefaultNetworkPathStaticPathTracerouteQueries,
+		constants.DefaultNetworkPathStaticPathTracerouteQueries,
 	)
 
 	c.E2eQueries = firstNonZero(
 		instance.E2eQueries,
 		initConfig.E2eQueries,
-		setup.DefaultNetworkPathStaticPathE2eQueries,
+		constants.DefaultNetworkPathStaticPathE2eQueries,
 	)
 
 	c.Tags = instance.Tags

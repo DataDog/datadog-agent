@@ -10,7 +10,6 @@ exclude = [
     ".github",
     "chocolatey",
     "Dockerfiles",
-    "docs",
     "omnibus",
     "releasenotes",
     "vendor",

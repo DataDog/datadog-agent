@@ -17,6 +17,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/dogstatsd/serverDebug/impl",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/fxutil",
         "//pkg/util/input",

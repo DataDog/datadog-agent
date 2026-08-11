@@ -18,6 +18,7 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -208,6 +209,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		remoteagentfx.Module(),
 		fx.Supply(configstreamconsumer.NewParams("process-agent", globalParams.ConfFilePath)),
 		configstreamconsumerfx.Module(),
+		agenttelemetryfx.Module(),
 		// Set `HOST_PROC` and `HOST_SYS` environment variables
 		fx.Invoke(SetHostMountEnv),
 

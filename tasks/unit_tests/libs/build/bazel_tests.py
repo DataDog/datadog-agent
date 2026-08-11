@@ -1,3 +1,4 @@
+import io
 import os
 import unittest
 from unittest.mock import MagicMock, patch
@@ -43,6 +44,36 @@ class TestBazel(unittest.TestCase):
     def test_ignore_errors_only_captures_stderr_on_failure(self, _):
         self.assertEqual(
             bazel(self._ctx(exit=1), "info", ignore_errors=True, capture_output=True, capture_stderr=True), "err\n"
+        )
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_input_stream_disabled_by_default(self, _):
+        ctx = self._ctx()
+        bazel(ctx, "info")
+        self.assertIs(ctx.run.call_args.kwargs["in_stream"], False)
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_input_stream_forwarding(self, _):
+        ctx = self._ctx()
+        stdin = io.StringIO("some input")
+        bazel(ctx, "info", input_stream=stdin)
+        self.assertIs(ctx.run.call_args.kwargs["in_stream"], stdin)
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_omnibazel_flag_to_insert(self, _):
+        ctx = self._ctx()
+        bazel(ctx, "run", "//:go")
+        self.assertEqual(ctx.run.call_args[0][0], "/bzlx run //:go")
+
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    @patch.dict(os.environ, {"AGENT_FLAVOR": "fips", "INSTALL_DIR": "/opt"})
+    def test_inserted_omnibazel_flags(self, _):
+        ctx = self._ctx()
+        bazel(ctx, "--batch", "run", "//:go")
+        self.assertEqual(
+            ctx.run.call_args[0][0],
+            "/bzlx --batch run --//packages/agent:flavor=fips --//:install_dir=/opt --//:output_config_dir= //:go",
         )
 
     def _ctx(self, *, exit=0, stdout="out\n", stderr="err\n"):

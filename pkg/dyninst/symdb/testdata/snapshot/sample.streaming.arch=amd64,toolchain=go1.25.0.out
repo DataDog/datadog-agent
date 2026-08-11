@@ -158,10 +158,10 @@ Package: main
 		Scope: 143-146
 			Var: i: int (declared at line 143, available: [146-146])
 	Function: executeStack (main.executeStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [29:30] injectible: [30-30]
-	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [57:74] injectible: [57-57], [59-64], [67-69], [73-74]
-		Var: abc: string (declared at line 58, available: )
-		Var: uninitializedString: string (declared at line 66, available: )
-		Var: s: string (declared at line 72, available: )
+	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [65:86] injectible: [65-65], [67-72], [75-77], [81-81], [84-86]
+		Var: abc: string (declared at line 66, available: )
+		Var: uninitializedString: string (declared at line 74, available: )
+		Var: s: string (declared at line 80, available: )
 	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [135:236] injectible: [135-137], [140-140], [142-143], [145-146], [150-150], [152-160], [172-172], [174-174], [177-182], [190-192], [194-195], [198-198], [200-201], [203-206], [208-208], [210-213], [215-216], [219-220], [222-223], [225-226], [228-229], [231-232], [235-236]
 		Var: n: main.nStruct (declared at line 139, available: )
 		Var: ns: main.structWithNoStrings (declared at line 148, available: )
@@ -958,6 +958,9 @@ Package: main
 		Arg: c: uint (declared at line 94, available: [94-94])
 	Function: testInterfaceComplexity (main.testInterfaceComplexity) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [64:64] injectible: [64-64]
 		Arg: a: main.interfaceComplexityA (declared at line 64, available: [64-64])
+	Function: testInvalidUtf8Strings (main.testInvalidUtf8Strings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [58:58] injectible: [58-58]
+		Arg: a: string (declared at line 58, available: [58-58])
+		Arg: b: string (declared at line 58, available: [58-58])
 	Function: testLargeArgAndReturn (main.testLargeArgAndReturn) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [281:291] injectible: [281-291]
 		Arg: arg: main.largeStruct (declared at line 281, available: [281-291])
 		Arg: ~r0: main.largeStruct (declared at line 281, available: )
@@ -1035,6 +1038,8 @@ Package: main
 		Arg: h: int (declared at line 337, available: [337-349])
 		Arg: s: string (declared at line 337, available: [337-349])
 		Arg: ~r0: main.largeStruct (declared at line 337, available: )
+	Function: testMultibyteUtf8String (main.testMultibyteUtf8String) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [62:62] injectible: [62-62]
+		Arg: x: string (declared at line 62, available: [62-62])
 	Function: testMultipleArrayArgs (main.testMultipleArrayArgs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [364:366] injectible: [364-366]
 		Arg: a: [2]int (declared at line 364, available: [364-366])
 		Arg: b: [3]int (declared at line 364, available: [364-366])

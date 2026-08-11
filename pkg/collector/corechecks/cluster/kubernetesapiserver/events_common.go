@@ -275,6 +275,8 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID))
 	case deploymentKind:
 		entityID = types.NewEntityID(types.KubernetesDeployment, involvedObject.Namespace+"/"+involvedObject.Name)
+	case nodeKind:
+		entityID = types.NewEntityID(types.KubernetesNode, involvedObject.Name)
 	default:
 		apiGroup := apiserver.GetAPIGroup(involvedObject.APIVersion)
 		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, apiGroup)

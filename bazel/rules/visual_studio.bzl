@@ -4,6 +4,21 @@
 load("@rules_python//python/private:repo_utils.bzl", "repo_utils")  # buildifier: disable=bzl-visibility
 
 def _visual_studio_impl(ctx):
+    # Create a dummy non-working version of the repository on non-windows
+    # so that (unconfigured) queries can traverse targets that depend on
+    # this repository even when it can't be made available
+    if not ctx.os.name.startswith("windows"):
+        ctx.file("dummy_msbuild")
+        ctx.file("BUILD.bazel", """
+filegroup(
+    name = "msbuild",
+    srcs = ["dummy_msbuild"],
+    visibility = ["//visibility:public"],
+    target_compatible_with = ["@platforms//:incompatible"],
+)
+""")
+        return ctx.repo_metadata()
+
     # vswhere is a tool that lets us inspect existing Visual Studio installations
     ctx.report_progress("Download vswhere.exe")
     ctx.download(

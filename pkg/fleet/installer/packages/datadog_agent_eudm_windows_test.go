@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 func TestEncodeAIUsageTaskXML(t *testing.T) {
@@ -57,24 +59,69 @@ func TestWriteAIUsageManifest(t *testing.T) {
 	assert.NoFileExists(t, obsolete)
 }
 
-func TestWriteAIUsageConfigSubstitutesTraceURLAndPreservesExisting(t *testing.T) {
+// withTempDatadogDataDir points paths.DatadogDataDir at dir for the duration of the test, so
+// readAIUsageReceiverPort resolves apm_config.receiver_port from a controlled datadog.yaml.
+func withTempDatadogDataDir(t *testing.T, dir string) {
+	t.Helper()
+	original := paths.DatadogDataDir
+	paths.DatadogDataDir = dir
+	t.Cleanup(func() { paths.DatadogDataDir = original })
+}
+
+func TestWriteAIUsageConfigLeavesDefaultTraceURLCommented(t *testing.T) {
 	dir := t.TempDir()
 	examplePath := filepath.Join(dir, aiUsageConfigName+".example")
 	configPath := filepath.Join(dir, aiUsageConfigName)
-	require.NoError(t, os.WriteFile(examplePath, []byte("# comment\ntrace_agent_url: \"http://127.0.0.1:8126\"\nevp_proxy_api_version: 2\n"), 0o644))
+	require.NoError(t, os.WriteFile(examplePath, []byte("# comment\n# trace_agent_url: \"http://127.0.0.1:8126\"\nevp_proxy_api_version: 2\n"), 0o644))
+
+	// No datadog.yaml under paths.DatadogDataDir, so the receiver port resolves to the
+	// compiled-in default (8126) and the commented trace_agent_url line must be left untouched.
+	withTempDatadogDataDir(t, t.TempDir())
 
 	require.NoError(t, writeAIUsageConfig(examplePath, configPath))
 	rendered, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(rendered), "trace_agent_url: ")
+	assert.Contains(t, string(rendered), `# trace_agent_url: "http://127.0.0.1:8126"`)
 	assert.Contains(t, string(rendered), "evp_proxy_api_version: 2")
+}
 
-	// An existing config must be preserved.
+func TestWriteAIUsageConfigActivatesTraceURLForNonDefaultPort(t *testing.T) {
+	dir := t.TempDir()
+	examplePath := filepath.Join(dir, aiUsageConfigName+".example")
+	configPath := filepath.Join(dir, aiUsageConfigName)
+	require.NoError(t, os.WriteFile(examplePath, []byte("# comment\n# trace_agent_url: \"http://127.0.0.1:8126\"\nevp_proxy_api_version: 2\n"), 0o644))
+
+	dataDir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dataDir, "datadog.yaml"),
+		[]byte("apm_config:\n  receiver_port: 9999\n"),
+		0o644,
+	))
+	withTempDatadogDataDir(t, dataDir)
+
+	require.NoError(t, writeAIUsageConfig(examplePath, configPath))
+	rendered, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(rendered), `trace_agent_url: "http://127.0.0.1:9999"`)
+	assert.NotContains(t, string(rendered), "# trace_agent_url:")
+	assert.Contains(t, string(rendered), "evp_proxy_api_version: 2")
+}
+
+func TestWriteAIUsageConfigOverwritesExisting(t *testing.T) {
+	dir := t.TempDir()
+	examplePath := filepath.Join(dir, aiUsageConfigName+".example")
+	configPath := filepath.Join(dir, aiUsageConfigName)
+	require.NoError(t, os.WriteFile(examplePath, []byte("# trace_agent_url: \"http://127.0.0.1:8126\"\nevp_proxy_api_version: 2\n"), 0o644))
+	withTempDatadogDataDir(t, t.TempDir())
+
+	// An existing config (e.g. from a previous install, or hand-edited) must be overwritten so
+	// packaged default changes reach already-installed machines on upgrade.
 	require.NoError(t, os.WriteFile(configPath, []byte("preserved"), 0o644))
 	require.NoError(t, writeAIUsageConfig(examplePath, configPath))
 	after, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	assert.Equal(t, "preserved", string(after))
+	assert.NotEqual(t, "preserved", string(after))
+	assert.Contains(t, string(after), "evp_proxy_api_version: 2")
 }
 
 func TestBuildAIUsageTaskXML(t *testing.T) {
