@@ -2,56 +2,22 @@ import ast
 import os
 import re
 
-file_header = """// Unless explicitly stated otherwise all files in this repository are licensed
+file_header_template = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
 // NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
 
-package setup
+package {package}
 """
+
+file_header = file_header_template.format(package="setup")
+constants_file_header = file_header_template.format(package="constants")
 
 constant_header = """//
 // The following code is generated from the schema and should never be manually edited
 //
-"""
-
-core_agent_stubs = """func agent(config pkgconfigmodel.Setup) {
-	initEverything(config)
-}
-
-func aggregator(_ pkgconfigmodel.Setup)               {}
-func anomalyDetection(_ pkgconfigmodel.Setup)         {}
-func autoconfig(_ pkgconfigmodel.Setup)               {}
-func autoscaling(_ pkgconfigmodel.Setup)              {}
-func cloudfoundry(_ pkgconfigmodel.Setup)             {}
-func containerd(_ pkgconfigmodel.Setup)               {}
-func containerSyspath(_ pkgconfigmodel.Setup)         {}
-func cri(_ pkgconfigmodel.Setup)                      {}
-func debugging(_ pkgconfigmodel.Setup)                {}
-func dogstatsd(_ pkgconfigmodel.Setup)                {}
-func fips(_ pkgconfigmodel.Setup)                     {}
-func fleet(_ pkgconfigmodel.Setup)                    {}
-func forwarder(_ pkgconfigmodel.Setup)                {}
-func kubernetes(_ pkgconfigmodel.Setup)               {}
-func logsagent(_ pkgconfigmodel.Setup)                {}
-func OTLP(_ pkgconfigmodel.Setup)                     {}
-func podman(_ pkgconfigmodel.Setup)                   {}
-func remoteconfig(_ pkgconfigmodel.Setup)             {}
-func remoteflags(_ pkgconfigmodel.Setup)              {}
-func serializer(_ pkgconfigmodel.Setup)               {}
-func serverless(_ pkgconfigmodel.Setup)               {}
-func setupAPM(_ pkgconfigmodel.Setup)                 {}
-func setupMultiRegionFailover(_ pkgconfigmodel.Setup) {}
-func setupPrivateActionRunner(_ pkgconfigmodel.Setup) {}
-func setupProcesses(_ pkgconfigmodel.Setup)           {}
-func telemetry(_ pkgconfigmodel.Setup)                {}
-func vector(_ pkgconfigmodel.Setup)                   {}
-"""
-
-sysprobe_stubs = """func initCWSSystemProbeConfig(_ pkgconfigmodel.Setup) {}
-func initUSMSystemProbeConfig(_ pkgconfigmodel.Setup) {}
 """
 
 
@@ -66,14 +32,9 @@ class CodeGeneratorTarget:
     def __init__(self):
         self.buffer = None
         self.output_full_agent = []
-        self.output_everything = []
+        self.output_common_base = []
         self.header_text = None
         self.filesystem = None
-
-    def use_func_order(self, hints, func_names):
-        self.reorder_hints = hints
-        self.reorder_func_names = func_names
-        self.buffer = {}
 
     def add_header(self, text):
         self.header_text = text
@@ -83,90 +44,9 @@ class CodeGeneratorTarget:
             if retrieve_output_mode(path.split('.'), schema) == 'full-agent-only':
                 self.output_full_agent += sourcecode
             else:
-                self.output_everything += sourcecode
+                self.output_common_base += sourcecode
             return
         self.buffer[path] = BufferedSetting(path, sourcecode)
-
-    def flush_buffer(self, filename_filter):
-        # Without the --keep-orig-order flag, output everything at once
-        if self.buffer is None:
-            self.output_result_for_all_settings(filename_filter)
-            return
-
-        # Otherwise, we output multiple source files
-        self.filesystem = {}
-        sourcecode = None
-
-        # Run over the re-ordering function list, retrieve from buffered codegen
-        for funcname in self.reorder_func_names:
-            h = retrieve_func_order(self.reorder_hints, funcname)
-            if not h:
-                print(f"[WARN] not found: {funcname}")
-                continue
-            (filename, settings) = h['filename'], h['settings']
-            if filename_filter and not filename_filter(filename):
-                continue
-
-            # Get filename to write to, add header if its empty
-            if filename not in self.filesystem:
-                self._add_file_header(filename, settings)
-
-            # Create the function, declare all settings in it
-            sourcecode = self.filesystem[filename]
-            output_func_header(funcname, sourcecode)
-            for row in settings:
-                # blank
-                if row[0] == '' and row[1] == '':
-                    sourcecode = sourcecode + ['']
-                    continue
-                # pattern
-                if row[1].startswith('pattern_'):
-                    suffix_list = get_suffixes_for_pattern(row[1])
-                    for suffix in suffix_list:
-                        keyname = join_key(row[0], suffix)
-                        if keyname not in self.buffer:
-                            continue
-                        setting = self.buffer[keyname]
-                        self.buffer[keyname].done = True
-                        sourcecode = sourcecode + setting.sourcecode
-                    continue
-                # single setting
-                keyname = row[0]
-                if keyname not in self.buffer:
-                    continue
-                setting = self.buffer[keyname]
-                self.buffer[keyname].done = True
-                sourcecode = sourcecode + setting.sourcecode
-            output_func_footer(funcname, sourcecode)
-            self.filesystem[filename] = sourcecode
-
-        # Afterwards: run over buffer to get everything else
-        other_filename = 'other_settings.go'
-        self._add_file_header(other_filename, [])
-        sourcecode = self.filesystem[other_filename]
-        output_func_header("otherSettings", sourcecode)
-        for keyname in self.buffer:
-            if self.buffer[keyname].done:
-                continue
-            self.buffer[keyname].done = True
-            sourcecode = sourcecode + self.buffer[keyname].sourcecode
-        output_func_footer("otherSettings", sourcecode)
-        self.filesystem[other_filename] = sourcecode
-
-    def _add_file_header(self, filename, settings):
-        self.filesystem[filename] = self.header_text.split('\n')
-        # Determine if the target file needs to import pkgconfighelper
-        need_pkgconfighelper = False
-        need_time = False
-        for row in settings:
-            keyname = row[0]
-            setting = self.buffer.get(keyname)
-            if setting:
-                if contains_import(setting.sourcecode, 'time'):
-                    need_time = True
-                if contains_import(setting.sourcecode, 'pkgconfighelper'):
-                    need_pkgconfighelper = True
-        self.filesystem[filename] += self._add_imports(need_pkgconfighelper, need_time)
 
     def _add_imports(self, need_pkgconfighelper, need_time):
         sourcecode = ['import (']
@@ -186,22 +66,20 @@ class CodeGeneratorTarget:
 
     def output_result_for_sysprobe_settings(self):
         res = self.header_text.split('\n')
-        res += self._add_imports(False, contains_import(self.output_everything, 'time'))
-        res += [sysprobe_stubs]
+        res += self._add_imports(False, contains_import(self.output_common_base, 'time'))
         res += ['func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {']
-        res += self.output_everything
+        res += self.output_common_base
         res += ['}']
         self.filesystem = {'system_probe_settings.go': res}
 
     def output_result_for_core_agent_settings(self):
         res = self.header_text.split('\n')
         res += self._add_imports(True, contains_import(self.output_full_agent, 'time'))
-        res += [core_agent_stubs]
         res += ['func initCoreAgentFull(config pkgconfigmodel.Setup) {']
         res += self.output_full_agent
         res += ['}', '']
-        res += ['func initEverything(config pkgconfigmodel.Setup) {']
-        res += self.output_everything
+        res += ['func initCommonBase(config pkgconfigmodel.Setup) {']
+        res += self.output_common_base
         res += ['}']
         self.filesystem = {'all_settings.go': res}
 
@@ -234,12 +112,6 @@ def contains_import(sourcecode, symbol):
     return False
 
 
-def override_stubs(core_replace, sysprobe_replace):
-    global core_agent_stubs, sysprobe_stubs
-    core_agent_stubs = core_replace
-    sysprobe_stubs = sysprobe_replace
-
-
 def _is_node_leaf(node):
     if 'node_type' not in node:
         return True
@@ -261,61 +133,6 @@ def walk_schema(schema, curr_path, callback):
             callback(next_path)
         elif _is_node_section(node):
             walk_schema(node, next_path, callback)
-
-
-def retrieve_hint(hints_obj, keyname):
-    if hints_obj is None:
-        return None
-
-    for perFilenameFuncSettings in hints_obj:
-        for row in perFilenameFuncSettings['settings']:
-            extra_info = {}
-            if row[0] == keyname:
-                return {'kind': row[1], 'internal_comment': row[2]}
-            elif matches_bind_pattern(row, keyname, extra_info):
-                # When multiple settings are created for a prefix, only add the
-                # comment to the first such setting.
-                internal_comment = None
-                if extra_info['is_first']:
-                    internal_comment = row[2]
-                    row[2] = ''
-                return {'kind': row[1], 'internal_comment': internal_comment}
-    return None
-
-
-def matches_bind_pattern(row, keyname, extra_info):
-    extra_info['is_first'] = False
-    if not row[1].startswith('pattern_'):
-        return False
-    if not keyname.startswith(row[0]):
-        return False
-    suffix_list = get_suffixes_for_pattern(row[1])
-    for i, suffix in enumerate(suffix_list):
-        targetkey = join_key(row[0], suffix)
-        if targetkey == keyname:
-            if i == 0:
-                extra_info['is_first'] = True
-            return True
-    return False
-
-
-def retrieve_func_order(hints_obj, func):
-    if hints_obj is None:
-        return None
-    for elem in hints_obj:
-        if elem['func'] == func:
-            return {'filename': elem['filename'], 'settings': elem['settings']}
-    return None
-
-
-def output_func_header(name, sourcecode):
-    line = f"func {name}(config pkgconfigmodel.Setup) {{"
-    sourcecode.append(line)
-
-
-def output_func_footer(_, sourcecode):
-    sourcecode.append('}')
-    sourcecode.append('')
 
 
 def try_parse_duration(text):
@@ -386,7 +203,7 @@ def as_go_value(text, split_lines=False):
             key = value_to_gostr(k)
             val = value_to_gostr(v)
             pad_space = calc_pad_space(key, indent_size)
-            res.append(f"{key}:{' '*pad_space} {val}")
+            res.append(f"{key}:{' ' * pad_space} {val}")
 
     if split_lines:
         return f"{{\n\t\t{',\n\t\t'.join(res)},\n\t}}"
@@ -427,10 +244,13 @@ def get_node(keypath, schema):
 
 
 def retrieve_output_mode(keypath, schema):
-    node = get_node(keypath, schema)
-    tags = node.get('tags')
-    if tags and 'full-agent-only:true' in tags:
-        return 'full-agent-only'
+    for i in range(0, len(keypath)):
+        # Iterate the keypath bottom-up, for example 'a.b.c' -> ['a.b.c', 'a.b', 'a']
+        subpath = keypath[0 : len(keypath) - i]
+        node = get_node(subpath, schema)
+        tags = node.get('tags')
+        if tags and 'full-agent-only:true' in tags:
+            return 'full-agent-only'
     return None
 
 
@@ -553,42 +373,6 @@ def retrieve_method_to_declare(keypath, schema):
     return 'BindEnvAndSetDefault'
 
 
-def get_suffixes_for_pattern(pattern):
-    if pattern == 'pattern_logs_config':
-        return [
-            'logs_dd_url',
-            'dd_url',
-            'additional_endpoints',
-            'use_compression',
-            'compression_kind',
-            'zstd_compression_level',
-            'compression_level',
-            'batch_wait',
-            'connection_reset_interval',
-            'logs_no_ssl',
-            'batch_max_concurrent_send',
-            'batch_max_content_size',
-            'batch_max_size',
-            'input_chan_size',
-            'sender_backoff_factor',
-            'sender_backoff_base',
-            'sender_backoff_max',
-            'sender_recovery_interval',
-            'sender_recovery_reset',
-            'use_v2_api',
-            'dev_mode_no_ssl',
-        ]
-    elif pattern == 'pattern_delegate_auth':
-        return [
-            'delegated_auth.org_uuid',
-            'delegated_auth.refresh_interval_mins',
-            'delegated_auth.provider',
-            'delegated_auth.aws.region',
-        ]
-    else:
-        raise RuntimeError(f"unknown pattern: {pattern}")
-
-
 def env_parser_to_func_call(name, env_parser, get_vartype):
     parser_func = None
     is_method_key_vartype = False
@@ -675,50 +459,13 @@ def output_single_setting(name, internal_comment, schema, target):
     target.add(name, schema, sourcecode)
 
 
-config_setup_func_names = [
-    'initCoreAgentFull',
-    'agent',
-    'fleet',
-    'autoscaling',
-    'fips',
-    'remoteconfig',
-    'remoteflags',
-    'autoconfig',
-    'containerSyspath',
-    'debugging',
-    'telemetry',
-    'serializer',
-    'aggregator',
-    'serverless',
-    'forwarder',
-    'dogstatsd',
-    'logsagent',
-    'vector',
-    'cloudfoundry',
-    'containerd',
-    'cri',
-    'kubernetes',
-    'podman',
-    'setupAPM',
-    'setupMultiRegionFailover',
-    'OTLP',
-    'setupProcesses',
-    'setupPrivateActionRunner',
-    'anomalyDetection',
-    'initMainSystemProbeConfig',
-    'initCWSSystemProbeConfig',
-    'initUSMSystemProbeConfig',
-]
-
-
-def gen_delegated_auth_map(core_schema, system_probe_schema, core_out, system_probe_out):
+def gen_delegated_auth_map(core_schema, system_probe_schema, outputs):
     """
     Constant generator: appends the delegated auth map to the relevant buffers.
 
-    core_schema         - loaded core schema object
-    system_probe_schema - loaded system-probe schema object
-    core_out            - Go source lines for the core constant file
-    system_probe_out    - Go source lines for the system-probe constant file
+    core_schema           - loaded core schema object
+    system_probe_schema  - loaded system-probe schema object, unused
+    outputs               - map of output name (see `constant_outputs`) to its Go source lines
     """
 
     def collect_delegated_auth_keys(schema):
@@ -767,16 +514,19 @@ var delegatedAuthKeys = []delegatedAuthConfig{""")
         out.append("}")
         out.append("")
 
-    emit(core_out, collect_delegated_auth_keys(core_schema))
+    emit(outputs["core"], collect_delegated_auth_keys(core_schema))
 
 
 GENERATE_CONST_PREFIX = "generate_const:"
 
 
-def gen_generate_const(core_schema, system_probe_schema, core_out, system_probe_out):
+def gen_generate_const(core_schema, system_probe_schema, outputs):
     """
     Constant generator: emits a `const` block declaring every Go constant referenced by a
     `generate_const:<name>` tag, set to its associated setting's default value.
+
+    The block goes to the `constants` output, ie. the `pkg/config/setup/constants` package, so
+    that code can use those constants without importing the whole `setup` package.
 
     Both schemas are traversed. A constant may be referenced by several settings (in either schema);
     they must all resolve to the same default value, otherwise codegen fails — a single constant
@@ -784,8 +534,7 @@ def gen_generate_const(core_schema, system_probe_schema, core_out, system_probe_
 
     core_schema         - loaded core schema object
     system_probe_schema - loaded system-probe schema object
-    core_out            - Go source lines for the core constant file
-    system_probe_out    - Go source lines for the system-probe constant file
+    outputs             - map of output name (see `constant_outputs`) to its Go source lines
     """
     # const name -> {'value': go_value, 'source': setting_keypath}
     consts = {}
@@ -817,20 +566,32 @@ def gen_generate_const(core_schema, system_probe_schema, core_out, system_probe_
     if not consts:
         return
 
-    core_out.append("// Constants generated from settings tagged with a `generate_const:<name>` label.")
-    core_out.append("// Each constant's value is the default of its associated setting.")
-    core_out.append("const (")
+    out = outputs["constants"]
+    out.append("// Constants generated from settings tagged with a `generate_const:<name>` label.")
+    out.append("// Each constant's value is the default of its associated setting.")
+    out.append("const (")
     magic_value = calc_const_indent(consts)
     for name in sorted(consts):
         pad_space = magic_value - len(name)
-        core_out.append(f"\t{name}{' '*pad_space} = {consts[name]['value']}")
-    core_out.append(")")
-    core_out.append("")
+        out.append(f"\t{name}{' ' * pad_space} = {consts[name]['value']}")
+    out.append(")")
+    out.append("")
+
+
+# The files produced by the constant generators, keyed by the output name generators use to
+# reach them. Each entry is (path relative to the codegen output dir, Go file header). The
+# relative path mirrors the layout under `pkg/config/setup`, so `schema.codegen` knows where
+# each file has to be copied.
+constant_outputs = {
+    "core": ("generated.go", file_header),
+    "system_probe": ("system_probe_generated.go", file_header),
+    "constants": (os.path.join("constants", "generated.go"), constants_file_header),
+}
 
 
 # Ordered list of generator functions used to produce the constant files.
-# Each is called with (core_schema, system_probe_schema, core_out, system_probe_out)
-# and may append Go code to either output buffer.
+# Each is called with (core_schema, system_probe_schema, outputs) and may append Go code to
+# any of the `constant_outputs` buffers.
 constant_generators = [
     gen_delegated_auth_map,
     gen_generate_const,
@@ -847,56 +608,54 @@ def calc_const_indent(list_names):
 
 def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
     """
-    Generate the core and system-probe constant files by running each generator
-    in `constant_generators` in order. Each generator receives both schemas and
-    both output buffers, so it can append Go code to either file.
+    Generate the constant files by running each generator in `constant_generators` in order.
+    Each generator receives both schemas and every output buffer, so it can append Go code to
+    any of the `constant_outputs` files.
+
+    Outputs no generator wrote anything to are skipped rather than emitted as header-only
+    files.
 
     core_schema         - loaded core schema object
     system_probe_schema - loaded system-probe schema object
     outsource_dir       - the directory to output source code to
     """
-    header = file_header.split('\n') + constant_header.split('\n')
-    core_out = list(header)
-    system_probe_out = list(header)
+    header_lines = {
+        name: header.split('\n') + constant_header.split('\n') for name, (_, header) in constant_outputs.items()
+    }
+    outputs = {name: list(lines) for name, lines in header_lines.items()}
 
     for generator in constant_generators:
-        generator(core_schema, system_probe_schema, core_out, system_probe_out)
+        generator(core_schema, system_probe_schema, outputs)
 
-    for filename, sourcecode in (
-        ("generated.go", core_out),
-        # For now we don't have any content for system_probe.
-        # ("system_probe_generated.go", system_probe_out),
-    ):
+    for name, (filename, _) in constant_outputs.items():
+        sourcecode = outputs[name]
+        if sourcecode == header_lines[name]:
+            continue
+
         print('Output %s' % filename)
         out_filename = os.path.join(outsource_dir, filename)
+        os.makedirs(os.path.dirname(out_filename), exist_ok=True)
         with open(out_filename, "w") as f:
             f.write('\n'.join(sourcecode))
 
 
-def run_codegen(schema, filename_filter, hints, keep_orig_order, outsource_dir):
+def run_codegen(schema, filename_filter, outsource_dir):
     """
     Entry point for code generation.
     schema          - loaded schema object (dict with schema['properities'])
     filename_filter - optional function to filter output filenames (or None)
-    hints           - hints object, used for func order and comments, if keep_orig_order is True
-    keep_orig_order - bool, whether to use order from the hints object
     outsource_dir   - the directory to output source code to
     """
     target = CodeGeneratorTarget()
-    if keep_orig_order:
-        target.use_func_order(hints, config_setup_func_names)
     target.add_header(file_header)
 
     # Visitor for each setting
     def process_single_setting(keyname):
         internal_comment = []
-        h = retrieve_hint(hints, keyname)
-        if h is not None:
-            internal_comment = h['internal_comment']
         output_single_setting(keyname, internal_comment, schema, target)
 
     # walk the schema to generate code
     walk_schema(schema, '', process_single_setting)
-    target.flush_buffer(filename_filter)
+    target.output_result_for_all_settings(filename_filter)
 
     target.write_to_directory(outsource_dir, filename_filter)

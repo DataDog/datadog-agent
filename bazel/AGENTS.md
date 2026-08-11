@@ -15,10 +15,20 @@ bazel run //bazel/buildifier
 # Resolve and fetch all external deps (updates MODULE.bazel.lock as a side-effect)
 bazel mod deps
 
-# Enable the internal remote cache (Datadog network only)
-# Add to user.bazelrc at the workspace root (gitignored):
+# The internal remote cache (Datadog network only) is auto-selected by
+# tools/bazel on local builds. Override with DD_BAZEL_REMOTE_CACHE=auto|on|off,
+# or force it explicitly via user.bazelrc at the workspace root (gitignored):
 echo 'common --config=cache' >> user.bazelrc
 ```
+
+Remote cache selection lives in `bazel/tools/remote-cache-select.sh` (sourced by
+`tools/bazel`; `tools/bazel.bat` mirrors it inline). `auto` enables the cache
+only when the frontend is reachable and a token source exists; a command-line
+`--config=cache` / `--config=no-remote-cache`, or an rc-level
+`common --config=no-remote-cache` in `user.bazelrc` / `~/.bazelrc`, always wins.
+In containers there
+is no interactive Vault login, so a token must be injected via the
+`BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
 
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
@@ -284,6 +294,33 @@ is written in the Starlark∩Python subset so it is both `load()`ed by `//BUILD.
 `GAZELLE_BUILD_TAGS`, the `//:gazelle` `build_tags`) and exec'd by `tasks/build_tags.py` — no codegen
 step. Edit that file to add or change a tag, using `set([...])` (a `{...}` literal is a dict in
 Starlark). The `AgentFlavor` mapping stays in `build_tags.py`, since Starlark has no enums.
+
+Unit tests are flavorless. `dd_agent_go_test` always uses the minimal `test` tag and derives extra,
+package-local tag combinations from `//go:build` constraints. Dependency-only optimization tags in
+`DEP_ONLY_TAGS` are not propagated through ordinary test graphs. The inheritable
+`# gazelle:go_canonical_test_tag_set tag tag ...` directive (one line per combination) defines canonical combinations for the
+tags it names. Gazelle uses those combinations instead of unsafe partial modes and only considers
+embedded library constraints when a configured combination satisfies them.
+
+Some `//go:build` constraints name a tag that a canonical set covers *and* a tag that no canonical
+set mentions. `//go:build trivy && containerd` is one: `containerd` belongs to the canonical set
+`containerd cel`, but no canonical set mentions `trivy`, so that set on its own cannot compile the
+file. Gazelle does not give up there — it derives the minimal combination the constraint needs
+(`containerd trivy`) and adds every canonical set that shares a tag with it, producing
+`cel containerd trivy`. The canonical grouping is still honoured, and the sources still get a test
+target.
+
+This only applies when the canonical set and the constraint can coexist. A constraint that
+contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
+test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
+`kubeapiserver` and `kubelet` share the canonical set
+`cel clusterchecks kubeapiserver kubelet orchestrator` — and the result then fails the constraint's
+own `!kubelet`.
+
+Combinations built this way can be long, and target names are budgeted against the Windows runfiles
+path length (see the Windows section). When `dd_agent_go_test` fails with a path-length error, add a
+short suffix for the combination to `_TAG_SET_SUFFIX_ALIASES` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
 
 ## Starlark language
 
@@ -850,8 +887,19 @@ paths, breaking Bazel label syntax.
 **File deletion.** Open files cannot be deleted on Windows ("Access Denied"). Close handles eagerly. A running process
 also holds its working directory open, preventing deletion.
 
-**Path length.** The hard limit is 32,767 characters (Developer Mode removes the legacy 260-character limit). Keep
-workspace names, target names, and directory structures short to stay well within this.
+**Path length.** File APIs go up to 32,767 characters (Developer Mode removes the legacy 260-character limit), but a
+process's *current directory* is still capped at `MAX_PATH` (260) unless the binary ships a `longPathAware` manifest —
+and Bazel's Windows test wrapper (`tools/test/windows/tw.cc`) does not. It `chdir`s into
+`<target>_/<target>.exe.runfiles` before launching the test, so an over-long target name fails at test time with
+`Could not chdir` / `Failed to load runfiles` (error 206, `ERROR_FILENAME_EXCED_RANGE`) rather than at build time.
+The target name is spent twice in that path, so keep target names, tag-set suffixes, and package depth short.
+`dd_agent_go_test` enforces the budget at analysis time via `_test_tag_set_check_name()` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
+
+**CI lane split.** Windows is the only platform whose Bazel tests run in two jobs, partitioned by the complementary
+`--config=no-dd-agent-go-tests` / `--config=dd-agent-go-tests-only` filters in `bazel/configs/go_tests.bazelrc`. The
+runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tests starves them enough that tests
+asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
 
 ## Testing
 

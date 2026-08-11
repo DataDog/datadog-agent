@@ -32,6 +32,15 @@ dd_agent_go_test(
         "matching_program_test.go",
     ],
     embed = [":integration"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "containerd",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/workloadfilter/def",

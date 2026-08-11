@@ -23,7 +23,7 @@ func init() {
 
 func setCommonRootFromEnv() {
 	// Check DD_COMMON_ROOT environment variable early so that config defaults
-	// are correct when BindEnvAndSetDefault is called during config/setup init().
+	// are correct within the configuration.
 	if envVal, found := os.LookupEnv("DD_COMMON_ROOT"); found {
 		if envVal == "" {
 			commonRoot = defaultCommonRoot

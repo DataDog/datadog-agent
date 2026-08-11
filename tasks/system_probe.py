@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.types.arch import ALL_ARCHS, Arch
+from tasks.schema.generate import schema_codegen
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -364,6 +365,9 @@ def test(
     go_root = os.getenv("GOROOT")
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
     failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
@@ -1835,6 +1839,10 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
             command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 

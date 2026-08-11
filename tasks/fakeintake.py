@@ -10,6 +10,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_ancestor_base_branch, get_changed_files, get_common_ancestor
 from tasks.libs.common.go import go_build
+from tasks.schema.generate import schema_codegen
 
 VERSION_FILE = "test/fakeintake/version/VERSION"
 
@@ -30,7 +31,11 @@ SERVER_FILES = (
 
 def _is_server_file(path: str) -> bool:
     """True if changing `path` rebuilds the fakeintake image (needs a VERSION bump)."""
-    return path in SERVER_FILES or path.startswith(SERVER_PATH_PREFIXES)
+    if path in SERVER_FILES:
+        return True
+    # The image is built from the Go sources via test/fakeintake/Dockerfile, so BUILD.bazel
+    # and test fixtures under the server paths don't affect it.
+    return path.endswith(".go") and path.startswith(SERVER_PATH_PREFIXES)
 
 
 @task
@@ -38,9 +43,8 @@ def build(ctx):
     """
     Build the fake intake
     """
-    with ctx.cd("test/fakeintake"):
-        go_build(ctx, "cmd/server/main.go", bin_path="build/fakeintake")
-        go_build(ctx, "cmd/client/main.go", bin_path="build/fakeintakectl")
+    go_build(ctx, "test/fakeintake/cmd/server/main.go", bin_path="test/fakeintake/build/fakeintake")
+    go_build(ctx, "test/fakeintake/cmd/client/main.go", bin_path="test/fakeintake/build/fakeintakectl")
 
 
 @task
@@ -48,6 +52,9 @@ def test(ctx):
     """
     Run the fake intake tests
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     with ctx.cd("test/fakeintake"):
         ctx.run("go test ./...")
 

@@ -68,6 +68,7 @@ from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.libs.types.types import JobDependency
+from tasks.schema.generate import schema_codegen
 from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
@@ -863,6 +864,9 @@ def kmt_secagent_prepare(
             filter_fn=lambda x: os.path.basename(x).startswith("runtime-security"),
         )
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
@@ -1252,6 +1256,10 @@ def kmt_sysprobe_prepare(
                     )
 
     info("[+] Compiling tests...")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 

@@ -105,9 +105,9 @@ use (
 	pkg/config/model
 	pkg/config/nodetreemodel
 	pkg/config/remote
-	pkg/config/render_config
 	pkg/config/schema
 	pkg/config/setup
+	pkg/config/setup/constants
 	pkg/config/structure
 	pkg/config/utils
 	pkg/discovery/tracermetadata/model
