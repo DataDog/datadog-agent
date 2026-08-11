@@ -5,17 +5,18 @@
 
 //! Config-key → environment-variable bindings for procmgr config gates.
 //!
-//! Keys listed in [`ENV_BINDINGS`] use **only** the named env vars (mirrors Go
-//! `BindEnvAndSetDefault` when explicit names are passed). All other keys use the
-//! agent convention `DD_<KEY_WITH_UNDERSCORES>`.
+//! Source of truth: `env_vars` on each setting in `pkg/config/schema/yaml/`
+//! (merged via `dda inv schema.codegen` into generated Go init settings).
 //!
-//! Keep in sync with `pkg/config/setup/process.go` (`procBindEnvAndSetDefault`),
-//! `pkg/config/setup/process_settings.go`, `pkg/config/setup/system_probe_settings.go`,
-//! and `pkg/config/setup/common_settings.go`.
+//! Keys listed in [`ENV_BINDINGS`] use **only** the named env vars. All other
+//! keys use the agent convention `DD_<KEY_WITH_UNDERSCORES>`.
 //!
-//! On Windows, config gates resolve `DD_*` values from the core Agent service
-//! (`datadogagent`) SCM `Environment` registry first, then dd-procmgr's process
-//! environment, so service-local overrides match agent config resolution.
+//! This table covers only keys evaluated by config gates (`GATED_KEY_SPECS` in
+//! `config_gate.rs`). Keep it in sync with the schema `env_vars` for those keys.
+//!
+//! On Windows, config gates resolve `DD_*` from the core Agent SCM `Environment`
+//! registry first, then dd-procmgr's process environment, so service-local
+//! overrides match agent config resolution.
 
 struct EnvBinding {
     key: &'static str,
