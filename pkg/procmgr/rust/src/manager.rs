@@ -12,6 +12,7 @@ use crate::ordering;
 use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::shutdown;
+use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
@@ -364,6 +365,8 @@ impl ProcessManager {
 
         let stopped_for_config_update: std::collections::HashSet<String> =
             modified_running.into_iter().collect();
+        let modified_names: std::collections::HashSet<String> =
+            modified.into_iter().collect();
         {
             let mut procs = self.processes.write().await;
             for proc in procs.iter_mut() {
@@ -372,6 +375,7 @@ impl ProcessManager {
                     exit_tx,
                     restart_tx,
                     stopped_for_config_update.contains(proc.name()),
+                    modified_names.contains(proc.name()),
                 )
                 .await;
             }
@@ -446,6 +450,7 @@ async fn reconcile_process_after_reload(
     exit_tx: &mpsc::Sender<ExitEvent>,
     restart_tx: &mpsc::Sender<String>,
     stopped_for_config_update: bool,
+    config_changed: bool,
 ) {
     if proc.origin() != ProcessOrigin::Config {
         return;
@@ -460,6 +465,21 @@ async fn reconcile_process_after_reload(
             info!("[{}] restarting with updated config", proc.name());
             if let Err(e) = proc.spawn() {
                 warn!("[{}] failed to restart: {e:#}", proc.name());
+                queue_restart(proc, restart_tx);
+            } else {
+                spawn_watcher(proc, exit_tx.clone());
+            }
+        } else {
+            info!("[{}] not restarting: start conditions not met", proc.name());
+        }
+    } else if config_changed && should_retry_failed_after_config_change(proc) {
+        if want_start {
+            info!(
+                "[{}] config changed while failed, retrying start",
+                proc.name()
+            );
+            if let Err(e) = proc.spawn() {
+                warn!("[{}] failed to restart after config change: {e:#}", proc.name());
                 queue_restart(proc, restart_tx);
             } else {
                 spawn_watcher(proc, exit_tx.clone());
@@ -482,6 +502,12 @@ async fn reconcile_process_after_reload(
     }
 
     proc.record_config_gate_met();
+}
+
+fn should_retry_failed_after_config_change(proc: &ManagedProcess) -> bool {
+    proc.origin() == ProcessOrigin::Config
+        && proc.config().auto_start
+        && proc.state() == ProcessState::Failed
 }
 
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<String>) {
@@ -561,6 +587,7 @@ mod tests {
     use super::*;
     use crate::config::{MutableConfigLoader, ProcessConfig, RestartPolicy, StaticConfigLoader};
     use crate::config_gate::ConditionConfigFile;
+    use crate::state::ProcessState;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
     use std::io::Write;
@@ -775,6 +802,56 @@ mod tests {
         assert!(
             !procs[0].is_running(),
             "non-running modified process should not be started"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_retries_failed_auto_start_after_config_change() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                command: "/nonexistent/dd-procmgr-reload-retry".to_string(),
+                restart: RestartPolicy::Never,
+                ..Default::default()
+            },
+        }]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, restart_tx) = reload_test_channels();
+
+        mgr.start_configured_processes(&exit_tx, &restart_tx).await;
+        assert_eq!(mgr.processes().await[0].state(), ProcessState::Failed);
+
+        config_loader.set(vec![sleep_def("svc-a")]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+
+        let procs = mgr.processes().await;
+        assert!(
+            procs[0].is_running(),
+            "failed config-managed auto-start process should retry after definition change"
+        );
+        test_helpers::cleanup_process(procs[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_stopped_process_stays_stopped() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, restart_tx) = reload_test_channels();
+
+        mgr.handle_start("svc-a", &exit_tx).await?;
+        mgr.handle_stop("svc-a").await?;
+        assert_eq!(mgr.processes().await[0].state(), ProcessState::Stopped);
+
+        config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(procs[0].state(), ProcessState::Stopped);
+        assert!(
+            !procs[0].is_running(),
+            "intentionally stopped process should not auto-retry after config change"
         );
         Ok(())
     }
