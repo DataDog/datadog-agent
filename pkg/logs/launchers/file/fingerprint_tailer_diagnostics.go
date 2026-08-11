@@ -49,7 +49,10 @@ type fingerprintSkip struct {
 	// since is when we first declined to tail the file, for the duration on the closing line.
 	since time.Time
 	// warned latches the warning so a file that stays unfingerprintable is not reported every scan.
-	warned bool
+	// It is keyed by reason rather than a single flag: a new reason is worth a fresh warning because
+	// the remediation differs, but a file alternating between the two must still warn once per
+	// reason rather than once per change.
+	warned map[fingerprintSkipReason]bool
 }
 
 // recordFingerprintSkip reports that file got no tailer because its fingerprint could not be used,
@@ -67,13 +70,17 @@ func (s *Launcher) recordFingerprintSkip(file *tailer.File, fingerprint *types.F
 	if !isSkipped {
 		// Set here as well as below so the field is never nil once stored: the paths that end the
 		// skip report skip.file.Path unguarded.
-		skip = &fingerprintSkip{file: file, reason: reason, since: time.Now()}
+		skip = &fingerprintSkip{
+			file:   file,
+			reason: reason,
+			since:  time.Now(),
+			warned: make(map[fingerprintSkipReason]bool, 1),
+		}
 		s.fingerprintSkips[scanKey] = skip
 	} else if skip.reason != reason {
 		// Still untailed, only failing differently, so keep the start time: resetting it would
 		// report one long gap as two shorter ones.
 		skip.reason = reason
-		skip.warned = false
 	}
 
 	// Adopt the File from this check rather than the first one: a source removed and re-added for
@@ -85,10 +92,10 @@ func (s *Launcher) recordFingerprintSkip(file *tailer.File, fingerprint *types.F
 	skip.file = file
 	setFingerprintSkipMessage(file, reason, fingerprint, err)
 
-	if skip.warned {
+	if skip.warned[reason] {
 		return
 	}
-	skip.warned = true
+	skip.warned[reason] = true
 
 	// Remediation lives on the status page rather than here, so the log line stays scannable.
 	if reason == fingerprintSkipError {
@@ -143,7 +150,7 @@ func (s *Launcher) closeFingerprintSkip(scanKey string, skip *fingerprintSkip, o
 	removeFingerprintSkipMessage(skip.file)
 
 	// Only files we warned about get a closing line, so neither half of a gap appears on its own.
-	if !skip.warned {
+	if len(skip.warned) == 0 {
 		return
 	}
 	waited := time.Since(skip.since).Truncate(time.Second)

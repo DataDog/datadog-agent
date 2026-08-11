@@ -145,7 +145,8 @@ func TestLauncherWarnsOnceWhenFileIsTooShortToFingerprint(t *testing.T) {
 	skip, isSkipped := setup.launcher.fingerprintSkips[setup.path]
 	require.True(t, isSkipped, "the launcher must remember it is skipping this file")
 	assert.Equal(t, fingerprintSkipInsufficientData, skip.reason)
-	assert.True(t, skip.warned, "the warning must stay latched so later scans stay silent")
+	assert.True(t, skip.warned[fingerprintSkipInsufficientData],
+		"the warning must stay latched so later scans stay silent")
 }
 
 // Once the file grows past the configured count it is tailed again, and the recovery is logged so
@@ -285,6 +286,39 @@ func TestLauncherKeepsFingerprintSkipAcrossReasonChange(t *testing.T) {
 	// The new reason is worth a fresh warning, since the remediation differs.
 	assert.Equal(t, 1, countLines(logs, "fingerprint could not be computed"),
 		"a new reason must be warned about, got:\n%s", logs)
+}
+
+// A new reason is worth a warning, but a file that keeps flipping between the two reasons must not
+// warn on every scan: an intermittent read failure on a file that is also too short would otherwise
+// defeat the latch entirely and report the same gap once per scan period.
+func TestLauncherWarnsOncePerReasonWhenFingerprintFlaps(t *testing.T) {
+	const (
+		count  = 2048
+		cycles = 3
+	)
+	setup := setupFingerprintSkipTest(t, count)
+	writeFile(t, setup.path, count-1)
+
+	// The real fingerprinter reports the short file as unusable with no error, while the mock
+	// reports an error for any file it has no fingerprint for. Alternating between the two flips the
+	// reason on every scan without the file ever becoming tailable.
+	tooShort := setup.launcher.fingerprinter
+	failing := filetailer.NewFingerprinterMock()
+	failing.SetShouldFileFingerprint(filetailer.NewFile(setup.path, setup.source, false), true)
+
+	logs := captureLauncherLogs(t, log.WarnLvl, func() {
+		for i := 0; i < cycles; i++ {
+			setup.launcher.fingerprinter = failing
+			setup.scan()
+			setup.launcher.fingerprinter = tooShort
+			setup.scan()
+		}
+	})
+
+	assert.Equal(t, 1, countLines(logs, "fingerprint could not be computed"),
+		"the error reason must be warned about once across every flip, got:\n%s", logs)
+	assert.Equal(t, 1, countLines(logs, "is too short for fingerprinting"),
+		"the too-short reason must be warned about once across every flip, got:\n%s", logs)
 }
 
 // A scan runs concurrently with the run loop against a copy of activeSources taken when it started,
