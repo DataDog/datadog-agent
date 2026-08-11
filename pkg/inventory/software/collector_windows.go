@@ -9,6 +9,7 @@ package software
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +21,10 @@ func defaultCollectors() []Collector {
 		&desktopAppCollector{},
 		// msStoreAppsCollector collects Windows Store apps
 		&msStoreAppsCollector{},
+		// osUpdateCollector collects installed OS updates from the servicing store
+		&osUpdateCollector{},
+		// driverCollector collects third-party (OEM) driver packages
+		&driverCollector{},
 	}
 }
 
@@ -91,4 +96,28 @@ func trimVersion(version string) string {
 		parts[i] = trimmed
 	}
 	return strings.Join(parts, ".")
+}
+
+// compareVersions compares two dot-separated version strings component by component,
+// returning a negative number if a < b, zero if they are equal, and a positive number
+// if a > b. Missing and non-numeric components count as zero, which is enough to order
+// the version strings Windows reports for drivers and servicing packages.
+func compareVersions(a, b string) int {
+	aParts := strings.Split(a, ".")
+	bParts := strings.Split(b, ".")
+
+	for i := 0; i < len(aParts) || i < len(bParts); i++ {
+		var aVal, bVal int
+		if i < len(aParts) {
+			aVal, _ = strconv.Atoi(aParts[i])
+		}
+		if i < len(bParts) {
+			bVal, _ = strconv.Atoi(bParts[i])
+		}
+		if aVal != bVal {
+			return aVal - bVal
+		}
+	}
+
+	return 0
 }

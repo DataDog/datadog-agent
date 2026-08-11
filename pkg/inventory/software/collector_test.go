@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,9 +19,14 @@ type MockCollector struct {
 	entries  map[string]*Entry
 	warnings []*Warning
 	err      error
+	// delay simulates a slow source, to exercise the per-collector deadline
+	delay time.Duration
 }
 
 func (m *MockCollector) Collect() ([]*Entry, []*Warning, error) {
+	if m.delay > 0 {
+		time.Sleep(m.delay)
+	}
 	if m.err != nil {
 		return nil, m.warnings, m.err
 	}
@@ -175,6 +181,73 @@ func TestCollectorOrchestration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCollectorDeadline(t *testing.T) {
+	const timeout = 50 * time.Millisecond
+
+	t.Run("Slow collector fails the snapshot but keeps other entries", func(t *testing.T) {
+		slow := &MockCollector{
+			delay:   10 * timeout,
+			entries: map[string]*Entry{"slow": {DisplayName: "Slow App", Source: "desktop"}},
+		}
+		fast := &MockCollector{
+			entries: map[string]*Entry{"fast": {DisplayName: "Fast App", Source: "desktop"}},
+		}
+
+		inventory, _, err := getSoftwareInventory([]Collector{slow, fast}, timeout)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+		assert.Len(t, inventory, 1, "entries from collectors that finished should survive")
+		assert.Equal(t, "Fast App", inventory[0].DisplayName)
+	})
+
+	t.Run("Collector finishing within the deadline succeeds", func(t *testing.T) {
+		collector := &MockCollector{
+			entries: map[string]*Entry{"app": {DisplayName: "App", Source: "desktop"}},
+		}
+
+		inventory, _, err := getSoftwareInventory([]Collector{collector}, timeout)
+
+		assert.NoError(t, err)
+		assert.Len(t, inventory, 1)
+	})
+
+	t.Run("Successful empty collector is not an error", func(t *testing.T) {
+		// An enumeration that legitimately finds nothing must not fail the
+		// snapshot; only failures and timeouts do.
+		inventory, _, err := getSoftwareInventory([]Collector{&MockCollector{}}, timeout)
+
+		assert.NoError(t, err)
+		assert.Empty(t, inventory)
+	})
+}
+
+func TestEntryIDsAreUniqueAcrossSources(t *testing.T) {
+	// os_update and driver entries share the snapshot with application entries;
+	// GetID must keep them distinct so the backend does not collapse them.
+	collector := &MockCollector{
+		entries: map[string]*Entry{
+			"driver":   {DisplayName: "Wi-Fi Adapter", ProductCode: "intel|net|wi-fi adapter", Source: softwareTypeDriver},
+			"update":   {DisplayName: "Update KB5061234", ProductCode: "KB5061234", Source: softwareTypeOSUpdate},
+			"macos":    {DisplayName: "macOS 15.6", ProductCode: "com.apple.macos", Source: softwareTypeOSUpdate},
+			"desktop":  {DisplayName: "Wi-Fi Adapter", ProductCode: "intel|net|wi-fi adapter", Source: "desktop"},
+			"homebrew": {DisplayName: "git", ProductCode: "git", Source: "homebrew"},
+		},
+	}
+
+	inventory, _, err := GetSoftwareInventoryWithCollectors([]Collector{collector})
+	assert.NoError(t, err)
+
+	seen := make(map[string]struct{}, len(inventory))
+	for _, entry := range inventory {
+		id := entry.GetID()
+		_, duplicate := seen[id]
+		assert.False(t, duplicate, "duplicate entry ID %q", id)
+		seen[id] = struct{}{}
+	}
+	assert.Len(t, seen, len(inventory))
 }
 
 func TestWarnings(t *testing.T) {

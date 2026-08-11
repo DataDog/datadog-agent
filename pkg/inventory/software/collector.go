@@ -12,7 +12,12 @@ package software
 import (
 	"errors"
 	"fmt"
+	"time"
 )
+
+// defaultCollectorTimeout bounds how long a single collector may run before the
+// snapshot gives up on it.
+const defaultCollectorTimeout = 90 * time.Second
 
 // Collector defines the interface for collecting software entries
 // from a specific source or location on the system. Different collectors
@@ -47,9 +52,9 @@ func warnf(format string, args ...interface{}) *Warning {
 // and system-specific information.
 type Entry struct {
 	// Source indicates the type or source of the software installation
-	// (e.g., Windows: "desktop", "msstore", "msu"; MacOS: "app", "pkg",
-	// "homebrew", "mas", "kext", "sysext"). This field helps categorize
-	// software by its installation method or distribution channel.
+	// (e.g., Windows: "desktop", "msstore", "os_update", "driver"; MacOS: "app",
+	// "pkg", "homebrew", "mas", "kext", "sysext", "os_update"). This field helps
+	// categorize software by its installation method or distribution channel.
 	// Placed first for easy identification when scanning JSON output.
 	Source string `json:"software_type"`
 
@@ -180,15 +185,51 @@ func (se *Entry) GetID() string {
 	return id
 }
 
+// collectorResult carries the return values of Collector.Collect across the
+// goroutine boundary in runCollectorWithDeadline.
+type collectorResult struct {
+	entries  []*Entry
+	warnings []*Warning
+	err      error
+}
+
+// runCollectorWithDeadline runs a collector, giving up if it takes longer than
+// timeout. A timed-out collector is reported as a fatal error: its source is in
+// an unknown state, and reporting a partial or missing family would look like
+// the software was uninstalled. The abandoned goroutine writes to a buffered
+// channel, so it exits on its own once the underlying call returns.
+func runCollectorWithDeadline(c Collector, timeout time.Duration) ([]*Entry, []*Warning, error) {
+	done := make(chan collectorResult, 1)
+	go func() {
+		entries, warnings, err := c.Collect()
+		done <- collectorResult{entries: entries, warnings: warnings, err: err}
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case res := <-done:
+		return res.entries, res.warnings, res.err
+	case <-timer.C:
+		return nil, nil, fmt.Errorf("collector %T timed out after %s", c, timeout)
+	}
+}
+
 // GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors
 func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Warning, error) {
+	return getSoftwareInventory(collectors, defaultCollectorTimeout)
+}
+
+// getSoftwareInventory collects from every collector, bounding each one by timeout.
+func getSoftwareInventory(collectors []Collector, timeout time.Duration) ([]*Entry, []*Warning, error) {
 	var allWarnings []*Warning
 	var allEntries []*Entry
 	var allErrors error
 
 	// Collect from all sources
 	for _, collector := range collectors {
-		entries, warnings, err := collector.Collect()
+		entries, warnings, err := runCollectorWithDeadline(collector, timeout)
 
 		// Add any warnings from the collector
 		allWarnings = append(allWarnings, warnings...)

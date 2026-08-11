@@ -9,9 +9,11 @@ package software
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -344,6 +346,7 @@ func TestSoftwareTypeConstants(t *testing.T) {
 		softwareTypeSysExt,
 		softwareTypeHomebrew,
 		softwareTypeMacPorts,
+		softwareTypeOSUpdate,
 	}
 
 	// Check uniqueness
@@ -363,6 +366,51 @@ func TestSoftwareTypeConstants(t *testing.T) {
 	assert.Equal(t, "sysext", softwareTypeSysExt)
 	assert.Equal(t, "homebrew", softwareTypeHomebrew)
 	assert.Equal(t, "macports", softwareTypeMacPorts)
+	assert.Equal(t, "os_update", softwareTypeOSUpdate)
+}
+
+// TestOSUpdateCollectorIntegration verifies against the real host that the running
+// system entry reports the same version as sw_vers.
+func TestOSUpdateCollectorIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	out, err := exec.Command("sw_vers", "-productVersion").Output()
+	require.NoError(t, err)
+	expectedVersion := strings.TrimSpace(string(out))
+
+	entries, warnings, err := (&osUpdateCollector{}).Collect()
+	require.NoError(t, err)
+
+	for _, w := range warnings {
+		t.Logf("Warning: %s", w.Message)
+	}
+
+	var system *Entry
+	seenIDs := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		assert.Equal(t, softwareTypeOSUpdate, entry.Source)
+		assert.NotEmpty(t, entry.DisplayName)
+		assert.Equal(t, applePublisher, entry.Publisher)
+
+		if entry.InstallDate != "" {
+			_, err := time.Parse(time.RFC3339, entry.InstallDate)
+			assert.NoError(t, err, "install date for %s should be RFC3339", entry.ProductCode)
+		}
+
+		_, duplicate := seenIDs[entry.GetID()]
+		assert.False(t, duplicate, "entry %q reported more than once", entry.GetID())
+		seenIDs[entry.GetID()] = struct{}{}
+
+		if entry.ProductCode == macOSProductCode {
+			system = entry
+		}
+	}
+
+	require.NotNil(t, system, "the running system entry must always be present")
+	assert.Equal(t, expectedVersion, system.Version)
+	t.Logf("Found %d OS update entries, running %s", len(entries), system.DisplayName)
 }
 
 // TestInstallSourceConstants verifies that install source constants (pkg, mas,

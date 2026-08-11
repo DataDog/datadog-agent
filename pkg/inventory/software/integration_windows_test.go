@@ -16,7 +16,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -390,4 +392,165 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 		t.Errorf("Found %d missing or mismatched MS Store apps:\n%s",
 			len(missingOrMismatchedApps), strings.Join(missingOrMismatchedApps, "\n"))
 	}
+}
+
+// pnputilDriver is one published driver package as reported by pnputil /enum-drivers
+type pnputilDriver struct {
+	publishedName string
+	providerName  string
+	className     string
+}
+
+// parsePnputilDrivers parses the record-per-package output of pnputil /enum-drivers.
+// Records are separated by blank lines and start with a "Published Name" field.
+func parsePnputilDrivers(output string) []pnputilDriver {
+	var drivers []pnputilDriver
+	var current pnputilDriver
+
+	flush := func() {
+		if current.publishedName != "" {
+			drivers = append(drivers, current)
+		}
+		current = pnputilDriver{}
+	}
+
+	for _, line := range strings.Split(output, "\n") {
+		field, value, ok := strings.Cut(strings.TrimSpace(line), ":")
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		switch strings.TrimSpace(field) {
+		case "Published Name":
+			flush()
+			current.publishedName = value
+		case "Provider Name":
+			current.providerName = value
+		case "Class Name":
+			current.className = value
+		}
+	}
+	flush()
+
+	return drivers
+}
+
+func TestParsePnputilDrivers(t *testing.T) {
+	output := `Microsoft PnP Utility
+
+Published Name:     oem0.inf
+Original Name:      prnms003.inf
+Provider Name:      Microsoft
+Class Name:         Printers
+Class GUID:         {4d36e979-e325-11ce-bfc1-08002be10318}
+Driver Version:     06/21/2006 10.0.26100.1150
+Signer Name:        Microsoft Windows
+
+Published Name:     oem1.inf
+Original Name:      netwtw10.inf
+Provider Name:      Intel
+Class Name:         Net
+Driver Version:     09/13/2024 22.100.0.2
+`
+
+	drivers := parsePnputilDrivers(output)
+
+	require.Len(t, drivers, 2)
+	assert.Equal(t, "oem0.inf", drivers[0].publishedName)
+	assert.Equal(t, "Microsoft", drivers[0].providerName)
+	assert.Equal(t, "Printers", drivers[0].className)
+	assert.Equal(t, "oem1.inf", drivers[1].publishedName)
+	assert.Equal(t, "Intel", drivers[1].providerName)
+	assert.Equal(t, "Net", drivers[1].className)
+}
+
+// TestIntegrationDriversAgainstPnputil verifies against the real host that every OEM
+// driver package we report is one that pnputil also lists. The comparison is one-way:
+// pnputil additionally lists driver-store packages that are not bound to any device,
+// which the WMI-based collector does not see.
+func TestIntegrationDriversAgainstPnputil(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	out, err := exec.Command("pnputil", "/enum-drivers").Output()
+	require.NoError(t, err)
+
+	published := make(map[string]struct{})
+	for _, driver := range parsePnputilDrivers(string(out)) {
+		published[strings.ToLower(driver.providerName+"|"+driver.className)] = struct{}{}
+	}
+	if len(published) == 0 {
+		// pnputil output is localized; without parsed records there is nothing to compare against.
+		t.Skip("pnputil reported no published driver packages")
+	}
+
+	entries, warnings, err := (&driverCollector{}).Collect()
+	require.NoError(t, err)
+	for _, w := range warnings {
+		t.Logf("Warning: %s", w.Message)
+	}
+
+	var unexpected []string
+	seenIDs := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		assert.Equal(t, softwareTypeDriver, entry.Source)
+		assert.NotEmpty(t, entry.DisplayName)
+		assert.NotEmpty(t, entry.Version)
+
+		_, duplicate := seenIDs[entry.GetID()]
+		assert.False(t, duplicate, "driver %q reported more than once", entry.GetID())
+		seenIDs[entry.GetID()] = struct{}{}
+
+		// ProductCode is "provider|class|description"; compare on the first two parts.
+		parts := strings.Split(entry.ProductCode, "|")
+		require.Len(t, parts, 3)
+		if _, ok := published[parts[0]+"|"+parts[1]]; !ok {
+			unexpected = append(unexpected, fmt.Sprintf("%s (%s)", entry.DisplayName, entry.ProductCode))
+		}
+	}
+
+	t.Logf("pnputil published %d provider/class pairs, our collector found %d driver packages",
+		len(published), len(entries))
+
+	if len(unexpected) > 0 {
+		t.Errorf("Found %d drivers not published according to pnputil:\n%s",
+			len(unexpected), strings.Join(unexpected, "\n"))
+	}
+}
+
+// TestIntegrationOSUpdates verifies against the real host that installed KB articles
+// are reported with a well-formed identity and install time.
+func TestIntegrationOSUpdates(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	entries, warnings, err := (&osUpdateCollector{}).Collect()
+	require.NoError(t, err)
+	for _, w := range warnings {
+		t.Logf("Warning: %s", w.Message)
+	}
+
+	// Every serviced Windows install has KB packages in the CBS store.
+	require.NotEmpty(t, entries, "expected at least one installed OS update")
+
+	seenIDs := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		assert.Equal(t, softwareTypeOSUpdate, entry.Source)
+		assert.Regexp(t, `^KB\d{6,7}$`, entry.ProductCode)
+		assert.Equal(t, "Update "+entry.ProductCode, entry.DisplayName)
+		assert.NotEmpty(t, entry.Version)
+
+		if entry.InstallDate != "" {
+			_, err := time.Parse(time.RFC3339Nano, entry.InstallDate)
+			assert.NoError(t, err, "install date for %s should be RFC3339", entry.ProductCode)
+		}
+
+		_, duplicate := seenIDs[entry.GetID()]
+		assert.False(t, duplicate, "KB %q reported more than once", entry.ProductCode)
+		seenIDs[entry.GetID()] = struct{}{}
+	}
+
+	t.Logf("Found %d installed OS updates", len(entries))
 }
