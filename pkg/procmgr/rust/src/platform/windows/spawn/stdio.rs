@@ -4,9 +4,6 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Result, bail};
-use log::warn;
-use std::path::Path;
-use std::process::Stdio;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, HANDLE_FLAG_INHERIT,
@@ -24,33 +21,6 @@ use crate::spawn::StdioSetting;
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
 use super::logon::{logon_user_credentials, logon_user_token, with_impersonated_token};
-
-/// Resolve portable stdio settings for `tokio::process::Command` fallback spawns.
-pub(super) fn to_command_stdio(setting: &StdioSetting, inheritable: bool) -> Stdio {
-    match setting {
-        StdioSetting::Null => Stdio::null(),
-        StdioSetting::Inherit if inheritable => Stdio::inherit(),
-        StdioSetting::Inherit => Stdio::null(),
-        StdioSetting::File(path) => file_to_stdio(path),
-    }
-}
-
-fn file_to_stdio(path: &Path) -> Stdio {
-    match std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-    {
-        Ok(f) => f.into(),
-        Err(e) => {
-            warn!(
-                "failed to open stdio file {}: {e}, falling back to inherit",
-                path.display()
-            );
-            Stdio::inherit()
-        }
-    }
-}
 
 pub(super) fn map_stdio_setting(
     process_name: &str,
@@ -214,7 +184,6 @@ fn duplicate_inheritable_handle(source: HANDLE) -> Result<HANDLE> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers;
     use std::path::PathBuf;
 
     #[test]
@@ -222,43 +191,5 @@ mod tests {
         assert!(StdioSetting::Inherit.is_inherit_or_null());
         assert!(StdioSetting::Null.is_inherit_or_null());
         assert!(!StdioSetting::File(PathBuf::from(r"C:\logs\trace.log")).is_inherit_or_null());
-    }
-
-    fn command_stdio(yaml: &str) -> Stdio {
-        let setting = match yaml {
-            "null" => StdioSetting::Null,
-            "inherit" | "" => StdioSetting::Inherit,
-            path => StdioSetting::File(path.into()),
-        };
-        to_command_stdio(&setting, crate::platform::stdout_inheritable())
-    }
-
-    #[test]
-    fn null_discards_child_stdout() {
-        let (sh, flag) = test_helpers::shell_cmd();
-        let out = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo hello")
-            .stdout(command_stdio("null"))
-            .output()
-            .unwrap();
-        assert!(out.stdout.is_empty());
-    }
-
-    #[test]
-    fn writable_path_redirect() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("pmgr_stdio_redirect.log");
-        let path_str = path.to_str().unwrap();
-        let (sh, flag) = test_helpers::shell_cmd();
-        let status = std::process::Command::new(sh)
-            .arg(flag)
-            .arg("echo fileline")
-            .stdout(command_stdio(path_str))
-            .status()
-            .unwrap();
-        assert!(status.success());
-        let contents = std::fs::read_to_string(&path).unwrap();
-        assert!(contents.contains("fileline"), "got {contents:?}");
     }
 }

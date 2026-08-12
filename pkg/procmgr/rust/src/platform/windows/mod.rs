@@ -11,7 +11,6 @@ mod local_account;
 mod managed_service_account;
 mod pipe_caller;
 mod pipe_security;
-mod resolve_executable;
 mod scm_service;
 mod sid;
 mod spawn;
@@ -408,74 +407,8 @@ pub async fn shutdown_signal() {
 }
 
 // ---------------------------------------------------------------------------
-// Child process baseline environment (after `env_clear`)
+// Spawn token environment block (`CreateProcessAsUserW`)
 // ---------------------------------------------------------------------------
-
-/// Keys copied from the **current** process when `CreateEnvironmentBlock` is unavailable.
-/// Matches the former installer-side snapshot list (minus disk); values come from
-/// dd-procmgrd at spawn time so PATH / profile vars reflect the service account.
-const FALLBACK_ENV_KEYS: &[&str] = &[
-    "SystemRoot",
-    "WINDIR",
-    "SystemDrive",
-    "ProgramData",
-    "ProgramFiles",
-    "ProgramFiles(x86)",
-    "ProgramW6432",
-    "CommonProgramFiles",
-    "CommonProgramFiles(x86)",
-    "CommonProgramW6432",
-    "PUBLIC",
-    "TEMP",
-    "TMP",
-    "Path",
-    "PATHEXT",
-    "LOCALAPPDATA",
-    "APPDATA",
-    "USERPROFILE",
-    "ComSpec",
-];
-
-/// Baseline environment for managed children after clearing inherited procmgr variables.
-///
-/// Used by the tokio spawn path after [`tokio::process::Command::env_clear`] so managed
-/// children (e.g. otel-agent) see PATH, profile directories, and system roots for the
-/// **dd-procmgr** process token — not the fleet installer's environment.
-pub(crate) fn child_baseline_env_vars() -> HashMap<String, String> {
-    use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
-    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
-
-    let mut token: HANDLE = std::ptr::null_mut();
-    let ok = unsafe {
-        OpenProcessToken(
-            GetCurrentProcess(),
-            TOKEN_QUERY | TOKEN_DUPLICATE,
-            &mut token,
-        )
-    };
-    if ok == 0 {
-        log::warn!(
-            "OpenProcessToken(GetCurrentProcess) failed ({}); using process-env fallback",
-            std::io::Error::last_os_error()
-        );
-        return fallback_process_env_vars();
-    }
-
-    let vars = match baseline_env_vars_from_token(token) {
-        Ok(vars) => vars,
-        Err(e) => {
-            log::warn!(
-                "CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback"
-            );
-            fallback_process_env_vars()
-        }
-    };
-
-    unsafe {
-        CloseHandle(token);
-    }
-    vars
-}
 
 /// Baseline environment for a specific logon/primary token (used by `CreateProcessAsUserW`).
 pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<String, String>> {
@@ -557,18 +490,6 @@ fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::O
         std::ffi::OsString::from_wide(k),
         std::ffi::OsString::from_wide(v),
     ))
-}
-
-fn fallback_process_env_vars() -> HashMap<String, String> {
-    let mut vars = HashMap::new();
-    for &key in FALLBACK_ENV_KEYS {
-        if let Ok(val) = std::env::var(key)
-            && !val.is_empty()
-        {
-            vars.insert(key.to_string(), val);
-        }
-    }
-    vars
 }
 
 #[cfg(test)]
