@@ -19,7 +19,7 @@ cc_library(
 
 rust_library(
     name = "dd-procmgr-client",
-    srcs = glob(["src/**/*.rs"]),
+    srcs = glob(["src/*.rs"]),
     crate_name = "dd_procmgr_client",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
