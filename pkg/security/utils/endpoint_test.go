@@ -6,9 +6,11 @@
 package utils
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
@@ -62,6 +64,12 @@ func TestGetEndpointURLHostWithEmbeddedPort(t *testing.T) {
 	endpoint := config.NewEndpoint("key", "keyPath", "cws-intake.datadoghq.com.:443", 0, config.EmptyPathPrefix, true)
 	url := GetEndpointURL(endpoint, "api/v2/secdump")
 	assert.Equal(t, "https://cws-intake.datadoghq.com.:443/api/v2/secdump", url)
+
+	// The prod failure was http.NewRequest rejecting the malformed
+	// "https://[cws-intake.datadoghq.com.:443]:443/..." URL. Assert the produced URL
+	// is actually accepted by the same call the forwarder makes.
+	_, err := http.NewRequest("POST", url, nil)
+	require.NoError(t, err)
 }
 
 // TestGetEndpointURLHostWithEmbeddedPortExplicitWins ensures an explicitly configured
