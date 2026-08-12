@@ -1,8 +1,6 @@
 """Macos packaging rules."""
 
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load(":pkg_mac_pkg.bzl", "pkg_mac_pkg")
 load(":pkg_mac_pkg_test.bzl", "pkg_mac_pkg_test_suite")
 
 package(default_visibility = ["//visibility:private"])
