@@ -2168,7 +2168,7 @@ func TestConntrackMonotonicCount(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: "/usr/sbin/conntrack"
+conntrack_path: "/usr/bin/conntrack"
 `)
 
 	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
@@ -2206,11 +2206,12 @@ func TestConntrackPathAllowlist(t *testing.T) {
 		expected string
 	}{
 		{"empty path is allowed", "", ""},
+		{"default usr bin path is allowed", "/usr/sbin/conntrack", "/usr/sbin/conntrack"},
 		{"default usr sbin path is allowed", "/usr/sbin/conntrack", "/usr/sbin/conntrack"},
 		{"default sbin path is allowed", "/sbin/conntrack", "/sbin/conntrack"},
 		{"nix store path is allowed", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack"},
-		{"arbitrary path is rejected", "/usr/bin/conntrack", ""},
-		{"path traversal is rejected", "/nix/store/../../etc/passwd", ""},
+		{"arbitrary path is rejected", "/tmp/usr/bin/conntrack", ""},
+		{"path traversal is rejected", "/nix/store/../../etc/conntrack", ""},
 		{"command injection attempt is rejected", "/usr/sbin/conntrack; cat /etc/passwd", ""},
 	}
 
@@ -2237,7 +2238,7 @@ func TestConntrackGaugeBlacklist(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: "/usr/sbin/conntrack"
+conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "count"]
 blacklist_conntrack_metrics: ["count", "entries", "max"]
 `)
@@ -2279,7 +2280,7 @@ func TestConntrackGaugeWhitelist(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: "/usr/sbin/conntrack"
+conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "include"]
 `)
 

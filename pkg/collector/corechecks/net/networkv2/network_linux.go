@@ -47,6 +47,7 @@ var (
 // and the paths matched by conntrackPathAllowlistRegex.
 var conntrackPathAllowlist = []string{
 	"",
+	"/usr/bin/conntrack",
 	"/usr/sbin/conntrack",
 	"/sbin/conntrack",
 }
@@ -58,6 +59,9 @@ var conntrackPathAllowlistRegex = regexp.MustCompile(`^/nix/store/.*/conntrack$`
 func isConntrackPathAllowed(path string) bool {
 	if slices.Contains(conntrackPathAllowlist, path) {
 		return true
+	}
+	if !filepath.IsLocal(path) {
+		return false
 	}
 	return conntrackPathAllowlistRegex.MatchString(path)
 }
