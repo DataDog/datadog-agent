@@ -28,7 +28,8 @@ import (
 //
 // No cgo is needed. golang.org/x/sys/unix exposes the process list, ppid,
 // credentials and start time through one sysctl; only argv needs manual work.
-func Snapshot(pr *process.EBPFLessResolver) (int, error) {
+// ug may be nil, in which case credentials carry uid/gid but no names.
+func Snapshot(pr *process.EBPFLessResolver, ug nameResolver) (int, error) {
 	procs, err := unix.SysctlKinfoProcSlice("kern.proc.all")
 	if err != nil {
 		return 0, fmt.Errorf("kern.proc.all: %w", err)
@@ -79,6 +80,20 @@ func Snapshot(pr *process.EBPFLessResolver) (int, error) {
 		entry.Credentials.UID = kp.Eproc.Pcred.P_ruid
 		entry.Credentials.EUID = kp.Eproc.Ucred.Uid
 		entry.Credentials.GID = kp.Eproc.Pcred.P_rgid
+
+		// Snapshotted processes are exactly the ones that appear as the ROOT of a
+		// tree, so leaving their names empty is the most visible version of the
+		// missing-username problem. The resolver's LRU makes this a handful of
+		// lookups across hundreds of processes.
+		if ug != nil {
+			if name, err := ug.ResolveUser(int(entry.Credentials.UID)); err == nil {
+				entry.Credentials.User = name
+			}
+			if name, err := ug.ResolveGroup(int(entry.Credentials.GID)); err == nil {
+				entry.Credentials.Group = name
+			}
+		}
+
 		inserted++
 	}
 

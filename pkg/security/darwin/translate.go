@@ -28,8 +28,9 @@ import (
 // {Pid: ppid, NSID: key.NSID}, so a per-process NSID would break every parent
 // link. Eviction on exit is what makes pid reuse safe instead.
 type Translator struct {
-	resolver *process.EBPFLessResolver
-	handlers model.FieldHandlers
+	resolver  *process.EBPFLessResolver
+	handlers  model.FieldHandlers
+	userGroup nameResolver
 
 	// RecycledPIDs counts genuinely reused pids, i.e. a fork arriving for a pid
 	// that still has a live cache entry because we never saw its exit. Note that
@@ -45,9 +46,50 @@ type Translator struct {
 
 // NewTranslator returns a Translator writing into the given process resolver.
 func NewTranslator(pr *process.EBPFLessResolver, fh model.FieldHandlers) *Translator {
-	return &Translator{
+	t := &Translator{
 		resolver: pr,
 		handlers: fh,
+	}
+
+	// process.user and process.group are plain stored fields on Credentials with
+	// no field handler behind them, so names have to be filled in as entries are
+	// built rather than resolved lazily at evaluation time. An unavailable
+	// resolver degrades to empty names, which is exactly the symptom this fixes,
+	// so it is logged rather than fatal.
+	ug, err := newNameResolver()
+	if err != nil {
+		log.Warnf("user/group resolution unavailable, usernames will be empty: %v", err)
+	} else {
+		t.userGroup = ug
+	}
+
+	return t
+}
+
+// nameResolver maps uids and gids to names. It exists as an interface because
+// pkg/security/resolvers/usergroup has a different constructor signature per
+// platform (linux needs a cgroup resolver), and this file is //go:build unix so
+// that its tests also run on Linux in CI.
+type nameResolver interface {
+	ResolveUser(uid int) (string, error)
+	ResolveGroup(gid int) (string, error)
+}
+
+// resolveNames fills in the user and group names for an entry's credentials.
+func (t *Translator) resolveNames(entry *model.ProcessCacheEntry) {
+	if t.userGroup == nil {
+		return
+	}
+
+	if entry.Credentials.User == "" {
+		if name, err := t.userGroup.ResolveUser(int(entry.Credentials.UID)); err == nil {
+			entry.Credentials.User = name
+		}
+	}
+	if entry.Credentials.Group == "" {
+		if name, err := t.userGroup.ResolveGroup(int(entry.Credentials.GID)); err == nil {
+			entry.Credentials.Group = name
+		}
 	}
 }
 
@@ -173,6 +215,7 @@ func (t *Translator) translateExec(body *eslogger.ExecEvent, ts time.Time) *mode
 	}
 
 	applyCredentials(entry, target)
+	t.resolveNames(entry)
 	setInterpreter(entry, interpreterPath)
 
 	ev := t.newEvent()
@@ -221,6 +264,7 @@ func (t *Translator) translateFork(body *eslogger.ForkEvent, ts time.Time) *mode
 	}
 
 	applyCredentials(entry, child)
+	t.resolveNames(entry)
 
 	ev := t.newEvent()
 	ev.Type = uint32(model.ForkEventType)

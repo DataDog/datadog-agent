@@ -82,6 +82,8 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 	}
 
 	fh := NewFieldHandlers(pr, cfg.Hostname)
+	// NewTranslator builds its own user/group resolver via the platform seam in
+	// names_darwin.go, so the collector does not need to know about usergroup.
 	translator := NewTranslator(pr, fh)
 	recorder := &MatchRecorder{}
 
@@ -112,7 +114,7 @@ func (c *Collector) Run(ctx context.Context) error {
 	// This leaves a small race: a process created between the snapshot and the
 	// subscription is in neither. The orphan-exec counter in the shutdown summary
 	// measures how often that actually happens.
-	if n, err := Snapshot(c.translator.resolver); err != nil {
+	if n, err := Snapshot(c.translator.resolver, c.translator.userGroup); err != nil {
 		log.Warnf("process snapshot failed, trees will be truncated: %v", err)
 	} else {
 		log.Infof("snapshotted %d running processes", n)

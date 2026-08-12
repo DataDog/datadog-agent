@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 )
 
 // TestParseProcArgs covers the fiddliest part of the snapshot: KERN_PROCARGS2 is
@@ -71,7 +72,10 @@ func TestSnapshotFindsCurrentProcess(t *testing.T) {
 	pr, err := process.NewEBPFLessResolver(nil, nil, testScrubber(t), process.NewResolverOpts())
 	require.NoError(t, err)
 
-	n, err := Snapshot(pr)
+	ug, err := usergroup.NewResolver()
+	require.NoError(t, err)
+
+	n, err := Snapshot(pr, ug)
 	require.NoError(t, err)
 	assert.Positive(t, n, "snapshot must find processes")
 
@@ -96,7 +100,10 @@ func TestSnapshotLinksParents(t *testing.T) {
 	pr, err := process.NewEBPFLessResolver(nil, nil, testScrubber(t), process.NewResolverOpts())
 	require.NoError(t, err)
 
-	_, err = Snapshot(pr)
+	ug, err := usergroup.NewResolver()
+	require.NoError(t, err)
+
+	_, err = Snapshot(pr, ug)
 	require.NoError(t, err)
 
 	self := pr.Resolve(process.CacheResolverKey{Pid: uint32(os.Getpid())})

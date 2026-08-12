@@ -78,6 +78,37 @@ func TestSerializeExecProducesLinuxShapedPayload(t *testing.T) {
 	t.Logf("exec payload: %s", raw)
 }
 
+// TestSerializeResolvesUserAndGroup closes the gap seen in the staging UI, where
+// events carried "uid": 502 but no username at all.
+//
+// process.user and process.group are plain stored fields on Credentials with no
+// field handler behind them, so nothing resolves them lazily at evaluation time;
+// the names have to be filled in as the cache entry is built. This test is
+// darwin-only because that is where a real Open Directory lookup happens -- off
+// darwin newNameResolver deliberately returns nothing.
+func TestSerializeResolvesUserAndGroup(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	// uid 0 / gid 0 resolve deterministically to root / wheel on macOS.
+	ev, err := tr.Translate(execMessageCreds(t, 960, 1, "/bin/sh", []string{"sh"}, 0, 0, 0, 0))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	raw, err := serializers.MarshalEvent(ev, testScrubber(t))
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+
+	proc, ok := payload["process"].(map[string]any)
+	require.True(t, ok)
+
+	assert.Equal(t, "root", proc["user"], "process.user must be resolved, not left empty")
+	assert.Equal(t, "wheel", proc["group"], "gid 0 is wheel on macOS")
+
+	t.Logf("payload with names: %s", raw)
+}
+
 // TestBuildPayloadCarriesAgentRuleID is the precondition for turning an agent
 // event into a signal. A Workload Protection detection rule matches on
 // @agent.rule_id, which is an ATTRIBUTE of the payload body -- not a log tag.
