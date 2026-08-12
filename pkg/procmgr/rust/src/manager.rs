@@ -442,6 +442,17 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
+/// Whether a running process should be stopped during reload reconciliation.
+///
+/// `auto_start: false` processes may be started manually; they are kept running across
+/// unchanged reloads unless a config gate transitions from met to unmet.
+fn should_stop_running_after_reload(proc: &ManagedProcess, gate_was: Option<bool>) -> bool {
+    if !proc.config().auto_start {
+        return !proc.config_gate_met() && gate_was == Some(true);
+    }
+    !proc.should_start()
+}
+
 /// Reconcile a config-managed process after reload: restart after definition change,
 /// stop when config gates close, or start when gates open.
 async fn reconcile_process_after_reload(
@@ -489,7 +500,7 @@ async fn reconcile_process_after_reload(
         } else {
             info!("[{}] not restarting: start conditions not met", proc.name());
         }
-    } else if proc.is_running() && !want_start {
+    } else if proc.is_running() && should_stop_running_after_reload(proc, gate_was) {
         info!("[{}] start conditions no longer met, stopping", proc.name());
         proc.request_stop();
         proc.wait_for_stop().await;
@@ -794,6 +805,40 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_keeps_manually_started_auto_start_false_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                ..sleep_def("action-executor").config
+            },
+        }]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, restart_tx) = reload_test_channels();
+
+        mgr.handle_start("action-executor", &exit_tx).await?;
+        assert!(mgr.processes().await[0].is_running());
+
+        config_loader.set(vec![ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                ..sleep_def("action-executor").config
+            },
+        }]);
+        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert!(result.unchanged.contains(&"action-executor".to_string()));
+
+        let procs = mgr.processes().await;
+        assert!(
+            procs[0].is_running(),
+            "manually started auto_start=false process should survive unchanged reload"
+        );
+        test_helpers::cleanup_process(procs[0].pid().unwrap());
         Ok(())
     }
 
