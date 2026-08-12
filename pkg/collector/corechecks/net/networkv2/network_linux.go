@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -56,14 +57,16 @@ var conntrackPathAllowlist = []string{
 // /nix/store/<hash>-conntrack-tools-<version>/conntrack
 var conntrackPathAllowlistRegex = regexp.MustCompile(`^/nix/store/.*/conntrack$`)
 
-func isConntrackPathAllowed(path string) bool {
-	if slices.Contains(conntrackPathAllowlist, path) {
+func isConntrackPathAllowed(cfgpath string) bool {
+	if slices.Contains(conntrackPathAllowlist, cfgpath) {
 		return true
 	}
-	if !filepath.IsLocal(path) {
+	cleanedPath := path.Clean(cfgpath)
+	// Only allow absolute paths that have no dot or dot-dot expansion to prevent traversal
+	if cfgpath != cleanedPath {
 		return false
 	}
-	return conntrackPathAllowlistRegex.MatchString(path)
+	return conntrackPathAllowlistRegex.MatchString(cleanedPath)
 }
 
 type ethtoolInterface interface {
