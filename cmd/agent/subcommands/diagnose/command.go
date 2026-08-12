@@ -259,6 +259,21 @@ This command print the ha-agent metadata payload. This payload is used by the 'H
 		},
 	}
 
+	payloadWorkloadBalancingCmd := &cobra.Command{
+		Use:   "workload-balancing",
+		Short: "Print the Workload Balancing Metadata payload.",
+		Long: `
+This command print the workload-balancing metadata payload. This payload is used by the 'Agent Workload Balancing' feature.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("workload-balancing")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
 	payloadInventoriesChecksCmd := &cobra.Command{
 		Use:   "inventory-checks",
 		Short: "[internal] Print the Inventory checks metadata payload.",
@@ -382,6 +397,7 @@ Health platform must be enabled for issues to be reported.`,
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadHostGpuCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
+	showPayloadCommand.AddCommand(payloadWorkloadBalancingCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)

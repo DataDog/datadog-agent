@@ -1017,6 +1017,15 @@ new-e2e-ha-agent-failover:
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
   allow_failure: true
+
+new-e2e-workload-balancing:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_workload_balancing_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/workload-balancing
+    TEAM: network-device-monitoring-core
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-anomalydetection:

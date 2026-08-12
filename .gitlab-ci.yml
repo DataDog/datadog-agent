@@ -1278,6 +1278,18 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_workload_balancing_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/workloadbalancing/**/*
+        - comp/metadata/workloadbalancing/**/*
+        - pkg/aggregator/**/*
+        - test/new-e2e/tests/workload-balancing/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_netpath_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
