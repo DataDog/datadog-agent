@@ -107,7 +107,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				localOpts = &pool.LocalProvisionOptions{Username: username}
 			}
 
-			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), poolClient, stackID, localOpts)
+			poolAcquired, err = pool.Acquire(e.Ctx().Context(), e.Region(), e.Profile(), e.DefaultLeaseBucket(), poolClient, stackID, localOpts)
 			if err != nil {
 				return err
 			}
@@ -120,7 +120,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 				if revertBeforeRun {
 					// The re-published lease has a new ETag; keep it or the release at
 					// teardown fails its If-Match and strands the lease as in-use.
-					newToken, err := pool.RevertInPlace(e.Ctx().Context(), e.Region(), e.Profile(), poolAcquired.InstanceID, poolAcquired.LeaseToken)
+					newToken, err := pool.RevertInPlace(e.Ctx().Context(), e.Region(), e.Profile(), e.DefaultLeaseBucket(), poolAcquired.InstanceID, poolAcquired.LeaseToken)
 					if err != nil {
 						return fmt.Errorf("failed to revert local pool instance %s before run: %w", poolAcquired.InstanceID, err)
 					}
@@ -190,9 +190,11 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 		if isMacOSPoolMember {
 			c.PoolRegion = pulumi.String(e.Region()).ToStringOutput()
 			c.PoolProfile = pulumi.String(e.Profile()).ToStringOutput()
+			c.PoolLeaseBucket = pulumi.String(e.DefaultLeaseBucket()).ToStringOutput()
 		} else {
 			c.PoolRegion = pulumi.String("").ToStringOutput()
 			c.PoolProfile = pulumi.String("").ToStringOutput()
+			c.PoolLeaseBucket = pulumi.String("").ToStringOutput()
 		}
 
 		// Create the EC2 instance

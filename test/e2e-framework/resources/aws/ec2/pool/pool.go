@@ -25,7 +25,6 @@ import (
 )
 
 const (
-	leaseBucket = "datadog-agent-sandbox"
 	leasePrefix = "macos-e2e-pool-leases/"
 
 	maxAcquireRetries    = 30
@@ -127,7 +126,7 @@ var errPoolExhausted = errors.New("no idle instance available")
 // AcquireIdleInstance claims one idle instance from pool via a conditional S3 write
 // (If-Match on the lease object's current ETag), retrying the whole-pool scan up to
 // maxAcquireRetries times, acquireRetryInterval apart, then failing errPoolExhausted.
-func AcquireIdleInstance(ctx context.Context, region, profile string, pool []string, stackID string) (instanceID string, leaseToken string, imageID string, err error) {
+func AcquireIdleInstance(ctx context.Context, region, profile, leaseBucket string, pool []string, stackID string) (instanceID string, leaseToken string, imageID string, err error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", "", "", err
@@ -201,7 +200,7 @@ func AcquireIdleInstance(ctx context.Context, region, profile string, pool []str
 // RevertAndRelease reverts instanceID's root volume to the lease's current baseline
 // image and releases the lease, conditioned on leaseToken matching the lease
 // object's current ETag. The revert is skipped in dev mode or for a persistent lease.
-func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseToken string, devMode bool) error {
+func RevertAndRelease(ctx context.Context, region, profile, leaseBucket, instanceID, leaseToken string, devMode bool) error {
 	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return err
@@ -244,13 +243,13 @@ func RevertAndRelease(ctx context.Context, region, profile, instanceID, leaseTok
 		}
 	}
 
-	return releaseLease(ctx, s3Client, instanceID, leaseToken, statusIdle, imageID, current.Persistent)
+	return releaseLease(ctx, s3Client, leaseBucket, instanceID, leaseToken, statusIdle, imageID, current.Persistent)
 }
 
 // RevertInPlace reverts instanceID's root volume to the lease's current baseline
 // image, like RevertAndRelease, but re-publishes the lease as statusInUse instead of
 // releasing it. Returns the new lease token, which the caller must keep to release.
-func RevertInPlace(ctx context.Context, region, profile, instanceID, leaseToken string) (string, error) {
+func RevertInPlace(ctx context.Context, region, profile, leaseBucket, instanceID, leaseToken string) (string, error) {
 	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", err
@@ -364,7 +363,7 @@ func replaceRootVolume(ctx context.Context, client *awsec2.Client, instanceID, s
 // releaseLease writes status/imageID back to instanceID's lease record, conditioned
 // on leaseToken matching the lease object's current ETag. persistent is carried
 // forward from the current record rather than defaulted to zero values.
-func releaseLease(ctx context.Context, client *s3.Client, instanceID, leaseToken, status, imageID string, persistent bool) error {
+func releaseLease(ctx context.Context, client *s3.Client, leaseBucket, instanceID, leaseToken, status, imageID string, persistent bool) error {
 	body, err := json.Marshal(leaseRecord{Status: status, ImageID: imageID, Persistent: persistent})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease record for instance %s: %w", instanceID, err)
@@ -423,7 +422,7 @@ func isConditionalWriteConflict(err error) bool {
 // PublishInitialLease writes instanceID's first lease record, held by holder and
 // marked Persistent, and returns the lease token. Fails ErrLeaseAlreadyExists if a
 // lease is already present.
-func PublishInitialLease(ctx context.Context, region, profile, instanceID, imageID, holder string) (string, error) {
+func PublishInitialLease(ctx context.Context, region, profile, leaseBucket, instanceID, imageID, holder string) (string, error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", err
@@ -461,7 +460,7 @@ func PublishInitialLease(ctx context.Context, region, profile, instanceID, image
 
 // CurrentLeaseToken returns instanceID's current lease ETag, letting a caller that hit
 // ErrLeaseAlreadyExists adopt the existing lease instead of failing.
-func CurrentLeaseToken(ctx context.Context, region, profile, instanceID string) (string, error) {
+func CurrentLeaseToken(ctx context.Context, region, profile, leaseBucket, instanceID string) (string, error) {
 	client, err := newS3Client(ctx, region, profile)
 	if err != nil {
 		return "", err
@@ -500,7 +499,7 @@ type LocalProvisionOptions struct {
 // Acquire lists every instance tagged PoolTagKey=PoolTagValue (additionally scoped
 // to OwnerUsernameTagKey=local.Username when local is non-nil) and claims one idle
 // member. An empty pool yields Found: false for a local run; all else is an error.
-func Acquire(ctx context.Context, region, profile string, client *awsec2.Client, stackID string, local *LocalProvisionOptions) (AcquireResult, error) {
+func Acquire(ctx context.Context, region, profile, leaseBucket string, client *awsec2.Client, stackID string, local *LocalProvisionOptions) (AcquireResult, error) {
 	tags := map[string]string{PoolTagKey: PoolTagValue}
 	if local != nil {
 		// An empty owner filter matches no instance, which would look like an empty
@@ -529,7 +528,7 @@ func Acquire(ctx context.Context, region, profile string, client *awsec2.Client,
 		ids = append(ids, pi.InstanceID)
 	}
 
-	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, ids, stackID)
+	instanceID, leaseToken, imageID, err := AcquireIdleInstance(ctx, region, profile, leaseBucket, ids, stackID)
 	if err != nil {
 		return AcquireResult{}, err
 	}

@@ -830,12 +830,12 @@ func (bs *BaseSuite[Env]) registerPoolInstanceIfNeeded(env *Env) error {
 		}
 
 		ctx, cancel := bs.providerContext(deleteTimeout)
-		token, err := pool.PublishInitialLease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile,
+		token, err := pool.PublishInitialLease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket,
 			remoteHost.PoolInstanceID, remoteHost.PoolBaselineImageID, remoteHost.PoolStackID)
 		if errors.Is(err, pool.ErrLeaseAlreadyExists) {
 			// Expected when UpdateEnv re-enters reconcileEnv: adopt the live lease
 			// rather than failing.
-			token, err = pool.CurrentLeaseToken(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolInstanceID)
+			token, err = pool.CurrentLeaseToken(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID)
 		}
 		cancel()
 		if err != nil {
@@ -883,7 +883,7 @@ func (bs *BaseSuite[Env]) releasePoolInstanceForEnv(env *Env) {
 		}
 
 		ctx, cancel := bs.providerContext(deleteTimeout)
-		err := pool.RevertAndRelease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolInstanceID, remoteHost.PoolLeaseToken, bs.params.devMode)
+		err := pool.RevertAndRelease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID, remoteHost.PoolLeaseToken, bs.params.devMode)
 		cancel()
 		if err != nil {
 			utils.Errorf(bs.T(), "unable to revert/release macOS pool instance %s: %v", remoteHost.PoolInstanceID, err)

@@ -35,6 +35,7 @@ type HostOutput struct {
 	PoolLeaseToken      string `json:"poolLeaseToken,omitempty"`
 	PoolRegion          string `json:"poolRegion,omitempty"`
 	PoolProfile         string `json:"poolProfile,omitempty"`
+	PoolLeaseBucket     string `json:"poolLeaseBucket,omitempty"`
 	PoolBaselineImageID string `json:"poolBaselineImageId,omitempty"`
 	PoolStackID         string `json:"poolStackId,omitempty"`
 }
@@ -60,6 +61,7 @@ type Host struct {
 	PoolLeaseToken      pulumi.StringOutput `pulumi:"poolLeaseToken"`
 	PoolRegion          pulumi.StringOutput `pulumi:"poolRegion"`
 	PoolProfile         pulumi.StringOutput `pulumi:"poolProfile"`
+	PoolLeaseBucket     pulumi.StringOutput `pulumi:"poolLeaseBucket"`
 	PoolBaselineImageID pulumi.StringOutput `pulumi:"poolBaselineImageId"`
 	PoolStackID         pulumi.StringOutput `pulumi:"poolStackId"`
 }

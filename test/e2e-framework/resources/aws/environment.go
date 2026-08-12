@@ -44,6 +44,7 @@ const (
 	DDInfraDefaultInternalRegistry             = "aws/defaultInternalRegistry"
 	DDInfraDefaultInternalDockerhubMirror      = "aws/defaultInternalDockerhubMirror"
 	DDInfraUseMacosCompatibleSubnets           = "aws/useMacosCompatibleSubnets"
+	DDInfraDefaultLeaseBucket                  = "aws/defaultLeaseBucket"
 
 	// AWS ECS
 	DDInfraEcsExecKMSKeyID                  = "aws/ecs/execKMSKeyID"
@@ -298,6 +299,10 @@ func (e *Environment) DefaultInstanceStorageSize() int {
 // shutdown behavior can be 'terminate' or 'stop'
 func (e *Environment) DefaultShutdownBehavior() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultShutdownBehavior, e.envDefault.ddInfra.defaultShutdownBehavior)
+}
+
+func (e *Environment) DefaultLeaseBucket() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultLeaseBucket, e.envDefault.ddInfra.leaseBucket)
 }
 
 func (e *Environment) UseMacosCompatibleSubnets() bool {
