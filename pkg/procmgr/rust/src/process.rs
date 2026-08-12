@@ -93,7 +93,7 @@ pub struct ManagedProcess {
     state: ProcessState,
     pid: Option<u32>,
     handle: Option<ProcessHandle>,
-    watcher_handle: Option<JoinHandle<()>>,
+    watcher_handle: Option<JoinHandle<Option<std::process::ExitStatus>>>,
     restarts: RestartTracker,
     stop_requested: bool,
     origin: ProcessOrigin,
@@ -331,11 +331,14 @@ impl ManagedProcess {
         self.handle.is_some()
     }
 
-    pub(crate) fn set_watcher_handle(&mut self, handle: JoinHandle<()>) {
+    pub(crate) fn set_watcher_handle(
+        &mut self,
+        handle: JoinHandle<Option<std::process::ExitStatus>>,
+    ) {
         self.watcher_handle = Some(handle);
     }
 
-    fn take_watcher_handle(&mut self) -> Option<JoinHandle<()>> {
+    fn take_watcher_handle(&mut self) -> Option<JoinHandle<Option<std::process::ExitStatus>>> {
         self.watcher_handle.take()
     }
 
@@ -443,19 +446,38 @@ impl ManagedProcess {
         let stop = self.stop_timeout();
         if let Some(handle) = self.take_watcher_handle() {
             tokio::pin!(handle);
-            if time::timeout(stop, &mut handle).await.is_err() {
-                warn!(
-                    "[{}] stop timeout ({}s) reached, force-killing",
-                    self.name,
-                    stop.as_secs()
-                );
-                self.force_kill();
-                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle)
-                    .await
-                    .is_err()
-                {
-                    warn!("[{}] still running after force-kill, giving up", self.name);
+            let status = match time::timeout(stop, &mut handle).await {
+                Ok(Ok(status)) => status,
+                Ok(Err(e)) => {
+                    warn!("[{}] watcher join failed: {e:#}", self.name);
+                    None
                 }
+                Err(_) => {
+                    warn!(
+                        "[{}] stop timeout ({}s) reached, force-killing",
+                        self.name,
+                        stop.as_secs()
+                    );
+                    self.force_kill();
+                    match time::timeout(Self::FORCE_KILL_TIMEOUT, handle).await {
+                        Ok(Ok(status)) => status,
+                        Ok(Err(e)) => {
+                            warn!(
+                                "[{}] watcher join failed after force-kill: {e:#}",
+                                self.name
+                            );
+                            None
+                        }
+                        Err(_) => {
+                            warn!("[{}] still running after force-kill, giving up", self.name);
+                            None
+                        }
+                    }
+                }
+            };
+            if let Some(status) = status {
+                self.set_last_status(status);
+                return;
             }
         } else if self.has_child_handle() {
             match time::timeout(stop, self.wait()).await {
