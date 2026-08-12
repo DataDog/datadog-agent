@@ -7,16 +7,16 @@ load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 run_binary(
     name = "libdatadog_interop",
     srcs = [
+        "DatadogInterop/DatadogInterop.vcxproj",
         "DatadogInterop/msstoreapps.cpp",
         "DatadogInterop/msstoreapps.h",
-        "DatadogInterop/DatadogInterop.vcxproj",
-        "@msvc_toolchains//msvc/tree:toolchain_tree",
-        "@msvc_toolchains//msvc/tree:version_marker",
-        "@msvc_toolchains//winsdk/tree:toolchain_tree",
-        "@msvc_toolchains//winsdk/tree:root_marker",
-        "@msvc_toolchains//msbuild:msbuild",
+        "@msvc_toolchains//msbuild",
         "@msvc_toolchains//msbuild:toolchain_tree",
         "@msvc_toolchains//msbuild:vctargets_marker",
+        "@msvc_toolchains//msvc/tree:toolchain_tree",
+        "@msvc_toolchains//msvc/tree:version_marker",
+        "@msvc_toolchains//winsdk/tree:root_marker",
+        "@msvc_toolchains//winsdk/tree:toolchain_tree",
     ],
     outs = ["libdatadog-interop.dll"],
     env = {
@@ -27,7 +27,7 @@ run_binary(
         "WINSDK_MARKER": "$(location @msvc_toolchains//winsdk/tree:root_marker)",
         "VCTARGETS_MARKER": "$(location @msvc_toolchains//msbuild:vctargets_marker)",
     },
-    tool = "build_interop.bat",
     target_compatible_with = ["@platforms//os:windows"],
+    tool = "build_interop.bat",
     visibility = ["//visibility:public"],
 )
