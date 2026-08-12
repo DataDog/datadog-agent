@@ -93,6 +93,14 @@ struct DeferredExitCleanup {
     user_profile: platform::UserProfileGuard,
 }
 
+/// Deferred profile retained after a managed process object is dropped (e.g. config removal).
+#[cfg(windows)]
+pub(crate) struct OrphanedDeferredExitCleanup {
+    pub name: String,
+    pub pid: u32,
+    pub user_profile: platform::UserProfileGuard,
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -214,6 +222,22 @@ impl ManagedProcess {
         };
         self.deferred_exit_cleanups.remove(idx);
         true
+    }
+
+    /// Move deferred profiles to manager-level storage before dropping this process.
+    #[cfg(windows)]
+    pub(crate) fn drain_deferred_exit_cleanups(
+        &mut self,
+        process_name: &str,
+    ) -> Vec<OrphanedDeferredExitCleanup> {
+        self.deferred_exit_cleanups
+            .drain(..)
+            .map(|deferred| OrphanedDeferredExitCleanup {
+                name: process_name.to_owned(),
+                pid: deferred.pid,
+                user_profile: deferred.user_profile,
+            })
+            .collect()
     }
 
     pub fn restart_count(&self) -> u32 {
