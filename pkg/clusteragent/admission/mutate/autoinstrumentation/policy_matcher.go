@@ -57,24 +57,11 @@ func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 		Strings: map[string]string{policies.IDNamespaceName: pod.Namespace},
 		Labels:  map[string]map[string]string{policies.IDPodLabel: pod.Labels},
 	}
-	namespaceLabelsLoaded := false
-	namespaceLabelsUnavailable := false
+	loader := namespaceLabelLoader{wmeta: m.wmeta, namespace: pod.Namespace}
 
 	for i := range m.policies {
-		if nodeUsesNamespaceLabels(m.policies[i].Rules) && !namespaceLabelsLoaded {
-			if namespaceLabelsUnavailable || m.wmeta == nil {
-				namespaceLabelsUnavailable = true
-				continue
-			}
-
-			nsLabels, err := getNamespaceLabels(m.wmeta, pod.Namespace)
-			if err != nil {
-				log.Debugf("policy matcher: namespace labels unavailable for namespace %q, namespace-label rules will be skipped: %v", pod.Namespace, err)
-				namespaceLabelsUnavailable = true
-				continue
-			}
-			ctx.Labels[policies.IDNamespaceLabel] = nsLabels
-			namespaceLabelsLoaded = true
+		if nodeUsesNamespaceLabels(m.policies[i].Rules) && !loader.ensure(&ctx) {
+			continue
 		}
 
 		if policies.Evaluate(m.policies[i].Rules, ctx) == policies.ResultTrue {
@@ -82,6 +69,82 @@ func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 		}
 	}
 	return -1
+}
+
+// namespaceCouldMatch reports whether any policy could match a workload in the
+// given namespace. It answers a strictly weaker question than matchIndex: only
+// the namespace facts are known here, so a rule reading pod labels evaluates to
+// ResultAbstain and keeps its policy a candidate. A namespace is ruled out only
+// when every policy is contradicted by the namespace facts (ResultFalse).
+//
+// This is what keeps namespace eligibility aligned with the policies actually in
+// effect, whether they come from the configuration targets or from remote config:
+// a namespace-scoped policy no longer makes unrelated namespaces eligible.
+//
+// Policies that deny injection are skipped: they never instrument anything, so
+// they must not make a namespace eligible on their own.
+func (m *policyMatcher) namespaceCouldMatch(namespace string) bool {
+	if m == nil {
+		return false
+	}
+
+	ctx := policies.Context{
+		Strings: map[string]string{policies.IDNamespaceName: namespace},
+		// Pod labels are deliberately absent rather than empty: an unavailable
+		// label source abstains, while an empty one would evaluate to false and
+		// wrongly rule out every pod-scoped policy.
+		Labels: map[string]map[string]string{},
+	}
+	loader := namespaceLabelLoader{wmeta: m.wmeta, namespace: namespace}
+
+	for i := range m.policies {
+		if !m.policies[i].Outcome.Inject {
+			continue
+		}
+
+		if nodeUsesNamespaceLabels(m.policies[i].Rules) && !loader.ensure(&ctx) {
+			continue
+		}
+
+		if policies.Evaluate(m.policies[i].Rules, ctx) != policies.ResultFalse {
+			return true
+		}
+	}
+	return false
+}
+
+// namespaceLabelLoader resolves a namespace's labels into an evaluation context
+// at most once. When they cannot be resolved, the policies that read them are
+// skipped rather than aborting the whole evaluation, so a namespace-name,
+// pod-only or catch-all policy keeps its chance to match.
+type namespaceLabelLoader struct {
+	wmeta       workloadmeta.Component
+	namespace   string
+	loaded      bool
+	unavailable bool
+}
+
+// ensure loads the namespace labels into ctx if they are not there yet, and
+// reports whether policies reading namespace labels can be evaluated.
+func (l *namespaceLabelLoader) ensure(ctx *policies.Context) bool {
+	if l.loaded {
+		return true
+	}
+	if l.unavailable || l.wmeta == nil {
+		l.unavailable = true
+		return false
+	}
+
+	nsLabels, err := getNamespaceLabels(l.wmeta, l.namespace)
+	if err != nil {
+		log.Debugf("policy matcher: namespace labels unavailable for namespace %q, namespace-label rules will be skipped: %v", l.namespace, err)
+		l.unavailable = true
+		return false
+	}
+
+	ctx.Labels[policies.IDNamespaceLabel] = nsLabels
+	l.loaded = true
+	return true
 }
 
 func nodeUsesNamespaceLabels(n *policies.Node) bool {

@@ -67,6 +67,7 @@ dd_agent_go_test(
         "mutators_test.go",
         "namespace_mutator_test.go",
         "policy_matcher_test.go",
+        "rc_policies_namespace_test.go",
         "rc_policies_test.go",
         "service_name_test.go",
         "target_matching_test.go",
