@@ -60,17 +60,12 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
-// Shutdowner initiates shutdown of the application hosting the executor.
-type Shutdowner interface {
-	Shutdown() error
-}
-
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
 	Log           log.Component
 	Lifecycle     compdef.Lifecycle
-	Shutdowner    Shutdowner
+	Shutdowner    compdef.Shutdowner
 	RcClient      rcclient.Component
 	Hostname      hostname.Component
 	Tagger        tagger.Component
@@ -108,7 +103,7 @@ type PrivateActionRunner struct {
 	executorServer  *executor.Server
 	encryptionStore *encryptioncontext.Store
 	executorDone    chan struct{}
-	shutdowner      Shutdowner
+	shutdowner      compdef.Shutdowner
 
 	telemetry *telemetry.Telemetry
 
@@ -322,7 +317,6 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.logger.Info("Private action runner executor listening on " + socketPath)
 
 	p.executorDone = make(chan struct{})
-	// Drain bounded by the task timeout: that's the longest an in-flight action can run.
 	drainTimeout := 60 * time.Second
 	if cfg.TaskTimeoutSeconds != nil {
 		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
@@ -351,20 +345,11 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	return nil
 }
 
-// executorIdleTimeoutFactor keeps the executor's self-exit well behind the
-// control plane's own idle stop, so the watchdog only fires when the control
-// plane is gone rather than racing it.
+// Keep self-termination behind the control plane's normal idle stop.
 const executorIdleTimeoutFactor = 3
 
-// executorIdleTimeout is how long the executor tolerates having no work before
-// exiting on its own. It is derived from the same setting the control plane uses
-// to stop an idle executor, so operators have one knob.
-//
-// This is a backstop: the control plane and the executor are siblings under
-// dd-procmgrd, so if the control plane is killed or stopped on its own, nothing
-// else would ever stop the executor.
 func executorIdleTimeout(cfg model.Reader) time.Duration {
-	idle := cfg.GetInt("private_action_runner.idle_timeout_seconds")
+	idle := cfg.GetInt(privateactionrunner.PARIdleTimeoutSeconds)
 	if idle <= 0 {
 		return 0
 	}

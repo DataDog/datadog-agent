@@ -395,11 +395,11 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	require.Error(t, err, "client without a valid cert must be rejected")
 }
 
-// An idle executor must exit on its own. The control plane normally stops it,
-// but the two are siblings under dd-procmgrd, so nothing would ever reap the
-// executor if the control plane were killed or stopped by itself.
 func TestServeExitsWhenIdle(t *testing.T) {
+	mockClock := clock.NewMock()
 	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv.clock = mockClock
+	srv.touch()
 	srv.SetReady(true)
 
 	socketPath := testListenAddr(t)
@@ -407,74 +407,32 @@ func TestServeExitsWhenIdle(t *testing.T) {
 	require.NoError(t, err)
 
 	served := make(chan error, 1)
-	idleTimedOut := make(chan struct{})
+	idleTimedOut := false
+	const idleTimeout = time.Minute
 	go func() {
 		served <- Serve(context.Background(), lis, srv, ServeOptions{
 			DrainTimeout: 2 * time.Second,
-			IdleTimeout:  150 * time.Millisecond,
+			IdleTimeout:  idleTimeout,
 			OnIdleTimeout: func() {
-				close(idleTimedOut)
+				idleTimedOut = true
 			},
 		})
 	}()
 
-	select {
-	case err := <-served:
-		require.NoError(t, err, "an idle exit is a clean exit, so procmgr leaves it down")
-	case <-time.After(5 * time.Second):
-		t.Fatal("idle executor did not exit")
-	}
-	select {
-	case <-idleTimedOut:
-	case <-time.After(5 * time.Second):
-		t.Fatal("idle executor did not notify its enclosing lifecycle")
-	}
-}
-
-// Health is how the control plane checks whether the executor is usable, so it
-// must not keep an otherwise idle executor alive forever.
-func TestServeHealthDoesNotDeferIdleExit(t *testing.T) {
-	srv := NewServer(&fakeExecutor{}, "test-version")
-	srv.SetReady(true)
-
-	socketPath := testListenAddr(t)
-	lis, err := Listen(socketPath)
-	require.NoError(t, err)
-
-	served := make(chan error, 1)
-	go func() {
-		served <- Serve(context.Background(), lis, srv, ServeOptions{
-			DrainTimeout: 2 * time.Second,
-			IdleTimeout:  300 * time.Millisecond,
-		})
-	}()
-
-	client := dialTestExecutor(t, socketPath)
-	stop := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-				_, _ = client.Health(context.Background(), &pb.HealthRequest{})
-				time.Sleep(20 * time.Millisecond)
-			}
+	for range 2 * idleCheckDivisor {
+		mockClock.Add(idleTimeout / idleCheckDivisor)
+		select {
+		case err := <-served:
+			require.NoError(t, err, "an idle exit is a clean exit, so procmgr leaves it down")
+			require.True(t, idleTimedOut)
+			return
+		default:
 		}
-	}()
-	defer close(stop)
-
-	select {
-	case err := <-served:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("health polling kept an idle executor alive")
 	}
+	t.Fatal("idle executor did not exit")
 }
 
-// Dispatch activity resets the idle clock, and an active action suppresses the
-// idle state regardless of how much time passes.
-func TestIdleTrackingWhileDispatching(t *testing.T) {
+func TestIdleTracking(t *testing.T) {
 	mockClock := clock.NewMock()
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.clock = mockClock
@@ -486,6 +444,11 @@ func TestIdleTrackingWhileDispatching(t *testing.T) {
 
 	srv.touch()
 	assert.Zero(t, srv.idleFor(), "dispatch activity should reset the idle clock")
+
+	_, err := srv.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	mockClock.Add(time.Second)
+	assert.Equal(t, time.Second, srv.idleFor(), "health checks should not count as activity")
 
 	srv.active.Add(1)
 	mockClock.Add(2 * timeout)

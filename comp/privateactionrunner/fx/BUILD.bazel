@@ -1,5 +1,4 @@
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "fx",
@@ -10,17 +9,6 @@ go_library(
         "//comp/privateactionrunner/def",
         "//comp/privateactionrunner/impl",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
-    ],
-)
-
-dd_agent_go_test(
-    name = "fx_test",
-    srcs = ["fx_test.go"],
-    embed = [":fx"],
-    deps = [
-        "//comp/privateactionrunner/impl",
-        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )
