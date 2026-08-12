@@ -19,6 +19,7 @@ from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
+from tasks.schema.generate import schema_codegen
 
 
 def download_go_dependencies(
@@ -137,6 +138,9 @@ def go_build(
         print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
         check_deadcode = False
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
@@ -168,7 +172,8 @@ def go_build(
     if echo:
         cmd += " -x"
     if build_tags:
-        cmd += f" -tags \"{','.join(build_tags)}\""
+        # sort build tags to have the same order and ensure caching hits properly
+        cmd += f" -tags \"{','.join(sorted(build_tags))}\""
     if bin_path:
         cmd += f" -o {bin_path}"
     if gcflags:
