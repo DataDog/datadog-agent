@@ -129,6 +129,14 @@ func (p *ProcessKillerLinux) Kill(sig uint32, kcs []killContext) ([]uint32, []ui
 			}
 
 			seclog.Debugf("killed cgroup `%s` and its %d known processes with a single operation", group.target.id, len(group.kcs))
+
+			// The kernel killed by cgroup membership, so every process the cgroup held is reported
+			// as killed without the create-time check killProcess does below. A pid that exited
+			// between being enumerated and the kill, and whose exit was never seen so that
+			// HandleProcessExited could drop it from a queued report, is reported as killed even
+			// though a process that has recycled its pid in another cgroup was left alone. The
+			// report therefore means the cgroup was emptied, rather than that each of these pids
+			// was individually confirmed killed.
 			for _, kc := range group.kcs {
 				killedPids = append(killedPids, uint32(kc.pid))
 			}
