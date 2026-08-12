@@ -295,26 +295,3 @@ func TestCollectDaemonReachableListFails(t *testing.T) {
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
 	assert.Equal(t, ProcessStateUnknown, service.ProcmgrState)
 }
-
-func TestCollectProcessProcmgrRunning(t *testing.T) {
-	process, ok := serviceByID("process")
-	require.True(t, ok)
-
-	root := setupInstallFixture(t, process, process.InstallMarkerRels[0])
-
-	collector := NewCollectorWithClient(root, &mockClient{
-		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
-		processes: map[string]ProcessSnapshot{
-			"datadog-agent-process": {Name: "datadog-agent-process", State: pb.ProcessState_RUNNING},
-		},
-	})
-
-	snapshot := collector.Collect(context.Background())
-	requireServiceCount(t, snapshot)
-
-	service := serviceSnapshotByID(t, snapshot, "process")
-	assert.True(t, service.Installed)
-	assert.True(t, service.ProcmgrConfigured)
-	assert.Equal(t, pb.ProcessState_RUNNING, service.ProcmgrState)
-	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
-}

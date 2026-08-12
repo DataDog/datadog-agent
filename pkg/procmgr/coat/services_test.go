@@ -29,8 +29,7 @@ func TestMigratableServicesCatalog(t *testing.T) {
 }
 
 func TestServiceByID(t *testing.T) {
-	service, ok := serviceByID("process")
+	service, ok := serviceByID("ddot")
 	require.True(t, ok)
-	assert.Equal(t, "datadog-agent-process", service.ProcmgrProcessName)
-	assert.Equal(t, "datadog-process-agent", service.LegacyWindowsService)
+	assert.Equal(t, "datadog-agent-ddot", service.ProcmgrProcessName)
 }
