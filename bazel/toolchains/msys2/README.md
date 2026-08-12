@@ -14,19 +14,18 @@ missing or when a force install is requested.
   no reinstall).
 - If bash is missing, `tools/bazel.bat` runs `bazel fetch @msys2_base//:bash_files`
   which downloads and installs the pinned tree.
-- To replace the install entirely: `DD_BAZEL_MSYS2_FORCE_INSTALL=1` (sets
-  `MSYS2_FORCE_INSTALL=1` for the fetch) or pass
-  `--repo_env=MSYS2_FORCE_INSTALL=1` to Bazel directly.
+- To replace the install entirely: `DD_BAZEL_MSYS2_FORCE_INSTALL=1` then `bazel build //...`
+  (wrapper runs `bazel fetch --force @msys2_base//:bash_files --repo_env=MSYS2_FORCE_INSTALL=1`).
+  Or manually:
+
+```powershell
+bazel fetch --force @msys2_base//:bash_files --repo_env=MSYS2_FORCE_INSTALL=1
+```
+
+If install still fails, check write access to `C:\tools` (admin / corporate policy).
 
 ## TODO
 
 - Managed sentinel + auto-reinstall when the MODULE.bazel pin changes.
 - Windows `rules_foreign_cc` toolchains backed by `@msys2_base` filegroups so
   make/autoconf/m4/etc. are action inputs (remote-cache correctness).
-
-## Manual fetch
-
-```powershell
-bazel fetch @msys2_base//:bash_files
-bazel fetch @msys2_base//:bash_files --repo_env=MSYS2_FORCE_INSTALL=1
-```

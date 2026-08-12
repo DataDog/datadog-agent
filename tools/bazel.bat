@@ -116,7 +116,7 @@ set "msys2_bash=!msys2_root!\usr\bin\bash.exe"
 if defined MSYS2_INSTALL_ROOT set "msys2_root=!MSYS2_INSTALL_ROOT!"
 if defined MSYS2_INSTALL_ROOT set "msys2_bash=!msys2_root!\usr\bin\bash.exe"
 
-set "msys2_fetch_args=fetch @msys2_base//:bash_files"
+set "msys2_fetch_args=fetch --force @msys2_base//:bash_files"
 if defined DD_BAZEL_MSYS2_FORCE_INSTALL set "MSYS2_FORCE_INSTALL=!DD_BAZEL_MSYS2_FORCE_INSTALL!"
 if /i "!MSYS2_FORCE_INSTALL!" == "1" (
   set "msys2_fetch_args=!msys2_fetch_args! --repo_env=MSYS2_FORCE_INSTALL=1"
@@ -125,11 +125,18 @@ if /i "!MSYS2_FORCE_INSTALL!" == "1" (
 if exist "!msys2_bash!" exit /b 0
 
 :do_msys2_fetch
-"%BAZEL_REAL%" !startup_options! !msys2_fetch_args!
+if defined MSYS2_INSTALL_ROOT set "msys2_fetch_args=!msys2_fetch_args! --repo_env=MSYS2_INSTALL_ROOT=!MSYS2_INSTALL_ROOT!"
+if defined extra_args (
+  "%BAZEL_REAL%" !startup_options! !msys2_fetch_args! !extra_args!
+) else (
+  "%BAZEL_REAL%" !startup_options! !msys2_fetch_args!
+)
 if !errorlevel! neq 0 exit /b !errorlevel!
 if not exist "!msys2_bash!" (
   >&2 echo 🔴 MSYS2 bash was not installed at !msys2_bash!
-  >&2 echo     Set DD_BAZEL_MSYS2_FORCE_INSTALL=1 to replace an existing install.
+  >&2 echo     Retry: set DD_BAZEL_MSYS2_FORCE_INSTALL=1
+  >&2 echo     Manual: bazel fetch --force @msys2_base//:bash_files --repo_env=MSYS2_FORCE_INSTALL=1
+  >&2 echo     Check write access to !msys2_root! ^(admin may be required for C:\tools^).
   exit /b 2
 )
 exit /b 0

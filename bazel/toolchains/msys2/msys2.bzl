@@ -61,21 +61,10 @@ def _msys2_base_repository_impl(ctx):
         return
 
     force = (ctx.getenv("MSYS2_FORCE_INSTALL") or "0") == "1"
-    bash = _bash_path(install_root)
 
-    # Relaxed mode: keep an existing MSYS2 tree and skip downloading the archive.
-    if not force and ctx.path(bash).exists:
-        ctx.template(
-            "BUILD.bazel",
-            ctx.attr._build_file_template,
-            substitutions = {
-                "%VERSION%": ctx.attr.version,
-                "%INSTALL_ROOT%": install_root,
-            },
-            executable = False,
-        )
-        return
-
+    # Relaxed "keep existing MSYS2" policy lives in tools/bazel.bat only. Do not
+    # short-circuit here: a cached repo rule skip prevents reinstall when bash is
+    # removed or MSYS2_FORCE_INSTALL is set later.
     ctx.download_and_extract(
         url = ctx.attr.url,
         sha256 = ctx.attr.sha256,
