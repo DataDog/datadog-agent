@@ -1366,6 +1366,28 @@ type celReadersView struct {
 	// generated into the package that consumes them rather than next to the
 	// model, so that cel-go stays out of //pkg/security/secl.
 	ModelPkg string
+	// ReaderPaths and IteratorPaths are the field names in the order they are laid
+	// out, which is what gives each one the index a rule reads it by. Sorted, so
+	// the layout only changes when the field set does.
+	ReaderPaths   []string
+	IteratorPaths []string
+}
+
+// celReaderPaths returns the fields that get a reader, in layout order.
+//
+// It is the same set the CEL type tree draws its leaves from — see
+// common.BuildCELTypeTree, which skips the same three kinds — so a leaf of the
+// tree and an index into the layout are two views of one field.
+func celReaderPaths(module *common.Module) []string {
+	paths := make([]string, 0, len(module.Fields))
+	for name, field := range module.Fields {
+		if field.GettersOnly || field.IsLength || field.IsRootDomain {
+			continue
+		}
+		paths = append(paths, name)
+	}
+	slices.Sort(paths)
+	return paths
 }
 
 // GenerateCELReaders renders the per-field CEL readers for the module.
@@ -1382,9 +1404,17 @@ func GenerateCELReaders(output string, module *common.Module) error {
 		}
 	}
 
+	iterators := make([]string, 0, len(module.Iterators))
+	for name := range module.Iterators {
+		iterators = append(iterators, name)
+	}
+	slices.Sort(iterators)
+
 	return generate(output, celReadersView{
-		Module:   module,
-		ModelPkg: path.Base(module.SourcePkg) + ".",
+		Module:        module,
+		ModelPkg:      path.Base(module.SourcePkg) + ".",
+		ReaderPaths:   celReaderPaths(module),
+		IteratorPaths: iterators,
 	}, celReadersTemplate)
 }
 

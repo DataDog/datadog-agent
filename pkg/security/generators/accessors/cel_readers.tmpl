@@ -24,7 +24,12 @@ import (
 // also have to add the conversion for it.
 var _ = []any{net.IPNet{}, stringsToVal, intsToVal, boolsToVal, cidrsToVal, cidrToVal}
 
-// celReaders reads one SECL field, keyed by its SECL name.
+// celReaders reads one SECL field, indexed by its place in the layout.
+//
+// A rule reads a field by index: the optimization pass resolves the name once,
+// when the rule is planned, and the expression carries the index. So this is a
+// slice rather than a map, and celReaderIndex — the name side — is needed only at
+// planning time.
 //
 // Each reader is the body of the evaluator the accessors return for the same
 // field, so the two inherit one contract rather than mirroring each other: the
@@ -38,11 +43,9 @@ var _ = []any{net.IPNet{}, stringsToVal, intsToVal, boolsToVal, cidrsToVal, cidr
 // The readers cover exactly the leaves of the CEL type tree: the `length` and
 // `root_domain` pseudo fields are absent from both, being translated to size()
 // and a helper call instead.
-var celReaders = map[string]celReader{
-{{- range $Name, $Field := .Fields}}
-	{{- if or $Field.GettersOnly $Field.IsLength $Field.IsRootDomain}}
-		{{- continue}}
-	{{- end}}
+var celReaders = []celReader{
+{{- range $Index, $Name := .ReaderPaths}}
+	{{- $Field := index $.Fields $Name}}
 
 	{{- if $Field.Ref}}
 		{{- $Ref := index $.Fields $Field.Ref}}
@@ -54,7 +57,8 @@ var celReaders = map[string]celReader{
 	{{- $Checks := $Field | GetChecks $.AllFields}}
 	{{- $Iterated := and $Field.Iterator (not $Field.IsIterator)}}
 
-	"{{$Name}}": func(ctx *eval.Context, {{if $Iterated}}e{{else}}_{{end}} any) ref.Val {
+	// {{$Index}}: {{$Name}}
+	func(ctx *eval.Context, {{if $Iterated}}e{{else}}_{{end}} any) ref.Val {
 		ctx.AppendResolvedField("{{$Name}}")
 
 		{{- if $Iterated}}
@@ -138,8 +142,16 @@ var celReaders = map[string]celReader{
 {{- end}}
 }
 
-// celIterators opens a cursor over an iterated SECL field, keyed by its SECL
-// name.
+// celReaderIndex gives the index of each field in the layout above. It is what
+// the optimization pass resolves a field name through, once per rule.
+var celReaderIndex = map[string]int{
+{{- range $Index, $Name := .ReaderPaths}}
+	"{{$Name}}": {{$Index}},
+{{- end}}
+}
+
+// celIterators opens a cursor over an iterated SECL field, indexed by its place
+// in the layout.
 //
 // A cursor yields the elements one at a time, through the same model iterator
 // the accessors use but through its Front/Next pair rather than its indexed At.
@@ -150,14 +162,24 @@ var celReaders = map[string]celReader{
 // A cursor reads its root from the event, which is where every iterator in the
 // model starts; an iterator nested inside an iterated element is rejected by the
 // generator rather than read from the wrong root.
-var celIterators = map[string]celIterator{
-{{- range $Name, $Iterator := .Iterators}}
-	"{{$Name}}": func(ctx *eval.Context) celCursor {
+var celIterators = []celIterator{
+{{- range $Index, $Name := .IteratorPaths}}
+	{{- $Iterator := index $.Iterators $Name}}
+	// {{$Index}}: {{$Name}}
+	func(ctx *eval.Context) celCursor {
 		ev := ctx.Event.(*{{$.ModelPkg}}Event)
 		return &modelCursor[*{{$.ModelPkg}}{{$Iterator.OrigType}}]{
 			iterator: &{{$.ModelPkg}}{{$Iterator.ReturnType}}{Root: ev.{{$Iterator.Name}}},
 			ctx:      ctx,
 		}
 	},
+{{- end}}
+}
+
+// celIteratorIndex gives the index of each iterated field, for the same reason
+// celReaderIndex does.
+var celIteratorIndex = map[string]int{
+{{- range $Index, $Name := .IteratorPaths}}
+	"{{$Name}}": {{$Index}},
 {{- end}}
 }

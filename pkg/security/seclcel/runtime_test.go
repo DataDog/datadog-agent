@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -252,12 +253,14 @@ func TestHelperBindings(t *testing.T) {
 }
 
 // TestProgramResolvesOnlyWhatIsMentioned is the claim the design rests on: a field
-// is read when a leaf is reached, so nothing is materialised and short circuiting
-// avoids the work entirely.
+// is read when the read that names it runs, so nothing is materialised and short
+// circuiting avoids the work entirely.
 func TestProgramResolvesOnlyWhatIsMentioned(t *testing.T) {
-	reads := map[string]int{}
+	env, err := NewModelEnv()
+	require.NoError(t, err)
 
-	env := countingEnv(t, reads)
+	reads := countReads(t, "process.comm", "process.ancestors.comm")
+	cursors := countCursors(t, "process.ancestors")
 
 	event := model.NewFakeEvent()
 	event.BaseEvent.ProcessContext.Process.Comm = "sh"
@@ -267,18 +270,19 @@ func TestProgramResolvesOnlyWhatIsMentioned(t *testing.T) {
 	assert.Equal(t, true, evalSECL(t, env, event,
 		`process.comm == "sh" || process.ancestors.comm == "zzz"`))
 
-	assert.Equal(t, 1, reads["comm"], "the mentioned field is read once")
-	assert.Zero(t, reads["ancestors"], "the short circuited side is not touched")
+	assert.Equal(t, 1, reads["process.comm"], "the mentioned field is read once")
+	assert.Zero(t, cursors["process.ancestors"], "the short circuited side is not touched")
 
 	// The elements of an iterated field are positions rather than values, so
 	// building the list reads nothing and a matching predicate stops early.
 	clear(reads)
 	assert.True(t, evalSECL(t, env, event, `process.ancestors.comm == "bash"`))
-	assert.Equal(t, 1, reads["comm"], "the match is at the first element, so only it is read")
+	assert.Equal(t, 1, reads["process.ancestors.comm"],
+		"the match is at the first element, so only it is read")
 
 	clear(reads)
 	assert.False(t, evalSECL(t, env, event, `process.ancestors.comm == "zzz"`))
-	assert.Equal(t, 2, reads["comm"], "no match, so every element is read once")
+	assert.Equal(t, 2, reads["process.ancestors.comm"], "no match, so every element is read once")
 }
 
 // TestActivationOutlivesTheEvent pins what lets an activation be built once per
@@ -330,51 +334,56 @@ func TestActivationOutlivesTheEvent(t *testing.T) {
 	assert.True(t, matches(), "and back again")
 }
 
-// TestPartialEvaluation records that cel-go's partial evaluation reaches through
-// the custom activation and type provider, which matters twice over.
+// TestPartialEvaluationIsNotWired pins the gap approvers and discarders will have
+// to close, and why cel-go's own mechanism for it no longer applies.
 //
-// It is the mechanism SECL's Rule.PartialEval provides and that CWS depends on
-// in three places — approvers (rules/approvers.go:60), discarders
-// (probe/discarders_linux.go:585) and ruleset.go:1045 — to decide whether a rule
-// could still match if only one field were known, and so what can be filtered in
-// eBPF. Nothing about the node graph had to change for it to work.
+// CWS asks, in three places — approvers (secl/rules/approvers.go:52), discarders
+// (probe/discarders_linux.go:585) and ruleset.go:1036 — whether a rule could still
+// match if one field had a given value and nothing else were known. SECL answers it
+// with a variant of the rule compiled per field (eval/rule.go:317), in which every
+// subexpression that does not depend on that field is replaced by `true`.
 //
-// It also guards the rooting: an attribute pattern names the qualifiers the
-// translation emits, so withholding a field means naming it under EventRoot. A
-// pattern that missed would silently turn an unknown into a value, and the
-// approvers built from it would be wrong.
-func TestPartialEvaluation(t *testing.T) {
+// cel-go's version of the question withholds an *attribute*, and a field is not one
+// any more: it is a call carrying an index. An attribute pattern over the root
+// therefore no longer names a field, and withholding the root withholds everything —
+// which is what this test records, so that the gap is visible rather than assumed to
+// work.
+//
+// The shape that would close it is the same as SECL's: run the optimization pass
+// again with one known field, emitting a read that returns types.NewUnknown for
+// every other one, and cache the resulting program per field. Unknown propagation
+// through &&, || and the comparisons is plain cel-go behaviour, so there is nothing
+// to pay for it on the hot path, and False then means the rule cannot match while
+// True or Unknown mean it cannot be ruled out. Note that this is stricter than
+// substituting `true`: `!(other.field == "x") && process.comm == "sh"` is a
+// discarder for SECL and undecided here — fewer discarders, not wrong ones.
+func TestPartialEvaluationIsNotWired(t *testing.T) {
 	env, err := NewModelEnv()
 	require.NoError(t, err)
 
 	checked, err := CompileWithTypes(env, `process.comm == "sh" && process.uid == 1000`, ModelFieldTypes{})
 	require.NoError(t, err)
 
-	program, err := env.Program(checked, cel.EvalOptions(cel.OptPartialEval))
+	optimized, _, err := Optimize(env, checked)
+	require.NoError(t, err)
+
+	program, err := env.Program(optimized, cel.EvalOptions(cel.OptPartialEval))
 	require.NoError(t, err)
 
 	event := model.NewFakeEvent()
-	event.BaseEvent.ProcessContext.Process.Comm = "sh"
+	event.BaseEvent.ProcessContext.Process.Comm = "zsh"
 	event.BaseEvent.ProcessContext.Process.Credentials.UID = 999
 
-	// process.uid is withheld, so the answer depends on what it turns out to be.
-	// The pattern is rooted like the field it names.
+	// Withholding process.uid the way cel-go offers: the pattern names an attribute
+	// that the optimized expression does not contain.
 	partial, err := cel.PartialVars(NewActivation(eval.NewContext(event)),
 		cel.AttributePattern(EventRoot).QualString("process").QualString("uid"))
 	require.NoError(t, err)
 
 	out, _, err := program.Eval(partial)
 	require.NoError(t, err)
-	require.True(t, types.IsUnknown(out), "got %s", out)
-	assert.Contains(t, out.(*types.Unknown).String(), EventRoot+".process.uid",
-		"the unknown names the field the outcome hangs on")
-
-	// The half that is known still decides it when it can, which is what makes
-	// the answer useful rather than always unknown.
-	event.BaseEvent.ProcessContext.Process.Comm = "zsh"
-	out, _, err = program.Eval(partial)
-	require.NoError(t, err)
-	assert.Equal(t, types.False, out, "no value of process.uid could make this match")
+	assert.True(t, types.IsUnknown(out),
+		"the whole expression is unknown, where SECL would answer false: process.comm rules it out")
 }
 
 // TestProgramWalksAnAncestryOnce is the regression test for the cost the node
@@ -436,20 +445,19 @@ func TestProgramWalksAnAncestryOnce(t *testing.T) {
 // countAncestorSteps replaces the ancestors cursor with one that counts the
 // elements it yields, for the duration of the test.
 //
-// The cursor is bound to the field when a rule is planned, so this has to be in
-// place before the program is built — which it is, because evalSECL plans afresh
-// on every call.
+// It substitutes the entry in the layout rather than the name, since that is what
+// a planned rule reads through.
 func countAncestorSteps(t *testing.T) *int {
 	t.Helper()
 
 	var steps int
 
-	const field = "process.ancestors"
-	ancestors := celIterators[field]
-	celIterators[field] = func(ctx *eval.Context) celCursor {
+	at := celIteratorIndex["process.ancestors"]
+	ancestors := celIterators[at]
+	celIterators[at] = func(ctx *eval.Context) celCursor {
 		return &countingCursor{inner: ancestors(ctx), steps: &steps}
 	}
-	t.Cleanup(func() { celIterators[field] = ancestors })
+	t.Cleanup(func() { celIterators[at] = ancestors })
 
 	return &steps
 }
@@ -464,45 +472,45 @@ func (c *countingCursor) next() any {
 	return c.inner.next()
 }
 
-// countingEnv is the model environment with the type provider wrapped so that
-// every field read is counted.
-func countingEnv(t *testing.T, reads map[string]int) *cel.Env {
+// countReads replaces the named fields in the layout with readers that count, for
+// the duration of the test. Counting there rather than around the type provider is
+// what makes it independent of how a read reaches the field.
+func countReads(t *testing.T, fields ...string) map[string]int {
 	t.Helper()
 
-	registry, err := types.NewRegistry()
-	require.NoError(t, err)
+	reads := map[string]int{}
+	for _, field := range fields {
+		at, ok := celReaderIndex[field]
+		require.True(t, ok, "field %q has no reader", field)
 
-	env, err := NewEnv(
-		cel.CustomTypeProvider(&countingProvider{
-			Provider: &modelTypes{Provider: registry},
-			reads:    reads,
-		}),
-		cel.Variable(EventRoot, modelRootType),
-	)
-	require.NoError(t, err)
-	return env
-}
-
-type countingProvider struct {
-	types.Provider
-	reads map[string]int
-}
-
-func (c *countingProvider) FindStructFieldType(structType, field string) (*types.FieldType, bool) {
-	fieldType, ok := c.Provider.FindStructFieldType(structType, field)
-	if !ok {
-		return fieldType, ok
+		reader, counted := celReaders[at], field
+		celReaders[at] = func(ctx *eval.Context, elem any) ref.Val {
+			reads[counted]++
+			return reader(ctx, elem)
+		}
+		t.Cleanup(func() { celReaders[at] = reader })
 	}
+	return reads
+}
 
-	getFrom := fieldType.GetFrom
-	return &types.FieldType{
-		Type:  fieldType.Type,
-		IsSet: fieldType.IsSet,
-		GetFrom: func(obj any) (any, error) {
-			c.reads[field]++
-			return getFrom(obj)
-		},
-	}, true
+// countCursors does the same for the iterated fields, counting how often one is
+// opened rather than how far it is walked — see countAncestorSteps for that.
+func countCursors(t *testing.T, fields ...string) map[string]int {
+	t.Helper()
+
+	opened := map[string]int{}
+	for _, field := range fields {
+		at, ok := celIteratorIndex[field]
+		require.True(t, ok, "field %q has no cursor", field)
+
+		iterator, counted := celIterators[at], field
+		celIterators[at] = func(ctx *eval.Context) celCursor {
+			opened[counted]++
+			return iterator(ctx)
+		}
+		t.Cleanup(func() { celIterators[at] = iterator })
+	}
+	return opened
 }
 
 // TestABoundVariableCannotShadowAField is why rooting the fields needs no scope

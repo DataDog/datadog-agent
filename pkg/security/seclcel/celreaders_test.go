@@ -40,8 +40,8 @@ func TestGeneratedReadersAgreeWithEvaluators(t *testing.T) {
 	ctx := eval.NewContext(event)
 
 	var direct, iterated int
-	for _, field := range sortedKeys(celReaders) {
-		reader := celReaders[field]
+	for _, field := range sortedKeys(celReaderIndex) {
+		reader := celReaders[celReaderIndex[field]]
 		prefix := ModelFieldTypes{}.ListPrefix(field)
 
 		if prefix == "" {
@@ -61,7 +61,7 @@ func TestGeneratedReadersAgreeWithEvaluators(t *testing.T) {
 		require.NoError(t, err, "field %q has a reader but no evaluator", field)
 
 		var elements int
-		cursor := celIterators[prefix](ctx)
+		cursor := celIterators[celIteratorIndex[prefix]](ctx)
 		for pos := 0; ; pos++ {
 			element := cursor.next()
 			if element == nil {
@@ -95,14 +95,18 @@ func TestGeneratedReadersAgreeWithEvaluators(t *testing.T) {
 func TestGeneratedReadersCoverTheTypeTree(t *testing.T) {
 	// Consumed as they are matched, so what is left over is what has a reader but
 	// nothing to reach it through.
-	unclaimedReaders := make(map[string]bool, len(celReaders))
-	for field := range celReaders {
+	unclaimedReaders := make(map[string]bool, len(celReaderIndex))
+	for field := range celReaderIndex {
 		unclaimedReaders[field] = true
 	}
-	unclaimedIterators := make(map[string]bool, len(celIterators))
-	for field := range celIterators {
+	unclaimedIterators := make(map[string]bool, len(celIteratorIndex))
+	for field := range celIteratorIndex {
 		unclaimedIterators[field] = true
 	}
+
+	// The layout and the names are two views of one field set.
+	require.Len(t, celReaders, len(celReaderIndex), "the reader layout and its names disagree")
+	require.Len(t, celIterators, len(celIteratorIndex), "the cursor layout and its names disagree")
 
 	// The root type describes the namespace itself, which is what makes joining a
 	// type's path with a member name give the field: its members are the top level
@@ -120,8 +124,8 @@ func TestGeneratedReadersCoverTheTypeTree(t *testing.T) {
 			elem, isObjectList := objectListElem(memberType)
 			switch {
 			case isObjectList:
-				assert.True(t, unclaimedIterators[field] || celIterators[field] != nil,
-					"%q is typed as iterated but has no cursor", field)
+				_, hasCursor := celIteratorIndex[field]
+				assert.True(t, hasCursor, "%q is typed as iterated but has no cursor", field)
 				assert.Equal(t, field, modelPaths[elem.TypeName()],
 					"the element type of %q describes another path", field)
 				delete(unclaimedIterators, field)
@@ -131,8 +135,8 @@ func TestGeneratedReadersCoverTheTypeTree(t *testing.T) {
 					"the type of %q describes another path", field)
 
 			default:
-				assert.True(t, unclaimedReaders[field] || celReaders[field] != nil,
-					"%q is typed but has no reader", field)
+				_, hasReader := celReaderIndex[field]
+				assert.True(t, hasReader, "%q is typed but has no reader", field)
 				delete(unclaimedReaders, field)
 			}
 		}
@@ -142,14 +146,14 @@ func TestGeneratedReadersCoverTheTypeTree(t *testing.T) {
 	assert.Empty(t, unclaimedIterators, "cursors no type reaches")
 }
 
-// TestReadersAreBoundWhenThePlanIsBuilt is the claim the per path types exist
-// to make: a field is looked up by name once, while the rule is planned, and
-// never again.
+// TestFieldNamesAreResolvedWhenTheRuleIsOptimized is the claim the whole indexed
+// layout exists to make: a field is looked up by name once, while the rule is
+// optimized, and by index for the rest of the agent's life.
 //
-// It is checked by taking the entry away. If evaluation still reads the field
-// after celReaders no longer contains it, nothing consulted the map — the reader
-// is held by the closure the provider handed the planner.
-func TestReadersAreBoundWhenThePlanIsBuilt(t *testing.T) {
+// It is checked by taking the name away. If evaluation still reads the field after
+// celReaderIndex no longer contains it, nothing consulted the names — the
+// expression carries the index.
+func TestFieldNamesAreResolvedWhenTheRuleIsOptimized(t *testing.T) {
 	env, err := NewModelEnv()
 	require.NoError(t, err)
 
@@ -160,23 +164,20 @@ func TestReadersAreBoundWhenThePlanIsBuilt(t *testing.T) {
 	require.NoError(t, err)
 
 	const field = "process.comm"
-	reader := celReaders[field]
-	require.NotNil(t, reader)
-	delete(celReaders, field)
-	t.Cleanup(func() { celReaders[field] = reader })
+	index, ok := celReaderIndex[field]
+	require.True(t, ok)
+	delete(celReaderIndex, field)
+	t.Cleanup(func() { celReaderIndex[field] = index })
 
 	out, _, err := program.Eval(NewActivation(eval.NewContext(event)))
 	require.NoError(t, err)
-	assert.Equal(t, types.True, out, "the reader was bound when the rule was planned")
+	assert.Equal(t, types.True, out, "the field was resolved when the rule was optimized")
 
-	// The converse, so that the test cannot pass by reading nothing: a rule
-	// planned while the entry is missing is bound to the failure instead, which
-	// is only possible if the binding happens at planning time.
-	missing, err := Program(env, `process.comm == "sh"`, ModelFieldTypes{})
-	require.NoError(t, err, "the field is typed either way, so planning still succeeds")
-
-	_, _, err = missing.Eval(NewActivation(eval.NewContext(event)))
-	require.Error(t, err)
+	// The converse, so that the test cannot pass by reading nothing: a rule whose
+	// field cannot be resolved is refused rather than planned, which is what lets
+	// the reading of a field have exactly one path through the interpreter.
+	_, err = Program(env, `process.comm == "sh"`, ModelFieldTypes{})
+	require.Error(t, err, "a field the layout does not name cannot be planned")
 	assert.Contains(t, err.Error(), field)
 }
 
@@ -257,9 +258,9 @@ func TestIndexedAncestorsIgnoreTheirRoot(t *testing.T) {
 		"walked with At, it reads the process ancestry instead")
 
 	// The reader agrees with the form that reads the ancestry the field names.
-	element := celIterators["ptrace.tracee.ancestors"](ctx).next()
+	element := celIterators[celIteratorIndex["ptrace.tracee.ancestors"]](ctx).next()
 	require.NotNil(t, element)
-	assert.Equal(t, types.String("tracee-ancestor"), celReaders[field](ctx, element))
+	assert.Equal(t, types.String("tracee-ancestor"), celReaders[celReaderIndex[field]](ctx, element))
 }
 
 // populatedEvent is an event with enough set on it that the readers and the

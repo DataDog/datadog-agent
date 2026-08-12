@@ -29,14 +29,13 @@ import (
 // instead and the activation supplies it.
 const NowVar = "secl_now"
 
-// seclObject is a position in the SECL field namespace: an event root, or one
-// element of an iterated field.
+// seclPosition is where a field is read from: the event root, or one element of
+// an iterated field.
 //
-// It carries no path. Its type names one, and there is one type per path, so
-// which field a member select denotes was settled when the rule was planned —
-// see bindMember. Nothing is read until a leaf is reached, so an expression only
-// resolves the fields it actually mentions.
-type seclObject struct {
+// It is not navigated. A read carries the index of the field it wants — see
+// optimize.go — so a position holds only what a reader needs, and there is one
+// per evaluation for the root and one per element for an iteration.
+type seclPosition struct {
 	ctx *eval.Context
 	typ *types.Type
 
@@ -45,59 +44,22 @@ type seclObject struct {
 	// therefore read from one pointer, which is what makes correlating them free
 	// instead of quadratic.
 	elem any
-
-	// firstMember and nextMember cache the positions reached from this one, as a
-	// list threaded through the positions themselves so that the cache is two
-	// words and allocates nothing of its own.
-	//
-	// It is what keeps rooting the namespace from costing an allocation per event.
-	// A position with no element holds nothing but the context and its type, so it
-	// is the same value for every event the context is reused for — the argument
-	// the activation's root already rests on. The root is held by the activation,
-	// so `evt.process.file.path` allocates its two intermediate positions on the
-	// first event and none afterwards, where reading it through an unrooted
-	// `process` allocated one on every event.
-	//
-	// The members reached from one position are few, so a walk beats a map. They
-	// are compared by type pointer, which identifies the member: the types come
-	// from modelShapes, and the planner hands the same pointer back on every read.
-	firstMember, nextMember *seclObject
 }
 
-// member returns the position one member of this one denotes.
-func (o *seclObject) member(typ *types.Type) *seclObject {
-	if o.elem != nil {
-		// One element of an iterated field: the position belongs to the element, so
-		// there is nothing to reuse across events.
-		return &seclObject{ctx: o.ctx, typ: typ, elem: o.elem}
-	}
+// Type is the type the checker gave the expression the position came from, which
+// makes an error message name the shape a read was attempted on.
+func (o *seclPosition) Type() ref.Type { return o.typ }
 
-	for m := o.firstMember; m != nil; m = m.nextMember {
-		if m.typ == typ {
-			return m
-		}
-	}
-
-	m := &seclObject{ctx: o.ctx, typ: typ, nextMember: o.firstMember}
-	o.firstMember = m
-	return m
-}
-
-// celObjectType is what the checker sees; the runtime value carries the shape it
-// was reached through so that member lookups resolve against the right type.
-func (o *seclObject) Type() ref.Type { return o.typ }
-
-// Value returns the object itself, because the field qualifier unwraps a ref.Val
-// with Value() before handing it to the provider's getter.
-func (o *seclObject) Value() any { return o }
+// Value implements ref.Val.
+func (o *seclPosition) Value() any { return o }
 
 // ConvertToNative implements ref.Val.
-func (o *seclObject) ConvertToNative(reflect.Type) (any, error) {
+func (o *seclPosition) ConvertToNative(reflect.Type) (any, error) {
 	return nil, fmt.Errorf("%w: %s cannot be converted to a native value", errUnsupportedValue, o.typ)
 }
 
 // ConvertToType implements ref.Val.
-func (o *seclObject) ConvertToType(t ref.Type) ref.Val {
+func (o *seclPosition) ConvertToType(t ref.Type) ref.Val {
 	if t == types.TypeType {
 		return o.typ
 	}
@@ -106,8 +68,8 @@ func (o *seclObject) ConvertToType(t ref.Type) ref.Val {
 
 // Equal implements ref.Val. Two positions are equal when they name the same
 // thing; SECL has no notion of comparing event objects.
-func (o *seclObject) Equal(other ref.Val) ref.Val {
-	rhs, ok := other.(*seclObject)
+func (o *seclPosition) Equal(other ref.Val) ref.Val {
+	rhs, ok := other.(*seclPosition)
 	if !ok {
 		return types.MaybeNoSuchOverloadErr(other)
 	}
@@ -161,9 +123,9 @@ func cidrToVal(ipnet net.IPNet) ref.Val {
 // activation resolves the names a translated expression refers to against an
 // event, which the SECL context holds.
 //
-// There is almost nothing to resolve: the fields hang under one name, so the
-// activation hands out one value and every field select below it was bound to
-// the field it denotes when the rule was planned.
+// There is almost nothing to resolve: the fields hang under one name, and what a
+// planned rule does with it is hand it to a read that already knows which field it
+// wants.
 //
 // An activation may be kept for as long as its context, across the events the
 // context is reused for. The root it hands out holds the context rather than the
@@ -177,7 +139,7 @@ type activation struct {
 // NewActivation returns the CEL activation for a SECL evaluation context, so that
 // a program built by Program can be evaluated against the event it holds.
 func NewActivation(ctx *eval.Context) interpreter.Activation {
-	return &activation{ctx: ctx, root: &seclObject{ctx: ctx, typ: modelRootType}}
+	return &activation{ctx: ctx, root: &seclPosition{ctx: ctx, typ: modelRootType}}
 }
 
 // Parent implements interpreter.Activation; SECL evaluations have no enclosing
@@ -203,16 +165,32 @@ func (a *activation) ResolveName(name string) (any, bool) {
 // Pair it with an environment from NewModelEnv and evaluate it against
 // NewActivation, whose context holds the event.
 func Program(env *cel.Env, expr string, fieldTypes FieldTypes) (cel.Program, error) {
+	program, _, err := ProgramFields(env, expr, fieldTypes)
+	return program, err
+}
+
+// ProgramFields is Program, and also returns the SECL fields the expression reads
+// — which the optimization pass knows because resolving them is what it does.
+//
+// It is the counterpart of SECL's RuleEvaluator.GetFields: what a rule reads is
+// what decides which bucket it belongs to and which approvers it can support. An
+// iterated node counts as a field of its own, since reading it is a read.
+func ProgramFields(env *cel.Env, expr string, fieldTypes FieldTypes) (cel.Program, []string, error) {
 	checked, err := CompileWithTypes(env, expr, fieldTypes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	program, err := env.Program(checked, planningOptions()...)
+	optimized, fields, err := Optimize(env, checked)
 	if err != nil {
-		return nil, fmt.Errorf("planning %q: %w", expr, err)
+		return nil, nil, fmt.Errorf("optimizing %q: %w", expr, err)
 	}
-	return program, nil
+
+	program, err := env.Program(optimized, planningOptions()...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("planning %q: %w", expr, err)
+	}
+	return program, fields, nil
 }
 
 // planningOptions are what a rule is planned with, and are all about doing at
@@ -229,6 +207,9 @@ func planningOptions() []cel.ProgramOption {
 		// regexp on every event.
 		cel.EvalOptions(cel.OptOptimize),
 		cel.OptimizeRegex(globOptimization),
+		// Bind each field read to its reader, which is the same trick for the index
+		// the optimization pass emitted.
+		readOptimization(),
 	}
 }
 

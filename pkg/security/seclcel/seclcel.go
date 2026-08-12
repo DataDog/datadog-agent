@@ -10,6 +10,17 @@
 // the participle grammar in pkg/security/secl/compiler/ast. Rules keep their
 // current syntax while the evaluation moves to CEL.
 //
+// A rule goes through four stages, and Program is all four:
+//
+//   - Parse, which translates the SECL text into a CEL AST — Translate prints it;
+//   - Check, against the generated field types, which is what rejects a misspelt
+//     field or a comparison against the wrong type;
+//   - Optimize, which rewrites every field read into a read by index and is where
+//     a field name is resolved for the last time — see Optimize and optimize.go;
+//   - Plan, which is cel-go's, with the options planningOptions asks for.
+//
+// The first two are what a rule author reads, the last two are what runs.
+//
 // # Operator mapping
 //
 // Most of SECL maps onto standard CEL. The rest maps onto the math and network
@@ -66,10 +77,34 @@
 // Translate and Compile need an environment that declares the top level names
 // itself.
 //
-// Rooting is what lets the top level segments be members of one object type
-// rather than declarations of their own: which field a select denotes is then
-// settled once, when the rule is planned, for the first segment as for every
-// other one — see EventRoot and provider.go.
+// Rooting is what lets the top level segments be members of one object type rather
+// than declarations of their own, and so what lets a whole chain of selects be
+// resolved to the one field it reads — see EventRoot.
+//
+// # Reading a field
+//
+// None of those selects survive into what runs. Once the expression is checked, the
+// optimization pass rewrites each chain into a call that reads the field by its
+// place in the generated layout:
+//
+//	checked                                     planned
+//	---------------------------------------------------------------
+//	evt.process.comm                            secl.readString(evt, 770)
+//	evt.process.argv                            secl.readStrings(evt, 758)
+//	evt.network.destination.ip                  secl.readCIDR(evt, 556)
+//	evt.process.ancestors                       secl.readProcessAncestors(evt, 1)
+//	evt.process.ancestors.exists(A, A.uid == 0) secl.readProcessAncestors(evt, 1)
+//	                                              .exists(A, secl.readInt(A, 740) == 0)
+//
+// A read takes the position it reads from and the index of the field it wants, and
+// nothing else: the position is the event root or one element of an iterated field,
+// and the index is where the field sits in celReaders. So a name is resolved once
+// per rule and never while an event is being matched, and reading a field is a
+// slice index and one call — see Optimize and read.go.
+//
+// The functions differ only in what they are declared to return, which is what
+// keeps the rewrite type-preserving; cel-go re-checks the result, so a rewrite that
+// changed a type would fail at load.
 //
 // # Array semantics
 //
@@ -130,6 +165,15 @@
 //
 //   - Expressions that SECL parses but its compiler then rejects, such as one
 //     binding two iterator variables, are rejected here at parse time instead.
+//
+//   - Partial evaluation is not wired. SECL answers "could this rule still match if
+//     one field had this value and nothing else were known" with a variant of the
+//     rule compiled per field, which approvers and discarders rest on. cel-go's own
+//     mechanism for it withholds an *attribute*, and after the pass a field is a
+//     call rather than an attribute, so it no longer applies — see
+//     TestPartialEvaluationIsNotWired, which records both the gap and the shape that
+//     would close it: run the pass again with one known field, emitting a read that
+//     returns an unknown for every other one.
 package seclcel
 
 import (

@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
 )
 
 // modelTypes serves the generated SECL object types to CEL.
@@ -51,64 +50,18 @@ func (m *modelTypes) FindStructFieldNames(name string) ([]string, bool) {
 }
 
 // FindStructFieldType implements types.Provider.
+//
+// It answers with the member's type and nothing else — no getter. Reading a field
+// is not cel-go's business any more: the optimization pass turns every select over
+// these types into a read by index before the rule is planned, so a select that
+// reached the interpreter would mean the pass had missed one, and cel-go reporting
+// that it cannot qualify a SECL position is the right outcome.
 func (m *modelTypes) FindStructFieldType(structType, field string) (*types.FieldType, bool) {
 	fieldType, ok := modelShapes[structType][field]
 	if !ok {
 		return m.Provider.FindStructFieldType(structType, field)
 	}
-
-	// There is one type per path, so this member denotes exactly one SECL field,
-	// and what reading it means can be settled here — the planner calls this once
-	// per select when it builds the rule — instead of on every event.
-	read := bindMember(join(modelPaths[structType], field), fieldType)
-
-	return &types.FieldType{
-		Type:  fieldType,
-		IsSet: func(any) bool { return true },
-		// The planner turns a select on a known struct type into a call to this
-		// getter, which is where a field is read. Nothing is resolved for a member
-		// that is itself an object or an iterated field, so an expression only
-		// reaches the readers for the leaves it mentions.
-		GetFrom: func(obj any) (any, error) {
-			object, ok := obj.(*seclObject)
-			if !ok {
-				return nil, fmt.Errorf("%w: %T is not a SECL event position", errUnsupportedValue, obj)
-			}
-			return read(object), nil
-		},
-	}, true
-}
-
-// bindMember resolves what a SECL path denotes — an iterated field, a leaf, or
-// an object to descend into — and returns the one way of reading it from the
-// position the member was selected on.
-//
-// Everything that depends on the name rather than on the event is done here, so
-// that reading a field is a call through a closure and nothing else.
-func bindMember(path string, fieldType *types.Type) func(o *seclObject) ref.Val {
-	if cursor, ok := celIterators[path]; ok {
-		return func(o *seclObject) ref.Val {
-			return newIteratedList(o.ctx, cursor, fieldType)
-		}
-	}
-
-	if reader, ok := celReaders[path]; ok {
-		return func(o *seclObject) ref.Val {
-			return reader(o.ctx, o.elem)
-		}
-	}
-
-	if _, ok := modelShapes[fieldType.TypeName()]; ok {
-		return func(o *seclObject) ref.Val {
-			return o.member(fieldType)
-		}
-	}
-
-	// The types and the readers are two outputs of one generator run, so a path
-	// that is typed but unreadable means they have drifted.
-	return func(*seclObject) ref.Val {
-		return types.NewErr("%q is declared but has no reader", path)
-	}
+	return &types.FieldType{Type: fieldType}, true
 }
 
 func join(prefix, segment string) string {
@@ -119,8 +72,9 @@ func join(prefix, segment string) string {
 }
 
 // ModelTypes returns the environment options that declare the SECL fields: the
-// generated object types as a type provider, plus the one variable the whole
-// namespace hangs under — see EventRoot.
+// generated object types as a type provider, the one variable the whole namespace
+// hangs under — see EventRoot — and the read functions a field becomes once the
+// expression is optimized.
 //
 // Passing these to NewEnv is what turns Compile from a well-formedness check
 // into a real one, so that comparing a string field against an integer, or
@@ -132,10 +86,10 @@ func ModelTypes() ([]cel.EnvOption, error) {
 		return nil, fmt.Errorf("creating the CEL type registry: %w", err)
 	}
 
-	return []cel.EnvOption{
+	return append([]cel.EnvOption{
 		cel.CustomTypeProvider(&modelTypes{Provider: registry}),
 		cel.Variable(EventRoot, modelRootType),
-	}, nil
+	}, readBindings()...), nil
 }
 
 // NewModelEnv returns a CEL environment that declares the SECL helper functions

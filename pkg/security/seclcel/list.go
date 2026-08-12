@@ -41,9 +41,9 @@ type iteratedList struct {
 	elem *types.Type
 }
 
-// newIteratedList returns the list standing for an iterated field. typ is the
-// list type the field tree describes for it, and cursor was bound to the field
-// when the rule was planned.
+// newIteratedList returns the list standing for an iterated field. typ is the list
+// type the field tree describes for it, and cursor is the one the read function
+// found at the index the rule carries.
 func newIteratedList(ctx *eval.Context, cursor celIterator, typ *types.Type) ref.Val {
 	elem, ok := objectListElem(typ)
 	if !ok {
@@ -54,7 +54,7 @@ func newIteratedList(ctx *eval.Context, cursor celIterator, typ *types.Type) ref
 
 // element returns the position of one element of the list.
 func (l *iteratedList) element(elem any) ref.Val {
-	return &seclObject{ctx: l.ctx, typ: l.elem, elem: elem}
+	return &seclPosition{ctx: l.ctx, typ: l.elem, elem: elem}
 }
 
 // Type implements ref.Val.

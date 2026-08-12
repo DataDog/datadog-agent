@@ -16,6 +16,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
+
+	"github.com/google/cel-go/cel"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclcel"
 )
@@ -68,10 +71,28 @@ flags:
 
 		// The translation is valid CEL either way; checking it is what catches a
 		// field that does not exist or a comparison against the wrong type.
-		if _, err := seclcel.CompileWithTypes(env, expr, fieldTypes); err != nil {
+		checked, err := seclcel.CompileWithTypes(env, expr, fieldTypes)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "  does not type-check: %v\n", err)
 			failed = true
+			continue
 		}
+
+		// And what actually runs is the optimized form, where each field has become
+		// the index it is read by. It is the only way to eyeball that mapping.
+		optimized, fields, err := seclcel.Optimize(env, checked)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  cannot be optimized: %v\n", err)
+			failed = true
+			continue
+		}
+		source, err := cel.AstToString(optimized)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  cannot be printed: %v\n", err)
+			failed = true
+			continue
+		}
+		fmt.Printf("  %s\n  reads %s\n", source, strings.Join(fields, ", "))
 	}
 
 	if failed {

@@ -55,10 +55,23 @@ type CELShape struct {
 	// Members are sorted by name.
 	Members []CELMember
 	// Path is the SECL path this type describes. There is one type per path
-	// rather than one per member set, which is what lets the runtime bind a
-	// member to the field it denotes when a rule is planned rather than
-	// resolving it on every read.
+	// rather than one per member set, which is what lets a chain of selects be
+	// resolved to the one field it reads.
 	Path string
+}
+
+// CELElementRead names the function that reads an iterated field as a list of
+// one element type.
+//
+// There is one per iterated node rather than one for all of them, because the
+// element type has to survive into the expression: a member select on an
+// iteration variable is type-checked against it, and it is what tells the
+// optimization pass which field an index belongs to.
+type CELElementRead struct {
+	// TypeName is the element type, e.g. "secl.ProcessAncestors".
+	TypeName string
+	// FuncName is the CEL function that returns a list of it.
+	FuncName string
 }
 
 // CELTypeTree is the generated view of the SECL field namespace.
@@ -69,6 +82,8 @@ type CELTypeTree struct {
 	// members are the top level segments. It is the one type a CEL environment
 	// declares a variable for.
 	Root string
+	// ElementReads are the iterated element types, sorted by type name.
+	ElementReads []CELElementRead
 	// UsesCIDR reports whether any field is IP or CIDR valued, which decides
 	// whether the generated file needs the network extension library.
 	UsesCIDR bool
@@ -76,6 +91,10 @@ type CELTypeTree struct {
 
 // celTypePrefix namespaces the generated CEL type names.
 const celTypePrefix = "secl."
+
+// celReadPrefix namespaces the generated read functions, which is how a field
+// reaches the interpreter: `secl.readProcessAncestors(evt, 12)`.
+const celReadPrefix = celTypePrefix + "read"
 
 // celRootType is the type of the whole field namespace. The top level segments
 // are its members rather than declarations of their own, so that every field
@@ -180,15 +199,37 @@ func BuildCELTypeTree(module *Module) (*CELTypeTree, error) {
 		return nil, err
 	}
 
+	elements := map[string]bool{}
 	for _, shape := range tree.Shapes {
 		for _, member := range shape.Members {
 			if member.Kind == CELKindCIDR {
 				tree.UsesCIDR = true
 			}
+			// An iterated member is a list of objects, and its element type is what
+			// a read of that member returns.
+			if member.List && member.Shape != "" {
+				elements[member.Shape] = true
+			}
 		}
 	}
 
+	for _, name := range sortedNames(elements) {
+		tree.ElementReads = append(tree.ElementReads, CELElementRead{
+			TypeName: name,
+			FuncName: celReadPrefix + strings.TrimPrefix(name, celTypePrefix),
+		})
+	}
+
 	return tree, nil
+}
+
+func sortedNames(set map[string]bool) []string {
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // celKindOf maps a field's return type onto a CEL value shape. It deliberately
@@ -210,10 +251,10 @@ func celKindOf(field *StructField) string {
 // nameShapes assigns a CEL type name to every internal node, one per path.
 //
 // Sharing a name between nodes exposing the same members would declare fewer
-// types — 84 rather than 276 — but a shared type cannot say which field a
-// member denotes, so the runtime would have to work that out on every read from
-// the path the value was reached through. One type per path lets the provider
-// bind a member to its field when a rule is planned instead.
+// types — 84 rather than 276 — but a shared type cannot say which field a member
+// denotes. One type per path can: it is what lets the optimization pass resolve a
+// chain of selects to one field, from the type of the expression the chain hangs
+// off, and rewrite it into a read of that field.
 //
 // The cost is that two paths exposing the same members are no longer the same
 // type, so nothing can be written polymorphically over them. SECL has no such

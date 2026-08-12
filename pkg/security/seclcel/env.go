@@ -60,12 +60,14 @@ const globPatternArg = 1
 // EventRoot is the CEL identifier the event fields are rooted at:
 // `process.file.path` translates to `evt.process.file.path`.
 //
-// One rooted variable rather than one per top level segment, because a segment
-// is then a member select like every other one: which field it denotes is
-// settled when the rule is planned, by the same code that settles every other
-// select, instead of being resolved against a table on every evaluation. It also
-// leaves the top level names to the macros, the constants and the iterator
-// variables, none of which can then collide with a field or shadow one.
+// One rooted variable rather than one per top level segment, because a segment is
+// then a member select like every other one, and the optimization pass turns a
+// whole chain of them into a single read by index — see optimize.go. It also leaves
+// the top level names to the macros, the constants and the iterator variables, none
+// of which can then collide with a field or shadow one.
+//
+// What survives into a planned rule is the variable itself: it is the argument that
+// carries the event to each read.
 //
 // It is spelled `evt` rather than `event` because `event` is itself a SECL root:
 // `event.timestamp` translates to `evt.event.timestamp`.

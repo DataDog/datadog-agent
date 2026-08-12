@@ -5,7 +5,10 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/seclcel/secl2cel",
     visibility = ["//visibility:private"],
-    deps = ["//pkg/security/seclcel"],
+    deps = [
+        "//pkg/security/seclcel",
+        "@com_github_google_cel_go//cel:go_default_library",
+    ],
 )
 
 go_binary(

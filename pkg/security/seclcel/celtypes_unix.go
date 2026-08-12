@@ -3354,10 +3354,11 @@ var modelShapes = map[string]map[string]*types.Type{
 
 // modelPaths gives the SECL path each object type describes.
 //
-// It is what makes a member select resolvable at planning time: joining the type's
-// path with the member name gives the SECL field, and so the reader for it, once
-// per rule rather than once per read. The root's path is empty, so joining it
-// yields the top level segment itself.
+// It is how the optimization pass resolves a chain of selects: the type of the
+// expression the chain hangs off names where in the namespace it starts, and
+// joining that with the selected members gives the field — once per rule, rather
+// than once per read. The root's path is empty, so joining it yields the top level
+// segment itself.
 var modelPaths = map[string]string{
 	"secl.Accept":                                         "accept",
 	"secl.AcceptAddr":                                     "accept.addr",
@@ -3636,4 +3637,18 @@ var modelPaths = map[string]string{
 	"secl.UtimesFile":                                     "utimes.file",
 	"secl.UtimesFilePackage":                              "utimes.file.package",
 	"secl.UtimesSyscall":                                  "utimes.syscall",
+}
+
+// celElementReads names the read function that returns a list of each iterated
+// element type.
+//
+// The optimization pass needs it in both directions: to translate a select on an
+// iteration variable into a read — the variable's type names the iterated path —
+// and to pick the function that yields a list of that element type.
+var celElementReads = map[string]string{
+	"secl.NetworkFlowMonitorFlows":  "secl.readNetworkFlowMonitorFlows",
+	"secl.ProcessAncestors":         "secl.readProcessAncestors",
+	"secl.PtraceTraceeAncestors":    "secl.readPtraceTraceeAncestors",
+	"secl.SetrlimitTargetAncestors": "secl.readSetrlimitTargetAncestors",
+	"secl.SignalTargetAncestors":    "secl.readSignalTargetAncestors",
 }
