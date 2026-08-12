@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The private action runner now stops heartbeating a task once the backend
+    reports it no longer exists, instead of retrying indefinitely.

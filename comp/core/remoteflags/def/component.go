@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
 )
 
-// team: agent-configuration
+// team: fleet-remediation
 
 // Component is the Remote Flags component interface.
 type Component interface {

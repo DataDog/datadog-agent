@@ -46,6 +46,17 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Per-section sub-files referenced by yaml/system-probe_schema.yaml via $ref
+filegroup(
+    name = "system_probe_schema_subfiles",
+    srcs = [
+        "yaml/system-probe-cws.yaml",
+        "yaml/system-probe-usm.yaml",
+        "yaml/system-probe_schema.yaml",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 ZSTD_ARGS = [
     "--no-check",  # match DataDog/zstd Go library behavior: no XXH64 frame checksum
     "-5",  # match DataDog/zstd: DefaultCompression = 5
@@ -61,6 +72,18 @@ run_binary(
     outs = ["core_schema.merged.yaml"],
     args = [
         "$(execpath yaml/core_schema.yaml)",
+        "$@",
+    ],
+    tool = "//tasks/schema:merge_schema",
+)
+
+# yaml/system-probe_schema.yaml uses sub-files in a similar manner as the core_schema
+run_binary(
+    name = "merged_system_probe_schema",
+    srcs = glob(["yaml/*.yaml"]),
+    outs = ["system-probe_schema.merged.yaml"],
+    args = [
+        "$(execpath yaml/system-probe_schema.yaml)",
         "$@",
     ],
     tool = "//tasks/schema:merge_schema",
@@ -82,14 +105,14 @@ run_binary(
     tool = "//tasks/schema:produce_byproduct",
 )
 
-# system-probe is a single-file schema (no $ref), so it is processed directly.
+# system-probe "embedded" schema, trimmed of build-time-only data
 run_binary(
     name = "embedded_system_probe_schema",
-    srcs = ["yaml/system-probe_schema.yaml"],
+    srcs = [":merged_system_probe_schema"],
     outs = ["system-probe_schema.embedded.yaml"],
     args = [
         "embedded",
-        "$(execpath yaml/system-probe_schema.yaml)",
+        "$(execpath :merged_system_probe_schema)",
         "$@",
     ],
     tool = "//tasks/schema:produce_byproduct",

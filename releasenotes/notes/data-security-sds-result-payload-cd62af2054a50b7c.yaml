@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    When ``data_security.enabled`` is set, the Agent now forwards
+    sensitive-data-scanner findings to Datadog as structured ``sds-result``
+    payloads on the event platform.

@@ -478,6 +478,8 @@ func (a *Agent) setFirstTraceTagsV1(root *idx.InternalSpan) {
 
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
+// The payload and its nested pointer slices must not contain nil entries;
+// receiver decoders establish this invariant before invoking Process.
 func (a *Agent) Process(p *api.Payload) {
 	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
@@ -662,6 +664,8 @@ func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error, d
 
 // ProcessV1 is the default work unit for a V1 payload that receives a trace, transforms it and
 // passes it downstream.
+// The payload and its nested pointer slices must not contain nil entries;
+// receiver decoders establish this invariant before invoking ProcessV1.
 func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	if len(p.TracerPayload.Chunks) == 0 {
 		log.Debugf("Skipping received empty payload")
@@ -811,11 +815,11 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
 	if debug.HasData() {
 		p.TracerPayload.ContainerDebug = &idx.ContainerDebug{
-			Error:                debug.Error,
-			LatencyMs:            debug.LatencyMs,
-			WasBuffered:          debug.WasBuffered,
-			BufferMs:             debug.BufferMs,
-			BufferEvictionReason: debug.BufferEvictionReason,
+			ErrorRef:                p.TracerPayload.Strings.Add(debug.Error),
+			LatencyMs:               debug.LatencyMs,
+			WasBuffered:             debug.WasBuffered,
+			BufferMs:                debug.BufferMs,
+			BufferEvictionReasonRef: p.TracerPayload.Strings.Add(debug.BufferEvictionReason),
 		}
 	}
 	if err != nil {

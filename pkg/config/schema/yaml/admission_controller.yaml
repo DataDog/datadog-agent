@@ -22,7 +22,6 @@ properties:
     default: false
     visibility: public
     description: Set to true to enable the admission controller in the cluster-agent.
-    comment: Admission controller
   validation:
     node_type: section
     type: object
@@ -551,7 +550,6 @@ properties:
             node_type: setting
             type: string
             default: datadog/ingress-nginx-injection
-            comment: ingress-nginx injection configuration
           init_run_as_group:
             node_type: setting
             type: integer
@@ -585,7 +583,6 @@ properties:
             node_type: setting
             type: string
             default: ghcr.io/datadog/dd-trace-go/service-extensions-callout
-            comment: Processor mode and sidecar configuration
           image_tag:
             node_type: setting
             type: string

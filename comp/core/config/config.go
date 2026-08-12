@@ -20,6 +20,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -87,6 +88,9 @@ func newConfig(deps dependencies) (*cfg, error) {
 	if deps.Cfgstream != nil && deps.Cfgstream.IsActive() {
 		// Snapshot already in the global builder; skip disk load to avoid
 		// clobbering streamed values via same-source last-write-wins.
+		// Feature detection still needs to run here since LoadDatadog (which
+		// normally triggers it) is skipped on this path.
+		pkgconfigenv.DetectFeatures(config)
 		return &cfg{Config: config, warnings: warnings}, nil
 	}
 

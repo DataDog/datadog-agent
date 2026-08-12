@@ -1,0 +1,207 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testCaptureContextImpl",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testCaptureContextImpl",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go",
+            "lineNumber": 44
+          },
+          {
+            "function": "main.executeContextImplFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context_impl_capture.go",
+            "lineNumber": 66
+          },
+          {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 86
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 39
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testCaptureContextImpl",
+          "location": {
+            "method": "main.testCaptureContextImpl"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "c": {
+                "type": "*main.contextImpl",
+                "address": "[addr]",
+                "fields": {
+                  "logger": {
+                    "type": "fmt.Stringer",
+                    "fields": {
+                      "data": {
+                        "type": "time.Duration",
+                        "value": "5000000000"
+                      }
+                    }
+                  },
+                  "responder": {
+                    "type": "io.Writer",
+                    "fields": {
+                      "data": {
+                        "type": "*bytes.Buffer",
+                        "address": "[addr]",
+                        "fields": {
+                          "buf": {
+                            "type": "[]uint8",
+                            "size": "13",
+                            "elements": [
+                              {
+                                "type": "uint8",
+                                "value": "114"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "101"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "115"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "112"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "111"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "110"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "115"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "101"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "32"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "98"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "111"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "100"
+                              },
+                              {
+                                "type": "uint8",
+                                "value": "121"
+                              }
+                            ]
+                          },
+                          "off": {
+                            "type": "int",
+                            "value": "0"
+                          },
+                          "lastRead": {
+                            "type": "bytes.readOp",
+                            "value": "0"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "decoder": {
+                    "type": "io.Reader",
+                    "fields": {
+                      "data": {
+                        "type": "*strings.Reader",
+                        "address": "[addr]",
+                        "fields": {
+                          "s": {
+                            "type": "string",
+                            "value": "request body"
+                          },
+                          "i": {
+                            "type": "int64",
+                            "value": "0"
+                          },
+                          "prevRune": {
+                            "type": "int",
+                            "value": "-1"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "params": {
+                    "type": "error",
+                    "fields": {
+                      "data": {
+                        "type": "*errors.errorString",
+                        "address": "[addr]",
+                        "fields": {
+                          "s": {
+                            "type": "string",
+                            "value": "param error"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "secrets": {
+                    "type": "fmt.Stringer",
+                    "fields": {
+                      "data": {
+                        "type": "time.Time",
+                        "value": "2023-11-14T22:13:20Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "message": "{logger: 5000000000, responder: {buf: [114, 101, 115, ...], off: 0, lastRead: 0}, decoder: {s: request body, i: 0, prevRune: -1}, params: {s: param error}, secrets: 2023-11-14T22:13:20Z}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

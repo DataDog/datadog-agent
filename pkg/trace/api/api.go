@@ -548,6 +548,16 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 // - tp is the decoded payload
 // - err is the first error encountered
 func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
+	// Decoders vary in what they leave behind: legacy ones use pointer slices
+	// and may preserve nil wire entries, and v0.7 may leave chunk Tags nil.
+	// Establish the payload invariants here, before receiver metadata extraction
+	// or the payload is handed to the processing pipeline.
+	defer func() {
+		if err == nil && tp != nil {
+			normalizeDecodedPayload(tp)
+		}
+	}()
+
 	switch v {
 	case v01:
 		var spans []*pb.Span
@@ -886,15 +896,24 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}()
 
 	firstService := func(tp *pb.TracerPayload) string {
-		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+		if tp == nil {
 			return ""
 		}
-		return tp.Chunks[0].Spans[0].Service
+		// The decoder has already removed nil entries; use the helper to skip
+		// any empty chunks while finding the service used for receiver telemetry.
+		if span, ok := getFirstSpan(tp); ok {
+			return span.Service
+		}
+		return ""
 	}
 
 	start := time.Now()
 	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
-	ts := r.tagStats(v, req, firstService(tp))
+	service := ""
+	if err == nil {
+		service = firstService(tp)
+	}
+	ts := r.tagStats(v, req, service)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -1000,15 +1019,24 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 	}()
 
 	firstService := func(tp *idx.InternalTracerPayload) string {
-		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+		if tp == nil {
 			return ""
 		}
-		return tp.Chunks[0].Spans[0].Service()
+		// Converted and native v1 decoders guarantee non-nil entries; use the
+		// helper to skip any empty chunks while finding the first service.
+		if span, ok := getFirstSpanV1(tp); ok {
+			return span.Service()
+		}
+		return ""
 	}
 
 	start := time.Now()
 	tp, err := r.decodeConvertedTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
-	ts := r.tagStats(v, req, firstService(tp))
+	service := ""
+	if err == nil {
+		service = firstService(tp)
+	}
+	ts := r.tagStats(v, req, service)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -1125,33 +1153,19 @@ func getProcessTags(h http.Header, p *pb.TracerPayload) string {
 }
 
 func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
-	if len(p.Chunks) == 0 {
-		return nil, false
-	}
 	for _, chunk := range p.Chunks {
-		if chunk == nil || len(chunk.Spans) == 0 {
-			continue
+		if len(chunk.Spans) != 0 {
+			return chunk.Spans[0], true
 		}
-		if chunk.Spans[0] == nil {
-			continue
-		}
-		return chunk.Spans[0], true
 	}
 	return nil, false
 }
 
 func getFirstSpanV1(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
-	if len(p.Chunks) == 0 {
-		return nil, false
-	}
 	for _, chunk := range p.Chunks {
-		if chunk == nil || len(chunk.Spans) == 0 {
-			continue
+		if len(chunk.Spans) != 0 {
+			return chunk.Spans[0], true
 		}
-		if chunk.Spans[0] == nil {
-			continue
-		}
-		return chunk.Spans[0], true
 	}
 	return nil, false
 }
@@ -1267,6 +1281,11 @@ func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
+		// A decoded span slice may contain nil entries (e.g. v0.1 JSON `[null]`);
+		// skip them rather than dereferencing s.TraceID.
+		if s == nil {
+			continue
+		}
 		byID[s.TraceID] = append(byID[s.TraceID], s)
 	}
 	for _, t := range byID {
@@ -1290,6 +1309,61 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 	}
 
 	return traceChunks
+}
+
+// normalizeDecodedPayload establishes the invariants the processing pipeline
+// relies on for a decoded payload.
+//
+// It removes nil entries produced by legacy payload decoders: after this
+// function returns, every retained chunk, span, link, event, event attribute,
+// and attribute-array element is non-nil. Chunks with no remaining spans are
+// dropped because they carry no processable trace.
+//
+// It also guarantees a non-nil Tags map on every retained chunk. The v0.7
+// decoder allocates Tags only when the wire payload carries a "tags" key, while
+// the v0.1/v0.4/v0.5 chunk builders always allocate one; normalizing here lets
+// downstream code write chunk tags without a nil check.
+func normalizeDecodedPayload(tp *pb.TracerPayload) {
+	chunks := compactNonNil(tp.Chunks)
+	keptChunks := chunks[:0]
+	for _, chunk := range chunks {
+		chunk.Spans = compactNonNil(chunk.Spans)
+		if len(chunk.Spans) == 0 {
+			continue
+		}
+		if chunk.Tags == nil {
+			chunk.Tags = make(map[string]string)
+		}
+		for _, span := range chunk.Spans {
+			span.SpanLinks = compactNonNil(span.SpanLinks)
+			span.SpanEvents = compactNonNil(span.SpanEvents)
+			for _, event := range span.SpanEvents {
+				for key, value := range event.Attributes {
+					if value == nil {
+						delete(event.Attributes, key)
+						continue
+					}
+					if value.ArrayValue != nil {
+						value.ArrayValue.Values = compactNonNil(value.ArrayValue.Values)
+					}
+				}
+			}
+		}
+		keptChunks = append(keptChunks, chunk)
+	}
+	clear(chunks[len(keptChunks):])
+	tp.Chunks = keptChunks
+}
+
+func compactNonNil[T any](values []*T) []*T {
+	kept := values[:0]
+	for _, value := range values {
+		if value != nil {
+			kept = append(kept, value)
+		}
+	}
+	clear(values[len(kept):])
+	return kept
 }
 
 func getContainerTagsList(fn func(string) ([]string, error), containerID string) []string {

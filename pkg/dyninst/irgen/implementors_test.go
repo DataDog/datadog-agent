@@ -30,6 +30,7 @@ var expectedImplementors = map[string][]string{
 		"*context.todoCtx",
 		"*context.valueCtx",
 		"*context.withoutCancelCtx",
+		"*main.contextImpl",
 		"*net.onlyValuesCtx",
 		"*orchestrion.glsContext",
 		"context.backgroundCtx",

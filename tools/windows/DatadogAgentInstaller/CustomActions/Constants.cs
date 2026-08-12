@@ -20,7 +20,5 @@ namespace Datadog.CustomActions
         // Flavor names
         public const string FipsFlavor = "fips";
         public const string BaseFlavor = "base";
-
-        public const string FallbackAiUsageChromeExtensionId = "gkmbhgbippkmmmidcikijiblbagbjgjj";
     }
 }

@@ -31,7 +31,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 )
 
@@ -495,6 +495,58 @@ func TestObfuscate(t *testing.T) {
 		protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
 		t.Errorf("Diff between APM stats -want +got:\n%v", diff)
 	}
+}
+
+func TestSpanDerivedPrimaryTags(t *testing.T) {
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.BucketInterval = time.Second
+	cfg.Traces.SpanDerivedPrimaryTags = []string{"team"}
+
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().PutStr("service.name", "svc")
+	res.Attributes().PutStr("deployment.environment.name", "my-env")
+
+	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	s := ss.AppendEmpty()
+	s.SetName("name")
+	s.SetKind(ptrace.SpanKindServer)
+	s.SetTraceID(testTraceID)
+	s.SetSpanID(testSpanID1)
+	// "team" is configured as a span-derived primary tag and should appear on the stats.
+	s.Attributes().PutStr("team", "checkout")
+
+	require.NoError(t, connector.ConsumeTraces(t.Context(), td))
+
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	metrics := metricsSink.AllMetrics()
+	require.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err := tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+	require.NoError(t, proto.Unmarshal(msg, sp))
+
+	require.Len(t, sp.Stats, 1)
+	require.Len(t, sp.Stats[0].Stats, 1)
+	require.Len(t, sp.Stats[0].Stats[0].Stats, 1)
+	assert.Equal(t, []string{"team:checkout"}, sp.Stats[0].Stats[0].Stats[0].AdditionalMetricTags)
 }
 
 type errorSink struct {

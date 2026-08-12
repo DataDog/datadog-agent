@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "request",
@@ -16,11 +17,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "request_test",
     srcs = ["encoding_test.go"],
     embed = [":request"],
-    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/process",
         "@com_github_stretchr_testify//assert",

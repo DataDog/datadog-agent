@@ -24,6 +24,7 @@ go_library(
         "//comp/trace/compression/impl-zstd",
         "//comp/trace/config/def",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/remote/client",
         "//pkg/config/setup",
         "//pkg/config/utils",

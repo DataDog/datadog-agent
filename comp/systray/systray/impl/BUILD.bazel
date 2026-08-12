@@ -28,6 +28,7 @@ go_library(
             "//comp/def",
             "//comp/forwarder/eventplatform/impl",
             "//comp/systray/systray/def",
+            "//pkg/config/helper",
             "//pkg/config/setup",
             "//pkg/diagnose/connectivity",
             "//pkg/diagnose/firewallscanner",

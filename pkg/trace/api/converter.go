@@ -28,9 +28,9 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 	reg := semantics.DefaultRegistry()
 	stringTable := idx.NewStringTable()
 	payloadAttrs := convertAttributesMap(payload.Tags, stringTable)
-	// Empty or nil chunks are dropped at conversion so they never enter the idx
-	// payload. This mirrors the legacy pb.TracerPayload path, which removed empty
-	// chunks before processing, and avoids leaving nil entries in the slice.
+	// Built by appending only successfully converted chunks: chunks that are nil,
+	// empty, or all-nil-spans are dropped rather than left as nil slots, which
+	// downstream consumers (firstService, ProcessV1) would dereference.
 	idxChunks := make([]*idx.InternalTraceChunk, 0, len(payload.Chunks))
 	chunkConvertedFields := idx.ChunkConvertedFields{}
 	for _, chunk := range payload.Chunks {
@@ -38,16 +38,33 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			continue
 		}
 		spanConvertedFields := idx.NewSpanConvertedFields()
-		tidUpper, tidLower, err := chunk.Spans[0].Get128BitTraceID()
+		// A decoded payload may contain nil span entries (e.g. v0.4 JSON
+		// `[[null]]`); find the first non-nil span to derive the chunk's
+		// 128-bit trace ID from, and skip the chunk entirely if all are nil.
+		var firstSpan *pb.Span
+		for _, s := range chunk.Spans {
+			if s != nil {
+				firstSpan = s
+				break
+			}
+		}
+		if firstSpan == nil {
+			continue
+		}
+		tidUpper, tidLower, err := firstSpan.Get128BitTraceID()
 		if err != nil {
 			log.Errorf("Failed to determine full 128-bit trace ID from incoming span: %v. Resulting trace chunk(%d) will be missing upper 64 bits of the trace ID.", err, tidLower)
 		}
 		spanConvertedFields.TraceIDUpper = tidUpper
 		spanConvertedFields.TraceIDLower = tidLower
 		chunkAttrs := convertAttributesMap(chunk.Tags, stringTable)
-		idxSpans := make([]*idx.InternalSpan, len(chunk.Spans))
+		idxSpans := make([]*idx.InternalSpan, 0, len(chunk.Spans))
 		var rootSampling idx.RootSamplingMergeState
-		for spanIndex, span := range chunk.Spans {
+		for _, span := range chunk.Spans {
+			// Skip nil span entries rather than dereferencing span.Meta below.
+			if span == nil {
+				continue
+			}
 			spanAttrs := make(map[uint32]*idx.AnyValue, len(span.Meta)+len(span.Metrics)+len(span.MetaStruct))
 			for k, v := range span.Meta {
 				if isPromotedTag(k) {
@@ -83,26 +100,39 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				}
 			}
 			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(spanConvertedFields, span.ParentID)
-			spanLinks := make([]*idx.SpanLink, len(span.SpanLinks))
-			for spanLinkIndex, link := range span.SpanLinks {
+			// A nil entry in SpanLinks is a valid decode result; skip it rather
+			// than dereferencing link.TraceID, and drop it instead of preserving
+			// a nil idx.SpanLink slot that downstream paths would dereference.
+			spanLinks := make([]*idx.SpanLink, 0, len(span.SpanLinks))
+			for _, link := range span.SpanLinks {
+				if link == nil {
+					continue
+				}
 				linkTraceID := make([]byte, 16)
 				binary.BigEndian.PutUint64(linkTraceID[8:], link.TraceID)
 				binary.BigEndian.PutUint64(linkTraceID[:8], link.TraceIDHigh)
-				spanLinks[spanLinkIndex] = &idx.SpanLink{
+				spanLinks = append(spanLinks, &idx.SpanLink{
 					TraceID:       linkTraceID,
 					SpanID:        link.SpanID,
 					TracestateRef: stringTable.Add(link.Tracestate),
 					Flags:         link.Flags,
 					Attributes:    convertAttributesMap(link.Attributes, stringTable),
-				}
+				})
 			}
-			spanEvents := make([]*idx.SpanEvent, len(span.SpanEvents))
-			for spanEventIndex, event := range span.SpanEvents {
-				spanEvents[spanEventIndex] = &idx.SpanEvent{
+			// A nil entry in SpanEvents is a valid msgpack decode result; skip it
+			// rather than dereferencing event.TimeUnixNano. Nil entries are dropped
+			// instead of preserved as nil idx.SpanEvent slots, which downstream V1
+			// paths would dereference.
+			spanEvents := make([]*idx.SpanEvent, 0, len(span.SpanEvents))
+			for _, event := range span.SpanEvents {
+				if event == nil {
+					continue
+				}
+				spanEvents = append(spanEvents, &idx.SpanEvent{
 					Time:       uint64(event.TimeUnixNano),
 					NameRef:    stringTable.Add(event.Name),
 					Attributes: convertSpanEventAttributes(event.Attributes, stringTable),
-				}
+				})
 			}
 
 			// Each span gets its own env/version based on its meta, but we also promote
@@ -176,10 +206,11 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 				Links:        spanLinks,
 				Events:       spanEvents,
 			}
-			idxSpans[spanIndex] = idx.NewInternalSpan(stringTable, protoSpan)
+			internalSpan := idx.NewInternalSpan(stringTable, protoSpan)
 			if originPayloadVersion != "" {
-				idxSpans[spanIndex].SetStringAttribute("_dd.convertedv1", originPayloadVersion)
+				internalSpan.SetStringAttribute("_dd.convertedv1", originPayloadVersion)
 			}
+			idxSpans = append(idxSpans, internalSpan)
 		}
 		idxChunk := &idx.InternalTraceChunk{
 			Strings:      stringTable,
@@ -223,6 +254,11 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 func convertSpanEventAttributes(attrs map[string]*pb.AttributeAnyValue, stringTable *idx.StringTable) map[uint32]*idx.AnyValue {
 	spanEventAttrs := make(map[uint32]*idx.AnyValue, len(attrs))
 	for k, v := range attrs {
+		// A nil attribute value is a valid msgpack decode result (e.g.
+		// attributes["cc"] = nil); drop it rather than dereferencing v.Type.
+		if v == nil {
+			continue
+		}
 		switch v.Type {
 		case pb.AttributeAnyValue_STRING_VALUE:
 			spanEventAttrs[stringTable.Add(k)] = &idx.AnyValue{

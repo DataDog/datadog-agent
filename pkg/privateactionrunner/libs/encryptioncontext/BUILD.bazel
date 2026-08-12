@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "encryptioncontext",
@@ -13,15 +14,12 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "encryptioncontext_test",
     srcs = [
         "decrypt_test.go",
         "store_test.go",
     ],
     embed = [":encryptioncontext"],
-    gotags = ["test"],
-    deps = [
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = ["@com_github_stretchr_testify//require"],
 )
