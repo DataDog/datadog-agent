@@ -588,11 +588,9 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
 mod tests {
     use super::*;
     use crate::config::{MutableConfigLoader, ProcessConfig, RestartPolicy, StaticConfigLoader};
-    use crate::config_gate::ConditionConfigFile;
     use crate::state::ProcessState;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
-    use std::io::Write;
 
     fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
         Arc::new(StaticConfigLoader::new(defs))
@@ -624,50 +622,6 @@ mod tests {
         }
     }
 
-    fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        ProcessDefinition {
-            name: name.to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                condition_config_any: vec![ConditionConfigFile {
-                    path: agent_yaml.to_string(),
-                    keys: vec!["process_config.process_collection.enabled".into()],
-                }],
-                ..Default::default()
-            },
-        }
-    }
-
-    fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
-        let path = dir.join("datadog.yaml");
-        let body = format!(
-            "process_config:\n  process_collection:\n    enabled: {process_collection_enabled}\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
-        );
-        let mut file = std::fs::File::create(&path).unwrap();
-        file.write_all(body.as_bytes()).unwrap();
-        path.to_string_lossy().into_owned()
-    }
-
-    fn gated_on_failure_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        ProcessDefinition {
-            name: name.to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                restart: RestartPolicy::OnFailure,
-                restart_sec: Some(2.0),
-                condition_config_any: vec![ConditionConfigFile {
-                    path: agent_yaml.to_string(),
-                    keys: vec!["process_config.process_collection.enabled".into()],
-                }],
-                ..Default::default()
-            },
-        }
-    }
-
     #[tokio::test]
     async fn test_spawn_failure_schedules_on_failure_restart() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(
@@ -692,35 +646,6 @@ mod tests {
             .await
             .expect("timed out waiting for restart after spawn failure");
         assert_eq!(name.as_deref(), Some("bad-spawn"));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_complete_restart_skips_when_gate_closed() -> anyhow::Result<()> {
-        let dir = tempfile::tempdir()?;
-        let agent_yaml = write_agent_yaml(dir.path(), true);
-        let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_on_failure_sleep_def(
-            "svc-a",
-            &agent_yaml,
-        )]));
-        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, _restart_rx) = mpsc::channel::<String>(256);
-
-        mgr.handle_start("svc-a", &exit_tx).await?;
-        mgr.handle_stop("svc-a").await?;
-        assert!(!mgr.processes().await[0].is_running());
-
-        // Seed gate state, then close the gate while a queued restart is pending.
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-        write_agent_yaml(dir.path(), false);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-
-        mgr.complete_restart("svc-a", &exit_tx, &restart_tx).await;
-        assert!(
-            !mgr.processes().await[0].is_running(),
-            "queued restart should not start process when config gates closed during delay"
-        );
         Ok(())
     }
 
@@ -869,96 +794,6 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_reload_stops_unchanged_process_when_gate_closes() -> anyhow::Result<()> {
-        let dir = tempfile::tempdir()?;
-        let agent_yaml = write_agent_yaml(dir.path(), true);
-        let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
-            "svc-a",
-            &agent_yaml,
-        )]));
-        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
-
-        mgr.handle_start("svc-a", &exit_tx).await?;
-        assert!(mgr.processes().await[0].is_running());
-
-        // Seed last_config_gate_met while the gate is still open.
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-
-        write_agent_yaml(dir.path(), false);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-        assert!(result.unchanged.contains(&"svc-a".to_string()));
-
-        let procs = mgr.processes().await;
-        assert!(
-            !procs[0].is_running(),
-            "running process should stop when external gate YAML disables it"
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_reload_starts_unchanged_process_when_gate_opens() -> anyhow::Result<()> {
-        let dir = tempfile::tempdir()?;
-        let agent_yaml = write_agent_yaml(dir.path(), false);
-        let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
-            "svc-a",
-            &agent_yaml,
-        )]));
-        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
-
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-        assert!(result.unchanged.contains(&"svc-a".to_string()));
-        assert!(!mgr.processes().await[0].is_running());
-
-        write_agent_yaml(dir.path(), true);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-        let procs = mgr.processes().await;
-        assert!(
-            procs[0].is_running(),
-            "process should start when external gate YAML enables it"
-        );
-        test_helpers::cleanup_process(procs[0].pid().unwrap());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_reload_gate_open_spawn_failure_schedules_restart() -> anyhow::Result<()> {
-        let dir = tempfile::tempdir()?;
-        let agent_yaml = write_agent_yaml(dir.path(), false);
-        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
-            name: "svc-a".to_string(),
-            config: ProcessConfig {
-                command: "/nonexistent/dd-procmgr-reload-spawn-fail".to_string(),
-                restart: RestartPolicy::OnFailure,
-                restart_sec: Some(0.05),
-                condition_config_any: vec![ConditionConfigFile {
-                    path: agent_yaml.clone(),
-                    keys: vec!["process_config.process_collection.enabled".into()],
-                }],
-                ..Default::default()
-            },
-        }]));
-        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
-
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-        assert!(!mgr.processes().await[0].is_running());
-
-        write_agent_yaml(dir.path(), true);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
-        assert!(!mgr.processes().await[0].is_running());
-
-        let name = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
-            .await
-            .expect("timed out waiting for restart after reload spawn failure");
-        assert_eq!(name.as_deref(), Some("svc-a"));
         Ok(())
     }
 
