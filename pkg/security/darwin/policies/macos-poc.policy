@@ -1,0 +1,36 @@
+version: 1.0.0
+
+macros:
+  - id: package_managers
+    expression: '["npm", "npx", "pip", "pip3", "uv", "yarn", "pnpm", "node", "bun"]'
+
+  - id: shells
+    expression: '["sh", "bash", "zsh", "dash", "ksh"]'
+
+  # Glob patterns rather than exact paths: SECL does not expand ~, and the home
+  # directory varies per user, so an exact-match list could never fire. The ~
+  # prefix inside an array marks a pattern.
+  - id: credential_paths
+    expression: >-
+      [~"/Users/*/.aws/credentials", ~"/Users/*/.ssh/id_rsa",
+       ~"/Users/*/.ssh/id_ed25519", ~"/Users/*/.npmrc",
+       ~"/Users/*/.docker/config.json",
+       ~"/Users/*/.config/gcloud/credentials.db"]
+
+rules:
+  # RFC 5.5 rule 1, minus the network clause: macOS exposes no process-attributed
+  # network events without an Apple entitlement. Confirmed on macOS 26.5.1, where
+  # eslogger --list-events offers none of the undocumented network event types, so
+  # this is a platform limit rather than a gap in the PoC.
+  - id: macos_pkg_manager_spawns_shell
+    description: A shell was spawned by a package-manager process tree
+    expression: >-
+      exec.file.name in shells &&
+      process.ancestors.file.name in package_managers
+
+  # RFC 5.5 rule 2.
+  - id: macos_pkg_manager_reads_credentials
+    description: A package-manager descendant read a credential file
+    expression: >-
+      open.file.path in credential_paths &&
+      process.ancestors.file.name in package_managers

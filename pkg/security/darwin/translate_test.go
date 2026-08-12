@@ -43,7 +43,11 @@ func newTestTranslator(t *testing.T) *Translator {
 func TestTranslateExecPopulatesProcess(t *testing.T) {
 	tr := newTestTranslator(t)
 
-	f, err := os.Open("eslogger/testdata/exec_fork_exit.jsonl")
+	// This package keeps its own copy of the capture rather than reading the
+	// eslogger package's: a cross-package relative path is not available under
+	// bazel test, and a package's tests should not reach into a sibling's
+	// fixtures.
+	f, err := os.Open("testdata/exec_fork_exit.jsonl")
 	require.NoError(t, err)
 	defer f.Close()
 
