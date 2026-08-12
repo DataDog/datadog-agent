@@ -165,6 +165,15 @@ func (q QueryHandle) CompactID() string {
 	return strconv.Itoa(int(q.Ref)) + ":" + AggregateString(q.Aggregate)
 }
 
+// ScorerContributor is one storage-backed metric contributing to a scorer
+// episode. The reporter resolves Handle to a display name only when the event
+// is rendered.
+type ScorerContributor struct {
+	Handle QueryHandle
+	Weight float64
+	Share  float64
+}
+
 // AnomalyType distinguishes the source type of an anomaly.
 type AnomalyType string
 
@@ -326,6 +335,9 @@ type CorrelatorEvent struct {
 	// Populated only for EpisodeStarted/EpisodeEnded; zero for CorrelationDetected.
 	FromLevel severityeventsdef.SeverityLevel
 	ToLevel   severityeventsdef.SeverityLevel
+	// Contributors is the scorer's short-lived contributor snapshot. It is
+	// populated only for EpisodeStarted events.
+	Contributors []ScorerContributor
 }
 
 // Correlator accumulates anomaly events and produces correlated patterns.
@@ -534,6 +546,10 @@ type MetricContext struct {
 type StorageReader interface {
 	// ListSeries returns metadata for all series matching the filter.
 	ListSeries(filter SeriesFilter) []SeriesMeta
+
+	// GetSeriesMeta returns metadata for one series ref, or nil if the series
+	// has been evicted.
+	GetSeriesMeta(ref SeriesRef) *SeriesMeta
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
