@@ -762,4 +762,50 @@ func TestPodStateHandlerHandle(t *testing.T) {
 		require.Len(t, les, 1)
 		assert.Equal(t, "ContainersReady", les[0].ProtoEvent.GetPod().GetTransition().GetLastObservedState().GetCondition().GetReason())
 	})
+
+	t.Run("condition with zero last-transition time falls back to an approximate transition", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "cy-d-effect", Kind: workloadmeta.KindKubernetesPod}
+		before := time.Now()
+
+		les, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "True"}},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+
+		transition := les[0].ProtoEvent.GetPod().GetTransition()
+		assert.Equal(t, model.Precision_PRECISION_APPROXIMATE, transition.GetPrecision())
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate())
+		assert.GreaterOrEqual(t, transition.GetTransitionTimestamp(), before.Unix())
+	})
+
+	t.Run("a same-status timestamp advance from an unknown prior transition time is unknowable, not proven", func(t *testing.T) {
+		h := NewPodStateHandler()
+		podID := workloadmeta.EntityID{ID: "hacker", Kind: workloadmeta.KindKubernetesPod}
+
+		_, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "False"}},
+			},
+		})
+		require.NoError(t, err)
+
+		les, err := h.Handle(workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:   podID,
+				Conditions: []workloadmeta.KubernetesPodCondition{{Type: "Ready", Status: "False", LastTransitionTime: time.Now()}},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, les[0].ProtoEvent.GetPod().GetTransition().GetMissedIntermediate())
+	})
 }

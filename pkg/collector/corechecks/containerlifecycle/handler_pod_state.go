@@ -18,6 +18,7 @@ import (
 
 // podShadow is the last-observed state of a pod's phase and conditions
 type podShadow struct {
+	mu         sync.Mutex
 	phase      string
 	conditions map[string]workloadmeta.KubernetesPodCondition
 }
@@ -49,11 +50,10 @@ func (h *PodStateHandler) CanHandle(ev workloadmeta.Event, _ workloadmeta.Source
 func (h *PodStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent, error) {
 	podUID := ev.Entity.GetID().ID
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	if ev.Type == workloadmeta.EventTypeUnset {
+		h.mu.Lock()
 		delete(h.shadow, podUID)
+		h.mu.Unlock()
 		return nil, nil
 	}
 
@@ -62,11 +62,16 @@ func (h *PodStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent, error
 		return nil, fmt.Errorf("expected *workloadmeta.KubernetesPod, got %T", ev.Entity)
 	}
 
+	h.mu.Lock()
 	shadow, ok := h.shadow[podUID]
 	if !ok {
 		shadow = &podShadow{conditions: make(map[string]workloadmeta.KubernetesPodCondition)}
 		h.shadow[podUID] = shadow
 	}
+	h.mu.Unlock()
+
+	shadow.mu.Lock()
+	defer shadow.mu.Unlock()
 
 	var transitions []*contlcycle.PodStateTransition
 
@@ -106,16 +111,29 @@ func (h *PodStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent, error
 			}}
 		}
 
-		transitions = append(transitions, &contlcycle.PodStateTransition{
-			Field:             contlcycle.PodStatusField_POD_STATUS_FIELD_CONDITION,
-			LastObservedState: lastObserved,
-			NewState: &contlcycle.PodStatusValue{Value: &contlcycle.PodStatusValue_Condition{
-				Condition: conditionToModel(condition),
-			}},
-			TransitionTimestamp: condition.LastTransitionTime.Unix(),
-			Precision:           contlcycle.Precision_PRECISION_EXACT,
-			MissedIntermediate:  missedIntermediate,
-		})
+		// If the condition has no last transition time, it's indicative of a bug.
+		// We should probably still report it, but with PRECISION_APPROXIMATE.
+		if condition.LastTransitionTime.IsZero() {
+			transitions = append(transitions, &contlcycle.PodStateTransition{
+				Field:               contlcycle.PodStatusField_POD_STATUS_FIELD_CONDITION,
+				LastObservedState:   lastObserved,
+				NewState:            &contlcycle.PodStatusValue{Value: &contlcycle.PodStatusValue_Condition{Condition: conditionToModel(condition)}},
+				TransitionTimestamp: time.Now().Unix(),
+				Precision:           contlcycle.Precision_PRECISION_APPROXIMATE,
+				MissedIntermediate:  contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE,
+			})
+		} else {
+			transitions = append(transitions, &contlcycle.PodStateTransition{
+				Field:             contlcycle.PodStatusField_POD_STATUS_FIELD_CONDITION,
+				LastObservedState: lastObserved,
+				NewState: &contlcycle.PodStatusValue{Value: &contlcycle.PodStatusValue_Condition{
+					Condition: conditionToModel(condition),
+				}},
+				TransitionTimestamp: condition.LastTransitionTime.Unix(),
+				Precision:           contlcycle.Precision_PRECISION_EXACT,
+				MissedIntermediate:  missedIntermediate,
+			})
+		}
 
 		shadow.conditions[condition.Type] = condition
 	}
@@ -155,7 +173,9 @@ func conditionUnchanged(seen bool, prior, current workloadmeta.KubernetesPodCond
 // conditionMissedIntermediate reports PROVEN when status is unchanged but LastTransitionTime advanced,
 // since that only happens on a real status flip.
 func conditionMissedIntermediate(seen bool, prior, current workloadmeta.KubernetesPodCondition) contlcycle.MissedIntermediate {
-	if seen && prior.Status == current.Status && !prior.LastTransitionTime.Equal(current.LastTransitionTime) {
+	if seen && prior.Status == current.Status &&
+		!prior.LastTransitionTime.IsZero() && !current.LastTransitionTime.IsZero() &&
+		current.LastTransitionTime.After(prior.LastTransitionTime) {
 		return contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN
 	}
 	return contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE
