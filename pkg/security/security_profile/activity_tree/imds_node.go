@@ -15,8 +15,7 @@ import (
 )
 
 // IMDSInfo is the slimmed-down representation of a model.IMDSEvent kept in the
-// activity tree. It omits the parsed model.AWSSecurityCredentials.Expiration
-// (time.Time), which is neither serialized nor read; only ExpirationRaw is.
+// activity tree.
 type IMDSInfo struct {
 	Type          string
 	CloudProvider string
