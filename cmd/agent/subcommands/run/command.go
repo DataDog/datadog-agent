@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
@@ -527,6 +528,16 @@ func getSharedFxOption() fx.Option {
 		logssourcefx.Module(),
 		recordernoopfx.Module(),
 		reporterfx.Module(),
+		// The observer must not depend on the logs-agent component during
+		// construction: logs agent reaches observer through the demultiplexer.
+		// Wire the source registry after both components are constructed instead.
+		fx.Invoke(func(observer observerdef.Component, logsAgent option.Option[logsAgent.Component]) {
+			if agent, ok := logsAgent.Get(); ok {
+				observer.SetTailerMatchLogSources(agent.GetSources())
+				return
+			}
+			observer.SetTailerMatchLogSources(nil)
+		}),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),

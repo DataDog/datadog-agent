@@ -35,6 +35,7 @@ go_library(
         "//comp/aggregator/demultiplexerendpoint/fx",
         "//comp/aggregator/dogstatsdclienttelemetry/fx",
         "//comp/anomalydetection/logssource/fx",
+		"//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/observer/fx",
         "//comp/anomalydetection/recorder/fx-noop",
         "//comp/anomalydetection/reporter/fx",

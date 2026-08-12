@@ -6470,6 +6470,32 @@ properties:
             node_type: setting
             type: string
             default: 24h
+      tailer_match_telemetry:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Diagnostic coverage telemetry for matching observer signals to configured log-source scopes.
+          report_interval:
+            node_type: setting
+            type: string
+            default: 5m
+            format: duration
+          max_tracked_metric_series:
+            node_type: setting
+            type: integer
+            default: 1000
+          max_event_metric_items:
+            node_type: setting
+            type: integer
+            default: 20
+          max_event_log_scopes:
+            node_type: setting
+            type: integer
+            default: 20
       reporting:
         node_type: section
         type: object

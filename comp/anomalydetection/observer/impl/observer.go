@@ -30,6 +30,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -105,6 +106,8 @@ type logObs struct {
 	tags        []string
 	hostname    string
 	timestampMs int64
+	service     string
+	source      string
 }
 
 // Ensure logObs implements observerdef.LogView
@@ -224,9 +227,10 @@ func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
 // It allocates nothing and starts no goroutines.
 type disabledObserver struct{}
 
-func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
-func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
-func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
+func (*disabledObserver) GetHandle(_ string) observerdef.Handle          { return &noopObserveHandle{} }
+func (*disabledObserver) RecordSamplerDropped(_, _ string)               {}
+func (*disabledObserver) DumpMetrics(_ string) error                     { return nil }
+func (*disabledObserver) SetTailerMatchLogSources(_ *sources.LogSources) {}
 
 func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
 	return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
@@ -340,10 +344,24 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
-		obsCh:                make(chan observation, 1000),
+		obsCh:                make(chan observation, 3000),
 		telemetry:            obsTelemetry,
+		logger:               deps.Log,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 		metricFilter:         compiledMetricFilter,
+	}
+
+	if cfg.GetBool("anomaly_detection.tailer_match_telemetry.enabled") {
+		obs.tailerMatcher = newTailerScopeMatcher(obsTelemetry, cfg.GetInt("anomaly_detection.tailer_match_telemetry.max_tracked_metric_series"))
+		for _, r := range deps.Reporters {
+			if consumer, ok := r.(reporterdef.TailerMatchReportConsumer); ok {
+				consumer.SetTailerMatchReportProvider(obs.tailerMatcher)
+			}
+		}
+		deps.Lifecycle.Append(compdef.Hook{OnStop: func(context.Context) error {
+			obs.stopTailerMatchSourceSubscription()
+			return nil
+		}})
 	}
 
 	// When baseline muting is enabled, subscribe a sink that publishes the mute
@@ -455,6 +473,42 @@ func NewComponent(deps Requires) (Provides, error) {
 	return Provides{Comp: obs}, nil
 }
 
+// SetTailerMatchLogSources attaches the normal logs-agent registry after Fx
+// has constructed both components. This avoids adding an observer constructor
+// dependency back into the demultiplexer → logs-agent dependency chain.
+func (o *observerImpl) SetTailerMatchLogSources(logSources *sources.LogSources) {
+	if o.tailerMatcher == nil {
+		return
+	}
+	if logSources == nil {
+		o.tailerMatcher.setRegistryUnavailable()
+		o.logger.Warn("[observer.tailer_match] logs agent is unavailable; observations cannot be matched to tailer scopes")
+		return
+	}
+	o.tailerMatchMu.Lock()
+	defer o.tailerMatchMu.Unlock()
+	if o.tailerMatchStop != nil {
+		return
+	}
+	addedDone, removedDone := make(chan struct{}), make(chan struct{})
+	added, removed := logSources.SubscribeAll(addedDone, removedDone)
+	stop, stopped := make(chan struct{}), make(chan struct{})
+	go consumeTailerSources(added, removed, addedDone, removedDone, stop, stopped, o.tailerMatcher, o.logger)
+	o.tailerMatchStop = stop
+	o.tailerMatchStopped = stopped
+}
+
+func (o *observerImpl) stopTailerMatchSourceSubscription() {
+	o.tailerMatchMu.Lock()
+	stop, stopped := o.tailerMatchStop, o.tailerMatchStopped
+	o.tailerMatchStop, o.tailerMatchStopped = nil, nil
+	o.tailerMatchMu.Unlock()
+	if stop != nil {
+		close(stop)
+		<-stopped
+	}
+}
+
 // observerImpl is the implementation of the observer component.
 // It is a thin driver around the engine, which holds storage, extractors,
 // detectors, correlators, and raw anomaly tracking.
@@ -475,6 +529,11 @@ type observerImpl struct {
 	// unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
 	metricFilter         *metricsFilterRules
+	tailerMatcher        *tailerScopeMatcher
+	logger               log.Component
+	tailerMatchMu        sync.Mutex
+	tailerMatchStop      chan struct{}
+	tailerMatchStopped   chan struct{}
 
 	// replayMu serialises engine access between the run() dispatch loop and
 	// the testbench's direct-ingest path (IngestLogForReplay, IngestMetricSync).
@@ -495,9 +554,15 @@ func (o *observerImpl) run() {
 		o.replayMu.Lock()
 		var requests []advanceRequest
 		if obs.metric != nil {
+			if o.tailerMatcher != nil {
+				o.tailerMatcher.classifyMetric(obs.source, obs.metric)
+			}
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
 		}
 		if obs.log != nil {
+			if o.tailerMatcher != nil {
+				o.tailerMatcher.classifyLog(obs.log)
+			}
 			logRequests := o.engine.IngestLog(obs.source, obs.log)
 			requests = append(requests, logRequests...)
 			if o.telemetry != nil {
@@ -1127,6 +1192,8 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			tags:        tags,
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
+			service:     logRoutingService(msg),
+			source:      logRoutingSource(msg),
 		},
 	}
 
@@ -1157,3 +1224,17 @@ func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
+
+func logRoutingService(msg observerdef.LogView) string {
+	if routing, ok := msg.(observerdef.LogRoutingContext); ok {
+		return routing.GetService()
+	}
+	return ""
+}
+
+func logRoutingSource(msg observerdef.LogView) string {
+	if routing, ok := msg.(observerdef.LogRoutingContext); ok {
+		return routing.GetSource()
+	}
+	return ""
+}

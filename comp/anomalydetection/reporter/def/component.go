@@ -56,3 +56,9 @@ type ReportOutput struct {
 type StorageConsumer interface {
 	SetStorage(storage observerdef.StorageReader)
 }
+
+// TailerMatchReportConsumer receives the observer's bounded routing coverage
+// provider when the optional diagnostic telemetry is enabled.
+type TailerMatchReportConsumer interface {
+	SetTailerMatchReportProvider(provider observerdef.TailerMatchReportProvider)
+}

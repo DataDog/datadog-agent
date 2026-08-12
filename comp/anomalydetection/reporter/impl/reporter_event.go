@@ -6,9 +6,13 @@
 package reporterimpl
 
 import (
+	"sync"
+	"time"
+
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // defaultMaxRetryAttempts is the number of consecutive send failures after
@@ -45,12 +49,18 @@ type EventReporter struct {
 	// retryPending holds CorrelationDetected entries whose last send attempt
 	// failed transiently. Retried at the start of each Report call; evicted
 	// after maxRetries consecutive failures.
-	retryPending []retryEntry
+	retryPending        []retryEntry
+	tailerMatchMu       sync.RWMutex
+	tailerMatchProvider observerdef.TailerMatchReportProvider
+	tailerMatchStop     chan struct{}
+	tailerMatchDone     chan struct{}
+	tailerMatchReports  telemetry.Counter
 }
 
 // Ensure EventReporter satisfies both interfaces at compile time.
 var _ reporterdef.Reporter = (*EventReporter)(nil)
 var _ reporterdef.StorageConsumer = (*EventReporter)(nil)
+var _ reporterdef.TailerMatchReportConsumer = (*EventReporter)(nil)
 
 // Name returns the reporter name.
 func (r *EventReporter) Name() string {
@@ -62,6 +72,53 @@ func (r *EventReporter) Name() string {
 // annotations in change-event messages.
 func (r *EventReporter) SetStorage(storage observerdef.StorageReader) {
 	r.sender.storage = storage
+}
+
+func (r *EventReporter) SetTailerMatchReportProvider(provider observerdef.TailerMatchReportProvider) {
+	r.tailerMatchMu.Lock()
+	r.tailerMatchProvider = provider
+	r.tailerMatchMu.Unlock()
+}
+
+func (r *EventReporter) startTailerMatchReports(interval time.Duration) {
+	r.tailerMatchStop, r.tailerMatchDone = make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(r.tailerMatchDone)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.tailerMatchStop:
+				return
+			case <-ticker.C:
+				r.tailerMatchMu.RLock()
+				provider := r.tailerMatchProvider
+				r.tailerMatchMu.RUnlock()
+				if provider == nil {
+					r.tailerMatchReports.Add(1, "disabled")
+					continue
+				}
+				report := provider.SnapshotAndResetTailerMatchReport()
+				if report.UnmatchedMetrics == 0 && report.UnmatchedLogs == 0 && report.InvalidSources == 0 {
+					r.tailerMatchReports.Add(1, "empty")
+					continue
+				}
+				if err := r.sender.sendTailerMatchReport(report); err != nil {
+					r.tailerMatchReports.Add(1, "failed")
+					r.logger.Errorf("[observer.tailer_match] failed to send report: %v", err)
+				} else {
+					r.tailerMatchReports.Add(1, "sent")
+				}
+			}
+		}
+	}()
+}
+
+func (r *EventReporter) stopTailerMatchReports() {
+	if r.tailerMatchStop != nil {
+		close(r.tailerMatchStop)
+		<-r.tailerMatchDone
+	}
 }
 
 // Report forwards all correlator events from this advance cycle.

@@ -59,6 +59,29 @@ type LogView interface {
 	GetTimestampUnixMilli() int64
 }
 
+// LogRoutingContext is optionally implemented by log views that retain the
+// logs pipeline's first-class routing identity. It is separate from LogView so
+// existing callers need not manufacture service/source tags for telemetry.
+type LogRoutingContext interface {
+	GetService() string
+	GetSource() string
+}
+
+// TailerMatchReportProvider supplies a bounded diagnostic snapshot. Calling
+// SnapshotAndResetTailerMatchReport starts a new reporting interval.
+type TailerMatchReportProvider interface {
+	SnapshotAndResetTailerMatchReport() TailerMatchReport
+}
+
+// TailerMatchReport contains only bounded, content-free coverage totals.
+type TailerMatchReport struct {
+	StartedAt, EndedAt               int64
+	MatchedMetrics, UnmatchedMetrics int
+	MatchedLogs, UnmatchedLogs       int
+	InvalidSources                   int
+	Truncated                        bool
+}
+
 // LogMetricsExtractor transforms observed logs into metrics.
 // Implementations should be fast since they run synchronously on every observed
 // log. Extractors may keep lightweight internal state when needed for pattern

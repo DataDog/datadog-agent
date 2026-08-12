@@ -34,6 +34,9 @@ const (
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
 	telemetryScorerState                     = "observer.scorer.state"                        // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
+	telemetryTailerMatchProcessed            = "observer.tailer_match.processed"
+	telemetryTailerMatchActiveScopes         = "observer.tailer_match.active_scopes"
+	telemetryTailerMatchActiveSources        = "observer.tailer_match.active_sources"
 )
 
 type observerTelemetry struct {
@@ -42,19 +45,22 @@ type observerTelemetry struct {
 	rrcfThreshold   telemetry.Gauge
 	logPatternCount telemetry.Counter
 
-	logsIngested     telemetry.Counter
-	processedLogSize telemetry.Counter
-	droppedLogs      telemetry.Counter
-	filteredMetrics  telemetry.Counter
-	seriesCount      telemetry.Gauge
-	logsInFlight     telemetry.Gauge
-	storageEvicted   telemetry.Counter
-	storageCapHit    telemetry.Counter
-	advanceSkipped   telemetry.Counter
-	samplerDropped   telemetry.Counter
-	processingTime   telemetry.Gauge
-	scorerEwma       telemetry.Gauge
-	scorerState      telemetry.Gauge
+	logsIngested             telemetry.Counter
+	processedLogSize         telemetry.Counter
+	droppedLogs              telemetry.Counter
+	filteredMetrics          telemetry.Counter
+	seriesCount              telemetry.Gauge
+	logsInFlight             telemetry.Gauge
+	storageEvicted           telemetry.Counter
+	storageCapHit            telemetry.Counter
+	advanceSkipped           telemetry.Counter
+	samplerDropped           telemetry.Counter
+	processingTime           telemetry.Gauge
+	scorerEwma               telemetry.Gauge
+	scorerState              telemetry.Gauge
+	tailerMatchProcessed     telemetry.Counter
+	tailerMatchActiveScopes  telemetry.Gauge
+	tailerMatchActiveSources telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -165,7 +171,20 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"scorer", "direction"},
 			"Anomaly scorer severity level on transition (0=Low, 1=Medium, 2=High)",
 		),
+		tailerMatchProcessed:     telemetryComp.NewCounter("observer", telemetryTailerMatchProcessed, []string{"signal_type", "outcome"}, "Accepted signals classified against configured log-source scopes"),
+		tailerMatchActiveScopes:  telemetryComp.NewGauge("observer", telemetryTailerMatchActiveScopes, nil, "Distinct valid configured log-source scopes"),
+		tailerMatchActiveSources: telemetryComp.NewGauge("observer", telemetryTailerMatchActiveSources, []string{"valid"}, "Configured log-source instances by scope validity"),
 	}
+}
+
+func (t *observerTelemetry) recordTailerMatch(signalType, outcome string) {
+	t.tailerMatchProcessed.Add(1, signalType, outcome)
+}
+
+func (t *observerTelemetry) setTailerMatchSources(scopes, valid, invalid int) {
+	t.tailerMatchActiveScopes.Set(float64(scopes))
+	t.tailerMatchActiveSources.Set(float64(valid), "true")
+	t.tailerMatchActiveSources.Set(float64(invalid), "false")
 }
 
 func (t *observerTelemetry) recordChannelDropped(source string) {

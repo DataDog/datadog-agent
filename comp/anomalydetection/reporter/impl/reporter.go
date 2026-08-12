@@ -9,6 +9,7 @@
 package reporterimpl
 
 import (
+	"context"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -17,6 +18,7 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 )
 
@@ -24,7 +26,8 @@ const (
 	// telemetryReportsOngoing counts advances where at least one already-seen correlation was still active.
 	telemetryReportsOngoing = "observer.reports.ongoing"
 	// telemetryReportsEmitted counts new correlation patterns seen for the first time (would-have-been event reports).
-	telemetryReportsEmitted = "observer.reports.emitted"
+	telemetryReportsEmitted     = "observer.reports.emitted"
+	telemetryTailerMatchReports = "observer.tailer_match.reports"
 )
 
 // Requires defines the dependencies for the live reporter component.
@@ -34,6 +37,7 @@ type Requires struct {
 	Telemetry     telemetryComp.Component
 	EventPlatform eventplatform.Component
 	Hostname      hostname.Component
+	Lifecycle     compdef.Lifecycle
 }
 
 // Provides defines the output of the live reporter component.
@@ -60,6 +64,12 @@ func NewComponent(req Requires) (Provides, error) {
 		nil,
 		"Number of new anomaly correlation patterns detected for the first time",
 	)
+	tailerMatchReports := req.Telemetry.NewCounter(
+		"observer",
+		telemetryTailerMatchReports,
+		[]string{"result"},
+		"Tailer-match diagnostic report outcomes",
+	)
 
 	reporters := []reporterdef.Reporter{&stdoutReporter{
 		logger:         req.Log,
@@ -78,7 +88,16 @@ func NewComponent(req Requires) (Provides, error) {
 			if err != nil {
 				req.Log.Warnf("[reporter] event_reporter disabled: %v", err)
 			} else {
-				reporters = append(reporters, &EventReporter{sender: sender, logger: req.Log, maxRetries: defaultMaxRetryAttempts})
+				eventReporter := &EventReporter{sender: sender, logger: req.Log, maxRetries: defaultMaxRetryAttempts, tailerMatchReports: tailerMatchReports}
+				reporters = append(reporters, eventReporter)
+				if req.Config.GetBool("anomaly_detection.tailer_match_telemetry.enabled") {
+					interval := req.Config.GetDuration("anomaly_detection.tailer_match_telemetry.report_interval")
+					if interval <= 0 {
+						interval = 5 * time.Minute
+					}
+					eventReporter.startTailerMatchReports(interval)
+					req.Lifecycle.Append(compdef.Hook{OnStop: func(context.Context) error { eventReporter.stopTailerMatchReports(); return nil }})
+				}
 			}
 		}
 	}

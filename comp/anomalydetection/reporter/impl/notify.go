@@ -84,6 +84,23 @@ type eventSender struct {
 	hostname  hostname.Component
 }
 
+func (s *eventSender) sendTailerMatchReport(report observerdef.TailerMatchReport) error {
+	messageBody := fmt.Sprintf("Interval: %s to %s\\nMetrics: matched=%d unmatched=%d\\nLogs: matched=%d unmatched=%d\\nInvalid configured sources: %d", time.Unix(report.StartedAt, 0).UTC().Format(time.RFC3339), time.Unix(report.EndedAt, 0).UTC().Format(time.RFC3339), report.MatchedMetrics, report.UnmatchedMetrics, report.MatchedLogs, report.UnmatchedLogs, report.InvalidSources)
+	host := ""
+	if s.hostname != nil {
+		host = s.hostname.GetSafe(context.TODO())
+	}
+	attributes := map[string]any{"title": "[observer.tailer_match] Metric/log routing coverage", "message": truncateBytesValidUTF8(messageBody, changeEventMessageMaxLen), "category": "change", "integration_id": changeEventIntegrationID, "tags": []string{"observer_telemetry:tailer_match"}, "timestamp": time.Unix(report.EndedAt, 0).UTC().Format(time.RFC3339), "aggregation_key": "observer:tailer_match:" + host, "attributes": map[string]any{"changed_resource": map[string]any{"name": "observer.tailer_match", "type": changedResourceType}, "author": map[string]any{"name": "datadog-agent-observer", "type": "automation"}}}
+	if host != "" {
+		attributes["host"] = host
+	}
+	body, err := json.Marshal(map[string]any{"data": map[string]any{"type": "event", "attributes": attributes}})
+	if err != nil {
+		return fmt.Errorf("marshal tailer-match event: %w", err)
+	}
+	return s.forwarder.SendEventPlatformEventBlocking(message.NewMessage(body, nil, "", time.Now().UnixNano()), eventplatform.EventTypeEventManagement)
+}
+
 // newEventSender creates an eventSender backed by the given forwarder.
 // storage is used to compute windowed log rates for display in event messages;
 // it may be nil and will be set later via EventReporter.SetStorage.

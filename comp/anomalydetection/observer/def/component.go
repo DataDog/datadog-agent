@@ -10,7 +10,10 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
-import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+import (
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+)
 
 // team: q-branch
 
@@ -38,4 +41,9 @@ type Component interface {
 	// whose GetSeverity() reflects the latest delivered level, plus the
 	// unsubscribe function that stops the underlying subscription.
 	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
+
+	// SetTailerMatchLogSources provides the normal logs-agent source registry
+	// after component construction. It keeps observer construction independent
+	// from the logs agent, avoiding an Fx dependency cycle through demultiplexer.
+	SetTailerMatchLogSources(logSources *sources.LogSources)
 }
