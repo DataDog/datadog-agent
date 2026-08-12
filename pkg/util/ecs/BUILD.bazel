@@ -31,6 +31,7 @@ dd_agent_go_test(
     srcs = ["ecs_test.go"],
     embed = [":ecs"],
     gotags_sets = [[
+        "cel",
         "docker",
         "kubelet",
     ]],

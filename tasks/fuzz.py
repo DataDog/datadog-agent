@@ -18,7 +18,7 @@ def fuzz(ctx, fuzztime="10s"):
     See https://github.com/golang/go/issues/46312.
     """
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     for directory, func in search_fuzz_tests(os.getcwd()):
         with ctx.cd(directory):

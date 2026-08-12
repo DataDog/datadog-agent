@@ -30,7 +30,7 @@ def build_binary(ctx, package: str, output_path: str, label: str) -> str:
     print(f"== Building {label} binary ==")
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(f"go build -o {shlex.quote(output_path)} {package}")
     return output_path

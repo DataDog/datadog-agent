@@ -893,3 +893,54 @@ func (suite *clusterAgentSuite) TestDCAClientCertificateVerification() {
 		})
 	}
 }
+
+// TestInitHTTPClientConcurrent calls initHTTPClient() concurrently to catch data races on DCAClient state.
+func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
+	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+	pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
+	dca, err := newDummyClusterAgent(suite.config)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	ts, p, err := dca.StartTLS()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	defer ts.Close()
+
+	pkgapiutil.SetCrossNodeClientTLSConfig(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+
+	c := &DCAClient{
+		clusterAgentAPIEndpoint: fmt.Sprintf("https://127.0.0.1:%d", p),
+	}
+	c.clusterAgentAPIRequestHeaders = http.Header{}
+	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, "Bearer "+clusterAgentTokenValue)
+	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, clcRunnerIP)
+
+	// dummyClusterAgent.requests is a bounded channel that nothing else drains here;
+	// keep it flowing so ServeHTTP never blocks on a full channel and slows the test down.
+	stopDrain := make(chan struct{})
+	defer close(stopDrain)
+	go func() {
+		for {
+			select {
+			case <-dca.requests:
+			case <-stopDrain:
+				return
+			}
+		}
+	}()
+
+	const goroutines = 10
+	const iterations = 10
+
+	var wg sync.WaitGroup
+	for i := 0; i < goroutines; i++ {
+		wg.Go(func() {
+			for j := 0; j < iterations; j++ {
+				_ = c.initHTTPClient()
+			}
+		})
+	}
+	wg.Wait()
+}

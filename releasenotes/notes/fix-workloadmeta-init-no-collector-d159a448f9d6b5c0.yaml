@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix an issue where the Agent logged a spurious error about
+    Workloadmeta collectors not being ready on every startup in
+    environments where no container runtime or orchestrator is
+    detected, such as container sidecars.

@@ -541,16 +541,33 @@ func TestSanitizeTracerPayload(t *testing.T) {
 		{Spans: []*pb.Span{nil}},
 	}}
 
-	removeNilEntries(payload)
+	normalizeDecodedPayload(payload)
 
 	require.Len(t, payload.Chunks, 1)
 	require.Len(t, payload.Chunks[0].Spans, 1)
 	assert.Same(t, span, payload.Chunks[0].Spans[0])
+	assert.NotNil(t, payload.Chunks[0].Tags, "retained chunks must have a non-nil Tags map")
 	require.Len(t, span.SpanLinks, 1)
 	require.Len(t, span.SpanEvents, 1)
 	assert.NotContains(t, span.SpanEvents[0].Attributes, "drop")
 	require.Len(t, arrayValue.ArrayValue.Values, 1)
 	assert.Equal(t, "keep", arrayValue.ArrayValue.Values[0].StringValue)
+}
+
+func TestNormalizeDecodedPayloadChunkTags(t *testing.T) {
+	span := &pb.Span{Service: "svc"}
+	payload := &pb.TracerPayload{Chunks: []*pb.TraceChunk{
+		{Spans: []*pb.Span{span}}, // v0.7 chunk that omitted "tags"
+		{Spans: []*pb.Span{span}, Tags: map[string]string{"_dd.p.dm": "-4"}}, // tags already present
+	}}
+
+	normalizeDecodedPayload(payload)
+
+	require.Len(t, payload.Chunks, 2)
+	assert.NotNil(t, payload.Chunks[0].Tags)
+	assert.Empty(t, payload.Chunks[0].Tags)
+	// An existing map must be left untouched.
+	assert.Equal(t, map[string]string{"_dd.p.dm": "-4"}, payload.Chunks[1].Tags)
 }
 
 func TestReceiverJSONDecoder(t *testing.T) {

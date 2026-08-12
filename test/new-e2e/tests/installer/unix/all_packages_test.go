@@ -168,6 +168,7 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.pipelineAgentVersion = PipelineAgentVersion(s.T())
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
+	s.host.ConfigureAptMirrors()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()

@@ -2,6 +2,7 @@
 #define _HOOKS_NETWORK_FLOW_H_
 #include "constants/offsets/network.h"
 #include "constants/offsets/netns.h"
+#include "helpers/network/parser.h"
 #include "helpers/network/pid_resolver.h"
 #include "helpers/network/utils.h"
 #include "helpers/network/flow.h"
@@ -628,6 +629,92 @@ HOOK_EXIT("inet6_bind")
 int rethook_inet6_bind(ctx_t *ctx) {
     int ret = CTX_PARMRET(ctx);
     return handle_inet_bind_ret(ret);
+}
+
+__attribute__((always_inline)) int register_connected_flow(struct sock *sk, u64 pid_tgid) {
+    struct pid_route_t route = {};
+
+    route.netns = get_netns_from_sock(sk);
+    route.l4_protocol = get_protocol_from_sock(sk);
+    route.port = get_skc_num_from_sock_common((void *)sk);
+    if (route.port == 0) {
+        return 0;
+    }
+
+    u16 family = get_family_from_sock_common((void *)sk);
+    if (family == AF_INET) {
+        bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
+    } else if (family == AF_INET6) {
+        bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
+    } else {
+        return 0;
+    }
+
+    struct sock_meta_t *meta = get_sock_meta(sk);
+    if (meta != NULL) {
+        struct pid_route_t previous = meta->existing_route;
+        if (previous.port != 0 || previous.addr[0] != 0 || previous.addr[1] != 0) {
+            if (can_delete_route(&previous, sk)) {
+
+                #if defined(DEBUG_NETWORK_FLOW)
+                bpf_printk("|    flushing route registered before the source address was known:");
+                print_route(&previous);
+                #endif
+
+                bpf_map_delete_elem(&flow_pid, &previous);
+            }
+        }
+    }
+
+    if (!can_delete_route(&route, sk)) {
+        // we don't want to override the existing entry
+        return 0;
+    }
+
+    struct pid_route_entry_t value = {};
+    value.pid = pid_tgid >> 32;
+    value.type = FLOW_CLASSIFICATION_ENTRY;
+    value.owner_sk = sk;
+    bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
+
+    if (meta != NULL) {
+        meta->existing_route = route;
+    }
+
+    if (route.netns != 0) {
+        u32 tid = (u32)pid_tgid;
+        bpf_map_update_elem(&netns_cache, &tid, &route.netns, BPF_ANY);
+    }
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("register_connected_flow: @:0x%p", sk);
+    print_route(&route);
+    print_route_entry(&value);
+    #endif
+
+    return 0;
+}
+
+// The socket returned by accept() holds the concrete local address the connection landed on, which
+// the BIND_ENTRY of a wildcard listener doesn't cover. Before Linux 7.0 that IPv6 socket was classified
+// on its first transmit, causing security_sk_classify_flow to be called and classify the flow.
+// Starting with Linux 7.0 that security_sk_classify_flow call is only done on a route miss in inet6_csk_xmit,
+// this means that we miss the classification in the hit case.
+__attribute__((always_inline)) int register_accepted_flow(struct sock *sk) {
+    // Only native IPv6 sockets lost that classification with Linux 7.0, IPv4 always reaches
+    // security_sk_classify_flow, so the flow registration is already handled by the security_sk_classify_flow hook
+    if (get_family_from_sock_common((void *)sk) != AF_INET6) {
+        return 0;
+    }
+
+    u64 addr[2] = {};
+    bpf_probe_read(&addr, sizeof(addr), &sk->__sk_common.skc_v6_rcv_saddr);
+    // ipv4 mapped addresses already go through the security_sk_classify_flow path
+    if (is_ipv4_mapped_ipv6_addr(addr)) {
+        return 0;
+    }
+
+    return register_connected_flow(sk, bpf_get_current_pid_tgid());
 }
 
 #endif

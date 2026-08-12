@@ -144,12 +144,21 @@ external entity ChangeEvent {
 --
 -- Episode events carry a Correlation snapshot that records the scorer
 -- state at the transition time; the correlation object is immutable from
--- the reporter's perspective.
+-- the reporter's perspective. EpisodeStarted additionally carries a bounded
+-- snapshot of storage-backed metric contributors. The snapshot contains
+-- compact handles and shares; reporters resolve the handles at render time.
 external entity CorrelatorEvent {
     kind: CorrelatorEventKind
     correlator_name: String
     correlation: Correlation
     timestamp: Timestamp
+    contributors: List<ScorerContributor>
+}
+
+external entity ScorerContributor {
+    handle: QueryHandle
+    weight: Float
+    share: Float
 }
 
 enum CorrelatorEventKind {
@@ -509,6 +518,15 @@ rule PublishCorrelatorEvents {
 
 -- map_to_pattern_set(cs: List<Correlation>) -> Set<String>
 --   The set of c.pattern values from cs.
+
+-- render_scorer_contributors(items: List<ScorerContributor>) -> String
+--
+-- Resolves only the captured handles that still exist in storage and renders
+-- their display names (including tags) in captured rank order as a numbered
+-- list with each item's percentage share. Shares are normalized over the
+-- displayed top items. EpisodeStarted uses this as its entire message; scores,
+-- raw weights, anomaly counts and debug data are not rendered. EpisodeEnded
+-- has no contributor snapshot.
 
 ------------------------------------------------------------
 -- Invariants

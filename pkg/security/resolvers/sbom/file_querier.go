@@ -11,6 +11,7 @@ package sbom
 import (
 	"slices"
 	"strings"
+	"sync"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -138,7 +139,10 @@ func (fq *fileQuerier) len() int {
 	return len(fq.files)
 }
 
+// fixedSizeQueue is shared across containers with the same image (see newData),
+// so it needs its own lock rather than relying on the caller's SBOM lock.
 type fixedSizeQueue[T comparable] struct {
+	mu      sync.Mutex
 	queue   []T
 	maxSize int
 }
@@ -148,6 +152,9 @@ func newFixedSizeQueue[T comparable](maxSize int) *fixedSizeQueue[T] {
 }
 
 func (q *fixedSizeQueue[T]) push(value T) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	if len(q.queue) == q.maxSize {
 		q.queue = q.queue[1:]
 	}
@@ -159,6 +166,9 @@ func (q *fixedSizeQueue[T]) contains(value T) bool {
 	if q == nil {
 		return false
 	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
 	return slices.Contains(q.queue, value)
 }

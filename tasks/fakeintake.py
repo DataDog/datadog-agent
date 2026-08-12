@@ -53,7 +53,7 @@ def test(ctx):
     Run the fake intake tests
     """
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     with ctx.cd("test/fakeintake"):
         ctx.run("go test ./...")

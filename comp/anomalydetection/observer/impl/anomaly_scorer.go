@@ -6,9 +6,11 @@
 package observerimpl
 
 import (
+	"container/heap"
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -113,6 +115,38 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 	return 2 // detectors without explicit thresholds default to Medium
 }
 
+// contributorWeight interpolates an anomaly score between the adjacent
+// calibrated levelWeights. It is used only to rank retained top anomalies; the
+// scorer's EWMA continues to use the calibrated discrete levelWeights.
+func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
+	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
+	if !ok {
+		return levelWeights[2] // uncalibrated detectors retain Medium's weight
+	}
+	if a.Score == nil {
+		return levelWeights[0]
+	}
+
+	score := *a.Score
+	if score <= thresholds[0] {
+		return levelWeights[0]
+	}
+
+	lowerThreshold := thresholds[0]
+	for level, upperThreshold := range thresholds {
+		if score < upperThreshold {
+			span := upperThreshold - lowerThreshold
+			if span <= 0 {
+				return levelWeights[level]
+			}
+			fraction := (score - lowerThreshold) / span
+			return levelWeights[level] + fraction*(levelWeights[level+1]-levelWeights[level])
+		}
+		lowerThreshold = upperThreshold
+	}
+	return levelWeights[len(levelWeights)-1]
+}
+
 // seriesID returns a stable string key for deduplication.
 // Prefers SourceRef.CompactID() when available (set by the metrics pipeline);
 // falls back to Source.Key() otherwise. SeriesDescriptor.Key() always returns
@@ -132,6 +166,168 @@ func seriesID(a observerdef.Anomaly) string {
 // highest level that still has an active timestamp, rather than carrying the
 // stale peak forward.
 type windowEntry [5]int64
+
+const (
+	topAnomalyWindowSecs        = int64(5 * 60)
+	contributorBufferMultiplier = 10
+	minMaxReportedItems         = 10
+	maxMaxReportedItems         = 1000
+)
+
+// topAnomaly is one storage-backed anomaly occurrence retained for scorer
+// episode attribution. It deliberately stores no source descriptor, tags, or
+// detector payload; those are resolved only for the final reported series.
+type topAnomaly struct {
+	handle    observerdef.QueryHandle
+	timestamp int64
+	weight    float64
+}
+
+// topAnomalyBuffer is a bounded approximation of the strongest anomalies over
+// the previous five minutes. Entries form a min-heap, with the weakest retained
+// anomaly at the root.
+type topAnomalyBuffer struct {
+	entries  []topAnomaly
+	capacity int
+}
+
+func newTopAnomalyBuffer(displayCount int) *topAnomalyBuffer {
+	capacity := displayCount * contributorBufferMultiplier
+	return &topAnomalyBuffer{
+		entries:  make([]topAnomaly, 0, capacity),
+		capacity: capacity,
+	}
+}
+
+// update expires stale entries then considers each anomaly from a finalized
+// scorer second. sec is data time, never wall-clock time.
+func (b *topAnomalyBuffer) update(sec int64, anomalies []observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) {
+	b.expire(sec)
+	for _, anomaly := range anomalies {
+		if anomaly.SourceRef == nil {
+			continue
+		}
+		b.insert(topAnomaly{
+			handle:    *anomaly.SourceRef,
+			timestamp: sec,
+			weight:    contributorWeight(anomaly, cfg),
+		})
+	}
+}
+
+func (b *topAnomalyBuffer) expire(sec int64) {
+	cutoff := sec - topAnomalyWindowSecs
+	kept := b.entries[:0]
+	for _, entry := range b.entries {
+		if entry.timestamp > cutoff {
+			kept = append(kept, entry)
+		}
+	}
+	b.entries = kept
+	heap.Init(b)
+}
+
+func (b *topAnomalyBuffer) insert(candidate topAnomaly) {
+	if b.capacity == 0 {
+		return
+	}
+	if len(b.entries) < b.capacity {
+		heap.Push(b, candidate)
+		return
+	}
+	if !topAnomalyBefore(candidate, b.entries[0]) {
+		return
+	}
+	b.entries[0] = candidate
+	heap.Fix(b, 0)
+}
+
+func (b *topAnomalyBuffer) Len() int {
+	return len(b.entries)
+}
+
+func (b *topAnomalyBuffer) Less(i, j int) bool {
+	return topAnomalyBefore(b.entries[j], b.entries[i])
+}
+
+func (b *topAnomalyBuffer) Swap(i, j int) {
+	b.entries[i], b.entries[j] = b.entries[j], b.entries[i]
+}
+
+func (b *topAnomalyBuffer) Push(value any) {
+	b.entries = append(b.entries, value.(topAnomaly))
+}
+
+func (b *topAnomalyBuffer) Pop() any {
+	last := len(b.entries) - 1
+	value := b.entries[last]
+	b.entries = b.entries[:last]
+	return value
+}
+
+// topAnomalyBefore defines the stable rank order for retained occurrences.
+func topAnomalyBefore(a, b topAnomaly) bool {
+	if a.weight != b.weight {
+		return a.weight > b.weight
+	}
+	if a.timestamp != b.timestamp {
+		return a.timestamp > b.timestamp
+	}
+	if a.handle.Ref != b.handle.Ref {
+		return a.handle.Ref < b.handle.Ref
+	}
+	return a.handle.Aggregate < b.handle.Aggregate
+}
+
+func (b *topAnomalyBuffer) reset() {
+	b.entries = b.entries[:0]
+}
+
+// contributors returns the highest-weight metrics represented in the retained
+// anomaly occurrences. Shares are normalized across the returned top items.
+func (b *topAnomalyBuffer) contributors(maxItems int) []observerdef.ScorerContributor {
+	if maxItems <= 0 || len(b.entries) == 0 {
+		return nil
+	}
+
+	totals := make(map[observerdef.QueryHandle]float64, len(b.entries))
+	var total float64
+	for _, entry := range b.entries {
+		totals[entry.handle] += entry.weight
+		total += entry.weight
+	}
+	if total == 0 {
+		return nil
+	}
+
+	contributors := make([]observerdef.ScorerContributor, 0, len(totals))
+	for handle, weight := range totals {
+		contributors = append(contributors, observerdef.ScorerContributor{
+			Handle: handle,
+			Weight: weight,
+		})
+	}
+	sort.Slice(contributors, func(i, j int) bool {
+		if contributors[i].Weight != contributors[j].Weight {
+			return contributors[i].Weight > contributors[j].Weight
+		}
+		if contributors[i].Handle.Ref != contributors[j].Handle.Ref {
+			return contributors[i].Handle.Ref < contributors[j].Handle.Ref
+		}
+		return contributors[i].Handle.Aggregate < contributors[j].Handle.Aggregate
+	})
+	if len(contributors) > maxItems {
+		contributors = contributors[:maxItems]
+	}
+	var selectedTotal float64
+	for _, contributor := range contributors {
+		selectedTotal += contributor.Weight
+	}
+	for i := range contributors {
+		contributors[i].Share = contributors[i].Weight / selectedTotal
+	}
+	return contributors
+}
 
 // secState is the per-second scorer state emitted after each Advance step.
 type secState struct {
@@ -164,6 +360,9 @@ type AnomalyScorerConfig struct {
 	// MaxEpisodeAnomalies caps the number of anomalies stored per episode.
 	// 0 means no cap.
 	MaxEpisodeAnomalies int `json:"max_episode_anomalies"`
+	// MaxReportedItems is the number of metrics shown in a scorer episode event.
+	// The top-anomaly buffer retains ten times this count.
+	MaxReportedItems int `json:"max_reported_items"`
 }
 
 // DefaultAnomalyScorerConfig returns calibrated defaults.
@@ -197,6 +396,7 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 		CorrelationEventThreshold: "high",
 		CooldownSecs:              300,
 		MaxEpisodeAnomalies:       50,
+		MaxReportedItems:          16,
 	}
 }
 
@@ -253,6 +453,15 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	}
 	cfg.CooldownSecs = int64(d.Seconds())
 	cfg.MaxEpisodeAnomalies = r.GetInt(outPrefix + "max_anomalies")
+	key = outPrefix + "max_reported_items"
+	cfg.MaxReportedItems = r.GetInt(key)
+	if cfg.MaxReportedItems < minMaxReportedItems {
+		pkglog.Warnf("anomaly_scorer: %s must be at least %d, got %d — using %d", key, minMaxReportedItems, cfg.MaxReportedItems, minMaxReportedItems)
+		cfg.MaxReportedItems = minMaxReportedItems
+	} else if cfg.MaxReportedItems > maxMaxReportedItems {
+		pkglog.Warnf("anomaly_scorer: %s must be at most %d, got %d — using %d", key, maxMaxReportedItems, cfg.MaxReportedItems, maxMaxReportedItems)
+		cfg.MaxReportedItems = maxMaxReportedItems
+	}
 
 	return cfg
 }
@@ -326,6 +535,9 @@ type anomalyScorer struct {
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
 	// Entries are evicted once lastSeenSec falls outside the window.
 	windowMap map[string]windowEntry
+	// topAnomalies retains bounded five-minute attribution only when
+	// correlation events are enabled.
+	topAnomalies *topAnomalyBuffer
 
 	// EWMA state
 	ewma float64
@@ -369,6 +581,7 @@ type StandaloneAnomalyScorer interface {
 	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
+	PendingEvents() []observerdef.CorrelatorEvent
 	LastScore() float64
 	ScoreState() observerdef.AnomalyScoreState
 	Reset()
@@ -387,24 +600,36 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	if cfg.SaturationK <= 0 {
 		cfg.SaturationK = defaults.SaturationK
 	}
+	if cfg.MaxReportedItems < minMaxReportedItems {
+		cfg.MaxReportedItems = minMaxReportedItems
+	} else if cfg.MaxReportedItems > maxMaxReportedItems {
+		cfg.MaxReportedItems = maxMaxReportedItems
+	}
 	if threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold); err != nil {
 		pkglog.Warnf("anomaly_scorer: correlation_event_threshold %v; using default %q", err, defaults.CorrelationEventThreshold)
 		cfg.CorrelationEventThreshold = defaults.CorrelationEventThreshold
 	} else {
 		cfg.CorrelationEventThreshold = threshold
 	}
-	return &anomalyScorer{
+	scorer := &anomalyScorer{
 		config:    cfg,
 		pending:   make(map[int64][]observerdef.Anomaly),
 		windowMap: make(map[string]windowEntry),
 	}
+	if cfg.CorrelationEvents {
+		scorer.topAnomalies = newTopAnomalyBuffer(cfg.MaxReportedItems)
+	}
+	return scorer
 }
 
 // NewAnomalyScorer creates a new anomalyScorer with the given config.
-// The watcher (telemetry gauges, logs, episodes) is not active.
-// Used by the testbench replay path.
+// When correlation events are enabled, it also installs the internal watcher
+// so standalone consumers such as the testbench can inspect episode events.
 // Invalid EWMA parameter values are clamped to safe defaults.
 func NewAnomalyScorer(cfg AnomalyScorerConfig) StandaloneAnomalyScorer {
+	if cfg.CorrelationEvents {
+		return newAnomalyScorerWithTelemetry(cfg, nil, nil)
+	}
 	return newAnomalyScorerBase(cfg)
 }
 
@@ -484,6 +709,9 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 				Correlation:    *s.openEpisode,
 				FromLevel:      evt.FromLevel,
 				ToLevel:        evt.ToLevel,
+				// Live scheduling advances one data second at a time, so this
+				// snapshot represents the same second as the severity transition.
+				Contributors: s.topAnomalies.contributors(s.config.MaxReportedItems),
 			})
 		} else if evt.FromLevel >= threshold && evt.ToLevel < threshold && s.openEpisode != nil {
 			ep := *s.openEpisode
@@ -621,6 +849,9 @@ func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
 	s.windowMap = make(map[string]windowEntry)
+	if s.topAnomalies != nil {
+		s.topAnomalies.reset()
+	}
 	s.ewma = 0
 	s.lastAdvancedSec = 0
 	s.buckets = nil
@@ -725,35 +956,39 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
+	if s.topAnomalies != nil {
+		s.topAnomalies.update(sec, anomalies, s.config.AnomalyScorerConfig)
+	}
+
 	// Step 1: merge new anomalies into the window.
 	for _, a := range anomalies {
 		sid := seriesID(a)
-		l := anomalyLevel(a, s.config.AnomalyScorerConfig)
-		e := s.windowMap[sid]
-		if sec > e[l] {
-			e[l] = sec
+		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
+		entry := s.windowMap[sid]
+		if sec > entry[level] {
+			entry[level] = sec
 		}
-		s.windowMap[sid] = e
+		s.windowMap[sid] = entry
 	}
 
 	// Step 2: evict per-level timestamps that have fallen out of the window,
 	// and remove the series entirely when no level remains active.
 	windowStart := sec - s.config.WindowSecs + 1
-	for sid, e := range s.windowMap {
+	for sid, entry := range s.windowMap {
 		alive := false
-		for lvl := 0; lvl < 5; lvl++ {
-			if e[lvl] > 0 && e[lvl] < windowStart {
-				e[lvl] = 0
+		for level := 0; level < 5; level++ {
+			if entry[level] > 0 && entry[level] < windowStart {
+				entry[level] = 0
 			}
-			if e[lvl] > 0 {
+			if entry[level] > 0 {
 				alive = true
 			}
 		}
 		if !alive {
 			delete(s.windowMap, sid)
-		} else {
-			s.windowMap[sid] = e
+			continue
 		}
+		s.windowMap[sid] = entry
 	}
 
 	// Step 3: bucket from the live window.
@@ -761,19 +996,15 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	var bins [5]int
 	var count int
 	var weightSum float64
-
-	for _, e := range s.windowMap {
-		maxLevel := -1
-		for lvl := 4; lvl >= 0; lvl-- {
-			if e[lvl] > 0 {
-				maxLevel = lvl
-				break
+	for _, entry := range s.windowMap {
+		for level := 4; level >= 0; level-- {
+			if entry[level] == 0 {
+				continue
 			}
-		}
-		if maxLevel >= 0 {
-			bins[maxLevel]++
+			bins[level]++
 			count++
-			weightSum += levelWeights[maxLevel]
+			weightSum += levelWeights[level]
+			break
 		}
 	}
 

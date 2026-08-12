@@ -407,6 +407,87 @@ func TestHosts(s OTelTestSuite) {
 	assert.Equal(s.T(), logHostname, metricHostname)
 }
 
+// SignalCompression describes an intake endpoint and the compression algorithm
+// its payloads are expected to use on the wire.
+type SignalCompression struct {
+	// Name is a human-readable signal label used in assertion messages.
+	Name string
+	// Endpoint is the intake route the signal is submitted to.
+	Endpoint string
+	// Encoding is the expected Content-Encoding recorded by fakeintake for
+	// every payload on Endpoint (e.g. "zstd", "gzip").
+	Encoding string
+	// Required indicates the standard e2e workload reliably produces this
+	// signal, so the test waits until at least one payload is observed. When
+	// false, any observed payload is still asserted, but the signal need not be
+	// present — e.g. sketches depend on the workload emitting histograms, and
+	// APM stats may be absent depending on the deployed config.
+	Required bool
+}
+
+// DefaultDDOTCompression returns the expected on-the-wire compression for a DDOT
+// deployment running its default configuration: zstd for metrics (series and
+// sketches), traces, and logs; gzip for APM stats — the deliberate exception,
+// hardcoded in the trace stats writer (pkg/trace/writer/stats.go).
+//
+// Compression is configurable per signal type, so a suite that deploys a
+// non-default config must build its own []SignalCompression (see TestCompression)
+// rather than reuse this — the assertion tracks the configured compressor, it
+// does not assume zstd.
+func DefaultDDOTCompression() []SignalCompression {
+	return []SignalCompression{
+		{Name: "metrics", Endpoint: "/api/v2/series", Encoding: "zstd", Required: true},
+		{Name: "sketches", Endpoint: "/api/beta/sketches", Encoding: "zstd", Required: false},
+		{Name: "traces", Endpoint: "/api/v0.2/traces", Encoding: "zstd", Required: true},
+		{Name: "logs", Endpoint: "/api/v2/logs", Encoding: "zstd", Required: true},
+		{Name: "apm stats", Endpoint: "/api/v0.2/stats", Encoding: "gzip", Required: false},
+	}
+}
+
+// TestCompression verifies that DDOT ships each signal to the intake using the
+// expected compression algorithm, guarding against per-signal divergence on the
+// wire (and, for the default zstd config, confirming the v2 series intake
+// accepts zstd). The expected compressor is passed in per signal rather than
+// assumed, so the assertion tracks the deployed configuration — compression is
+// configurable per signal type. Pass DefaultDDOTCompression() for a default
+// deployment, or a custom slice when a suite configures a non-default compressor.
+//
+// Signals flagged Required must produce at least one payload within the poll
+// window; others are asserted only if present (their emission depends on the
+// workload/config). The set of observed payloads is logged at the end so an
+// absent optional signal is visible rather than silently "passing".
+func TestCompression(s OTelTestSuite, signals []SignalCompression) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	s.T().Log("Waiting for correctly-compressed payloads on all signal endpoints")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for _, sig := range signals {
+			payloads, err := s.Env().FakeIntake.Client().GetRawPayloads(sig.Endpoint)
+			if !assert.NoErrorf(c, err, "getting raw payloads for %s (%s)", sig.Name, sig.Endpoint) {
+				continue
+			}
+			if sig.Required && !assert.NotEmptyf(c, payloads, "no %s payloads received on %s yet", sig.Name, sig.Endpoint) {
+				continue
+			}
+			for _, p := range payloads {
+				assert.Equalf(c, sig.Encoding, p.Encoding, "%s payloads must be %s-compressed (endpoint %s)", sig.Name, sig.Encoding, sig.Endpoint)
+			}
+		}
+	}, 5*time.Minute, 10*time.Second)
+
+	// Report what was actually observed so optional signals that produced no
+	// payloads (e.g. sketches when the workload emits no histograms) are not
+	// mistaken for validated coverage.
+	for _, sig := range signals {
+		payloads, err := s.Env().FakeIntake.Client().GetRawPayloads(sig.Endpoint)
+		if err != nil {
+			continue
+		}
+		s.T().Logf("compression: %s (%s) — %d payload(s) observed, expected %q", sig.Name, sig.Endpoint, len(payloads), sig.Encoding)
+	}
+}
+
 // TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")

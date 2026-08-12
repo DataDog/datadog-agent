@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    The ``battery`` and ``wlan`` check configurations are no longer shipped in the
+    Linux and AIX packages. Both checks can only collect on macOS and Windows, so
+    on other platforms their configuration only mattered when
+    ``infrastructure_mode`` was set to ``end_user_device``, where it scheduled a
+    check that could never report data. macOS and Windows packages are unchanged.

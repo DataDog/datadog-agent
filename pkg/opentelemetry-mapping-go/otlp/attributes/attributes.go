@@ -46,6 +46,7 @@ var (
 		string(semconv1_27.ServiceNameKey):               "service",
 		string(semconv1_27.ServiceVersionKey):            "version",
 		string(semconv1_27.DeploymentEnvironmentNameKey): "env",
+		string(semconv1_27.ServiceNamespaceKey):          "service.namespace",
 		// Required for OTel traffic metrics on Datadog Fleet Automation.
 		string(semconv1_27.ServiceInstanceIDKey): "service.instance.id",
 	}

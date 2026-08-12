@@ -8,7 +8,7 @@ import unittest
 import yaml
 
 import tasks.schema.codegen_init_settings as codegen
-from tasks.schema.codegen_init_settings import as_go_value, override_stubs, try_parse_duration
+from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -24,7 +24,6 @@ def filter_not_sysprobe(filename):
 class TestCodegenInitSettings(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        override_stubs('', '')
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -38,13 +37,13 @@ class TestCodegenInitSettings(unittest.TestCase):
     def test_basic_codegen(self):
         with open(fixture('basic_schema.yaml')) as f:
             schema = yaml.safe_load(f)
-        codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
+        codegen.run_codegen(schema, filter_not_sysprobe, self.tmpdir)
         self.validate_generated_code(fixture('basic_settings.gen'))
 
     def test_codegen_full_agent_setting(self):
         with open(fixture('basic_full_agent_schema.yaml')) as f:
             schema = yaml.safe_load(f)
-        codegen.run_codegen(schema, filter_not_sysprobe, None, False, self.tmpdir)
+        codegen.run_codegen(schema, filter_not_sysprobe, self.tmpdir)
         self.validate_generated_code(fixture('basic_full_agent_settings.gen'))
 
     def test_as_go_value(self):

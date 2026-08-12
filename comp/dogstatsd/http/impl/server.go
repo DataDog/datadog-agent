@@ -16,15 +16,17 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 type server struct {
-	config   config.Component
-	log      log.Component
-	tagger   tagger.Component
-	hostname hostname.Component
-	out      serializer
+	config     config.Component
+	log        log.Component
+	tagger     tagger.Component
+	hostname   hostname.Component
+	filterList filterlist.Component
+	out        serializer
 
 	http *http.Server
 }
@@ -46,10 +48,11 @@ func (s *server) start(ctx context.Context) error {
 	}
 
 	base := handlerBase{
-		log:      s.log,
-		tagger:   s.tagger,
-		hostname: hostname,
-		out:      s.out,
+		log:        s.log,
+		tagger:     s.tagger,
+		hostname:   hostname,
+		filterList: s.filterList,
+		out:        s.out,
 	}
 
 	mux := &http.ServeMux{}

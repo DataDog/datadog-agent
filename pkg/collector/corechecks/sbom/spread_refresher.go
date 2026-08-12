@@ -69,9 +69,10 @@ func (br *spreadRefresher) step() {
 	})
 
 	// second step: we process the oldest images
+	running := runningImages(br.wmStore)
 	amountOfImagesToProcess := len(images) / spreadSteps
 	for _, img := range workingSet[:amountOfImagesToProcess] {
-		br.proc.processImageSBOM(img.image)
+		br.proc.processImageSBOM(img.image, running)
 		img.refreshTime = time.Now()
 	}
 

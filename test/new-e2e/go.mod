@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.207
+	github.com/DataDog/agent-payload/v5 v5.0.209
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -88,7 +88,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.78.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.78.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.78.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.78.3
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.78.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.78.3 // indirect
@@ -109,7 +109,6 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
-	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect

@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -68,7 +69,14 @@ func (s *server) start() error {
 }
 
 func (s *server) shutdown(ctx context.Context) error {
-	return s.srv.Shutdown(ctx)
+	if err := s.srv.Shutdown(ctx); err != nil {
+		return err
+	}
+	// close `tlsListener` in case the server was never started.
+	if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return err
+	}
+	return nil
 }
 
 func generateSelfSignedCert() (tls.Config, error) {

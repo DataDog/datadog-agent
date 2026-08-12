@@ -15,13 +15,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 type iteratorCommon struct {
-	reader   *reader.MetricDataReader
-	origin   origin
-	hostname string
-	err      error
+	reader     *reader.MetricDataReader
+	origin     origin
+	hostname   string
+	filterList utilstrings.Matcher
+	err        error
+}
+
+// nextUnfilteredMetric advances the reader to the next metric that is not in
+// the filter list. It returns false once the payload is exhausted or the reader
+// fails.
+func (it *iteratorCommon) nextUnfilteredMetric() bool {
+	for {
+		if it.err != nil {
+			return false
+		}
+
+		if !it.reader.HaveMoreMetrics() {
+			return false
+		}
+
+		it.err = it.reader.NextMetric()
+		if it.err != nil {
+			return false
+		}
+
+		// NextMetric drains any points left over from the previous metric, so
+		// skipping here keeps the reader's column indexes in sync.
+		if !it.filterList.Test(it.reader.Name()) {
+			return true
+		}
+	}
 }
 
 func (it *iteratorCommon) processTags() tagset.CompositeTags {
@@ -48,12 +76,13 @@ type seriesIterator struct {
 	buffer metrics.Serie
 }
 
-func newSeriesIterator(payload *pb.Payload, origin origin, hostname string) (*seriesIterator, error) {
+func newSeriesIterator(payload *pb.Payload, origin origin, hostname string, filterList utilstrings.Matcher) (*seriesIterator, error) {
 	it := &seriesIterator{
 		iteratorCommon: iteratorCommon{
-			reader:   reader.NewMetricDataReader(payload.MetricData),
-			origin:   origin,
-			hostname: hostname,
+			reader:     reader.NewMetricDataReader(payload.MetricData),
+			origin:     origin,
+			hostname:   hostname,
+			filterList: filterList,
 		},
 	}
 
@@ -62,16 +91,7 @@ func newSeriesIterator(payload *pb.Payload, origin origin, hostname string) (*se
 
 // MoveNext reads one entire metric record from the dogstatsd payload into the internal buffer.
 func (it *seriesIterator) MoveNext() bool {
-	if it.err != nil {
-		return false
-	}
-
-	if !it.reader.HaveMoreMetrics() {
-		return false
-	}
-
-	it.err = it.reader.NextMetric()
-	if it.err != nil {
+	if !it.nextUnfilteredMetric() {
 		return false
 	}
 

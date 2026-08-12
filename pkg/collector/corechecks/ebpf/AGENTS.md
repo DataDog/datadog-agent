@@ -69,11 +69,8 @@ type Stats map[StatsKey]StatsValue
 corecheckLoader.RegisterCheck(<check>.CheckName, <check>.Factory(tagger))
 ```
 
-### 7. Add Configuration (`pkg/config/setup/system_probe.go`)
-```go
-const <check>NS = "<check_name>"
-cfg.BindEnvAndSetDefault(join(<check>NS, "enabled"), false)
-```
+### 7. Add Configuration in the schema
+Use the `dda invschema.add-setting` command.
 
 ### 8. Add Static Config Listener (`comp/core/autodiscovery/listeners/staticconfig.go`)
 ```go

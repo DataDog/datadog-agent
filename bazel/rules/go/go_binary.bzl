@@ -142,7 +142,8 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
     })
 
     if exact_gotags:
-        kwargs["gotags"] = sorted(exact_gotags)
+        # this might be select()'ed by platform. It is up to the user to sort it.
+        kwargs["gotags"] = exact_gotags
     else:
         gotags = gotags or set()
         kwargs["gotags"] = select({

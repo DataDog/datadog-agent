@@ -90,7 +90,10 @@ go_library(
 
 dd_agent_go_test(
     name = "runtime_test",
-    srcs = ["helpers_test.go"],
+    srcs = [
+        "asset_test.go",
+        "helpers_test.go",
+    ],
     embed = [":runtime"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,

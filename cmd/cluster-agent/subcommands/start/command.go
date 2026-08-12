@@ -509,6 +509,9 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
+		if config.GetBool("apm_config.instrumentation.on_demand") {
+			products = append(products, state.ProductApmPolicies)
+		}
 
 		var err error
 		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
@@ -694,6 +697,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
 			CSIDriverWatcher:             csiDriverWatcher,
+			RcClient:                     rcClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)

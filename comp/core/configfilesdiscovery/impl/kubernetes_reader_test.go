@@ -192,7 +192,7 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 	}
 }
 
-func TestKubernetesReaderReadEnvVarsSkipsSpecForEmptyWhitelist(t *testing.T) {
+func TestKubernetesReaderReadEnvVarsSkipsSpecForNilPredicate(t *testing.T) {
 	client := &fakeKubernetesClient{}
 	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
@@ -203,35 +203,23 @@ func TestKubernetesReaderReadEnvVarsSkipsSpecForEmptyWhitelist(t *testing.T) {
 	assert.Empty(t, client.specCalls)
 }
 
-func TestKubernetesReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
+func TestKubernetesReaderReadEnvVarsFiltersWithPredicate(t *testing.T) {
 	client := &fakeKubernetesClient{
 		spec: &containerdoci.Spec{
 			Process: &specs.Process{
-				Env: []string{
-					"REDIS_PASSWORD=first",
-					"MALFORMED",
-					"WITH_EQUALS=a=b=c",
-					"EMPTY=",
-					"REDIS_PASSWORD=last",
-					"UNREQUESTED=value",
-				},
+				Env: []string{"KAFKA_NODE_ID=1"},
 			},
 		},
 	}
 	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{
-		"REDIS_PASSWORD",
-		"WITH_EQUALS",
-		"EMPTY",
-		"MISSING",
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
-		"REDIS_PASSWORD": "last",
-		"WITH_EQUALS":    "a=b=c",
-		"EMPTY":          "",
+		"KAFKA_NODE_ID": "1",
 	}, env)
 	assert.Equal(t, []string{"container-id"}, client.specCalls)
 }
@@ -241,7 +229,9 @@ func TestKubernetesReaderReadEnvVarsSurfacesSpecErrors(t *testing.T) {
 	client := &fakeKubernetesClient{specErr: expectedErr}
 	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{"REDIS_PASSWORD"})
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
+	})
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, env)

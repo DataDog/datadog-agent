@@ -84,8 +84,8 @@ func (r *dockerConfigReader) ReadFile(ctx context.Context, filePath string) (Con
 	return readConfigFileFromDockerArchive(body, cleanPath)
 }
 
-func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, names []string) (map[string]string, error) {
-	if len(names) == 0 {
+func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
+	if predicate == nil {
 		return map[string]string{}, nil
 	}
 
@@ -94,7 +94,7 @@ func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, names []string) (m
 		return nil, fmt.Errorf("get docker container env: %w", err)
 	}
 
-	return filterEnvVars(envEntries, names), nil
+	return filterEnvVars(envEntries, predicate), nil
 }
 
 func (r *dockerConfigReader) ReadRuntimeCommandline(ctx context.Context) (TargetCommandline, error) {

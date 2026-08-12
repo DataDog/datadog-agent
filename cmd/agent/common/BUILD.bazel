@@ -66,6 +66,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":common"],
     gotags_sets = [[
+        "cel",
         "docker",
         "kubelet",
     ]],

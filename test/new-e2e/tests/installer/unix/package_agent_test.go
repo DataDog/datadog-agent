@@ -350,10 +350,42 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 		if !strings.HasPrefix(path, "/opt/datadog") || file.IsSymlink {
 			continue
 		}
-		if file.Perms&002 != 0 {
-			s.T().Fatalf("file %v is world writable", path)
+
+		// Skip this file if it's already _not_ world writable.
+		if file.Perms&002 == 0 {
+			continue
+		}
+
+		// Skip files that are world writable but not _accessible_ to the world transitively.
+		//
+		// Some files -- like those in ADP's "pre-flight" mode -- are made world writable outside of our
+		// control _but_ they're located in non-world-writable/readable directories, preserving the
+		// intended permissioning scheme that we're enforcing here.
+		if dir, unreachable := unreachableAncestor(state.FS, path); unreachable {
+			s.T().Logf("file %v is world writable but unreachable: %v denies traversal to other users", path, dir)
+			continue
+		}
+
+		s.T().Fatalf("file %v is world writable", path)
+	}
+}
+
+// unreachableAncestor returns the closest ancestor directory of path that other users cannot
+// traverse, if there is one. Without the execute bit on every directory above it, a file cannot
+// be opened by another user whatever its own mode says. Ancestors missing from the state -- the
+// directories host.State() prunes -- are treated as traversable, so an unknown path is reported
+// rather than skipped.
+func unreachableAncestor(files map[string]host.FileInfo, path string) (string, bool) {
+	for dir := filepath.Dir(path); dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+		info, ok := files[dir]
+		if !ok {
+			continue
+		}
+		if info.Perms&001 == 0 {
+			return dir, true
 		}
 	}
+	return "", false
 }
 
 func (s *packageAgentSuite) TestInstallWithNSSUser() {

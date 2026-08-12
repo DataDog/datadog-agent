@@ -21,7 +21,7 @@ def test(ctx, verbose=False) -> None:
         os.environ["ORACLE_TEST_SERVER"] = "oracle" if os.environ.get("CI") else "localhost"
 
         # TODO: remove once Bazel is used to build the Agent
-        schema_codegen(ctx, keep_orig_order=False, fix=True)
+        schema_codegen(ctx)
 
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
