@@ -104,6 +104,20 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 
 // Run consumes eslogger until the context is cancelled or the stream ends.
 func (c *Collector) Run(ctx context.Context) error {
+	// Snapshot before subscribing. Everything already running -- the login shell,
+	// the terminal, the package manager that started the activity -- is invisible
+	// to the event stream, so without this every process tree truncates at
+	// startup. A failure degrades the trees but must not stop collection.
+	//
+	// This leaves a small race: a process created between the snapshot and the
+	// subscription is in neither. The orphan-exec counter in the shutdown summary
+	// measures how often that actually happens.
+	if n, err := Snapshot(c.translator.resolver); err != nil {
+		log.Warnf("process snapshot failed, trees will be truncated: %v", err)
+	} else {
+		log.Infof("snapshotted %d running processes", n)
+	}
+
 	runner := eslogger.NewRunner(c.cfg.Events)
 
 	stdout, err := runner.Start(ctx)

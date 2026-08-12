@@ -8,6 +8,7 @@ go_library(
         "fieldhandlers.go",
         "model.go",
         "ruleset.go",
+        "snapshot_darwin.go",
         "translate.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/darwin",
@@ -45,6 +46,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@org_golang_google_protobuf//types/known/timestamppb",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/security/darwin/eslogger",
@@ -87,6 +89,7 @@ go_library(
             "//pkg/util/log",
             "//pkg/version",
             "@org_golang_google_protobuf//types/known/timestamppb",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/darwin/eslogger",
@@ -133,6 +136,7 @@ dd_agent_go_test(
     srcs = [
         "ruleset_test.go",
         "serialize_test.go",
+        "snapshot_darwin_test.go",
         "translate_test.go",
     ],
     # keep: ruleset_test.go loads the real shipped policy from policies/, which
