@@ -8,14 +8,15 @@
 ---
 fixes:
   - |
-    Auto multi-line detection no longer misclassifies single-line logs whose
-    timestamp match probability lands exactly on
-    ``logs_config.auto_multi_line.timestamp_detector_match_threshold``. The
-    comparison was strictly greater-than, so a log scoring precisely at the
-    threshold was treated as a continuation line and appended to the preceding
-    log instead of starting a new one. This was observed on IIS W3C extended
-    format access logs, where a client address tokenizing to ``DD.D.DD.DD``
-    (for example ``10.1.48.10``) extends the matched token subsequence far
-    enough past the timestamp to bring the reported probability down to exactly
-    the ``0.5`` default, causing consecutive single-line entries to be
-    concatenated into one log.
+    Auto multi-line detection no longer appends single-line logs that open with
+    a timestamp to the preceding log. The timestamp heuristic scored a line by
+    the average match over its highest-scoring token window, and because that
+    window is chosen to maximise the total rather than the average, it extended
+    past the timestamp into unrelated fields whenever doing so raised the total,
+    diluting the reported probability. A line opening with a timestamp is now
+    scored on that timestamp directly. This was observed on IIS W3C extended
+    format access logs, where a client address tokenizing to ``DD.D.DD.DD`` (for
+    example ``10.1.48.10``) dragged the probability down to exactly the ``0.5``
+    default of
+    ``logs_config.auto_multi_line.timestamp_detector_match_threshold``, causing
+    consecutive single-line entries to be concatenated into one log.

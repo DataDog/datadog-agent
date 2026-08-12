@@ -114,20 +114,7 @@ func (t *TimestampDetector) ProcessAndContinue(context *messageContext) bool {
 		return true
 	}
 
-	// The comparison is inclusive: a probability landing exactly on the threshold
-	// is a match. Some single-line formats score precisely at the default (0.5) --
-	// IIS W3C records whose client address tokenizes to DD.D.DD.DD are one -- and
-	// excluding them here silently demotes them to the labeler's default aggregate
-	// label, concatenating consecutive single-line records into one log.
-	//
-	// probability == 0 is never a genuinely computed score (MatchProbability's
-	// worst case is -1, a full mismatch); it only occurs as the zero-valued
-	// MatchContext returned when there aren't enough tokens to evaluate, or the
-	// matched subsequence is shorter than minimumTokenLength. Requiring
-	// probability > 0 keeps those "no match" results from satisfying an
-	// inclusive >= comparison against a threshold of 0.
-	probability := t.tokenGraph.MatchProbability(context.tokens.Borrow()).probability
-	if probability > 0 && probability >= t.matchThreshold {
+	if t.tokenGraph.MatchProbability(context.tokens.Borrow()).probability > t.matchThreshold {
 		context.label = startGroup
 		context.labelAssignedBy = "timestamp_detector"
 	}

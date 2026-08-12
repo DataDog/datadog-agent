@@ -53,10 +53,11 @@ var inputs = []testInput{
 	{startGroup, "acb def 10:10:10 foo 2024-05-15 hijk lmop"},
 
 	// IIS W3C extended log format. Every record is a complete single-line entry
-	// prefixed with a timestamp, so each one must start its own group. The client
-	// address field is what makes these interesting: an address tokenizing to
-	// DD.D.DD.DD extends the matched subsequence far enough past the timestamp to
-	// drag the reported probability down to exactly the default match threshold.
+	// prefixed with a timestamp, so each one must start its own group. The first
+	// two carry a client address tokenizing to DD.D.DD.DD, which extends the
+	// maximum-sum token window well past the timestamp and pulls the average over
+	// that window down to the default match threshold. The last two use address
+	// shapes that do not.
 	{startGroup, "2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET /ZenIT/Service/v13/core/Consent land=DE 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 19571 1051"},
 	{startGroup, "2026-08-11 10:34:50 W3SVC1 10.1.48.10 POST /ZenIT/Service/v13/core/Logger - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 204 0 0 504 6"},
 	{startGroup, "2026-08-11 10:34:49 W3SVC1 fe80::b045:52da:3136:3f1c%3 GET /ZenIT/Service/v13/colibriApi/api/Auftrag/Reklamation 443 NDL\\SVC-Zenit-NDL0167 - 200 0 0 945 7"},
@@ -89,6 +90,15 @@ var inputs = []testInput{
 	{aggregate, "2001:0db8:85a3:0000:0000:8a2e:0370:7334"},
 	{aggregate, "fd12:3456:789a:1::1"},
 	{aggregate, "2001:db8:0:1234::5678"},
+
+	// Continuation lines whose only matching tokens are an IPv4 address. Such an
+	// address scores at the default match threshold on its own, so these sit right
+	// at the limit of what counts as a timestamp. They must stay continuations,
+	// otherwise the stack trace they belong to is split across several logs.
+	{aggregate, "  Caused by: connect timed out to 10.1.48.10 after 3 retries"},
+	{aggregate, "  Host 10.1.48.10 port 443 peer 10.1.48.122 retry 3"},
+	{aggregate, "  peer 9.100.48.100 unreachable"},
+	{aggregate, "  addr 10.100.100.10 refused"},
 }
 
 func TestCorrectLabelIsAssigned(t *testing.T) {
@@ -112,11 +122,11 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 	}
 }
 
-// TestZeroThresholdRejectsNoMatch guards against a zero-valued MatchContext
-// (returned when there aren't enough tokens, or the matched subsequence is
-// shorter than minimumTokenLength) satisfying an inclusive >= comparison
-// against a threshold of 0. A zero threshold should still accept genuine,
-// positive-probability matches while continuing to reject non-matches.
+// TestZeroThresholdRejectsNoMatch checks the behaviour of a zero match threshold.
+// MatchProbability reports a probability of zero for a line it cannot evaluate,
+// either because there aren't enough tokens or because the matched subsequence is
+// shorter than minimumTokenLength. Such a line must not be treated as a match when
+// the threshold is zero too, while genuine matches must still be accepted.
 func TestZeroThresholdRejectsNoMatch(t *testing.T) {
 	mockConfig := configmock.New(t)
 	tokenizer := NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
