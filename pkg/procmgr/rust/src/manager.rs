@@ -185,7 +185,7 @@ impl ProcessManager {
             info!("[{name}] already running, skipping queued restart");
             return;
         }
-        if !proc.should_start() {
+        if !proc.start_conditions_met() {
             info!("[{name}] not restarting: start conditions not met");
             proc.record_config_gate_met();
             return;
@@ -684,6 +684,51 @@ mod tests {
         assert!(procs[0].is_running());
 
         test_helpers::cleanup_process(procs[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::Result<()> {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                auto_start: false,
+                restart: RestartPolicy::Always,
+                restart_sec: Some(0.0),
+                ..Default::default()
+            },
+        }]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, _restart_rx) = mpsc::channel::<String>(256);
+
+        mgr.handle_start("action-executor", &exit_tx).await?;
+        {
+            let procs = mgr.processes().await;
+            assert!(procs[0].is_running());
+            assert!(!procs[0].should_start());
+            assert!(procs[0].start_conditions_met());
+        }
+
+        {
+            let mut procs = mgr.processes.write().await;
+            let (cmd, args) = test_helpers::false_cmd();
+            let status = std::process::Command::new(cmd).args(args).status()?;
+            procs[0].set_last_status(status);
+        }
+        assert!(!mgr.processes().await[0].is_running());
+
+        mgr.complete_restart("action-executor", &exit_tx, &restart_tx)
+            .await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "auto_start=false process should still restart when restart policy allows"
+        );
+
+        test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
         Ok(())
     }
 
