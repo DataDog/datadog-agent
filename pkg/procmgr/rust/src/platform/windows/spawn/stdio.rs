@@ -103,7 +103,9 @@ fn open_append_file(path: &str) -> Result<HANDLE> {
     let h = unsafe {
         CreateFileW(
             path_w.as_ptr(),
-            FILE_GENERIC_WRITE | FILE_APPEND_DATA,
+            // Append-only: FILE_GENERIC_WRITE includes FILE_WRITE_DATA, which would let
+            // a restarted child overwrite an existing log from the beginning.
+            FILE_APPEND_DATA,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             ptr::null(),
             OPEN_ALWAYS,
