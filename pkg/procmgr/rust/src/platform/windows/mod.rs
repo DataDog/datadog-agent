@@ -37,7 +37,8 @@ use windows_sys::Win32::System::Console::{
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation, QueryInformationJobObject,
     SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
@@ -152,6 +153,43 @@ impl JobObject {
             }
         }
         Ok(())
+    }
+
+    /// Number of processes still assigned to this job (including descendants).
+    pub fn active_process_count(&self) -> Result<u32> {
+        unsafe {
+            let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = std::mem::zeroed();
+            let ok = QueryInformationJobObject(
+                self.handle,
+                JobObjectBasicAccountingInformation,
+                &mut info as *mut _ as *mut _,
+                std::mem::size_of::<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION>() as u32,
+                std::ptr::null_mut(),
+            );
+            if ok == 0 {
+                anyhow::bail!(
+                    "QueryInformationJobObject failed: {}",
+                    std::io::Error::last_os_error()
+                );
+            }
+            Ok(info.ActiveProcesses)
+        }
+    }
+
+    /// Block until every process in the job has exited or `timeout` elapses.
+    pub fn wait_until_empty(&self, timeout: std::time::Duration) -> bool {
+        const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+        let deadline = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < deadline {
+            match self.active_process_count() {
+                Ok(0) => return true,
+                Ok(_) => std::thread::sleep(POLL_INTERVAL.min(
+                    deadline.saturating_duration_since(std::time::Instant::now()),
+                )),
+                Err(_) => return false,
+            }
+        }
+        matches!(self.active_process_count(), Ok(0))
     }
 }
 
