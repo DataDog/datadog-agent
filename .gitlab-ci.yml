@@ -175,7 +175,8 @@ default:
     when: always
 
 # Full git history. Override the global GIT_DEPTH: 1 on jobs that run
-# merge-base, ancestor, git describe, git log ranges, or HEAD^ walks.
+# merge-base, ancestor, git describe, git log ranges, HEAD^ walks,
+# three-dot diffs, or checkout of another branch.
 .needs_full_git_history:
   variables:
     GIT_DEPTH: 0
@@ -383,8 +384,9 @@ variables:
 
   # Job cloning strategy
   # GIT_DEPTH: 1 is a shallow clone of HEAD only (enough for the working tree).
-  # Jobs that need git history (merge-base, ancestor, git describe, git log ranges)
-  # must set GIT_DEPTH: 0. See .needs_full_git_history.
+  # Jobs that need git history (merge-base, ancestor, git describe, git log
+  # ranges, HEAD^ walks, three-dot diffs, or checkout of another branch) must
+  # set GIT_DEPTH: 0. See .needs_full_git_history.
   GIT_STRATEGY: "fetch"
   GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true

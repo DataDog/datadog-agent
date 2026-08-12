@@ -197,6 +197,7 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+    GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache
   timeout: 20m  # Not less than 20m because job startup can take time.
 
 tests_gpu:
