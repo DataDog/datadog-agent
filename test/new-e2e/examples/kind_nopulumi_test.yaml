@@ -1,0 +1,19 @@
+# e2ectl test definition for TestKindNoPulumi (kind_nopulumi_test.go).
+#
+#   cd test/e2e-framework
+#   go run ./cmd/e2ectl run --config=../new-e2e/examples/kind_nopulumi_test.yaml --stage=test --yes
+#   go run ./cmd/e2ectl destroy --config=../new-e2e/examples/kind_nopulumi_test.yaml
+name: kind-nopulumi
+provisioner:
+  type: kind
+  options:
+    kubeVersion: "1.31"
+    withoutFakeIntake: false
+agent:
+  installer: helm-k8s
+  agentVersion: 7.82.0
+  clusterAgentVersion: latest
+  namespace: datadog
+test:
+  package: ./examples/...
+  run: TestKindNoPulumi

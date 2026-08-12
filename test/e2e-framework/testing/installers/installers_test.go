@@ -81,3 +81,35 @@ func TestStatusUnknownInstaller(t *testing.T) {
 	_, err := Status("bogus", entries, InstallParams{})
 	assert.ErrorContains(t, err, "unknown installer")
 }
+
+func TestMergeMaps(t *testing.T) {
+	dst := map[string]interface{}{
+		"agents": map[string]interface{}{
+			"useHostNetwork": true,
+			"image":          map[string]interface{}{"tag": "latest"},
+		},
+		"datadog": map[string]interface{}{"apiKey": "abc"},
+	}
+	src := map[string]interface{}{
+		"agents": map[string]interface{}{
+			"useHostNetwork": false, // overrides a scalar nested one level down
+		},
+		"newTopLevel": "value", // adds a brand-new top-level key
+	}
+
+	mergeMaps(dst, src)
+
+	assert.Equal(t, false, dst["agents"].(map[string]interface{})["useHostNetwork"])
+	assert.Equal(t, "latest", dst["agents"].(map[string]interface{})["image"].(map[string]interface{})["tag"], "untouched nested key survives the merge")
+	assert.Equal(t, "abc", dst["datadog"].(map[string]interface{})["apiKey"], "untouched top-level key survives the merge")
+	assert.Equal(t, "value", dst["newTopLevel"])
+}
+
+func TestMergeMapsOverridesMapWithNonMap(t *testing.T) {
+	dst := map[string]interface{}{"agents": map[string]interface{}{"image": map[string]interface{}{"tag": "latest"}}}
+	src := map[string]interface{}{"agents": "disabled"} // src's scalar replaces dst's nested map outright
+
+	mergeMaps(dst, src)
+
+	assert.Equal(t, "disabled", dst["agents"])
+}

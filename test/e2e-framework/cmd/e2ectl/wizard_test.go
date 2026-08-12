@@ -57,7 +57,7 @@ func TestConfirmDestroyNoInput(t *testing.T) {
 // into doInstall/doTest and fail deep inside with a confusing raw error.
 // Picking "2" then "3" on a never-provisioned environment must print a
 // short guard message and loop back to the menu without ever invoking
-// doInstall/doTest (which would shell out to real installers/`dda`).
+// doInstall/doTest (which would shell out to real installers/`go test`).
 func TestRunEnvLoopGuardsUnprovisionedInstallAndTest(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "guard.state.json")
 	def := TestDefinition{

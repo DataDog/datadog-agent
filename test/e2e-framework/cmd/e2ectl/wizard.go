@@ -162,10 +162,16 @@ func installParamsFor(def TestDefinition) installers.InstallParams {
 }
 
 func doTest(ctx context.Context, def TestDefinition, statePath string) error {
-	// dda inv resolves modules.yml (and new-e2e-tests.run itself cd's into
-	// test/new-e2e before running go test) relative to the process's working
-	// directory, so both statePath and the dda invocation itself need to be
-	// anchored regardless of where e2ectl was invoked from.
+	// def.Test.Package (e.g. "./examples/...") resolves relative to the
+	// test/new-e2e module root, so both statePath and the invocation itself
+	// need to be anchored there regardless of where e2ectl was invoked from.
+	//
+	// This runs `go test` directly rather than `dda inv new-e2e-tests.run`:
+	// that invoke task's local (non-CI) path unconditionally attempts an AWS
+	// SSO login for ECR pull credentials and requires the Pulumi CLI to be
+	// installed, neither of which this no-Pulumi/kind flow needs — the
+	// SingleFileProvisioner path this env's TestKindNoPulumi-style test
+	// follows never touches Pulumi or ECR.
 	absStatePath, err := filepath.Abs(statePath)
 	if err != nil {
 		return fmt.Errorf("resolving absolute path for %s: %w", statePath, err)
@@ -175,14 +181,14 @@ func doTest(ctx context.Context, def TestDefinition, statePath string) error {
 		return err
 	}
 
-	args := []string{"inv", "new-e2e-tests.run", "--targets=" + def.Test.Package}
+	args := []string{"test", "-v", def.Test.Package}
 	if def.Test.Run != "" {
-		args = append(args, "--run="+def.Test.Run)
+		args = append(args, "-run", def.Test.Run)
 	}
 
-	fmt.Printf("running: dda %s\n", strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, "dda", args...)
-	cmd.Dir = root
+	fmt.Printf("running: go %s\n", strings.Join(args, " "))
+	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd.Dir = filepath.Join(root, "test", "new-e2e")
 	cmd.Env = append(os.Environ(), "E2E_ENV_FILE="+absStatePath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -190,9 +196,9 @@ func doTest(ctx context.Context, def TestDefinition, statePath string) error {
 	return cmd.Run()
 }
 
-// repoRoot finds the repository root so dda inv (which resolves modules.yml
-// relative to its working directory) runs correctly no matter which
-// directory e2ectl itself was invoked from.
+// repoRoot finds the repository root so doTest can anchor to
+// <root>/test/new-e2e no matter which directory e2ectl itself was invoked
+// from.
 func repoRoot(ctx context.Context) (string, error) {
 	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output()
 	if err != nil {

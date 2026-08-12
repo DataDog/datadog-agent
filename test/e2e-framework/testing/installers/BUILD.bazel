@@ -3,13 +3,17 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "installers",
-    srcs = ["installers.go"],
+    srcs = [
+        "env_updater.go",
+        "installers.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers",
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/fakeintake",
         "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/runner/parameters",
         "@in_yaml_go_yaml_v2//:yaml",
         "@io_k8s_cli_runtime//pkg/genericclioptions",
@@ -22,7 +26,10 @@ go_library(
 
 dd_agent_go_test(
     name = "installers_test",
-    srcs = ["installers_test.go"],
+    srcs = [
+        "env_updater_test.go",
+        "installers_test.go",
+    ],
     embed = [":installers"],
     deps = [
         "@com_github_stretchr_testify//assert",

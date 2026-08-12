@@ -7,6 +7,7 @@ package environments
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -22,16 +23,51 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 // Kubernetes is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
 type Kubernetes struct {
 	CoverageBase
+	common.FileBackedEnv
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
 	Agent             *components.KubernetesAgent
+}
+
+// UpdateAgent installs or upgrades the agent live into e's already-connected
+// KubernetesCluster and updates e.Agent to reflect the change. Works regardless of how
+// e was provisioned (a real Pulumi apply or a SingleFileProvisioner-backed state file)
+// — it only relies on e.KubernetesCluster already being Init'd, exactly like every
+// other method on this environment. If e is also FileBacked, the change is
+// additionally persisted to that file for a later, separate process to see; that step
+// is best-effort and not required for the live update, which already took effect.
+func (e *Kubernetes) UpdateAgent(ctx context.Context, params installers.HelmK8sInstallParams) error {
+	if e.KubernetesCluster == nil {
+		return errors.New("environments.Kubernetes: KubernetesCluster is not initialized")
+	}
+	agentJSON, err := installers.InstallHelmK8s(ctx, e.KubernetesCluster, e.FakeIntake, params)
+	if err != nil {
+		return err
+	}
+	if e.Agent == nil {
+		e.Agent = &components.KubernetesAgent{}
+	}
+	if err := json.Unmarshal(agentJSON, &e.Agent.KubernetesAgentOutput); err != nil {
+		return err
+	}
+
+	if path, ok := e.EnvFilePath(); ok {
+		entries, err := installers.ReadEnvFile(path)
+		if err != nil {
+			return err
+		}
+		entries["agent"] = agentJSON
+		return installers.WriteEnvFileAtomic(path, entries)
+	}
+	return nil
 }
 
 // Ensure Kubernetes implements the KubernetesOutputs interface

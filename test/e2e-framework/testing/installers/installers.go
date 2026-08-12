@@ -3,13 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installers installs/upgrades the Datadog Agent into an
-// environment described by an envctl-style JSON file, in-process (no
-// subprocess). It backs the `envctl install-agent` CLI command, and is
-// also called directly by tests that need to change agent config
-// mid-suite (see test/new-e2e/examples/kind_nopulumi_test.go) — both
-// callers share this one code path instead of one of them shelling out
-// to the other.
+// Package installers installs/upgrades the Datadog Agent, in-process (no
+// subprocess), via two entry points:
+//   - UpdateAgent (this file) operates on a raw envctl-style JSON state file with no
+//     live environment struct — it backs cmd/e2ectl's `doInstall`.
+//   - InstallHelmK8s/InstallHostAgent (env_updater.go) operate on an already-live,
+//     already-connected environment component (e.g. environments.Kubernetes's
+//     KubernetesCluster, or environments.Host's RemoteHost) — they back
+//     environments.Kubernetes.UpdateAgent/environments.Host.UpdateAgent, used directly
+//     by tests that need to change agent config mid-suite (see
+//     test/new-e2e/examples/kind_nopulumi_test.go).
+//
+// Both entry points for a given installer (e.g. helm-k8s) share their actual install
+// mechanics via an unexported helper (installHelmChart) so the logic is never
+// duplicated between the two.
 package installers
 
 import (
@@ -98,7 +105,7 @@ func resolve(name string, envEntries map[string]json.RawMessage) (Installer, err
 // invoke it in-process. installerName selects the installer explicitly;
 // pass "" to auto-detect from the environment description.
 func UpdateAgent(ctx context.Context, envPath, installerName string, params InstallParams) error {
-	entries, err := readEnvFile(envPath)
+	entries, err := ReadEnvFile(envPath)
 	if err != nil {
 		return err
 	}
@@ -114,7 +121,7 @@ func UpdateAgent(ctx context.Context, envPath, installerName string, params Inst
 	}
 
 	entries["agent"] = agentJSON
-	return writeEnvFileAtomic(envPath, entries)
+	return WriteEnvFileAtomic(envPath, entries)
 }
 
 // Status reports the installed agent's status relative to desired,
@@ -175,7 +182,8 @@ func ResolveAPIKeys() (apiKey, appKey string, err error) {
 
 // --- environment file helpers -------------------------------------------
 
-func readEnvFile(path string) (map[string]json.RawMessage, error) {
+// ReadEnvFile reads and parses an envctl-style JSON state file.
+func ReadEnvFile(path string) (map[string]json.RawMessage, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -187,9 +195,9 @@ func readEnvFile(path string) (map[string]json.RawMessage, error) {
 	return entries, nil
 }
 
-// writeEnvFileAtomic writes entries to path via a temp file + rename, so a
+// WriteEnvFileAtomic writes entries to path via a temp file + rename, so a
 // crash mid-write never leaves a corrupted/partial environment file behind.
-func writeEnvFileAtomic(path string, entries map[string]json.RawMessage) error {
+func WriteEnvFileAtomic(path string, entries map[string]json.RawMessage) error {
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
 		return err
@@ -235,7 +243,29 @@ func (helmKubernetesInstaller) install(_ context.Context, envEntries map[string]
 		}
 	}
 
-	kubeconfigPath, cleanup, err := writeTempFile("kubeconfig-*.yaml", cluster.KubeConfig)
+	return installHelmChart(cluster.KubeConfig, cluster.ClusterName, fi, helmChartParams{
+		AgentVersion:        p.AgentVersion,
+		ClusterAgentVersion: p.ClusterAgentVersion,
+		Namespace:           p.Namespace,
+		APIKey:              p.APIKey,
+		AppKey:              p.AppKey,
+	})
+}
+
+// helmChartParams is the plumbing shared by both Helm-based install paths: the
+// raw-state-file Installer.install above (still used by cmd/e2ectl) and the
+// live-component InstallHelmK8s (env_updater.go, used by
+// environments.Kubernetes.UpdateAgent).
+type helmChartParams struct {
+	AgentVersion, ClusterAgentVersion, Namespace string
+	APIKey, AppKey                               string
+	// HelmValues, if set, is deep-merged over the chart's default values (a nested
+	// map merges key-by-key; any other value type overrides the default outright).
+	HelmValues map[string]interface{}
+}
+
+func installHelmChart(kubeconfig, clusterName string, fi *fakeintake.FakeintakeOutput, p helmChartParams) (json.RawMessage, error) {
+	kubeconfigPath, cleanup, err := writeTempFile("kubeconfig-*.yaml", kubeconfig)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +285,16 @@ func (helmKubernetesInstaller) install(_ context.Context, envEntries map[string]
 		return nil, err
 	}
 
-	values := buildHelmValues(p, cluster.ClusterName, fi, clusterAgentToken)
+	values := buildHelmValues(InstallParams{
+		AgentVersion:        p.AgentVersion,
+		ClusterAgentVersion: p.ClusterAgentVersion,
+		Namespace:           p.Namespace,
+		APIKey:              p.APIKey,
+		AppKey:              p.AppKey,
+	}, clusterName, fi, clusterAgentToken)
+	if p.HelmValues != nil {
+		mergeMaps(values, p.HelmValues)
+	}
 	if err := installOrUpgradeHelmRelease(actionConfig, helmReleaseName, p.Namespace, values); err != nil {
 		return nil, err
 	}
@@ -278,6 +317,20 @@ func (helmKubernetesInstaller) install(_ context.Context, envEntries map[string]
 		},
 	}
 	return json.Marshal(agentOutput)
+}
+
+// mergeMaps deep-merges src into dst in place: a nested map merges key-by-key; any
+// other value type in src overrides dst's entry outright.
+func mergeMaps(dst, src map[string]interface{}) {
+	for k, v := range src {
+		if srcMap, ok := v.(map[string]interface{}); ok {
+			if dstMap, ok := dst[k].(map[string]interface{}); ok {
+				mergeMaps(dstMap, srcMap)
+				continue
+			}
+		}
+		dst[k] = v
+	}
 }
 
 func (helmKubernetesInstaller) status(agentRaw json.RawMessage, desired InstallParams) (InstallStatus, error) {

@@ -164,7 +164,7 @@ agent:
   clusterAgentVersion: latest
   namespace: datadog
 test:
-  package: ./examples/...        # --targets for `dda inv new-e2e-tests.run`
+  package: ./examples/...        # package arg to `go test`, run from test/new-e2e
   run: TestKindNoPulumi          # -run pattern
 ```
 
@@ -226,40 +226,61 @@ installing the public `datadog` chart) are implemented — adding another
 environment type means registering a new provisioner/installer (and, for the
 installer side, implementing `status`), not changing `main.go`, which
 intentionally has zero environment-specific imports. The test stage shells out
-to `dda inv new-e2e-tests.run --targets=<package> [--run=<pattern>]` (this
-repo's mandated test runner) with `E2E_ENV_FILE` set to the state file's
-absolute path.
+to `go test -v <package> [-run <pattern>]` directly from the `test/new-e2e`
+module root, with `E2E_ENV_FILE` set to the state file's absolute path — not
+`dda inv new-e2e-tests.run`: that invoke task's local (non-CI) path
+unconditionally attempts an AWS SSO login for ECR pull credentials and
+requires the Pulumi CLI to be installed, neither of which this no-Pulumi/kind
+flow needs.
 
 `testing/installers` exists as its own importable package (rather than living
 in `cmd/e2ectl`, `package main`) so the install step can be called in-process,
-not just from the CLI: a running `go test` can call
-`installers.UpdateAgent(ctx, envPath, installerName, params)` directly to
-change agent config mid-suite, the same operation `e2ectl run`'s install stage
-performs, with no subprocess/`exec` involved. `installers.Status(installerName,
-envEntries, desired)` is exported the same way, for any caller that wants a
-read-only drift check without performing an install — it's what both the
-dashboard and the per-env loop use to render agent status.
-`installers.ResolveAPIKeys()` (env vars, falling back to
+not just from the CLI. It has two entry points, sharing their actual install
+mechanics (e.g. `installHelmChart`) so the logic is never duplicated:
+- `installers.UpdateAgent(ctx, envPath, installerName, params)` operates on a
+  raw state file with no live environment struct — this is what `e2ectl
+  run`'s install stage calls.
+- `installers.InstallHelmK8s`/`installers.InstallHostAgent` operate on an
+  already-live, already-connected environment component (e.g.
+  `environments.Kubernetes`'s `KubernetesCluster`, or `environments.Host`'s
+  `RemoteHost`) — these back `environments.Kubernetes.UpdateAgent`/
+  `environments.Host.UpdateAgent`, the method a running `go test` calls
+  directly to change agent config mid-suite. Each takes its own
+  installer-scoped params type (`HelmK8sInstallParams`, `HostInstallParams`)
+  rather than one struct shared across environment types — a Host install has
+  no cluster agent or namespace, so forcing those fields onto it made no
+  sense. `environments.Kubernetes.UpdateAgent`/`environments.Host.UpdateAgent`
+  work identically whether the environment came from this no-Pulumi flow or
+  from a real Pulumi apply: both paths call the same component `Init()`, so
+  `KubernetesCluster`/`RemoteHost` are already live either way.
+
+`installers.Status(installerName, envEntries, desired)` is exported the same
+way, for any caller that wants a read-only drift check without performing an
+install — it's what both the dashboard and the per-env loop use to render
+agent status. `installers.ResolveAPIKeys()` (env vars, falling back to
 `~/.test_infra_config.yaml`) is exported for the same in-process-callable
-reason. See `test/new-e2e/examples/kind_nopulumi_test.go`'s `installAgent`
-suite helper for the pattern.
+reason. See `test/new-e2e/examples/kind_nopulumi_test.go`'s
+`TestClusterAgentVersionUpdate` for the pattern.
 
 The resulting state file is consumed by `provisioners.NewSingleFileProvisioner[Env]`
 (`testing/provisioners/file_provisioner.go`), instantiated per-environment-type
 (e.g. `NewSingleFileProvisioner[environments.Kubernetes](...)`). Its
 `ProvisionEnv` reads that one JSON file's top-level keys as `RawResources`,
 same shape as `FileProvisioner` (directory of JSON files) or any Pulumi
-provisioner. It also hashes the file's content into an unexported
-`fingerprint` field at construction time, so that calling `BaseSuite.UpdateEnv`
-again with the same `{id, path}` after `installers.UpdateAgent` has rewritten
-the file is detected as a real change — `UpdateEnv`/`reconcileEnv`
-(`testing/e2e/suite.go`) decides whether to re-provision purely via
-`reflect.DeepEqual` on the provisioner struct, and `{id, path}` alone would
-compare equal across calls despite the file's content differing. See
-`test/new-e2e/examples/kind_nopulumi_test.go` for a full `go test` reading
-`E2E_ENV_FILE`, asserting `datadog-cluster-agent status`, then changing the
-cluster agent's version mid-suite via `installAgent` + `UpdateEnv` and
-asserting on the new version (`TestClusterAgentVersionUpdate`).
+provisioner, and (via `common.FileBacked`) records the file's path onto the
+environment struct so `UpdateAgent` can persist a later update back to it. It
+also hashes the file's content into an unexported `fingerprint` field at
+construction time, so that calling `BaseSuite.UpdateEnv` again with the same
+`{id, path}` after the file changed out-of-band is detected as a real change
+— `UpdateEnv`/`reconcileEnv` (`testing/e2e/suite.go`) decides whether to
+re-provision purely via `reflect.DeepEqual` on the provisioner struct, and
+`{id, path}` alone would compare equal across calls despite the file's
+content differing. See `test/new-e2e/examples/kind_nopulumi_test.go` for a
+full `go test` reading `E2E_ENV_FILE`, asserting `datadog-cluster-agent
+status`, then changing the cluster agent's version mid-suite via
+`v.Env().UpdateAgent` (no `BaseSuite.UpdateEnv` call needed — the live Helm
+upgrade already took effect, so `UpdateAgent` just updates `v.Env().Agent` in
+place) and asserting on the new version (`TestClusterAgentVersionUpdate`).
 
 **Why it's `TypedProvisioner[Env]`, not `UntypedProvisioner`:**
 `environments.BuildEnvFromResources` looks up each importable env field by

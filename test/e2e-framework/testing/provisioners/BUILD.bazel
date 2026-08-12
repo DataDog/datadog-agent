@@ -10,7 +10,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners",
     visibility = ["//visibility:public"],
     deps = [
+        "//test/e2e-framework/components",
         "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/utils/common",
         "//test/e2e-framework/testing/utils/infra",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
