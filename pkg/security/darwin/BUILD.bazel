@@ -108,6 +108,7 @@ dd_agent_go_test(
     name = "darwin_test",
     srcs = [
         "ruleset_test.go",
+        "serialize_test.go",
         "translate_test.go",
     ],
     # keep: ruleset_test.go loads the real shipped policy from policies/, which
@@ -144,6 +145,7 @@ dd_agent_go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/serializers",
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -184,6 +186,7 @@ dd_agent_go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/serializers",
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

@@ -9,6 +9,7 @@ go_library(
         "patcher.go",
         "serializers_base.go",
         "serializers_base_linux_easyjson.go",
+        "serializers_darwin.go",
         "serializers_linux.go",
         "serializers_linux_easyjson.go",
         "serializers_others.go",
@@ -46,6 +47,8 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
             "//pkg/security/utils",
         ],
@@ -66,6 +69,8 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
             "//pkg/security/utils",
         ],
