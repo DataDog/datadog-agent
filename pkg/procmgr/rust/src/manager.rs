@@ -161,10 +161,16 @@ impl ProcessManager {
             .await
         {
             debug!(
-                "[{}] released orphaned deferred Windows profile after late exit (pid {})",
+                "[{}] matched orphaned deferred Windows cleanup after late exit (pid {})",
                 event.name,
                 event.pid
             );
+            if self
+                .deferred_job_drain_pending(&event.name, event.pid)
+                .await
+            {
+                self.spawn_deferred_job_drain(event.name.clone(), event.pid);
+            }
             return;
         }
 
@@ -176,10 +182,16 @@ impl ProcessManager {
         #[cfg(windows)]
         if proc.complete_late_exit_cleanup(event.pid) {
             debug!(
-                "[{}] released deferred Windows profile after late exit (pid {})",
+                "[{}] matched deferred Windows cleanup after late exit (pid {})",
                 proc.name(),
                 event.pid
             );
+            let needs_drain = proc.has_deferred_job_drain(event.pid);
+            let process_name = proc.name().to_owned();
+            drop(procs);
+            if needs_drain {
+                self.spawn_deferred_job_drain(process_name, event.pid);
+            }
             return;
         }
         if proc.pid() != Some(event.pid) {
@@ -579,7 +591,13 @@ impl ProcessManager {
         else {
             return false;
         };
+        if orphaned[idx].job_object.as_ref().is_some_and(|job| {
+            job.active_process_count().is_ok_and(|count| count > 0)
+        }) {
+            return true;
+        }
         let entry = orphaned.remove(idx);
+        drop(orphaned);
         finish_orphaned_deferred_exit_cleanup(entry);
         true
     }
