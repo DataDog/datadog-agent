@@ -677,8 +677,8 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 		pkglog.Infof("[observer] anomaly scorer %s severity %s to %s (was %s, t=%d)",
 			s.Name(),
 			direction,
-			evt.ToLevel.DisplayName(),
-			evt.FromLevel.DisplayName(),
+			evt.ToLevel.String(),
+			evt.FromLevel.String(),
 			evt.Timestamp,
 		)
 	}

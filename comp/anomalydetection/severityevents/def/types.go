@@ -31,20 +31,6 @@ func (l SeverityLevel) String() string {
 	}
 }
 
-// DisplayName returns the human-readable name for a severity level.
-func (l SeverityLevel) DisplayName() string {
-	switch l {
-	case SeverityLow:
-		return "Low"
-	case SeverityMedium:
-		return "Medium"
-	case SeverityHigh:
-		return "High"
-	default:
-		return "Unknown"
-	}
-}
-
 // SeverityEventDirection describes whether a severity transition is an
 // escalation or de-escalation.
 type SeverityEventDirection int
