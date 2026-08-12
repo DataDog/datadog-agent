@@ -235,7 +235,7 @@ func (s *smartSeverityProfilesSuite) waitForStartupLowProfile(metricPrefix strin
 		line := findMetricLine(tel, metricNameVariants(smartSeverityScorerEWMA)...)
 		s.T().Logf("startup low-profile probe ewma line=%q", line)
 		require.NotEmpty(c, line, "expected scorer ewma telemetry while settling startup state")
-		ewma, ok := scorerStateValue(line)
+		ewma, ok := telemetryMetricValue(line)
 		require.True(c, ok, "could not parse scorer ewma value from line %q", line)
 		require.LessOrEqual(c, ewma, smartSeverityLowThreshold,
 			"expected startup ewma %.6f to be at or below low threshold %.2f before low-phase logs",
@@ -253,7 +253,7 @@ func (s *smartSeverityProfilesSuite) waitForScorerSeverityAtLeast(want float64) 
 		require.NotEmpty(c, line, "expected scorer severity telemetry")
 		require.True(c, containsMetricWithTag(tel, smartSeverityScorerSeverity, "scorer", "anomaly_scorer"),
 			"expected scorer severity telemetry tagged with the anomaly scorer")
-		severity, ok := scorerStateValue(line)
+		severity, ok := telemetryMetricValue(line)
 		require.True(c, ok, "could not parse scorer severity from line %q", line)
 		require.GreaterOrEqual(c, severity, want,
 			"expected scorer severity %.0f to be at least %.0f after the anomaly", severity, want)
@@ -307,7 +307,7 @@ func findMetricLine(output string, prefixes ...string) string {
 	return ""
 }
 
-func scorerStateValue(line string) (float64, bool) {
+func telemetryMetricValue(line string) (float64, bool) {
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
 		return 0, false

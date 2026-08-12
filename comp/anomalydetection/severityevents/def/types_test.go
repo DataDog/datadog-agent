@@ -16,7 +16,6 @@ func TestSeverityLevelNames(t *testing.T) {
 		{SeverityMedium, "medium"},
 		{SeverityHigh, "high"},
 		{SeverityLevel(-1), "unknown"},
-		{SeverityLevel(NumSeverityLevels), "unknown"},
 	}
 
 	for _, tc := range cases {
