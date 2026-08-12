@@ -67,10 +67,13 @@ pkg_filegroup(
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_heroku": [],
-        "//conditions:default": [
-        ],
+        "//conditions:default": [],
     }) + select({
+        "@platforms//os:linux": [
+            "//cmd/loader:trace_loader_all_files",
+        ],
         "@platforms//os:macos": [
+            "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
             # TODO: systray
         ],

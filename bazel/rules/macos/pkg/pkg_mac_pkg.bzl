@@ -141,6 +141,7 @@ def pkg_mac_pkg(
     pkg_install(
         name = name + "_installer",
         srcs = srcs,
+        tags = ["manual"],
         visibility = ["//visibility:private"],
     )
 
