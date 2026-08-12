@@ -4,6 +4,7 @@ go_library(
     name = "uprobe",
     srcs = ["attach.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/uprobe",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/dyninst/loader",

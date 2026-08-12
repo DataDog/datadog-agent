@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
@@ -21,16 +22,22 @@ const (
 	fleetAgentStableDir     = "/opt/datadog-packages/datadog-agent/stable"
 	fleetAgentExperimentDir = "/opt/datadog-packages/datadog-agent/experiment"
 	debAgentDir             = "/opt/datadog-agent"
-
-	procmgrProcessName = "datadog-agent-ddot"
-	procmgrConfigName  = "datadog-agent-ddot.yaml"
-	procmgrSocket      = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
-
-	ddotSystemdUnit    = "datadog-agent-ddot.service"
-	ddotSystemdUnitExp = "datadog-agent-ddot-exp.service"
+	procmgrProcessName      = "datadog-agent-ddot"
+	procmgrConfigName       = "datadog-agent-ddot.yaml"
+	procmgrSocket           = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
+	ddotSystemdUnit         = "datadog-agent-ddot.service"
+	ddotSystemdUnitExp      = "datadog-agent-ddot-exp.service"
 )
 
+// AssertDDOTSystemdUnitsNotActive fails if datadog-agent-ddot systemd units are active.
+// DDOT must run under dd-procmgrd, not the legacy systemd units.
+func AssertDDOTSystemdUnitsNotActive(t *testing.T, host *components.RemoteHost) {
+	t.Helper()
+	assertSystemdUnitsNotActive(t, host)
+}
+
 // AssertDDOTManagedByProcmgr verifies extension DDOT is supervised by dd-procmgrd.
+// Call AssertDDOTSystemdUnitsNotActive first so legacy datadog-agent-ddot systemd units are not active.
 func AssertDDOTManagedByProcmgr(t *testing.T, host *components.RemoteHost) {
 	t.Helper()
 
@@ -41,7 +48,6 @@ func AssertDDOTManagedByProcmgr(t *testing.T, host *components.RemoteHost) {
 	_, err = host.Execute("test -f " + procmgrConfigPath(installRoot))
 	require.NoError(t, err, "procmgr config should exist at %s", procmgrConfigPath(installRoot))
 
-	assertSystemdUnitsNotActive(t, host)
 	assertManagedByProcmgr(t, host, installRoot)
 }
 
@@ -49,6 +55,22 @@ func AssertDDOTManagedByProcmgr(t *testing.T, host *components.RemoteHost) {
 func AssertDDOTNotManagedByProcmgr(t *testing.T, host *components.RemoteHost) {
 	t.Helper()
 	assertNotManagedByProcmgr(t, host, resolveAgentInstallRoot(host))
+}
+
+// AssertDDOTAutoInstallUnderProcmgr verifies DDOT after an env-driven install is not on the legacy
+// supervisor path and is stable under dd-procmgr (Windows: SCM + describe/binary; Linux: systemd + describe).
+func AssertDDOTAutoInstallUnderProcmgr(t *testing.T, host *components.RemoteHost) {
+	t.Helper()
+	switch host.OSFamily {
+	case e2eos.WindowsFamily:
+		AssertWindowsDDOTSCMServiceNotRunningWhenProcmgr(t, host)
+		AssertWindowsProcmgrDDOTMatchesInstalledBinary(t, host)
+	case e2eos.LinuxFamily:
+		AssertDDOTSystemdUnitsNotActive(t, host)
+		AssertDDOTManagedByProcmgr(t, host)
+	default:
+		t.Skipf("DDOT procmgr post-install checks are not defined for OS family %v", host.OSFamily)
+	}
 }
 
 func procmgrCLIBin(installRoot string) string {
@@ -85,12 +107,8 @@ func waitForProcmgrCLI(t *testing.T, host *components.RemoteHost, installRoot st
 	}, 2*time.Minute, 2*time.Second)
 }
 
-func assertManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRoot string) {
+func waitProcmgrDDOTDescribeRunningStable(t *testing.T, host *components.RemoteHost, describeCmd string) {
 	t.Helper()
-
-	waitForProcmgrCLI(t, host, installRoot)
-
-	describeCmd := procmgrCLICmd(installRoot, "describe "+procmgrProcessName)
 	var runningSince time.Time
 	const minRunningDuration = 5 * time.Second
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -115,6 +133,13 @@ func assertManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRo
 			return
 		}
 	}, 2*time.Minute, 5*time.Second)
+}
+
+func assertManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRoot string) {
+	t.Helper()
+	waitForProcmgrCLI(t, host, installRoot)
+	describeCmd := procmgrCLICmd(installRoot, "describe "+procmgrProcessName)
+	waitProcmgrDDOTDescribeRunningStable(t, host, describeCmd)
 }
 
 func assertNotManagedByProcmgr(t *testing.T, host *components.RemoteHost, installRoot string) {

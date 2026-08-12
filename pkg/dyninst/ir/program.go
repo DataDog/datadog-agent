@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 )
 
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
@@ -54,6 +55,9 @@ type Program struct {
 	// AES instruction semantics (x86 AESENC vs arm64 AESE+AESMC) the BPF
 	// hash emulation uses for swiss table map lookups.
 	IsARM64 bool
+	// Redaction is the policy for scrubbing sensitive captured values. It is
+	// nil when no policy is configured, in which case nothing is redacted.
+	Redaction *redaction.Config `json:"-"`
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
@@ -94,6 +98,12 @@ type CommonTypes struct {
 	G *StructureType
 	// M corresponds to runtime.m, non-nil
 	M *StructureType
+	// Panic corresponds to runtime._panic. Nil if the type wasn't found
+	// in the binary's DWARF (e.g. stripped runtime, exotic toolchain).
+	// Loader treats absence as a signal to not attach the runtime.recovery
+	// probe; the rest of dyninst keeps working without panic-unwind
+	// handling.
+	Panic *StructureType
 }
 
 // InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.

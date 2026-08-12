@@ -658,8 +658,9 @@ type ConfigExperiment struct {
 
 // ConfigExperimentFile represents a configuration file in a config experiment.
 type ConfigExperimentFile struct {
-	Path     string          `json:"path"`
-	Contents json.RawMessage `json:"contents"`
+	Path          string          `json:"path"`
+	Contents      json.RawMessage `json:"contents"`
+	FileOperation string          `json:"file_op,omitempty"`
 }
 
 // DatadogInstallerGA represents an interface to the Datadog Installer on the remote host for GA versions (7.65.x).
@@ -713,11 +714,18 @@ func (d *DatadogInstallerGA) StopExperiment(packageName string) (string, error) 
 func convertFilesToOperations(files []ConfigExperimentFile) []map[string]interface{} {
 	operations := make([]map[string]interface{}, len(files))
 	for i, file := range files {
-		operations[i] = map[string]interface{}{
-			"file_op":   "merge-patch",
-			"file_path": file.Path,
-			"patch":     file.Contents,
+		fileOp := file.FileOperation
+		if fileOp == "" {
+			fileOp = "merge-patch"
 		}
+		operation := map[string]interface{}{
+			"file_op":   fileOp,
+			"file_path": file.Path,
+		}
+		if file.Contents != nil {
+			operation["patch"] = file.Contents
+		}
+		operations[i] = operation
 	}
 	return operations
 }

@@ -167,6 +167,10 @@ func (rt *runtimeImpl) Load(
 	if len(opts.AdditionalTypes) > 0 {
 		irgenOpts = append(irgenOpts, irgen.WithAdditionalTypes(opts.AdditionalTypes))
 	}
+	if opts.SkipRuntimeRecoveryProbe {
+		irgenOpts = append(irgenOpts, irgen.WithSkipRuntimeRecoveryProbe(true))
+	}
+	irgenOpts = append(irgenOpts, irgen.WithRedaction(redactionConfigForPID(processID.PID)))
 	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}
@@ -349,6 +353,14 @@ func (a *attachedProgramImpl) Detach(failure error) error {
 func (a *attachedProgramImpl) ReportProbeError(
 	probe ir.ProbeDefinition, reason error,
 ) {
+	if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+		// Internal probe; users never asked for it. The trip is still
+		// recorded in the actuator's circuit-broken set so the next
+		// recompile drops the probe, but no user-visible diagnostic
+		// is emitted.
+		log.Warnf("dyninst: runtime.recovery probe circuit-broken: %v", reason)
+		return
+	}
 	a.runtime.diagnostics.reportError(a.runtimeID, probe, reason, "ExecutionFailed")
 }
 
@@ -361,6 +373,11 @@ func (rt *runtimeImpl) onProgramAttached(
 	rt.store.link(programID, processID)
 	rt.procRuntimeIDbyProgramID.Store(programID, runtimeID)
 	for _, probe := range program.Probes {
+		if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			// Internal probe; users never asked for it and shouldn't see
+			// its diagnostics.
+			continue
+		}
 		rt.diagnostics.reportInstalled(runtimeID, probe.ProbeDefinition)
 	}
 }
@@ -375,6 +392,9 @@ func (rt *runtimeImpl) reportAttachError(
 ) {
 	log.Errorf("attaching program %v to process %v failed: %v", programID, runtimeID.ID, err)
 	for _, probe := range program.Probes {
+		if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			continue
+		}
 		rt.diagnostics.reportError(runtimeID, probe.ProbeDefinition, err, "AttachmentFailed")
 	}
 }

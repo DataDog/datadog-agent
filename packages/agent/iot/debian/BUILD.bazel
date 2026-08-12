@@ -1,0 +1,34 @@
+"""Init scripts for the IoT agent on Debian-based distributions."""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup")
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+dd_agent_expand_template(
+    name = "upstart_debian_conf_gen",
+    out = "etc/init/datadog-agent.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "systemd_gen",
+    out = "lib/systemd/system/datadog-agent.service",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "//packages/agent/iot:systemd.service.in",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":systemd_gen",
+        ":upstart_debian_conf_gen",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)

@@ -9,15 +9,18 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 type metricsKind int
@@ -38,44 +41,112 @@ func (k metricsKind) String() string {
 	}
 }
 
-func metricsUseV3(resolver resolver.DomainResolver, config config.Component, kind metricsKind) bool {
+// metricsUseV3 decides whether a given resolver should ship the given metrics kind via the v3 intake.
+func metricsUseV3(r resolver.DomainResolver, config config.Component, logger log.Component, kind metricsKind) bool {
+	if kind == metricsKindSeries {
+		return seriesUseV3(r, config, logger)
+	}
+
 	return slices.Contains(
 		config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.endpoints", kind)),
-		resolver.GetConfigName())
+		r.GetConfigName())
 }
 
-func metricsValidateV3(config config.Component, kind metricsKind) bool {
-	return config.GetBool(fmt.Sprintf("serializer_experimental_use_v3_api.%s.validate", kind))
+// zlibForcesV2 reports whether the active metrics compressor is zlib, which is incompatible
+// with the v3 metrics intake.
+func (s *Serializer) zlibForcesV2() bool {
+	return s.Strategy.ContentEncoding() == compression.ZlibEncoding
+}
+
+// warnZlibDisablesV3 logs, once per serializer, that zlib compression is forcing
+// requested v3 pipelines back to v2.
+func (s *Serializer) warnZlibDisablesV3() {
+	s.zlibV3WarnOnce.Do(func() {
+		s.logger.Info(
+			"the active metrics compressor is zlib (deflate); disabling v3 metrics intake " +
+				"(use_v3_api.* and serializer_experimental_use_v3_api.*.endpoints are ignored). " +
+				"Switch to zstd to use the v3 endpoint.")
+	})
+}
+
+// evalSeriesV3 maps a single use_v3_api.series.enabled / endpoints[url] value onto a
+// v3-vs-v2 decision for r.
+func evalSeriesV3(key, value string, r resolver.DomainResolver, logger log.Component) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "1", "t", "yes", "on": // yaml truth values
+		return true
+	case "false", "0", "f", "no", "off": // yaml false values
+		return false
+	case "datadog_only":
+		return configutils.IsDatadogURL(r.GetConfigName())
+	}
+	logger.Warnf("%s value %q is invalid, using false", key, value)
+	return false
+}
+
+func vectorSeriesUseV3(config config.Component) bool {
+	if config.GetBool("observability_pipelines_worker.metrics.enabled") {
+		return config.GetBool("observability_pipelines_worker.metrics.use_v3_api.series")
+	}
+	return config.GetBool("vector.metrics.use_v3_api.series")
+}
+
+func seriesUseV3(r resolver.DomainResolver, config config.Component, logger log.Component) bool {
+	if r.IsMetricToVector() {
+		return vectorSeriesUseV3(config)
+	}
+
+	endpointsKey := "use_v3_api.series.endpoints"
+	endpoints := config.GetStringMapString(endpointsKey)
+	if value, ok := endpoints[r.GetConfigName()]; ok {
+		key := fmt.Sprintf("%s.%q", endpointsKey, r.GetConfigName())
+		return evalSeriesV3(key, value, r, logger)
+	}
+
+	return evalSeriesV3("use_v3_api.series.enabled", config.GetString("use_v3_api.series.enabled"), r, logger)
 }
 
 // metricsShadowSampleRate returns the per-flush probability of also sending
 // this kind of metrics to v3beta as a validation shadow when v3 is not the
-// authoritative endpoint. Only series are supported today.
+// authoritative endpoint. Series shadowing is retired: the series rollout is
+// driven by use_v3_api.series, so it never samples.
 func metricsShadowSampleRate(config config.Component, kind metricsKind) float64 {
-	if kind != metricsKindSeries {
+	if kind == metricsKindSeries {
 		return 0
 	}
-	return config.GetFloat64("serializer_experimental_use_v3_api.series.shadow_sample_rate")
+	return config.GetFloat64(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sample_rate", kind))
 }
 
-func v3BetaShadowEndpoint(config config.Component) transaction.Endpoint {
-	route := config.GetString("serializer_experimental_use_v3_api.series.beta_route")
-	return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSeriesEndpoint.Name}
+// v3BetaShadowEndpoint returns the v3beta shadow endpoint for a metrics kind,
+// with the sketches route overridable via beta_route.
+func v3BetaShadowEndpoint(config config.Component, kind metricsKind) transaction.Endpoint {
+	switch kind {
+	case metricsKindSeries:
+		return endpoints.V3BetaSeriesEndpoint
+	case metricsKindSketches:
+		route := config.GetString("serializer_experimental_use_v3_api.sketches.beta_route")
+		return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSketchSeriesEndpoint.Name}
+	default:
+		panic("invalid metricsKind value")
+	}
 }
 
 // metricsShadowSites returns the list of Datadog sites for which v3beta shadow
-// sampling is enabled. Sites are matched against the resolved v2 series
+// sampling is enabled for this kind. Sites are matched against the resolved v2
 // destination via configutils.ExtractSiteFromURL. Defaults to US1 only.
-func metricsShadowSites(config config.Component) []string {
-	return config.GetStringSlice("serializer_experimental_use_v3_api.series.shadow_sites")
+func metricsShadowSites(config config.Component, kind metricsKind) []string {
+	if kind == metricsKindSeries {
+		return nil
+	}
+	return config.GetStringSlice(fmt.Sprintf("serializer_experimental_use_v3_api.%s.shadow_sites", kind))
 }
 
 // metricsShadowAllowed reports whether the resolver targets a site that opts
-// into v3beta shadowing. It resolves the v2 series endpoint so that when v2
+// into v3beta shadowing. It resolves the kind's v2 endpoint so that when v2
 // metrics are diverted to a non-Datadog destination (e.g. vector/OPW), the
 // resolved domain falls outside the allow list and shadowing is skipped.
-func metricsShadowAllowed(r resolver.DomainResolver, sites []string) bool {
-	site := configutils.ExtractSiteFromURL(r.Resolve(endpoints.SeriesEndpoint))
+func metricsShadowAllowed(r resolver.DomainResolver, kind metricsKind, sites []string) bool {
+	site := configutils.ExtractSiteFromURL(r.Resolve(metricsEndpointFor(kind, false)))
 	if site == "" {
 		return false
 	}
@@ -93,14 +164,10 @@ type stdRand struct{}
 
 func (stdRand) Float64() float64 { return rand.Float64() }
 
-func metricsEndpointFor(kind metricsKind, useV3 bool, config config.Component) transaction.Endpoint {
+func metricsEndpointFor(kind metricsKind, useV3 bool) transaction.Endpoint {
 	switch kind {
 	case metricsKindSeries:
 		if useV3 {
-			if config.GetBool("serializer_experimental_use_v3_api.series.use_beta") {
-				route := config.GetString("serializer_experimental_use_v3_api.series.beta_route")
-				return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSeriesEndpoint.Name}
-			}
 			return endpoints.V3SeriesEndpoint
 		}
 		return endpoints.SeriesEndpoint
@@ -123,20 +190,31 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 
 	mrfFilter := s.getFailoverAllowlist()
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
-	validateV3 := metricsValidateV3(s.config, kind)
 	shadowRate := metricsShadowSampleRate(s.config, kind)
-	shadowSites := metricsShadowSites(s.config)
+	shadowSites := metricsShadowSites(s.config, kind)
+
+	zlib := s.zlibForcesV2()
+	if zlib {
+		shadowRate = 0
+	}
 
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
-		useV3 := metricsUseV3(resolver, s.config, kind)
+		useV3 := metricsUseV3(resolver, s.config, s.logger, kind)
+		if zlib && useV3 {
+			s.warnZlibDisablesV3()
+			useV3 = false
+		}
 
 		dest := metrics.PipelineDestination{
 			Resolver: resolver,
-			Endpoint: metricsEndpointFor(kind, useV3, s.config),
+			Endpoint: metricsEndpointFor(kind, useV3),
 		}
 
 		switch {
 		case resolver.IsLocal():
+			// Cluster agent only speaks v2
+			dest.Endpoint = metricsEndpointFor(kind, false)
+
 			if autoscalingFilter != nil && kind == metricsKindSeries {
 				conf := metrics.PipelineConfig{
 					Filter: autoscalingFilter,
@@ -154,9 +232,8 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 			}
 
 		default:
-			validateV3 := useV3 && validateV3
-			shadowV3 := !useV3 && metricsShadowAllowed(resolver, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
-			if validateV3 || shadowV3 {
+			shadowV3 := !useV3 && metricsShadowAllowed(resolver, kind, shadowSites) && shadowRate > 0 && rng.Float64() < shadowRate
+			if shadowV3 {
 				dest.ValidationBatchID = s.genUUID()
 			}
 
@@ -165,20 +242,6 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 				V3:     useV3,
 			}
 			pipelines.Add(conf, dest)
-
-			// On a regular route if using v3 and validation is enabled, send a v2 payload too.
-			if validateV3 {
-				vconf := metrics.PipelineConfig{
-					Filter: metrics.AllowAllFilter{},
-					V3:     false,
-				}
-				vdest := metrics.PipelineDestination{
-					Resolver:          resolver,
-					Endpoint:          metricsEndpointFor(kind, false, s.config),
-					ValidationBatchID: dest.ValidationBatchID,
-				}
-				pipelines.Add(vconf, vdest)
-			}
 
 			// On a regular v2 route, send a sampled shadow copy to v3beta for
 			// intake-side validation. The same batchID correlates v2 and v3beta.
@@ -189,7 +252,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 				}
 				sdest := metrics.PipelineDestination{
 					Resolver:          resolver,
-					Endpoint:          v3BetaShadowEndpoint(s.config),
+					Endpoint:          v3BetaShadowEndpoint(s.config, kind),
 					ValidationBatchID: dest.ValidationBatchID,
 				}
 				pipelines.Add(sconf, sdest)

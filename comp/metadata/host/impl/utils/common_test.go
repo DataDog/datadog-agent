@@ -17,7 +17,7 @@ import (
 
 func TestGetCommonPayload(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("api_key", "foo")
+	mockConfig.SetInTest("api_key", "foo")
 
 	p := GetCommonPayload("hostname", mockConfig)
 	assert.Equal(t, "foo", p.APIKey)

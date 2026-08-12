@@ -15,14 +15,63 @@
 // Package metrics provides runtime metric mappings.
 package metrics
 
-import "maps"
+import (
+	"maps"
+	"strings"
+)
 
-// runtimeMetricPrefixLanguageMap defines the runtime metric prefixes and which languages they map to
+// runtimeMetricPrefixLanguageMap defines the runtime metric prefixes we remap and which languages they map to
 var runtimeMetricPrefixLanguageMap = map[string]string{
 	"process.runtime.go":     "go",
 	"process.runtime.dotnet": "dotnet",
 	"process.runtime.jvm":    "jvm",
 	"jvm":                    "jvm",
+}
+
+// runtimeMetricPrefixes lists all OTel runtime metric prefixes, those we remap and others.
+var runtimeMetricPrefixes = []string{
+	// Legacy runtime metrics.
+	"process.runtime.go.",
+	"process.runtime.dotnet.",
+	"process.runtime.jvm.",
+
+	// https://opentelemetry.io/docs/specs/semconv/runtime/jvm-metrics/
+	"jvm.",
+
+	// https://opentelemetry.io/docs/specs/semconv/runtime/go-metrics/
+	"go.config.",
+	"go.cpu.",
+	"go.goroutine.",
+	"go.memory.",
+	"go.processor.",
+	"go.schedule.",
+
+	// https://opentelemetry.io/docs/specs/semconv/runtime/dotnet-metrics/
+	"dotnet.assembly.",
+	"dotnet.exceptions",
+	"dotnet.gc.",
+	"dotnet.jit.",
+	"dotnet.monitor.",
+	"dotnet.process.",
+	"dotnet.thread_pool.",
+	"dotnet.timer.",
+
+	// https://opentelemetry.io/docs/specs/semconv/runtime/cpython-metrics/
+	"cpython.gc.",
+
+	// https://opentelemetry.io/docs/specs/semconv/runtime/nodejs-metrics/
+	"nodejs.eventloop.",
+	// https://opentelemetry.io/docs/specs/semconv/runtime/v8js-metrics/
+	"v8js.",
+}
+
+func isRuntimeMetric(name string) bool {
+	for _, prefix := range runtimeMetricPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // runtimeMetricMapping defines the fields needed to map OTel runtime metrics to their equivalent

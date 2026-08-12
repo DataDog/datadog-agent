@@ -34,13 +34,13 @@ func setProcessEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endp
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
-			config.SetWithoutSource("api_key", ep.APIKey)
-			config.SetWithoutSource("process_config.process_dd_url", ep.Endpoint.String())
+			config.SetInTest("api_key", ep.APIKey)
+			config.SetInTest("process_config.process_dd_url", ep.Endpoint.String())
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
 	}
-	config.SetWithoutSource("process_config.additional_endpoints", additionalEps)
+	config.SetInTest("process_config.additional_endpoints", additionalEps)
 }
 
 func TestSendConnectionsMessage(t *testing.T) {
@@ -286,7 +286,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 1)
+	mockConfig.SetInTest("process_config.process_queue_bytes", 1)
 
 	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, mockConfig, func(_ *CheckRunner, ep *mockEndpoint) {
 		select {
@@ -316,7 +316,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
+	mockConfig.SetInTest("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
 
 	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
@@ -358,7 +358,7 @@ func TestMultipleAPIKeys(t *testing.T) {
 	// Set concurrent requests to 1 to ensure that the requests are made in exact order.
 	// A value of more than 1 would mean the order is determined by the go scheduler and can be different to
 	// what is sent.
-	config.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+	config.SetInTest("forwarder_max_concurrent_requests", 1)
 
 	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, config, func(_ *CheckRunner, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {

@@ -14,12 +14,12 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/content"
-	containerdevents "github.com/containerd/containerd/events"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/namespaces"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/content"
+	containerdevents "github.com/containerd/containerd/v2/core/events"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/proto"
 
@@ -456,10 +456,10 @@ func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest)
 
 	historyIndex := 0
 	for manifestIndex, manifestLayer := range manifest.Layers {
-		// DiffID is the OCI rootfs diff_id. When the image config is
-		// short of one (off-spec), fall back to the manifest layer
-		// digest -- a wrong-but-best-effort value rather than empty.
-		diffID := manifestLayer.Digest.String()
+		// The diff_id is the layer's uncompressed-content hash from the image
+		// config, not the manifest layer Digest (a compressed-blob hash). Leave
+		// it empty when the config has no entry rather than substitute the digest.
+		var diffID string
 		if manifestIndex < len(ocispecImage.RootFS.DiffIDs) {
 			diffID = ocispecImage.RootFS.DiffIDs[manifestIndex].String()
 		}

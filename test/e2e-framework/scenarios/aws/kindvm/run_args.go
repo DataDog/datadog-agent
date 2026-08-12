@@ -40,10 +40,11 @@ type RunParams struct {
 	deployTestWorkload bool
 	deployArgoRollout  bool
 
-	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
-	// using raw Kubernetes resources instead of the Datadog Helm chart.
-	// See StandaloneAgentDeployFunc and WithStandaloneOTelAgent.
-	standaloneAgentFunc StandaloneAgentDeployFunc
+	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
+	// Distribution of OpenTelemetry) agent DaemonSet using raw Kubernetes
+	// resources instead of the Datadog Helm chart.
+	// See StandaloneDdotDeployFunc and WithStandaloneOTelAgent.
+	standaloneDdotFunc StandaloneDdotDeployFunc
 
 	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
 	// When empty the cluster uses the default single worker node.
@@ -83,7 +84,7 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 	}
 
 	// VM: pick OS from InfraOSDescriptor
-	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.AmazonLinuxECSDefault)
+	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.UbuntuDefault)
 	p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
 
 	// Agent defaults
@@ -203,8 +204,8 @@ func WithOperatorOptions(opts ...operatorparams.Option) RunOption {
 // WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
 // (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources,
 // bypassing the Datadog Helm chart.
-func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) RunOption {
-	return func(p *RunParams) error { p.standaloneAgentFunc = fn; return nil }
+func WithStandaloneOTelAgent(fn StandaloneDdotDeployFunc) RunOption {
+	return func(p *RunParams) error { p.standaloneDdotFunc = fn; return nil }
 }
 
 // WithKindWorkerNodes configures the kind cluster worker nodes with custom labels and taints.

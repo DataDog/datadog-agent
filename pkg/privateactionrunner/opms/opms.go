@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -32,6 +33,7 @@ import (
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/jsonapi"
 )
 
@@ -49,6 +51,19 @@ const (
 	// idle stretches.
 	maxRetryAfter = 2 * time.Minute
 )
+
+// ErrJobNotFound means the task no longer exists remotely; callers stop heartbeating.
+var ErrJobNotFound = errors.New("job not found")
+
+// HTTPError carries the HTTP status code of an unexpected response.
+type HTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("request failed with status code %d and body %s", e.StatusCode, e.Body)
+}
 
 type DequeueJSONRequest struct {
 	ID                 string `jsonapi:"primary,dequeue"`
@@ -144,10 +159,11 @@ type client struct {
 	lastTaskReceivedAt atomic.Pointer[time.Time]
 }
 
-func NewClient(cfg *config.Config) Client {
+func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 	return &client{
 		httpClient: &http.Client{
-			Timeout: time.Millisecond * time.Duration(cfg.OpmsRequestTimeout),
+			Timeout:   time.Duration(cfg.OpmsRequestTimeout) * time.Millisecond,
+			Transport: httputils.CreateHTTPTransport(coreCfg),
 		},
 		config:          cfg,
 		runnerStartedAt: time.Now().UTC(),
@@ -368,6 +384,10 @@ func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, t
 	}
 
 	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, c.endpointURL(heartbeat), request); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("%w: %v", ErrJobNotFound, err)
+		}
 		return fmt.Errorf("error sending heartbeat: %w", err)
 	}
 
@@ -447,7 +467,7 @@ func (c *client) makeRequest(
 	}
 
 	if len(expectedStatusCodes) != 0 && !slices.Contains(expectedStatusCodes, res.StatusCode) {
-		return nil, res.Header, fmt.Errorf("request failed with status code %d and body %s", res.StatusCode, resBody)
+		return nil, res.Header, &HTTPError{StatusCode: res.StatusCode, Body: string(resBody)}
 	}
 
 	return resBody, res.Header, nil

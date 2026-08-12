@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="04-agent"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -16,11 +15,10 @@ exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
 
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
+# No completion sentinel: this stage always runs so the agent binaries stay in
+# sync with their inputs (notably the rtloader archives they link against). Go
+# caches compiled packages, so a rebuild with no changes is mostly a relink and
+# stays reasonably fast.
 
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
@@ -67,7 +65,7 @@ mkdir -p "$STAGING/opt/datadog-agent/bin/agent"
 # tree; the staging copies are for the final package only.
 
 log "Setting rtloader CGO flags"
-export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
+export CGO_CFLAGS="$CGO_CFLAGS -I$AGENT_SRC/rtloader/include"
 #
 # -lpython3 (via libpython3.a symlink) causes libpython3.a(shr_64.o) to appear in the agent binary's
 # XCOFF startup-load chain. This is necessary but not sufficient: the binary
@@ -88,8 +86,8 @@ if [ ! -f "$PYTHON_EXP" ]; then
 fi
 log "Using Python export file: $PYTHON_EXP"
 export CGO_LDFLAGS="$CGO_LDFLAGS \
-  -L/opt/datadog-agent/rtloader/build/rtloader \
-  -L/opt/datadog-agent/rtloader/build/three \
+  -L$AGENT_SRC/rtloader/build/rtloader \
+  -L$AGENT_SRC/rtloader/build/three \
   -L$EMBEDDED_DESTDIR/lib \
   -lpython3 \
   -Wl,-bE:$PYTHON_EXP \
@@ -97,7 +95,7 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
 
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
 
-COMMIT=$(git -C /opt/datadog-agent rev-parse --short HEAD)
+COMMIT=$(git -C "$AGENT_SRC" rev-parse --short HEAD)
 log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────
@@ -105,7 +103,7 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 # Build tags and ldflags are determined by inv agent.build (tasks/build_tags.py).
 
 log "Building agent binary via inv agent.build"
-cd /opt/datadog-agent
+cd "$AGENT_SRC"
 rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 # OBJECT_MODE must be unset before Go's external linker runs. When both
 # OBJECT_MODE=64 and AIX_OBJECT_MODE=64 are exported, the linker picks up
@@ -114,8 +112,9 @@ rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 # needed globally (env.sh) for tools like ar that don't respect AIX_OBJECT_MODE.
 unset OBJECT_MODE
 python3.12 -m invoke agent.build \
+    --no-enable-bazel \
     --exclude-rtloader \
-    --rtloader-root=/opt/datadog-agent/rtloader \
+    --rtloader-root="$AGENT_SRC/rtloader" \
     --embedded-path="$EMBEDDED_DESTDIR" \
     --agent-bin="$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 
@@ -125,7 +124,7 @@ log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent-bin
 # Install the agent wrapper: sets LIBPATH/PATH so the binary works when invoked
 # directly (not just via SRC). The wrapper execs agent-bin, so the process is
 # replaced immediately — SRC PID tracking and signal handling are unaffected.
-cp "$(dirname "$0")/../agent-wrapper.sh" "$STAGING/opt/datadog-agent/bin/agent/agent"
+cp "$SCRIPT_DIR/../agent-wrapper.sh" "$STAGING/opt/datadog-agent/bin/agent/agent"
 chmod 755 "$STAGING/opt/datadog-agent/bin/agent/agent"
 log "agent wrapper installed at $STAGING/opt/datadog-agent/bin/agent/agent"
 
@@ -134,15 +133,15 @@ log "agent wrapper installed at $STAGING/opt/datadog-agent/bin/agent/agent"
 # Build tags are determined by inv trace-agent.build (tasks/build_tags.py).
 
 log "Building trace-agent binary via inv trace-agent.build"
-cd /opt/datadog-agent
+cd "$AGENT_SRC"
 python3.12 -m invoke trace-agent.build
 mkdir -p "$STAGING/opt/datadog-agent/embedded/bin"
 rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
-cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
+cp "$AGENT_SRC/bin/trace-agent/trace-agent" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 strip -X64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 
-cp "$(dirname "$0")/../trace-agent-wrapper.sh" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+cp "$SCRIPT_DIR/../trace-agent-wrapper.sh" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 chmod 755 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 log "trace-agent wrapper installed at $STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 
@@ -171,7 +170,4 @@ if [ "$MAGIC" != "01f7" ]; then
 fi
 log "XCOFF64 magic verified for trace-agent binary (magic: $MAGIC)"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

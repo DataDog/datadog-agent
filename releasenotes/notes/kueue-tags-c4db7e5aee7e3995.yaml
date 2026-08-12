@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The agent automatically detects Kueue-related labels in pods and adds them as ``kueue_local_queue`` and ``kueue_cluster_queue`` tags.
+    The agent automatically detects Kueue-related labels in pods and adds them as ``kueue_local_queue`` and ``kueue_cluster_queue`` tags. It will also add tags extracted from the corresponding ClusterQueue/LocalQueue resources

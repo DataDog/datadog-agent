@@ -62,6 +62,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "default/my-deployment-2"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesNode, "my-node-1"), "workloadmeta-kubernetes_node", []string{"node_tag:my-node-1"}, nil, nil, nil)
 
 	client := fakeclientset.NewClientset()
 	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
@@ -156,6 +157,20 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"kube_deployment:my-deployment-2",
 				"team:container-int", // this tag is coming from the namespace
 				"deployment_tag:redis-2",
+			},
+		},
+		{
+			name: "get node basic tags",
+			involvedObject: v1.ObjectReference{
+				Kind: "Node",
+				Name: "my-node-1",
+			},
+			tags: []string{
+				"kube_kind:Node",
+				"kube_name:my-node-1",
+				"kubernetes_kind:Node",
+				"name:my-node-1",
+				"node_tag:my-node-1",
 			},
 		},
 		{
@@ -332,7 +347,7 @@ func Test_getEventSource(t *testing.T) {
 	}
 	for _, tt := range tests {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
+		mockConfig.SetInTest("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventSource() = %v, want %v", got, tt.want)

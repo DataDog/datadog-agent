@@ -1,6 +1,8 @@
 # Issued to: rapid-agent-delivery/release-dashboard-api on us1 staging
-issuer: https://ticino.identity.local-cluster.local-dc.fabric.dog:8443/v1/issuer/sycamore
-subject: rapid-agent-delivery.release-dashboard-api@kubernetes.us1.staging.dog
+issuer: https://vault.us1.staging.dog/v1/identity/oidc
+
+# ddtool auth whois --datacenter us1.staging.dog rapid-agent-delivery-release-dashboard-api --format json | jq -r .id
+subject: baf59598-c4eb-7bb7-e96b-d5557dfe4ed9
 
 permissions:
   contents: read

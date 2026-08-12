@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
@@ -16,7 +17,7 @@ go_library(
         "@com_github_pulumi_pulumi_command_sdk//go/command",
         "@com_github_pulumi_pulumi_docker_sdk_v4//go/docker",
         "@com_github_pulumi_pulumi_eks_sdk_v4//go/eks",
-        "@com_github_pulumi_pulumi_gcp_sdk_v7//go/gcp",
+        "@com_github_pulumi_pulumi_gcp_sdk_v9//go/gcp",
         "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
@@ -24,11 +25,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "config_test",
     srcs = ["helpers_test.go"],
     embed = [":config"],
-    gotags = ["test"],
     deps = [
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",

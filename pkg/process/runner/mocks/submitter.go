@@ -53,7 +53,7 @@ type Submitter_Submit_Call struct {
 //   - start time.Time
 //   - name string
 //   - messages *types.Payload
-func (_e *Submitter_Expecter) Submit(start interface{}, name interface{}, messages interface{}) *Submitter_Submit_Call {
+func (_e *Submitter_Expecter) Submit(start any, name any, messages any) *Submitter_Submit_Call {
 	return &Submitter_Submit_Call{Call: _e.mock.On("Submit", start, name, messages)}
 }
 

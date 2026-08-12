@@ -269,7 +269,7 @@ func TestProvider_Provide(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+			mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -307,7 +307,7 @@ func TestProvider_Provide(t *testing.T) {
 			}
 
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("container_exclude", "name:fluentbit-gke")
+			mockConfig.SetInTest("container_exclude", "name:fluentbit-gke")
 			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 			p, err := NewProvider(

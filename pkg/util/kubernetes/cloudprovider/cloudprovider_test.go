@@ -6,9 +6,12 @@
 package cloudprovider
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 func TestKubeDistributionName(t *testing.T) {
@@ -37,4 +40,16 @@ func TestKubeDistributionName(t *testing.T) {
 			assert.Equal(t, tc.expected, provider)
 		})
 	}
+}
+
+// TestGetNameNotKubernetes ensures GetName returns early without probing the
+// kubelet when the Agent is not running on Kubernetes.
+func TestGetNameNotKubernetes(t *testing.T) {
+	// The Kubernetes feature is intentionally not set: in test builds
+	// detection is disabled and features default to empty.
+	env.ClearFeatures()
+
+	name, err := GetName(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, name)
 }

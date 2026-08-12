@@ -9,11 +9,17 @@ package systeminfo
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/yusufpapurcu/wmi"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// otherChassisLogOnce ensures we log the raw WMI chassis code at most once per
+// agent process when the mapping falls through to "Other", so future
+// misclassifications are diagnosable from agent.log without a customer round-trip.
+var otherChassisLogOnce sync.Once
 
 // Win32ComputerSystem WMI class
 //
@@ -77,6 +83,12 @@ func collect() (*SystemInfo, error) {
 		if len(enclosure[0].ChassisTypes) > 0 && len(cs) > 0 {
 			chassisType := enclosure[0].ChassisTypes[0]
 			systemInfo.ChassisType = getChassisTypeName(chassisType, cs[0].Model, cs[0].Manufacturer)
+			if systemInfo.ChassisType == "Other" {
+				otherChassisLogOnce.Do(func() {
+					log.Infof("host chassis type mapped to \"Other\": raw=%v model=%q manufacturer=%q",
+						enclosure[0].ChassisTypes, cs[0].Model, cs[0].Manufacturer)
+				})
+			}
 		}
 	} else {
 		log.Warnf("error querying Win32_SystemEnclosure: %v", err)
@@ -131,7 +143,7 @@ func getChassisTypeName(chassisType int32, model string, manufacturer string) st
 	switch chassisType {
 	case 3, 4, 5, 6, 7, 13, 15, 16, 24: // Desktop variants
 		return "Desktop"
-	case 8, 9, 10, 11, 14: // Portable/Mobile variants
+	case 8, 9, 10, 11, 14, 31, 32: // Portable/Mobile variants (incl. Convertible, Detachable)
 		return "Laptop"
 	default:
 		return "Other"

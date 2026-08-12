@@ -45,6 +45,19 @@ type seriesRefLister interface {
 	ListSeriesRefsInto(filter observer.SeriesFilter, dst []observer.SeriesRef) []observer.SeriesRef
 }
 
+// seriesAggregateSupport is an optional policy for series whose stored point
+// representation gives only some aggregations useful semantics.
+type seriesAggregateSupport interface {
+	SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool
+}
+
+func supportsSeriesAggregate(storage observer.StorageReader, ref observer.SeriesRef, agg observer.Aggregate) bool {
+	if support, ok := storage.(seriesAggregateSupport); ok {
+		return support.SupportsAggregate(ref, agg)
+	}
+	return true
+}
+
 // workloadSeriesRefs returns the workload series refs used by detector hot
 // paths. It avoids the metadata-heavy ListSeries allocation when the storage
 // implementation provides a ref-only listing.
@@ -108,7 +121,8 @@ func detectorMedian(vals []float64) float64 {
 // When scaleToSigma is true, the result is scaled by 1.4826 to estimate the
 // standard deviation for normally distributed data. Use scaleToSigma=true when
 // comparing against sigma-based thresholds (e.g. Mann-Whitney's deviation check),
-// and false when using raw MAD as a denominator for relative change scores (e.g. TopK).
+// and false when using raw MAD as a denominator for relative change scores
+// (e.g. ScanMW/ScanWelch preMAD checks).
 func detectorMAD(vals []float64, median float64, scaleToSigma bool) float64 {
 	if len(vals) == 0 {
 		return 0

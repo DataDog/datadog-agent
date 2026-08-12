@@ -65,42 +65,45 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 
 	for _, kvPair := range connectionData.Data {
 		e.httpAggregationsBuilder.AddEndpointAggregations(func(httpStatsBuilder *model.HTTPStatsBuilder) {
-			key := kvPair.Key
-			stats := kvPair.Value
-
-			if !e.discoveryMode {
-				httpStatsBuilder.SetPath(key.Path.Content.Get())
-				httpStatsBuilder.SetFullPath(key.Path.FullPath)
-				httpStatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
-			}
-
-			for code, stats := range stats.Data {
-				httpStatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
-					w.SetKey(int32(code))
-					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
-						w.SetCount(uint32(stats.Count))
-						if e.discoveryMode {
-							w.SetLatencySum(stats.LatencySum)
-						} else if latencies := stats.Latencies; latencies != nil {
-							w.SetLatencies(func(b *bytes.Buffer) {
-								e.sketchBuilder.Reset(b)
-								e.sketchBuilder.AddSketch(latencies)
-							})
-						} else {
-							w.SetFirstLatencySample(stats.FirstLatencySample)
-						}
-					})
-				})
-
-				staticTags |= stats.StaticTags
-				for dynamicTag := range stats.DynamicTags {
-					dynamicTags[dynamicTag] = struct{}{}
-				}
-			}
+			encodeUSMEndpoint(httpStatsBuilder, kvPair.Key, kvPair.Value, e.discoveryMode, e.sketchBuilder, &staticTags, dynamicTags)
 		})
-
 	}
 	return staticTags, dynamicTags
+}
+
+// encodeUSMEndpoint encodes one endpoint aggregation into the shared builder used
+// by the HTTP and HTTP/2 encoders. Discovery mode drops path/method and uses
+// LatencySum instead of a DDSketch.
+func encodeUSMEndpoint(builder *model.HTTPStatsBuilder, key http.Key, stats *http.RequestStats, discoveryMode bool, sketchBuilder *ddsketch.DDSketchCollectionBuilder, staticTags *uint64, dynamicTags map[string]struct{}) {
+	if !discoveryMode {
+		builder.SetPath(key.Path.Content.Get())
+		builder.SetFullPath(key.Path.FullPath)
+		builder.SetMethod(uint64(model.HTTPMethod(key.Method)))
+	}
+
+	for code, stat := range stats.Data {
+		builder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
+			w.SetKey(int32(code))
+			w.SetValue(func(w *model.HTTPStats_DataBuilder) {
+				w.SetCount(uint32(stat.Count))
+				if discoveryMode {
+					w.SetLatencySum(stat.LatencySum)
+				} else if latencies := stat.Latencies; latencies != nil {
+					w.SetLatencies(func(b *bytes.Buffer) {
+						sketchBuilder.Reset(b)
+						sketchBuilder.AddSketch(latencies)
+					})
+				} else {
+					w.SetFirstLatencySample(stat.FirstLatencySample)
+				}
+			})
+		})
+
+		*staticTags |= stat.StaticTags
+		for dynamicTag := range stat.DynamicTags {
+			dynamicTags[dynamicTag] = struct{}{}
+		}
+	}
 }
 
 func (e *httpEncoder) Close() {

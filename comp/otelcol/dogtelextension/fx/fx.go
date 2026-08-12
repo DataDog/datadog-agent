@@ -22,7 +22,7 @@ import (
 // This module is provided for potential future use if the architecture changes.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(dogtelextensionimpl.NewExtension),
+		fxutil.ProvideComponentConstructor(dogtelextensionimpl.NewComponent),
 		fxutil.ProvideOptional[dogtelextension.Component](),
 	)
 }

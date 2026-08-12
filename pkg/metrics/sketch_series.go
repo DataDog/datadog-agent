@@ -9,20 +9,24 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
+
+// DistributionMetadata is the per-series metadata required for all distribution variants.
+type DistributionMetadata struct {
+	Name     string               `json:"metric"`
+	Tags     tagset.CompositeTags `json:"tags"`
+	Host     string               `json:"host"`
+	Interval int64                `json:"interval"`
+	NoIndex  bool                 `json:"-"` // This is only used by api V2
+	Source   MetricSource         `json:"-"` // This is only used by api V2
+}
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	Name       string               `json:"metric"`
-	Tags       tagset.CompositeTags `json:"tags"`
-	Host       string               `json:"host"`
-	Interval   int64                `json:"interval"`
-	Points     []SketchPoint        `json:"points"`
-	ContextKey ckey.ContextKey      `json:"-"`
-	NoIndex    bool                 `json:"-"` // This is only used by api V2
-	Source     MetricSource         `json:"-"` // This is only used by api V2
+	DistributionMetadata
+	Points []SketchPoint `json:"points"`
 }
 
 // GetName returns the name of the SketchSeries
@@ -38,19 +42,27 @@ func (sl SketchSeries) String() string {
 	return reqBody.String()
 }
 
-// SketchData is the interface the serializer uses to read sketch content.
-// It is satisfied by *quantile.Sketch.
-type SketchData interface {
-	// Cols returns bin keys and per-bin counts in ascending key order.
-	Cols() (k []int32, n []uint32)
-	// BasicStats returns the five summary fields used in the wire format.
-	BasicStats() (cnt int64, min, max, sum, avg float64)
+// WriteTo emits the DDSketch flavor of this series.
+//
+// WriteTo may be invoked multiple times on the same value. The serializer
+// calls it again on a fresh DistributionWriter after a payload split; iterating
+// over Points from the start is safe and idempotent.
+func (sl *SketchSeries) WriteTo(w DistributionWriter) error {
+	return w.WriteDDSketch(sl.DistributionMetadata, len(sl.Points), sl)
+}
+
+// GetDDSketchPoint returns the sketch point at index i.
+func (sl *SketchSeries) GetDDSketchPoint(i int) (ts, cnt int64, min, max, sum, avg float64, k []int32, n []uint32) {
+	p := sl.Points[i]
+	cnt, min, max, sum, avg = p.Sketch.BasicStats()
+	k, n = p.Sketch.Cols()
+	return p.Ts, cnt, min, max, sum, avg, k, n
 }
 
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
-	Sketch SketchData `json:"sketch"`
-	Ts     int64      `json:"ts"`
+	Sketch *quantile.Sketch `json:"sketch"`
+	Ts     int64            `json:"ts"`
 }
 
 // SketchSeriesList is a collection of SketchSeries

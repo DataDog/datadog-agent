@@ -335,3 +335,8 @@ func getWindowsData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	getIISData(ctx, fb)         //nolint:errcheck
 	return nil
 }
+
+// getUlimitData is a no-op on Windows, which has no ulimit/rlimit concept.
+func getUlimitData(_ context.Context, _ flaretypes.FlareBuilder) error {
+	return nil
+}

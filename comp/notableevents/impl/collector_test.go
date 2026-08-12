@@ -144,7 +144,7 @@ func TestCollector_CollectEvents(t *testing.T) {
 	// Create tmpdir to store bookmark. Necessary to isolate test runs from each other.
 	testDir := t.TempDir()
 	mockConfig := agentConfigmock.New(t)
-	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetInTest("run_path", testDir)
 
 	// === First collector instance ===
 	outChan := make(chan eventPayload)

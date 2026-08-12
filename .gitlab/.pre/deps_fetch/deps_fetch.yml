@@ -3,7 +3,16 @@
 # Contains jobs which fetch go dependencies, in order
 # to reuse them in further jobs that need them.
 
+# Keep GOPROXY entries usable from the current environment; drop the rest.
+.sanitize_goproxy:
+  - . tools/ci/sanitize-goproxy.sh
+
+# Windows host equivalent, for jobs that forward GOPROXY into a container.
+.sanitize_goproxy_windows:
+  - . ./tools/ci/sanitize-goproxy.ps1
+
 .retrieve_linux_go_deps:
+  - !reference [.sanitize_goproxy]
   - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.zst
 

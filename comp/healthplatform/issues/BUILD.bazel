@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "issues",
@@ -10,16 +11,17 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/sysprobeconfig/def",
         "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "issues_test",
     srcs = ["registry_test.go"],
     embed = [":issues"],
-    gotags = ["test"],
     deps = [
         "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",

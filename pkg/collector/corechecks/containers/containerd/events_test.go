@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/events"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/events"
 	"github.com/containerd/typeurl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -262,7 +262,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			defaultExcludePauseContainers := mockConfig.GetBool("exclude_pause_container")
-			mockConfig.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			mockConfig.SetInTest("exclude_pause_container", test.excludePauseContainers)
 
 			// Create a new subscriber for each test case so it picks up the correct config value
 			sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil, pauseFilter)
@@ -296,7 +296,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Len(t, flushed, 2) // delete task + delete container
 			}
 
-			mockConfig.SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			mockConfig.SetInTest("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 }
@@ -323,7 +323,7 @@ container_exclude_logs: image:dd-log-exclude
 		containerFilter: fakeFilterStore.GetContainerSharedMetricFilters(),
 		tagger:          fakeTagger,
 	}
-	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked := mocksender.NewMockSender(t, containerdCheck.ID())
 
 	tests := []struct {
 		name          string

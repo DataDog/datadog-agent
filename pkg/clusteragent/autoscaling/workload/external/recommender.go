@@ -14,7 +14,7 @@ import (
 
 	"k8s.io/utils/clock"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -22,19 +22,19 @@ import (
 )
 
 const (
-	pollingInterval                            = 30 * time.Second
-	externalRecommenderID autoscaling.SenderID = "extr"
+	pollingInterval                                 = 30 * time.Second
+	externalRecommenderID autoscalingstore.SenderID = "extr"
 )
 
 // Recommender is the interface used to fetch external recommendations
 type Recommender struct {
 	recommenderClient *recommenderClient
-	store             *autoscaling.Store[model.PodAutoscalerInternal]
+	store             *autoscalingstore.Store[model.PodAutoscalerInternal]
 	clusterName       string
 }
 
 // NewRecommender creates a new Recommender to start fetching external recommendations
-func NewRecommender(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal], clusterName string, tlsConfig *TLSFilesConfig) (*Recommender, error) {
+func NewRecommender(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, store *autoscalingstore.Store[model.PodAutoscalerInternal], clusterName string, tlsConfig *TLSFilesConfig) (*Recommender, error) {
 	recommenderClient, err := newRecommenderClient(ctx, clock, podWatcher, tlsConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error creating recommender client: %w", err)
@@ -69,7 +69,7 @@ func (r *Recommender) Run(ctx context.Context) {
 
 func (r *Recommender) process(ctx context.Context) {
 	// Filter pod autoscalers to only retrieve autoscalers where external recommender is enabled
-	podAutoscalers := r.store.GetFiltered(func(dpa model.PodAutoscalerInternal) bool {
+	podAutoscalers := r.store.List(func(dpa model.PodAutoscalerInternal) bool {
 		return dpa.CustomRecommenderConfiguration() != nil
 	})
 
@@ -108,12 +108,13 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 		recommendation.Horizontal = horizontalRecommendation
 	}
 
-	podAutoscalerInternal, found, unlock := r.store.LockRead(key, true)
+	item, found := r.store.Get(key)
+	defer item.Release()
 	if !found { // In case the object is deleted in between when we start calculating
 		log.Debugf("Object %s not found in store; recommendation values not updated", key)
-		unlock()
 		return
 	}
+	podAutoscalerInternal := item.Value()
 	podAutoscalerInternal.PartialUpdateFromMainValues(recommendation, true, false, 0)
-	r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, externalRecommenderID)
+	item.Upsert(podAutoscalerInternal, externalRecommenderID)
 }

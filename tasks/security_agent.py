@@ -11,8 +11,6 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-import tasks.libs.cws.backend_doc_gen as backend_doc_gen
-import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
@@ -29,6 +27,7 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
+from tasks.schema.generate import schema_codegen
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -378,6 +377,9 @@ def build_functional_tests(
         "src_path": srcpath,
     }
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(cmd.format(**args), env=env)
 
 
@@ -494,32 +496,14 @@ def docker_functional_tests(
 
 @task
 def generate_cws_documentation(ctx):
-    # secl docs
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_linux.json",
-        "./docs/cloud-workload-security/linux_expressions.md",
-        "./linux_expressions.md",
-    )
-    secl_doc_gen.generate_secl_documentation(
-        "./docs/cloud-workload-security/secl_windows.json",
-        "./docs/cloud-workload-security/windows_expressions.md",
-        "./windows_expressions.md",
-    )
-    # backend event docs
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_linux.schema.json",
-        "./docs/cloud-workload-security/backend_linux.md",
-        "./backend_linux.md",
-    )
-    backend_doc_gen.generate_backend_documentation(
-        "./docs/cloud-workload-security/backend_windows.schema.json",
-        "./docs/cloud-workload-security/backend_windows.md",
-        "./backend_windows.md",
-    )
+    bazel(ctx, "run", "//docs/cloud-workload-security:cws_docs")
 
 
 @task
 def cws_go_generate(ctx, verbose=False):
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
     ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
@@ -596,8 +580,8 @@ def generate_utils_syscall_table(ctx):
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
-DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_arm64.json"
-DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_amd64.json"
+DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/constants_arm64.json"
+DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/constants_amd64.json"
 
 
 @task
@@ -677,6 +661,9 @@ class FailingTask:
 
 @task
 def go_generate_check(ctx):
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     tasks = [
         [cws_go_generate],
         [generate_cws_proto],
@@ -768,6 +755,9 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     args = '-args'
     if trace:
         args += " -trace"
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args} {testflags}", env=env)
 

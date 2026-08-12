@@ -24,6 +24,20 @@ type baseSuite[Env any] struct {
 	clusterName string
 }
 
+// sbomTargetsSuite carries the runtime-agnostic SBOM assertions (container image
+// + host) shared by the kubeadm and standalone-Docker suites, so every runtime
+// is verified against the exact same expected SBOM output. The concrete suites
+// add their own SetupSuite and Test00UpAndRunning readiness gate.
+type sbomTargetsSuite[Env any] struct {
+	baseSuite[Env]
+
+	// expectLayerDigests is set for runtimes that expose a real per-layer
+	// manifest digest: containerd reads it from the content store and CRI-O from
+	// the image manifest on disk. Docker exposes none, so its components must
+	// carry an empty LayerDigest rather than a fabricated one.
+	expectLayerDigests bool
+}
+
 func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
 	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
 	suite.BaseSuite.BeforeTest(suiteName, testName)

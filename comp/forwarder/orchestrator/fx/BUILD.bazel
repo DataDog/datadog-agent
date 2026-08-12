@@ -9,5 +9,6 @@ go_library(
         "//comp/forwarder/orchestrator/def",
         "//comp/forwarder/orchestrator/impl",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

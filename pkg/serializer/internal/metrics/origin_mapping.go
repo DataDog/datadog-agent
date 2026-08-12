@@ -95,6 +95,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVersa,
 		metrics.MetricSourceWlan,
 		metrics.MetricSourceWindowsCertificateStore,
+		metrics.MetricSourceThermal,
 		// Plugins and non-checks
 		metrics.MetricSourceCloudFoundry,
 		metrics.MetricSourceJenkins,
@@ -371,7 +372,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourcePinot,
 		metrics.MetricSourceDellPowerFlex,
 		metrics.MetricSourceHPEArubaEdgeConnect,
-		metrics.MetricSourceNiFi:
+		metrics.MetricSourceNiFi,
+		metrics.MetricSourceKueue,
+		metrics.MetricSourceExternalSecrets:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
 		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
@@ -838,6 +841,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 235
 	case metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return 236
+	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return 521
 	case metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
 		return 237
 	case metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver:
@@ -1153,6 +1158,12 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 517
 	case metrics.MetricSourceVersa:
 		return 519
+	case metrics.MetricSourceExternalSecrets:
+		return 525
+	case metrics.MetricSourceKueue:
+		return 526
+	case metrics.MetricSourceThermal:
+		return 527
 	default:
 		return 0
 	}

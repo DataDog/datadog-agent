@@ -1,0 +1,72 @@
+[
+  {
+    "service": "panic_recover",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.warmupErrorType",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.warmupErrorType",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 86
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/panic_recover/main.go",
+            "lineNumber": 72
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "warmupErrorType",
+          "location": {
+            "method": "main.warmupErrorType"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "err": {
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "warmup-message"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

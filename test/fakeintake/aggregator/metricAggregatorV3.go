@@ -10,9 +10,9 @@ import (
 	"fmt"
 
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
+	intake_v3 "github.com/DataDog/agent-payload/v5/metrics/intake_v3"
 	"google.golang.org/protobuf/proto"
 
-	apiv3 "github.com/DataDog/datadog-agent/test/fakeintake/aggregator/internal/apiv3"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
@@ -20,9 +20,9 @@ import (
 // into []*MetricSeries — the same type used for /api/v2/series — so FilterMetrics() works
 // transparently regardless of which wire format the agent uses.
 //
-// V3 is a column-oriented protobuf encoding described in
-// test/fakeintake/aggregator/internal/apiv3/payload.proto. The MetricType numeric values are identical
-// to MetricPayload_MetricType (COUNT=1, RATE=2, GAUGE=3), making the cast safe.
+// V3 is a column-oriented protobuf encoding defined in
+// github.com/DataDog/agent-payload/v5/metrics/intake_v3. The MetricType numeric values are
+// identical to MetricPayload_MetricType (COUNT=1, RATE=2, GAUGE=3), making the cast safe.
 func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 	if len(payload.Data) == 0 || bytes.Equal(payload.Data, []byte("{}")) {
 		return []*MetricSeries{}, nil
@@ -36,7 +36,7 @@ func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 		return []*MetricSeries{}, nil
 	}
 
-	var p apiv3.Payload
+	var p intake_v3.Payload
 	if err := proto.Unmarshal(inflated, &p); err != nil {
 		return nil, fmt.Errorf("v3 payload unmarshal: %w", err)
 	}
@@ -44,7 +44,7 @@ func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 		return []*MetricSeries{}, nil
 	}
 
-	r := apiv3.NewReader(p.MetricData)
+	r := NewReader(p.MetricData)
 	if err := r.Initialize(); err != nil {
 		return nil, fmt.Errorf("v3 reader init: %w", err)
 	}
@@ -56,7 +56,7 @@ func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 		}
 
 		metricType := r.Type()
-		if metricType == apiv3.MetricType_Sketch {
+		if metricType == intake_v3.MetricType_Sketch {
 			return nil, fmt.Errorf("unexpected sketch metric %q in V3 series payload", r.Name())
 		}
 
@@ -64,8 +64,9 @@ func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 			Metric: r.Name(),
 			Tags:   append([]string{}, r.Tags()...),
 			// MetricType numeric values are identical between the two proto packages.
-			Type: metricspb.MetricPayload_MetricType(metricType),
-			Unit: r.Unit(),
+			Type:     metricspb.MetricPayload_MetricType(metricType),
+			Unit:     r.Unit(),
+			Interval: int64(r.Interval()),
 		}
 		for _, res := range r.Resources() {
 			if res == nil {

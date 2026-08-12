@@ -36,7 +36,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	agentimpl "github.com/DataDog/datadog-agent/comp/logs/agent/impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -194,7 +194,9 @@ func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*so
 	waitTime := time.Duration(1) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), waitTime)
-	common.LoadComponents(ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+
+	config := pkgconfigsetup.Datadog()
+	common.LoadComponents(ac, config)
 	ac.LoadAndRun(context.Background())
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
 	cancelTimeout()

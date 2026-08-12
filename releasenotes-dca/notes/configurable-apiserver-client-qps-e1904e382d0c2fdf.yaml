@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Added ``kubernetes_apiserver_client_qps`` and ``kubernetes_apiserver_client_burst``
+    configuration options to control the rate limiter for the Cluster Agent's Kubernetes
+    API server client. Default QPS and burst values are increased.

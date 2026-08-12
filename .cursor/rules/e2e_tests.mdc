@@ -26,7 +26,7 @@ configParams:
 ```
 
 **Common Error**: `User: arn:aws:sts::... is not authorized to perform: ecr:BatchGetImage`
-**Solution**: Verify AWS account configuration. Ensure you're authenticated with `aws-vault login sso-agent-sandbox-account-admin`.
+**Solution**: Verify AWS account configuration. Ensure you're authenticated with `aws-vault login sso-agent-sandbox-account-admin-8h`.
 
 ### Kubernetes Tests with ECR Authentication
 

@@ -41,9 +41,16 @@ func WriteConfigs(config Config, configDir string) error {
 		}
 	}
 	if config.ApplicationMonitoringYAML != nil {
-		err = WriteConfig(filepath.Join(configDir, "application_monitoring.yaml"), config.ApplicationMonitoringYAML, 0644, true)
+		appMonitoringPath := filepath.Join(configDir, "application_monitoring.yaml")
+		err = WriteConfig(appMonitoringPath, config.ApplicationMonitoringYAML, 0644, true)
 		if err != nil {
 			return fmt.Errorf("could not write application_monitoring.yaml: %w", err)
+		}
+		// application_monitoring.yaml must be world-readable so non-admin identities (e.g. an
+		// IIS App Pool identity) can read fleet config. The 0644 mode handles this on Linux;
+		// on Windows os.WriteFile ignores POSIX mode, so grant the Everyone-read ACL explicitly.
+		if err = grantEveryoneRead(appMonitoringPath); err != nil {
+			return fmt.Errorf("could not set permissions on application_monitoring.yaml: %w", err)
 		}
 	}
 	for name, config := range config.IntegrationConfigs {
@@ -121,7 +128,25 @@ type DatadogConfigDJM struct {
 
 // DatadogConfigProcessConfig represents the configuration for the process agent
 type DatadogConfigProcessConfig struct {
-	ExpvarPort int `yaml:"expvar_port,omitempty"`
+	ExpvarPort          int                            `yaml:"expvar_port,omitempty"`
+	ProcessCollection   DatadogConfigProcessCollection `yaml:"process_collection,omitempty"`
+	ContainerCollection DatadogConfigProcessContainer  `yaml:"container_collection,omitempty"`
+	ProcessDiscovery    DatadogConfigProcessDiscovery  `yaml:"process_discovery,omitempty"`
+}
+
+// DatadogConfigProcessCollection represents the configuration for live process collection
+type DatadogConfigProcessCollection struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// DatadogConfigProcessContainer represents the configuration for container collection
+type DatadogConfigProcessContainer struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// DatadogConfigProcessDiscovery represents the configuration for process discovery
+type DatadogConfigProcessDiscovery struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // DatadogConfigInstaller represents the configuration for the installer
@@ -284,6 +309,7 @@ type APMConfigurationDefault struct {
 	AppsecEnabled                 *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
+	DataJobsOpenLineageEnabled    *bool   `yaml:"DD_DATA_JOBS_OPENLINEAGE_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
 	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
 	RumEnabled                    *bool   `yaml:"DD_RUM_ENABLED,omitempty"`

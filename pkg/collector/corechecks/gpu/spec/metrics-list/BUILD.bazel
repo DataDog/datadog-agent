@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "metrics-list_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec/metrics-list",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/collector/corechecks/gpu/spec"],
+)
+
+go_binary(
+    name = "metrics-list",
+    embed = [":metrics-list_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -50,6 +50,22 @@ import (
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
 
+// resolveClientComputedStats determines whether APM stats have already been computed for
+// the given resource spans. The _dd.stats_computed resource attribute takes precedence over
+// the HTTP header when explicitly set:
+//   - true / any non-empty, non-"false" value → stats already computed (concentrator skips them)
+//   - false (bool or string "false")           → force stats computation via concentrator
+//
+// When the attribute is absent, fromHeader (derived from Datadog-Client-Computed-Stats) is used.
+func resolveClientComputedStats(attrs pcommon.Map, fromHeader bool) bool {
+	_, ok := attrs.Get(keyStatsComputed)
+	if !ok {
+		return fromHeader
+	}
+	s := transform.GetOTelAttrVal(attrs, true, keyStatsComputed)
+	return s != "" && s != "false"
+}
+
 var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
@@ -372,7 +388,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    transform.GetOTelAttrVal(otelres.Attributes(), true, keyStatsComputed) != "" || clientComputedStats,
+		ClientComputedStats:    resolveClientComputedStats(otelres.Attributes(), clientComputedStats),
 		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
 		TracerPayload: &pb.TracerPayload{
 			Hostname:      hostname,

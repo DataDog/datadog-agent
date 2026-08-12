@@ -52,7 +52,7 @@ func TestGetNTPHosts(t *testing.T) {
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"alibaba"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

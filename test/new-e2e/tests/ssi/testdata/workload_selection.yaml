@@ -2,6 +2,13 @@
 clusterAgent:
   admissionController:
     configMode: "hostip"
+  env:
+    # Disable gradual rollout so injected images keep their human-readable tag
+    # instead of being resolved to a digest. The version assertions below compare
+    # against the configured tag (e.g. "v3.18.1"), which only holds when the
+    # rollout resolver is disabled.
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
+      value: "false"
 datadog:
   apm:
     instrumentation:

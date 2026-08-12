@@ -28,4 +28,13 @@ const (
 	// DropReasonPartialReturn: same as DropReasonPartialEntry, but for the
 	// return side.
 	DropReasonPartialReturn DropReason = 3
+
+	// DropReasonPanicUnwoundLost: the runtime.recovery synthetic event for
+	// the unwound range (Panic_lo_depth, Panic_hi_depth] on Goid failed to
+	// submit. BPF has already evicted the matching in_progress_calls slots,
+	// so userspace must range-scan its own pairing store and emit every
+	// matching invocation as a truncated panic-unwound capture. Probe_id,
+	// Stack_byte_depth, Last_seq and Entry_ktime_ns are not meaningful for
+	// this reason.
+	DropReasonPanicUnwoundLost DropReason = 4
 )

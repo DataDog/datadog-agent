@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -38,10 +39,17 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs))
+	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)+3)
 
+	expectedLightErrors := 0.0
+	expectedHeavyErrors := 0.0
 	for bucket := range nvlinkFECHistoryFieldIDs {
 		metric := collectedMetrics[bucket]
+		if bucket > 0 && bucket <= defaultNVLinkFECLightErrorThreshold {
+			expectedLightErrors += float64(100 + bucket)
+		} else if bucket > defaultNVLinkFECLightErrorThreshold {
+			expectedHeavyErrors += float64(100 + bucket)
+		}
 
 		require.Equal(t, nvlinkFECHistoryMetricName, metric.Name)
 		require.Equal(t, metrics.HistogramType, metric.Type)
@@ -49,10 +57,65 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 		require.Equal(t, Medium, metric.Priority)
 		require.Contains(t, metric.Tags, "nvlink_port:1")
 		require.NotNil(t, metric.HistogramBucket)
-		require.Equal(t, [2]float64{float64(bucket), float64(bucket + 1)}, metric.HistogramBucket.Bounds)
+		require.Equal(t, [2]float64{float64(bucket), float64(bucket)}, metric.HistogramBucket.Bounds)
 		require.True(t, metric.HistogramBucket.Monotonic)
 		require.False(t, metric.HistogramBucket.FlushFirstValue)
 	}
+
+	require.Equal(t, &Metric{
+		Name:                nvlinkFECNoErrorsMetricName,
+		Type:                metrics.GaugeType,
+		Value:               100,
+		Priority:            Medium,
+		Tags:                []string{"nvlink_port:1"},
+		RateCalculationMode: PerSecondRateCalculation,
+	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)])
+	require.Equal(t, &Metric{
+		Name:                nvlinkFECLightErrorsMetricName,
+		Type:                metrics.GaugeType,
+		Value:               expectedLightErrors,
+		Priority:            Medium,
+		Tags:                []string{"nvlink_port:1"},
+		RateCalculationMode: PerSecondRateCalculation,
+	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+1])
+	require.Equal(t, &Metric{
+		Name:                nvlinkFECHeavyErrorsMetricName,
+		Type:                metrics.GaugeType,
+		Value:               expectedHeavyErrors,
+		Priority:            Medium,
+		Tags:                []string{"nvlink_port:1"},
+		RateCalculationMode: PerSecondRateCalculation,
+	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+2])
+}
+
+func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
+	pkgconfigsetup.Datadog().SetInTest(nvlinkFECLightErrorThresholdConfig, 2)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest(nvlinkFECLightErrorThresholdConfig, defaultNVLinkFECLightErrorThreshold)
+	})
+
+	fieldValues := make(map[uint32]testutil.MockFieldValue, len(nvlinkFECHistoryFieldIDs))
+	for i, fieldID := range nvlinkFECHistoryFieldIDs {
+		fieldValues[fieldID] = testutil.NewFieldValue(uint64(i))
+	}
+
+	mockDevice := setupMockDevice(t,
+		testutil.WithNVLinkLinkCount(1),
+		testutil.WithFieldValuesFullOverride(fieldValues),
+	)
+
+	collector, err := newNVLinkFECCollector(mockDevice, &CollectorDependencies{
+		Config: pkgconfigsetup.Datadog(),
+	})
+	require.NoError(t, err)
+
+	collectedMetrics, err := collector.Collect()
+	require.NoError(t, err)
+	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)+3)
+
+	require.Equal(t, 0.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)].Value)
+	require.Equal(t, 3.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+1].Value)
+	require.Equal(t, 117.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+2].Value)
 }
 
 func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
@@ -96,11 +159,23 @@ func TestNVLinkFECMetricSpecEntries(t *testing.T) {
 	spec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
 
-	metricSpec, ok := spec.Metrics[nvlinkFECHistoryMetricName]
-	require.True(t, ok, "metric %s missing from spec", nvlinkFECHistoryMetricName)
-	require.Equal(t, "histogram", metricSpec.Metadata.MetricType)
-	require.Contains(t, metricSpec.Tagsets, "nvlink")
-	require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical))
-	require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeMIG))
-	require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeVGPU))
+	testCases := []struct {
+		metricName string
+		metricType string
+	}{
+		{metricName: nvlinkFECHistoryMetricName, metricType: "histogram"},
+		{metricName: nvlinkFECNoErrorsMetricName, metricType: "gauge"},
+		{metricName: nvlinkFECLightErrorsMetricName, metricType: "gauge"},
+		{metricName: nvlinkFECHeavyErrorsMetricName, metricType: "gauge"},
+	}
+
+	for _, testCase := range testCases {
+		metricSpec, ok := spec.Metrics[testCase.metricName]
+		require.True(t, ok, "metric %s missing from spec", testCase.metricName)
+		require.Equal(t, testCase.metricType, metricSpec.Metadata.MetricType)
+		require.Contains(t, metricSpec.Tagsets, "nvlink")
+		require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical))
+		require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeMIG))
+		require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeVGPU))
+	}
 }

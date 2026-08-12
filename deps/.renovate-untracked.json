@@ -33,6 +33,7 @@
     "acl": "Pending tracking. Hosted on Savannah (download.savannah.nongnu.org); needs a customDatasource. Phase 3.",
     "curl": "Pending tracking in Phase 2a (github-releases batch). Tarball is on curl.haxx.se but releases are tagged on github.com/curl/curl.",
     "cpython": "Pending tracking in Phase 2a (github-releases batch). Released on python.org; corresponding GitHub tags exist at github.com/python/cpython.",
+    "pip": "Pending tracking.",
     "freetds": "Pending tracking in Phase 2a (github-releases batch). Tarballs on freetds.org; releases tagged at github.com/FreeTDS/freetds.",
     "libpcap": "Pending tracking in Phase 2a (github-releases batch). Tarball on tcpdump.org; releases tagged at github.com/the-tcpdump-group/libpcap.",
     "nfsiostat": "Pending tracking in Phase 2c. Hosted on kernel.org mirrors (no GitHub mirror with reliable tags). Needs a customDatasource.",
@@ -54,6 +55,14 @@
     "xz_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_src_deps dict alongside the base xz. Will be tracked together with xz (Phase 2a).",
     "zlib_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_src_deps dict alongside the base zlib. Will be tracked together with zlib (Phase 2a).",
     "libffi_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_bin_deps dict. Note: pinned to 3.4.4 (cpython-bin-deps), independent of the base libffi version — must be tracked separately.",
-    "tcltk_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_bin_deps dict. No upstream `tcltk` dep — needs its own customManager (cpython-bin-deps tags)."
+    "tcltk_win": "Pending tracking. Loop-emitted Windows variant in deps/cpython/cpython.MODULE.bazel; version pinned via the python_bin_deps dict. No upstream `tcltk` dep — needs its own customManager (cpython-bin-deps tags).",
+    "agent_data_plane_linux-amd64": "Pending tracking. New dep from the ADP Bazel migration; releases are published at github.com/DataDog/saluki. All 8 platform variants share VERSION and will be tracked together.",
+    "agent_data_plane_linux-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_fips-linux-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_fips-linux-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_darwin-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together."
   }
 }

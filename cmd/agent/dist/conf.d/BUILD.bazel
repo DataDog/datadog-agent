@@ -68,5 +68,8 @@ pkg_filegroup(
         "//conditions:default": [],
     }),
     prefix = select(CONF_DIR_SELECTOR),
-    visibility = ["//cmd/agent/dist:__pkg__"],
+    visibility = [
+        "//cmd/agent/dist:__pkg__",
+        "//packages/agent:__subpackages__",
+    ],
 )

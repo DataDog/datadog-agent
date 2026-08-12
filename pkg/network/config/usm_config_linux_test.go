@@ -20,7 +20,7 @@ import (
 func TestDisableMapPreallocation(t *testing.T) {
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.disable_map_preallocation", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.disable_map_preallocation", false)
 		cfg := New()
 
 		assert.False(t, cfg.DisableMapPreallocation)

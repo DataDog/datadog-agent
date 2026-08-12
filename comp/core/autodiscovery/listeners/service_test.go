@@ -194,6 +194,13 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		Instances:     []integration.Data{[]byte("port: 80")},
 		Source:        "file:nginx/auto_conf.yaml",
 	}
+	unrelatedDiscoveryTpl := integration.Config{
+		Name:          "nginx",
+		Provider:      names.File,
+		ADIdentifiers: []string{"nginx"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:nginx/auto_conf.yaml",
+	}
 
 	containsDigests := func(configs map[string]integration.Config, want ...integration.Config) []string {
 		t.Helper()
@@ -268,6 +275,42 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 			"logs-only sibling should be kept")
 	})
 
+	t.Run("discovery dropped when generic integration sibling matches same service", func(t *testing.T) {
+		openmetricsSibling := integration.Config{
+			Name:          "openmetrics",
+			Provider:      names.File,
+			ADIdentifiers: []string{"redis"},
+			Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://%%host%%:9121/metrics")},
+			Source:        "file:openmetrics/conf.yaml",
+		}
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():          discoveryTpl,
+			openmetricsSibling.Digest():    openmetricsSibling,
+			unrelatedDiscoveryTpl.Digest(): unrelatedDiscoveryTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be dropped when an openmetrics config matches the same service, even under a different Name")
+		assert.Contains(t, configs, openmetricsSibling.Digest(), "openmetrics config should be kept")
+		assert.NotContains(t, configs, unrelatedDiscoveryTpl.Digest(),
+			"unrelated discovery template should also be dropped: a generic integration match covers every integration")
+	})
+
+	t.Run("discovery dropped when generic integration is configured host-wide", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("prometheus")
+
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():          discoveryTpl,
+			unrelatedDiscoveryTpl.Digest(): unrelatedDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be dropped when a prometheus config is scheduled host-wide")
+		assert.NotContains(t, configs, unrelatedDiscoveryTpl.Digest(),
+			"unrelated discovery template should also be dropped: a generic integration match covers every integration")
+	})
+
 	t.Run("instrumentation check overrides matched file check", func(t *testing.T) {
 		fileTpl := integration.Config{
 			Name:      "redis",
@@ -329,7 +372,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("no CCA config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, logsTpl, noLogsTpl))
@@ -337,7 +380,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("no other logs config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, noLogsTpl, ccaTpl))
@@ -345,7 +388,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("other logs config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		assert.Equal(t, []integration.Config{ccaTpl},
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))
@@ -353,7 +396,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 
 	t.Run("other logs config, CCA disabled", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", false)
+		mockConfig.SetInTest("logs_config.container_collect_all", false)
 
 		assert.Equal(t, nothingDropped,
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))

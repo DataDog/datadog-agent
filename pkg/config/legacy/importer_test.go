@@ -16,11 +16,11 @@ import (
 
 func TestGetAgentConfig(t *testing.T) {
 	// load configuration from Go
-	agentConfigGo, err := GetAgentConfig("./tests/datadog.conf")
+	agentConfigGo, err := GetAgentConfig("./testdata/datadog.conf")
 	require.NoError(t, err)
 
 	pyConfig := map[string]string{}
-	data, err := os.ReadFile("./tests/config.json")
+	data, err := os.ReadFile("./testdata/config.json")
 	require.NoError(t, err)
 	err = json.Unmarshal(data, &pyConfig)
 	require.NoError(t, err)

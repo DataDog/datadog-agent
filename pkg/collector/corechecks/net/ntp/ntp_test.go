@@ -89,7 +89,7 @@ func TestNTPOK(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
@@ -145,7 +145,7 @@ func TestNTPCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -198,7 +198,7 @@ func TestNTPError(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -253,7 +253,7 @@ func TestNTPCloudFallbackToPool(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, []byte(""), []byte(""), "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -307,7 +307,7 @@ func TestNTPCloudAndPoolBothFail(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, []byte(""), []byte(""), "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -356,7 +356,7 @@ func TestNTPUserConfiguredHostsNoFallback(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	// Set hosts: [custom.ntp.example.com] in the YAML config
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, []byte("hosts:\n  - custom.ntp.example.com"), []byte(""), "test", "provider")
 
@@ -394,7 +394,7 @@ func TestNTPInvalid(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -438,7 +438,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -503,7 +503,7 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -568,7 +568,7 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
@@ -679,7 +679,7 @@ func TestDefaultHostConfig(t *testing.T) {
 
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
-	mockConfig.SetWithoutSource("cloud_provider_metadata", []string{})
+	mockConfig.SetInTest("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test", "provider")
@@ -705,7 +705,7 @@ port: %d
 	err := ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test", "provider")
 	assert.Nil(t, err)
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSender(t, ntpCheck.ID())
 	mockSender.SetupAcceptAll()
 
 	ntpCheck.Run()
@@ -760,7 +760,7 @@ func TestNTPDynamicServerRediscovery(t *testing.T) {
 	// Configure check with UseLocalDefinedServers enabled
 	ntpCfg := []byte("use_local_defined_servers: true")
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, []byte(""), "test", "provider")
 	assert.NoError(t, err)
 
@@ -810,7 +810,7 @@ func TestNTPUsesResponseTimestamp(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test", "provider")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)

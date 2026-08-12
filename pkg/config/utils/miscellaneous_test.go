@@ -25,27 +25,27 @@ func TestIsCoreAgentEnabled(t *testing.T) {
 			name:     "core_agent.enabled false",
 			expected: false,
 			setConfig: func(m model.Config) {
-				m.SetWithoutSource("core_agent.enabled", false)
+				m.SetInTest("core_agent.enabled", false)
 			},
 		},
 		{
 			name:     "All enable_payloads.enabled false",
 			expected: false,
 			setConfig: func(m model.Config) {
-				m.SetWithoutSource("enable_payloads.events", false)
-				m.SetWithoutSource("enable_payloads.series", false)
-				m.SetWithoutSource("enable_payloads.service_checks", false)
-				m.SetWithoutSource("enable_payloads.sketches", false)
+				m.SetInTest("enable_payloads.events", false)
+				m.SetInTest("enable_payloads.series", false)
+				m.SetInTest("enable_payloads.service_checks", false)
+				m.SetInTest("enable_payloads.sketches", false)
 			},
 		},
 		{
 			name:     "Some enable_payloads.enabled false",
 			expected: true,
 			setConfig: func(m model.Config) {
-				m.SetWithoutSource("enable_payloads.events", false)
-				m.SetWithoutSource("enable_payloads.series", true)
-				m.SetWithoutSource("enable_payloads.service_checks", false)
-				m.SetWithoutSource("enable_payloads.sketches", true)
+				m.SetInTest("enable_payloads.events", false)
+				m.SetInTest("enable_payloads.series", true)
+				m.SetInTest("enable_payloads.service_checks", false)
+				m.SetInTest("enable_payloads.sketches", true)
 			},
 		},
 		{
@@ -100,8 +100,8 @@ func TestIsAPMEnabled(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("apm_config.enabled", test.apmEnabled)
-			mockConfig.SetWithoutSource("apm_config.error_tracking_standalone.enabled", test.errorTrackingEnable)
+			mockConfig.SetInTest("apm_config.enabled", test.apmEnabled)
+			mockConfig.SetInTest("apm_config.error_tracking_standalone.enabled", test.errorTrackingEnable)
 			assert.Equal(t,
 				test.expected, IsAPMEnabled(mockConfig),
 				"Was expecting IsAPMEnabled to return", test.expected)
@@ -119,83 +119,83 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 			name:     "explicitly enabled",
 			expected: true,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("remote_configuration.enabled", true)
+				m.SetInTest("remote_configuration.enabled", true)
 			},
 		},
 		{
 			name:     "explicitly disabled",
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("remote_configuration.enabled", false)
+				m.SetInTest("remote_configuration.enabled", false)
 			},
 		},
 		{
 			name:     "gov via fips.enabled and not explicitly enabled",
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("fips.enabled", true)
+				m.SetInTest("fips.enabled", true)
 			},
 		},
 		{
 			name:     "gov via site and not explicitly enabled",
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("site", "ddog-gov.com")
+				m.SetInTest("site", "ddog-gov.com")
 			},
 		},
 		{
 			name:     "gov via fips.enabled and explicitly enabled",
 			expected: true,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("fips.enabled", true)
-				m.SetWithoutSource("remote_configuration.enabled", true)
+				m.SetInTest("fips.enabled", true)
+				m.SetInTest("remote_configuration.enabled", true)
 			},
 		},
 		{
 			name:     "gov via site and explicitly enabled",
 			expected: true,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("site", "ddog-gov.com")
-				m.SetWithoutSource("remote_configuration.enabled", true)
+				m.SetInTest("site", "ddog-gov.com")
+				m.SetInTest("remote_configuration.enabled", true)
 			},
 		},
 		{
 			name:     "gov via fips.enabled and explicitly disabled",
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("fips.enabled", true)
-				m.SetWithoutSource("remote_configuration.enabled", false)
+				m.SetInTest("fips.enabled", true)
+				m.SetInTest("remote_configuration.enabled", false)
 			},
 		},
 		{
 			name:     "gov via site and explicitly disabled",
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("site", "ddog-gov.com")
-				m.SetWithoutSource("remote_configuration.enabled", false)
+				m.SetInTest("site", "ddog-gov.com")
+				m.SetInTest("remote_configuration.enabled", false)
 			},
 		},
 		{
 			name:     "gov via long site and not explicitly enabled",
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("site", "xxxx99.ddog-gov.com")
+				m.SetInTest("site", "xxxx99.ddog-gov.com")
 			},
 		},
 		{
 			name:     "gov via long site and explicitly enabled",
 			expected: true,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("site", "xxxx99.ddog-gov.com")
-				m.SetWithoutSource("remote_configuration.enabled", true)
+				m.SetInTest("site", "xxxx99.ddog-gov.com")
+				m.SetInTest("remote_configuration.enabled", true)
 			},
 		},
 		{
 			name:     "gov via long site and explicitly disabled",
 			expected: false,
 			setConfig: func(m model.BuildableConfig) {
-				m.SetWithoutSource("site", "xxxx99.ddog-gov.com")
-				m.SetWithoutSource("remote_configuration.enabled", false)
+				m.SetInTest("site", "xxxx99.ddog-gov.com")
+				m.SetInTest("remote_configuration.enabled", false)
 			},
 		},
 	}
@@ -214,28 +214,28 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 func TestIsCloudProviderEnabled(t *testing.T) {
 	config := configmock.New(t)
 
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	config.SetInTest("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
 	assert.True(t, IsCloudProviderEnabled("AWS", config))
 	assert.True(t, IsCloudProviderEnabled("GCP", config))
 	assert.True(t, IsCloudProviderEnabled("Alibaba", config))
 	assert.True(t, IsCloudProviderEnabled("Azure", config))
 	assert.True(t, IsCloudProviderEnabled("Tencent", config))
 
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws"})
+	config.SetInTest("cloud_provider_metadata", []string{"aws"})
 	assert.True(t, IsCloudProviderEnabled("AWS", config))
 	assert.False(t, IsCloudProviderEnabled("GCP", config))
 	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
 	assert.False(t, IsCloudProviderEnabled("Azure", config))
 	assert.False(t, IsCloudProviderEnabled("Tencent", config))
 
-	config.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	config.SetInTest("cloud_provider_metadata", []string{"tencent"})
 	assert.False(t, IsCloudProviderEnabled("AWS", config))
 	assert.False(t, IsCloudProviderEnabled("GCP", config))
 	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
 	assert.False(t, IsCloudProviderEnabled("Azure", config))
 	assert.True(t, IsCloudProviderEnabled("Tencent", config))
 
-	config.SetWithoutSource("cloud_provider_metadata", []string{})
+	config.SetInTest("cloud_provider_metadata", []string{})
 	assert.False(t, IsCloudProviderEnabled("AWS", config))
 	assert.False(t, IsCloudProviderEnabled("GCP", config))
 	assert.False(t, IsCloudProviderEnabled("Alibaba", config))

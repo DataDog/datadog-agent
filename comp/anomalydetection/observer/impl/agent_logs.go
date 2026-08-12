@@ -7,46 +7,77 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// installAgentLogTap registers a pkg/util/log observer that forwards agent-internal
-// log lines into the observer pipeline.  WARN/ERROR/CRITICAL are always forwarded;
-// INFO/DEBUG/TRACE are sampled at the provided rates (0.0–1.0).
-func installAgentLogTap(handle observerdef.Handle, sampleInfo, sampleDebug, sampleTrace float64) {
-	baseTags := []string{"source:datadog-agent"}
+const agentLogSource = "datadog-agent"
 
-	var infoN, debugN, traceN uint64
-	shouldSample := func(level pkglog.LogLevel) bool {
-		switch level {
-		case pkglog.WarnLvl, pkglog.ErrorLvl, pkglog.CriticalLvl:
-			return true
-		case pkglog.InfoLvl:
-			return samplePass(sampleInfo, atomic.AddUint64(&infoN, 1))
-		case pkglog.DebugLvl:
-			return samplePass(sampleDebug, atomic.AddUint64(&debugN, 1))
-		case pkglog.TraceLvl:
-			return samplePass(sampleTrace, atomic.AddUint64(&traceN, 1))
+// installAgentLogTap registers a pkg/util/log observer that forwards agent-internal
+// log lines into the observer pipeline. Logs below minSeverity are dropped before
+// any rate-limiting. The three max rates are in logs/second over a 10-second
+// window: maxRateHigh (warn/error/critical), maxRateMedium (info), maxRateLow
+// (trace/debug). -1 means unlimited; 0 drops all.
+// onDropped is called with the priority bucket name ("high", "medium", "low")
+// when a log is dropped by the rate limiter. It is NOT called for min_severity
+// drops. It may be nil.
+// rules is applied after the severity gate but before the rate gate, so excluded
+// messages do not consume rate budget. A nil rules allows all.
+func installAgentLogTap(handle observerdef.Handle, minSeverity string, maxRateHigh, maxRateMedium, maxRateLow float64, onDropped func(priority string), rules *logsfilter.Rules) {
+	baseTags := []string{"source:" + agentLogSource}
+	minBucket := logsfilter.MinBucketForSeverity(minSeverity)
+
+	var highW, mediumW, lowW logsfilter.RateWindow
+	// chargeRate consumes one slot from the appropriate rate window and returns
+	// (true, "") if allowed or (false, tier) if rate-limited.
+	chargeRate := func(level pkglog.LogLevel) (bool, string) {
+		tier := logsfilter.RateTierForBucket(logsfilter.BucketForStatus(strings.ToLower(level.String())))
+		var allowed bool
+		switch tier {
+		case "high":
+			allowed = highW.Allow(maxRateHigh)
+		case "medium":
+			allowed = mediumW.Allow(maxRateMedium)
 		default:
-			return samplePass(sampleInfo, atomic.AddUint64(&infoN, 1))
+			allowed = lowW.Allow(maxRateLow)
 		}
+		if allowed {
+			return true, ""
+		}
+		return false, tier
 	}
 
 	pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
-		if !shouldSample(level) {
+		// 1. Severity gate: cheap, no side effects.
+		bucket := logsfilter.BucketForStatus(strings.ToLower(level.String()))
+		if bucket < minBucket {
 			return
 		}
+		// 2. Build tags and apply processing rules before consuming rate budget.
 		tags := make([]string, 0, 3)
 		tags = append(tags, baseTags...)
 		if name := pkglog.GetLoggerName(); name != "" {
 			tags = append(tags, "component:"+name)
 		}
 		tags = append(tags, "level:"+strings.ToLower(level.String()))
+		if rules.NeedsSortedTags() {
+			slices.Sort(tags)
+		}
+		if !rules.IsAllowed(agentLogSource, tags) {
+			return
+		}
+		// 3. Rate limiting: only charge budget for messages that pass the rule filter.
+		if forward, droppedPriority := chargeRate(level); !forward {
+			if droppedPriority != "" && onDropped != nil {
+				onDropped(droppedPriority)
+			}
+			return
+		}
 		payload, _ := json.Marshal(map[string]any{
 			"msg": message,
 		})
@@ -58,23 +89,6 @@ func installAgentLogTap(handle observerdef.Handle, sampleInfo, sampleDebug, samp
 			timestampMs: time.Now().UnixMilli(),
 		})
 	})
-}
-
-// samplePass returns true at approximately rate (0.0–1.0) of calls, using a
-// deterministic modulo counter so the sampling distribution is even.
-func samplePass(rate float64, n uint64) bool {
-	if rate <= 0 {
-		return false
-	}
-	if rate >= 1 {
-		return true
-	}
-	const denom = 1000
-	threshold := uint64(rate * denom)
-	if threshold == 0 {
-		threshold = 1
-	}
-	return (n % denom) < threshold
 }
 
 // agentLogView is a minimal observerdef.LogView implementation for agent-internal logs.

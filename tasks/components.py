@@ -86,83 +86,22 @@ def has_type_component(content) -> bool:
 # The migration of these components is in progresss.
 # Please do not add a new component to this list.
 components_to_migrate = [
-    "comp/aggregator/demultiplexer/component.go",
     "comp/core/config/component.go",
     "comp/core/flare/component.go",
-    "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
-    "comp/metadata/inventoryagent/component.go",
-    "comp/remote-config/rcclient/component.go",
-    "comp/trace/config/component.go",
-    "comp/process/apiserver/component.go",
 ]
 
 
 # List of components that use the classic style, where `comp/<component>/<component>impl` exists
 # New components should use the new style of `def`, `impl`, `fx` folders
 components_classic_style = [
-    'comp/agent/autoexit/autoexitimpl',
-    'comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl',
-    'comp/agent/expvarserver/expvarserverimpl',
-    'comp/agent/jmxlogger/jmxloggerimpl',
     'comp/api/api/apiimpl',
     'comp/api/api/def',
-    'comp/api/authtoken/fetchonlyimpl',
-    'comp/api/authtoken/createandfetchimpl',
-    'comp/checks/agentcrashdetect/agentcrashdetectimpl',
     "comp/checks/winregistry/impl",
-    'comp/collector/collector/collectorimpl',
-    'comp/core/configsync/configsyncimpl',
     'comp/core/hostname/hostnameimpl',
-    'comp/core/pid/pidimpl',
     'comp/core/status/statusimpl',
-    'comp/dogstatsd/pidmap/pidmapimpl',
-    'comp/dogstatsd/serverDebug/serverdebugimpl',
-    'comp/dogstatsd/status/statusimpl',
     'comp/etw/impl',
-    'comp/forwarder/eventplatform/eventplatformimpl',
-    'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
-    'comp/logs/adscheduler/adschedulerimpl',
-    'comp/logs/agent/agentimpl',
-    'comp/metadata/host/hostimpl',
-    'comp/metadata/inventorychecks/inventorychecksimpl',
-    'comp/metadata/inventoryhost/inventoryhostimpl',
-    'comp/metadata/packagesigning/packagesigningimpl',
-    'comp/metadata/resources/resourcesimpl',
-    'comp/metadata/runner/runnerimpl',
-    'comp/ndmtmp/forwarder/forwarderimpl',
-    'comp/networkpath/npcollector/npcollectorimpl',
     'comp/otelcol/logsagentpipeline/logsagentpipelineimpl',
-    'comp/process/agent/agentimpl',
-    'comp/process/connectionscheck/connectionscheckimpl',
-    'comp/process/containercheck/containercheckimpl',
-    'comp/process/expvars/expvarsimpl',
-    'comp/process/forwarders/forwardersimpl',
-    'comp/process/hostinfo/hostinfoimpl',
-    'comp/process/processcheck/processcheckimpl',
-    'comp/process/processdiscoverycheck/processdiscoverycheckimpl',
-    'comp/process/profiler/profilerimpl',
-    'comp/process/rtcontainercheck/rtcontainercheckimpl',
-    'comp/process/runner/runnerimpl',
-    'comp/process/status/statusimpl',
-    'comp/process/submitter/submitterimpl',
-    'comp/remote-config/rcservice/rcserviceimpl',
-    'comp/remote-config/rcservicemrf/rcservicemrfimpl',
-    'comp/remote-config/rcstatus/rcstatusimpl',
-    'comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl',
-    'comp/snmptraps/config/configimpl',
-    'comp/snmptraps/formatter/formatterimpl',
-    'comp/snmptraps/forwarder/forwarderimpl',
-    'comp/snmptraps/listener/listenerimpl',
-    'comp/snmptraps/oidresolver/oidresolverimpl',
-    'comp/snmptraps/status/statusimpl',
-    'comp/systray/systray/systrayimpl',
-    'comp/trace/etwtracer/etwtracerimpl',
-    'comp/trace/status/statusimpl',
-    'comp/updater/localapi/localapiimpl',
-    'comp/updater/localapiclient/localapiclientimpl',
-    'comp/updater/telemetry/telemetryimpl',
-    'comp/updater/updater/updaterimpl',
 ]
 
 
@@ -181,6 +120,7 @@ ignore_fx_import = [
     "comp/collector/collector",
     "comp/forwarder/eventplatformreceiver",
     "comp/forwarder/orchestrator",
+    "comp/logs/agent",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
@@ -194,6 +134,7 @@ ignore_provide_component_constructor_missing = [
     "comp/collector/collector",
     "comp/forwarder/eventplatformreceiver",
     "comp/forwarder/orchestrator",
+    "comp/logs/agent",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
@@ -228,6 +169,12 @@ def check_component_contents_and_file_hiearchy(comp):
     if comp.def_file == 'comp/api/api/def/component.go':
         return
 
+    # Definition file must be named 'component.go' for v2 components. This is found by content
+    # (its 'type Component' definition) rather than by name, so a wrongly-named file is reported
+    # here instead of silently failing to be recognized as the component's definition.
+    if comp.version == 2 and pathlib.Path(comp.def_file).name != 'component.go':
+        return f"** {comp.def_file} should be renamed to 'component.go'. See https://datadoghq.dev/datadog-agent/components/creating-components/"
+
     # Definition file `component.go` (v1) or `def/component.go` (v2) must use `package <compname>`
     pkgname = parse_package_name(comp.def_file)
     if pkgname != comp.name:
@@ -256,7 +203,7 @@ def check_component_contents_and_file_hiearchy(comp):
             for part in src_file.parts:
                 if "impl-" in part:
                     parts = part.split("-")
-                    expectname = parts[1] + 'impl'
+                    expectname = ''.join(parts[1:]) + 'impl'
 
             if pkgname != expectname:
                 return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
@@ -428,15 +375,40 @@ def get_components_and_bundles():
     return sorted(components, key=lambda c: c.path), sorted(sorted_bundles, key=lambda b: b.path)
 
 
+def find_component_def_file(def_dir):
+    """
+    Return the Go file in def_dir that defines the Component interface, if any.
+
+    Components are expected to name this file 'component.go' (checked separately in
+    check_component_contents_and_file_hiearchy), but we locate it here by content so that a
+    misnamed file still gets picked up as a component - and reported with an actionable error -
+    instead of silently vanishing from component/codeowners generation.
+    """
+    for entry in sorted(def_dir.iterdir()):
+        if not entry.is_file() or not entry.name.endswith('.go') or entry.name.endswith('_test.go'):
+            continue
+        content = read_file_content(entry).split('\n')
+        if any(line.startswith('type Component interface') or line.startswith('type Component = ') for line in content):
+            return entry
+
+    return None
+
+
 def locate_component_def(dir):
     """
     Locate the component, if this directory contains a component
     """
     component_name = dir.name.replace('-', '').lower()
 
-    # v2 component: this folder is a component root if it contains 'def/component.go'
+    # v2 component: this folder is a component root if it contains 'def/component.go', or, failing
+    # that, another Go file in 'def' that defines the Component interface (see find_component_def_file)
     def_file = dir / 'def/component.go'
-    if def_file.is_file():
+    if not def_file.is_file():
+        def_subdir = dir / 'def'
+        if def_subdir.is_dir():
+            def_file = find_component_def_file(def_subdir)
+
+    if def_file is not None and def_file.is_file():
         # comp/api/api/def/component.go is a special case, it's not a component using version 2
         # PLEASE DO NOT ADD MORE EXCEPTIONS
         if to_posix_path(def_file) == "comp/api/api/def/component.go":

@@ -18,7 +18,7 @@ import (
 	logger "github.com/DataDog/datadog-agent/comp/core/log/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !windows && !darwin
+//go:build !windows && !darwin && !aix
 
 // Package flare implements 'agent flare'.
 package flare
@@ -18,10 +18,10 @@ import (
 
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
 func InjectConnectionFailures(mockSysProbeConfig model.Config, _ model.Config) {
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", "/opt/datadog-agent/run/sysprobe-bad.sock")
-	mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("network_config.direct_send", false)
+	mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", "/opt/datadog-agent/run/sysprobe-bad.sock")
+	mockSysProbeConfig.SetInTest("network_config.enabled", true)
+	mockSysProbeConfig.SetInTest("network_config.direct_send", false)
 }
 
 // CheckExpectedConnectionFailures checks the expected errors after simulated

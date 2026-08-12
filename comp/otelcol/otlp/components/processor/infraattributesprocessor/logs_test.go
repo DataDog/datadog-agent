@@ -224,3 +224,49 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 		})
 	}
 }
+
+// TestInfraAttributesLogProcessorIgnoresContainerTagPromotion is a regression
+// guard: container_tag_promotion only makes sense for traces
+// (_dd.tags.container is a trace-agent-specific mechanism), so the logs
+// processor must always behave as "off" even when the option is set to
+// duplicate/rename.
+func TestInfraAttributesLogProcessorIgnoresContainerTagPromotion(t *testing.T) {
+	for _, mode := range []ContainerTagPromotionMode{ContainerTagPromotionDuplicate, ContainerTagPromotionRename} {
+		t.Run(string(mode), func(t *testing.T) {
+			next := new(consumertest.LogsSink)
+			cfg := &Config{
+				Cardinality:                types.LowCardinality,
+				TraceContainerTagPromotion: mode,
+			}
+			tc := testutil.NewTestTaggerClient()
+			tc.TagMap["container_id://test"] = []string{"test_tag:bar"}
+
+			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+				return "test-host", nil
+			})
+			flp, err := factory.CreateLogs(
+				context.Background(),
+				processortest.NewNopSettings(Type),
+				cfg,
+				next,
+			)
+			assert.NoError(t, err)
+			ctx := context.Background()
+			assert.NoError(t, flp.Start(ctx, nil))
+
+			ld := testResourceLogs([]logWithResource{{
+				logNames:           inLogNames,
+				resourceAttributes: map[string]any{"container.id": "test"},
+			}})
+			assert.NoError(t, flp.ConsumeLogs(ctx, ld))
+			assert.NoError(t, flp.Shutdown(ctx))
+
+			assert.Len(t, next.AllLogs(), 1)
+			out := next.AllLogs()[0].ResourceLogs().At(0).Resource().Attributes().AsRaw()
+			assert.EqualValues(t, map[string]any{
+				"container.id": "test",
+				"test_tag":     "bar",
+			}, out, "logs must never gain a datadog.container.tag.* copy, regardless of container_tag_promotion")
+		})
+	}
+}

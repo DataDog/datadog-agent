@@ -42,6 +42,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -166,6 +167,8 @@ func TestSplitTagRegex(t *testing.T) {
 
 		logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 		assert.Nil(t, err)
+		previousLogger := log.Default()
+		t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
@@ -280,8 +283,8 @@ var stringCodeBody string
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", "-1")
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -323,8 +326,8 @@ func TestConfigHostname(t *testing.T) {
 		}
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
-		coreConfig.SetWithoutSource("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetWithoutSource("cmd_port", "-1")
+		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
+		coreConfig.SetInTest("cmd_port", "-1")
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -364,7 +367,7 @@ func TestConfigHostname(t *testing.T) {
 
 	t.Run("serverless", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_default.yaml")
-		coreConfig.SetWithoutSource("serverless.enabled", true)
+		coreConfig.SetInTest("serverless.enabled", true)
 		config := buildComponent(t, false, coreConfig)
 		cfg := config.Object()
 
@@ -554,6 +557,21 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal(t, 28125, cfg.StatsdPort)
 }
 
+// TestReceiverHostKubernetesDefaultOverridesBindHost reproduces the case where bind_host is set
+// explicitly but apm_non_local_traffic comes only from the Kubernetes binary default (applied at
+// SourceDefault, so IsConfigured is false). The trace receiver must still listen on 0.0.0.0,
+// matching the historical datadog-kubernetes.yaml behavior, while statsd keeps honoring bind_host.
+func TestReceiverHostKubernetesDefaultOverridesBindHost(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.Set("bind_host", "127.0.0.1", configmodel.SourceFile)
+	coreConfig.Set("apm_config.apm_non_local_traffic", true, configmodel.SourceDefault)
+
+	cfg := buildComponent(t, true, coreConfig).Object()
+	require.NotNil(t, cfg)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.Equal(t, "127.0.0.1", cfg.StatsdHost)
+}
+
 func TestDisableLoggingConfig(t *testing.T) {
 	config := buildConfigComponentFromYAML(t, true, "./testdata/disable_file_logging.yaml")
 	cfg := config.Object()
@@ -564,6 +582,16 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestFullYamlConfig(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
@@ -2323,7 +2351,7 @@ func buildConfigComponentFromOverrides(t *testing.T, setHostnameInConfig bool, s
 
 	coreConfig := configcomp.NewMock(t)
 	for k, v := range settings {
-		coreConfig.SetWithoutSource(k, v)
+		coreConfig.SetInTest(k, v)
 	}
 	return buildComponent(t, setHostnameInConfig, coreConfig)
 }
@@ -2338,7 +2366,7 @@ func buildComponentWithLoggerComponent(t *testing.T, setHostnameInConfig bool, c
 	// set the hostname in the config to avoid trying to create a connection to the core agent
 	// (This can be slow and flaky in tests that don't need to run this logic)
 	if setHostnameInConfig {
-		coreConfig.SetWithoutSource("hostname", "testhostname")
+		coreConfig.SetInTest("hostname", "testhostname")
 	}
 
 	pkgconfigsetup.LoadProxyFromEnv(coreConfig)
@@ -2648,6 +2676,26 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			name:     "logs_disabled_no_override",
 			settings: map[string]interface{}{"logs_enabled": false},
 			expected: false,
+		},
+		{
+			name:     "logs_unset_defaults_enabled",
+			settings: map[string]interface{}{},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_disables",
+			settings: map[string]interface{}{"log_enabled": false},
+			expected: false,
+		},
+		{
+			name:     "stale_deprecated_log_enabled_does_not_disable",
+			settings: map[string]interface{}{"logs_enabled": true, "log_enabled": false},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_still_enables",
+			settings: map[string]interface{}{"logs_enabled": false, "log_enabled": true},
+			expected: true,
 		},
 	}
 	for _, tt := range tests {

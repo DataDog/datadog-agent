@@ -15,6 +15,7 @@ source path: '..',
          exclude: [
            "**/.cache/**/*",
            "**/testdata/**/*",
+           "**/.git/fsmonitor--daemon.ipc",
          ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
@@ -38,7 +39,7 @@ build do
         'GOPATH' => gopath.to_path,
         'PATH' => [gopath / 'bin', env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-        "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
+        "CGO_CFLAGS" => "#{linux_target? ? '-D_GNU_SOURCE ' : ''}-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
 
@@ -48,6 +49,17 @@ build do
     end
 
     env = with_standard_compiler_flags(env)
+
+    # Set CC/CXX explicitly so CGo uses the glibc cross-compiler (DD_CC).
+    # The CI build image uses musl libc by default, which lacks tm_gmtoff in
+    # struct tm. The glibc cross-compiler has tm_gmtoff in its sysroot headers,
+    # which is required by internal/coreinternal/timeutils/strptime_cgo_testlib.go.
+    unless ENV["DD_CC"].nil? || ENV["DD_CC"].empty?
+        env["CC"] = ENV["DD_CC"]
+    end
+    unless ENV["DD_CXX"].nil? || ENV["DD_CXX"].empty?
+        env["CXX"] = ENV["DD_CXX"]
+    end
 
     if fips_mode?
       add_msgo_to_env(env)

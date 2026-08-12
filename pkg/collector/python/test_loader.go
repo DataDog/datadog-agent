@@ -166,7 +166,7 @@ func testLoadCustomCheck(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
@@ -205,7 +205,7 @@ func testLoadWheelCheck(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -243,7 +243,7 @@ func testLoadHACheck(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
@@ -292,7 +292,7 @@ func testLoadHACheck(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			C.reset_loader_mock()
 
-			pkgconfigsetup.Datadog().SetWithoutSource("ha_agent.enabled", tc.haAgentEnabled)
+			pkgconfigsetup.Datadog().SetInTest("ha_agent.enabled", tc.haAgentEnabled)
 
 			// testing loading custom checks
 			C.get_class_return = 1
@@ -332,7 +332,7 @@ func testLoadError(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
@@ -371,9 +371,9 @@ func testLoadCustomCheckEmitsCheckReadyMetric(t *testing.T) {
 	mockRtloader(t)
 
 	// Ensure py3 validation is enabled (default)
-	pkgconfigsetup.Datadog().SetWithoutSource("disable_py3_validation", false)
+	pkgconfigsetup.Datadog().SetInTest("disable_py3_validation", false)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)

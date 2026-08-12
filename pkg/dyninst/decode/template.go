@@ -24,6 +24,10 @@ func formatType(
 	data []byte,
 	limits *formatLimits,
 ) error {
+	if c.redaction.RedactType(t.GetName()) {
+		writeBoundedString(buf, limits, formatRedacted)
+		return nil
+	}
 	// Get decoderType from encodingContext.
 	decoderType, ok := c.getType(t.GetID())
 	if !ok {

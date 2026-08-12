@@ -35,9 +35,37 @@ func TestNoop(t *testing.T) {
 	assert.True(t, true)
 }
 
+// minimalT is a stand-in testing.TB for TestMain, which has no *testing.T.
+// Embedding satisfies the interface, with overrides for methods called by test
+// helpers (Helper/Name/Errorf/FailNow) plus Cleanup, replayed by runCleanups.
+type minimalT struct {
+	testing.TB
+	cleanups []func()
+}
+
+func (*minimalT) Helper() {}
+
+func (*minimalT) Name() string { return "TestMain" }
+
+func (*minimalT) Errorf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+}
+
+func (*minimalT) FailNow() { os.Exit(1) }
+
+func (c *minimalT) Cleanup(f func()) { c.cleanups = append(c.cleanups, f) }
+
+func (c *minimalT) runCleanups() {
+	for i := len(c.cleanups) - 1; i >= 0; i-- {
+		c.cleanups[i]()
+	}
+}
+
 func TestMain(m *testing.M) {
+	t := &minimalT{}
 	defer func() {
 		code := m.Run()
+		t.runCleanups()
 		os.Exit(code)
 	}()
 
@@ -54,7 +82,8 @@ func TestMain(m *testing.M) {
 	// This is a bit of a hack to get a db connection without a testing.T
 	// Ideally we should pull the connection logic out
 	// to make it more accessible for testing
-	sysCheck, _ := newSysCheck(nil, "", "")
+	sysCheck, _ := newSysCheck(t, "", "")
+	t.Cleanup(sysCheck.Teardown)
 	sysCheck.Run()
 	_, err := sysCheck.db.Exec("SELECT 1 FROM dual")
 	if err != nil {

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -149,10 +148,19 @@ func (c *Credentials) Equals(o *Credentials) bool {
 		c.CapPermitted == o.CapPermitted
 }
 
-// SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID utils.TraceID) {
-	p.SpanID = spanID
-	p.TraceID = traceID
+// SetSpanContext attaches the captured APM correlation span context to the
+// process. Used by AddForkEntry to persist the parent's span across fork.
+// Carries SpanID, TraceID, ExtraAttrsID and any extra Attributes.
+func (p *Process) SetSpanContext(sc SpanContext) {
+	p.Tracer.Trace = sc
+}
+
+// SetSpanContextAttributes updates only the Attributes field on the process's
+// already-populated SpanContext. Used when extra attributes are resolved after
+// the PCE was first stamped (i.e. after AddForkEntry / AddExecEntry, which only
+// had the event SpanContext to copy from).
+func (p *Process) SetSpanContextAttributes(attrs map[string]string) {
+	p.Tracer.Trace.Attributes = attrs
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -322,12 +330,13 @@ func (m *Mount) GetFSType() string {
 }
 
 const (
-	ProcessCacheEntryFromUnknown     = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
-	ProcessCacheEntryFromPlaceholder        // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
-	ProcessCacheEntryFromEvent              // ProcessCacheEntryFromEvent defines a process cache entry from event
-	ProcessCacheEntryFromKernelMap          // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS             // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
-	ProcessCacheEntryFromSnapshot           // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromUnknown       = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
+	ProcessCacheEntryFromPlaceholder          // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
+	ProcessCacheEntryFromEvent                // ProcessCacheEntryFromEvent defines a process cache entry from event
+	ProcessCacheEntryFromKernelMap            // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
+	ProcessCacheEntryFromProcFS               // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
+	ProcessCacheEntryFromSnapshot             // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromUnknownLoader        // ProcessCacheEntryFromUnknownLoader defines a synthetic process cache entry attached to a snapshot event whose real loader could not be identified
 )
 
 // ProcessSources defines process sources
@@ -338,6 +347,7 @@ var ProcessSources = [...]string{
 	"map",
 	"procfs_fallback",
 	"procfs_snapshot",
+	"unknown_loader",
 }
 
 // ProcessSourceToString returns the string corresponding to a process source

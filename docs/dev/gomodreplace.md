@@ -19,7 +19,7 @@ Because of this, we want to reduce the number of `replace` dependencies to the m
 
 Some uses of `replace` directives have better alternatives. We should use the alternatives if it is feasible to do so.
 
-- **Use a fork.** Specify the fork path explicitly rather than via `replace`. That is, use `require github.com/DataDog/viper vX.Y.Z` rather than `replace github.com/spf13/viper => github.com/Datadog/viper vX.Y.Z`
+- **Use a fork.** Specify the fork path explicitly rather than via `replace`. That is, use `require github.com/DataDog/somelib vX.Y.Z` rather than `replace github.com/upstream/somelib => github.com/DataDog/somelib vX.Y.Z`
 - **Exclude a dependency version.**  If a single version is buggy, use an `exclude` directive or require a higher version of the dependency.
 
 ## Adding a new `replace` directive

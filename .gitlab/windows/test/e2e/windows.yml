@@ -16,7 +16,7 @@ new-e2e-agent-configuration-windows:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-configuration
-    TEAM: agent-configuration
+    TEAM: fleet-automation
     EXTRA_PARAMS: --run "Windows"
 
 new-e2e-agent-runtimes-windows:
@@ -34,18 +34,29 @@ new-e2e-agent-runtimes-windows:
     EXTRA_PARAMS: --run "Windows"
     ON_NIGHTLY_FIPS: "true"
 
+new-e2e-adp-preflight-mode-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_adp_preflight_mode_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-data-plane/preflight-mode
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "TestPreflightModeWindowsSuite"
+
 new-e2e-agent-subcommands-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
+          - pkg/config/schema/**/* # DataDog/datadog-agent#52358
           - test/new-e2e/tests/agent-subcommands/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
-    TEAM: agent-configuration
+    TEAM: fleet-remediation
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run "Windows"
 

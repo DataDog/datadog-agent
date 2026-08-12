@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fix an issue where container log collection could stop for an individual
+    container without recovering and without any error in the Agent logs. When
+    a container's log stream was idle longer than ``logs_config.docker_client_read_timeout``,
+    the read timeout could cause the underlying Docker connection to close in a
+    way that the tailer treated as a permanent shutdown, silently stopping log
+    collection for that container until it was recreated or the Agent was
+    restarted. The tailer now reconnects in this case, and only stops when the
+    Agent is intentionally shutting down. Low-volume containers (for example,
+    services that log only periodically) were the most affected.

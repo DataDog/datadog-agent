@@ -73,6 +73,7 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
+| `--retain-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
 
 ## Components
 
@@ -147,6 +148,9 @@ dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --logs-only
+
+# Fall back to retained loading and global sorting for unordered local recordings
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --retain-parquet
 
 # Verbose output (includes anomaly detail, member series, titles)
 ./bin/anomalydetection-testbench \
@@ -323,14 +327,34 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 ## Architecture
 
-### Replay pipeline
+### Replay pipelines
 
-The testbench feeds historical data through the observer engine in two phases:
+Headless runs stream by default. Metric and log parquet readers are merged into
+one timestamp-ordered observation stream. Each observation is ingested
+synchronously, detector/correlator analysis advances with the same scheduler as
+the live Observer, and an end-of-input flush analyzes the final timestamp. The
+stream uses the production storage limits, including the default 120-second
+point-retention window, so observation memory is bounded by the active window
+and series cardinality rather than total scenario length.
 
-1. **Pre-load** — parquet rows are ingested via `IngestLogNoAdvance` / `IngestMetricSync`. The engine accumulates extractor state and writes time-series points, but no detector or correlator advances are triggered.
-2. **Replay** — `ReplayStoredData` walks through the in-memory storage in chronological order and drives the full detector→correlator pipeline tick by tick, as if data were arriving live.
+Headless output still retains anomaly and correlation history because the
+evaluator consumes the complete result set. Pathological runs that emit an
+extreme number of results can therefore still require significant memory.
 
-Because all points are pre-loaded before replay starts, the engine storage is configured with **no point-retention window** (`PointRetentionSecs = 0`). This is intentional and testbench-specific: the production observer uses a bounded retention window (120 s by default). The unbounded config is constructed in `bench.go` and passed explicitly to `DebugView.Reset` — the shared engine code never hard-codes it.
+Streaming keeps metric rows in a bounded five-second reorder window because
+concurrent GenSim collection can write slightly late samples. Log ordering is
+validated at the Observer's one-second scheduling resolution. Recordings with
+disorder beyond those bounds fail descriptively instead of silently producing
+late points.
+
+Interactive runs, and headless runs with `--retain-parquet`, use the retained
+replay pipeline:
+
+1. **Pre-load** — parquet rows build extractor state and unbounded time-series storage.
+2. **Replay** — `ReplayStoredData` resets analysis state and walks every stored timestamp.
+
+The retained path supports interactive component toggles and remains available
+as a compatibility fallback, but its memory scales with the full scenario.
 
 ### Reporter and UI updates
 

@@ -138,7 +138,7 @@ func TestConvertImageToEvent(t *testing.T) {
 				Entity: &workloadmeta.ContainerImageMetadata{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindContainerImageMetadata,
-						ID:   "sha256:abc123", // Should use digest, not raw ID
+						ID:   "sha256:image123", // config digest (the image Id), sha256 normalized
 					},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name:      "myrepo/myimage:latest",
@@ -181,7 +181,7 @@ func TestConvertImageToEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "Image without digest falls back to raw ID",
+			name: "Image ID is normalized to sha256 regardless of repo digests",
 			image: &v1.Image{
 				Id:          "image123",
 				RepoTags:    []string{"myrepo/myimage:latest"},
@@ -195,7 +195,7 @@ func TestConvertImageToEvent(t *testing.T) {
 				Entity: &workloadmeta.ContainerImageMetadata{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindContainerImageMetadata,
-						ID:   "image123", // Should use raw ID when no digest
+						ID:   "sha256:image123", // image Id normalized to sha256, independent of repo digests
 					},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name:      "myrepo/myimage:latest",
@@ -221,7 +221,7 @@ func TestConvertImageToEvent(t *testing.T) {
 				Entity: &workloadmeta.ContainerImageMetadata{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindContainerImageMetadata,
-						ID:   "sha256:abc123",
+						ID:   "sha256:image123",
 					},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name:      "", // No name when no repo tags
@@ -337,8 +337,8 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 				}, nil
 			},
 			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
-				"sha256:hash1": {
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:hash1"},
+				"sha256:image1": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image1"},
 				},
 			},
 			expectedEvents: 1, // Only image2 creates an event (image1 is skipped entirely)
@@ -389,7 +389,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 			expectedError:  false,
 		},
 		{
-			name: "ID format mismatch - image stored with digest ID but lookup uses raw ID",
+			name: "Image stored with the sha256 normalized config ID is skipped",
 			mockListImages: func(_ context.Context) ([]*v1.Image, error) {
 				return []*v1.Image{
 					{
@@ -409,8 +409,8 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 				}, nil
 			},
 			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
-				"sha256:digestid456": {
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:digestid456"},
+				"sha256:rawid123": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:rawid123"},
 				},
 			},
 			expectedEvents: 0, // No event created - image exists and is skipped
@@ -503,8 +503,8 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 				}, nil
 			},
 			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
-				"sha256:digestid1": { // Image1 stored with digest ID
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:digestid1"},
+				"sha256:rawid1": { // Image1 stored with config digest ID
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:rawid1"},
 				},
 				"rawid2": { // Image2 stored with raw ID (dangling)
 					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "rawid2"},

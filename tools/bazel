@@ -32,9 +32,15 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
   extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
   # https://github.com/bazelbuild/bazel/issues/26384
   [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
-  [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && extra_args+=(--config=ci)
-  # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
-  [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && [ "$(uname -s)" = Linux ] && extra_args+=(--config=ci-edge-cache)
+  if [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ]; then
+    extra_args+=(--config=ci)
+    # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
+    if [ "$(uname -s)" = Linux ]; then
+      extra_args+=(--config=cache:edge)
+    else
+      extra_args+=(--config=cache:frontend)
+    fi
+  fi
 else
   # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   [ -z "${GOCACHE-}" ] && export GOCACHE=~/.cache/go-build
@@ -42,6 +48,17 @@ else
     [ -n "${GOPATH-}" ] && gp="${GOPATH%%:*}" || gp=~/go
     export GOMODCACHE="$gp/pkg/mod"
     unset gp
+  fi
+fi
+
+# Local developer remote cache selection (CI selects its own endpoint above).
+if [ -z "${CI-}" ]; then
+  remote_cache_select="$(dirname "$0")/../bazel/tools/remote-cache-select.sh"
+  if [ -f "$remote_cache_select" ]; then
+    # shellcheck source=/dev/null
+    . "$remote_cache_select"
+    cache_config=$(_remote_cache_config "$@") || :
+    [ -n "$cache_config" ] && extra_args+=("$cache_config")
   fi
 fi
 

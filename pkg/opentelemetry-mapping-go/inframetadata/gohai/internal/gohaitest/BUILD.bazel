@@ -1,14 +1,12 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-go_test(
+dd_agent_go_test(
     name = "gohaitest_test",
     srcs = ["gohai_test.go"],
-    # test invokes system utilities (e.g. ioreg on macOS) requiring the host PATH
     env_inherit = select({
         "@platforms//os:macos": ["PATH"],
         "//conditions:default": None,
     }),
-    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
         "@com_github_datadog_gohai//cpu",

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Augment the ``datasecurity`` component with the sensitive data scanner
+    library.

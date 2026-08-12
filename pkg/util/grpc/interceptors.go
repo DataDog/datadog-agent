@@ -7,6 +7,7 @@ package grpc
 
 import (
 	"context"
+	"net"
 	"strings"
 	"time"
 
@@ -31,10 +32,17 @@ func extractMethodInfo(fullMethod string) (serviceMethod string) {
 	return service + "/" + method
 }
 
-// extractPeerInfo extracts peer information from the context
+// extractPeerInfo extracts the peer host from the context, stripping the
+// ephemeral source port to keep tag cardinality bounded.
 func extractPeerInfo(ctx context.Context) string {
 	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
-		return p.Addr.String()
+		addr := p.Addr.String()
+		// Strip the port for TCP/UDP addresses; Unix socket paths have no port
+		// and SplitHostPort will return an error, so we keep the full path.
+		if host, _, err := net.SplitHostPort(addr); err == nil {
+			return host
+		}
+		return addr
 	}
 	return "unknown"
 }

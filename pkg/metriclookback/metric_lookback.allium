@@ -1,0 +1,691 @@
+-- allium: 3
+-- metric_lookback.allium
+
+-- Scope: Metric lookback behaviour for retained high-resolution metric points,
+-- monitor-triggered egress, DogStatsD admission, dry-run mode, and forwarded
+-- time ranges.
+--
+-- Includes:
+--   - Configuration semantics for global enablement, monitor enablement,
+--     DogStatsD additional-metric enablement, and monitor dry-run mode.
+--   - DogStatsD admission semantics: the monitor metric is auto-admitted as a
+--     trigger metric independently of DogStatsD additional-metric enablement.
+--   - Retained-point source semantics: the monitor evaluates points by metric
+--     name from the shared lookback ring, regardless of whether the producer is
+--     DogStatsD or the check/shadow lookback sender path.
+--   - Monitor window classification: unknown, healthy, breach.
+--   - Monitor state-transition diagnostics, including dry-run visibility.
+--   - Egress mode lifecycle in normal and dry-run operation.
+--   - Forwarded time-range eligibility, send-delay clipping, retry, and
+--     duplicate suppression.
+--
+-- Excludes:
+--   - The storage layout, sharding, eviction algorithm, and memory accounting of
+--     the retention ring.
+--   - Aggregator internals that transform DogStatsD packets into final series or
+--     distribution sketches before they enter metric lookback.
+--   - Serialization format and network transport to intake.
+--   - Check scheduler wiring for shadow checks. This spec treats check/shadow
+--     lookback sender points as an external producer of retained points.
+--   - Exact telemetry metric names. This spec models observable domain effects,
+--     not internal counters/gauges.
+
+------------------------------------------------------------
+-- Given
+------------------------------------------------------------
+
+-- Metric lookback has one effective runtime configuration and one shared
+-- retention ring in the scoped Agent process. Rules that create Monitor and
+-- EgressPolicy instances are conditional on this configuration.
+given {
+    configuration: LookbackConfiguration
+    retention: RetentionRing
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum RetainedPointSource {
+    dogstatsd_bucketed | dogstatsd_no_aggregation | check_shadow
+}
+
+enum DogStatsDAdmissionReason {
+    monitor_trigger | additional_metric
+}
+
+enum MonitorState {
+    unknown | healthy | breach
+}
+
+enum MonitorMode {
+    disabled | dry_run | enabled
+}
+
+enum EgressMode {
+    forwarding | suppressed
+}
+
+enum ForwardAttemptState {
+    planned | forwarded | retry | empty | error
+}
+
+enum ForwardPayload {
+    series | sketch
+}
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value MetricName {
+    value: String
+}
+
+value TagName {
+    value: String
+}
+
+value MetricTag {
+    name: TagName
+    value: String
+}
+
+value MonitorPartitionKey {
+    values: List<MetricTag?>
+}
+
+value TimeRange {
+    start: Timestamp?
+    end: Timestamp?
+
+    -- Derived: a range can be forwarded only when it has a non-empty upper
+    -- bound. A nil start means unbounded lower edge.
+    is_forwardable: end != nil and (start = nil or start < end)
+}
+
+value MonitorWindow {
+    metric_name: MetricName
+    start: Timestamp
+    end: Timestamp
+}
+
+value MetricPoint {
+    name: MetricName
+    source: RetainedPointSource
+    timestamp: Timestamp
+    value: Decimal
+    valid_number: Boolean
+    tags: Set<MetricTag>
+}
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- Effective runtime configuration after defaults and environment overrides are
+-- applied.
+external entity LookbackConfiguration {
+    enabled: Boolean
+    capacity: Integer
+    shard_count: Integer
+
+    monitor_mode: MonitorMode
+    monitor_metric_name: MetricName?
+    monitor_range_epsilon: Decimal
+    monitor_partition_tags: List<TagName>
+    monitor_evaluation_interval: Duration
+
+    egress_pre_trigger_window: Duration
+    egress_post_recovery_window: Duration
+
+    -- Additional DogStatsD metric names to retain. An empty set disables
+    -- additional DogStatsD retention. The monitor metric is separately
+    -- auto-admitted as a DogStatsD trigger source when the monitor is enabled.
+    dogstatsd_metric_names: Set<MetricName>
+}
+
+-- DogStatsD packets and finalized no-aggregation series are external stimuli to
+-- metric lookback. Their parsing, tag resolution, context resolution, and final
+-- metric-type conversion are owned by the DogStatsD/aggregator pipeline.
+external entity DogStatsDObservation {
+    name: MetricName
+    timestamp: Timestamp
+    value: Decimal
+    tags: Set<MetricTag>
+    source: dogstatsd_bucketed | dogstatsd_no_aggregation
+
+    -- A no-aggregation series is retention-ready when it reaches lookback.
+    -- A normal bucketed DogStatsD sample becomes retention-ready only after its
+    -- short-resolution bucket is sealed. The bucket sealing mechanics are owned
+    -- by the DogStatsD materialization path and are outside this spec.
+    retention_ready: Boolean
+}
+
+-- A check/shadow sender write is an external producer of retained points. This
+-- spec does not define how checks are scheduled or routed into the sender.
+external entity CheckShadowObservation {
+    name: MetricName
+    timestamp: Timestamp
+    value: Decimal
+    tags: Set<MetricTag>
+}
+
+-- Intake is the externally observable destination for forwarded retained
+-- ranges. Transport retry and HTTP details are outside this spec.
+external entity Intake {}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity RetentionRing {
+    points: List<MetricPoint>
+}
+
+entity DogStatsDAdmission {
+    metric_name: MetricName
+    reason: DogStatsDAdmissionReason
+    active: Boolean
+}
+
+entity Monitor {
+    metric_name: MetricName
+    range_epsilon: Decimal
+    partition_tags: List<TagName>
+    evaluation_interval: Duration
+    state: MonitorState?
+    decisions: List<MonitorDecision>
+    transition_logs: List<MonitorStateTransitionLog>
+}
+
+entity MonitorDecision {
+    metric_name: MetricName
+    window: MonitorWindow
+    state: MonitorState
+    point_count: Integer
+    min: Decimal?
+    max: Decimal?
+    range: Decimal?
+    range_epsilon: Decimal
+    partition_tags: List<TagName>
+    partition_key: MonitorPartitionKey?
+    partition_count: Integer
+}
+
+entity MonitorStateTransitionLog {
+    metric_name: MetricName
+    from: MonitorState?
+    to: MonitorState
+    initial: Boolean
+    dry_run: Boolean
+    egress_mode: EgressMode
+    window: MonitorWindow
+    point_count: Integer
+    min: Decimal?
+    max: Decimal?
+    range: Decimal?
+    range_epsilon: Decimal
+    partition_tags: List<TagName>
+    partition_key: MonitorPartitionKey?
+    partition_count: Integer
+}
+
+entity EgressPolicy {
+    mode: EgressMode
+    dry_run: Boolean
+    forwarding_ranges: List<TimeRange>
+    forwarded_series_ranges: List<TimeRange>
+    forwarded_sketch_ranges: List<TimeRange>
+}
+
+entity ForwardAttempt {
+    range: TimeRange
+    payload: ForwardPayload
+    state: ForwardAttemptState
+    payload_count: Integer
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- Approximate monitor evaluation window size.
+    monitor_evaluation_interval: Duration = 30.seconds
+
+    -- Minimum retained points needed to classify a monitor window as healthy or
+    -- breach. Fewer valid points are unknown.
+    monitor_min_points: Integer = 2
+
+    -- Minimum age of retained metric timestamps before they are eligible for
+    -- intake forwarding.
+    egress_send_delay: Duration = 30.seconds
+
+    -- Domain-level context windows around monitor transitions.
+    egress_pre_trigger_window: Duration = 0.seconds
+    egress_post_recovery_window: Duration = 30.seconds
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+rule GlobalDisablePreventsLookbackEffects {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = false
+    ensures: not exists Monitor
+    ensures: not exists EgressPolicy
+    ensures: not exists DogStatsDAdmission
+    @guidance
+        -- Producers outside this spec may still emit metrics through their
+        -- normal paths. The guarantee here is only that metric lookback does not
+        -- retain, monitor, or egress them.
+}
+
+rule DisabledMonitorModeDisablesMonitorBehaviour {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode = disabled
+    ensures: not exists Monitor
+    ensures: not exists EgressPolicy
+    ensures: not exists DogStatsDAdmission where reason = monitor_trigger
+}
+
+rule MonitorModeRequiresMetricName {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
+    requires: configuration.monitor_metric_name = nil
+    ensures: ConfigurationRejected(reason: "metric_lookback.monitor.metric_name is required when monitor.mode is dry_run or enabled")
+}
+
+rule MonitorCreatesSharedRetentionReader {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
+    requires: configuration.monitor_metric_name != nil
+    ensures: Monitor.created(
+        metric_name: configuration.monitor_metric_name,
+        range_epsilon: configuration.monitor_range_epsilon,
+        partition_tags: configuration.monitor_partition_tags,
+        evaluation_interval: configuration.monitor_evaluation_interval,
+        state: nil,
+        decisions: [],
+        transition_logs: []
+    )
+}
+
+rule MonitorMetricAutoAdmittedFromDogStatsD {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
+    requires: configuration.monitor_metric_name != nil
+    ensures: DogStatsDAdmission.created(
+        metric_name: configuration.monitor_metric_name,
+        reason: monitor_trigger,
+        active: true
+    )
+    @guidance
+        -- The monitor metric is a trigger source, not an additional retained
+        -- metric, so it does not need to appear in dogstatsd_metric_names.
+}
+
+rule DogStatsDAdditionalMetricAdmission {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    for name in configuration.dogstatsd_metric_names:
+        ensures: DogStatsDAdmission.created(
+            metric_name: name,
+            reason: additional_metric,
+            active: true
+        )
+}
+
+rule EmptyDogStatsDAdditionalMetricsDoesNotDisableMonitorAdmission {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
+    requires: configuration.monitor_metric_name != nil
+    requires: configuration.dogstatsd_metric_names.count = 0
+    ensures: DogStatsDAdmission.created(
+        metric_name: configuration.monitor_metric_name,
+        reason: monitor_trigger,
+        active: true
+    )
+}
+
+rule AdmittedDogStatsDObservationIsRetainedWhenReady {
+    when: observation: DogStatsDObservation.retention_ready becomes true
+    requires: exists DogStatsDAdmission where metric_name = observation.name and active = true
+    ensures: retention.points = retention.points + [MetricPoint{
+        name: observation.name,
+        source: observation.source,
+        timestamp: observation.timestamp,
+        value: observation.value,
+        valid_number: true,
+        tags: observation.tags
+    }]
+}
+
+rule UnadmittedDogStatsDObservationIsIgnoredByLookback {
+    when: observation: DogStatsDObservation.created
+    requires: not exists DogStatsDAdmission where metric_name = observation.name and active = true
+    ensures: retention.points = retention.points
+    @guidance
+        -- Unadmitted normal DogStatsD samples should not allocate lookback bucket
+        -- state. Unadmitted no-aggregation series should not append to retention.
+}
+
+rule CheckShadowObservationIsRetained {
+    when: observation: CheckShadowObservation.created
+    requires: configuration.enabled = true
+    ensures: retention.points = retention.points + [MetricPoint{
+        name: observation.name,
+        source: check_shadow,
+        timestamp: observation.timestamp,
+        value: observation.value,
+        valid_number: true,
+        tags: observation.tags
+    }]
+    @guidance
+        -- Check/shadow retention also depends on scheduler/sender wiring outside
+        -- this spec. Once a check writes through the lookback sender, the monitor
+        -- treats its points the same as DogStatsD points with the same name.
+}
+
+rule MonitorWindowUsesAllRetainedSourcesForMetricName {
+    when: window: MonitorWindow.completed
+    requires: exists Monitor where metric_name = window.metric_name
+    let matching_points = retention.points where
+        name = window.metric_name and
+        timestamp >= window.start and
+        timestamp <= window.end and
+        source in {dogstatsd_bucketed, dogstatsd_no_aggregation, check_shadow}
+    let partitions = partition_by_tags(matching_points, Monitor.partition_tags)
+    ensures: MonitorEvaluationRequested(window: window, partitions: partitions)
+    @guidance
+        -- When Monitor.partition_tags is empty, partition_by_tags produces a
+        -- single partition containing all matching points. When a configured tag
+        -- is missing from a point, that point stays in evaluation under a stable
+        -- missing-value partition key rather than being dropped.
+}
+
+rule MonitorWindowUnknownWhenNoPartitionHasEnoughValidPoints {
+    when: MonitorEvaluationRequested(window, partitions)
+    requires:
+        partitions.all(p => (p.points where valid_number = true).count < config.monitor_min_points)
+    ensures: MonitorDecision.created(
+        metric_name: window.metric_name,
+        window: window,
+        state: unknown,
+        point_count: sum(partitions, p => (p.points where valid_number = true).count),
+        min: nil,
+        max: nil,
+        range: nil,
+        range_epsilon: Monitor.range_epsilon,
+        partition_tags: Monitor.partition_tags,
+        partition_key: nil,
+        partition_count: partitions.count
+    )
+}
+
+rule MonitorWindowBreachesWhenAnySufficientPartitionRangeExceedsEpsilon {
+    when: MonitorEvaluationRequested(window, partitions)
+    let sufficient = partitions where (points where valid_number = true).count >= config.monitor_min_points
+    let selected = max_by(sufficient, p => range((p.points where valid_number = true).value))
+    requires: sufficient.any(p => range((p.points where valid_number = true).value) > Monitor.range_epsilon)
+    requires: range((selected.points where valid_number = true).value) > Monitor.range_epsilon
+    ensures: MonitorDecision.created(
+        metric_name: window.metric_name,
+        window: window,
+        state: breach,
+        point_count: (selected.points where valid_number = true).count,
+        min: min((selected.points where valid_number = true).value),
+        max: max((selected.points where valid_number = true).value),
+        range: range((selected.points where valid_number = true).value),
+        range_epsilon: Monitor.range_epsilon,
+        partition_tags: Monitor.partition_tags,
+        partition_key: selected.key,
+        partition_count: sufficient.count
+    )
+}
+
+rule MonitorWindowHealthyWhenAllSufficientPartitionsAreWithinEpsilon {
+    when: MonitorEvaluationRequested(window, partitions)
+    let sufficient = partitions where (points where valid_number = true).count >= config.monitor_min_points
+    let selected = max_by(sufficient, p => range((p.points where valid_number = true).value))
+    requires: sufficient.count > 0
+    requires: sufficient.all(p => range((p.points where valid_number = true).value) <= Monitor.range_epsilon)
+    ensures: MonitorDecision.created(
+        metric_name: window.metric_name,
+        window: window,
+        state: healthy,
+        point_count: (selected.points where valid_number = true).count,
+        min: min((selected.points where valid_number = true).value),
+        max: max((selected.points where valid_number = true).value),
+        range: range((selected.points where valid_number = true).value),
+        range_epsilon: Monitor.range_epsilon,
+        partition_tags: Monitor.partition_tags,
+        partition_key: selected.key,
+        partition_count: sufficient.count
+    )
+}
+
+rule InitialMonitorStateIsLogged {
+    when: decision: MonitorDecision.created
+    requires: Monitor.state = nil
+    ensures: Monitor.state = decision.state
+    ensures: MonitorStateTransitionLog.created(
+        metric_name: decision.metric_name,
+        from: nil,
+        to: decision.state,
+        initial: true,
+        dry_run: EgressPolicy.dry_run,
+        egress_mode: EgressPolicy.mode,
+        window: decision.window,
+        point_count: decision.point_count,
+        min: decision.min,
+        max: decision.max,
+        range: decision.range,
+        range_epsilon: decision.range_epsilon,
+        partition_tags: decision.partition_tags,
+        partition_key: decision.partition_key,
+        partition_count: decision.partition_count
+    )
+}
+
+rule MonitorStateTransitionIsAlwaysLogged {
+    when: decision: MonitorDecision.created
+    requires: Monitor.state != nil
+    requires: Monitor.state != decision.state
+    ensures: MonitorStateTransitionLog.created(
+        metric_name: decision.metric_name,
+        from: Monitor.state,
+        to: decision.state,
+        initial: false,
+        dry_run: EgressPolicy.dry_run,
+        egress_mode: EgressPolicy.mode,
+        window: decision.window,
+        point_count: decision.point_count,
+        min: decision.min,
+        max: decision.max,
+        range: decision.range,
+        range_epsilon: decision.range_epsilon,
+        partition_tags: decision.partition_tags,
+        partition_key: decision.partition_key,
+        partition_count: decision.partition_count
+    )
+    ensures: Monitor.state = decision.state
+    @guidance
+        -- This rule is independent of dry-run mode. Dry-run controls whether a
+        -- decision changes egress state; it never suppresses monitor transition
+        -- diagnostics.
+}
+
+rule RepeatedMonitorStateDoesNotCreateTransitionLog {
+    when: decision: MonitorDecision.created
+    requires: Monitor.state = decision.state
+    ensures: Monitor.transition_logs = Monitor.transition_logs
+}
+
+rule EnabledMonitorModeEgressStartsSuppressed {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode = enabled
+    ensures: EgressPolicy.created(
+        mode: suppressed,
+        dry_run: false,
+        forwarding_ranges: [],
+        forwarded_series_ranges: [],
+        forwarded_sketch_ranges: []
+    )
+}
+
+rule DryRunMonitorModeEgressStartsForwarding {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode = dry_run
+    ensures: EgressPolicy.created(
+        mode: forwarding,
+        dry_run: true,
+        forwarding_ranges: [TimeRange{start: nil, end: nil}],
+        forwarded_series_ranges: [],
+        forwarded_sketch_ranges: []
+    )
+    @guidance
+        -- Dry-run overrides the enabled mode's suppressed startup mode. There is
+        -- no startup suppression window when monitor mode is dry_run.
+}
+
+rule DryRunMonitorDecisionDoesNotChangeEgressMode {
+    when: decision: MonitorDecision.created
+    requires: EgressPolicy.dry_run = true
+    ensures: EgressPolicy.mode = forwarding
+    ensures: EgressPolicy.forwarding_ranges = EgressPolicy.forwarding_ranges
+}
+
+rule BreachOrUnknownOpensForwardingInNormalMode {
+    when: decision: MonitorDecision.created
+    requires: EgressPolicy.dry_run = false
+    requires: decision.state in {breach, unknown}
+    requires: EgressPolicy.mode = suppressed
+    ensures: EgressPolicy.mode = forwarding
+    ensures: EgressPolicy.forwarding_ranges = EgressPolicy.forwarding_ranges + [TimeRange{
+        start: decision.window.start - config.egress_pre_trigger_window,
+        end: nil
+    }]
+}
+
+rule BreachOrUnknownKeepsForwardingOpenInNormalMode {
+    when: decision: MonitorDecision.created
+    requires: EgressPolicy.dry_run = false
+    requires: decision.state in {breach, unknown}
+    requires: EgressPolicy.mode = forwarding
+    ensures: EgressPolicy.mode = forwarding
+}
+
+rule HealthyDecisionSuppressesEgressInNormalMode {
+    when: decision: MonitorDecision.created
+    requires: EgressPolicy.dry_run = false
+    requires: decision.state = healthy
+    requires: EgressPolicy.mode = forwarding
+    ensures: EgressPolicy.mode = suppressed
+    ensures: open_range(EgressPolicy.forwarding_ranges).end = decision.window.end + config.egress_post_recovery_window
+}
+
+rule HealthyDecisionWhileSuppressedDoesNotOpenEgress {
+    when: decision: MonitorDecision.created
+    requires: EgressPolicy.dry_run = false
+    requires: decision.state = healthy
+    requires: EgressPolicy.mode = suppressed
+    ensures: EgressPolicy.mode = suppressed
+}
+
+rule ForwardingRangesAreClippedBySendDelay {
+    when: EgressRun(now)
+    let eligible_through = now - config.egress_send_delay
+    let candidates = EgressPolicy.forwarding_ranges where start = nil or start < eligible_through
+    ensures:
+        for range in candidates:
+            if range.end = nil or eligible_through < range.end:
+                ForwardRangePlanned(range: TimeRange{start: range.start, end: eligible_through})
+            else:
+                ForwardRangePlanned(range: range)
+}
+
+rule ForwardingSeriesRangeCannotBeForwardedTwice {
+    when: ForwardRangePlanned(range)
+    requires: range.is_forwardable
+    requires: not overlaps(range, EgressPolicy.forwarded_series_ranges)
+    ensures: ForwardAttempt.created(range: range, payload: series, state: planned, payload_count: 0)
+}
+
+rule ForwardingSketchRangeCannotBeForwardedTwice {
+    when: ForwardRangePlanned(range)
+    requires: range.is_forwardable
+    requires: not overlaps(range, EgressPolicy.forwarded_sketch_ranges)
+    ensures: ForwardAttempt.created(range: range, payload: sketch, state: planned, payload_count: 0)
+}
+
+rule SuccessfulSeriesForwardMarksSeriesRangeForwarded {
+    when: attempt: ForwardAttempt.state transitions_to forwarded
+    requires: attempt.payload = series
+    requires: attempt.payload_count > 0
+    ensures: EgressPolicy.forwarded_series_ranges = EgressPolicy.forwarded_series_ranges + [attempt.range]
+}
+
+rule SuccessfulSketchForwardMarksSketchRangeForwarded {
+    when: attempt: ForwardAttempt.state transitions_to forwarded
+    requires: attempt.payload = sketch
+    requires: attempt.payload_count > 0
+    ensures: EgressPolicy.forwarded_sketch_ranges = EgressPolicy.forwarded_sketch_ranges + [attempt.range]
+}
+
+rule EmptyForwardDoesNotMarkRangeForwarded {
+    when: attempt: ForwardAttempt.state transitions_to empty
+    requires: attempt.payload_count = 0
+    ensures: EgressPolicy.forwarded_series_ranges = EgressPolicy.forwarded_series_ranges
+    ensures: EgressPolicy.forwarded_sketch_ranges = EgressPolicy.forwarded_sketch_ranges
+    @guidance
+        -- A later-arriving retained point with an older timestamp can still be
+        -- forwarded if it falls in the same range. Empty sends are not treated as
+        -- a completed range.
+}
+
+rule FailedForwardRemainsEligibleForRetry {
+    when: attempt: ForwardAttempt.state transitions_to retry
+    ensures: EgressPolicy.forwarded_series_ranges = EgressPolicy.forwarded_series_ranges
+    ensures: EgressPolicy.forwarded_sketch_ranges = EgressPolicy.forwarded_sketch_ranges
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant MonitorMetricHasSourceIndependentSemantics {
+    -- The monitor's metric_name is a query over retained points. DogStatsD is
+    -- one producer, and monitor configuration auto-admits the same name from
+    -- DogStatsD for convenience, but any retained point from a supported source
+    -- with the same metric name can affect monitor decisions.
+}
+
+invariant DogStatsDAdditionalMetricNamesAreNotMonitorEnablement {
+    -- dogstatsd_metric_names controls only additional DogStatsD metrics to
+    -- retain. It must not be interpreted as a prerequisite for using a
+    -- DogStatsD-origin metric as the monitor trigger.
+}
+
+invariant MonitorPartitionTagsPreventCrossPopulationRangeInflation {
+    -- When monitor_partition_tags is non-empty, the monitor evaluates range
+    -- independently per selected tag-value tuple. A breach in any sufficient
+    -- partition breaches the monitor; sparse partitions are ignored unless no
+    -- partition has enough valid points, in which case the decision is unknown.
+}
+
+invariant DryRunChangesOnlyEgressControlNotMonitorObservation {
+    -- In dry-run mode, monitor windows are evaluated and monitor state
+    -- transitions are logged exactly as in normal mode. The only semantic
+    -- difference is that monitor decisions do not suppress or reopen egress;
+    -- egress starts and remains forwarding.
+}

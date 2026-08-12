@@ -16,7 +16,7 @@ import (
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
 	check "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/option"

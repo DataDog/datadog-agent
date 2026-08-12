@@ -6,7 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=2.0.0
+install_script_version=2.1.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
@@ -22,6 +22,16 @@ else
     YELLOW=''
     BLUE=''
     NC=''
+fi
+# curl progress: show the bar interactively, suppress it in non-interactive
+# environments (CI, MDM/Jamf scripts, piped invocations) where --progress-bar
+# floods logs with hash lines (e.g. "##########  67.5%"). Must be set before
+# the exec redirect below, which makes [ -t ] checks unreliable.
+# --no-progress-meter requires curl 7.67+ (2019); macOS 12+ ships >=7.79.
+if [ -t 1 ] && [ -t 2 ]; then
+    curl_progress_opt="--progress-bar"
+else
+    curl_progress_opt="--no-progress-meter"
 fi
 # Use mktemp so the log path is unpredictable (0600, random suffix). A fixed
 # /tmp path would let a local user pre-create it as a symlink and redirect
@@ -253,7 +263,7 @@ else
 
     printf "${BLUE}\n* Downloading datadog-agent ${dmg_version}\n${NC}"
     prepare_dmg_file $dmg_file
-    if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
+    if ! $sudo_cmd curl --fail $curl_progress_opt "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
         printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
         exit 1;
     fi

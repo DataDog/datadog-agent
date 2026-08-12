@@ -190,7 +190,7 @@ func Test_convertIOStats(t *testing.T) {
 	defer os.Remove(dir + "/diskstats")
 
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("container_proc_root", dir)
+	cfg.SetInTest("container_proc_root", dir)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

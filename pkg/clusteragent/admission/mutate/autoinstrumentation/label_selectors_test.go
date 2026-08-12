@@ -21,6 +21,7 @@ import (
 func NewFakeLabelSelector() *autoinstrumentation.LabelSelectors {
 	return autoinstrumentation.NewLabelSelectors(&autoinstrumentation.LabelSelectorsConfig{
 		Enabled:            false,
+		OnDemand:           false,
 		MutateUnlabelled:   false,
 		AddAksSelectors:    false,
 		DisabledNamespaces: []string{},
@@ -35,6 +36,7 @@ func TestLabelSelectorsConfig(t *testing.T) {
 		"default values match expected": {
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            false,
+				OnDemand:           true,
 				MutateUnlabelled:   false,
 				AddAksSelectors:    false,
 				DisabledNamespaces: []string{},
@@ -43,12 +45,14 @@ func TestLabelSelectorsConfig(t *testing.T) {
 		"overridden values match expected": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":             true,
+				"apm_config.instrumentation.on_demand":           false,
 				"admission_controller.mutate_unlabelled":         true,
 				"admission_controller.add_aks_selectors":         true,
 				"apm_config.instrumentation.disabled_namespaces": []string{"foo"},
 			},
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            true,
+				OnDemand:           false,
 				MutateUnlabelled:   true,
 				AddAksSelectors:    true,
 				DisabledNamespaces: []string{"foo"},
@@ -120,6 +124,7 @@ func TestLabelSelectors(t *testing.T) {
 		"when instrumentation is disabled and mutate unlabelled is also disabled, only enable labels should be selected": {
 			config: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:          false,
+				OnDemand:         false,
 				MutateUnlabelled: false,
 			},
 			useNamespaceSelector: false,
@@ -135,6 +140,32 @@ func TestLabelSelectors(t *testing.T) {
 			expectedObjectSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					common.EnabledLabelKey: "true",
+				},
+			},
+		},
+		"when on-demand instrumentation is enabled, everything except explicit opt-outs should be selected": {
+			config: &autoinstrumentation.LabelSelectorsConfig{
+				Enabled:          false,
+				OnDemand:         true,
+				MutateUnlabelled: false,
+			},
+			useNamespaceSelector: false,
+			expectedNamespaceSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   mutatecommon.DefaultDisabledNamespaces(),
+					},
+				},
+			},
+			expectedObjectSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.EnabledLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"false"},
+					},
 				},
 			},
 		},

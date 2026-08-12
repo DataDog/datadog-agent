@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -38,8 +38,8 @@ func TestProviderFailoverIntegrationSuite(t *testing.T) {
 
 func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 	cfg := configmock.New(suite.T())
-	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 5)
+	cfg.SetInTest("logs_config.pipeline_failover.enabled", true)
+	cfg.SetInTest("logs_config.message_channel_size", 5)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 		"use_http": true,
@@ -169,8 +169,8 @@ func (suite *ProviderFailoverIntegrationSuite) TestGracefulShutdownUnderConcurre
 func (suite *ProviderFailoverIntegrationSuite) TestRapidStartStopCycles() {
 	for iteration := 0; iteration < 5; iteration++ {
 		cfg := configmock.New(suite.T())
-		cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-		cfg.SetWithoutSource("logs_config.message_channel_size", 5)
+		cfg.SetInTest("logs_config.pipeline_failover.enabled", true)
+		cfg.SetInTest("logs_config.message_channel_size", 5)
 
 		endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 			"use_http": true,

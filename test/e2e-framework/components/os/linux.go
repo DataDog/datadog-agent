@@ -24,7 +24,7 @@ func newLinuxOS(e config.Env, desc Descriptor, runner command.Runner) OS {
 		// AL2 is YUM, AL2023 is DNF (but with yum compatibility)
 		os.packageManager = newYumManager(runner)
 
-	case Fedora, RedHat, RockyLinux:
+	case Fedora, RedHat, RockyLinux, AlmaLinux:
 		os.packageManager = newDnfManager(runner)
 
 	case Debian, Ubuntu:

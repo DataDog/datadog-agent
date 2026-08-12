@@ -123,11 +123,8 @@ func TestNewManifestBuffer(t *testing.T) {
 	assert.Equal(t, 0, len(mb.bufferedManifests))
 	assert.Equal(t, cap(mb.bufferedManifests), mb.Cfg.MaxBufferedManifests)
 
-	// Verify configuration was copied correctly
-	assert.Equal(t, orchCheck.clusterID, mb.Cfg.ClusterID)
-	assert.Equal(t, orchCheck.orchestratorConfig.KubeClusterName, mb.Cfg.KubeClusterName)
-	assert.Equal(t, orchCheck.orchestratorConfig.MaxPerMessage, mb.Cfg.MaxPerMessage)
-	assert.Equal(t, orchCheck.orchestratorConfig.MaxWeightPerMessageBytes, mb.Cfg.MaxWeightPerMessageBytes)
+	assert.Equal(t, orchCheck.orchestratorConfig.MaxPerMessage, mb.Cfg.MaxBufferedManifests)
+	assert.Same(t, orchCheck, mb.chk)
 }
 
 func TestFlushManifest(t *testing.T) {
@@ -171,10 +168,12 @@ func TestFlushManifest(t *testing.T) {
 
 	// Verify the manifest contains expected data
 	assert.Equal(t, "buffer-cluster", sentManifest.ClusterName)
-	assert.Equal(t, mb.Cfg.ClusterID, sentManifest.ClusterId)
+	assert.Equal(t, mb.chk.clusterID, sentManifest.ClusterId)
 	assert.Equal(t, []string{"tag:low"}, sentManifest.Tags) // From ExtraTags in test setup
 	assert.Equal(t, int32(1), sentManifest.GroupId)         // MsgGroupRef.Inc() should return 1 for first call
 	assert.Equal(t, int32(1), sentManifest.GroupSize)       // Only one chunk
+	require.NotNil(t, sentManifest.AgentVersion)
+	assert.Equal(t, mb.chk.agentVersion, sentManifest.AgentVersion)
 
 	// Verify manifests are correctly included
 	assert.Len(t, sentManifest.Manifests, 2)
@@ -197,7 +196,7 @@ func TestFlushManifest(t *testing.T) {
 // getSender returns a mock Sender
 // When calling OrchestratorManifest, it adds the messges to a global var manifestToSend
 func getSender(t *testing.T) *mocksender.MockSender {
-	sender := mocksender.NewMockSender(checkid.ID(rune(1)))
+	sender := mocksender.NewMockSender(t, checkid.ID(rune(1)))
 	sender.On("OrchestratorManifest", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
 		arg := args.Get(0).([]model.MessageBody)
 		require.GreaterOrEqual(t, len(arg), 1)
@@ -221,7 +220,7 @@ func getManifestBuffer(t *testing.T) *ManifestBuffer {
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 
 	// Configure the check properly to get ExtraTags set
-	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)
 	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
 
 	// Override the cluster name for the test

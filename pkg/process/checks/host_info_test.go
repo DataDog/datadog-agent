@@ -176,12 +176,12 @@ func TestResolveHostname(t *testing.T) {
 
 			cfg := configmock.New(t)
 			// Lower the GRPC timeout, otherwise the test will time out in CI
-			cfg.SetWithoutSource("process_config.grpc_connection_timeout_secs", 1)
+			cfg.SetInTest("process_config.grpc_connection_timeout_secs", 1)
 
-			cfg.SetWithoutSource("hostname", tc.configHostname)
+			cfg.SetInTest("hostname", tc.configHostname)
 
 			if tc.ddAgentBin != "" {
-				cfg.SetWithoutSource("process_config.dd_agent_bin", tc.ddAgentBin)
+				cfg.SetInTest("process_config.dd_agent_bin", tc.ddAgentBin)
 			}
 
 			if tc.fargateHostname != "" {
@@ -293,8 +293,8 @@ func TestGetContainerHostType(t *testing.T) {
 				t.Setenv("EKS_FARGATE", tc.eksExecEnv)
 			}
 			if tc.deployMode != "" {
-				pkgconfigsetup.Datadog().SetWithoutSource("ecs_deployment_mode", tc.deployMode)
-				defer pkgconfigsetup.Datadog().SetWithoutSource("ecs_deployment_mode", "")
+				pkgconfigsetup.Datadog().SetInTest("ecs_deployment_mode", tc.deployMode)
+				defer pkgconfigsetup.Datadog().SetInTest("ecs_deployment_mode", "")
 			}
 			env.SetFeatures(t, tc.features...)
 

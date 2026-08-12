@@ -1,10 +1,12 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "syslog",
     srcs = [
         "cef_leef.go",
         "parser.go",
+        "structured_content.go",
         "syslog.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog",
@@ -22,19 +24,20 @@ go_library(
     deps = [
         "//pkg/logs/internal/parsers",
         "//pkg/logs/message",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "syslog_test",
     srcs = [
         "cef_leef_test.go",
         "parser_test.go",
+        "structured_content_test.go",
         "syslog_fuzz_test.go",
         "syslog_test.go",
     ],
     embed = [":syslog"],
-    gotags = ["test"],
     deps = [
         "//comp/logs/agent/config",
         "//pkg/logs/message",

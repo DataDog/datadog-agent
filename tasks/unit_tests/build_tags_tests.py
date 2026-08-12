@@ -3,10 +3,14 @@ import unittest
 from tasks import build_tags
 from tasks.build_tags import (
     ALL_TAGS,
+    AUTO_TEST_TAGS,
+    BASE_TEST_TAGS,
     COMMON_TAGS,
+    DEP_ONLY_TAGS,
     GAZELLE_BUILD_TAGS,
     GAZELLE_EXTRA_TAGS,
     GAZELLE_OMIT_TAGS,
+    TEST_FEATURE_TAGS,
     UNIT_TEST_TAGS,
 )
 
@@ -79,6 +83,16 @@ class TestCodegenPayloadData(unittest.TestCase):
 
     def test_common_tags_payload_matches_constant(self):
         self.assertEqual(_payload()["common_tags"], sorted(COMMON_TAGS))
+
+    def test_base_test_tags_are_minimal(self):
+        self.assertEqual(BASE_TEST_TAGS, sorted(UNIT_TEST_TAGS))
+
+    def test_auto_test_tags_exclude_dependency_only_tags(self):
+        self.assertFalse(set(AUTO_TEST_TAGS) & DEP_ONLY_TAGS)
+
+    def test_auto_test_tags_match_classification(self):
+        expected = sorted(TEST_FEATURE_TAGS - DEP_ONLY_TAGS - UNIT_TEST_TAGS - build_tags.UNIT_TEST_EXCLUDED_TAGS)
+        self.assertEqual(AUTO_TEST_TAGS, expected)
 
 
 if __name__ == "__main__":

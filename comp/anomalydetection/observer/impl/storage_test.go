@@ -643,6 +643,23 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
 }
 
+func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	resA := s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
+	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
+	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
+
+	hA := seriesKeyHash("ns", "a", []string{"k:1"})
+	hB := seriesKeyHash("ns", "b", []string{"k:2"})
+	hMissing := seriesKeyHash("ns", "ghost", nil)
+
+	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
+
+	require.Len(t, refs, 2)
+	require.ElementsMatch(t, []observer.SeriesRef{resA.Ref, resB.Ref}, refs)
+}
+
 func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add("ns", "a", 1.0, 1000, nil)
@@ -654,6 +671,7 @@ func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	require.Empty(t, s.RemoveSeriesByRefs([]observer.SeriesRef{-1, 999}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
 }
+
 func TestTimeSeriesStorage_AddReturnsRef(t *testing.T) {
 	// Add returns a valid Ref (>= 0) for accepted points, and the same Ref
 	// on subsequent writes. Each distinct series gets a unique Ref.

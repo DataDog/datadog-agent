@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,8 +25,8 @@ import (
 func TestDisablingDNSInspection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("system_probe_config.disable_dns_inspection", true)
+		mockSystemProbe.SetInTest("system_probe_config.enabled", true)
+		mockSystemProbe.SetInTest("system_probe_config.disable_dns_inspection", true)
 		cfg := New()
 
 		assert.False(t, cfg.DNSInspection)
@@ -46,7 +47,7 @@ func TestDisablingDNSInspection(t *testing.T) {
 func TestDisablingProtocolClassification(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.enable_protocol_classification", false)
+		mockSystemProbe.SetInTest("network_config.enable_protocol_classification", false)
 		cfg := New()
 
 		assert.False(t, cfg.ProtocolClassificationEnabled)
@@ -73,7 +74,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 
 		assert.True(t, cfg.EnableGatewayLookup)
 
-		mockSystemProbe.SetWithoutSource("network_config.enable_gateway_lookup", false)
+		mockSystemProbe.SetInTest("network_config.enable_gateway_lookup", false)
 		cfg = New()
 
 		assert.False(t, cfg.EnableGatewayLookup)
@@ -93,7 +94,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 func TestIgnoreConntrackInitFailure(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.ignore_conntrack_init_failure", true)
+		mockSystemProbe.SetInTest("network_config.ignore_conntrack_init_failure", true)
 		cfg := New()
 
 		assert.True(t, cfg.IgnoreConntrackInitFailure)
@@ -115,7 +116,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 func TestEnablingDNSStatsCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.collect_dns_stats", true)
+		mockSystemProbe.SetInTest("system_probe_config.collect_dns_stats", true)
 		cfg := New()
 
 		assert.True(t, cfg.CollectDNSStats)
@@ -142,10 +143,10 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 func TestDisablingDNSDomainCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		mockSystemProbe.SetInTest("system_probe_config.collect_dns_domains", false)
 		cfg := New()
 
-		mockSystemProbe.SetWithoutSource("system_probe_config.max_dns_stats", 100)
+		mockSystemProbe.SetInTest("system_probe_config.max_dns_stats", 100)
 
 		assert.False(t, cfg.CollectDNSDomains)
 	})
@@ -173,8 +174,8 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 func TestSettingMaxDNSStats(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
-		mockSystemProbe.SetWithoutSource("system_probe_config.max_dns_stats", 100)
+		mockSystemProbe.SetInTest("system_probe_config.collect_dns_domains", false)
+		mockSystemProbe.SetInTest("system_probe_config.max_dns_stats", 100)
 		cfg := New()
 
 		assert.Equal(t, 100, cfg.MaxDNSStats)
@@ -282,8 +283,8 @@ func TestNetworkConfigEnabled(t *testing.T) {
 func TestProcessServiceInference(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.enabled", true)
 		New()
 
 		require.True(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.enabled"))
@@ -300,8 +301,8 @@ func TestProcessServiceInference(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+		mockSystemProbe.SetInTest("network_config.enabled", true)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.enabled", true)
 		New()
 
 		require.True(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.enabled"))
@@ -309,9 +310,9 @@ func TestProcessServiceInference(t *testing.T) {
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.enabled", true)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.enabled", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.enabled", true)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.enabled", false)
 		New()
 
 		require.False(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.enabled"))
@@ -319,9 +320,9 @@ func TestProcessServiceInference(t *testing.T) {
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.enabled", false)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.enabled", false)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.enabled", true)
 
 		New()
 
@@ -330,9 +331,9 @@ func TestProcessServiceInference(t *testing.T) {
 
 	t.Run("Both enabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.enabled", true)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.enabled", true)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.enabled", true)
 
 		New()
 
@@ -347,7 +348,7 @@ func TestProcessServiceInference(t *testing.T) {
 
 	t.Run("Enabled without net, dsm, sm enabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.enabled", true)
 		New()
 		require.False(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
@@ -355,7 +356,7 @@ func TestProcessServiceInference(t *testing.T) {
 	t.Run("test platform specific defaults", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		// usm or npm must be enabled for the process_service_inference to be enabled
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
 		New()
 		sysconfig.Adjust(mockSystemProbe)
 
@@ -373,8 +374,8 @@ func TestProcessServiceInference(t *testing.T) {
 func TestProcessServiceInferenceWindows(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 		New()
 
 		require.True(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
@@ -390,8 +391,8 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 		New()
 
 		require.True(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
@@ -400,9 +401,9 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", false)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.use_windows_service_name", false)
 		New()
 
 		require.False(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
@@ -410,9 +411,9 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", false)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.use_windows_service_name", false)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.use_windows_service_name", true)
 		New()
 
 		require.True(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
@@ -420,16 +421,16 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 
 	t.Run("Both enabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.use_windows_service_name", true)
 
 		require.True(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", false)
+		mockSystemProbe.SetInTest("system_probe_config.process_service_inference.use_windows_service_name", false)
 
 		require.False(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
 	})
@@ -445,7 +446,7 @@ func TestExpectedTagsDuration(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("system_probe_config.expected_tags_duration", 20*time.Second)
+		mockSystemProbe.SetInTest("system_probe_config.expected_tags_duration", 20*time.Second)
 		cfg := New()
 
 		assert.Equal(t, 20*time.Second, cfg.ExpectedTagsDuration)
@@ -470,7 +471,7 @@ func TestEnableCertCollection(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.enable_cert_collection", true)
+		mockSystemProbe.SetInTest("network_config.enable_cert_collection", true)
 		cfg := New()
 
 		assert.Equal(t, true, cfg.EnableCertCollection)
@@ -495,7 +496,7 @@ func TestEnableCertCollectionMapCleanerInterval(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.cert_collection_map_cleaner_interval", 60*time.Second)
+		mockSystemProbe.SetInTest("network_config.cert_collection_map_cleaner_interval", 60*time.Second)
 		cfg := New()
 
 		assert.Equal(t, 60*time.Second, cfg.CertCollectionMapCleanerInterval)
@@ -519,7 +520,7 @@ func TestEnableContainerStore(t *testing.T) {
 	})
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.enabled", true)
+		mockSystemProbe.SetInTest("event_monitoring_config.network_process.container_store.enabled", true)
 		cfg := New()
 
 		assert.Equal(t, true, cfg.EnableContainerStore)
@@ -542,7 +543,7 @@ func TestMaxContainersTracked(t *testing.T) {
 	})
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.max_containers_tracked", 42)
+		mockSystemProbe.SetInTest("event_monitoring_config.network_process.container_store.max_containers_tracked", 42)
 		cfg := New()
 
 		assert.Equal(t, 42, cfg.MaxContainersTracked)
@@ -565,37 +566,185 @@ func TestDNSMonitoringPorts(t *testing.T) {
 
 	t.Run("via YAML - single port 53", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{53})
 		cfg := New()
 		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
 	})
 
 	t.Run("via YAML - single port non-53", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{5353})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{5353})
 		cfg := New()
 		assert.Equal(t, []int{5353}, cfg.DNSMonitoringPortList)
 	})
 
 	t.Run("via YAML - multiple ports including 53", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 5353})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{53, 5353})
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
 
 	t.Run("via YAML - multiple ports excluding 53", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{8053, 5353})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{8053, 5353})
 		cfg := New()
-		assert.Equal(t, []int{8053, 5353}, cfg.DNSMonitoringPortList)
+		assert.Equal(t, []int{5353, 8053}, cfg.DNSMonitoringPortList)
 	})
 
 	t.Run("via YAML - http ports should be removed", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		// HTTP ports would capture an enormous amount of traffic and cause issues.
 		// network config prevents the user from accidentally enabling these ports
-		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 443, 5353, 80})
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{53, 443, 5353, 80})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - invalid ports should be removed", func(t *testing.T) {
+		// Ports outside 1-65535 are soft-dropped at config load.
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{53, 0, -1, 65536, 99999, 5353})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - all-invalid list falls back to default", func(t *testing.T) {
+		// Every entry is removed by sanitization. The result must not be empty:
+		// an empty list would zero every BPF port slot and disable the filter.
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{0, 80, 443, 99999})
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - duplicates deduplicated", func(t *testing.T) {
+		// Repeat entries are deduplicated.
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{5353, 53, 53, 5353, 53})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - more than DNSPortsMax distinct ports truncates", func(t *testing.T) {
+		// 9 distinct ports exceeds DNSPortsMax = 8. After sort-ascending,
+		// the highest port (1008) is dropped.
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008})
+		cfg := New()
+		assert.Equal(t, []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - dedup applies before truncation cap", func(t *testing.T) {
+		// 33 raw entries but only 2 distinct (32×53 + 5353).
+		ports := make([]int, 0, 33)
+		for i := 0; i < 32; i++ {
+			ports = append(ports, 53)
+		}
+		ports = append(ports, 5353)
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetInTest("network_config.dns_monitoring_ports", ports)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - single port 53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - single port non-53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - multiple ports including 53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - multiple ports excluding 53", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "8053 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{5353, 8053}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - http ports should be removed", func(t *testing.T) {
+		// HTTP ports would capture an enormous amount of traffic and cause issues.
+		// network config prevents the user from accidentally enabling these ports
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 443 5353 80")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - invalid ports should be removed", func(t *testing.T) {
+		// Ports outside 1-65535 are soft-dropped at config load.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 0 -1 65536 99999 5353")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - all-invalid list falls back to default", func(t *testing.T) {
+		// Every entry is removed by sanitization. The result must not be empty:
+		// an empty list would zero every BPF port slot and disable the filter.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "0 80 443 99999")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - duplicates deduplicated", func(t *testing.T) {
+		// Repeat entries are deduplicated.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "5353 53 53 5353 53")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - more than DNSPortsMax distinct ports truncates", func(t *testing.T) {
+		// 9 distinct ports exceeds DNSPortsMax = 8. After sort-ascending,
+		// the highest port (1008) is dropped.
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 1001 1002 1003 1004 1005 1006 1007 1008")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 1001, 1002, 1003, 1004, 1005, 1006, 1007}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - dedup applies before truncation cap", func(t *testing.T) {
+		// 33 raw entries but only 2 distinct (32×53 + 5353).
+		ports := strings.Repeat("53 ", 32) + "5353"
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", ports)
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - JSON array form", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "[53,5353]")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - empty string falls back to default", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "")
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via env var - a malformed token is dropped, valid ports kept", func(t *testing.T) {
+		t.Setenv("DD_NETWORK_CONFIG_DNS_MONITORING_PORTS", "53 not-a-port 5353")
+		mock.NewSystemProbe(t)
 		cfg := New()
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})

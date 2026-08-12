@@ -32,6 +32,7 @@ func TestVMLogsExampleSuite(t *testing.T) {
 	e2e.Run(t, &vmLogsExampleSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithoutInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 					agentparams.WithLogs(),
@@ -50,7 +51,7 @@ func (s *vmLogsExampleSuite) TestLogs() {
 	}, 5*time.Minute, 10*time.Second)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		// part 2: generate logs
-		s.Env().RemoteHost.MustExecute("echo 'totoro' >> /tmp/test.log")
+		s.Env().RemoteHost.MustExecuteOn(c, "echo 'totoro' >> /tmp/test.log")
 		// part 3: there should be logs
 		names, err := fakeintake.GetLogServiceNames()
 		assert.NoError(c, err)

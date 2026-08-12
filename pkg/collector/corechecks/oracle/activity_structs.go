@@ -9,6 +9,12 @@ package oracle
 
 import "database/sql"
 
+// blockerFallbackRow is the scan target for activityQueryBlockerFromLock.
+type blockerFallbackRow struct {
+	BlockingInstance uint64 `db:"BLOCKER_INST_ID"`
+	BlockingSession  uint64 `db:"BLOCKER_SID"`
+}
+
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
 // easyjson:json
 type ActivitySnapshot struct {

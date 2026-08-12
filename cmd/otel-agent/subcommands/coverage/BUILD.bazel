@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:dd_agent_go_test on
+
 go_library(
     name = "coverage",
     srcs = [
@@ -29,6 +31,7 @@ go_test(
     srcs = ["command_test.go"],
     embed = [":coverage"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//cmd/otel-agent/subcommands",
         "//pkg/util/fxutil",

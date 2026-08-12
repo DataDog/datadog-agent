@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build anomalydetectiontestbench
+
 package testbenchimpl
 
 import (
@@ -11,7 +13,7 @@ import (
 	reporter "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 )
 
-// TestbenchReporter implements reporter.Component for the testbench.
+// TestbenchReporter implements reporter.Reporter for the testbench.
 // On each Report call it pushes a lightweight "advance" SSE event so connected
 // browser clients know to refresh their state via the API.
 // It also satisfies SSEAccess so the testbench HTTP API can subscribe clients.
@@ -45,7 +47,7 @@ func NewTestbenchReporter() *TestbenchReporter {
 
 func (r *TestbenchReporter) Name() string { return "testbench_reporter" }
 
-func (r *TestbenchReporter) Report(output reporter.ReportOutput) {
+func (r *TestbenchReporter) Report(output reporter.ReportOutput) bool {
 	type advancePayload struct {
 		AdvancedToSec int64 `json:"advancedToSec"`
 		NewAnomalies  int   `json:"newAnomalies"`
@@ -57,6 +59,7 @@ func (r *TestbenchReporter) Report(output reporter.ReportOutput) {
 		Correlations:  len(output.ActiveCorrelations),
 	})
 	r.hub.Broadcast(SSEEvent{Event: "advance", Data: data})
+	return len(output.ActiveCorrelations) > 0 || len(output.NewAnomalies) > 0
 }
 
 // Subscribe registers an SSE client. Implements SSEAccess.

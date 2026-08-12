@@ -38,6 +38,7 @@ struct syscall_cache_t {
     struct dentry_resolver_input_t resolver;
     s64 retval;
     enum TAIL_CALL_PROG_TYPE prog_type;
+    u32 sample_cookie;
 
     union {
         struct {
@@ -224,6 +225,7 @@ struct syscall_cache_t {
             u32 file_found;
             u32 pipe_entry_flag;
             u32 pipe_exit_flag;
+            u64 pid_tgid;
         } splice;
 
         struct {
@@ -252,6 +254,7 @@ struct syscall_cache_t {
             u16 domain;
             u16 type;
             u16 protocol;
+            u64 pid_tgid;
         } socket;
 
         struct {

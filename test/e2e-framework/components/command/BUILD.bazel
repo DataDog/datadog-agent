@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "command",
@@ -17,16 +18,15 @@ go_library(
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/namer",
         "//test/e2e-framework/common/utils",
-        "@com_github_alessio_shellescape//:shellescape",
         "@com_github_pulumi_pulumi_command_sdk//go/command/local",
         "@com_github_pulumi_pulumi_command_sdk//go/command/remote",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@dev_essio_al_pkg_shellescape//:shellescape",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "command_test",
     srcs = ["windowsOSCommand_test.go"],
     embed = [":command"],
-    gotags = ["test"],
 )

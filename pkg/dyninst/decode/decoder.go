@@ -32,6 +32,13 @@ import (
 // about them and we don't want to bail out completely.
 var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
+// Nothing the decoder writes is required to be valid UTF-8: Go strings hold
+// arbitrary bytes, and so do the names read out of the target's DWARF, symbol
+// table and runtime type metadata. Rejecting a bad byte would drop the whole
+// event, so the encoder replaces it. [jsontext.Encoder.Reset] swaps the option
+// set rather than extending it, so pass this everywhere an encoder is set up.
+var allowInvalidUTF8 = jsontext.AllowInvalidUTF8(true)
+
 type probeEvent struct {
 	event    *ir.Event
 	probe    *ir.Probe
@@ -159,6 +166,7 @@ func NewDecoder(
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 		traceContextTypeID:   traceContextTypeID,
+		redaction:            program.Redaction,
 	}
 	decoder._return.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -167,6 +175,7 @@ func NewDecoder(
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 		traceContextTypeID:   traceContextTypeID,
+		redaction:            program.Redaction,
 	}
 	return decoder, nil
 }
@@ -209,7 +218,7 @@ func (d *Decoder) Decode(
 		return buf, nil, err
 	}
 	b := bytes.NewBuffer(buf)
-	enc := jsontext.NewEncoder(b)
+	enc := jsontext.NewEncoder(b, allowInvalidUTF8)
 	var numExpressions int
 	if captures := d.message.Debugger.Snapshot.Captures; captures != nil {
 		if captures.Entry != nil {
@@ -227,7 +236,7 @@ func (d *Decoder) Decode(
 		err = json.MarshalEncode(enc, &d.message)
 		if errors.Is(err, errEvaluation) {
 			b = bytes.NewBuffer(buf)
-			enc.Reset(b)
+			enc.Reset(b, allowInvalidUTF8)
 			continue
 		} else if err != nil {
 			return buf, probe, fmt.Errorf("error marshaling snapshot message: %w", err)
@@ -263,6 +272,13 @@ type Event struct {
 	// flag in the emitted snapshot JSON so users know the capture is not
 	// full.
 	Truncated bool
+	// PanicUnwound is true when Return is a synthetic return-side event
+	// emitted by the runtime.recovery uprobe in place of a normal return.
+	// The function never returned; instead its frame was torn down by a
+	// recovered panic. The decoder renders the entry capture, skips the
+	// normal return-side decoding (no root type was generated for this
+	// path), and records an evaluation error noting the panic.
+	PanicUnwound bool
 }
 
 // firstFragment returns the first event from a FragmentedEvent. This is used
@@ -390,7 +406,30 @@ func (s *message) init(
 	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
 	var returnMissingReason string
-	if event.Return != nil {
+	if event.PanicUnwound {
+		// The recovery probe emitted a synthetic return whose root
+		// payload is the recovery probe's own EventRootType with a
+		// single @exception capture expression carrying the panic value's
+		// chased interface payload. Route it through the standard
+		// _return.init so the @exception value renders normally as the
+		// Return capture; surface the panic-recovery context as an
+		// evaluation error so callers know this isn't a real return.
+		if event.Return != nil {
+			if err := decoder._return.init(
+				event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
+			); err != nil {
+				return nil, fmt.Errorf("error initializing panic-unwound return event: %w", err)
+			}
+			s.Debugger.Snapshot.captures.Return = &decoder._return
+		}
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors,
+			evaluationError{
+				Expression: "@return",
+				Message:    "function did not return: panic was recovered by an ancestor frame",
+			},
+		)
+	} else if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {

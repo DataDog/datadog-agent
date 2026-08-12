@@ -76,8 +76,8 @@ func TestImport(t *testing.T) {
 func RunImport(t *testing.T, integrations []string) {
 	mock.New(t)
 	a6ConfDir := t.TempDir()
-	a5ConfDir := path.Join(".", "tests", "a5_conf")
-	a6RefConfDir := path.Join(".", "tests", "a6_conf")
+	a5ConfDir := path.Join(".", "testdata", "a5_conf")
+	a6RefConfDir := path.Join(".", "testdata", "a6_conf")
 
 	err := ImportConfig(a5ConfDir, a6ConfDir, false)
 	require.NoError(t, err, "ImportConfig failed")
@@ -93,11 +93,11 @@ func RunImport(t *testing.T, integrations []string) {
 	}
 
 	// Ensure we don't overwrite if we are not forced to
-	err = ImportConfig(path.Join(".", "tests", "a5_conf"), a6ConfDir, false)
+	err = ImportConfig(path.Join(".", "testdata", "a5_conf"), a6ConfDir, false)
 	require.Error(t, err, "ImportConfig should have failed")
 
 	// Ensure we backup file if we force overwriting
-	err = ImportConfig(path.Join(".", "tests", "a5_conf"), a6ConfDir, true)
+	err = ImportConfig(path.Join(".", "testdata", "a5_conf"), a6ConfDir, true)
 	require.NoError(t, err, "ImportConfig failed")
 	for _, i := range integrations {
 		assert.FileExists(t, path.Join(a6ConfDir, "conf.d", i+".d", "conf.yaml.bak"), i+".d/conf.yaml.bak is missing")

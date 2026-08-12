@@ -91,7 +91,7 @@ func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	return true
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func (m *MockSecretResolver) triggerCallback(handle, origin string, path []string, oldValue, newValue any) {
 	for _, subscriber := range m.subscribers {
 		subscriber(handle, origin, path, oldValue, newValue)
@@ -225,8 +225,8 @@ func TestSkipSecretResolve(t *testing.T) {
 	mockResolve := &MockSecretResolver{t: t, scenarios: makeSharedScenarios()}
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("secret_backend_skip_checks", true)
-	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
+	cfg.SetInTest("secret_backend_skip_checks", true)
+	defer cfg.SetInTest("secret_backend_skip_checks", false)
 
 	c, err := decryptConfig(sharedTpl, mockResolve, sharedTpl.Digest())
 	require.NoError(t, err)

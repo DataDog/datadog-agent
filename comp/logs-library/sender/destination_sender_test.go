@@ -154,8 +154,8 @@ func TestDestinationSenderDeadlock(t *testing.T) {
 
 func TestDestinationSenderDisabled(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("multi_region_failover.enabled", true)
-	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
+	cfg.SetInTest("multi_region_failover.enabled", true)
+	cfg.SetInTest("multi_region_failover.failover_logs", false)
 
 	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
 
@@ -165,15 +165,15 @@ func TestDestinationSenderDisabled(t *testing.T) {
 
 func TestDestinationSenderDisabledToEnabled(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("multi_region_failover.enabled", true)
-	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
+	cfg.SetInTest("multi_region_failover.enabled", true)
+	cfg.SetInTest("multi_region_failover.failover_logs", false)
 
 	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
 
 	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in MRF mode")
 	assert.Len(t, dest.input, 0, "sender should not send payload when disabled")
 
-	cfg.SetWithoutSource("multi_region_failover.failover_logs", true)
+	cfg.SetInTest("multi_region_failover.failover_logs", true)
 
 	assert.True(t, destSender.Send(&message.Payload{}), "sender should have buffer space to accept payload when enabled")
 	assert.Len(t, dest.input, 1, "sender should send payload when enabled")
@@ -181,8 +181,8 @@ func TestDestinationSenderDisabledToEnabled(t *testing.T) {
 
 func TestDestinationSenderEnabledToDisabled(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("multi_region_failover.enabled", true)
-	cfg.SetWithoutSource("multi_region_failover.failover_logs", true)
+	cfg.SetInTest("multi_region_failover.enabled", true)
+	cfg.SetInTest("multi_region_failover.failover_logs", true)
 
 	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
 
@@ -191,7 +191,7 @@ func TestDestinationSenderEnabledToDisabled(t *testing.T) {
 
 	// drain input channel and set to disabled
 	<-dest.input
-	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
+	cfg.SetInTest("multi_region_failover.failover_logs", false)
 
 	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in MRF mode")
 	assert.Len(t, dest.input, 0, "sender should not send payload when disabled")

@@ -74,6 +74,10 @@ type RRCFConfig struct {
 	Metrics []RRCFMetricDef `json:"-"`
 }
 
+// rrcfMinScoresForThreshold is the minimum score history required before
+// dynamicThreshold can evaluate a new score.
+const rrcfMinScoresForThreshold = 10
+
 // DefaultRRCFConfig returns sensible defaults for RRCF.
 func DefaultRRCFConfig() RRCFConfig {
 	return RRCFConfig{
@@ -106,6 +110,8 @@ func DefaultRRCFMetrics() []RRCFMetricDef {
 // It queries multiple system metrics and detects unusual combinations/trajectories.
 type RRCFDetector struct {
 	config RRCFConfig
+	// telemetry is optional and wired by the observer component.
+	telemetry *observerTelemetry
 
 	// metrics defines which series to include in the multivariate analysis.
 	// Each metric becomes a dimension in the feature vector.
@@ -134,6 +140,7 @@ type RRCFDetector struct {
 	// alignedCount and shingleCount track pipeline throughput for diagnostics.
 	alignedCount int
 	shingleCount int
+	ready        bool
 }
 
 // NewRRCFDetector creates an RRCF detector with the given config.
@@ -164,6 +171,14 @@ func NewRRCFDetector(config RRCFConfig) *RRCFDetector {
 // Name returns the detector name.
 func (r *RRCFDetector) Name() string {
 	return "rrcf"
+}
+
+// Ready reports when an aligned model can evaluate a dynamic threshold.
+func (r *RRCFDetector) Ready() bool { return r.ready }
+
+// SetObserverTelemetry wires direct observer telemetry emission.
+func (r *RRCFDetector) SetObserverTelemetry(t *observerTelemetry) {
+	r.telemetry = t
 }
 
 // Detect implements Detector. It queries storage for system metrics,
@@ -373,7 +388,7 @@ func (r *RRCFDetector) alignByTimestamp(pointsByMetric map[string][]observer.Poi
 
 // sortTimestampedVectors sorts vectors by timestamp ascending.
 func sortTimestampedVectors(vecs []timestampedVector) {
-	// Simple insertion sort (vectors are typically small and nearly sorted)
+	// Simple insertion sort (vectors are typically small)
 	for i := 1; i < len(vecs); i++ {
 		for j := i; j > 0 && vecs[j].timestamp < vecs[j-1].timestamp; j-- {
 			vecs[j], vecs[j-1] = vecs[j-1], vecs[j]
@@ -422,7 +437,6 @@ func (r *RRCFDetector) buildShingles(aligned []timestampedVector) []shingle {
 // is anomalous if its score exceeds mean + ThresholdSigma*stddev of the recent window.
 func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.DetectionResult {
 	var anomalies []observer.Anomaly
-	var telemetry []observer.ObserverTelemetry
 	warmup := r.config.TreeSize
 
 	for _, s := range shingles {
@@ -434,9 +448,9 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 			Timestamp: s.endTimestamp,
 			Score:     score,
 		})
-
-		// Emit telemetry for the CoDisp score at every scored shingle
-		telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFScore, score, s.endTimestamp))
+		if r.telemetry != nil {
+			r.telemetry.recordRRCFScore(r.Name(), score)
+		}
 
 		// Skip warmup phase — scores are artificial during forest filling
 		if r.totalScored <= warmup {
@@ -445,10 +459,11 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Compute dynamic threshold from recent scores
 		threshold := r.dynamicThreshold()
-
-		// Emit telemetry for the dynamic threshold (only after warmup when threshold is meaningful)
 		if threshold > 0 {
-			telemetry = append(telemetry, newTelemetryGauge([]string{"detector:" + r.Name()}, telemetryRRCFThreshold, threshold, s.endTimestamp))
+			r.ready = true
+		}
+		if threshold > 0 && r.telemetry != nil {
+			r.telemetry.recordRRCFThreshold(r.Name(), threshold)
 		}
 
 		// Update rolling window (after computing threshold, so current score
@@ -477,13 +492,12 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 	return observer.DetectionResult{
 		Anomalies: anomalies,
-		Telemetry: telemetry,
 	}
 }
 
 // dynamicThreshold returns mean + ThresholdSigma*stddev of the recent score window.
 func (r *RRCFDetector) dynamicThreshold() float64 {
-	if len(r.recentScores) < 10 {
+	if len(r.recentScores) < rrcfMinScoresForThreshold {
 		return 0 // not enough data yet
 	}
 	return r.rollingMean() + r.config.ThresholdSigma*r.rollingStddev()
@@ -531,6 +545,7 @@ func (r *RRCFDetector) Reset() {
 	r.totalScored = 0
 	r.alignedCount = 0
 	r.shingleCount = 0
+	r.ready = false
 	r.forest.reset()
 }
 

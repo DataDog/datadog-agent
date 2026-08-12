@@ -30,7 +30,7 @@ BEGIN
             VALUE "CompanyName", "Datadog, Inc."
             VALUE "FileDescription", "Datadog Security Agent"
             VALUE "FileVersion", FILE_VERSION_STRING
-            VALUE "InternalName", "process-agent"
+            VALUE "InternalName", "security-agent"
             VALUE "LegalCopyright", "Copyright (C) 2023"
             VALUE "OriginalFilename", "security-agent.exe"
             VALUE "ProductName", "Datadog Security Agent"

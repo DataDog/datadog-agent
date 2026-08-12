@@ -66,7 +66,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Orchestrator Explorer DCA and core agent
   extra_tags:
     node_type: setting
     type: array
@@ -83,14 +82,13 @@ properties:
         default: true
         env_vars:
         - DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED
-        tags: []
   manifest_collection:
     node_type: section
     type: object
     properties:
       buffer_flush_interval:
         node_type: setting
-        type: number
+        type: string
         default: 20s
         format: duration
         tags:
@@ -105,14 +103,12 @@ properties:
         default: true
   max_message_bytes:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: integer
+    default: 10000000
   max_per_message:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: integer
+    default: 100
   orchestrator_additional_endpoints:
     node_type: setting
     type: object
@@ -124,15 +120,13 @@ properties:
       items:
         type: string
       type: array
-    tags: []
   orchestrator_dd_url:
     node_type: setting
+    type: string
+    default: ''
     env_vars:
     - DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
     - DD_ORCHESTRATOR_URL
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
   terminated_pods:
     node_type: section
     type: object
@@ -159,8 +153,7 @@ properties:
         default: true
   use_legacy_endpoint:
     node_type: setting
-    tags:
-    - TODO:fix-no-default
-    - TODO:fix-missing-type
+    type: boolean
+    default: false
 tags:
 - full-agent-only:true

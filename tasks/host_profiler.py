@@ -14,11 +14,12 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.libs.releasing.json import get_current_milestone
 from tasks.libs.releasing.version import query_version
+from tasks.schema.generate import schema_codegen
 
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
-PPROFILE_MAX_VERSION = "v0.153.0"
+PPROFILE_MAX_VERSION = "v0.158.0"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
@@ -112,6 +113,9 @@ def update_golden_tests(ctx):
     """
     print("Updating golden test files...")
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     test_paths = ["comp/host-profiler/collector/impl/converters", "comp/host-profiler/collector/impl/agentprovider"]
     for path in test_paths:
         with ctx.cd(path):
@@ -146,12 +150,12 @@ def _get_agent_module_version(ctx: Context, module: str) -> str:
 
 
 def _parse_semver(version: str) -> tuple[int, ...]:
-    """Parse a release semver string (e.g. 'v0.150.0') into a tuple of ints.
+    """Parse a semver string (e.g. 'v0.150.0' or pseudo-versions) into a tuple of ints.
 
-    Only handles clean major.minor.patch tags — pseudo-versions or pre-release
-    suffixes will raise Exit with a clear message.
+    Strips any pre-release suffix (everything from the first '-' onward) before
+    parsing, so pseudo-versions like 'v0.155.1-0.20260625...' are handled correctly.
     """
-    v = version.lstrip("v")
+    v = version.lstrip("v").split("-")[0]
     parts = v.split(".")
     try:
         return tuple(int(p) for p in parts)

@@ -57,15 +57,15 @@ func TestGetLogsMeta(t *testing.T) {
 
 	status.SetCurrentTransport("")
 	meta := getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: false}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: true}, meta)
 
 	status.SetCurrentTransport(status.TransportTCP)
 	meta = getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
-
-	conf.SetWithoutSource("logs_config.auto_multi_line_detection", true)
-	meta = getLogsMeta(conf)
 	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: true}, meta)
+
+	conf.SetInTest("logs_config.auto_multi_line_detection", false)
+	meta = getLogsMeta(conf)
+	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
 }
 
 func TestGetInstallMethod(t *testing.T) {
@@ -95,17 +95,27 @@ func TestGetInstallMethod(t *testing.T) {
 	assert.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
 }
 
+func TestIsFipsProxyEnabled(t *testing.T) {
+	conf := configmock.New(t)
+
+	conf.SetInTest("fips.enabled", false)
+	assert.False(t, isFipsProxyEnabled(conf))
+
+	conf.SetInTest("fips.enabled", true)
+	assert.Equal(t, !getFipsMode(), isFipsProxyEnabled(conf))
+}
+
 func TestGetProxyMeta(t *testing.T) {
 	conf := configmock.New(t)
 	httputils.MockWarnings(t, nil, nil, nil)
 
-	conf.SetWithoutSource("no_proxy_nonexact_match", false)
+	conf.SetInTest("no_proxy_nonexact_match", false)
 	meta := getProxyMeta(conf)
 	assert.Equal(t, meta.NoProxyNonexactMatch, false)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)
 	assert.Equal(t, meta.NoProxyNonexactMatchExplicitlySet, true)
 
-	conf.SetWithoutSource("no_proxy_nonexact_match", true)
+	conf.SetInTest("no_proxy_nonexact_match", true)
 	meta = getProxyMeta(conf)
 	assert.Equal(t, meta.NoProxyNonexactMatch, true)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)

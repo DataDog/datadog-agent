@@ -204,6 +204,10 @@ func (x *TracerPayload) CompactStrings() {
 	markRef(x.HostnameRef)
 	markRef(x.AppVersionRef)
 	markAttributeRefs(x.Attributes, markRef)
+	if x.ContainerDebug != nil {
+		markRef(x.ContainerDebug.ErrorRef)
+		markRef(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Collect refs from chunks and spans
 	for _, chunk := range x.Chunks {
@@ -274,6 +278,10 @@ func (x *TracerPayload) CompactStrings() {
 	x.HostnameRef = remap(x.HostnameRef)
 	x.AppVersionRef = remap(x.AppVersionRef)
 	remapAttributes(x.Attributes, remap)
+	if x.ContainerDebug != nil {
+		x.ContainerDebug.ErrorRef = remap(x.ContainerDebug.ErrorRef)
+		x.ContainerDebug.BufferEvictionReasonRef = remap(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Remap chunks
 	for _, chunk := range x.Chunks {
@@ -707,9 +715,18 @@ func (c *InternalTraceChunk) Msgsize() int {
 	return size
 }
 
-// LegacyTraceID returns the trace ID of the trace chunk as a uint64, the lowest order 8 bytes of the trace ID are the legacy trace ID
+// LegacyTraceID returns the trace ID of the trace chunk as a uint64, the lowest order 8 bytes of the trace ID are the legacy trace ID.
+// The trace ID is a big-endian 128-bit value. A trace ID shorter than the full 16 bytes (e.g. supplied by a malformed or
+// truncated payload) is treated as if any missing high-order bytes were zero, rather than panicking on an out-of-bounds slice.
 func (c *InternalTraceChunk) LegacyTraceID() uint64 {
-	return binary.BigEndian.Uint64(c.TraceID[8:])
+	if len(c.TraceID) >= 16 {
+		return binary.BigEndian.Uint64(c.TraceID[8:])
+	}
+	// Right-align the (short) trace ID into a zero-padded 16-byte buffer so the
+	// provided bytes are the least-significant ones, then read the low 8 bytes.
+	var buf [16]byte
+	copy(buf[16-len(c.TraceID):], c.TraceID)
+	return binary.BigEndian.Uint64(buf[8:])
 }
 
 // SetLegacyTraceID sets the trace ID of the chunk from a legacy uint64 trace ID, additional bits are set to 0

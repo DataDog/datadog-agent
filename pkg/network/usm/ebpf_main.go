@@ -234,11 +234,6 @@ func (e *ebpfProgram) Start() error {
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
 	if len(e.enabledProtocols) == 0 {
-		err = e.Close()
-		if err != nil {
-			log.Errorf("error during USM shutdown: %s", err)
-		}
-
 		return errNoProtocols
 	}
 

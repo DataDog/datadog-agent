@@ -70,9 +70,10 @@ func TestDyninst(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
 	var integrationTestPrograms = map[string]struct{}{
-		"simple": {},
-		"sample": {},
-		"fault":  {},
+		"simple":        {},
+		"sample":        {},
+		"fault":         {},
+		"panic_recover": {},
 	}
 
 	sem := dyninsttest.MakeSemaphore()

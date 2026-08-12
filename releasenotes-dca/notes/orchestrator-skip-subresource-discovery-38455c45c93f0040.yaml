@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug in the orchestrator explorer check that led to trying to collect
+    Kubernetes subresources under certain custom resource API groups.

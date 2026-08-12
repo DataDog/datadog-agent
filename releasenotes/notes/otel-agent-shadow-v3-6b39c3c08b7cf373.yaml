@@ -1,0 +1,4 @@
+fixes:
+  - |
+    OTel Agent: Disable v3 series API shadow sampling, which is incompatible
+    with the zlib compression the OTel Agent forces for the metrics intake.

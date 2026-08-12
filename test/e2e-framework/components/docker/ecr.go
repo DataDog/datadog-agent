@@ -6,6 +6,8 @@
 package docker
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
@@ -15,18 +17,36 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// InstallECRCredentialsHelper installs the Amazon ECR credential helper and jq on the host,
-// then merges credsStore=ecr-login into ~/.docker/config.json (preserving existing keys).
-// This enables automatic authentication against ECR registries (including pull-through caches).
-func InstallECRCredentialsHelper(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
-	ecrCredsHelperInstall, err := host.OS.PackageManager().Ensure("amazon-ecr-credential-helper", nil, "docker-credential-ecr-login", os.WithPulumiResourceOptions(opts...))
-	if err != nil {
-		return nil, err
-	}
+// ecrCredentialHelperVersion pins the docker-credential-ecr-login release
+// installed on Red Hat family distros. Bump it manually (or via Renovate):
+// resolving the "latest" release from GitHub at provision time was a source of
+// flakiness. Keep it in sync with the pin in
+// test/new-e2e/tests/installer/host/host.go.
+const ecrCredentialHelperVersion = "0.12.0"
 
-	jqInstall, err := host.OS.PackageManager().Ensure("jq", nil, "jq", os.WithPulumiResourceOptions(opts...))
-	if err != nil {
-		return nil, err
+// SetupECRDockerAuth merges credsStore=ecr-login into ~/.docker/config.json (preserving existing
+// keys). docker-credential-ecr-login and jq are expected to already be present on the host
+// (pre-baked in AWS e2e AMIs); this enables automatic authentication against ECR registries
+// (including pull-through caches).
+//
+// TODO(ACIX-1305 follow-up): RHEL family has no -e2e AMI yet (introduced by the SBOM/RHEL10
+// work in #51486), so the helper binary and jq are still installed at runtime there. Migrated
+// OSes assume both are pre-baked. Remove the RHEL-family install once a RHEL 10 -e2e AMI bakes
+// them.
+func SetupECRDockerAuth(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
+	switch host.OS.Descriptor().Flavor {
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux:
+		ecrCredsHelperInstall, err := ensureECRCredentialHelper(n, host, opts...)
+		if err != nil {
+			return nil, err
+		}
+
+		jqInstall, err := host.OS.PackageManager().Ensure("jq", nil, "jq", os.WithPulumiResourceOptions(opts...))
+		if err != nil {
+			return nil, err
+		}
+
+		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(ecrCredsHelperInstall, jqInstall))
 	}
 
 	// Merge credsStore into existing ~/.docker/config.json so we do not wipe auths, credHelpers, proxies, etc.
@@ -41,11 +61,38 @@ func InstallECRCredentialsHelper(n namer.Namer, host *remoteComp.Host, opts ...p
 			Create: pulumi.String(mergeDockerConfig),
 			Sudo:   false,
 		},
-		utils.MergeOptions(opts, utils.PulumiDependsOn(ecrCredsHelperInstall, jqInstall))...,
+		opts...,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return ecrConfigCommand, nil
+}
+
+// ensureECRCredentialHelper installs the docker-credential-ecr-login binary.
+// Red Hat family distributions have no package for it, so the pinned static
+// release binary is fetched directly; other distributions install it through
+// their package manager.
+func ensureECRCredentialHelper(n namer.Namer, host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
+	switch host.OS.Descriptor().Flavor {
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
+		// sudo cannot run a bare "if" compound, so feed the script to bash on
+		// stdin (sudo bash <<EOF), matching the kubeadm provisioner's rootScript.
+		install := fmt.Sprintf(`bash <<'EOF'
+set -euo pipefail
+if ! command -v docker-credential-ecr-login; then
+  a=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+  curl -fsSL -o /usr/local/bin/docker-credential-ecr-login "https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/%s/linux-${a}/docker-credential-ecr-login"
+  chmod 0755 /usr/local/bin/docker-credential-ecr-login
+fi
+EOF`, ecrCredentialHelperVersion)
+		return host.OS.Runner().Command(
+			n.ResourceName("ecr-credential-helper"),
+			&command.Args{Create: pulumi.String(install), Sudo: true},
+			opts...,
+		)
+	default:
+		return host.OS.PackageManager().Ensure("amazon-ecr-credential-helper", nil, "docker-credential-ecr-login", os.WithPulumiResourceOptions(opts...))
+	}
 }

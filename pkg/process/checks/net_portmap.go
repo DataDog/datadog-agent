@@ -51,7 +51,7 @@ func getListeningPortToPIDMap() map[remoteservice.ListenKey]int32 {
 	for _, p := range ports {
 		// USM supports TCP only; skip UDP ports.
 		if p.Pid > 0 && p.Proto == "tcp" {
-			result[remoteservice.ListenKey{IP: p.IP, Port: int32(p.Port)}] = int32(p.Pid)
+			result[remoteservice.ListenKey{IP: p.IP.String(), Port: int32(p.Port)}] = int32(p.Pid)
 		}
 	}
 	cachedPortMap = result

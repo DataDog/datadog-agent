@@ -169,6 +169,22 @@ type AllExpr struct {
 
 func (ae *AllExpr) expr() {}
 
+// FilterExpr represents a filter(coll, pred) collection operator. It
+// evaluates to a new collection containing the elements of coll for
+// which pred is true. Inside pred, the iteration variable is @it (with
+// @key as an accepted synonym over maps) and @value is the current
+// value for maps.
+//
+// Filter is leaf-only: it is legal as the top-level expression of a
+// capture or message-template segment, but not inside another
+// expression and not as a probe condition. Irgen enforces this.
+type FilterExpr struct {
+	Base Expr
+	Pred Expr
+}
+
+func (fe *FilterExpr) expr() {}
+
 // UnsupportedExpr represents an expression type that is not yet supported.
 type UnsupportedExpr struct {
 	Operation string
@@ -305,6 +321,14 @@ func Rewrite(root Expr, f func(Expr) Expr) Expr {
 		newPred := Rewrite(e.Pred, f)
 		if newBase != e.Base || newPred != e.Pred {
 			result = &AllExpr{Base: newBase, Pred: newPred}
+		} else {
+			result = root
+		}
+	case *FilterExpr:
+		newBase := Rewrite(e.Base, f)
+		newPred := Rewrite(e.Pred, f)
+		if newBase != e.Base || newPred != e.Pred {
+			result = &FilterExpr{Base: newBase, Pred: newPred}
 		} else {
 			result = root
 		}
@@ -702,8 +726,9 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 		return &OrExpr{Left: lhs, Right: rhs}, nil
 
-	case "any", "all":
-		// Quantifier predicate: {"any": [<coll>, <pred>]} / {"all": [<coll>, <pred>]}.
+	case "any", "all", "filter":
+		// Quantifier predicate / filter: {"any": [<coll>, <pred>]} /
+		// {"all": [<coll>, <pred>]} / {"filter": [<coll>, <pred>]}.
 		base, pred, err := parseBinaryOperands(operation, dec)
 		if err != nil {
 			return nil, err
@@ -711,10 +736,14 @@ func Parse(dslJSON []byte) (Expr, error) {
 		if err := readClosingBrace(); err != nil {
 			return nil, err
 		}
-		if operation == "any" {
+		switch operation {
+		case "any":
 			return &AnyExpr{Base: base, Pred: pred}, nil
+		case "all":
+			return &AllExpr{Base: base, Pred: pred}, nil
+		default:
+			return &FilterExpr{Base: base, Pred: pred}, nil
 		}
-		return &AllExpr{Base: base, Pred: pred}, nil
 
 	case "not":
 		argJSON, err := dec.ReadValue()

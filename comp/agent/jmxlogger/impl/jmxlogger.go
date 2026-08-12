@@ -14,7 +14,6 @@ import (
 
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -55,9 +54,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 	} else {
 		syslogURI := pkglogsetup.GetSyslogURI(config)
 		jmxLogFile := config.GetString("jmx_log_file")
-		if jmxLogFile == "" {
-			jmxLogFile = defaultpaths.JmxLogFile
-		}
 
 		if config.GetBool("disable_file_logging") {
 			// this will prevent any logging on file

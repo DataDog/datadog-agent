@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ringbuffer",
+    srcs = ["ringbuffer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/telemetry",
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/eventstream",
+            "//pkg/util/sync",
+            "@com_github_cilium_ebpf//ringbuf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/telemetry",
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/eventstream",
+            "//pkg/util/sync",
+            "@com_github_cilium_ebpf//ringbuf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
+)

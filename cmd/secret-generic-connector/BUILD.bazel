@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+
+go_library(
+    name = "secret-generic-connector_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/secret-generic-connector/backend",
+        "//cmd/secret-generic-connector/secret",
+    ],
+)
+
+dd_agent_go_binary(
+    name = "secret-generic-connector",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/secret-generic-connector/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
+    embed = [":secret-generic-connector_lib"],
+    visibility = ["//visibility:public"],
+)

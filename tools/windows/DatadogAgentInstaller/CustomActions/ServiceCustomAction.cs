@@ -213,13 +213,13 @@ namespace Datadog.CustomActions
             {
                 _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
+            _serviceController.SetCredentials(Constants.ProcmgrServiceName, ddAgentUserName, ddAgentUserPassword);
 
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
         }

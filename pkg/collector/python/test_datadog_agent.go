@@ -15,10 +15,12 @@ import (
 	"testing"
 	"time"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v2"
 
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -172,4 +174,57 @@ func testObfuscaterConfig(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, obfuscaterConfig)
+}
+
+func testReportIssue(t *testing.T) {
+	hp := healthplatformmock.New(t)
+	SetHealthPlatform(hp)
+	t.Cleanup(func() { SetHealthPlatform(nil) })
+
+	t.Run("partial_json_id_only", func(t *testing.T) {
+		var errOut *C.char
+		ReportIssue(C.CString("integration:mysql"), C.CString(`{"id":"partial-minimal"}`), &errOut)
+		require.Nil(t, errOut, reportIssueErrMsg(errOut))
+		got := hp.GetIssue("partial-minimal")
+		require.NotNil(t, got)
+		assert.Equal(t, "partial-minimal", got.Id)
+		assert.Empty(t, got.IssueName, "optional proto fields omitted in JSON should unmarshal as empty")
+		assert.Equal(t, "integration:mysql", got.Source, "ReportIssue sets Source from check name")
+	})
+
+	t.Run("partial_json_subset_of_fields", func(t *testing.T) {
+		var errOut *C.char
+		payload := `{"id":"partial-rich","issueName":"conn-timeout","title":"DB timeout","severity":"ISSUE_SEVERITY_MEDIUM"}`
+		ReportIssue(C.CString("py:check"), C.CString(payload), &errOut)
+		require.Nil(t, errOut, reportIssueErrMsg(errOut))
+		got := hp.GetIssue("partial-rich")
+		require.NotNil(t, got)
+		assert.Equal(t, "partial-rich", got.Id)
+		assert.Equal(t, "conn-timeout", got.IssueName)
+		assert.Equal(t, "DB timeout", got.Title)
+		assert.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_MEDIUM, got.Severity)
+		assert.Equal(t, "py:check", got.Source)
+		assert.Empty(t, got.Description)
+	})
+
+	t.Run("missing_id_rejected", func(t *testing.T) {
+		var errOut *C.char
+		ReportIssue(C.CString("c"), C.CString(`{"issueName":"orphan-name"}`), &errOut)
+		require.NotNil(t, errOut)
+		assert.Contains(t, C.GoString(errOut), "empty or null id")
+	})
+
+	t.Run("invalid_json_rejected", func(t *testing.T) {
+		var errOut *C.char
+		ReportIssue(C.CString("c"), C.CString(`{`), &errOut)
+		require.NotNil(t, errOut)
+		assert.NotEmpty(t, C.GoString(errOut))
+	})
+}
+
+func reportIssueErrMsg(errOut *C.char) string {
+	if errOut == nil {
+		return ""
+	}
+	return C.GoString(errOut)
 }

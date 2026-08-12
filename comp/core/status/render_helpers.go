@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"path"
 	"strconv"
 	"strings"
@@ -54,6 +55,7 @@ func HTMLFmap() pkghtmltemplate.FuncMap {
 			"ntpWarning":          ntpWarning,
 			"version":             getVersion,
 			"percent":             func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
+			"pctInt":              func(v float64) int { return int(math.Round(v * 100)) },
 			"complianceResult":    complianceResult,
 			"lastErrorTraceback":  lastErrorTracebackHTML,
 			"lastErrorMessage":    lastErrorMessageHTML,

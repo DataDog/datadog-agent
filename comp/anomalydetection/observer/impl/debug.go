@@ -41,20 +41,22 @@ type DebugView interface {
 	// StorageReader returns a read-only view of the engine's time-series storage.
 	// Used by the testbench to compute windowed log rates in change messages.
 	StorageReader() observerdef.StorageReader
-	// IngestLogSync feeds a log directly into the engine, bypassing the
-	// dispatch channel. Synchronous: returns after IngestLog and any
-	// scheduler-triggered advances complete. Testbench-only — never call
-	// from production hot paths; not safe to interleave with live ObserveLog.
-	IngestLogSync(source string, msg observerdef.LogView)
 	// IngestMetricSync feeds a metric directly into the engine, bypassing
-	// the dispatch channel. Synchronous; same caveats as IngestLogSync.
+	// the dispatch channel. Synchronous: returns after IngestMetric and any
+	// scheduler-triggered advances complete. Testbench-only.
 	IngestMetricSync(source string, sample observerdef.MetricView)
-	// IngestLogNoAdvance feeds a log directly into the engine without driving
-	// any scheduler-triggered advances. Used during batch pre-loading in the
-	// testbench replay path so that extractor state is built up and log
+	// IngestLogAndAdvance feeds a log directly into the engine and synchronously
+	// executes scheduler-triggered advances. Used by one-shot headless streams.
+	IngestLogAndAdvance(source string, msg observerdef.LogView)
+	// FinishReplayStream flushes the scheduler at end-of-input without resetting
+	// analysis state or replaying retained storage.
+	FinishReplayStream()
+	// IngestLogForReplay feeds a log directly into the engine without driving
+	// any scheduler-triggered advances. Used while pre-loading retained data so
+	// that extractor state is built up and log
 	// metrics are written to storage, but detector/correlator advances are
 	// deferred to the subsequent ReplayStoredData call.
-	IngestLogNoAdvance(source string, msg observerdef.LogView)
+	IngestLogForReplay(source string, msg observerdef.LogView)
 }
 
 // StateView is a read-only window into engine state.
@@ -69,6 +71,9 @@ type StateView interface {
 	// Anomalies
 	Anomalies() []observerdef.Anomaly
 	TotalAnomalyCount() int
+
+	// Scoring
+	ScoreState() observerdef.AnomalyScoreState
 	UniqueAnomalySourceCount() int
 	DetectorAnomalies(name string) []observerdef.Anomaly
 	AnomaliesByDetector() map[string][]observerdef.Anomaly

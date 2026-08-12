@@ -28,14 +28,14 @@ func setupTest(t *testing.T) (model.Config, context.Context) {
 	})
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("autoconfig_from_environment", false)
+	mockConfig.SetInTest("autoconfig_from_environment", false)
 	return mockConfig, context.Background()
 }
 
 func TestGet(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
-	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3"})
-	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3"})
+	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3"})
+	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3"})
 
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
@@ -53,8 +53,8 @@ func TestGetEmptyHostTags(t *testing.T) {
 
 func TestGetWithSplits(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
-	mockConfig.SetWithoutSource("tag_value_split_separator", map[string]string{"kafka_partition": ","})
-	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
+	mockConfig.SetInTest("tag_value_split_separator", map[string]string{"kafka_partition": ","})
+	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
@@ -64,8 +64,8 @@ func TestGetWithSplits(t *testing.T) {
 func TestGetWithoutSplits(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 
-	mockConfig.SetWithoutSource("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
-	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
+	mockConfig.SetInTest("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
+	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
@@ -74,8 +74,8 @@ func TestGetWithoutSplits(t *testing.T) {
 
 func TestGetWithEnv(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
-	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
-	mockConfig.SetWithoutSource("env", "preprod")
+	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
+	mockConfig.SetInTest("env", "preprod")
 
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
@@ -95,8 +95,8 @@ func TestMarshalEmptyHostTags(t *testing.T) {
 
 func TestCombineExtraTags(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
-	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag4"})
-	mockConfig.SetWithoutSource("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
+	mockConfig.SetInTest("tags", []string{"tag1:value1", "tag2", "tag4"})
+	mockConfig.SetInTest("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
 
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
@@ -105,11 +105,11 @@ func TestCombineExtraTags(t *testing.T) {
 
 func TestGetWithoutEUDM(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
-	mockConfig.SetWithoutSource("infrastructure_mode", "full")
+	mockConfig.SetInTest("infrastructure_mode", "full")
 
 	hostTags := Get(ctx, false, mockConfig)
 	for _, tag := range hostTags.System {
-		assert.NotContains(t, tag, "infrastructure_mode:")
+		assert.NotContains(t, tag, "infra_mode:")
 		assert.NotContains(t, tag, "os_name:")
 		assert.NotContains(t, tag, "os_version:")
 		assert.NotContains(t, tag, "cpu_model:")
@@ -120,7 +120,7 @@ func TestGetWithoutEUDM(t *testing.T) {
 
 func TestGetWithEUDM(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
-	mockConfig.SetWithoutSource("infrastructure_mode", "end_user_device")
+	mockConfig.SetInTest("infrastructure_mode", "end_user_device")
 
 	original := collectEUDMTagsFunc
 	t.Cleanup(func() { collectEUDMTagsFunc = original })
@@ -135,7 +135,7 @@ func TestGetWithEUDM(t *testing.T) {
 	}
 
 	hostTags := Get(ctx, false, mockConfig)
-	assert.Contains(t, hostTags.System, "infrastructure_mode:end_user_device")
+	assert.Contains(t, hostTags.System, "infra_mode:end_user_device")
 	assert.Contains(t, hostTags.System, "os_name:darwin")
 	assert.Contains(t, hostTags.System, "os_version:23.5.0")
 	assert.Contains(t, hostTags.System, "cpu_model:Apple_M1_Pro")
@@ -145,14 +145,14 @@ func TestGetWithEUDM(t *testing.T) {
 
 func TestEUDMTagsOnUnsupportedOS(t *testing.T) {
 	// collectEUDMHardwareTags should return nil on non-darwin/windows so the
-	// only EUDM tag emitted on Linux is the infrastructure_mode marker.
+	// only EUDM tag emitted on Linux is the infra_mode marker.
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		t.Skip("test asserts behavior on non-darwin/non-windows hosts")
 	}
 	assert.Nil(t, collectEUDMHardwareTags())
 
 	tags := getEUDMTags()
-	assert.Equal(t, []string{"infrastructure_mode:end_user_device"}, tags)
+	assert.Equal(t, []string{"infra_mode:end_user_device"}, tags)
 }
 
 func TestBytesToGB(t *testing.T) {
@@ -171,7 +171,7 @@ func TestSanitizeEUDMTagValue(t *testing.T) {
 
 func TestHostTagsCache(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
-	mockConfig.SetWithoutSource("collect_gce_tags", false)
+	mockConfig.SetInTest("collect_gce_tags", false)
 
 	fooTags := []string{"foo1:value1"}
 	var fooErr error

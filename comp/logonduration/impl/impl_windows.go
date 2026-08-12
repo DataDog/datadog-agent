@@ -238,29 +238,28 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		ts       time.Time
 		duration time.Duration
 	}{
-		{"boot_start", "Boot Start", tl.BootStart, 0},
-		{"smss_start", "SMSS Start", tl.SmssStart, 0},
-		{"user_session_smss_start", "User Session SMSS Start", tl.UserSmssStart, 0},
-		{"winlogon_start", "Winlogon Start", tl.WinlogonStart, 0},
-		{"winlogon_init", "Winlogon Init", tl.WinlogonInit, durationBetween(tl.WinlogonInit, tl.WinlogonInitDone)},
+		{"boot_duration", "Boot Duration", tl.BootStart, durationBetween(tl.BootStart, tl.LoginUIStart)},
 		{"login_ui_start", "Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
 		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
 		{"user_group_policy", "User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
-		{"user_session_winlogon_start", "User Session Winlogon Start", tl.UserWinlogonStart, 0},
-		{"user_logon", "User Logon", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
+		{"logon_duration", "Logon Duration", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
 		{"profile_loaded", "Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
 		{"profile_created", "Profile Created", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
 		{"execute_shell_commands", "Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
-		{"userinit_exe", "Userinit.exe", tl.UserinitStart, durationBetween(tl.UserinitStart, tl.ExplorerStart)},
-		{"explorer_exe_start", "Explorer.exe Start", tl.ExplorerStart, 0},
 		{"explorer_initializing", "Explorer Initializing", tl.ExplorerInitStart, durationBetween(tl.ExplorerInitStart, tl.ExplorerInitEnd)},
-		{"desktop_created", "Desktop Created", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopCreateEnd)},
-		{"desktop_visible", "Desktop Visible", tl.DesktopVisibleStart, durationBetween(tl.DesktopVisibleStart, tl.DesktopVisibleEnd)},
+		{"desktop_visible", "Desktop Visible", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopVisibleEnd)},
 		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
-		{"desktop_ready", "Desktop Ready", tl.DesktopReadyStart, durationBetween(tl.DesktopReadyStart, tl.DesktopReadyEnd)},
 	}
 
 	hasBootRef := !boot.IsZero()
+
+	// gap is the idle time at the login screen (LoginUIDone -> SessionLogon).
+	// It is collapsed out of post-logon offsets so the timeline renders
+	// contiguously; the per-milestone Timestamp retains wall-clock truth.
+	gap := time.Duration(0)
+	if !tl.LoginUIDone.IsZero() && !tl.SessionLogon.IsZero() && tl.SessionLogon.After(tl.LoginUIDone) {
+		gap = tl.SessionLogon.Sub(tl.LoginUIDone)
+	}
 
 	var milestones []Milestone
 	for _, c := range candidates {
@@ -270,6 +269,9 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		var offset float64
 		if hasBootRef {
 			offset = float64(c.ts.Sub(boot).Milliseconds())
+			if gap > 0 && !c.ts.Before(tl.SessionLogon) {
+				offset -= float64(gap.Milliseconds())
+			}
 		}
 		milestones = append(milestones, Milestone{
 			ID:         c.id,
@@ -312,6 +314,11 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	}
 
 	for _, milestone := range milestones {
+		// boot_duration and logon_duration are already represented by the
+		// authoritative boot_duration_ms / logon_duration_ms keys above.
+		if milestone.ID == "boot_duration" || milestone.ID == "logon_duration" {
+			continue
+		}
 		if milestone.DurationMs > 0 {
 			durations[milestone.ID] = milestone.DurationMs
 		}
@@ -336,6 +343,12 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		eventTimestamp = time.Now()
 	}
 
+	haveBoot := !tl.BootStart.IsZero() && !tl.LoginUIStart.IsZero()
+	haveLogon := !tl.SessionLogon.IsZero() && !tl.DesktopVisibleStart.IsZero()
+	complete := haveBoot && haveLogon
+	totalMs := getDurationMilliseconds(tl.BootStart, tl.LoginUIStart) + getDurationMilliseconds(tl.SessionLogon, tl.DesktopVisibleStart)
+	title := buildEventTitle(complete, totalMs)
+
 	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
 		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
@@ -345,6 +358,7 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{
 		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Title:     title,
 		Message:   msg,
 		Timestamp: eventTimestamp,
 		Custom:    custom,

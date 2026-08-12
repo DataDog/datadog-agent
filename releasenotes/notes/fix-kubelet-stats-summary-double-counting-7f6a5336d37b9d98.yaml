@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Fix the kubelet check double-counting ``kubernetes.cpu.usage.total``,
+    ``kubernetes.memory.usage``, ``kubernetes.memory.working_set``,
+    ``kubernetes.filesystem.usage``, ``kubernetes.filesystem.usage_pct``,
+    ``kubernetes.network.rx_bytes`` and ``kubernetes.network.tx_bytes``
+    when ``use_stats_summary_as_source`` is enabled. The cAdvisor source
+    no longer emits the metrics already produced by the kubelet
+    ``/stats/summary`` endpoint, so ``sum:`` aggregations no longer
+    roughly double when the option is turned on. The summary provider
+    now also covers init and ephemeral containers, so enabling the
+    option does not drop their CPU, memory, and filesystem metrics.

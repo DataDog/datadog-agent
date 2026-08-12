@@ -10,9 +10,10 @@ files_inventory_check:
   tags: ["arch:amd64", "specific:true"]
   variables:
     GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: clone
+    GIT_STRATEGY: clone
   needs:
     - agent_deb-x64-a7
+    - iot_agent_deb-x64
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:

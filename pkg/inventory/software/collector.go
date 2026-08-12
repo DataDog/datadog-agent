@@ -142,16 +142,10 @@ type Entry struct {
 	// internal use and future backend support.
 	InstallPath string `json:"-"`
 
-	// InstallPaths contains the top-level directories where a PKG installed files.
-	// This field is specific to PKG receipts and provides visibility into where
-	// the package scattered its files across the filesystem.
-	// Unlike InstallPath (single path), this captures all installation locations
-	// for packages that install to multiple directories (e.g., CLI tools that
-	// install binaries to /usr/local/bin and libraries to /usr/local/lib).
-	// Examples: ["/usr/local/bin", "/usr/local/ykman", "/Library/LaunchDaemons"]
-	// NOTE: Currently excluded from backend payload (json:"-") but kept for
-	// internal use and future backend support.
-	InstallPaths []string `json:"-"`
+	// InstallPaths contains the install location(s) of the software and is the
+	// field sent to the backend. Most sources populate a single-element list
+	// mirroring InstallPath; PKG receipts list all top-level install directories.
+	InstallPaths []string `json:"install_paths,omitempty"`
 }
 
 // GetID returns a unique identifier for the software entry.
@@ -207,6 +201,15 @@ func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Wa
 
 		// Add entries to result list
 		allEntries = append(allEntries, entries...)
+	}
+
+	// Mirror the internal scalar InstallPath into the backend-facing InstallPaths
+	// for collectors that only know a single location. Collectors that already
+	// populate InstallPaths (e.g. macOS PKG receipts) are left untouched.
+	for _, e := range allEntries {
+		if e != nil && len(e.InstallPaths) == 0 && e.InstallPath != "" {
+			e.InstallPaths = []string{e.InstallPath}
+		}
 	}
 
 	return allEntries, allWarnings, allErrors

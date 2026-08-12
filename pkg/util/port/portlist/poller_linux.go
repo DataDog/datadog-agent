@@ -122,39 +122,39 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 // parseHexIPv4 parses an 8-character hex string from /proc/net/tcp
 // representing an IPv4 address in host byte order and returns the
 // canonical IP string (e.g. "0.0.0.0", "127.0.0.1").
-func parseHexIPv4(hexStr string) string {
+func parseHexIPv4(hexStr string) netip.Addr {
 	if len(hexStr) != 8 {
-		return ""
+		return netip.Addr{}
 	}
 	v, err := strconv.ParseUint(hexStr, 16, 32)
 	if err != nil {
-		return ""
+		return netip.Addr{}
 	}
 	addr := netip.AddrFrom4([4]byte{
 		byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24),
 	})
-	return addr.String()
+	return addr
 }
 
 // parseHexIPv6 parses a 32-character hex string from /proc/net/tcp6
 // representing an IPv6 address as four 32-bit words in host byte order
 // and returns the canonical IP string (e.g. "::", "::1").
-func parseHexIPv6(hexStr string) string {
+func parseHexIPv6(hexStr string) netip.Addr {
 	if len(hexStr) != 32 {
-		return ""
+		return netip.Addr{}
 	}
 	var b [16]byte
 	for i := 0; i < 4; i++ {
 		v, err := strconv.ParseUint(hexStr[i*8:(i+1)*8], 16, 32)
 		if err != nil {
-			return ""
+			return netip.Addr{}
 		}
 		b[i*4] = byte(v)
 		b[i*4+1] = byte(v >> 8)
 		b[i*4+2] = byte(v >> 16)
 		b[i*4+3] = byte(v >> 24)
 	}
-	return netip.AddrFrom16(b).Unmap().String()
+	return netip.AddrFrom16(b).Unmap()
 }
 
 func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
@@ -256,11 +256,11 @@ func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 			// Rest should be unchanged.
 		} else {
 			ipHex := local.SliceTo(i).StringCopy()
-			var ipStr string
+			var ip netip.Addr
 			if isIPv6 {
-				ipStr = parseHexIPv6(ipHex)
+				ip = parseHexIPv6(ipHex)
 			} else {
-				ipStr = parseHexIPv4(ipHex)
+				ip = parseHexIPv4(ipHex)
 			}
 			li.known[string(inoBuf)] = &portMeta{
 				needsProcName: true,
@@ -268,7 +268,7 @@ func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 				port: Port{
 					Proto: proto,
 					Port:  uint16(portv),
-					IP:    ipStr,
+					IP:    ip,
 				},
 			}
 		}

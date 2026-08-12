@@ -94,6 +94,17 @@ type state struct {
 		detached                    uint64
 		unloaded                    uint64
 		typeRecompilationsTriggered uint64
+
+		// runtime.recovery counters, accumulated by evaluateCircuitBreakers
+		// from per-program BPF stats. These are cumulative across all
+		// processes' lifetimes (we sample BPF counters periodically and
+		// add deltas).
+		recoveryFires          uint64
+		recoveryEvictedFrames  uint64
+		recoverySubmitFailures uint64
+		recoveryNoOpenCalls    uint64
+		recoveryFilteredGoexit uint64
+		recoveryInvalidState   uint64
 	}
 }
 
@@ -143,6 +154,13 @@ func (s *state) Metrics() Metrics {
 
 		NumProcesses: uint64(len(s.processes)),
 		NumPrograms:  uint64(len(s.programs)),
+
+		RecoveryFires:          s.counters.recoveryFires,
+		RecoveryEvictedFrames:  s.counters.recoveryEvictedFrames,
+		RecoverySubmitFailures: s.counters.recoverySubmitFailures,
+		RecoveryNoOpenCalls:    s.counters.recoveryNoOpenCalls,
+		RecoveryFilteredGoexit: s.counters.recoveryFilteredGoexit,
+		RecoveryInvalidState:   s.counters.recoveryInvalidState,
 	}
 }
 
@@ -188,6 +206,19 @@ type Metrics struct {
 	NumProcesses uint64
 	// NumPrograms is the number of programs in the state machine.
 	NumPrograms uint64
+
+	// runtime.recovery probe activity, aggregated across all loaded
+	// programs. See loader.RuntimeStats for the underlying counter
+	// definitions; BPF writes them with __sync atomics into the probe-0
+	// slot of the shared stats_buf ARRAY (they are process-wide, not
+	// per-probe), and the actuator reads probe-0's deltas at each
+	// heartbeat-driven RuntimeStats poll.
+	RecoveryFires          uint64
+	RecoveryEvictedFrames  uint64
+	RecoverySubmitFailures uint64
+	RecoveryNoOpenCalls    uint64
+	RecoveryFilteredGoexit uint64
+	RecoveryInvalidState   uint64
 }
 
 // AsStats converts the Metrics to a map[string]any for use by the system-probe.
@@ -209,6 +240,13 @@ func (m Metrics) AsStats() map[string]any {
 
 		"numProcesses": m.NumProcesses,
 		"numPrograms":  m.NumPrograms,
+
+		"recoveryFires":          m.RecoveryFires,
+		"recoveryEvictedFrames":  m.RecoveryEvictedFrames,
+		"recoverySubmitFailures": m.RecoverySubmitFailures,
+		"recoveryNoOpenCalls":    m.RecoveryNoOpenCalls,
+		"recoveryFilteredGoexit": m.RecoveryFilteredGoexit,
+		"recoveryInvalidState":   m.RecoveryInvalidState,
 	}
 }
 
@@ -631,15 +669,18 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 		probes = append(probes, probe)
 	}
 	if len(probes) == 0 {
-		// All configured probes have been circuit-broken on this
-		// process. There is nothing to instrument right now, but we
-		// must keep the process record alive so circuitBrokenProbes is
-		// preserved -- otherwise a subsequent processesUpdated that
-		// adds an unrelated probe (while a broken probe remains
-		// configured) would silently re-enable the hot probe. Park
-		// the process in Failed; subsequent changes to the configured
-		// probe set re-enter enqueueProgramForProcess via the Failed
-		// case in handleProcessUpdate.
+		// All configured user probes have been circuit-broken on this
+		// process. The recovery probe (irgen-synthesised, not in
+		// p.probes) is irrelevant without user probes to pair with, so
+		// we don't enqueue a recovery-only program. There is nothing
+		// to instrument right now, but we must keep the process record
+		// alive so circuitBrokenProbes is preserved -- otherwise a
+		// subsequent processesUpdated that adds an unrelated probe
+		// (while a broken probe remains configured) would silently
+		// re-enable the hot probe. Park the process in Failed;
+		// subsequent changes to the configured probe set re-enter
+		// enqueueProgramForProcess via the Failed case in
+		// handleProcessUpdate.
 		p.state = processStateFailed
 		p.currentProgram = 0
 		return nil
@@ -1117,11 +1158,21 @@ func maybeDequeueProgram(sm *state, effects effectHandler) error {
 	// Look up discovered types for the process's service at dequeue time,
 	// so we always use the latest set.
 	var additionalTypes []string
-	if proc, ok := sm.processes[p.processID]; ok && proc.service != "" {
-		additionalTypes = slices.Clone(sm.discoveredTypes[proc.service])
+	var skipRecoveryProbe bool
+	if proc, ok := sm.processes[p.processID]; ok {
+		if proc.service != "" {
+			additionalTypes = slices.Clone(sm.discoveredTypes[proc.service])
+		}
+		// The recovery probe is synthesised by irgen and is not in
+		// p.probes, so the standard enqueueProgramForProcess filter
+		// can't drop it. When the breaker trips it, suppress it at
+		// irgen time via LoadOptions instead.
+		recoveryKey := probeKey{id: ir.RuntimeRecoveryProbeID, version: 0}
+		_, skipRecoveryProbe = proc.circuitBrokenProbes[recoveryKey]
 	}
 	effects.loadProgram(p.id, p.executable, p.processID, p.config, LoadOptions{
-		AdditionalTypes: additionalTypes,
+		AdditionalTypes:          additionalTypes,
+		SkipRuntimeRecoveryProbe: skipRecoveryProbe,
 	})
 	return nil
 }
@@ -1232,6 +1283,15 @@ func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 			prog.lastRuntimeStats[probeID] = stats
 
 			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
+			// Accumulate recovery-probe deltas. These are reset when the
+			// program is unloaded, so deltas across BPF reads are non-
+			// decreasing.
+			sm.counters.recoveryFires += stats.RecoveryFires - last.RecoveryFires
+			sm.counters.recoveryEvictedFrames += stats.RecoveryEvictedFrames - last.RecoveryEvictedFrames
+			sm.counters.recoverySubmitFailures += stats.RecoverySubmitFailures - last.RecoverySubmitFailures
+			sm.counters.recoveryNoOpenCalls += stats.RecoveryNoOpenCalls - last.RecoveryNoOpenCalls
+			sm.counters.recoveryFilteredGoexit += stats.RecoveryFilteredGoexit - last.RecoveryFilteredGoexit
+			sm.counters.recoveryInvalidState += stats.RecoveryInvalidState - last.RecoveryInvalidState
 			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
 
 			// Skip probes already circuit-broken. Their cost is

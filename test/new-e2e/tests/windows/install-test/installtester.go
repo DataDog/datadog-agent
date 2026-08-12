@@ -327,6 +327,23 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		}
 	})
 
+	tt.Run("creates adp process manager config", func(tt *testing.T) {
+		adpProcmgrConfigPath := filepath.Join(t.expectedInstallPath, "processes.d", "datadog-agent-data-plane.yaml")
+		_, err := t.host.Lstat(adpProcmgrConfigPath)
+		assert.NoError(tt, err, "install should create %s", adpProcmgrConfigPath)
+	})
+
+	tt.Run("creates par process manager config", func(tt *testing.T) {
+		parBin := filepath.Join(t.expectedInstallPath, "bin", "agent", "privateactionrunner.exe")
+		exists, err := t.host.FileExists(parBin)
+		if !assert.NoError(tt, err) || !exists {
+			tt.Skip("privateactionrunner.exe not installed; skipping PAR procmgr config assertion")
+		}
+		parProcmgrConfigPath := filepath.Join(t.expectedInstallPath, "processes.d", "datadog-agent-action.yaml")
+		_, err = t.host.Lstat(parProcmgrConfigPath)
+		assert.NoError(tt, err, "install should create %s", parProcmgrConfigPath)
+	})
+
 	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
 		paths := []string{
 			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),

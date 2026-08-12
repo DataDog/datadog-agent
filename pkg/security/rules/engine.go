@@ -580,6 +580,11 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
+	// best-effort: re-resolve the matched process's argv/envp from /proc
+	if !rule.Def.Silent {
+		e.probe.EnrichRuleEvent(ev)
+	}
+
 	e.probe.HandleActions(rule, event)
 
 	if rule.Def.Silent {
@@ -734,12 +739,12 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	for _, err := range m.Errors {
 		// Handle policy load errors
 		if policyErr, ok := err.(*rules.ErrPolicyLoad); ok {
-			// Empty policies are expected in some cases
+			// Empty policies are expected in some cases and are already reported
+			// in the ruleset_loaded event, so we don't log them here.
 			if errors.Is(policyErr.Err, rules.ErrPolicyIsEmpty) {
-				seclog.Warnf(msg, policyErr.Error())
-			} else {
-				seclog.Errorf(msg, policyErr.Error())
+				continue
 			}
+			seclog.Errorf(msg, policyErr.Error())
 			continue
 		}
 

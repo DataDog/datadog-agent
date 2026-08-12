@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fakeintake",
+    srcs = [
+        "fakeintake.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/fakeintake",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/components/command",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/resources/azure",
+        "//test/e2e-framework/scenarios/azure/compute",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

@@ -8,6 +8,7 @@
 # Belt-and-suspenders: stop services in case unconfig did not run.
 stopsrc -s datadog-agent 2>/dev/null || true
 stopsrc -s datadog-trace-agent 2>/dev/null || true
+stopsrc -s datadog-agent-data-plane 2>/dev/null || true
 
 # Wait up to 30 s for dd-agent processes to fully exit before cleanup.
 i=0

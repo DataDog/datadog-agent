@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -21,53 +22,37 @@ import (
 	"github.com/DataDog/ddtrivy"
 
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/samber/lo"
 )
 
+// errLayerCountMismatch means the overlayfs mount (or the docker / crio
+// equivalent) exposed a different number of layer paths than the image
+// config has diff_ids. They are 1:1 by the OCI spec, so a divergence
+// means an upstream invariant broke and we refuse to scan rather than
+// guess a pairing.
+var errLayerCountMismatch = errors.New("overlayfs mount layer count does not match image config")
+
+// fakeContainer adapts a pre-paired set of LayerPaths into the
+// ftypes.Container surface Trivy expects. It carries imgMeta separately
+// so the CRI-O wrapper can read its History entries for ConfigFile().
 type fakeContainer struct {
-	layerIDs   []string
-	imgMeta    *workloadmeta.ContainerImageMetadata
-	layerPaths []string
-	layers     []ftypes.LayerPath
+	imgMeta *workloadmeta.ContainerImageMetadata
+	layers  []ftypes.LayerPath
 }
 
-// layerIDs and layerPaths must both be in image-config order (bottom-up);
-// paths from overlay mount syntax must be reversed by the caller, else each
-// DiffID is paired with the wrong layer and trivy's DiffID-keyed blob cache
-// gets poisoned. Empty-layer history markers in imgMeta.Layers are filtered
-// to keep the i-th non-empty entry aligned with layerIDs[i].
-func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageMetadata, layerIDs []string) (*fakeContainer, error) {
-	imageLayers := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
-		return layer.DiffID != ""
-	})
-	// Path / DiffID alignment must be exact: these are what trivy looks up.
-	// imageLayers feeds the optional Digest annotation; tolerate the Docker
-	// fallback in layersFromDockerHistoryAndInspect that can emit more
-	// non-empty entries than RootFS.Layers.
-	if len(layerIDs) != len(layerPaths) || len(layerIDs) > len(imageLayers) {
-		return nil, fmt.Errorf("mismatch count for layer IDs, paths and image layers (ids=%d, paths=%d, layers=%d)",
-			len(layerIDs), len(layerPaths), len(imageLayers))
+// newFakeContainer wraps an already-paired LayerPath slice. The caller
+// builds each {DiffID, Digest, Path} triple; this constructor does no
+// further validation, so any desync here came from the caller.
+func newFakeContainer(layers []ftypes.LayerPath, imgMeta *workloadmeta.ContainerImageMetadata) *fakeContainer {
+	return &fakeContainer{imgMeta: imgMeta, layers: layers}
+}
+
+// diffIDs returns the DiffIDs of c's layers in image-config (bottom-up) order.
+func (c *fakeContainer) diffIDs() []string {
+	out := make([]string, len(c.layers))
+	for i, l := range c.layers {
+		out[i] = l.DiffID
 	}
-
-	log.Debugf("create fake container with paths=%v", layerPaths)
-
-	layers := make([]ftypes.LayerPath, len(layerIDs))
-	for i, id := range layerIDs {
-		diffID, _ := v1.NewHash(id)
-		layers[i] = ftypes.LayerPath{
-			DiffID: diffID.String(),
-			Path:   layerPaths[i],
-			Digest: imageLayers[i].DiffID,
-		}
-	}
-
-	return &fakeContainer{
-		layerIDs:   layerIDs,
-		imgMeta:    imgMeta,
-		layerPaths: layerPaths,
-		layers:     layers,
-	}, nil
+	return out
 }
 
 func (c *fakeContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
@@ -89,7 +74,7 @@ func (c *fakeContainer) LayerByDigest(hash string) (ftypes.LayerPath, error) {
 }
 
 func (c *fakeContainer) Layers() []ftypes.LayerPath {
-	return c.layers
+	return slices.Clone(c.layers)
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {

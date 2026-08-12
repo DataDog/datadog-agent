@@ -9,14 +9,18 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -28,8 +32,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
+	logagentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
 	inventoryagentmock "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -179,11 +184,11 @@ func TestGetPayload(t *testing.T) {
 			Tags:       []string{"env:prod"},
 		})
 		// Register an error
-		src.Status.Error(errors.New("No such file or directory"))
+		src.Status().Error(errors.New("No such file or directory"))
 		logSources.AddSource(src)
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
+		mockLogAgent := fxutil.Test[option.Option[logagentmock.Mock]](
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
@@ -289,6 +294,26 @@ func TestGetPayload(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetPayloadFilesMetadata(t *testing.T) {
+	confdPath := t.TempDir()
+	configPath := filepath.Join(confdPath, "secret_test.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("init_config: {}\ninstances:\n- custom_field: some_value\n"), 0600))
+
+	ic := getTestInventoryChecks(
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
+	)
+
+	providers.ResetReader([]string{confdPath})
+	t.Cleanup(func() { providers.ResetReader(nil) })
+
+	backendPayload := ic.getPayload(true).(*Payload)
+	require.Contains(t, backendPayload.FilesMetadata, configPath)
+	assert.Contains(t, backendPayload.FilesMetadata[configPath], "raw_config")
+
+	expvarPayload := ic.getPayload(false).(*Payload)
+	assert.Empty(t, expvarPayload.FilesMetadata)
 }
 
 func TestFlareProviderFilename(t *testing.T) {

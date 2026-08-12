@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build anomalydetectiontestbench
+
 // Package testbenchimpl provides the testbench SSE reporter implementation.
 package testbenchimpl
 
@@ -12,7 +14,7 @@ import (
 
 // SSEEvent is a message sent to SSE clients.
 type SSEEvent struct {
-	Event string // "status", "progress", "heartbeat"
+	Event string // "advance", "status"
 	Data  []byte // JSON payload
 }
 

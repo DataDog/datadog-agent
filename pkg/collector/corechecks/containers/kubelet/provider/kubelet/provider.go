@@ -51,6 +51,7 @@ var (
 		"apiserver_client_certificate_expiration_seconds": "apiserver.certificate.expiration",
 		"kubelet_pleg_relist_duration_seconds":            "kubelet.pleg.relist_duration",
 		"kubelet_pleg_relist_interval_seconds":            "kubelet.pleg.relist_interval",
+		"kubelet_containers_per_pod_count":                "kubelet.containers_per_pod",
 	}
 
 	deprecatedSummaries = map[string]string{

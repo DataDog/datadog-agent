@@ -75,7 +75,7 @@ The Kubernetes provisioner (`gpuK8sProvisioner`):
    ```
 2. Ensure you're authenticated with the correct account:
    ```bash
-   aws-vault login sso-agent-sandbox-account-admin
+   aws-vault login sso-agent-sandbox-account-admin-8h
    ```
 3. The default environment is `agent-sandbox` (see `test/new-e2e/pkg/runner/local_profile.go`). If you're in a different account, EC2 instances won't have the correct IAM permissions.
 

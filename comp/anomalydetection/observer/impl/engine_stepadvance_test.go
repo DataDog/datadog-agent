@@ -19,6 +19,7 @@ type fixedDetector struct {
 }
 
 func (d *fixedDetector) Name() string { return "fixed" }
+func (*fixedDetector) Ready() bool    { return true }
 
 func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.DetectionResult {
 	if d.fired {
@@ -48,9 +49,10 @@ func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) 
 	detector := &fixedDetector{anomalies: anomalies}
 
 	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observer.Detector{detector},
-		correlators: []observer.Correlator{correlator},
+		storage:                 storage,
+		detectors:               []observer.Detector{detector},
+		correlators:             []observer.Correlator{correlator},
+		trackCorrelationHistory: true, // tests that call AccumulatedCorrelations need this
 	})
 	return e, correlator
 }
@@ -125,9 +127,10 @@ func TestStepAdvance_SuccessiveAdvanceCallsPreserveClusters(t *testing.T) {
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 
 	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observer.Detector{detector},
-		correlators: []observer.Correlator{correlator},
+		storage:                 storage,
+		detectors:               []observer.Detector{detector},
+		correlators:             []observer.Correlator{correlator},
+		trackCorrelationHistory: true,
 	})
 
 	// First advance: detects anomalies at ts=100, upTo=310.

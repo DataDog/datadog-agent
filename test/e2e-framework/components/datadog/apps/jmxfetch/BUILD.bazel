@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "jmxfetch",
+    srcs = ["docker.go"],
+    embedsrcs = [
+        "docker-compose-all-metrics.yaml",
+        "docker-compose-slow-metrics.yaml",
+        "docker-compose.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/jmxfetch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/components/docker",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

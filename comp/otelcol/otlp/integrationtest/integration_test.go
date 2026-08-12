@@ -82,11 +82,11 @@ import (
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -131,7 +131,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
-			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+			return logdef.ForDaemon(params.LoggerName, "log_file", defaultpaths.GetDefaultOTelAgentLogFile())
 		}),
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
@@ -193,7 +193,7 @@ func TestIntegration(t *testing.T) {
 
 	// 2. Start in-process collector
 	params := &subcommands.GlobalParams{
-		ConfPaths:  []string{"integration_test_config.yaml"},
+		ConfPaths:  []string{"testdata/integration_test_config.yaml"},
 		ConfigName: "datadog-otel",
 		LoggerName: "OTELCOL",
 	}

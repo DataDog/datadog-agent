@@ -16,14 +16,28 @@ import (
 //go:embed mappings.json
 var mappingsJSON []byte
 
+const (
+	// SourceEmbedded marks a registry loaded from the embedded mappings.json.
+	SourceEmbedded = "embedded"
+	// SourceRemoteConfig marks a registry delivered via Remote Configuration.
+	SourceRemoteConfig = "remote-config"
+)
+
+type registryMetadata struct {
+	ContentHash string `json:"content_hash"`
+}
+
 type registryData struct {
 	Version  string                    `json:"version"`
+	Metadata registryMetadata          `json:"metadata"`
 	Concepts map[string]ConceptMapping `json:"concepts"`
 }
 
 // EmbeddedRegistry loads semantic mappings from embedded JSON.
 type EmbeddedRegistry struct {
 	version  string
+	hash     string
+	source   string
 	mappings map[Concept][]TagInfo
 }
 
@@ -55,21 +69,18 @@ func UpdateRegistry(r Registry) {
 }
 
 // NewRegistryFromJSON constructs a Registry from raw JSON without affecting the live registry.
-// Returns an error if the JSON is malformed or contains no concepts.
+// Returns an error if the JSON is malformed, contains no concepts, or is missing metadata.content_hash.
 func NewRegistryFromJSON(data []byte) (Registry, error) {
-	r := &EmbeddedRegistry{}
+	r := &EmbeddedRegistry{source: SourceRemoteConfig}
 	if err := r.loadFromJSON(data); err != nil {
 		return nil, err
-	}
-	if len(r.mappings) == 0 {
-		return nil, errors.New("registry JSON contains no concepts")
 	}
 	return r, nil
 }
 
 // NewEmbeddedRegistry creates a registry from embedded JSON mappings.
 func NewEmbeddedRegistry() (*EmbeddedRegistry, error) {
-	r := &EmbeddedRegistry{}
+	r := &EmbeddedRegistry{source: SourceEmbedded}
 	if err := r.loadFromJSON(mappingsJSON); err != nil {
 		return nil, fmt.Errorf("failed to load embedded mappings: %w", err)
 	}
@@ -81,7 +92,14 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 	if err := json.Unmarshal(data, &rd); err != nil {
 		return err
 	}
+	if len(rd.Concepts) == 0 {
+		return errors.New("registry JSON contains no concepts")
+	}
+	if rd.Metadata.ContentHash == "" {
+		return errors.New("registry JSON missing metadata.content_hash")
+	}
 	r.version = rd.Version
+	r.hash = rd.Metadata.ContentHash
 	r.mappings = make(map[Concept][]TagInfo, len(rd.Concepts))
 	for conceptName, mapping := range rd.Concepts {
 		r.mappings[Concept(conceptName)] = mapping.Fallbacks
@@ -109,22 +127,21 @@ func (r *EmbeddedRegistry) Version() string {
 	return r.version
 }
 
-// RegistryEqual reports whether two registries are equal by comparing their
-// Version() strings. Callers use this to decide whether to skip an
-// UpdateRegistry call (and any downstream cache invalidation) when the
-// publisher has pushed a payload that matches what is already live.
-//
-// TODO: this relies on the semantic-core publisher stamping a content-bound
-// version (or a content hash) so that two registries with the same Version()
-// truly have the same concept maps. Today the publisher uses a CI artifact
-// version that is bumped on every build regardless of content changes, which
-// makes this check pessimistic (we may swap even when concepts are unchanged).
-// Coordinate with the semantic-core team to either make `version` content-
-// bound or add a separate `content_hash` field to the payload; then switch
-// this comparison to that field.
+// ContentHash returns the content-bound hash of the registry's concept mappings.
+func (r *EmbeddedRegistry) ContentHash() string {
+	return r.hash
+}
+
+// Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).
+func (r *EmbeddedRegistry) Source() string {
+	return r.source
+}
+
+// RegistryEqual reports whether two registries carry the same concept
+// mappings, by comparing their content_hash.
 func RegistryEqual(a, b Registry) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
-	return a.Version() == b.Version()
+	return a.ContentHash() == b.ContentHash()
 }

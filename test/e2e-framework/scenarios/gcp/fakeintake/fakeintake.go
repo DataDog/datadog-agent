@@ -31,7 +31,15 @@ func NewVMInstance(e gcp.Environment, option ...Option) (*fakeintake.Fakeintake,
 		if err != nil {
 			return err
 		}
-		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm))
+		dockerInstall, err := docker.InstallDocker(vm, pulumi.Parent(vm))
+		if err != nil {
+			return err
+		}
+		composeInstall, err := docker.InstallCompose(vm, pulumi.Parent(vm))
+		if err != nil {
+			return err
+		}
+		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall, composeInstall))
 		if err != nil {
 			return err
 		}
@@ -44,6 +52,8 @@ func NewVMInstance(e gcp.Environment, option ...Option) (*fakeintake.Fakeintake,
 		if params.RetentionPeriod != "" {
 			cmdArgs = append(cmdArgs, "-retention-period="+params.RetentionPeriod)
 		}
+
+		cmdArgs = append(cmdArgs, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
 		_, err = vm.OS.Runner().Command("docker_run_fakeintake", &command.Args{
 			Create: pulumi.Sprintf("docker run --restart unless-stopped --name fakeintake -d -p 80:80 -e DD_API_KEY=%s %s %s", e.AgentAPIKey(), params.ImageURL, strings.Join(cmdArgs, " ")),

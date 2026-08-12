@@ -23,7 +23,7 @@ type captureSampler struct {
 	emitted []*message.Message
 }
 
-func (s *captureSampler) Process(msg *message.Message, _ []Token) *message.Message {
+func (s *captureSampler) Process(msg *message.Message, _ BorrowedTokens) *message.Message {
 	s.emitted = append(s.emitted, msg)
 	return msg
 }
@@ -35,7 +35,7 @@ type captureAggregator struct {
 	received []*message.Message
 }
 
-func (a *captureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
+func (a *captureAggregator) Process(msg *message.Message, _ Label, _ BorrowedTokens) []AggregatedMessageWithTokens {
 	a.received = append(a.received, msg)
 	return []AggregatedMessageWithTokens{{Msg: msg}}
 }
@@ -48,7 +48,7 @@ type flushCaptureAggregator struct {
 	pending *message.Message
 }
 
-func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
+func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ BorrowedTokens) []AggregatedMessageWithTokens {
 	a.pending = msg
 	return nil // buffer the message
 }
@@ -85,7 +85,7 @@ func newTestPreprocessor(enableJSON bool) (*Preprocessor, *captureAggregator, *c
 		jsonAggregator = NewJSONAggregator(false, 10000)
 	}
 	outputChan := make(chan *message.Message, 10)
-	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, jsonAggregator, 10*time.Second, 0)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, jsonAggregator, NewNoopStackTraceAggregator(), 10*time.Second, 0)
 	return preprocessor, aggregator, sampler
 }
 
@@ -135,7 +135,7 @@ func TestPreprocessor_FlushCascadesInOrder(t *testing.T) {
 	aggregator := &flushCaptureAggregator{}
 	sampler := &captureSampler{}
 	outputChan := make(chan *message.Message, 10)
-	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, NewJSONAggregator(false, 10000), 10*time.Second, 0)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, NewJSONAggregator(false, 10000), NewNoopStackTraceAggregator(), 10*time.Second, 0)
 
 	// Send an incomplete JSON fragment — it stays in jsonAggregator
 	preprocessor.Process(newTestPreprocessorMessage(`{"key":`))

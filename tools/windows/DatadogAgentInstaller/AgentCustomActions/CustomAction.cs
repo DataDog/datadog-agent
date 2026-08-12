@@ -84,6 +84,18 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirAfterUninstall(session);
+        }
+
+        [CustomAction]
         public static ActionResult DecompressPythonDistributions(Session session)
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.DecompressPythonDistributions(session);

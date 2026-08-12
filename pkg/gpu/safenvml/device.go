@@ -52,6 +52,8 @@ type SafeDevice interface {
 	GetGpuInstanceId() (int, error)
 	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
 	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
+	// GetGpuFabricInfo returns the NVLink fabric information for the device.
+	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
 	// GetMaxClockInfo returns the maximum clock speed for the given clock type
@@ -76,6 +78,8 @@ type SafeDevice interface {
 	GetNumGpuCores() (int, error)
 	// GetNumFans returns the number of fans in the device
 	GetNumFans() (int, error)
+	// GetPciInfo returns PCI information of the device
+	GetPciInfo() (nvml.PciInfo, error)
 	// GetPcieThroughput returns the PCIe throughput in bytes/sec
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
 	// GetCurrPcieLinkGeneration returns the current PCIe generation

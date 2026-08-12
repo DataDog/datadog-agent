@@ -205,7 +205,7 @@ func TestIsComplete(t *testing.T) {
 			}
 			cfg := configmock.New(t)
 			for k, v := range test.configOverrides {
-				cfg.SetWithoutSource(k, v)
+				cfg.SetInTest(k, v)
 			}
 
 			tracker := newCompletenessTracker(test.agentType, cfg)

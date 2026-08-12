@@ -205,6 +205,14 @@ typedef struct stack_machine {
   // insufficient buffer space. Checked and cleared by SM_OP_CHASE_POINTERS
   // to trigger a flush-and-continue.
   bool buffer_full;
+  // One-shot ExprStatus override read and cleared by SM_OP_EXPR_SAVE.
+  // Used by the filter marker ops to surface EXPR_STATUS_TRUNCATED
+  // inline (before the chase phase). Co-located with buffer_full so we
+  // consume natural alignment padding before saved_dict_ptr rather than
+  // growing the struct (which would shift swissmap_loop_state.phase
+  // out of the verifier's bounds-tracking window for the existing
+  // cold-path reset in sm_run).
+  uint8_t pending_expr_status;
 
   // Dictionary pointer for generic shape functions. Set by
   // SM_OP_PROCESS_GO_DICT_TYPE on entry, propagated through call context
@@ -387,6 +395,85 @@ typedef struct stack_machine {
   buf_offset_t cur_loop_it_start;
 } stack_machine_t;
 
+// filter_loop_state_t holds per-iteration state for the deferred
+// filter() loop. It lives in its own per-CPU map (filter_loop_state_buf
+// below) rather than inside stack_machine_t so that:
+//   - stack_machine_t doesn't grow large enough to push existing field
+//     offsets out of the BPF verifier's bounds-tracking window for
+//     cold-path resets via a spilled-and-reloaded pointer.
+//   - the filter helpers can re-derive the pointer cheaply via
+//     bpf_map_lookup_elem when they need fresh verifier bounds.
+//
+// One slot is sufficient: filter is leaf-only, the chase queue is FIFO,
+// and each filter's enqueue_pc runs to completion before the next
+// chase item pops.
+typedef struct filter_loop_state {
+  target_ptr_t data_ptr;
+  uint32_t     remaining;
+  uint32_t     elem_size;
+  uint32_t     val_offset_in_pair;  // maps only
+  uint32_t     val_size;             // maps only
+  uint64_t     output_index;
+  type_t       data_type_id;
+  buf_offset_t it_start;
+  uint8_t      last_body_result;
+  uint8_t      in_progress;
+  uint8_t      is_map;
+  // map_slot_returned: 1 if the current map_slot_idx was already read
+  // into @it and handed to predicate/emit. On the next entry to
+  // sm_filter_map_advance_and_read_noctx, this flag triggers an
+  // advance past that slot before scanning. Decoupling read from
+  // advance is required because emit reads the slot again from user
+  // memory via slot_base = ... + slot_idx * slot_size; advancing
+  // slot_idx before emit would make emit read the wrong slot.
+  uint8_t      map_slot_returned;
+  // Swiss-map walker state, mirroring swissmap_loop_state's layout
+  // when is_map == 1. Kept separate so a concurrent any/all loop's
+  // swissmap_loop_state isn't clobbered.
+  uint64_t map_dir_ptr;
+  uint64_t map_dir_len;
+  uint64_t map_groups_data;
+  uint64_t map_length_mask;
+  uint64_t map_ctrl;
+  target_ptr_t map_prev_table_ptr;
+  target_ptr_t map_tmp_table_ptr;
+  uint32_t map_table_idx;
+  uint32_t map_group_idx;
+  uint8_t  map_slot_idx;
+  uint8_t  map_loaded_table;
+  uint8_t  __map_pad[6];
+  // Swiss-map layout immediates (cached from InitFilterMapLoopOp).
+  uint8_t  map_dir_ptr_offset;
+  uint8_t  map_dir_len_offset;
+  uint8_t  map_ctrl_offset;
+  uint8_t  map_slots_offset;
+  uint8_t  map_key_in_slot_offset;
+  uint16_t map_val_in_slot_offset;
+  uint16_t map_slot_size;
+  uint16_t map_group_byte_size;
+  uint8_t  map_table_groups_field_offset;
+  uint8_t  map_groups_data_field_offset;
+  uint8_t  map_groups_len_mask_field_offset;
+  uint8_t  __map_pad2[3];
+} filter_loop_state_t;
+
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, uint32_t);
+  __type(value, filter_loop_state_t);
+} filter_loop_state_buf SEC(".maps");
+
+// filter_loop_state_load returns the per-CPU filter_loop_state slot.
+// Each call re-derives the pointer via bpf_map_lookup_elem so the
+// verifier has fresh bounds knowledge — important because the slot
+// is much larger than the verifier's bounds-tracking window allows
+// across function calls / bpf_loop boundaries.
+static filter_loop_state_t* filter_loop_state_load(void) {
+  const unsigned long zero = 0;
+  return (filter_loop_state_t*)bpf_map_lookup_elem(&filter_loop_state_buf, &zero);
+}
+
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __uint(max_entries, 1);
@@ -417,6 +504,12 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->continuation_seq = 0;
   stack_machine->last_submitted_seq = LAST_SUBMITTED_SEQ_NONE;
   stack_machine->continuation_aborted = false;
+  // pending_expr_status lives early in the struct so the verifier can
+  // prove bounds on a hot-path reset. filter_loop_state lives at the
+  // end of the struct and is unconditionally re-initialized by
+  // sm_filter_*_init from sm->di_0 every chase, so no hot-path reset
+  // is needed for it.
+  stack_machine->pending_expr_status = 0;
   // start_ns and entry_ktime_ns are set explicitly by probe_run before use.
   return stack_machine;
 }
