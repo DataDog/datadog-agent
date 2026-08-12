@@ -92,6 +92,7 @@ go_library(
         "//comp/core/workloadmeta/defaults",
         "//comp/core/workloadmeta/fx",
         "//comp/dataobs/queryactions/fx",
+        "//comp/dataplane/preflightmode/fx",
         "//comp/dogstatsd",
         "//comp/dogstatsd/http/def",
         "//comp/dogstatsd/http/fx",

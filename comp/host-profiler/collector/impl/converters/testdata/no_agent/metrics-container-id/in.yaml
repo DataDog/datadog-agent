@@ -1,10 +1,7 @@
 receivers:
   profiling:
     symbol_uploader:
-      enabled: true
-      symbol_endpoints:
-      - api_key: test-key
-        app_key: 67890
+      enabled: false
 service:
   pipelines:
     profiles:
@@ -17,3 +14,4 @@ exporters:
   otlp_http:
     headers:
       dd-api-key: test-api-key
+    profiles_endpoint: https://intake.profile.us3.datadoghq.com/v1development/profiles
