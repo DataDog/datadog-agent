@@ -12,6 +12,7 @@ package software
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -193,16 +194,43 @@ type collectorResult struct {
 	err      error
 }
 
-// runCollectorWithDeadline runs a collector, giving up if it takes longer than
-// timeout. A timed-out collector is reported as a fatal error: its source is in
-// an unknown state, and reporting a partial or missing family would look like
-// the software was uninstalled. The abandoned goroutine writes to a buffered
-// channel, so it exits on its own once the underlying call returns.
+// collectorsInFlight holds the collectors whose previous invocation has not returned yet,
+// keyed by collector type.
+//
+// It has to live outside the collectors themselves: inventory is collected by calling
+// defaultCollectors() afresh each time, so nothing on a collector value survives between
+// collections. Since a hung native call cannot be cancelled, this is what stops repeated
+// collections from stacking up blocked goroutines and their OS handles.
+//
+// Keying by type assumes a collector list holds at most one collector of each type, which
+// is what defaultCollectors() returns on every platform. Collectors that run to completion
+// release the key before their result is handed back, so only a genuinely blocked
+// collector ever occupies one.
+var collectorsInFlight sync.Map
+
+// runCollectorWithDeadline runs a collector, giving up if it takes longer than timeout.
+//
+// A collector that misses its deadline is reported as a fatal error: its source is in an
+// unknown state, and reporting a partial or missing family would look like the software
+// was uninstalled. The abandoned goroutine writes to a buffered channel, so it exits by
+// itself once the underlying call finally returns; until then the collector is treated as
+// in flight and is not started again, because the OS APIs behind these collectors (WMI in
+// particular) offer no way to cancel a call that has already blocked.
 func runCollectorWithDeadline(c Collector, timeout time.Duration) ([]*Entry, []*Warning, error) {
+	key := fmt.Sprintf("%T", c)
+	if _, running := collectorsInFlight.LoadOrStore(key, struct{}{}); running {
+		return nil, nil, fmt.Errorf("collector %s is still running from a previous collection", key)
+	}
+
 	done := make(chan collectorResult, 1)
 	go func() {
-		entries, warnings, err := c.Collect()
-		done <- collectorResult{entries: entries, warnings: warnings, err: err}
+		// Release the key before publishing the result, so that a collector which
+		// returned in time is immediately available to the next collection.
+		done <- func() collectorResult {
+			defer collectorsInFlight.Delete(key)
+			entries, warnings, err := c.Collect()
+			return collectorResult{entries: entries, warnings: warnings, err: err}
+		}()
 	}()
 
 	timer := time.NewTimer(timeout)
@@ -212,7 +240,7 @@ func runCollectorWithDeadline(c Collector, timeout time.Duration) ([]*Entry, []*
 	case res := <-done:
 		return res.entries, res.warnings, res.err
 	case <-timer.C:
-		return nil, nil, fmt.Errorf("collector %T timed out after %s", c, timeout)
+		return nil, nil, fmt.Errorf("collector %s timed out after %s", key, timeout)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockCollector implements Collector for testing
@@ -19,14 +20,31 @@ type MockCollector struct {
 	entries  map[string]*Entry
 	warnings []*Warning
 	err      error
-	// delay simulates a slow source, to exercise the per-collector deadline
+}
+
+// SlowCollector returns only after delay. It is a distinct type from MockCollector so a
+// test can pair a collector that misses its deadline with one that does not: the in-flight
+// guard keys on the collector's type.
+type SlowCollector struct {
 	delay time.Duration
 }
 
+func (s *SlowCollector) Collect() ([]*Entry, []*Warning, error) {
+	time.Sleep(s.delay)
+	return []*Entry{{DisplayName: "Slow App", Source: "desktop"}}, nil, nil
+}
+
+// BlockingCollector blocks until release is closed, modelling a native call that has hung.
+type BlockingCollector struct {
+	release chan struct{}
+}
+
+func (b *BlockingCollector) Collect() ([]*Entry, []*Warning, error) {
+	<-b.release
+	return []*Entry{{DisplayName: "Blocking App", Source: "desktop"}}, nil, nil
+}
+
 func (m *MockCollector) Collect() ([]*Entry, []*Warning, error) {
-	if m.delay > 0 {
-		time.Sleep(m.delay)
-	}
 	if m.err != nil {
 		return nil, m.warnings, m.err
 	}
@@ -187,10 +205,7 @@ func TestCollectorDeadline(t *testing.T) {
 	const timeout = 50 * time.Millisecond
 
 	t.Run("Slow collector fails the snapshot but keeps other entries", func(t *testing.T) {
-		slow := &MockCollector{
-			delay:   10 * timeout,
-			entries: map[string]*Entry{"slow": {DisplayName: "Slow App", Source: "desktop"}},
-		}
+		slow := &SlowCollector{delay: 10 * timeout}
 		fast := &MockCollector{
 			entries: map[string]*Entry{"fast": {DisplayName: "Fast App", Source: "desktop"}},
 		}
@@ -221,6 +236,27 @@ func TestCollectorDeadline(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Empty(t, inventory)
+	})
+
+	t.Run("A timed-out collector is not started again while it is still running", func(t *testing.T) {
+		// A hung native call cannot be cancelled, so repeated collections must not stack
+		// up blocked goroutines holding OS handles.
+		blocking := &BlockingCollector{release: make(chan struct{})}
+
+		_, _, err := getSoftwareInventory([]Collector{blocking}, timeout)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+
+		_, _, err = getSoftwareInventory([]Collector{blocking}, timeout)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "still running from a previous collection")
+
+		// Once the blocked call returns, the collector becomes usable again.
+		close(blocking.release)
+		assert.Eventually(t, func() bool {
+			inventory, _, err := getSoftwareInventory([]Collector{blocking}, timeout)
+			return err == nil && len(inventory) == 1
+		}, time.Second, 10*time.Millisecond)
 	})
 }
 

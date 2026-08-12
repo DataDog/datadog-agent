@@ -44,6 +44,58 @@ func TestDriverCollectorGroupsPerPackage(t *testing.T) {
 	assert.Empty(t, entries[0].InstallDate, "DriverDate is a build date, not an install time")
 }
 
+func TestDriverCollectorGroupsMultiModelPackage(t *testing.T) {
+	// One INF commonly supports several device models, and each binding reports its own
+	// description. Grouping on the description would emit the same installed package
+	// once per model, so the INF name is what defines the package here.
+	collector := driverCollectorFor([]win32PnPSignedDriver{
+		{InfName: "oem12.inf", DriverProviderName: "Intel", DeviceClass: "Net", Description: "Intel(R) Wi-Fi 6 AX201", DriverVersion: "22.10.0.5"},
+		{InfName: "oem12.inf", DriverProviderName: "Intel", DeviceClass: "Net", Description: "Intel(R) Wi-Fi 6 AX200", DriverVersion: "22.100.0.2"},
+	})
+
+	entries, _, err := collector.Collect()
+
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "one INF package is one entry regardless of how many models it binds")
+	assert.Equal(t, "22.100.0.2", entries[0].Version)
+	// The representative is the lowest description, so identity does not depend on the
+	// order WMI returned the bindings in.
+	assert.Equal(t, "Intel(R) Wi-Fi 6 AX200", entries[0].DisplayName)
+}
+
+func TestDriverCollectorSeparatesDistinctInfPackages(t *testing.T) {
+	collector := driverCollectorFor([]win32PnPSignedDriver{
+		{InfName: "oem12.inf", DriverProviderName: "Intel", DeviceClass: "Net", Description: "Intel(R) Wi-Fi 6 AX201", DriverVersion: "22.10.0.5"},
+		{InfName: "oem13.inf", DriverProviderName: "Intel", DeviceClass: "Net", Description: "Intel(R) Ethernet I219-V", DriverVersion: "12.19.1.34"},
+	})
+
+	entries, _, err := collector.Collect()
+
+	require.NoError(t, err)
+	require.Len(t, entries, 2, "two INF packages stay two entries")
+
+	ids := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		ids[entry.GetID()] = struct{}{}
+	}
+	assert.Len(t, ids, 2, "entry IDs must stay unique")
+}
+
+func TestDriverCollectorMergesCollidingProductCodes(t *testing.T) {
+	// Two INF packages that agree on provider, class and description would otherwise
+	// produce the same product code, and therefore duplicate entry IDs.
+	collector := driverCollectorFor([]win32PnPSignedDriver{
+		{InfName: "oem12.inf", DriverProviderName: "Intel", DeviceClass: "Net", Description: "Wi-Fi Adapter", DriverVersion: "22.10.0.5"},
+		{InfName: "oem45.inf", DriverProviderName: "Intel", DeviceClass: "Net", Description: "Wi-Fi Adapter", DriverVersion: "22.100.0.2"},
+	})
+
+	entries, _, err := collector.Collect()
+
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "22.100.0.2", entries[0].Version, "the highest version wins on collision")
+}
+
 func TestDriverCollectorScopesToOEMPackages(t *testing.T) {
 	collector := driverCollectorFor([]win32PnPSignedDriver{
 		{InfName: "oem12.inf", DriverProviderName: "Intel", DeviceClass: "Net", Description: "Wi-Fi Adapter", DriverVersion: "1.0"},

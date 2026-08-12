@@ -30,37 +30,53 @@ const (
 	cbsInstallTimeLow  = "InstallTimeLow"
 )
 
-// cbsPackagePattern matches the servicing packages that correspond to a KB article,
-// e.g. "Package_for_KB5061234~31bf3856ad364e35~amd64~~10.0.1.5". Packages without a KB
-// number (component manifests, rollup placeholders) are not user-visible updates.
-var cbsPackagePattern = regexp.MustCompile(`(?i)^Package_for_(KB\d{6,7})~`)
+// cbsPackagePattern matches an installed servicing package and captures its family,
+// e.g. "RollupFix" out of "Package_for_RollupFix~31bf3856ad364e35~amd64~~19041.2075.1.1".
+// The family is the update's identity: a KB number for individually shipped updates, or
+// a rolling name for updates whose registry key carries no KB number at all — most
+// importantly "RollupFix", which is how monthly cumulative updates appear on Windows 10
+// and 11. Matching only "Package_for_KB…" would drop those silently and report a
+// plausible but materially incomplete set of updates.
+//
+// Component manifests such as "Microsoft-Windows-Foo-Package~…" do not use the
+// "Package_for_" prefix and are excluded by it.
+var cbsPackagePattern = regexp.MustCompile(`(?i)^Package_for_([A-Za-z0-9_.]+?)~`)
+
+// cbsKBPattern matches a package family that is a KB article id
+var cbsKBPattern = regexp.MustCompile(`(?i)^KB\d{6,7}$`)
 
 // osUpdateCollector collects installed OS updates from the CBS servicing store.
 type osUpdateCollector struct{}
 
-// cbsPackage is one servicing package that maps to a KB article.
+// cbsPackage is one installed servicing package.
 type cbsPackage struct {
-	kb string
+	// identity is the package family: a KB id, or a rolling name such as "RollupFix"
+	identity string
 	// version is the trailing component of the package key name
 	version string
 	// installDate is RFC3339-formatted, empty when the package records no install time
 	installDate string
-	// installTime is the raw FILETIME in nanoseconds, used to pick the newest package per KB
+	// installTime is the raw FILETIME in nanoseconds, used to pick the newest package
 	installTime int64
 }
 
-// parseCBSPackageKey extracts the KB id and package version from a CBS package key name.
-// ok is false when the key does not belong to a KB article.
-func parseCBSPackageKey(name string) (kb string, version string, ok bool) {
+// parseCBSPackageKey extracts the update identity and package version from a CBS package
+// key name. ok is false when the key is not a servicing package.
+func parseCBSPackageKey(name string) (identity string, version string, ok bool) {
 	match := cbsPackagePattern.FindStringSubmatch(name)
 	if match == nil {
 		return "", "", false
 	}
 
-	// The version is the last "~"-delimited component, e.g. "10.0.1.5".
-	kb = strings.ToUpper(match[1])
+	identity = match[1]
+	if cbsKBPattern.MatchString(identity) {
+		// Normalize so "kb5061234" and "KB5061234" are the same update
+		identity = strings.ToUpper(identity)
+	}
+
+	// The version is the last "~"-delimited component, e.g. "10.0.1.5"
 	parts := strings.Split(name, "~")
-	return kb, parts[len(parts)-1], true
+	return identity, parts[len(parts)-1], true
 }
 
 // cbsInstallTime converts the split FILETIME stored by CBS into an RFC3339 timestamp
@@ -75,20 +91,22 @@ func cbsInstallTime(high, low uint32) (string, int64) {
 	return time.Unix(0, ns).UTC().Format(time.RFC3339Nano), ns
 }
 
-// buildOSUpdateEntries collapses servicing packages into one entry per KB article.
-// Several packages can service the same KB, so the newest install time wins, with the
-// higher version breaking ties.
+// buildOSUpdateEntries collapses servicing packages into one entry per update identity.
+// Several packages can service the same update, and rolling families such as RollupFix
+// keep the same identity across months, so the newest install time wins with the higher
+// version breaking ties. A rolling family therefore reads as a version change on one
+// entry rather than a removal followed by a new install.
 func buildOSUpdateEntries(packages []cbsPackage) []*Entry {
 	newest := make(map[string]cbsPackage, len(packages))
 	for _, pkg := range packages {
-		existing, ok := newest[pkg.kb]
+		existing, ok := newest[pkg.identity]
 		if !ok {
-			newest[pkg.kb] = pkg
+			newest[pkg.identity] = pkg
 			continue
 		}
 		if pkg.installTime > existing.installTime ||
 			(pkg.installTime == existing.installTime && compareVersions(pkg.version, existing.version) > 0) {
-			newest[pkg.kb] = pkg
+			newest[pkg.identity] = pkg
 		}
 	}
 
@@ -96,12 +114,12 @@ func buildOSUpdateEntries(packages []cbsPackage) []*Entry {
 	for _, pkg := range newest {
 		entries = append(entries, &Entry{
 			Source:      softwareTypeOSUpdate,
-			DisplayName: "Update " + pkg.kb,
+			DisplayName: "Update " + pkg.identity,
 			Version:     pkg.version,
 			InstallDate: pkg.installDate,
 			Publisher:   "Microsoft Corporation",
 			Status:      "installed",
-			ProductCode: pkg.kb,
+			ProductCode: pkg.identity,
 			Is64Bit:     true,
 		})
 	}
@@ -110,7 +128,8 @@ func buildOSUpdateEntries(packages []cbsPackage) []*Entry {
 	return entries
 }
 
-// Collect returns one entry per installed KB article.
+// Collect returns one entry per installed update, identified by KB number where the
+// servicing store records one and by package family otherwise.
 // Failing to enumerate the servicing store is fatal: reporting no updates would make
 // the whole family look uninstalled.
 func (c *osUpdateCollector) Collect() ([]*Entry, []*Warning, error) {
@@ -130,7 +149,7 @@ func (c *osUpdateCollector) Collect() ([]*Entry, []*Warning, error) {
 	var packages []cbsPackage
 
 	for _, name := range names {
-		kb, version, ok := parseCBSPackageKey(name)
+		identity, version, ok := parseCBSPackageKey(name)
 		if !ok {
 			continue
 		}
@@ -159,7 +178,7 @@ func (c *osUpdateCollector) Collect() ([]*Entry, []*Warning, error) {
 
 		installDate, installTime := cbsInstallTime(uint32(high), uint32(low))
 		packages = append(packages, cbsPackage{
-			kb:          kb,
+			identity:    identity,
 			version:     version,
 			installDate: installDate,
 			installTime: installTime,

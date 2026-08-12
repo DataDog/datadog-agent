@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows/registry"
 )
 
 func TestIntegrationCompareWithPowerShell(t *testing.T) {
@@ -476,13 +477,34 @@ func TestIntegrationDriversAgainstPnputil(t *testing.T) {
 	out, err := exec.Command("pnputil", "/enum-drivers").Output()
 	require.NoError(t, err)
 
+	// Compare on the published INF name. Both tools take it from the driver store, so it
+	// is the one field guaranteed to agree; the provider and class strings are formatted
+	// differently by each API and cannot be matched directly.
 	published := make(map[string]struct{})
 	for _, driver := range parsePnputilDrivers(string(out)) {
-		published[strings.ToLower(driver.providerName+"|"+driver.className)] = struct{}{}
+		if oemInfPattern.MatchString(driver.publishedName) {
+			published[strings.ToLower(driver.publishedName)] = struct{}{}
+		}
 	}
 	if len(published) == 0 {
 		// pnputil output is localized; without parsed records there is nothing to compare against.
-		t.Skip("pnputil reported no published driver packages")
+		t.Skip("pnputil reported no published OEM driver packages")
+	}
+
+	records, err := queryPnPSignedDrivers()
+	require.NoError(t, err)
+
+	bound := make(map[string]struct{})
+	for _, record := range records {
+		if oemInfPattern.MatchString(record.InfName) {
+			bound[strings.ToLower(record.InfName)] = struct{}{}
+		}
+	}
+
+	// pnputil also lists driver-store packages that are not bound to any device, so the
+	// comparison only holds in this direction.
+	for inf := range bound {
+		assert.Contains(t, published, inf, "driver %s is bound to a device but not published", inf)
 	}
 
 	entries, warnings, err := (&driverCollector{}).Collect()
@@ -491,40 +513,84 @@ func TestIntegrationDriversAgainstPnputil(t *testing.T) {
 		t.Logf("Warning: %s", w.Message)
 	}
 
-	var unexpected []string
+	// One entry per INF package, less any packages whose product codes collide.
+	assert.LessOrEqual(t, len(entries), len(bound),
+		"collector reported more packages than there are bound OEM INFs")
+
 	seenIDs := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
 		assert.Equal(t, softwareTypeDriver, entry.Source)
 		assert.NotEmpty(t, entry.DisplayName)
 		assert.NotEmpty(t, entry.Version)
+		assert.NotEmpty(t, entry.Publisher)
 
 		_, duplicate := seenIDs[entry.GetID()]
 		assert.False(t, duplicate, "driver %q reported more than once", entry.GetID())
 		seenIDs[entry.GetID()] = struct{}{}
-
-		// ProductCode is "provider|class|description"; compare on the first two parts.
-		parts := strings.Split(entry.ProductCode, "|")
-		require.Len(t, parts, 3)
-		if _, ok := published[parts[0]+"|"+parts[1]]; !ok {
-			unexpected = append(unexpected, fmt.Sprintf("%s (%s)", entry.DisplayName, entry.ProductCode))
-		}
 	}
 
-	t.Logf("pnputil published %d provider/class pairs, our collector found %d driver packages",
-		len(published), len(entries))
-
-	if len(unexpected) > 0 {
-		t.Errorf("Found %d drivers not published according to pnputil:\n%s",
-			len(unexpected), strings.Join(unexpected, "\n"))
+	t.Logf("pnputil published %d OEM packages, %d are bound to a device, collector reported %d",
+		len(published), len(bound), len(entries))
+	for _, entry := range entries {
+		t.Logf("  %s %s (%s)", entry.DisplayName, entry.Version, entry.ProductCode)
 	}
 }
 
-// TestIntegrationOSUpdates verifies against the real host that installed KB articles
-// are reported with a well-formed identity and install time.
+// cbsPackageStates enumerates the servicing store and reports how many "Package_for_*"
+// packages are installed, along with the distribution of CurrentState values it saw.
+//
+// It reimplements the enumeration rather than reusing the collector on purpose: it is the
+// ground truth the collector is checked against, and the state histogram is what tells a
+// human whether an empty result means "this host has no updates" or "the collector is
+// filtering them all out".
+func cbsPackageStates(t *testing.T) (installed int, states map[uint64]int) {
+	t.Helper()
+
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, cbsPackagesKey,
+		registry.ENUMERATE_SUB_KEYS|registry.QUERY_VALUE|registry.WOW64_64KEY)
+	require.NoError(t, err)
+	defer func() { _ = key.Close() }()
+
+	names, err := key.ReadSubKeyNames(wantAll)
+	require.NoError(t, err)
+
+	states = make(map[uint64]int)
+	for _, name := range names {
+		if !strings.HasPrefix(strings.ToLower(name), "package_for_") {
+			continue
+		}
+
+		subkey, err := registry.OpenKey(key, name, registry.QUERY_VALUE|registry.WOW64_64KEY)
+		if err != nil {
+			continue
+		}
+		state, _, err := subkey.GetIntegerValue(cbsCurrentState)
+		_ = subkey.Close()
+		if err != nil {
+			continue
+		}
+
+		states[state]++
+		if state == cbsStateInstalled {
+			installed++
+		}
+	}
+
+	return installed, states
+}
+
+// TestIntegrationOSUpdates verifies against the real host that installed updates are
+// reported with a well-formed identity and install time.
 func TestIntegrationOSUpdates(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+
+	// Read the servicing store directly, independently of the collector, so the
+	// assertions below are anchored to what the host actually records rather than to an
+	// assumption about how it was patched.
+	installed, states := cbsPackageStates(t)
+	t.Logf("CBS servicing packages by CurrentState: %v (%d installed)", states, installed)
 
 	entries, warnings, err := (&osUpdateCollector{}).Collect()
 	require.NoError(t, err)
@@ -532,15 +598,25 @@ func TestIntegrationOSUpdates(t *testing.T) {
 		t.Logf("Warning: %s", w.Message)
 	}
 
-	// Every serviced Windows install has KB packages in the CBS store.
-	require.NotEmpty(t, entries, "expected at least one installed OS update")
+	if installed == 0 {
+		// A host serviced purely by image replacement can legitimately have none.
+		t.Log("host records no installed servicing packages, nothing to verify")
+	} else {
+		require.NotEmpty(t, entries,
+			"CBS lists %d installed servicing packages but the collector reported none", installed)
+	}
 
+	kbCount := 0
 	seenIDs := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
 		assert.Equal(t, softwareTypeOSUpdate, entry.Source)
-		assert.Regexp(t, `^KB\d{6,7}$`, entry.ProductCode)
+		assert.NotEmpty(t, entry.ProductCode)
 		assert.Equal(t, "Update "+entry.ProductCode, entry.DisplayName)
 		assert.NotEmpty(t, entry.Version)
+
+		if cbsKBPattern.MatchString(entry.ProductCode) {
+			kbCount++
+		}
 
 		if entry.InstallDate != "" {
 			_, err := time.Parse(time.RFC3339Nano, entry.InstallDate)
@@ -548,9 +624,16 @@ func TestIntegrationOSUpdates(t *testing.T) {
 		}
 
 		_, duplicate := seenIDs[entry.GetID()]
-		assert.False(t, duplicate, "KB %q reported more than once", entry.ProductCode)
+		assert.False(t, duplicate, "update %q reported more than once", entry.ProductCode)
 		seenIDs[entry.GetID()] = struct{}{}
 	}
 
-	t.Logf("Found %d installed OS updates", len(entries))
+	// Logged rather than asserted: the mix of KB-identified and rolling-family updates
+	// depends on how the host was serviced, and this is the number to eyeball when
+	// checking that cumulative updates are not being missed.
+	t.Logf("Found %d installed OS updates (%d KB-identified, %d by package family)",
+		len(entries), kbCount, len(entries)-kbCount)
+	for _, entry := range entries {
+		t.Logf("  %s %s (%s)", entry.ProductCode, entry.Version, entry.InstallDate)
+	}
 }
