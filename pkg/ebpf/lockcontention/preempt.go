@@ -11,18 +11,12 @@ import (
 	"fmt"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
+	"github.com/cilium/ebpf/asm"
 )
 
 func EBPFPreemptCountSupported() bool {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("preempt count: could not determine the current kernel version.")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 10, 0)
+	return features.HaveHelperInRawTracepoint(asm.FnThisCpuPtr) == nil
 }
 
 func PreemptCountConstants() (map[string]uint64, error) {
