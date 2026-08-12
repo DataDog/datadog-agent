@@ -887,6 +887,8 @@ func (bs *BaseSuite[Env]) releasePoolInstanceForEnv(env *Env) {
 		cancel()
 		if err != nil {
 			utils.Errorf(bs.T(), "unable to revert/release macOS pool instance %s: %v", remoteHost.PoolInstanceID, err)
+		} else {
+			utils.Logf(bs.T(), "reverted and released macOS pool instance %s successfully", remoteHost.PoolInstanceID)
 		}
 	}
 }
