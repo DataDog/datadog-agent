@@ -2,6 +2,7 @@
 # e2e stage
 # Contains test jobs based on the new-e2e tests framework
 .new_e2e_template:
+  extends: .bazel:defs:cache:progressive
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
@@ -1031,7 +1032,6 @@ new-e2e-ha-agent-failover:
     TEAM: network-device-monitoring-core
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
-  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-anomalydetection:

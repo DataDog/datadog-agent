@@ -48,14 +48,19 @@ An environment defines what infrastructure a test needs:
 |------|-----------|-------------|----------|
 | `environments.Host` | VM + Agent + FakeIntake | `awshost.Provisioner()` | System checks, agent commands, file-based config |
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
-| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `awskubernetes.Provisioner()` | K8s checks, DaemonSet, Cluster Agent |
-| `environments.ECS` | ECS cluster + Agent + FakeIntake | `awsecs.Provisioner()` | ECS-specific tests |
+| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
+| `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
 
 Provisioners create the environment's infrastructure. Built-in provisioners
 live in `testing/provisioners/` organized by cloud provider (aws, azure, gcp, local).
+The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm}`;
+tests commonly alias the kind one as `awskubernetes`, and the ECS one as `awsecs`, which are
+import aliases rather than package names. Azure, GCP and local provisioners take their options
+directly (`azurehost.WithAgentOptions(...)`) rather than nesting them inside `WithRunOptions`
+as the AWS example below does.
 
 ```go
 // Host on AWS EC2

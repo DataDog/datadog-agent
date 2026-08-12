@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build manual_luts_generator
+//go:build linux
 
+// Package main for luts generator.
 package main
 
 import (
