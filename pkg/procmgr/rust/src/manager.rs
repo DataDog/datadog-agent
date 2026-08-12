@@ -496,6 +496,20 @@ impl ProcessManager {
             .collect();
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
+        #[cfg(windows)]
+        {
+            let mut pending_job_drains = Vec::new();
+            self.adopt_deferred_exit_cleanups(&mut procs, &mut pending_job_drains)
+                .await;
+            drop(procs);
+            for (name, pid) in pending_job_drains {
+                self.await_deferred_job_drain(name, pid).await;
+            }
+            let mut orphaned = self.orphaned_deferred_exit_cleanups.write().await;
+            for entry in orphaned.drain(..) {
+                finish_orphaned_deferred_exit_cleanup(entry);
+            }
+        }
     }
 
     #[cfg(windows)]
@@ -516,32 +530,35 @@ impl ProcessManager {
     }
 
     #[cfg(windows)]
-    fn spawn_deferred_job_drain(&self, name: String, pid: u32) {
+    async fn await_deferred_job_drain(&self, name: String, pid: u32) {
         use std::time::Instant;
 
+        let started = Instant::now();
+        let mut warned = false;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            if self.try_finish_deferred_job_drain(&name, pid).await {
+                debug!("[{name}] released deferred Windows profile after job drain (pid {pid})");
+                return;
+            }
+            if !self.deferred_job_drain_pending(&name, pid).await {
+                debug!("[{name}] deferred job drain finished elsewhere (pid {pid})");
+                return;
+            }
+            if !warned && started.elapsed() >= ManagedProcess::FORCE_KILL_TIMEOUT {
+                warn!(
+                    "[{name}] deferred job drain still waiting for job members to exit (pid {pid})"
+                );
+                warned = true;
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    fn spawn_deferred_job_drain(&self, name: String, pid: u32) {
         let mgr = self.clone();
         tokio::spawn(async move {
-            let started = Instant::now();
-            let mut warned = false;
-            loop {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                if mgr.try_finish_deferred_job_drain(&name, pid).await {
-                    debug!(
-                        "[{name}] released deferred Windows profile after job drain (pid {pid})"
-                    );
-                    return;
-                }
-                if !mgr.deferred_job_drain_pending(&name, pid).await {
-                    debug!("[{name}] deferred job drain finished elsewhere (pid {pid})");
-                    return;
-                }
-                if !warned && started.elapsed() >= ManagedProcess::FORCE_KILL_TIMEOUT {
-                    warn!(
-                        "[{name}] deferred job drain still waiting for job members to exit (pid {pid})"
-                    );
-                    warned = true;
-                }
-            }
+            mgr.await_deferred_job_drain(name, pid).await;
         });
     }
 
