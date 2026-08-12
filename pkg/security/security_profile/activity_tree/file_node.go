@@ -64,25 +64,6 @@ func newFileInfo(fe *model.FileEvent) *FileInfo {
 	}
 }
 
-// toFileEvent rebuilds a model.FileEvent from the slim FileInfo.
-func (fi *FileInfo) toFileEvent() model.FileEvent {
-	return model.FileEvent{
-		FileFields:    fi.FileFields,
-		PathnameStr:   fi.PathnameStr,
-		BasenameStr:   fi.BasenameStr,
-		Filesystem:    fi.Filesystem,
-		PkgName:       fi.PkgName,
-		PkgVersion:    fi.PkgVersion,
-		PkgEpoch:      fi.PkgEpoch,
-		PkgRelease:    fi.PkgRelease,
-		PkgSrcVersion: fi.PkgSrcVersion,
-		PkgSrcEpoch:   fi.PkgSrcEpoch,
-		PkgSrcRelease: fi.PkgSrcRelease,
-		HashState:     fi.HashState,
-		Hashes:        fi.Hashes,
-	}
-}
-
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
