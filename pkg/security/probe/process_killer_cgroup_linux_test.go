@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -153,6 +154,97 @@ func TestCgroupKillWriteBasesPrefersAgentViewThenHostRoot(t *testing.T) {
 	// Without a cgroup2 mount point in the host mount namespace there is no fallback.
 	bases = cgroupKillWriteBases("/host/sys/fs/cgroup", "", "/host/proc")
 	assert.Equal(t, []string{"/host/sys/fs/cgroup"}, bases)
+}
+
+func TestGroupByCgroupKeepsGroupsNonEmpty(t *testing.T) {
+	// Killing a cgroup we have no process to report as killed would take down a workload we know
+	// nothing about, so a group only exists once a process is in it.
+	podA := cgroupKillTarget{id: "/kubepods/podA", inode: 1}
+	podB := cgroupKillTarget{id: "/kubepods/podB", inode: 2}
+	kcs := []killContext{
+		{pid: 100, cgroup: podA},
+		{pid: 101, cgroup: podA},
+		{pid: 200, cgroup: podB},
+		{pid: 300}, // no cgroup: killed one by one
+	}
+
+	groups := groupByCgroup(kcs)
+
+	require.Len(t, groups, 3)
+	for _, group := range groups {
+		assert.NotEmpty(t, group.kcs, "group for cgroup %q must not be empty", group.target.id)
+	}
+	assert.Equal(t, podA, groups[0].target)
+	assert.Len(t, groups[0].kcs, 2)
+	assert.Equal(t, podB, groups[1].target)
+	assert.Equal(t, cgroupKillTarget{}, groups[2].target)
+}
+
+// linuxKillerForCgroup returns a ProcessKillerLinux whose cgroup killer resolves against base.
+func linuxKillerForCgroup(base string) *ProcessKillerLinux {
+	return &ProcessKillerLinux{cgroupKiller: &cgroupKiller{bases: []string{base}}}
+}
+
+func TestProcessKillerLinuxKillsCgroupInOneOperation(t *testing.T) {
+	base := t.TempDir()
+	dir, inode := fakeCgroup(t, base, "/kubepods/podabc")
+
+	// Pids that don't exist, so anything killed one by one would be reported as failed.
+	kcs := []killContext{
+		{pid: 1 << 30, cgroup: cgroupKillTarget{id: "/kubepods/podabc", inode: inode}},
+		{pid: 1<<30 + 1, cgroup: cgroupKillTarget{id: "/kubepods/podabc", inode: inode}},
+	}
+
+	failed, killed := linuxKillerForCgroup(base).Kill(uint32(unix.SIGKILL), kcs)
+
+	assert.Empty(t, failed)
+	assert.Equal(t, []uint32{1 << 30, 1<<30 + 1}, killed, "every process of the cgroup should be reported as killed")
+
+	content, err := os.ReadFile(filepath.Join(dir, cgroupKillFile))
+	require.NoError(t, err)
+	assert.Equal(t, "1", string(content))
+}
+
+func TestProcessKillerLinuxFallsBackWhenCgroupKillFails(t *testing.T) {
+	// No cgroup.kill file, so the one-shot path fails and the processes are signalled one by one.
+	base := t.TempDir()
+	dir := filepath.Join(base, "kubepods", "podabc")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+
+	kcs := []killContext{{pid: 1 << 30, cgroup: cgroupKillTarget{id: "/kubepods/podabc", inode: dirInode(t, dir)}}}
+
+	failed, killed := linuxKillerForCgroup(base).Kill(uint32(unix.SIGKILL), kcs)
+
+	assert.Equal(t, []uint32{1 << 30}, failed, "the process should have been signalled individually")
+	assert.Empty(t, killed)
+}
+
+func TestProcessKillerLinuxDoesNotUseCgroupKillForOtherSignals(t *testing.T) {
+	base := t.TempDir()
+	dir, inode := fakeCgroup(t, base, "/kubepods/podabc")
+
+	kcs := []killContext{{pid: 1 << 30, cgroup: cgroupKillTarget{id: "/kubepods/podabc", inode: inode}}}
+	failed, _ := linuxKillerForCgroup(base).Kill(uint32(unix.SIGTERM), kcs)
+
+	assert.Equal(t, []uint32{1 << 30}, failed)
+	content, err := os.ReadFile(filepath.Join(dir, cgroupKillFile))
+	require.NoError(t, err)
+	assert.Empty(t, content, "cgroup.kill only ever delivers SIGKILL")
+}
+
+func TestProcessKillerLinuxDoesNotUseCgroupKillWhenDisabled(t *testing.T) {
+	// runtime_security_config.enforcement.cgroup_kill.enabled is off, so there is no cgroup killer.
+	base := t.TempDir()
+	dir, inode := fakeCgroup(t, base, "/kubepods/podabc")
+
+	killer := &ProcessKillerLinux{}
+	kcs := []killContext{{pid: 1 << 30, cgroup: cgroupKillTarget{id: "/kubepods/podabc", inode: inode}}}
+	failed, _ := killer.Kill(uint32(unix.SIGKILL), kcs)
+
+	assert.Equal(t, []uint32{1 << 30}, failed)
+	content, err := os.ReadFile(filepath.Join(dir, cgroupKillFile))
+	require.NoError(t, err)
+	assert.Empty(t, content)
 }
 
 // TestCgroupKillerKillsRealCgroup exercises cgroup.kill against a real cgroup v2 hierarchy.

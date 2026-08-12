@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -34,13 +33,10 @@ import (
 
 // ProcessKillerOS interface defines an os specific process killer
 type ProcessKillerOS interface {
-	Kill(sig uint32, pc *killContext) error
-	// KillCgroup kills every process of the target cgroup in a single operation. An error means
-	// nothing was killed, so the caller falls back to killing each process individually.
-	KillCgroup(target cgroupKillTarget) error
-	// getCgroupKillTarget returns the cgroup that can be killed in a single operation for the
-	// given scope, and whether that is possible at all on this host.
-	getCgroupKillTarget(scope string, entry *model.ProcessCacheEntry) (cgroupKillTarget, bool)
+	// Kill sends the given signal to the given processes, and returns the pids that could not be
+	// killed and the ones that were. Implementations may kill them in fewer operations than there
+	// are processes, as long as they kill no process outside of the given list.
+	Kill(sig uint32, kcs []killContext) (failedPids []uint32, killedPids []uint32)
 	getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error)
 }
 
@@ -87,7 +83,7 @@ type processKillerStats struct {
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller, error) {
 	if pkos == nil {
-		pkos = NewProcessKillerOS(nil, nil)
+		pkos = NewProcessKillerOS(nil, nil, cfg.RuntimeSecurity.EnforcementCgroupKillEnabled)
 	}
 	p := &ProcessKiller{
 		cfg:             cfg,
@@ -276,15 +272,6 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	sig := model.SignalConstants[kill.Signal]
 	report := newKillActionReport(scope, kill, ev, rule)
 
-	// Killing the cgroup at once is only possible for SIGKILL, and only once at least one of its
-	// processes has been resolved: killing a cgroup we know nothing about would bypass both the
-	// excluded binaries check above and the reporting of the processes that were killed.
-	if kill.Signal == "SIGKILL" && len(pcs) > 0 {
-		if target, ok := p.os.getCgroupKillTarget(scope, entry); ok {
-			report.cgroupTarget = target
-		}
-	}
-
 	// if the rule is triggered for the first time and a disarmer is active, put the pids to kill on the wait list and don't kill them now
 	if isWarmupPeriod(disarmer) {
 		p.enqueueDuringWarmup(disarmer, sig, report, pcs)
@@ -305,7 +292,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	// populate pendingKills so updateKillActionReport can map failed/killed pids back
 	// to this report (same invariant as the disarmer warmup path).
 	report.pendingKills = pcs
-	failedPids, killedPids := p.KillProcesses(true, rule.ID, sig, report.cgroupTarget, pcs)
+	failedPids, killedPids := p.KillProcesses(true, rule.ID, sig, pcs)
 	updateKillActionReport(report, killedAt, failedPids, killedPids)
 	report.Unlock()
 	if len(failedPids) > 0 && len(killedPids) > 0 {
@@ -316,44 +303,15 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 }
 
 // KillProcesses kills the given list of processes, returns the list of pids that failed to be killed (nil if everything went well)
-// When target designates a cgroup, the whole cgroup is killed in a single operation instead, and
-// kcs is only used to report which processes were killed. A cgroup kill that fails kills nothing,
-// so it falls back to killing each process individually.
-func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, target cgroupKillTarget, kcs []killContext) ([]uint32, []uint32) {
-	var failedPids []uint32
-	var killedPids []uint32
+func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, kcs []killContext) ([]uint32, []uint32) {
 	if !p.cfg.RuntimeSecurity.EnforcementEnabled {
-		return failedPids, killedPids
+		return nil, nil
 	}
 
-	if target.id != "" {
-		if err := p.os.KillCgroup(target); err != nil {
-			seclog.Warnf("unable to kill cgroup `%s` in a single operation, falling back to killing each process: %s", target.id, err)
-		} else {
-			log.Debugf("killed cgroup `%s` with a single operation", target.id)
-			for _, pc := range kcs {
-				killedPids = append(killedPids, uint32(pc.pid))
-			}
-			p.updateKilledStats(ruleID, killDirectly, int64(len(killedPids)))
-			return failedPids, killedPids
-		}
-	}
+	log.Debugf("requesting signal %d to be sent to %d processes", sig, len(kcs))
 
-	var processesKilled int64
-	for _, pc := range kcs {
-		log.Debugf("requesting signal %d to be sent to %d", sig, pc.pid)
-
-		if err := p.os.Kill(uint32(sig), &pc); err != nil {
-			seclog.Debugf("failed to kill process %d: %s.", pc.pid, err)
-			failedPids = append(failedPids, uint32(pc.pid))
-
-		} else {
-			killedPids = append(killedPids, uint32(pc.pid))
-			processesKilled++
-		}
-	}
-
-	p.updateKilledStats(ruleID, killDirectly, processesKilled)
+	failedPids, killedPids := p.os.Kill(uint32(sig), kcs)
+	p.updateKilledStats(ruleID, killDirectly, int64(len(killedPids)))
 
 	return failedPids, killedPids
 }
@@ -504,63 +462,28 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 		return
 	}
 
-	// Group the pending kills per cgroup target so that the cgroups that can be killed in a
-	// single operation still are, while making sure a pid is only killed once.
-	batches := groupPendingKillsByCgroup(disarmer.pendingReports)
-
-	if len(batches) == 0 {
-		seclog.Debugf("no pending kill for rule `%s`", disarmer.ruleID)
-	}
-
-	var failedPids, killedPids []uint32
-	for _, batch := range batches {
-		failed, killed := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, batch.target, batch.kcs)
-		failedPids = append(failedPids, failed...)
-		killedPids = append(killedPids, killed...)
-	}
-	for _, r := range disarmer.pendingReports {
-		updateKillActionReport(r, now, failedPids, killedPids)
-	}
-	disarmer.pendingReports = nil
-}
-
-// pendingKillBatch is a set of processes to kill that share the same cgroup kill target.
-type pendingKillBatch struct {
-	target cgroupKillTarget
-	kcs    []killContext
-}
-
-// groupPendingKillsByCgroup collects the pending kills of the given reports into one batch per
-// cgroup target, dropping duplicated pids. Reports without a cgroup target share a single batch
-// that is killed process by process.
-//
-// Batches are only created for pids that survive deduplication: a pid queued under two different
-// cgroups, which happens if a process migrated between them during the warmup window, would
-// otherwise leave the second cgroup with an empty batch, and killing a cgroup we have no process
-// to validate or report is exactly what the caller guards against.
-func groupPendingKillsByCgroup(reports []*KillActionReport) []*pendingKillBatch {
-	var batches []*pendingKillBatch
-	byCgroupID := make(map[containerutils.CGroupID]*pendingKillBatch)
+	// Collect the pending kills of every report, making sure a pid is only killed once.
+	var allKills []killContext
 	seen := make(map[int]bool)
-
-	for _, r := range reports {
+	for _, r := range disarmer.pendingReports {
 		for _, kc := range r.pendingKills {
 			if seen[kc.pid] {
 				continue
 			}
 			seen[kc.pid] = true
-
-			batch, ok := byCgroupID[r.cgroupTarget.id]
-			if !ok {
-				batch = &pendingKillBatch{target: r.cgroupTarget}
-				byCgroupID[r.cgroupTarget.id] = batch
-				batches = append(batches, batch)
-			}
-			batch.kcs = append(batch.kcs, kc)
+			allKills = append(allKills, kc)
 		}
 	}
 
-	return batches
+	if len(allKills) == 0 {
+		seclog.Debugf("no pending kill for rule `%s`", disarmer.ruleID)
+	}
+
+	failedPids, killedPids := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, allKills)
+	for _, r := range disarmer.pendingReports {
+		updateKillActionReport(r, now, failedPids, killedPids)
+	}
+	disarmer.pendingReports = nil
 }
 
 // updateKillActionReport updates the report status based on the outcome of KillProcesses.

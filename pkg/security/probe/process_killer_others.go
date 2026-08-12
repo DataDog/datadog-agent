@@ -13,11 +13,7 @@ package probe
 
 type killContext struct{}
 
-type cgroupKillTarget struct{}
-
 var (
 	_ killContext
-	_ cgroupKillTarget
 	_ = KillActionReport{}.pendingKills
-	_ = KillActionReport{}.cgroupTarget
 )

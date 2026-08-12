@@ -9,7 +9,6 @@ package probe
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -24,37 +23,30 @@ type killContext struct {
 	path string
 }
 
-// cgroupKillTarget identifies a cgroup to kill in a single operation. Cgroups don't exist on
-// Windows, so the ID is never set and the one-shot kill path is never taken.
-type cgroupKillTarget struct {
-	id containerutils.CGroupID
-}
-
 // ProcessKillerWindows defines the process kill windows implementation
 type ProcessKillerWindows struct{}
 
 // NewProcessKillerOS returns a ProcessKillerOS
-// The second parameter (cgroupResolver) is ignored on Windows as container scope is not supported
-func NewProcessKillerOS(_ func(pid, sig uint32) error, _ any) ProcessKillerOS {
+// The last two parameters are cgroup related and ignored on Windows, as container scope is not supported
+func NewProcessKillerOS(_ func(pid, sig uint32) error, _ any, _ bool) ProcessKillerOS {
 	return &ProcessKillerWindows{}
 }
 
-// Kill tries to kill from userspace
-func (p *ProcessKillerWindows) Kill(sig uint32, pc *killContext) error {
-	if sig != model.SIGKILL {
-		return nil
+// Kill tries to kill the given processes from userspace, one by one
+func (p *ProcessKillerWindows) Kill(sig uint32, kcs []killContext) ([]uint32, []uint32) {
+	var failedPids, killedPids []uint32
+
+	for _, kc := range kcs {
+		if sig == model.SIGKILL {
+			if err := winutil.KillProcess(kc.pid, 0); err != nil {
+				failedPids = append(failedPids, uint32(kc.pid))
+				continue
+			}
+		}
+		killedPids = append(killedPids, uint32(kc.pid))
 	}
-	return winutil.KillProcess(int(pc.pid), 0)
-}
 
-// KillCgroup is not supported on Windows
-func (p *ProcessKillerWindows) KillCgroup(_ cgroupKillTarget) error {
-	return errors.New("cgroups are not supported")
-}
-
-// getCgroupKillTarget always reports that killing a cgroup at once isn't possible on Windows
-func (p *ProcessKillerWindows) getCgroupKillTarget(_ string, _ *model.ProcessCacheEntry) (cgroupKillTarget, bool) {
-	return cgroupKillTarget{}, false
+	return failedPids, killedPids
 }
 
 func (p *ProcessKillerWindows) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]killContext, error) {

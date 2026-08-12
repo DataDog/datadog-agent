@@ -9,13 +9,11 @@
 package probe
 
 import (
-	"errors"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -27,16 +25,12 @@ import (
 
 type FakeProcessKillerOS struct{}
 
-func (fpk *FakeProcessKillerOS) Kill(_ uint32, _ *killContext) error {
-	return nil // fake kill
-}
-
-func (fpk *FakeProcessKillerOS) KillCgroup(_ cgroupKillTarget) error {
-	return errors.New("one-shot cgroup kill not available")
-}
-
-func (fpk *FakeProcessKillerOS) getCgroupKillTarget(_ string, _ *model.ProcessCacheEntry) (cgroupKillTarget, bool) {
-	return cgroupKillTarget{}, false
+func (fpk *FakeProcessKillerOS) Kill(_ uint32, kcs []killContext) ([]uint32, []uint32) {
+	killedPids := make([]uint32, 0, len(kcs))
+	for _, kc := range kcs {
+		killedPids = append(killedPids, uint32(kc.pid)) // fake kill
+	}
+	return nil, killedPids
 }
 
 func (fpk *FakeProcessKillerOS) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
@@ -754,226 +748,6 @@ func TestProcessKillerRuleScopeContainer(t *testing.T) {
 	})
 }
 
-// FakeCgroupProcessKillerOS can kill a whole cgroup at once, and records how processes were killed.
-type FakeCgroupProcessKillerOS struct {
-	target        cgroupKillTarget
-	cgroupKillErr error
-	noProcesses   bool
-
-	cgroupKills []cgroupKillTarget
-	killedPids  []int
-}
-
-func (fpk *FakeCgroupProcessKillerOS) Kill(_ uint32, pc *killContext) error {
-	fpk.killedPids = append(fpk.killedPids, pc.pid)
-	return nil
-}
-
-func (fpk *FakeCgroupProcessKillerOS) KillCgroup(target cgroupKillTarget) error {
-	if fpk.cgroupKillErr != nil {
-		return fpk.cgroupKillErr
-	}
-	fpk.cgroupKills = append(fpk.cgroupKills, target)
-	return nil
-}
-
-func (fpk *FakeCgroupProcessKillerOS) getCgroupKillTarget(scope string, _ *model.ProcessCacheEntry) (cgroupKillTarget, bool) {
-	if scope != "container" && scope != "cgroup" {
-		return cgroupKillTarget{}, false
-	}
-	return fpk.target, true
-}
-
-func (fpk *FakeCgroupProcessKillerOS) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]killContext, error) {
-	if fpk.noProcesses {
-		return nil, nil
-	}
-	kcs := []killContext{{pid: int(ev.ProcessContext.Pid), path: ev.ProcessContext.FileEvent.PathnameStr}}
-	if scope == "container" || scope == "cgroup" {
-		kcs = append(kcs,
-			killContext{pid: int(ev.ProcessContext.Pid + 1), path: ev.ProcessContext.FileEvent.PathnameStr + "_1"},
-			killContext{pid: int(ev.ProcessContext.Pid + 2), path: ev.ProcessContext.FileEvent.PathnameStr + "_2"},
-		)
-	}
-	return kcs, nil
-}
-
-// cgroupKillTestConfig disables the disarmers so that kills are performed immediately.
-func cgroupKillTestConfig() *config.Config {
-	return &config.Config{
-		RuntimeSecurity: &config.RuntimeSecurityConfig{
-			EnforcementEnabled:           true,
-			EnforcementRuleSourceAllowed: []string{"test"},
-		},
-	}
-}
-
-func TestCgroupScopeKillsTheWholeCgroupAtOnce(t *testing.T) {
-	target := cgroupKillTarget{id: "/kubepods/podabc", inode: 4242}
-	fakeOS := &FakeCgroupProcessKillerOS{target: target}
-
-	pk, err := NewProcessKiller(cgroupKillTestConfig(), fakeOS)
-	assert.NoError(t, err)
-	rule, ruleSet := craftKillRule(t, "test-rule", "cgroup")
-	pk.Reset(ruleSet)
-
-	event := craftFakeEvent("container1", "executable1", 100)
-	killed, report := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
-	assert.True(t, killed)
-
-	assert.Equal(t, []cgroupKillTarget{target}, fakeOS.cgroupKills, "the cgroup should be killed in a single operation")
-	assert.Empty(t, fakeOS.killedPids, "no process should be signalled individually")
-
-	report.RLock()
-	assert.Equal(t, KillActionStatusPerformed, report.Status)
-	report.RUnlock()
-
-	// every process of the cgroup is still reported as killed
-	stats := pk.getRuleStatsNoAlloc("test-rule")
-	assert.NotNil(t, stats)
-	assert.Equal(t, int64(3), stats.processesKilledDirectly)
-}
-
-func TestCgroupKillFallsBackToKillingEachProcess(t *testing.T) {
-	// A failed cgroup.kill killed nothing, so every process must still be signalled. This is
-	// what happens on kernels without cgroup.kill, on threaded cgroups, and when cgroupfs is
-	// mounted read-only with no writable path to it.
-	fakeOS := &FakeCgroupProcessKillerOS{
-		target:        cgroupKillTarget{id: "/kubepods/podabc", inode: 4242},
-		cgroupKillErr: errors.New("operation not supported"),
-	}
-
-	pk, err := NewProcessKiller(cgroupKillTestConfig(), fakeOS)
-	assert.NoError(t, err)
-	rule, ruleSet := craftKillRule(t, "test-rule", "cgroup")
-	pk.Reset(ruleSet)
-
-	event := craftFakeEvent("container1", "executable1", 100)
-	killed, report := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
-	assert.True(t, killed)
-
-	assert.Empty(t, fakeOS.cgroupKills)
-	assert.Equal(t, []int{100, 101, 102}, fakeOS.killedPids, "all processes should be killed individually")
-
-	report.RLock()
-	assert.Equal(t, KillActionStatusPerformed, report.Status)
-	report.RUnlock()
-}
-
-func TestCgroupKillNotUsedWhenNoProcessWasResolved(t *testing.T) {
-	// Killing a cgroup whose processes are all unknown would take down whatever it holds
-	// without ever checking it against the excluded binaries, and report nothing as killed.
-	fakeOS := &FakeCgroupProcessKillerOS{
-		target:      cgroupKillTarget{id: "/kubepods/podabc", inode: 4242},
-		noProcesses: true,
-	}
-
-	pk, err := NewProcessKiller(cgroupKillTestConfig(), fakeOS)
-	assert.NoError(t, err)
-	rule, ruleSet := craftKillRule(t, "test-rule", "cgroup")
-	pk.Reset(ruleSet)
-
-	event := craftFakeEvent("container1", "executable1", 100)
-	pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
-
-	assert.Empty(t, fakeOS.cgroupKills, "a cgroup with no resolved process must not be killed")
-	assert.Empty(t, fakeOS.killedPids)
-}
-
-func TestProcessScopeDoesNotUseCgroupKill(t *testing.T) {
-	fakeOS := &FakeCgroupProcessKillerOS{target: cgroupKillTarget{id: "/kubepods/podabc", inode: 4242}}
-
-	pk, err := NewProcessKiller(cgroupKillTestConfig(), fakeOS)
-	assert.NoError(t, err)
-	rule, ruleSet := craftKillRule(t, "test-rule", "process")
-	pk.Reset(ruleSet)
-
-	event := craftFakeEvent("container1", "executable1", 100)
-	killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
-	assert.True(t, killed)
-
-	assert.Empty(t, fakeOS.cgroupKills, "a process scope must not take down the whole cgroup")
-	assert.Equal(t, []int{100}, fakeOS.killedPids)
-}
-
-func TestNonSigkillSignalDoesNotUseCgroupKill(t *testing.T) {
-	// cgroup.kill can only deliver SIGKILL.
-	fakeOS := &FakeCgroupProcessKillerOS{target: cgroupKillTarget{id: "/kubepods/podabc", inode: 4242}}
-
-	pk, err := NewProcessKiller(cgroupKillTestConfig(), fakeOS)
-	assert.NoError(t, err)
-	rule, ruleSet := craftKillRule(t, "test-rule", "cgroup")
-	rule.PolicyRule.Def.Actions[0].Kill.Signal = "SIGTERM"
-	pk.Reset(ruleSet)
-
-	event := craftFakeEvent("container1", "executable1", 100)
-	killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
-	assert.True(t, killed)
-
-	assert.Empty(t, fakeOS.cgroupKills, "SIGTERM cannot be delivered with cgroup.kill")
-	assert.Equal(t, []int{100, 101, 102}, fakeOS.killedPids)
-}
-
-func TestQueuedCgroupKillStillKillsTheWholeCgroupAtOnce(t *testing.T) {
-	target := cgroupKillTarget{id: "/kubepods/podabc", inode: 4242}
-	fakeOS := &FakeCgroupProcessKillerOS{target: target}
-
-	cfg := &config.Config{
-		RuntimeSecurity: &config.RuntimeSecurityConfig{
-			EnforcementEnabled:                     true,
-			EnforcementDisarmerContainerEnabled:    true,
-			EnforcementDisarmerContainerMaxAllowed: 5,
-			EnforcementDisarmerContainerPeriod:     time.Second,
-			EnforcementRuleSourceAllowed:           []string{"test"},
-		},
-	}
-
-	pk, err := NewProcessKiller(cfg, fakeOS)
-	assert.NoError(t, err)
-	rule, ruleSet := craftKillRule(t, "test-rule", "cgroup")
-	pk.Reset(ruleSet)
-	pk.vacumChan()
-
-	// during the warmup period the kill is only queued
-	event := craftFakeEvent("container1", "executable1", 100)
-	killed, report := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
-	assert.False(t, killed)
-	assert.Empty(t, fakeOS.cgroupKills)
-
-	// the warmup period elapses and the queued kill is performed
-	disarmer := pk.getDisarmer("test-rule")
-	assert.NotNil(t, disarmer)
-	disarmer.m.Lock()
-	disarmer.pendingKillsAlarm = time.Now().Add(-time.Second)
-	disarmer.m.Unlock()
-
-	pk.processPendingKills()
-
-	assert.Equal(t, []cgroupKillTarget{target}, fakeOS.cgroupKills, "the queued kill should also use a single operation")
-	assert.Empty(t, fakeOS.killedPids)
-
-	report.RLock()
-	assert.Equal(t, KillActionStatusPerformed, report.Status)
-	report.RUnlock()
-}
-
-func TestGroupPendingKillsDropsBatchesLeftEmptyByDeduplication(t *testing.T) {
-	// The same pid can be queued under two different cgroups, for instance if a process migrated
-	// during the warmup window. Deduplication then leaves the second cgroup with no pid at all,
-	// and killing it would take down a whole cgroup with nothing to report as killed.
-	shared := killContext{pid: 100, path: "executable1"}
-	reports := []*KillActionReport{
-		{cgroupTarget: cgroupKillTarget{id: "/kubepods/podA", inode: 1}, pendingKills: []killContext{shared}},
-		{cgroupTarget: cgroupKillTarget{id: "/kubepods/podB", inode: 2}, pendingKills: []killContext{shared}},
-	}
-
-	batches := groupPendingKillsByCgroup(reports)
-
-	require.Len(t, batches, 1, "the cgroup left without any pid must not be killed")
-	assert.Equal(t, containerutils.CGroupID("/kubepods/podA"), batches[0].target.id)
-	assert.Equal(t, []killContext{shared}, batches[0].kcs)
-}
-
 func TestIsKillAllowed(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -1244,19 +1018,16 @@ type FakeProcessKillerOSWithFailures struct {
 	failPids map[int]bool
 }
 
-func (fpk *FakeProcessKillerOSWithFailures) Kill(_ uint32, pc *killContext) error {
-	if fpk.failPids[pc.pid] {
-		return errors.New("fake kill failure")
+func (fpk *FakeProcessKillerOSWithFailures) Kill(_ uint32, kcs []killContext) ([]uint32, []uint32) {
+	var failedPids, killedPids []uint32
+	for _, kc := range kcs {
+		if fpk.failPids[kc.pid] {
+			failedPids = append(failedPids, uint32(kc.pid))
+		} else {
+			killedPids = append(killedPids, uint32(kc.pid))
+		}
 	}
-	return nil
-}
-
-func (fpk *FakeProcessKillerOSWithFailures) KillCgroup(_ cgroupKillTarget) error {
-	return errors.New("one-shot cgroup kill not available")
-}
-
-func (fpk *FakeProcessKillerOSWithFailures) getCgroupKillTarget(_ string, _ *model.ProcessCacheEntry) (cgroupKillTarget, bool) {
-	return cgroupKillTarget{}, false
+	return failedPids, killedPids
 }
 
 func (fpk *FakeProcessKillerOSWithFailures) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
