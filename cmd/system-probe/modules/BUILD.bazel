@@ -261,9 +261,13 @@ dd_agent_go_test(
         "traceroute_test.go",
     ],
     embed = [":modules"],
-    gotags_sets = [["linux_bpf"]],
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
+    gotags_sets = [
+        ["linux_bpf"],
+        [
+            "linux_bpf",
+            "nvml",
+        ],
+    ],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/compliance/dbconfig",
