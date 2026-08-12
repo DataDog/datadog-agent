@@ -5,6 +5,7 @@ go_library(
     name = "darwin",
     srcs = [
         "collector.go",
+        "dedupe.go",
         "fieldhandlers.go",
         "model.go",
         "names_darwin.go",
@@ -18,6 +19,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -27,6 +29,7 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -53,6 +56,7 @@ go_library(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -62,6 +66,7 @@ go_library(
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -71,6 +76,7 @@ go_library(
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -97,6 +103,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -106,6 +113,7 @@ go_library(
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -115,6 +123,7 @@ go_library(
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -124,6 +133,7 @@ go_library(
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
@@ -138,6 +148,7 @@ go_library(
 dd_agent_go_test(
     name = "darwin_test",
     srcs = [
+        "dedupe_test.go",
         "ruleset_test.go",
         "serialize_test.go",
         "snapshot_darwin_test.go",

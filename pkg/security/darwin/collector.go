@@ -56,6 +56,7 @@ type Collector struct {
 	recorder   *MatchRecorder
 	scrubber   *utils.Scrubber
 	ruleSet    ruleEvaluator
+	deduper    *signalDeduper
 
 	sent uint64
 }
@@ -93,6 +94,11 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 	}
 	rs.AddListener(recorder)
 
+	deduper, err := newSignalDeduper()
+	if err != nil {
+		return nil, err
+	}
+
 	log.Infof("macOS CWS collector loaded %d rules from %s", len(rs.GetRules()), cfg.PoliciesDir)
 
 	return &Collector{
@@ -101,6 +107,7 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 		recorder:   recorder,
 		scrubber:   scrubber,
 		ruleSet:    rs,
+		deduper:    deduper,
 	}, nil
 }
 
@@ -155,6 +162,14 @@ func (c *Collector) Run(ctx context.Context) error {
 		c.ruleSet.Evaluate(event)
 
 		for _, match := range c.recorder.Matches() {
+			// macOS /bin/sh re-execs itself as /bin/bash, so one shell invocation
+			// matches twice at the same pid. See signalDeduper.
+			if !c.deduper.allow(match.RuleID, match.Event) {
+				log.Tracef("suppressed duplicate match for %s (pid %d)",
+					match.RuleID, match.Event.PIDContext.Pid)
+				continue
+			}
+
 			raw, err := c.buildPayload(match)
 			if err != nil {
 				log.Warnf("serialize %s: %v", match.RuleID, err)
@@ -302,8 +317,8 @@ func (c *Collector) traceEvent(event *model.Event) {
 func (c *Collector) logSummary(stats eslogger.Stats, stderr []string) {
 	log.Infof("eslogger stream ended: %d lines, %d decoded, %d unknown, %d malformed, %d dropped",
 		stats.Lines, stats.Decoded, stats.Unknown, stats.Malformed, stats.Dropped)
-	log.Infof("collector: %d signals sent, %d recycled pids, %d orphan execs",
-		c.sent, c.translator.RecycledPIDs, c.translator.OrphanExecs)
+	log.Infof("collector: %d signals sent, %d duplicates suppressed, %d recycled pids, %d orphan execs",
+		c.sent, c.deduper.Suppressed, c.translator.RecycledPIDs, c.translator.OrphanExecs)
 
 	if stats.Dropped > 0 {
 		log.Warnf("Endpoint Security dropped %d messages; process trees may be incomplete", stats.Dropped)
