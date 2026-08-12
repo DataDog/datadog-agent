@@ -67,7 +67,6 @@ dd_agent_go_test(
     embed = [":actuator"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/dyninst/dyninsttest",
         "//pkg/dyninst/ir",

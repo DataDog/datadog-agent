@@ -28,6 +28,7 @@ go_library(
         "//pkg/discovery/tracermetadata/model",
         "//pkg/status/health",
         "//pkg/util/containers",
+        "//pkg/util/containers/image",
         "//pkg/util/docker",
         "//pkg/util/fargate",
         "//pkg/util/flavor",

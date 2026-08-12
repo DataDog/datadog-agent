@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.types.arch import ALL_ARCHS, Arch
+from tasks.schema.generate import schema_codegen
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -365,6 +366,9 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
     # we iterate over the packages here to get the nice streaming test output
@@ -591,11 +595,9 @@ def e2e_prepare(ctx, ci=False, packages=""):
                 binary = Path(target_path) / cbin
                 ctx.run(f"clang -static -o {binary} {source}")
 
-    gopath = os.getenv("GOPATH")
     copy_files = [
         "/opt/datadog-agent/embedded/bin/clang-bpf",
         "/opt/datadog-agent/embedded/bin/llc-bpf",
-        f"{gopath}/bin/gotestsum",
     ]
 
     files_dir = os.path.join(E2E_ARTIFACT_DIR, "..")
@@ -603,6 +605,7 @@ def e2e_prepare(ctx, ci=False, packages=""):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
+    bazel(ctx, "run", "//internal/tools:install_gotestsum", "--", f"--destdir={files_dir}")
     go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
@@ -1835,6 +1838,10 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
             command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
