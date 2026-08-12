@@ -553,7 +553,7 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
                         Ok(s) => s,
                         Err(e2) => {
                             warn!("[{name}] failed to reap after kill: {e2}");
-                            return;
+                            return None;
                         }
                     }
                 }
@@ -563,6 +563,7 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
                 pid,
                 status,
             });
+            Some(status)
         });
         proc.set_watcher_handle(handle);
     }
