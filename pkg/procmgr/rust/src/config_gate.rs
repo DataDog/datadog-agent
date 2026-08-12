@@ -534,12 +534,24 @@ fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
     match value {
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
         serde_yaml::Value::Number(number) => number.as_i64().map(|n| n != 0),
-        serde_yaml::Value::String(text) => Some(parse_agent_bool_string(text).unwrap_or(false)),
+        serde_yaml::Value::String(text) => Some(bool_from_yaml_string(text)),
         _ => None,
     }
 }
 
-/// Mirrors Go `GetBool` / `strconv.ParseBool` for env and YAML bool strings.
+/// YAML string scalars: `strconv.ParseBool` spellings plus YAML 1.1 (`yes`/`on`/…).
+/// Env vars use [`parse_agent_bool_string`] only (`ParseBool`, no YAML 1.1).
+fn bool_from_yaml_string(text: &str) -> bool {
+    parse_agent_bool_string(text)
+        .or_else(|| match text.to_ascii_lowercase().as_str() {
+            "yes" | "on" | "y" => Some(true),
+            "no" | "off" | "n" => Some(false),
+            _ => None,
+        })
+        .unwrap_or(false)
+}
+
+/// Mirrors Go `strconv.ParseBool` for env var bindings.
 pub(super) fn parse_agent_bool_string(text: &str) -> Option<bool> {
     match text {
         "1" | "t" | "T" => Some(true),
@@ -1652,8 +1664,35 @@ process_config:
         );
         assert_eq!(
             value_as_bool(&serde_yaml::Value::String("yes".into())),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("on".into())),
+            Some(true)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::String("no".into())),
             Some(false)
         );
+    }
+
+    #[test]
+    fn condition_config_any_accepts_yaml_11_bool_spellings() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: yes\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_discovery.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
+        });
     }
 
     #[test]
