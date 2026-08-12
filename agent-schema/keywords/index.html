@@ -4330,19 +4330,19 @@
   
 
 
-<h1 id="keyword-reference">Keyword Reference</h1>
+<h1 id="keyword-reference">Keyword Reference<a class="headerlink" href="#keyword-reference" title="Permanent link">&para;</a></h1>
 <p>This page documents keywords supported by the Agent configuration schema.
 Keywords are grouped into two sections: standard JSON Schema keywords and
 Datadog Agent extensions.</p>
 <hr />
-<h2 id="standard-json-schema-keywords">Standard JSON Schema keywords</h2>
+<h2 id="standard-json-schema-keywords">Standard JSON Schema keywords<a class="headerlink" href="#standard-json-schema-keywords" title="Permanent link">&para;</a></h2>
 <p>The following keywords come from the <a href="https://json-schema.org/understanding-json-schema/keywords">JSON Schema standard</a>
 and are understood by all JSON Schema tooling. This section describes how each
 keyword is used <strong>specifically in the Agent schema</strong>.</p>
 <blockquote>
 <p><strong>Note:</strong> not all keywords define in the JSON Schema standard are explain here, only the most commonly used.</p>
 </blockquote>
-<h3 id="type"><code>type</code></h3>
+<h3 id="type"><code>type</code><a class="headerlink" href="#type" title="Permanent link">&para;</a></h3>
 <p>The data type of a setting node's value.</p>
 <ul>
 <li><strong>Mandatory:</strong> yes, for all setting nodes. Not valid on section nodes.</li>
@@ -4388,7 +4388,7 @@ keyword is used <strong>specifically in the Agent schema</strong>.</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">object</span>
 </span></code></pre></div>
 <hr />
-<h3 id="default"><code>default</code></h3>
+<h3 id="default"><code>default</code><a class="headerlink" href="#default" title="Permanent link">&para;</a></h3>
 <p>The default value for a setting node.</p>
 <ul>
 <li><strong>Mandatory:</strong> yes, for all setting nodes. Mutually exclusive with <code>platform_default</code> (one or the other must be
@@ -4400,7 +4400,7 @@ keyword is used <strong>specifically in the Agent schema</strong>.</p>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
 </span></code></pre></div>
-<h4 id="relative-defaults">Relative defaults</h4>
+<h4 id="relative-defaults">Relative defaults<a class="headerlink" href="#relative-defaults" title="Permanent link">&para;</a></h4>
 <p>Some default value are resolved at runtime base on the agent install parameter. Default value are often relative to the
 "install path", "log directory" ...</p>
 <p>Those concept can be express using the <code>${}</code> notation with one of the following variables. The value below show the
@@ -4437,7 +4437,7 @@ default but could be change by the users. For example, the default configuration
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  default: &quot;${conf_path}/conf.d&quot;
 </span></code></pre></div></p>
 <hr />
-<h3 id="description"><code>description</code></h3>
+<h3 id="description"><code>description</code><a class="headerlink" href="#description" title="Permanent link">&para;</a></h3>
 <p>Human-readable documentation for a node.</p>
 <ul>
 <li><strong>Mandatory:</strong> yes, for any node with <code>visibility: public</code>. Optional otherwise, but every setting should eventually have one — a developer should not need to read source code to understand what a setting does.</li>
@@ -4456,7 +4456,7 @@ default but could be change by the users. For example, the default configuration
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="no">Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys</span>
 </span></code></pre></div>
 <hr />
-<h3 id="title"><code>title</code></h3>
+<h3 id="title"><code>title</code><a class="headerlink" href="#title" title="Permanent link">&para;</a></h3>
 <p>A short heading used to generate section banners in <code>datadog.yaml.example</code>.</p>
 <ul>
 <li><strong>Available on:</strong> section nodes only.</li>
@@ -4502,7 +4502,7 @@ to section nodes that begin a new conceptual group in the generated config file.
 </span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enable the APM agent.</span>
 </span></code></pre></div>
 <hr />
-<h3 id="comment"><code>comment</code></h3>
+<h3 id="comment"><code>comment</code><a class="headerlink" href="#comment" title="Permanent link">&para;</a></h3>
 <p>Internal comments about the field. Not rendered into any user-facing artifacts.</p>
 <ul>
 <li><strong>Available on:</strong> setting and section nodes.</li>
@@ -4517,11 +4517,11 @@ why an unusual default was chosen, referencing a bug or design decision, or noti
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">comment</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Maintain</span><span class="nv"> </span><span class="s">backward</span><span class="nv"> </span><span class="s">compatibility</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">Agent5</span><span class="nv"> </span><span class="s">behavior&quot;</span>
 </span></code></pre></div>
 <hr />
-<h3 id="items-and-properties"><code>items</code> and <code>properties</code></h3>
+<h3 id="items-and-properties"><code>items</code> and <code>properties</code><a class="headerlink" href="#items-and-properties" title="Permanent link">&para;</a></h3>
 <p>These keywords describe the structure of complex types and are required by code generation tooling.
 They are listed here separately from the validation keywords below because they define the <em>shape</em> of
 a setting's value, not merely constraints on it.</p>
-<h4 id="items"><code>items</code></h4>
+<h4 id="items"><code>items</code><a class="headerlink" href="#items" title="Permanent link">&para;</a></h4>
 <p>Specify the type for that every element of an <code>array</code> must satisfy. Mandatory for all <code>array</code> setting nodes.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">tags</span><span class="p">:</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
@@ -4531,7 +4531,7 @@ a setting's value, not merely constraints on it.</p>
 </span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">    </span><span class="c1"># every element must be a string</span>
 </span></code></pre></div>
 <hr />
-<h4 id="properties"><code>properties</code></h4>
+<h4 id="properties"><code>properties</code><a class="headerlink" href="#properties" title="Permanent link">&para;</a></h4>
 <p>Define the sub-schema for a <code>object</code>. Each keys in <code>properties</code> is an entry in that map and contains its own sub-schema.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">cel_workload_exclude</span><span class="p">:</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
@@ -4551,7 +4551,7 @@ value sub-schemas. The two uses look identical in YAML but have different meanin
 <code>node_type</code>.</p>
 </blockquote>
 <hr />
-<h3 id="validation-keywords">Validation keywords</h3>
+<h3 id="validation-keywords">Validation keywords<a class="headerlink" href="#validation-keywords" title="Permanent link">&para;</a></h3>
 <p>Each JSON Schema type comes with built-in validation keywords. The most useful
 ones in the Agent schema are listed below. Validation rules can be arbitrarily
 nested — see <a href="../examples/#example-3-complex-nested-type-cel_workload_exclude">Examples</a>
@@ -4610,13 +4610,13 @@ for a real-world demonstration.</p>
 <p>For the complete specification of these keywords, see
 <a href="https://json-schema.org/understanding-json-schema">Understanding JSON Schema</a>.</p>
 <hr />
-<h2 id="datadog-agent-extensions">Datadog Agent extensions</h2>
+<h2 id="datadog-agent-extensions">Datadog Agent extensions<a class="headerlink" href="#datadog-agent-extensions" title="Permanent link">&para;</a></h2>
 <p>The following keywords extend JSON Schema to meet the Agent's specific needs.
 They are <strong>not</strong> used for config validation — any standard JSON Schema library
 can validate a customer config without them. They are used by the Agent itself
 and by Datadog internal tooling.</p>
 <hr />
-<h3 id="node_type"><code>node_type</code></h3>
+<h3 id="node_type"><code>node_type</code><a class="headerlink" href="#node_type" title="Permanent link">&para;</a></h3>
 <p>Declares whether a node is a <em>section</em> (group of settings) or a <em>setting</em>
 (individual setting).</p>
 <ul>
@@ -4646,7 +4646,7 @@ settings</em>, not a setting with an object typed value.</p>
 </span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
 </span></code></pre></div>
 <hr />
-<h3 id="platform_default"><code>platform_default</code></h3>
+<h3 id="platform_default"><code>platform_default</code><a class="headerlink" href="#platform_default" title="Permanent link">&para;</a></h3>
 <p>Sets per-platform default value overrides. Mutually exclusive with <code>default</code> (One of them must be specify).</p>
 <ul>
 <li><strong>Available on:</strong> setting nodes only.</li>
@@ -4690,7 +4690,7 @@ setting, the Agent applies the following fallback chain:</p>
 <p><strong>Note</strong>: <a href="../keywords/#relative-defaults">Relative Path</a> is also available for <code>platform_default</code>.</p>
 </blockquote>
 <hr />
-<h3 id="sensitive"><code>sensitive</code></h3>
+<h3 id="sensitive"><code>sensitive</code><a class="headerlink" href="#sensitive" title="Permanent link">&para;</a></h3>
 <p>Marks a setting as containing sensitive data.</p>
 <ul>
 <li><strong>Available on:</strong> setting nodes only.</li>
@@ -4711,7 +4711,7 @@ in the future to apply additional protection.</p>
 </span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">  </span><span class="nt">visibility</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">public</span>
 </span></code></pre></div>
 <hr />
-<h3 id="visibility"><code>visibility</code></h3>
+<h3 id="visibility"><code>visibility</code><a class="headerlink" href="#visibility" title="Permanent link">&para;</a></h3>
 <p>Controls whether a setting is publicly documented and included in
 <code>datadog.yaml.example</code>.</p>
 <ul>
@@ -4738,7 +4738,7 @@ and any public-facing configuration website. Nodes without this keyword (or with
 will determine where is will appear in the examples.</p>
 </blockquote>
 <hr />
-<h3 id="env_vars"><code>env_vars</code></h3>
+<h3 id="env_vars"><code>env_vars</code><a class="headerlink" href="#env_vars" title="Permanent link">&para;</a></h3>
 <p>The list of environment variables that can override this setting node's value.</p>
 <ul>
 <li><strong>Available on:</strong> setting nodes only.</li>
@@ -4758,7 +4758,7 @@ wins.</p>
 </span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DATADOG_API_KEY</span>
 </span></code></pre></div>
 <hr />
-<h3 id="env_parser"><code>env_parser</code></h3>
+<h3 id="env_parser"><code>env_parser</code><a class="headerlink" href="#env_parser" title="Permanent link">&para;</a></h3>
 <p>Defines how the env var value is parsed into the setting's type. This is only require when loading complex types from
 the environment (JSON, maps, ...).</p>
 <ul>
@@ -4833,7 +4833,7 @@ the environment (JSON, maps, ...).</p>
 </span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">  </span><span class="nt">env_parser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">json</span>
 </span></code></pre></div>
 <hr />
-<h3 id="renamed_from"><code>renamed_from</code></h3>
+<h3 id="renamed_from"><code>renamed_from</code><a class="headerlink" href="#renamed_from" title="Permanent link">&para;</a></h3>
 <blockquote>
 <p><strong>Note:</strong> [WIP] Not yet implemented. The migration behaviour described below is planned.</p>
 </blockquote>
@@ -4858,7 +4858,7 @@ behaviour.</p>
 </span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">max_traces_per_second</span>
 </span></code></pre></div>
 <hr />
-<h3 id="tags"><code>tags</code></h3>
+<h3 id="tags"><code>tags</code><a class="headerlink" href="#tags" title="Permanent link">&para;</a></h3>
 <p>An arbitrary list of strings for metadata. Used by internal tooling to slice
 and filter settings — for example, to produce different variants of
 <code>datadog.yaml.example</code>.</p>
