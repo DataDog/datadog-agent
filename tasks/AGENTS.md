@@ -59,6 +59,17 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 `components.py`, `go_deps.py`, `go.py`, `modules.py`, `renovate.py`,
 `new_e2e_tests.py`, `ebpf.py`.
 
+## Writing Commands That Work on Windows
+
+`ctx.run` goes through `/bin/bash` on Unix but `cmd.exe` on Windows, so a command string that works locally can be silently broken for Windows developers. The invoke unit tests only run on Linux in CI, so nothing catches this for you.
+
+- **Quoting** — `shlex.quote` emits single quotes, which cmd.exe passes to the program as literal characters. Build the command as a list of arguments and join it with `join_command` from `libs/common/utils.py`, which selects `shlex.join` or `subprocess.list2cmdline` for the platform.
+- **Working directory** — `cd <dir> && …` fails in cmd.exe on a quoted path and does not switch drives. Use `git -C <dir>` for git commands, or wrap the `ctx.run` in `contextlib.chdir`.
+- **POSIX-only tools** — `sed`, `grep`, `cp` and friends are not on a Windows PATH. Manipulate the text in Python rather than piping through them.
+- **Encoding** — invoke encodes what it writes to a subprocess and decodes what it reads back using the locale codec, which is cp1252 on Windows. Pass `encoding="utf-8"` to `ctx.run` for any command carrying non-ASCII text. Without it, writing non-ASCII to stdin kills invoke's writer thread before it closes the pipe, so the child waits for input that never ends and the task hangs rather than failing.
+
+To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`.
+
 ## Incremental Refactoring: Making Task Logic Bazel-Callable
 
 We are incrementally splitting invoke-coupled code from pure logic so that the

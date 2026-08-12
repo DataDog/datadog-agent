@@ -7,18 +7,20 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shlex
 import shutil
 import sys
 import tempfile
 import time
 import traceback
 import uuid
+from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from subprocess import check_output
+from subprocess import check_output, list2cmdline
 from types import SimpleNamespace
 
 import requests
@@ -780,6 +782,17 @@ def is_windows():
 
 def is_installed(binary) -> bool:
     return shutil.which(binary) is not None
+
+
+def join_command(args: Sequence[str]) -> str:
+    """
+    Join arguments into a command line for the shell Invoke runs commands through.
+
+    That shell is cmd.exe on Windows, where the single quotes shlex produces are literal characters
+    rather than quoting. Note that list2cmdline quotes for the C runtime's argument parsing and not
+    for cmd.exe itself, so an argument containing `&`, `|`, `<`, `>` or `^` is not made safe.
+    """
+    return list2cmdline(args) if is_windows() else shlex.join(args)
 
 
 def is_conductor_scheduled_pipeline() -> bool:

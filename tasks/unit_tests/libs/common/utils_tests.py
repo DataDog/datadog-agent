@@ -10,6 +10,7 @@ from tasks.libs.common.utils import (
     RTLOADER_LIB_NAME,
     get_build_flags,
     get_rtloader_paths,
+    join_command,
     link_or_copy,
     running_in_ci,
     running_in_github_actions,
@@ -17,6 +18,26 @@ from tasks.libs.common.utils import (
     running_in_pre_commit,
     running_in_pyapp,
 )
+
+
+class TestJoinCommand(unittest.TestCase):
+    ARGS = ["git", "-C", r"C:\Users\dd agent\repo", "diff", "--", ":(glob)**/guideline.md"]
+
+    @mock.patch("tasks.libs.common.utils.is_windows", return_value=False)
+    def test_join_command_quotes_for_posix_shells(self, _is_windows):
+        self.assertEqual(
+            join_command(self.ARGS),
+            "git -C 'C:\\Users\\dd agent\\repo' diff -- ':(glob)**/guideline.md'",
+        )
+
+    @mock.patch("tasks.libs.common.utils.is_windows", return_value=True)
+    def test_join_command_quotes_for_cmd_exe(self, _is_windows):
+        # cmd.exe treats the single quotes shlex produces as literal characters, so only the argument
+        # containing a space is quoted, and with the double quotes cmd.exe understands.
+        self.assertEqual(
+            join_command(self.ARGS),
+            'git -C "C:\\Users\\dd agent\\repo" diff -- :(glob)**/guideline.md',
+        )
 
 
 class TestRunningIn(unittest.TestCase):
