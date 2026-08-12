@@ -42,9 +42,11 @@ go_library(
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/features",
         "//pkg/util/kernel",
         "//pkg/util/log",
         "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//asm",
         "@com_github_cilium_ebpf//link",
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
         "@com_github_datadog_ebpf_manager//tracefs",
