@@ -365,12 +365,6 @@ func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
 		return err
 	}
 
-	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
-		d.VirtualizationMode = virtualizationMode
-	} else if logLimiter.ShouldLog() {
-		log.Errorf("error getting device virtualization mode: %v", err)
-	}
-
 	return nil
 }
 
@@ -387,6 +381,12 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		return fmt.Errorf("error getting CUDA compute capability: %w", err)
 	}
 	d.SMVersion = uint32(major*10 + minor)
+
+	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
+		d.VirtualizationMode = virtualizationMode
+	} else if logLimiter.ShouldLog() {
+		log.Warnf("cannot get virtualization mode: %v", err)
+	}
 
 	return nil
 }

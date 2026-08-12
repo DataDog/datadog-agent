@@ -259,6 +259,7 @@ func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
 	var maxClockInfoCalls, virtualizationModeCalls int
 	device := setupMockDevice(t,
 		testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
+		testutil.WithMockAllFunctions(),
 		testutil.WithCustomHook(func(device *mock.Device) {
 			device.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
 				virtualizationModeCalls++
