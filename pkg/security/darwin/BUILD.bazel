@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "darwin",
     srcs = [
+        "collector.go",
         "fieldhandlers.go",
         "model.go",
         "ruleset.go",
@@ -30,11 +31,16 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/security/serializers",
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "@org_golang_google_protobuf//types/known/timestamppb",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/security/darwin/eslogger",
@@ -62,11 +68,16 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/security/serializers",
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "@org_golang_google_protobuf//types/known/timestamppb",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/darwin/eslogger",

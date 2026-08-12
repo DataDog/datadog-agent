@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "cws-macos-poc_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cws-macos-poc",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/secrets/noop-impl/types",
+            "//comp/serializer/logscompression/impl",
+            "//pkg/config/model",
+            "//pkg/config/setup",
+            "//pkg/security/darwin",
+            "//pkg/security/module",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+            "//pkg/util/startstop",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/secrets/noop-impl/types",
+            "//comp/serializer/logscompression/impl",
+            "//pkg/config/model",
+            "//pkg/config/setup",
+            "//pkg/security/darwin",
+            "//pkg/security/module",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+            "//pkg/util/startstop",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "cws-macos-poc",
+    embed = [":cws-macos-poc_lib"],
+    visibility = ["//visibility:public"],
+)

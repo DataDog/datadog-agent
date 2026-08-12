@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "decode.go",
         "message.go",
+        "runner_darwin.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/darwin/eslogger",
     visibility = ["//visibility:public"],
