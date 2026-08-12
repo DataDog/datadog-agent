@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	yaml "go.yaml.in/yaml/v2"
 )
 
@@ -40,10 +41,23 @@ var validMetricTypes = map[string]struct{}{
 //
 // Property may be the literal "1" for a "virtual" metric whose value is a
 // constant 1 and whose tags carry the signal (the all-strings case).
+//
+// Mapping and DefaultValue turn a non-numeric property into a metric value; they
+// are only expressible in the mapping form, since the positional tuple has no
+// slot for them.
 type metricEntry struct {
 	Property string
 	Name     string
 	Type     string
+
+	// Mapping translates a non-numeric property value into a number. Keys are
+	// stored lower-cased by finalize and looked up case-insensitively, matching
+	// how this check compares strings everywhere else.
+	Mapping map[string]float64
+	// DefaultValue is the value submitted when the property yields no number.
+	// It is mandatory whenever Mapping is set, which is what makes an unmapped
+	// value impossible to fail on: there is always something to fall back to.
+	DefaultValue option.Option[float64]
 }
 
 // UnmarshalYAML implements dual (positional tuple / mapping) parsing.
@@ -62,9 +76,11 @@ func (m *metricEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	var mp struct {
-		Property interface{} `yaml:"property"`
-		Name     string      `yaml:"name"`
-		Type     string      `yaml:"type"`
+		Property     interface{}            `yaml:"property"`
+		Name         string                 `yaml:"name"`
+		Type         string                 `yaml:"type"`
+		Mapping      map[string]float64     `yaml:"mapping"`
+		DefaultValue option.Option[float64] `yaml:"default_value"`
 	}
 	if err := unmarshal(&mp); err != nil {
 		return err
@@ -72,6 +88,8 @@ func (m *metricEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	m.Property = scalarToString(mp.Property)
 	m.Name = mp.Name
 	m.Type = mp.Type
+	m.Mapping = mp.Mapping
+	m.DefaultValue = mp.DefaultValue
 	return m.finalize()
 }
 
@@ -88,12 +106,55 @@ func (m *metricEntry) finalize() error {
 	if _, ok := validMetricTypes[m.Type]; !ok {
 		return fmt.Errorf("metric %q has invalid type %q", m.Name, m.Type)
 	}
+
+	_, hasDefault := m.DefaultValue.Get()
+	// A virtual metric always submits the constant 1, so there is no property
+	// value to translate. Accepting these silently would hide a config mistake.
+	if m.isVirtual() && (len(m.Mapping) > 0 || hasDefault) {
+		return fmt.Errorf("metric %q is virtual (property 1), so 'mapping' and 'default_value' do not apply", m.Name)
+	}
+	// Requiring default_value alongside mapping is what keeps an unmapped value
+	// from ever failing the run: there is always a fallback. Without it, one
+	// unexpected enum member would abort the whole collection interval.
+	if len(m.Mapping) > 0 && !hasDefault {
+		return fmt.Errorf("metric %q sets 'mapping' but not 'default_value'; a default is required so an unmapped value cannot fail the check", m.Name)
+	}
+	if len(m.Mapping) > 0 {
+		normalized := make(map[string]float64, len(m.Mapping))
+		for k, v := range m.Mapping {
+			lk := strings.ToLower(k)
+			// Two keys differing only in case would silently discard one.
+			if _, dup := normalized[lk]; dup {
+				return fmt.Errorf("metric %q has 'mapping' keys differing only in case (%q); lookups are case-insensitive", m.Name, k)
+			}
+			normalized[lk] = v
+		}
+		m.Mapping = normalized
+	}
 	return nil
 }
 
 // isVirtual reports whether the metric is a constant-1 "virtual" metric.
 func (m *metricEntry) isVirtual() bool {
 	return m.Property == "1"
+}
+
+// resolveValue converts a raw cmdlet output value into this metric's numeric
+// value, reporting whether any value could be produced.
+//
+// The order matches the windows_registry check: a value that is already numeric
+// is used as is, then `mapping` is consulted, then `default_value`. A consequence
+// of checking toFloat first is that an already-numeric value cannot be remapped.
+func (m *metricEntry) resolveValue(raw interface{}) (float64, bool) {
+	if f, ok := toFloat(raw); ok {
+		return f, true
+	}
+	if len(m.Mapping) > 0 {
+		if f, ok := m.Mapping[strings.ToLower(tagValue(raw))]; ok {
+			return f, true
+		}
+	}
+	return m.DefaultValue.Get()
 }
 
 // parameterEntry is a cmdlet named parameter and its value. It is bound (splatted)

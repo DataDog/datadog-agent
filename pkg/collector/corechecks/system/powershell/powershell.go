@@ -175,13 +175,15 @@ func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[
 	if m.isVirtual() {
 		value = 1
 	} else {
-		raw, ok := row[m.Property]
+		// resolveValue applies `mapping` and `default_value`, so a metric that
+		// configures either cannot reach the error paths below.
+		raw, present := row[m.Property]
+		f, ok := m.resolveValue(raw)
 		if !ok {
-			return fmt.Errorf("metric %q: property %q is not present in the output of cmdlet %q", m.Name, m.Property, c.instance.Cmdlet)
-		}
-		f, ok := toFloat(raw)
-		if !ok {
-			return fmt.Errorf("metric %q: property %q value %v is not numeric", m.Name, m.Property, raw)
+			if !present {
+				return fmt.Errorf("metric %q: property %q is not present in the output of cmdlet %q", m.Name, m.Property, c.instance.Cmdlet)
+			}
+			return fmt.Errorf("metric %q: property %q value %v is not numeric, and no 'mapping' or 'default_value' applies", m.Name, m.Property, raw)
 		}
 		value = f
 	}
