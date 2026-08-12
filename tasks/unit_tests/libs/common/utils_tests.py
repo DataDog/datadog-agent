@@ -32,12 +32,32 @@ class TestJoinCommand(unittest.TestCase):
 
     @mock.patch("tasks.libs.common.utils.is_windows", return_value=True)
     def test_join_command_quotes_for_cmd_exe(self, _is_windows):
-        # cmd.exe treats the single quotes shlex produces as literal characters, so only the argument
-        # containing a space is quoted, and with the double quotes cmd.exe understands.
+        # cmd.exe treats the single quotes shlex produces as literal characters, so the arguments are
+        # quoted with the double quotes it understands instead.
         self.assertEqual(
             join_command(self.ARGS),
-            'git -C "C:\\Users\\dd agent\\repo" diff -- :(glob)**/guideline.md',
+            'git -C "C:\\Users\\dd agent\\repo" diff -- ":(glob)**/guideline.md"',
         )
+
+    @mock.patch("tasks.libs.common.utils.is_windows", return_value=True)
+    def test_join_command_quotes_cmd_metacharacters(self, _is_windows):
+        # Left bare, cmd.exe would consume the caret and hand git `HEAD...HEAD`, and would split the
+        # path at the ampersand. Both reach the program intact once quoted.
+        for arg, expected in (
+            ("HEAD^...HEAD", '"HEAD^...HEAD"'),
+            (r"C:\src\R&D\repo", r'"C:\src\R&D\repo"'),
+            ("a|b", '"a|b"'),
+            ("c>d", '"c>d"'),
+            ("e<f", '"e<f"'),
+            ("g(h)i", '"g(h)i"'),
+            # A trailing backslash must be doubled, or it escapes the closing quote.
+            ("C:\\src\\R&D\\", '"C:\\src\\R&D\\\\"'),
+            # Nothing for cmd.exe to act on, so no quotes are added.
+            ("HEAD~5...HEAD", "HEAD~5...HEAD"),
+            ("--diff-filter=ACDMRTUXB", "--diff-filter=ACDMRTUXB"),
+        ):
+            with self.subTest(arg=arg):
+                self.assertEqual(join_command([arg]), expected)
 
 
 class TestRunningIn(unittest.TestCase):

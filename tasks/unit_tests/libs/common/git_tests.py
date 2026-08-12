@@ -127,7 +127,7 @@ class TestGit(unittest.TestCase):
             hide=True,
         )
 
-    def test_get_changed_files_does_not_quote_a_revision_cmd_exe_would_keep_literal(self):
+    def test_get_changed_files_leaves_a_plain_revision_unquoted_on_windows(self):
         self.ctx_mock.run.return_value.stdout = ""
 
         with patch("tasks.libs.common.utils.is_windows", return_value=True):
@@ -135,6 +135,19 @@ class TestGit(unittest.TestCase):
 
         self.ctx_mock.run.assert_called_once_with(
             "git diff --name-only --diff-filter=ACDMRTUXB HEAD~5...HEAD",
+            hide=True,
+        )
+
+    def test_get_changed_files_quotes_a_caret_revision_on_windows(self):
+        self.ctx_mock.run.return_value.stdout = ""
+
+        with patch("tasks.libs.common.utils.is_windows", return_value=True):
+            get_changed_files(self.ctx_mock, "HEAD^")
+
+        # Unquoted, cmd.exe eats the caret and git diffs HEAD against itself, so `--base HEAD^`
+        # silently reports no changed files at all.
+        self.ctx_mock.run.assert_called_once_with(
+            'git diff --name-only --diff-filter=ACDMRTUXB "HEAD^...HEAD"',
             hide=True,
         )
 
