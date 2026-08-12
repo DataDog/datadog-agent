@@ -1,0 +1,31 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Single Step Instrumentation now decides SSI versus local library injection
+    from whether a configuration target or remote-config policy matched the
+    pod, instead of a namespace-level eligibility approximation. When a target
+    or policy matches, library annotations may still override tracer versions
+    and merge tracer configs by environment variable name. An explicit deny
+    match blocks injection entirely, including annotation-driven library
+    injection.
+upgrade:
+  - |
+    Single Step Instrumentation behavior changes for pods that combine library
+    annotations with workload selection:
+
+    * When a target or policy matches a pod that also has library annotations,
+      the matched rule's tracer configs and applied-target metadata are now
+      applied (annotations previously short-circuited matching).
+    * SSI defaults (for example ``DD_TRACE_ENABLED``) and
+      ``DD_INSTRUMENTATION_INSTALL_TYPE=k8s_single_step`` apply only when a
+      target or policy matches the pod, not merely because the namespace could
+      match some rule.
+    * An explicit deny rule that matches a pod prevents annotation-driven
+      library injection for that pod.
