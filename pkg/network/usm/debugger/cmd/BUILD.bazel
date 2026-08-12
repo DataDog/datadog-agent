@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 # ebpf_bytecode.go embeds usm-debug.o and shared-libraries-debug.o by bare
 # filename (//go:embed), so the prebuilt eBPF program outputs from
@@ -9,6 +9,7 @@ genrule(
     srcs = ["//pkg/network/ebpf/c/prebuilt:usm-debug"],
     outs = ["usm-debug.o"],
     cmd = "cp $< $@",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 genrule(
@@ -16,21 +17,30 @@ genrule(
     srcs = ["//pkg/network/ebpf/c/prebuilt:shared-libraries-debug"],
     outs = ["shared-libraries-debug.o"],
     cmd = "cp $< $@",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 go_binary(
     name = "usm_debugger",
+    embed = [":cmd_lib"],
+    gotags = [
+        "linux_bpf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:private"],
+)
+
+go_library(
+    name = "cmd_lib",
     srcs = [
         "ebpf_bytecode.go",
         "usm_debugger.go",
     ],
     embedsrcs = [
-        ":copy_shared_libraries_debug_o",
-        ":copy_usm_debug_o",
+        "shared-libraries-debug.o",
+        "usm-debug.o",
     ],
-    gotags = [
-        "linux_bpf",
-    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/debugger/cmd",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
     deps = [
