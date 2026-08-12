@@ -80,16 +80,10 @@ dd_agent_go_test(
     tags = ["manual"],
     deps = [
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
-        "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//require",
-        ],
         "@rules_go//go/platform:windows": [
             "//pkg/config/mock",
-            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],
