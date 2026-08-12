@@ -9,6 +9,7 @@ package probe
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -21,6 +22,12 @@ var (
 type killContext struct {
 	pid  int
 	path string
+}
+
+// cgroupKillTarget identifies a cgroup to kill in a single operation. Cgroups don't exist on
+// Windows, so the ID is never set and the one-shot kill path is never taken.
+type cgroupKillTarget struct {
+	id containerutils.CGroupID
 }
 
 // ProcessKillerWindows defines the process kill windows implementation
