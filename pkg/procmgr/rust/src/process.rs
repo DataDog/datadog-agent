@@ -534,8 +534,8 @@ impl ManagedProcess {
             if let Err(e) = job.terminate() {
                 warn!("[{}] job object terminate failed: {e}", self.name);
             } else {
-                // Child exit is asynchronous; keep user_profile until set_last_status.
-                self.clear_windows_job_object();
+                // Termination is asynchronous; retain job and profile until
+                // set_last_status observes zero active job members.
                 return;
             }
         }
