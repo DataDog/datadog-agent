@@ -12,6 +12,21 @@ locally.
 
 ## How the commands fit together
 
+The schema files under `pkg/config/schema/yaml/` are the source of truth and are
+edited by hand (or through `schema.add-setting`). Everything else is derived from
+them:
+
+- `schema.lint` validates the hand-written schema.
+- `schema.codegen` generates the `pkg/config/setup` Go files that register the
+  settings. Bazel runs the same logic automatically via
+  `//pkg/config/setup:codegen_settings`.
+- `schema.template` / `schema.template-all` render the shipped
+  `datadog.yaml.example` and `system-probe.yaml.example` files.
+- `schema.produce-embedded` / `schema.compress` build the artifact embedded into
+  the Agent binary; `schema.produce-jsonschema` builds the pure JSON Schema for
+  external consumers.
+- `schema.locate` finds where a setting is declared.
+
 ## `schema.add-setting`
 
 Interactive wizard to add a new setting to the schema. It prompts for the
@@ -34,43 +49,10 @@ problems are visible.
 
 ---
 
-## `schema.generate`
-
-Generate the enriched schema files for the core Agent and system-probe.
-
-```bash
-dda inv schema.generate --agent-bin=./bin/agent/agent
-```
-
-The command:
-
-1. Runs the Agent binary (`createschema`) to produce the base schemas for both
-   the `core` and `system-probe` targets.
-2. Enriches them with documentation pulled from `pkg/config/config_template.yaml`
-   and `pkg/config/system-probe_template.yaml`.
-3. Applies OS-specific fixes and code-extracted comments.
-4. Writes the result to `pkg/config/schema/yaml/` — large top-level sections of
-   the core schema are split into sibling `<section>.yaml` files referenced via
-   `$ref`.
-
-| Argument | Required | Default | Description |
-| --- | --- | --- | --- |
-| `--agent-bin` | yes | — | Path to a built Agent binary. Build one first with `dda inv agent.build`. |
-| `--output-dir` | no | `pkg/config/schema/yaml` | Directory where the schema files are written. |
-
-!!! warning "Build the Agent first"
-    `schema.generate` runs the Agent binary to extract the live configuration.
-    If the binary is missing it exits with an error pointing you to
-    `dda inv agent.build`. Rebuild after changing any `pkg/config/setup` code so
-    the schema reflects your changes.
-
----
-
 ## `schema.lint`
 
 Validate the schema against the schema quality rules and exit
-non-zero on any violation. This is the check enforced in CI
-(`generate_config_schema-linux`).
+non-zero on any violation.
 
 ```bash
 dda inv schema.lint
@@ -170,12 +152,11 @@ dda inv -- schema.locate 'apm_config\..*enabled' --json
 
 ## Typical workflows
 
-**I edited a setting in `pkg/config/setup` and want the schema to reflect it:**
+**I edited a setting in the schema and want the Go code to reflect it:**
 
 ```bash
-dda inv agent.build                                  # rebuild the binary
-dda inv schema.generate --agent-bin=./bin/agent/agent  # regenerate the schema
-dda inv schema.lint                                  # validate it
+dda inv schema.lint            # validate the schema
+dda inv schema.codegen        # regenerate pkg/config/setup from it
 ```
 
 **I want to preview the generated example for one platform:**

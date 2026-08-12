@@ -6110,6 +6110,10 @@ properties:
                 node_type: setting
                 type: integer
                 default: 50
+              max_reported_items:
+                node_type: setting
+                type: integer
+                default: 16
           saturation_k:
             node_type: setting
             type: number
@@ -7349,6 +7353,16 @@ properties:
                     node_type: setting
                     type: boolean
                     default: true
+      preflight_mode:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: |-
+          Preflight mode enables a short pre-flight run of ADP at Agent startup to surface any environment-specific startup
+          problems before ADP is released o GA. The preflight process handles no customer data, listening only on a throwaway
+          UDS or named pipe under run_path, and only runs when data_plane.enabled has not been set at all.
+
+          See comp/dataplane/preflightmode for more details.
       remote_agent_enabled:
         node_type: setting
         type: boolean
@@ -10038,14 +10052,14 @@ properties:
         node_type: setting
         type: integer
         default: 0
-      series:
+      sketches:
         node_type: section
         type: object
         properties:
           beta_route:
             node_type: setting
             type: string
-            default: /api/intake/metrics/v3beta/series
+            default: /api/intake/metrics/v3beta/sketches
           endpoints:
             node_type: setting
             type: array
@@ -10065,28 +10079,6 @@ properties:
             - datadoghq.com
             items:
               type: string
-          use_beta:
-            node_type: setting
-            type: boolean
-            default: false
-          validate:
-            node_type: setting
-            type: boolean
-            default: false
-      sketches:
-        node_type: section
-        type: object
-        properties:
-          endpoints:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-          validate:
-            node_type: setting
-            type: boolean
-            default: false
   serializer_max_payload_size:
     node_type: setting
     type: integer
