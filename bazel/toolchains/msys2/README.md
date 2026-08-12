@@ -4,25 +4,29 @@ Bazel on Windows needs MSYS2 bash for `genrule`, `run_shell`, and `rules_foreign
 configure/make actions. The repo expects the tree at `C:/tools/msys64` (see
 `.bazelrc`: `BAZEL_SH`, `--shell_executable`).
 
-`@msys2_base` downloads a pinned MSYS2 base archive plus overlay pacman packages
-(autotools stack). On Windows it installs under `MSYS2_INSTALL_ROOT` when bash is
-missing or when a force install is requested.
+`@msys2_base` is a `local` repository rule that:
+
+1. Downloads a pinned MSYS2 base archive plus overlay pacman packages (autotools stack)
+2. On **native Windows Bazel** (`ctx.os.name == "windows"`), copies the tree to
+   `MSYS2_INSTALL_ROOT` (default `C:/tools/msys64`) via `install.ps1`
+
+Run Bazel from **cmd.exe or PowerShell**, not Git Bash or WSL — those report a
+non-Windows OS to repository rules, so the host install step is skipped even though
+`bazel fetch` succeeds.
 
 ## Current policy (relaxed)
 
-- If `C:/tools/msys64/usr/bin/bash.exe` already exists, keep using it (no download,
-  no reinstall).
-- If bash is missing, `tools/bazel.bat` runs `bazel fetch @msys2_base//:bash_files`
-  which downloads and installs the pinned tree.
-- To replace the install entirely: `DD_BAZEL_MSYS2_FORCE_INSTALL=1` then `bazel build //...`
-  (wrapper runs `bazel fetch --force @msys2_base//:bash_files --repo_env=MSYS2_FORCE_INSTALL=1`).
-  Or manually:
+- If `C:/tools/msys64/usr/bin/bash.exe` already exists, keep using it (no fetch).
+- If bash is missing, `tools/bazel.bat` runs `bazel fetch --force @msys2_base//:bash_files`
+  which triggers the repository rule install.
+- Force reinstall: `DD_BAZEL_MSYS2_FORCE_INSTALL=1` then `bazel build //...`, or:
 
 ```powershell
 bazel fetch --force @msys2_base//:bash_files --repo_env=MSYS2_FORCE_INSTALL=1
 ```
 
-If install still fails, check write access to `C:\tools` (admin / corporate policy).
+If install fails, the repository rule fails the fetch with stdout/stderr from
+`install.ps1` (permissions, robocopy, missing archive, etc.).
 
 ## TODO
 

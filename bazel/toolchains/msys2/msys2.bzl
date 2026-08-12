@@ -1,7 +1,10 @@
 """Repository rule for a pinned MSYS2 base archive plus optional overlay packages.
 
-On Windows, materializes the tree under MSYS2_INSTALL_ROOT (default
-C:/tools/msys64) when bash is missing or MSYS2_FORCE_INSTALL=1.
+On Windows (native Bazel only — not Git Bash/WSL), extracts the archive into
+@msys2_base and copies the tree to MSYS2_INSTALL_ROOT (default C:/tools/msys64).
+
+Relaxed policy: skip the host install when bash already exists unless
+MSYS2_FORCE_INSTALL=1. tools/bazel.bat only triggers fetch; install happens here.
 
 TODO{agent-build}:
   - Require a managed sentinel version and auto-reinstall on pin bumps.
@@ -15,34 +18,59 @@ def _bash_path(install_root):
         install_root = install_root[:-1]
     return install_root + "/usr/bin/bash.exe"
 
+def _to_windows_path(p):
+    return p.replace("/", "\\")
+
+def _source_root(ctx):
+    if ctx.path("usr/bin/bash.exe").exists:
+        return "."
+    if ctx.path("msys64/usr/bin/bash.exe").exists:
+        return "msys64"
+    fail(
+        "MSYS2 archive extracted but usr/bin/bash.exe is missing " +
+        "(ctx.os.name=%r). Check strip_prefix and download logs." % ctx.os.name,
+    )
+
 def _install_msys2(ctx, install_root, force):
     bash = _bash_path(install_root)
     if not force and ctx.path(bash).exists:
         return
 
-    install_script = ctx.path(ctx.attr._install_script)
-    source = ctx.path(".")
-    result = ctx.execute(
-        [
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            install_script,
-            "-Source",
-            source,
-            "-InstallRoot",
-            install_root,
-        ] + (["-Force"] if force else []),
-        quiet = False,
-    )
+    install_script = str(ctx.path(ctx.attr._install_script))
+    source = str(ctx.path(_source_root(ctx)))
+    install_root_win = _to_windows_path(install_root)
+
+    args = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        install_script,
+        "-Source",
+        source,
+        "-InstallRoot",
+        install_root_win,
+    ]
+    if force:
+        args.append("-Force")
+
+    result = ctx.execute(args, quiet = False)
     if result.return_code != 0:
-        fail("MSYS2 install to %s failed:\n%s\n%s" % (
-            install_root,
-            result.stdout,
-            result.stderr,
-        ))
+        fail(
+            "MSYS2 install to %s failed (exit %d).\nstdout:\n%s\nstderr:\n%s" % (
+                install_root,
+                result.return_code,
+                result.stdout,
+                result.stderr,
+            ),
+        )
+
+    if not ctx.path(bash).exists:
+        fail(
+            "MSYS2 install reported success but bash is still missing at %s. " % bash +
+            "Check write access to %s (admin may be required)." % install_root,
+        )
 
 def _msys2_base_repository_impl(ctx):
     install_root = ctx.getenv("MSYS2_INSTALL_ROOT") or _DEFAULT_INSTALL_ROOT
@@ -61,23 +89,23 @@ def _msys2_base_repository_impl(ctx):
         return
 
     force = (ctx.getenv("MSYS2_FORCE_INSTALL") or "0") == "1"
+    bash = _bash_path(install_root)
+    need_archive = force or not ctx.path(bash).exists
 
-    # Relaxed "keep existing MSYS2" policy lives in tools/bazel.bat only. Do not
-    # short-circuit here: a cached repo rule skip prevents reinstall when bash is
-    # removed or MSYS2_FORCE_INSTALL is set later.
-    ctx.download_and_extract(
-        url = ctx.attr.url,
-        sha256 = ctx.attr.sha256,
-        stripPrefix = ctx.attr.strip_prefix,
-    )
-
-    for pkg_name, spec in ctx.attr.overlay_packages.items():
-        if len(spec) != 2:
-            fail("overlay_packages[%r] must be [url, sha256], got %r" % (pkg_name, spec))
+    if need_archive:
         ctx.download_and_extract(
-            url = spec[0],
-            sha256 = spec[1],
+            url = ctx.attr.url,
+            sha256 = ctx.attr.sha256,
+            stripPrefix = ctx.attr.strip_prefix,
         )
+
+        for pkg_name, spec in ctx.attr.overlay_packages.items():
+            if len(spec) != 2:
+                fail("overlay_packages[%r] must be [url, sha256], got %r" % (pkg_name, spec))
+            ctx.download_and_extract(
+                url = spec[0],
+                sha256 = spec[1],
+            )
 
     _install_msys2(ctx, install_root, force)
 
@@ -93,7 +121,7 @@ def _msys2_base_repository_impl(ctx):
 
 msys2_base_repository = repository_rule(
     implementation = _msys2_base_repository_impl,
-    doc = "Downloads a pinned MSYS2 base archive and, on Windows, installs it under MSYS2_INSTALL_ROOT.",
+    doc = "Downloads MSYS2 into @msys2_base and installs it under MSYS2_INSTALL_ROOT on Windows.",
     attrs = {
         "url": attr.string(
             mandatory = True,
@@ -127,4 +155,5 @@ msys2_base_repository = repository_rule(
         "MSYS2_FORCE_INSTALL",
         "MSYS2_INSTALL_ROOT",
     ],
+    local = True,
 )

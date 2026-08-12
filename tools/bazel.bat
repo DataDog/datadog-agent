@@ -136,7 +136,7 @@ if not exist "!msys2_bash!" (
   >&2 echo 🔴 MSYS2 bash was not installed at !msys2_bash!
   >&2 echo     Retry: set DD_BAZEL_MSYS2_FORCE_INSTALL=1
   >&2 echo     Manual: bazel fetch --force @msys2_base//:bash_files --repo_env=MSYS2_FORCE_INSTALL=1
-  >&2 echo     Check write access to !msys2_root! ^(admin may be required for C:\tools^).
+  >&2 echo     Run Bazel from cmd.exe/PowerShell ^(not Git Bash/WSL^). Check write access to !msys2_root!
   exit /b 2
 )
 exit /b 0
