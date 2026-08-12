@@ -8,22 +8,27 @@
 package seclcel
 
 // These compare the cost of evaluating the same rule through the SECL evaluator
-// and through the translated CEL program, which is the only way to tell where the
+// and through the translated CEL rule, which is the only way to tell where the
 // translation actually costs something.
 //
-// What a figure below contains, beyond evaluating the rule:
+// Read the figures within one table only. Every table here was taken in one
+// session on one machine, and the machines differ by more than the effects being
+// measured: the same SECL code that reads 273 ns for Comm below read 172 ns in
+// the session that produced the figures this file used to record. Comparing a
+// row against a number from the git history says nothing. Where a comparison
+// matters, both sides of it were measured together.
 //
-//   - 30 ns of resetting the context, which both engines pay here. The rule
-//     engine resets once per event and then evaluates the whole rule set, so
-//     production amortises it over every rule where this charges it to each one.
-//     It is in the loop regardless, because the SECL accessors memoise a
-//     resolved array on the context: without a reset, an iterated field is
-//     walked on the first iteration and never again, and the benchmark measures
-//     a cache instead of a field. Subtract it to compare the engines on
-//     evaluation alone — it is a larger share of SECL's figures, so leaving it
+// What a figure contains, beyond evaluating the rule:
+//
+//   - Resetting the context, which both engines pay here. The rule engine resets
+//     once per event and then evaluates the whole rule set, so production
+//     amortises it over every rule where this charges it to each one. It is in
+//     the loop regardless, because the SECL accessors memoise a resolved array on
+//     the context: without a reset, an iterated field is walked on the first
+//     iteration and never again, and the benchmark measures a cache instead of a
+//     field. It is a larger share of SECL's figures than of CEL's, so leaving it
 //     in flatters CEL slightly.
-//   - Nothing else measurable. Checking the result costs 2.5 ns and is the same
-//     either way.
+//   - Nothing else measurable. Checking the result is the same either way.
 //
 // What is left out is building the CEL activation: 123 ns and 56 B in two
 // allocations, once — the activation and the root position it hands out. That is
@@ -93,7 +98,7 @@ package seclcel
 // 0, 1, 2… cost O(N²). A cursor yields the elements, so a match stops at the
 // element that matched rather than paying for all of them first.
 //
-// Where the two engines now stand:
+// # Where the two engines stand
 //
 //   - A scalar rule is around 25 ns dearer through CEL, and BenchmarkScale says
 //     that is a fixed cost per rule rather than per predicate: from two predicates
@@ -116,9 +121,10 @@ package seclcel
 //     allocating a one element slice per field read, and CEL running the
 //     predicate once per element.
 //
-// The one structural advantage left to SECL is the per-event memoisation
-// BenchmarkSECLWarmCache measures: a second rule mentioning an iterated field
-// gets it for free within the same event, where CEL walks it again.
+// The one structural advantage left to SECL beyond that is the per-event
+// memoisation BenchmarkSECLWarmCache measures: a second rule mentioning an
+// iterated field gets it for free within the same event, where CEL walks it
+// again.
 
 import (
 	"fmt"
@@ -128,7 +134,6 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
-	"github.com/google/cel-go/interpreter"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -256,7 +261,7 @@ func BenchmarkCEL(b *testing.B) {
 
 	for name, expr := range benchExprs {
 		b.Run(name, func(b *testing.B) {
-			program, err := Program(env, expr, ModelFieldTypes{})
+			rule, err := NewRule(env, expr, ModelFieldTypes{})
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -267,223 +272,16 @@ func BenchmarkCEL(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				resetContext(ctx, event)
-				out, _, err := program.Eval(activation)
+				matched, err := rule.Eval(activation)
 				if err != nil {
 					b.Fatal(err)
 				}
-				if out.Value() != true {
+				if !matched {
 					b.Fatal("expected a match")
 				}
 			}
 		})
 	}
-}
-
-// BenchmarkCELScaffolding measures what surrounds an evaluation rather than the
-// evaluation itself, by taking away, one at a time, everything cel-go's own
-// BenchmarkInterpreter does without.
-//
-// Frame is the first: it builds an ExecutionFrame once and reuses it for every
-// iteration, where BenchmarkCEL hands Eval an activation and lets it take a
-// frame from the pool and return it. prog.Eval type switches on a frame and
-// skips both that and the deferred Close, which a profile put at around a fifth
-// of a scalar evaluation.
-//
-// The frame's documentation says it must not be stored, so what this measures
-// is the size of the prize, not a licence to take it.
-//
-// The other half of cel-go's benchmark, CompileRegexConstants with
-// MatchesRegexOptimization, has no variant here because we already have it:
-// cel.OptOptimize registers that optimization itself (cel/program.go:246), so
-// planningOptions gets it through the option it already passes. Measured as a
-// variant it moved nothing, which is the confirmation.
-//
-// Exec is the rest of the same question. cel.Program is a wrapper around the
-// interpretable the planner produced, and prog.Eval charges for the wrapper on
-// every call: a deferred recover, the frame handling above, a types.IsError test
-// and a three value return. cel-go's own benchmark never pays it — it plans
-// through interpreter.NewInterpretable and calls Exec on the interpretable
-// directly. planInterpretable rebuilds what newProgram builds so that the same
-// rule can be evaluated that way here.
-//
-// Bucket/ is the same question asked where it matters most: both costs are per
-// Eval, so a bucket of r rules pays them r times per event.
-//
-// Measured (ns/op, median of three runs at -cpu=1; allocations are identical
-// across all three, the pool was already giving the frame back for free):
-//
-//	                 activation      frame       exec
-//	Comm                    216        180        162
-//	Path                    218        182        164
-//	InList                  255        197        186
-//	Regex                   583        529        512
-//	Glob                    340        298        282
-//	Ancestors             64056      64141      64579
-//	DeepAncestors         44648      44636      44937
-//	Bucket/10  per rule     198        136        113
-//	Bucket/50  per rule     189        139        111
-//	Bucket/200 per rule     215        153        132
-//
-// Both are costs per Eval rather than per predicate: 36 to 58 ns for the frame, and
-// a further 10 to 21 ns for the wrapper. Both are invisible on the ancestor shapes,
-// which pay them once for tens of µs of folding.
-//
-// Together they are now nearly two fifths of a bucket rule — 83 ns of 215 — which is
-// a larger share than before, because reading a field by index took the other half
-// of that rule away. That is the shape production actually runs: one Eval per rule
-// per event, nearly all of them short circuiting immediately.
-//
-// Read against BenchmarkBucket's finding that merging a bucket into one
-// disjunction saves 65 ns per rule: that saving and these are largely the same
-// money, since all of it is scaffolding around one Eval, and none of it touches
-// what a predicate costs. A bucket rule that costs 215 ns can be made to cost 132,
-// and it bottoms out there: what is left is the predicate, which costs cel-go about
-// 117 ns wherever it sits, against 29 ns for the closure the compiler plans it into.
-// Every trick cel-go has for evaluating a rule faster, taken together and taken past
-// what its own documentation sanctions, closes half of what is left between the two
-// engines on the shape that matters.
-func BenchmarkCELScaffolding(b *testing.B) {
-	env, err := NewModelEnv()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	for _, variant := range celScaffoldingVariants {
-		for _, name := range sortedKeys(benchExprs) {
-			b.Run(name+"/"+variant.name, func(b *testing.B) {
-				event := benchEvent()
-				ctx := eval.NewContext(event)
-				input := celInput(b, ctx, variant.frame)
-				run := variant.build(b, env, benchExprs[name], input)
-				b.ReportAllocs()
-				for b.Loop() {
-					resetContext(ctx, event)
-					if run() != types.True {
-						b.Fatal("expected a match")
-					}
-				}
-			})
-		}
-
-		for _, r := range []int{10, 50, 200} {
-			b.Run(fmt.Sprintf("Bucket/%d/%s", r, variant.name), func(b *testing.B) {
-				event := scaleEvent()
-				ctx := eval.NewContext(event)
-				input := celInput(b, ctx, variant.frame)
-				runs := make([]func() ref.Val, 0, r)
-				for _, rule := range bucketRules(r) {
-					runs = append(runs, variant.build(b, env, rule, input))
-				}
-				b.ReportAllocs()
-				for b.Loop() {
-					resetContext(ctx, event)
-					for _, run := range runs {
-						if run() == types.True {
-							b.Fatal("no rule should match")
-						}
-					}
-				}
-			})
-		}
-	}
-}
-
-// celScaffoldingVariants are the three ways of getting a planned rule
-// evaluated, from the one the integration would use today to the one cel-go
-// benchmarks itself with.
-var celScaffoldingVariants = []struct {
-	name  string
-	frame bool
-	build func(b *testing.B, env *cel.Env, expr string, input any) func() ref.Val
-}{
-	{name: "Activation", build: programEval},
-	{name: "Frame", frame: true, build: programEval},
-	{name: "Exec", frame: true, build: interpretableEval},
-}
-
-// programEval evaluates through cel.Program, which is what Program returns.
-func programEval(b *testing.B, env *cel.Env, expr string, input any) func() ref.Val {
-	b.Helper()
-	program, err := Program(env, expr, ModelFieldTypes{})
-	if err != nil {
-		b.Fatal(err)
-	}
-	return func() ref.Val {
-		out, _, err := program.Eval(input)
-		if err != nil {
-			b.Fatal(err)
-		}
-		return out
-	}
-}
-
-// interpretableEval evaluates the planned interpretable directly, which only a
-// frame can drive.
-func interpretableEval(b *testing.B, env *cel.Env, expr string, input any) func() ref.Val {
-	b.Helper()
-	plan := planInterpretable(b, env, expr)
-	frame := input.(*interpreter.ExecutionFrame)
-	return func() ref.Val { return plan.Exec(frame) }
-}
-
-// planInterpretable plans a rule the way cel.Env.Program does, stopping at the
-// interpretable rather than wrapping it in a cel.Program.
-//
-// It reproduces newProgram (cel/program.go): a dispatcher holding the bindings
-// of every declared function, the environment's own adapter and provider, and the
-// decorators planningOptions asks for — the reads first, then Optimize, then the
-// regex constants, which is the order cel.Program applies them in.
-//
-// It runs the optimization pass itself, since Program is what usually does that and
-// the point here is to measure the same rule the other variants do.
-func planInterpretable(b *testing.B, env *cel.Env, expr string) interpreter.InterpretableV2 {
-	b.Helper()
-	checked, err := CompileWithTypes(env, expr, ModelFieldTypes{})
-	if err != nil {
-		b.Fatal(err)
-	}
-	optimized, _, err := Optimize(env, checked)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	dispatcher := interpreter.NewDispatcher()
-	for _, function := range env.Functions() {
-		bindings, err := function.Bindings()
-		if err != nil {
-			b.Fatal(err)
-		}
-		if err := dispatcher.Add(bindings...); err != nil {
-			b.Fatal(err)
-		}
-	}
-
-	adapter, provider := env.CELTypeAdapter(), env.CELTypeProvider()
-	attributes := interpreter.NewAttributeFactory(env.Container, adapter, provider)
-	interp := interpreter.NewInterpreter(dispatcher, env.Container, provider, adapter, attributes)
-	plan, err := interp.NewInterpretable(optimized.NativeRep(),
-		interpreter.CustomDecoratorV2(readDecorator()),
-		interpreter.Optimize(),
-		interpreter.CompileRegexConstants(globOptimization, interpreter.MatchesRegexOptimization))
-	if err != nil {
-		b.Fatal(err)
-	}
-	return plan
-}
-
-// celInput returns what Eval is handed: the activation, or a frame wrapping it.
-func celInput(b *testing.B, ctx *eval.Context, frame bool) any {
-	b.Helper()
-	activation := NewActivation(ctx)
-	if !frame {
-		return activation
-	}
-	f, err := interpreter.NewExecutionFrame(activation)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Cleanup(f.Close)
-	return f
 }
 
 // BenchmarkScale answers the question the migration turns on: whether the gap
@@ -495,7 +293,7 @@ func celInput(b *testing.B, ctx *eval.Context, frame bool) any {
 // AllTrue evaluates every predicate. ShortCircuit fails on the first, which is
 // what nearly every rule does on nearly every event.
 //
-// Measured (ns/op, both including the ~30 ns context reset):
+// Measured (ns/op, medians of five, both including the context reset):
 //
 //	n        SECL All   CEL All    SECL short   CEL short
 //	1          170        192          47          194
@@ -614,7 +412,7 @@ func BenchmarkScale(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				program, err := Program(env, shape.expr, ModelFieldTypes{})
+				rule, err := NewRule(env, shape.expr, ModelFieldTypes{})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -624,11 +422,11 @@ func BenchmarkScale(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
 					resetContext(ctx, event)
-					out, _, err := program.Eval(activation)
+					matched, err := rule.Eval(activation)
 					if err != nil {
 						b.Fatal(err)
 					}
-					if (out == types.True) != shape.match {
+					if matched != shape.match {
 						b.Fatal("wrong verdict")
 					}
 				}
@@ -681,45 +479,45 @@ func BenchmarkBucket(b *testing.B) {
 		rules := bucketRules(r)
 		event := scaleEvent()
 
-		// shape A: one program per rule, one Eval per rule
+		// shape A: one rule planned per rule, one Exec per rule
 		b.Run(fmt.Sprintf("CEL/PerRule/%d", r), func(b *testing.B) {
 			env, err := NewModelEnv()
 			if err != nil {
 				b.Fatal(err)
 			}
-			programs := make([]cel.Program, 0, r)
+			planned := make([]*Rule, 0, r)
 			for _, rule := range rules {
-				p, err := Program(env, rule, ModelFieldTypes{})
+				p, err := NewRule(env, rule, ModelFieldTypes{})
 				if err != nil {
 					b.Fatal(err)
 				}
-				programs = append(programs, p)
+				planned = append(planned, p)
 			}
 			ctx := eval.NewContext(event)
 			activation := NewActivation(ctx)
 			b.ReportAllocs()
 			for b.Loop() {
 				resetContext(ctx, event)
-				for _, p := range programs {
-					out, _, err := p.Eval(activation)
+				for _, p := range planned {
+					matched, err := p.Eval(activation)
 					if err != nil {
 						b.Fatal(err)
 					}
-					if out == types.True {
+					if matched {
 						b.Fatal("no rule should match")
 					}
 				}
 			}
 		})
 
-		// shape B: the bucket as one disjunction, one Eval
+		// shape B: the bucket as one disjunction, one Exec
 		b.Run(fmt.Sprintf("CEL/OneProgram/%d", r), func(b *testing.B) {
 			env, err := NewModelEnv()
 			if err != nil {
 				b.Fatal(err)
 			}
 			expr := "(" + strings.Join(rules, ") || (") + ")"
-			p, err := Program(env, expr, ModelFieldTypes{})
+			p, err := NewRule(env, expr, ModelFieldTypes{})
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -728,11 +526,11 @@ func BenchmarkBucket(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				resetContext(ctx, event)
-				out, _, err := p.Eval(activation)
+				matched, err := p.Eval(activation)
 				if err != nil {
 					b.Fatal(err)
 				}
-				if out == types.True {
+				if matched {
 					b.Fatal("no rule should match")
 				}
 			}
@@ -937,7 +735,9 @@ func BenchmarkRead(b *testing.B) {
 			if iss.Err() != nil {
 				b.Fatal(iss.Err())
 			}
-			program, err := env.Program(checked, planningOptions()...)
+			// Planned the way NewRule plans a rule, but from CEL source rather than
+			// SECL, since these rows are written as the optimization pass emits them.
+			plan, err := planRule(env, checked)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -945,8 +745,8 @@ func BenchmarkRead(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				resetContext(ctx, event)
-				if _, _, err := program.Eval(activation); err != nil {
-					b.Fatal(err)
+				if out := plan.Exec(activation.frame); types.IsError(out) {
+					b.Fatal(out)
 				}
 			}
 		})

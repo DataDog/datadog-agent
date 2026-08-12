@@ -26,15 +26,12 @@ import (
 func evalSECL(t *testing.T, env *cel.Env, event *model.Event, expr string) bool {
 	t.Helper()
 
-	program, err := Program(env, expr, ModelFieldTypes{})
+	rule, err := NewRule(env, expr, ModelFieldTypes{})
 	require.NoError(t, err, "planning %q", expr)
 
-	out, _, err := program.Eval(NewActivation(eval.NewContext(event)))
+	matched, err := rule.Eval(NewActivation(eval.NewContext(event)))
 	require.NoError(t, err, "evaluating %q", expr)
-
-	result, ok := out.(types.Bool)
-	require.True(t, ok, "%q returned %s rather than a boolean", expr, out.Type())
-	return bool(result)
+	return matched
 }
 
 // ancestry builds a process ancestor chain, nearest ancestor first.
@@ -200,14 +197,15 @@ func TestProgramDuration(t *testing.T) {
 	event := model.NewFakeEvent()
 	ctx := eval.NewContext(event)
 
-	// the activation supplies the instant the evaluation started
+	// The activation supplies the instant the evaluation started. The expression
+	// is written in CEL rather than SECL, since SECL has no way of naming the
+	// instant on its own, so it is planned rather than translated.
 	now, iss := env.Compile(NowVar + " > 0")
 	require.NoError(t, iss.Err())
-	program, err := env.Program(now)
+	plan, err := planRule(env, now)
 	require.NoError(t, err)
-	out, _, err := program.Eval(NewActivation(ctx))
-	require.NoError(t, err)
-	assert.Equal(t, types.True, out, "secl_now must resolve from the context")
+	assert.Equal(t, types.True, plan.Exec(NewActivation(ctx).frame),
+		"secl_now must resolve from the context")
 
 	// created_at is zero, so the elapsed time since it is the whole epoch
 	assert.False(t, evalSECL(t, env, event, `process.created_at < 10m`))
@@ -300,7 +298,7 @@ func TestActivationOutlivesTheEvent(t *testing.T) {
 
 	// Two segments below the root, so the reused position in the middle is part of
 	// what is being pinned.
-	program, err := Program(env, `process.comm == "sh" && process.file.name == "dash"`, ModelFieldTypes{})
+	rule, err := NewRule(env, `process.comm == "sh" && process.file.name == "dash"`, ModelFieldTypes{})
 	require.NoError(t, err)
 
 	matching := model.NewFakeEvent()
@@ -316,9 +314,9 @@ func TestActivationOutlivesTheEvent(t *testing.T) {
 
 	matches := func() bool {
 		t.Helper()
-		out, _, err := program.Eval(activation)
+		matched, err := rule.Eval(activation)
 		require.NoError(t, err)
-		return out == types.True
+		return matched
 	}
 
 	assert.True(t, matches(), "the event the activation was built on")
@@ -547,10 +545,10 @@ func TestProgramVariablesAreNotWired(t *testing.T) {
 	env, err := NewModelEnv()
 	require.NoError(t, err)
 
-	program, err := Program(env, `"proc-${my.var}" == "proc-sh"`, ModelFieldTypes{})
+	rule, err := NewRule(env, `"proc-${my.var}" == "proc-sh"`, ModelFieldTypes{})
 	require.NoError(t, err, "it translates and type-checks")
 
-	_, _, err = program.Eval(NewActivation(eval.NewContext(model.NewFakeEvent())))
+	_, err = rule.Eval(NewActivation(eval.NewContext(model.NewFakeEvent())))
 	require.Error(t, err, "but cannot be evaluated yet")
 	assert.Contains(t, err.Error(), VariablesRoot)
 }

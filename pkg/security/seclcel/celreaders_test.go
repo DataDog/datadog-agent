@@ -160,7 +160,7 @@ func TestFieldNamesAreResolvedWhenTheRuleIsOptimized(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.BaseEvent.ProcessContext.Process.Comm = "sh"
 
-	program, err := Program(env, `process.comm == "sh"`, ModelFieldTypes{})
+	rule, err := NewRule(env, `process.comm == "sh"`, ModelFieldTypes{})
 	require.NoError(t, err)
 
 	const field = "process.comm"
@@ -169,14 +169,14 @@ func TestFieldNamesAreResolvedWhenTheRuleIsOptimized(t *testing.T) {
 	delete(celReaderIndex, field)
 	t.Cleanup(func() { celReaderIndex[field] = index })
 
-	out, _, err := program.Eval(NewActivation(eval.NewContext(event)))
+	matched, err := rule.Eval(NewActivation(eval.NewContext(event)))
 	require.NoError(t, err)
-	assert.Equal(t, types.True, out, "the field was resolved when the rule was optimized")
+	assert.True(t, matched, "the field was resolved when the rule was optimized")
 
 	// The converse, so that the test cannot pass by reading nothing: a rule whose
 	// field cannot be resolved is refused rather than planned, which is what lets
 	// the reading of a field have exactly one path through the interpreter.
-	_, err = Program(env, `process.comm == "sh"`, ModelFieldTypes{})
+	_, err = NewRule(env, `process.comm == "sh"`, ModelFieldTypes{})
 	require.Error(t, err, "a field the layout does not name cannot be planned")
 	assert.Contains(t, err.Error(), field)
 }

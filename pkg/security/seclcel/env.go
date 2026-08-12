@@ -108,7 +108,7 @@ func (seclAdapter) NativeToValue(value any) ref.Val {
 // opts.
 //
 // The helper functions are bound, so an expression built from this environment
-// can be evaluated against an event with Program and NewActivation.
+// can be evaluated against an event with NewRule and NewActivation.
 func NewEnv(opts ...cel.EnvOption) (*cel.Env, error) {
 	base := []cel.EnvOption{
 		// math.bitAnd/bitOr/bitXor/bitNot back SECL's &, |, ^ operators.

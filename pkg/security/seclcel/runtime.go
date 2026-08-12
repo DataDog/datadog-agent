@@ -11,7 +11,6 @@ import (
 	"net/netip"
 	"reflect"
 
-	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
@@ -120,8 +119,9 @@ func cidrToVal(ipnet net.IPNet) ref.Val {
 	return ext.CIDR{Prefix: prefix}
 }
 
-// activation resolves the names a translated expression refers to against an
-// event, which the SECL context holds.
+// Activation binds a SECL evaluation context to CEL: it resolves the names a
+// translated expression refers to against the event the context holds, and
+// carries the execution frame a Rule is evaluated on.
 //
 // There is almost nothing to resolve: the fields hang under one name, and what a
 // planned rule does with it is hand it to a read that already knows which field it
@@ -131,23 +131,46 @@ func cidrToVal(ipnet net.IPNet) ref.Val {
 // context is reused for. The root it hands out holds the context rather than the
 // event, and every read goes through ctx.Event, so it does not go stale when the
 // context is reset onto the next event.
-type activation struct {
+type Activation struct {
 	ctx  *eval.Context
 	root ref.Val
+
+	// frame is what Rule.Eval hands the planned interpretable, held for as long
+	// as this activation rather than taken from cel-go's pool on every
+	// evaluation, which is most of what evaluating a rule this way saves.
+	//
+	// ExecutionFrame's own documentation says a frame must not be stored, because
+	// its lifecycle belongs to the evaluation. This one holds nothing that belongs
+	// to an evaluation: parent and the shared evalContext both stay nil, since
+	// only SetContext — which we never call, having no interrupt or cost tracking
+	// to drive — sets them, and the activation it wraps is ours rather than one of
+	// the pooled kinds Close returns. So Close would do nothing here but hand the
+	// frame back, and not calling it costs a frame per context and nothing per
+	// event. A comprehension still pushes and pops its child frames through the
+	// pool as usual.
+	//
+	// A frame belongs to one context, so it is used by one goroutine at a time for
+	// the same reason a context is.
+	frame *interpreter.ExecutionFrame
 }
 
 // NewActivation returns the CEL activation for a SECL evaluation context, so that
-// a program built by Program can be evaluated against the event it holds.
-func NewActivation(ctx *eval.Context) interpreter.Activation {
-	return &activation{ctx: ctx, root: &seclPosition{ctx: ctx, typ: modelRootType}}
+// a rule built by NewRule can be evaluated against the event it holds.
+func NewActivation(ctx *eval.Context) *Activation {
+	a := &Activation{ctx: ctx, root: &seclPosition{ctx: ctx, typ: modelRootType}}
+
+	// NewExecutionFrame only rejects an input that is neither an Activation nor a
+	// map[string]any, and a is an Activation.
+	a.frame, _ = interpreter.NewExecutionFrame(a)
+	return a
 }
 
 // Parent implements interpreter.Activation; SECL evaluations have no enclosing
 // scope.
-func (a *activation) Parent() interpreter.Activation { return nil }
+func (a *Activation) Parent() interpreter.Activation { return nil }
 
 // ResolveName implements interpreter.Activation.
-func (a *activation) ResolveName(name string) (any, bool) {
+func (a *Activation) ResolveName(name string) (any, bool) {
 	switch name {
 	case EventRoot:
 		return a.root, true
@@ -158,59 +181,6 @@ func (a *activation) ResolveName(name string) (any, bool) {
 	// vars is declared for SECL's ${…} variables but not populated yet, so an
 	// expression using one fails rather than silently reading nothing.
 	return nil, false
-}
-
-// Program translates a SECL expression and returns an evaluable CEL program.
-//
-// Pair it with an environment from NewModelEnv and evaluate it against
-// NewActivation, whose context holds the event.
-func Program(env *cel.Env, expr string, fieldTypes FieldTypes) (cel.Program, error) {
-	program, _, err := ProgramFields(env, expr, fieldTypes)
-	return program, err
-}
-
-// ProgramFields is Program, and also returns the SECL fields the expression reads
-// — which the optimization pass knows because resolving them is what it does.
-//
-// It is the counterpart of SECL's RuleEvaluator.GetFields: what a rule reads is
-// what decides which bucket it belongs to and which approvers it can support. An
-// iterated node counts as a field of its own, since reading it is a read.
-func ProgramFields(env *cel.Env, expr string, fieldTypes FieldTypes) (cel.Program, []string, error) {
-	checked, err := CompileWithTypes(env, expr, fieldTypes)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	optimized, fields, err := Optimize(env, checked)
-	if err != nil {
-		return nil, nil, fmt.Errorf("optimizing %q: %w", expr, err)
-	}
-
-	program, err := env.Program(optimized, planningOptions()...)
-	if err != nil {
-		return nil, nil, fmt.Errorf("planning %q: %w", expr, err)
-	}
-	return program, fields, nil
-}
-
-// planningOptions are what a rule is planned with, and are all about doing at
-// planning time what would otherwise be repeated for every event.
-//
-// A rule is planned once and evaluated for the lifetime of the agent, so the
-// asymmetry is extreme: anything derived from a literal in the rule text is
-// worth deriving once. SECL does the same when it compiles a rule, which is why
-// its pattern and regexp comparisons cost nothing at match time.
-func planningOptions() []cel.ProgramOption {
-	return []cel.ProgramOption{
-		// Fold constant subexpressions, and compile the regexp of a matches()
-		// against a literal pattern. Without it a `r"…"` rule recompiles its
-		// regexp on every event.
-		cel.EvalOptions(cel.OptOptimize),
-		cel.OptimizeRegex(globOptimization),
-		// Bind each field read to its reader, which is the same trick for the index
-		// the optimization pass emitted.
-		readOptimization(),
-	}
 }
 
 // globOptimization compiles the pattern of a glob against a literal, which is

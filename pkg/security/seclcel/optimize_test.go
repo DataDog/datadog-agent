@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	celast "github.com/google/cel-go/common/ast"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/interpreter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,9 +59,8 @@ func TestOptimizedReadsMatchTheLayout(t *testing.T) {
 			direct++
 		}
 
-		program := optimizedProgram(t, env, expr)
-		out, _, err := program.Eval(NewActivation(ctx))
-		require.NoError(t, err, "evaluating %q", expr)
+		out := optimizedPlan(t, env, expr).Exec(NewActivation(ctx).frame)
+		require.False(t, types.IsError(out), "evaluating %q: %s", expr, out)
 
 		assertSameRead(t, expr, field, reader(ctx, element), out)
 	}
@@ -115,7 +116,7 @@ func TestCorpusEvaluates(t *testing.T) {
 
 	var evaluated int
 	for _, expr := range corpusWithTypes(t, env) {
-		program, err := Program(env, expr, ModelFieldTypes{})
+		rule, err := NewRule(env, expr, ModelFieldTypes{})
 		if err != nil {
 			// A glob is compiled when the rule is planned, which is what makes it
 			// affordable, and the compiler rejects a pattern SECL's own parser
@@ -125,11 +126,15 @@ func TestCorpusEvaluates(t *testing.T) {
 			continue
 		}
 
-		out, _, err := program.Eval(activation)
-		if err != nil {
+		// The plan rather than Rule.Eval, because the corpus holds macro bodies as
+		// well as rules — `3 & 3` and `"{{.Root}}/x"` evaluate to an integer and a
+		// string — and what is under test is that the pass handles them, not that
+		// they answer a verdict.
+		out := rule.plan.Exec(activation.frame)
+		if types.IsError(out) {
 			// SECL's ${…} variables are declared but not populated — see
 			// TestProgramVariablesAreNotWired.
-			assert.Contains(t, err.Error(), VariablesRoot, "%s\n  does not evaluate", expr)
+			assert.Contains(t, out.(*types.Err).Error(), VariablesRoot, "%s\n  does not evaluate", expr)
 			continue
 		}
 
@@ -167,9 +172,9 @@ func TestProgramReportsTheFieldsItReads(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expr, func(t *testing.T) {
-			_, fields, err := ProgramFields(env, tt.expr, ModelFieldTypes{})
+			rule, err := NewRule(env, tt.expr, ModelFieldTypes{})
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, fields)
+			assert.Equal(t, tt.want, rule.Fields())
 		})
 	}
 }
@@ -186,7 +191,7 @@ func TestOptimizeRejectsWhatItCannotRead(t *testing.T) {
 	delete(celReaderIndex, field)
 	t.Cleanup(func() { celReaderIndex[field] = index })
 
-	_, _, err = ProgramFields(env, `process.comm == "sh"`, ModelFieldTypes{})
+	_, err = NewRule(env, `process.comm == "sh"`, ModelFieldTypes{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `field "process.comm" has no reader`)
 }
@@ -208,7 +213,7 @@ func TestOptimizeLeavesVariablesAlone(t *testing.T) {
 
 	source, err := cel.AstToString(optimized)
 	require.NoError(t, err)
-	assert.Equal(t, `secl.readString(evt, `+fmt.Sprint(celReaderIndex["process.comm"])+
+	assert.Equal(t, `secl.readString(evt, `+strconv.Itoa(celReaderIndex["process.comm"])+
 		`) in my_macro && vars.my.var == "x"`, source)
 }
 
@@ -228,9 +233,12 @@ func assertSameRead(t *testing.T, expr, field string, want, got ref.Val) {
 		"%q reads %s where %q reads %s", expr, got, field, want)
 }
 
-// optimizedProgram plans a CEL expression — not a SECL one — through the pass, for
+// optimizedPlan plans a CEL expression — not a SECL one — through the pass, for
 // the tests that need to name a field directly.
-func optimizedProgram(t *testing.T, env *cel.Env, expr string) cel.Program {
+//
+// It stops at the interpretable, as NewRule does, since these expressions read a
+// field rather than answering a boolean and so have no Rule to be evaluated as.
+func optimizedPlan(t *testing.T, env *cel.Env, expr string) interpreter.InterpretableV2 {
 	t.Helper()
 
 	checked, iss := env.Compile(expr)
@@ -239,9 +247,9 @@ func optimizedProgram(t *testing.T, env *cel.Env, expr string) cel.Program {
 	optimized, _, err := Optimize(env, checked)
 	require.NoError(t, err, "optimizing %q", expr)
 
-	program, err := env.Program(optimized, planningOptions()...)
+	plan, err := planRule(env, optimized)
 	require.NoError(t, err, "planning %q", expr)
-	return program
+	return plan
 }
 
 // corpusWithTypes returns the corpus expressions that type-check against the real
