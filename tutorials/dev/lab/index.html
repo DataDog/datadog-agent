@@ -3859,10 +3859,10 @@
   
 
 
-<h1 id="lab-environments">Lab environments<a class="headerlink" href="#lab-environments" title="Permanent link">&para;</a></h1>
+<h1 id="lab-environments">Lab environments</h1>
 <hr />
 <p>Lab environments are Kubernetes clusters for testing the Datadog Agent. The <code>dda lab</code> command group manages these environments.</p>
-<h2 id="supported-providers">Supported providers<a class="headerlink" href="#supported-providers" title="Permanent link">&para;</a></h2>
+<h2 id="supported-providers">Supported providers</h2>
 <table>
 <thead>
 <tr>
@@ -3879,8 +3879,8 @@
 </tr>
 </tbody>
 </table>
-<h2 id="common-commands">Common commands<a class="headerlink" href="#common-commands" title="Permanent link">&para;</a></h2>
-<h3 id="list-environments">List environments<a class="headerlink" href="#list-environments" title="Permanent link">&para;</a></h3>
+<h2 id="common-commands">Common commands</h2>
+<h3 id="list-environments">List environments</h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>lab<span class="w"> </span>list
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Filter by type</span>
@@ -3889,13 +3889,13 @@
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># JSON output for scripting</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>dda<span class="w"> </span>lab<span class="w"> </span>list<span class="w"> </span>--json
 </span></code></pre></div>
-<h3 id="delete-environment">Delete environment<a class="headerlink" href="#delete-environment" title="Permanent link">&para;</a></h3>
+<h3 id="delete-environment">Delete environment</h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>lab<span class="w"> </span>delete
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Non-interactive deletion</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>dda<span class="w"> </span>lab<span class="w"> </span>delete<span class="w"> </span>--id<span class="w"> </span>&lt;id&gt;<span class="w"> </span>--yes
 </span></code></pre></div>
-<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<h2 id="configuration">Configuration</h2>
 <p>If the environment provider installs the Agent (for example <code>dda lab local kind</code>), you must provide an API key. API keys can be configured via environment variables:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">E2E_API_KEY</span><span class="o">=</span>your_api_key
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">E2E_APP_KEY</span><span class="o">=</span>your_app_key<span class="w">  </span><span class="c1"># optional</span>
