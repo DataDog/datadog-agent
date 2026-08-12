@@ -148,6 +148,15 @@ impl ProcessManager {
             warn!("exit event for unknown process '{}'", event.name);
             return;
         };
+        #[cfg(windows)]
+        if proc.complete_late_exit_cleanup(event.pid) {
+            debug!(
+                "[{}] released Windows spawn resources after late exit (pid {})",
+                proc.name(),
+                event.pid
+            );
+            return;
+        }
         if proc.pid() != Some(event.pid) {
             debug!(
                 "[{}] ignoring stale exit event for pid {} (current pid: {:?})",

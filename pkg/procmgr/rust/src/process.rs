@@ -106,6 +106,10 @@ pub struct ManagedProcess {
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
+    /// PID of a child whose exit is still pending after `mark_stopped` gave up
+    /// waiting; used to release Windows profile resources on a late `ExitEvent`.
+    #[cfg(windows)]
+    awaiting_exit_pid: Option<u32>,
 }
 
 impl ManagedProcess {
@@ -139,6 +143,8 @@ impl ManagedProcess {
             job_object: None,
             #[cfg(windows)]
             user_profile: None,
+            #[cfg(windows)]
+            awaiting_exit_pid: None,
         }
     }
 
@@ -185,6 +191,19 @@ impl ManagedProcess {
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;
+        self.awaiting_exit_pid = None;
+    }
+
+    /// Release Windows spawn resources when a detached watcher reports exit after
+    /// `mark_stopped` already cleared the live PID.
+    #[cfg(windows)]
+    pub(crate) fn complete_late_exit_cleanup(&mut self, pid: u32) -> bool {
+        if self.awaiting_exit_pid != Some(pid) {
+            return false;
+        }
+        self.awaiting_exit_pid = None;
+        self.clear_windows_spawn_resources();
+        true
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -516,6 +535,10 @@ impl ManagedProcess {
     fn mark_stopped(&mut self) {
         self.stop_requested = false;
         self.transition_to(ProcessState::Stopped);
+        #[cfg(windows)]
+        if self.user_profile.is_some() {
+            self.awaiting_exit_pid = self.pid;
+        }
         self.pid = None;
         #[cfg(windows)]
         self.clear_windows_job_object();
