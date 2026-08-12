@@ -13,10 +13,10 @@ fixes:
     the average match over its highest-scoring token window, and because that
     window is chosen to maximise the total rather than the average, it extended
     past the timestamp into unrelated fields whenever doing so raised the total,
-    diluting the reported probability. A line opening with a timestamp is now
-    scored on that timestamp directly. This was observed on IIS W3C extended
-    format access logs, where a client address tokenizing to ``DD.D.DD.DD`` (for
-    example ``10.1.48.10``) dragged the probability down to exactly the ``0.5``
-    default of
+    diluting the reported probability. A line that opens with a long enough run
+    of matching tokens is now scored on that run alone. This was observed on IIS
+    W3C extended format access logs, where a client address tokenizing to
+    ``DD.D.DD.DD`` (for example ``10.1.48.10``) dragged the probability down to
+    exactly the ``0.5`` default of
     ``logs_config.auto_multi_line.timestamp_detector_match_threshold``, causing
     consecutive single-line entries to be concatenated into one log.

@@ -108,6 +108,10 @@ func (m *TokenGraph) MatchProbability(ts []Token) MatchContext {
 
 // maxSubsequence is a modified Kadane’s Algorithm that returns the average, start, and end of the largest subsequence.
 // It takes a length of the target input, and a function used to look up values for each index.
+//
+// matchForIndex is called exactly once per index, in ascending order from 0, and never
+// after an early return. Callers rely on that order to accumulate state as the walk
+// proceeds, so preserve it when changing this function.
 func maxSubsequence(length int, matchForIndex func(idx int) int) (float64, int, int) {
 	if length == 0 {
 		return 0, 0, 0

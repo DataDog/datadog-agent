@@ -53,11 +53,10 @@ var inputs = []testInput{
 	{startGroup, "acb def 10:10:10 foo 2024-05-15 hijk lmop"},
 
 	// IIS W3C extended log format. Every record is a complete single-line entry
-	// prefixed with a timestamp, so each one must start its own group. The first
-	// two carry a client address tokenizing to DD.D.DD.DD, which extends the
-	// maximum-sum token window well past the timestamp and pulls the average over
-	// that window down to the default match threshold. The last two use address
-	// shapes that do not.
+	// prefixed with a timestamp, so each one must start its own group. The four
+	// differ only in the client address, whose token shape governs how far the
+	// maximum-sum window reaches past the timestamp. That spread is deliberate. It
+	// keeps the set sensitive to changes in how a line's score is chosen.
 	{startGroup, "2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET /ZenIT/Service/v13/core/Consent land=DE 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 19571 1051"},
 	{startGroup, "2026-08-11 10:34:50 W3SVC1 10.1.48.10 POST /ZenIT/Service/v13/core/Logger - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 204 0 0 504 6"},
 	{startGroup, "2026-08-11 10:34:49 W3SVC1 fe80::b045:52da:3136:3f1c%3 GET /ZenIT/Service/v13/colibriApi/api/Auftrag/Reklamation 443 NDL\\SVC-Zenit-NDL0167 - 200 0 0 945 7"},
