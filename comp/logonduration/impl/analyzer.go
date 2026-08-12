@@ -514,6 +514,10 @@ func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
 // second, differently-derived number would leave consumers without a clear
 // authoritative field.
 //
+// ErrorCode is not read either. The event ID already carries the outcome, and
+// the status behind a failure is a Group Policy health question rather than
+// latency data - see CSEInvocation.Result.
+//
 // One asymmetry with 4016 is worth knowing about. These templates declare
 // CSEExtensionId last, where 4016 declares it first, and EventProperties
 // recovers only the properties preceding a decode failure. So a partial decode
@@ -533,17 +537,12 @@ func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts ti
 		return
 	}
 
-	stop := observedCSEStop{
+	p.gp.finishCSE(activityIDOf(e), observedCSEStop{
 		eventID:    id,
 		guid:       guid,
 		guidString: guidString,
 		name:       prop("CSEExtensionName"),
-	}
-	if code, ok := formatErrorCode(prop("ErrorCode")); ok {
-		stop.errorCode = code
-	}
-
-	p.gp.finishCSE(activityIDOf(e), stop, ts)
+	}, ts)
 }
 
 // shellCoreParser processes Shell-Core events for Explorer startup tracking.

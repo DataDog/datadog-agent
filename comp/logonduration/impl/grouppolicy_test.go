@@ -24,13 +24,8 @@ import (
 
 // Property values in these tests are in the form TDH produces for each declared
 // out-type, per the Microsoft-Windows-GroupPolicy manifest: a braced GUID for
-// win:GUID, decimal for win:UInt32, and "true"/"false" for win:Boolean.
-//
-// ErrorCode is written as "0x…" here because it is declared with the
-// win:HexInt32 out-type, but the manifest pins only the prefix, not the padding
-// or the case, and a real capture rendered a zero code as plain "0". So the exact
-// spelling is not a contract: parseUint32 uses base 0 and accepts every form,
-// which TestFormatErrorCode covers directly.
+// win:GUID, decimal for win:UInt32, "0x…" for win:HexInt32, and "true"/"false"
+// for win:Boolean.
 
 const (
 	cseRegistryGUID  = "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"
@@ -114,15 +109,24 @@ func (f *gpFixture) cseStart(activity windows.GUID, offset time.Duration, guid, 
 
 // cseStop emits a 5016/6016/7016 extension stop.
 //
-// CSEElaspedTimeInMilliSeconds is always populated with a value that disagrees
-// with the measured interval, so any test asserting a duration also proves the
-// provider-reported field is not the one being emitted.
-func (f *gpFixture) cseStop(activity windows.GUID, offset time.Duration, id uint16, guid, name, errorCode string) {
+// Two properties the parser does not read are populated anyway, so the synthetic
+// event stays faithful to the real template and every test that asserts on an
+// emitted invocation also proves neither one leaks into it:
+//
+//   - CSEElaspedTimeInMilliSeconds disagrees with the measured interval, so any
+//     duration assertion proves the provider-reported field is not the one
+//     emitted.
+//   - ErrorCode is non-zero - E_PENDING, which the audit extension really does
+//     return - so nothing here can pass by rendering a zero code as absent.
+//
+// Their positions also matter: CSEExtensionId is declared last on this template,
+// which is the premise TestPartialDecodeDegradesAStartButDropsAStop rests on.
+func (f *gpFixture) cseStop(activity windows.GUID, offset time.Duration, id uint16, guid, name string) {
 	f.send(activity, id, offset,
 		property{Name: "CSEExtensionId", Value: guid},
 		property{Name: "CSEExtensionName", Value: name},
 		property{Name: "CSEElaspedTimeInMilliSeconds", Value: "999999"},
-		property{Name: "ErrorCode", Value: errorCode},
+		property{Name: "ErrorCode", Value: "0x8000000A"},
 	)
 }
 
@@ -165,17 +169,19 @@ func gpoRichEntry(id, name string) string {
 // --- Pairing and outcomes ---
 
 func TestCSEPairingOutcomes(t *testing.T) {
-	// The three terminal events share one template and differ only in severity.
+	// The three terminal events share one template and differ only in severity,
+	// so the event ID is the whole of the outcome. The fixture sends a non-zero
+	// ErrorCode on every one of them, which is what makes the success row mean
+	// something: a provider status of E_PENDING still reports success, because the
+	// ID is what is read.
 	cases := []struct {
-		name      string
-		eventID   uint16
-		errorCode string
-		want      cseResult
-		wantCode  string
+		name    string
+		eventID uint16
+		want    cseResult
 	}{
-		{"success", evtCSEStopSuccess, "0x00000000", cseResultSuccess, ""},
-		{"warning", evtCSEStopWarning, "0x00000534", cseResultWarning, "0x00000534"},
-		{"error", evtCSEStopError, "0x8007054B", cseResultError, "0x8007054B"},
+		{"success", evtCSEStopSuccess, cseResultSuccess},
+		{"warning", evtCSEStopWarning, cseResultWarning},
+		{"error", evtCSEStopError, cseResultError},
 	}
 
 	for _, tc := range cases {
@@ -183,7 +189,7 @@ func TestCSEPairingOutcomes(t *testing.T) {
 			f := newGPFixture(t)
 			f.startComputerPass()
 			f.cseStart(gpTestActivity, 12500*time.Millisecond, cseRegistryGUID, "Registry", false, "")
-			f.cseStop(gpTestActivity, 13750*time.Millisecond, tc.eventID, cseRegistryGUID, "Registry", tc.errorCode)
+			f.cseStop(gpTestActivity, 13750*time.Millisecond, tc.eventID, cseRegistryGUID, "Registry")
 
 			invs := f.details().Computer
 			require.Len(t, invs, 1)
@@ -192,7 +198,6 @@ func TestCSEPairingOutcomes(t *testing.T) {
 			assert.Equal(t, cseRegistryGUID, inv.CSEID)
 			assert.Equal(t, "Registry", inv.CSEName)
 			assert.Equal(t, tc.want, inv.Result)
-			assert.Equal(t, tc.wantCode, inv.ErrorCode)
 			assert.False(t, inv.Async)
 
 			assert.Equal(t, int64(12500), inv.OffsetMs, "offset is boot-relative")
@@ -202,26 +207,13 @@ func TestCSEPairingOutcomes(t *testing.T) {
 	}
 }
 
-func TestCSESuccessCarriesNoErrorCode(t *testing.T) {
-	// A zero status means success and carries no information, so it is omitted
-	// rather than emitted as "0x00000000".
-	f := newGPFixture(t)
-	f.startComputerPass()
-	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
-
-	raw, err := json.Marshal(f.details().Computer[0])
-	require.NoError(t, err)
-	assert.NotContains(t, string(raw), "error_code")
-}
-
 func TestCSEZeroDurationIsReported(t *testing.T) {
 	// An extension completing in under a millisecond has a real duration of
 	// zero. It must survive marshalling rather than being elided as empty.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 13*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 13*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	inv := f.details().Computer[0]
 	assert.Equal(t, int64(0), inv.DurationMs)
@@ -234,18 +226,19 @@ func TestCSEZeroDurationIsReported(t *testing.T) {
 func TestCSEAsyncIsFlagged(t *testing.T) {
 	// For an asynchronous extension the terminal event marks the dispatch of a
 	// worker thread. The interval is still real - it is the cost of the
-	// dispatch - and async is what tells a consumer to read it that way. The
-	// outcome still comes from the terminal event ID; Microsoft documents the
-	// audit extension returning E_PENDING here by design.
+	// dispatch - and async is what tells a consumer to read it that way.
+	//
+	// The audit extension is also why the outcome comes from the terminal event ID
+	// rather than from a status: Microsoft documents it returning E_PENDING by
+	// design, so a 5016 carrying a non-zero code is a success and not a failure.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseAuditGUID, "Audit Policy", true, "")
-	f.cseStop(gpTestActivity, 13100*time.Millisecond, evtCSEStopSuccess, cseAuditGUID, "Audit Policy", "0x8000000A")
+	f.cseStop(gpTestActivity, 13100*time.Millisecond, evtCSEStopSuccess, cseAuditGUID, "Audit Policy")
 
 	inv := f.details().Computer[0]
 	assert.True(t, inv.Async)
 	assert.Equal(t, cseResultSuccess, inv.Result)
-	assert.Equal(t, "0x8000000A", inv.ErrorCode)
 	assert.Equal(t, int64(100), inv.DurationMs)
 }
 
@@ -258,8 +251,8 @@ func TestCSECrossActivityIsolation(t *testing.T) {
 
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
 	f.cseStart(gpUserActivity, 31*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 15*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
-	f.cseStop(gpUserActivity, 31500*time.Millisecond, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 15*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
+	f.cseStop(gpUserActivity, 31500*time.Millisecond, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	d := f.details()
 	require.Len(t, d.Computer, 1)
@@ -274,7 +267,7 @@ func TestInvocationsAreOrderedChronologically(t *testing.T) {
 	for i, guid := range []string{cseAuditGUID, cseRegistryGUID, cseFolderRedGUID} {
 		start := time.Duration(20-i) * time.Second
 		f.cseStart(gpTestActivity, start, guid, "ext", false, "")
-		f.cseStop(gpTestActivity, start+100*time.Millisecond, evtCSEStopSuccess, guid, "ext", "0x00000000")
+		f.cseStop(gpTestActivity, start+100*time.Millisecond, evtCSEStopSuccess, guid, "ext")
 	}
 
 	invs := f.details().Computer
@@ -292,7 +285,7 @@ func TestCSEMissingStartIsOmitted(t *testing.T) {
 	// the timeline. It is a collection diagnostic, not latency data.
 	f := newGPFixture(t)
 	f.startComputerPass()
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	assert.Nil(t, f.finalize())
 }
@@ -311,7 +304,7 @@ func TestCSETraceEndsMidInvocation(t *testing.T) {
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 	f.cseStart(gpTestActivity, 15*time.Second, cseFolderRedGUID, "Folder Redirection", false, "")
 
 	invs := f.details().Computer
@@ -327,7 +320,7 @@ func TestCSEDuplicateOpenStartsNeverGuess(t *testing.T) {
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
 	f.cseStart(gpTestActivity, 14*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 16*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 16*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	invs := f.details().Computer
 	require.Len(t, invs, 1)
@@ -340,7 +333,7 @@ func TestCSEStopBeforeStartIsDropped(t *testing.T) {
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 16*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 15*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 15*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	assert.Nil(t, f.finalize())
 }
@@ -350,7 +343,7 @@ func TestCSEMissingExtensionIDIsDropped(t *testing.T) {
 	f.startComputerPass()
 	f.send(gpTestActivity, evtCSEStart, 13*time.Second,
 		property{Name: "CSEExtensionName", Value: "Registry"})
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	assert.Nil(t, f.finalize())
 }
@@ -374,13 +367,13 @@ func TestGPUpdateInvocationsAreExcluded(t *testing.T) {
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	// Manual processing (4004) is not collected at all, and its extension
 	// invocations carry an activity ID that matches no boot pass.
 	f.send(gpOtherRun, 4004, 40*time.Second)
 	f.cseStart(gpOtherRun, 41*time.Second, cseFolderRedGUID, "Folder Redirection", false, "")
-	f.cseStop(gpOtherRun, 42*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection", "0x00000000")
+	f.cseStop(gpOtherRun, 42*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection")
 
 	d := f.details()
 	require.Len(t, d.Computer, 1, "only the boot pass invocation is reported")
@@ -395,7 +388,7 @@ func TestCSEWithNoBootPassIsOmitted(t *testing.T) {
 	f.startComputerPass()
 	f.startUserPass()
 	f.cseStart(gpOtherRun, 40*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpOtherRun, 41*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpOtherRun, 41*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	assert.Nil(t, f.finalize())
 }
@@ -408,9 +401,9 @@ func TestPassActivityPinnedFirstWriteWins(t *testing.T) {
 	f.send(gpOtherRun, evtMachineGPStart, 40*time.Second)
 
 	f.cseStart(gpOtherRun, 41*time.Second, cseFolderRedGUID, "Folder Redirection", false, "")
-	f.cseStop(gpOtherRun, 42*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection", "0x00000000")
+	f.cseStop(gpOtherRun, 42*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection")
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	invs := f.details().Computer
 	require.Len(t, invs, 1)
@@ -424,7 +417,7 @@ func TestZeroActivityIDNeverPins(t *testing.T) {
 	f := newGPFixture(t)
 	f.send(windows.GUID{}, evtMachineGPStart, 12*time.Second)
 	f.cseStart(windows.GUID{}, 13*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(windows.GUID{}, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(windows.GUID{}, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	assert.Nil(t, f.finalize())
 }
@@ -439,7 +432,7 @@ func TestPassStopAloneNeverPins(t *testing.T) {
 	f.endComputerPass()
 
 	f.cseStart(gpUserActivity, 31*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpUserActivity, 32*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpUserActivity, 32*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 	f.send(gpUserActivity, evtUserGPEnd, 33*time.Second)
 
 	assert.Nil(t, f.finalize())
@@ -456,7 +449,7 @@ func TestPassActivityIsNotSharedBetweenScopes(t *testing.T) {
 	f.send(gpTestActivity, evtUserGPStart, 30*time.Second)
 
 	f.cseStart(gpTestActivity, 31*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpTestActivity, 32*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 32*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	d := f.details()
 	require.Len(t, d.Computer, 1)
@@ -475,7 +468,7 @@ func TestCSEOffsetsShareTheBootTimelineAxis(t *testing.T) {
 
 	f.send(gpUserActivity, evtUserGPStart, 71*time.Second)
 	f.cseStart(gpUserActivity, 72*time.Second, cseRegistryGUID, "Registry", false, "")
-	f.cseStop(gpUserActivity, 73*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpUserActivity, 73*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 	f.send(gpUserActivity, evtUserGPEnd, 75*time.Second)
 
 	inv := f.details().User[0]
@@ -510,7 +503,7 @@ func TestGPOInlinedPerInvocation(t *testing.T) {
 	for i, guid := range []string{cseRegistryGUID, cseFolderRedGUID, cseAuditGUID} {
 		start := time.Duration(13+i) * time.Second
 		f.cseStart(gpTestActivity, start, guid, "ext", false, list)
-		f.cseStop(gpTestActivity, start+500*time.Millisecond, evtCSEStopSuccess, guid, "ext", "0x00000000")
+		f.cseStop(gpTestActivity, start+500*time.Millisecond, evtCSEStopSuccess, guid, "ext")
 	}
 
 	invs := f.details().Computer
@@ -532,7 +525,7 @@ func TestGPONamesComeFromTheApplicableList(t *testing.T) {
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
 		gpoFragment(gpoRichEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	gpos := f.details().Computer[0].GPOs
 	require.Len(t, gpos, 1, "the extension GUID inside <Extensions> is not a GPO")
@@ -558,7 +551,7 @@ func TestGPONamesSurviveUnescapedAmpersand(t *testing.T) {
 			gpoEntry(gpoDomainCtlGUID, "Sales & Marketing"),
 			gpoEntry(gpoThirdGUID, "Plain Name"),
 		))
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	assert.Equal(t, []GPORef{
 		{ID: gpoDefaultDomainGUID, Name: "R&D Baseline"},
@@ -577,12 +570,12 @@ func TestGPONameSharedFromAnotherInvocationsList(t *testing.T) {
 
 	// This invocation's list is a bare GUID: no name available from it.
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, gpoDefaultDomainGUID)
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	// A later invocation names the same object.
 	f.cseStart(gpTestActivity, 15*time.Second, cseFolderRedGUID, "Folder Redirection", false,
 		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
-	f.cseStop(gpTestActivity, 16*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection", "0x00000000")
+	f.cseStop(gpTestActivity, 16*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection")
 
 	invs := f.details().Computer
 	require.Len(t, invs, 2)
@@ -597,11 +590,11 @@ func TestGPOMultiplePerCSE(t *testing.T) {
 		gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy"),
 		gpoEntry(gpoDomainCtlGUID, "Default Domain Controllers Policy"),
 	))
-	f.cseStop(gpTestActivity, 12200*time.Millisecond, evtCSEStopSuccess, cseAuditGUID, "Audit", "0x00000000")
+	f.cseStop(gpTestActivity, 12200*time.Millisecond, evtCSEStopSuccess, cseAuditGUID, "Audit")
 
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
 		gpoDefaultDomainGUID+";"+gpoDomainCtlGUID+";"+gpoThirdGUID)
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	gpos := f.details().Computer[1].GPOs
 	require.Len(t, gpos, 3)
@@ -619,7 +612,7 @@ func TestGPODuplicateDisplayNamesStayDistinct(t *testing.T) {
 		gpoEntry(gpoDefaultDomainGUID, "Baseline"),
 		gpoEntry(gpoDomainCtlGUID, "Baseline"),
 	))
-	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 	gpos := f.details().Computer[0].GPOs
 	require.Len(t, gpos, 2)
@@ -870,7 +863,7 @@ func TestPartialDecodeDegradesAStartButDropsAStop(t *testing.T) {
 			property{Name: "CSEExtensionId", Value: cseRegistryGUID},
 			property{Name: "CSEExtensionName", Value: "Registry"},
 		)
-		f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry", "0x00000000")
+		f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
 		invs := f.details().Computer
 		require.Len(t, invs, 1)
@@ -913,32 +906,6 @@ func TestNormalizeGUID(t *testing.T) {
 	}
 	for _, tc := range cases {
 		_, got, ok := normalizeGUID(tc.in)
-		assert.Equal(t, tc.ok, ok, "input %q", tc.in)
-		assert.Equal(t, tc.want, got, "input %q", tc.in)
-	}
-}
-
-func TestFormatErrorCode(t *testing.T) {
-	// ErrorCode is declared win:HexInt32, so TDH renders it as "0x…". A base-10
-	// parse would fail on every non-zero code; base 0 also accepts a decimal
-	// rendering, so both forms round-trip to the same canonical output.
-	cases := []struct {
-		in   string
-		want string
-		ok   bool
-	}{
-		{"0x8000000A", "0x8000000A", true},
-		{"0x0000054B", "0x0000054B", true},
-		{"1355", "0x0000054B", true},
-		{"0xFFFFFFFF", "0xFFFFFFFF", true},
-		{"0x00000000", "", false},
-		{"0", "", false},
-		{"", "", false},
-		{"garbage", "", false},
-		{"0x100000000", "", false},
-	}
-	for _, tc := range cases {
-		got, ok := formatErrorCode(tc.in)
 		assert.Equal(t, tc.ok, ok, "input %q", tc.in)
 		assert.Equal(t, tc.want, got, "input %q", tc.in)
 	}

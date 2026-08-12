@@ -10,11 +10,9 @@ package logondurationimpl
 import (
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"io"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -49,7 +47,7 @@ const (
 	// from a machine that genuinely applies 64 objects to one extension. The
 	// number is what keeps the emitted document a sane size, since nothing bounds
 	// the invocation count: at maxGPONameBytes a GPORef is roughly 313 bytes and
-	// an invocation without its array roughly 292, so an invocation at this cap
+	// an invocation without its array roughly 266, so an invocation at this cap
 	// costs about 20 KB, and Windows registers on the order of 57 extensions, for
 	// a two-pass worst case around 2.4 MB before compression.
 	maxGPOsPerCSE = 64
@@ -117,12 +115,12 @@ type CSEInvocation struct {
 	// kind of measurement as the pass duration (4000 -> 8000) it is a slice of.
 	DurationMs int64 `json:"duration_ms"`
 
+	// Result is the outcome, taken from which terminal event closed the
+	// invocation. The provider's own ErrorCode is deliberately not carried
+	// alongside it: this block reports what ran and for how long, and the status
+	// behind a failure is a Group Policy health question answerable from the
+	// host's Group Policy Operational log.
 	Result cseResult `json:"result"`
-
-	// ErrorCode is the provider's status as the hexadecimal string Windows
-	// formats it as, present only when non-zero. A JSON number would round-trip
-	// a value above 0x7FFFFFFF as a negative signed integer.
-	ErrorCode string `json:"error_code,omitempty"`
 
 	// Async reports the extension's IsExtensionAsyncProcessing flag. When set,
 	// the terminal event marks the dispatch of a worker thread, so DurationMs is
@@ -159,7 +157,6 @@ type observedCSEStop struct {
 	guid       windows.GUID
 	guidString string
 	name       string
-	errorCode  string
 }
 
 // cseRecord is a completed invocation held until finalize, which is where its
@@ -170,7 +167,6 @@ type cseRecord struct {
 	start      time.Time
 	durationMs int64
 	result     cseResult
-	errorCode  string
 	async      bool
 	gpoIDs     []string
 }
@@ -312,7 +308,6 @@ func (a *gpAccumulator) finishCSE(activityID windows.GUID, o observedCSEStop, ts
 	rec := open.rec
 	rec.durationMs = ts.Sub(open.start).Milliseconds()
 	rec.result = result
-	rec.errorCode = o.errorCode
 	if rec.name == "" {
 		rec.name = truncateProviderText(o.name, maxCSENameBytes)
 	}
@@ -385,7 +380,6 @@ func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64
 			OffsetMs:   offsetOf(r.start),
 			DurationMs: r.durationMs,
 			Result:     r.result,
-			ErrorCode:  r.errorCode,
 			Async:      r.async,
 			GPOs:       a.gpoRefs(r.gpoIDs),
 		})
@@ -583,36 +577,6 @@ func normalizeGUID(s string) (windows.GUID, string, bool) {
 		return windows.GUID{}, "", false
 	}
 	return g, g.String(), true
-}
-
-// formatErrorCode renders a non-zero provider status in a canonical form, so
-// the payload never carries unparsed provider text and never varies with how
-// TDH happened to format the value. A zero status means success and carries no
-// information, so it reports false alongside an unparsable value: neither is
-// emitted.
-//
-// Parsing must use base 0, not base 10: ErrorCode is declared with the
-// win:HexInt32 out-type, so TDH formats it as "0x8000000A".
-func formatErrorCode(s string) (string, bool) {
-	v, ok := parseUint32(s)
-	if !ok || v == 0 {
-		return "", false
-	}
-	return fmt.Sprintf("0x%08X", v), true
-}
-
-// parseUint32 parses an unsigned value that may be rendered in decimal or, for
-// hex-out-type properties, as "0x...".
-func parseUint32(s string) (uint32, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, false
-	}
-	v, err := strconv.ParseUint(s, 0, 32)
-	if err != nil {
-		return 0, false
-	}
-	return uint32(v), true
 }
 
 // parseETWBool interprets a formatted win:Boolean property. TDH renders these as

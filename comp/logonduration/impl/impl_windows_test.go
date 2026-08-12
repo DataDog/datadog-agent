@@ -326,8 +326,7 @@ func TestBuildCustomPayload(t *testing.T) {
 func newPayloadTestComponent(t *testing.T) (*logonDurationComponent, eventplatform.Forwarder) {
 	t.Helper()
 	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
-	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname)
 
 	return &logonDurationComponent{
 		hostname:               hostname,
@@ -422,7 +421,6 @@ func TestSubmitEvent_GroupPolicyReachesTheWire(t *testing.T) {
 	assert.Equal(t, float64(1250), inv["duration_ms"])
 	assert.Equal(t, "success", inv["result"])
 	assert.NotContains(t, inv, "scope", "the enclosing array carries the scope")
-	assert.NotContains(t, inv, "error_code", "a successful invocation carries no code")
 
 	// GPOs are inlined, so a consumer rendering pass -> CSE -> GPO needs no join.
 	gpos := inv["gpos"].([]interface{})
@@ -456,7 +454,7 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 		gposPerInvocation  = maxGPOsPerCSE
 
 		// Derivation: a GPORef at maxGPONameBytes is ~313 bytes and an invocation
-		// without its array ~292, so an invocation at the cap is ~20 KB and 120 of
+		// without its array ~266, so an invocation at the cap is ~20 KB and 120 of
 		// them are ~2.45 MB. The ceiling leaves room for the boot_timeline and
 		// durations blocks without leaving room for a new per-GPO field.
 		maxWorstCaseBytes = 3 * 1024 * 1024
@@ -480,7 +478,6 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 				OffsetMs:   int64(i) * 1000,
 				DurationMs: int64(i),
 				Result:     cseResultError,
-				ErrorCode:  "0x8000000A",
 				Async:      true,
 				GPOs:       gpos,
 			})
