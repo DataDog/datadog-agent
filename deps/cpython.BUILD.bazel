@@ -55,7 +55,10 @@ run_binary(
     srcs = (
         glob(
             ["**"],
-            exclude = ["**/*.pyc", "BUILD.bazel"],
+            exclude = [
+                "**/*.pyc",
+                "BUILD.bazel",
+            ],
         ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
@@ -69,6 +72,18 @@ run_binary(
             "@visual_studio//:msbuild",
         ]
     ),
+    outs = [
+        "build/{}".format(file)
+        for file in [
+            "python.exe",
+            "python3.dll",
+            "python{}.dll".format(PYTHON_MAJOR_MINOR_FLAT),
+            "pythonw.exe",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "LICENSE.txt",
+        ]
+    ],
     env = {
         "PROCESSOR_ARCHITECTURE": "AMD64",
         # Input and output paths
@@ -87,18 +102,6 @@ run_binary(
         "MSBUILD": "$(location @visual_studio//:msbuild)",
         "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
     },
-    outs = [
-        "build/{}".format(file)
-        for file in [
-            "python.exe",
-            "python3.dll",
-            "python{}.dll".format(PYTHON_MAJOR_MINOR_FLAT),
-            "pythonw.exe",
-            "vcruntime140.dll",
-            "vcruntime140_1.dll",
-            "LICENSE.txt",
-        ]
-    ],
     out_dirs = [
         "build/{}".format(dir)
         for dir in [
@@ -109,8 +112,8 @@ run_binary(
             "Scripts",
         ]
     ],
-    tool = "build_python.bat",
     target_compatible_with = ["@platforms//os:windows"],
+    tool = "build_python.bat",
     visibility = ["//visibility:public"],
 )
 
@@ -139,8 +142,8 @@ cc_library(
     name = "lib_win",
     hdrs = [":headers_win"],
     includes = ["build/include"],
-    deps = [":_python_dll"],
     visibility = ["//visibility:public"],
+    deps = [":_python_dll"],
 )
 
 filegroup(
@@ -171,6 +174,7 @@ UNIX_BINS = [
 ]
 
 LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
+
 MACOS_DYLIB = "libpython{}.dylib".format(PYTHON_MAJOR_MINOR)
 
 python_dep_libs = {
@@ -194,6 +198,16 @@ python_dep_libs_explicit = {
 
 configure_make(
     name = "python_unix",
+    build_data = [
+        ":redacted_compat.h",
+        "@@//deps/cpython:fix_sysconfigdata.py",
+        "@python_3_12//:python3",
+    ] + select({
+        "@platforms//os:macos": [
+            "@llvm_toolchain_llvm//:ar",
+        ],
+        "//conditions:default": [],
+    }),
     configure_options = [
         "--enable-ipv6",
         "--with-ensurepip=no",  # pip is installed as a separate target
@@ -217,6 +231,14 @@ configure_make(
     }),
     copts = [
         "-O2",
+    ],
+    dynamic_deps = [
+        "@bzip2//:bz2_pkg",
+        "@openssl//:libssl_shared_pkg",
+        "@openssl//:libcrypto_shared_pkg",
+        "@sqlite3//:sqlite3_pkg",
+        "@xz//:lzma_pkg",
+        "@zlib//:z_pkg",
     ],
     env = {
         "OPT": "-DNDEBUG -fwrapv",
@@ -253,16 +275,7 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    build_data = [
-        ":redacted_compat.h",
-        "@@//deps/cpython:fix_sysconfigdata.py",
-        "@python_3_12//:python3",
-    ] + select({
-        "@platforms//os:macos": [
-            "@llvm_toolchain_llvm//:ar",
-        ],
-        "//conditions:default": [],
-    }),
+    includes = ["python{}".format(PYTHON_MAJOR_MINOR)],
     lib_source = ":all_srcs",
     out_binaries = UNIX_BINS,
     out_data_dirs = [
@@ -280,6 +293,7 @@ configure_make(
         ],
         "@platforms//os:macos": [],
     }),
+    out_include_dir = "include",
     out_shared_libs = select({
         "@platforms//os:linux": [
             LINUX_SO,
@@ -287,38 +301,6 @@ configure_make(
         "@platforms//os:macos": [
             MACOS_DYLIB,
         ],
-    }),
-    out_include_dir = "include",
-    visibility = ["//visibility:public"],
-    deps = [
-        "@bzip2//:libbz2",
-        "@libffi//:ffi",
-        "@openssl//:openssl",
-        "@sqlite3//:libsqlite3",
-        "@xz//:liblzma",
-        "@zlib//:zlib",
-    ],
-    dynamic_deps = [
-        "@bzip2//:bz2_pkg",
-        "@openssl//:libssl_shared_pkg",
-        "@openssl//:libcrypto_shared_pkg",
-        "@sqlite3//:sqlite3_pkg",
-        "@xz//:lzma_pkg",
-        "@zlib//:z_pkg",
-    ],
-    includes = ["python{}".format(PYTHON_MAJOR_MINOR)],
-    targets = [
-        # Build in parallel but install without parallel execution
-        # (see https://github.com/python/cpython/issues/109796)
-        "-j 16",
-        "install",
-    ],
-    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
-    toolchains = ["@@//:install_dir"],
-    target_compatible_with = select({
-        "@platforms//os:macos": [],
-        "@platforms//os:linux": [],
-        "//conditions:default": ["@platforms//:incompatible"],
     }),
     # python's build system will output the entire build config to _sysconfigdata_xxx.py
     # This is later used to build extensions with the same tools/compiler/flags/config as the interpreter
@@ -337,6 +319,26 @@ configure_make(
     """.format(
         version = PYTHON_MAJOR_MINOR,
     ),
+    resource_size = "enormous",
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    targets = [
+        "install",
+    ],
+    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
+    toolchains = ["@@//:install_dir"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bzip2//:libbz2",
+        "@libffi//:ffi",
+        "@openssl",
+        "@sqlite3//:libsqlite3",
+        "@xz//:liblzma",
+        "@zlib",
+    ],
 )
 
 foreign_cc_shared_wrapper(
@@ -350,8 +352,8 @@ foreign_cc_shared_wrapper(
 # Use this (not :python_unix) when invoking python from a Bazel action.
 foreign_cc_runnable(
     name = "python_unix_runnable",
-    input = ":python_unix",
     binary_path = "bin/python{}".format(PYTHON_MAJOR_MINOR),
+    input = ":python_unix",
     patch_globs = [
         "lib/python{}/lib-dynload/*.so".format(PYTHON_MAJOR_MINOR),
     ],
@@ -392,8 +394,8 @@ pkg_files(
 dd_collect_dependencies(
     name = "_openssl_deps_win",
     srcs = [
-        "@openssl//:libssl_shared_pkg",
         "@openssl//:libcrypto_shared_pkg",
+        "@openssl//:libssl_shared_pkg",
     ],
     visibility = ["//visibility:private"],
 )
@@ -418,9 +420,9 @@ select_file(
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
+    attributes = pkg_attributes("0644"),
     link_name = "lib/libpython{}.so".format(PYTHON_MAJOR_MINOR),
     target = LINUX_SO,
-    attributes = pkg_attributes("0644"),
 )
 
 BIN_SYMLINKS = {
@@ -431,9 +433,9 @@ BIN_SYMLINKS = {
 [
     pkg_mklink(
         name = "python_bin_symlink_" + target,
+        attributes = pkg_attributes("0755"),
         link_name = link,
         target = target,
-        attributes = pkg_attributes("0755"),
     )
     for link, target in BIN_SYMLINKS.items()
 ]
@@ -486,7 +488,6 @@ pkg_filegroup(
 dd_cc_packaged(
     name = "python_pkg",
     input = ":python_unix_shared",
-    installed_files = [":_python_pkg_common_files"],
     installed_executables = {
         ":python3_bin": "bin",
         ":python_lib_dir_group_unix": "lib",
@@ -494,6 +495,7 @@ dd_cc_packaged(
         "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
         "//conditions:default": {},
     }),
+    installed_files = [":_python_pkg_common_files"],
     visibility = ["//visibility:public"],
 )
 
@@ -501,8 +503,8 @@ pkg_filegroup(
     name = "all_files",
     srcs = select({
         "@platforms//os:windows": [
-            ":install_files_win",
             ":_openssl_deps_win",
+            ":install_files_win",
         ],
         "//conditions:default": [
             ":install_headers_unix",
