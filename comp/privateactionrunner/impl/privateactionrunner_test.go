@@ -13,22 +13,27 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-func TestSplitDeploymentEnabled(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetInTest(privateactionrunner.PARSplitEnabled, true)
+func TestSplitDeploymentSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		goos          string
+		containerized bool
+		want          bool
+	}{
+		{name: "linux host", goos: "linux", want: true},
+		{name: "windows host", goos: "windows", want: true},
+		{name: "linux container", goos: "linux", containerized: true},
+		{name: "windows container", goos: "windows", containerized: true},
+		{name: "unsupported host platform", goos: "darwin"},
+	}
 
-	assert.True(t, splitDeploymentEnabled(cfg, "linux"))
-	assert.True(t, splitDeploymentEnabled(cfg, "windows"))
-	assert.False(t, splitDeploymentEnabled(cfg, "darwin"))
-
-	cfg.SetInTest(privateactionrunner.PARSplitEnabled, false)
-	assert.False(t, splitDeploymentEnabled(cfg, "linux"))
-	assert.False(t, splitDeploymentEnabled(cfg, "windows"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, splitDeploymentSupported(tt.goos, tt.containerized))
+		})
+	}
 }
 
 func TestStopCleansUpMetricsClient(t *testing.T) {

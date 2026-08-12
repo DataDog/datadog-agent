@@ -21,6 +21,7 @@ go_library(
         "//comp/networkpath/traceroute/def",
         "//comp/privateactionrunner/def",
         "//comp/remote-config/rcclient/def",
+        "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/fleet/installer/telemetry",
@@ -48,8 +49,6 @@ dd_agent_go_test(
     srcs = ["privateactionrunner_test.go"],
     embed = [":impl"],
     deps = [
-        "//comp/privateactionrunner/def",
-        "//pkg/config/mock",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

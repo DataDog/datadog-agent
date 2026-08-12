@@ -33,6 +33,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -61,10 +62,14 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
-func splitDeploymentEnabled(cfg config.Component, goos string) bool {
+func splitDeploymentSupported(goos string, containerized bool) bool {
+	if containerized {
+		return false
+	}
+
 	switch goos {
 	case "linux", "windows":
-		return cfg.GetBool(privateactionrunner.PARSplitEnabled)
+		return true
 	default:
 		return false
 	}
@@ -131,10 +136,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	if splitDeploymentEnabled(reqs.Config, runtime.GOOS) {
-		reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
-		reqs.Log.Flush()
-		return Provides{}, privateactionrunner.ErrSplitDeployment
+	if reqs.Config.GetBool(privateactionrunner.PARSplitEnabled) {
+		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized()) {
+			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
+			reqs.Log.Flush()
+			return Provides{}, privateactionrunner.ErrSplitDeployment
+		}
+		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
 	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
