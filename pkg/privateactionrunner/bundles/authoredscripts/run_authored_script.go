@@ -9,21 +9,48 @@ import (
 	"context"
 	"errors"
 
+	authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
+// RunAuthoredScriptHandler executes the package authorized for an authored action.
 type RunAuthoredScriptHandler struct {
+	runner *authoredscripts.Runner
 }
 
-func NewRunAuthoredScriptHandler() *RunAuthoredScriptHandler {
-	return &RunAuthoredScriptHandler{}
+func NewRunAuthoredScriptHandler(runner *authoredscripts.Runner) *RunAuthoredScriptHandler {
+	return &RunAuthoredScriptHandler{runner: runner}
+}
+
+// RunAuthoredScriptOutputs contains the process result returned by an authored action.
+type RunAuthoredScriptOutputs struct {
+	ExitCode       int    `json:"exitCode"`
+	Stdout         string `json:"stdout"`
+	Stderr         string `json:"stderr"`
+	DurationMillis int    `json:"durationMillis"`
 }
 
 func (h *RunAuthoredScriptHandler) Run(
-	_ context.Context,
-	_ *types.Task,
+	ctx context.Context,
+	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	return nil, errors.New("authored script execution is not implemented")
+	if h == nil || h.runner == nil {
+		return nil, errors.New("authored-script runner is not configured")
+	}
+	if task == nil || task.Data.Attributes == nil {
+		return nil, errors.New("authored-script task is required")
+	}
+
+	result, err := h.runner.Run(ctx, task.GetFQN(), task.Data.Attributes.Inputs)
+	if err != nil {
+		return nil, err
+	}
+	return &RunAuthoredScriptOutputs{
+		ExitCode:       result.ExitCode,
+		Stdout:         result.Stdout,
+		Stderr:         result.Stderr,
+		DurationMillis: int(result.Duration.Milliseconds()),
+	}, nil
 }

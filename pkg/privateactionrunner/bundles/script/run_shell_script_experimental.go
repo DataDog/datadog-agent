@@ -15,6 +15,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	commandsupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/command"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/tempfile"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -84,7 +85,7 @@ func (h *RunShellScriptHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}
-	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(maxOutputSize)
+	stdoutWriter, stderrWriter := commandsupport.NewLimitedOutputPair(maxOutputSize)
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
 	start := time.Now()

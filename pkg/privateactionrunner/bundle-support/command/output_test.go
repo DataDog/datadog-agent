@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package com_datadoghq_script
+package command
 
 import (
 	"sync"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestLimitedWriter_UnderLimit(t *testing.T) {
-	stdout, stderr := newLimitedStdoutStderrWritersPair(100)
+	stdout, stderr := NewLimitedOutputPair(100)
 
 	n, err := stdout.Write([]byte("hello"))
 	require.NoError(t, err)
@@ -31,7 +31,7 @@ func TestLimitedWriter_UnderLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_ExactLimit(t *testing.T) {
-	stdout, stderr := newLimitedStdoutStderrWritersPair(10)
+	stdout, stderr := NewLimitedOutputPair(10)
 
 	n, err := stdout.Write([]byte("12345"))
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestLimitedWriter_ExactLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_ExceedsLimit(t *testing.T) {
-	stdout, stderr := newLimitedStdoutStderrWritersPair(10)
+	stdout, stderr := NewLimitedOutputPair(10)
 
 	n, err := stdout.Write([]byte("12345678"))
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestLimitedWriter_ExceedsLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_SubsequentWritesAfterLimit(t *testing.T) {
-	stdout, stderr := newLimitedStdoutStderrWritersPair(5)
+	stdout, stderr := NewLimitedOutputPair(5)
 
 	_, err := stdout.Write([]byte("12345"))
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestLimitedWriter_SubsequentWritesAfterLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_SingleWriterExceedsLimit(t *testing.T) {
-	stdout, stderr := newLimitedStdoutStderrWritersPair(5)
+	stdout, stderr := NewLimitedOutputPair(5)
 
 	n, err := stdout.Write([]byte("0123456789"))
 	assert.ErrorIs(t, err, errOutputLimitExceeded)
@@ -99,7 +99,7 @@ func TestLimitedWriter_SingleWriterExceedsLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_SharedCounter(t *testing.T) {
-	stdout, stderr := newLimitedStdoutStderrWritersPair(10)
+	stdout, stderr := NewLimitedOutputPair(10)
 
 	// Alternate writes between stdout and stderr
 	stdout.Write([]byte("aa"))  // shared = 2
@@ -117,7 +117,7 @@ func TestLimitedWriter_SharedCounter(t *testing.T) {
 
 func TestLimitedWriter_ConcurrentWrites(t *testing.T) {
 	const limit int64 = 1024
-	stdout, stderr := newLimitedStdoutStderrWritersPair(limit)
+	stdout, stderr := NewLimitedOutputPair(limit)
 
 	chunk := []byte("abcdefghij") // 10 bytes per write
 	var wg sync.WaitGroup

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "authoredscripts",
+    srcs = [
+        "catalog.go",
+        "command.go",
+        "environment.go",
+        "execution.go",
+        "manifest.go",
+        "package.go",
+        "process_linux.go",
+        "process_other.go",
+        "provider.go",
+        "runner.go",
+        "session.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/authoredscripts",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/tmpl",
+        "//pkg/privateactionrunner/adapters/workflowjsonschema",
+        "//pkg/privateactionrunner/artifacts",
+        "//pkg/privateactionrunner/bundle-support/command",
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)

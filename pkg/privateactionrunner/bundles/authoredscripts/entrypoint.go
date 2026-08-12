@@ -6,16 +6,18 @@
 package com_datadoghq_authoredscripts
 
 import (
+	authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
+// AuthoredScripts routes every action in the authored-scripts namespace to the package runner.
 type AuthoredScripts struct {
 	runAuthoredScript types.Action
 }
 
-func NewAuthoredScripts() *AuthoredScripts {
+func NewAuthoredScripts(runner *authoredscripts.Runner) *AuthoredScripts {
 	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(),
+		runAuthoredScript: NewRunAuthoredScriptHandler(runner),
 	}
 }
 

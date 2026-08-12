@@ -9,6 +9,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -107,6 +108,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RunnerId:                    runnerID,
 		Urn:                         urn,
 		DatadogSite:                 ddSite,
+		ArtifactsDirectory:          filepath.Join(config.GetString("run_path"), "artifacts"),
 	}, nil
 }
 

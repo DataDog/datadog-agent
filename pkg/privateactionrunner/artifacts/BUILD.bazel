@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "artifacts",
+    srcs = [
+        "catalog.go",
+        "local_provider.go",
+        "provider.go",
+        "resolver.go",
+        "static_catalog.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/artifacts",
+    visibility = ["//visibility:public"],
+)

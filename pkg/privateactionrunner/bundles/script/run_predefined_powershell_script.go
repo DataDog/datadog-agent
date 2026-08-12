@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
+	commandsupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/command"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -97,7 +98,7 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	}
 
 	cmd := newPowershellCommand(ctx, evaluatedScript, script.AllowedEnvVars)
-	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(defaultMaxOutputSize)
+	stdoutWriter, stderrWriter := commandsupport.NewLimitedOutputPair(defaultMaxOutputSize)
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
 	start := time.Now()

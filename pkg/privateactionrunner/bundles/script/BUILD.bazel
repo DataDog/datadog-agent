@@ -8,7 +8,7 @@ go_library(
         "enrich_script.go",
         "entrypoint.go",
         "helper.go",
-        "limited_writer.go",
+        "output_limit.go",
         "powershell_helpers.go",
         "run_predefined_powershell_script.go",
         "run_predefined_powershell_script_nonwindows.go",
@@ -27,9 +27,9 @@ go_library(
         "//pkg/privateactionrunner/adapters/tmpl",
         "//pkg/privateactionrunner/adapters/workflowjsonschema",
         "//pkg/privateactionrunner/bundle-support",
+        "//pkg/privateactionrunner/bundle-support/command",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
         "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
@@ -98,10 +98,7 @@ go_library(
 
 dd_agent_go_test(
     name = "script_test",
-    srcs = [
-        "limited_writer_test.go",
-        "transform_inline_script_test.go",
-    ],
+    srcs = ["transform_inline_script_test.go"],
     embed = [":script"],
     deps = [
         "@com_github_stretchr_testify//assert",

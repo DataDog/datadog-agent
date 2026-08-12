@@ -16,6 +16,8 @@ go_library(
         "//comp/networkpath/traceroute/def",
         "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/artifacts",
+        "//pkg/privateactionrunner/authoredscripts",
         "//pkg/privateactionrunner/bundles/authoredscripts",
         "//pkg/privateactionrunner/bundles/gitlab/branches",
         "//pkg/privateactionrunner/bundles/gitlab/commits",

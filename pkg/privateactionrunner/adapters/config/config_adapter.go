@@ -35,6 +35,10 @@ type Config struct {
 	Urn                         string
 	Tags                        []observability.Tag
 
+	// ArtifactsDirectory contains artifacts made available to PAR before execution.
+	// TODO: Remove this path when Fleet's artifact provider is available to PAR.
+	ArtifactsDirectory string
+
 	// RemoteConfig related fields
 	DatadogSite string
 
