@@ -3903,14 +3903,14 @@
   
 
 
-<h1 id="python-tracking-and-troubleshooting">Python tracking and troubleshooting<a class="headerlink" href="#python-tracking-and-troubleshooting" title="Permanent link">&para;</a></h1>
+<h1 id="python-tracking-and-troubleshooting">Python tracking and troubleshooting</h1>
 <p>Python, another runtime in the Agent process, is also garbage collected.
 Datadog offers two tools with the Agent that can help you identify memory issues:</p>
 <ul>
 <li>Python memory telemetry (Python 3 only)</li>
 <li>Tracemalloc</li>
 </ul>
-<h3 id="python-memory-telemetry">Python memory telemetry<a class="headerlink" href="#python-memory-telemetry" title="Permanent link">&para;</a></h3>
+<h3 id="python-memory-telemetry">Python memory telemetry</h3>
 <p>Python memory telemetry hooks into low-level allocator routines, to
 provide a coarse view of the total memory allocated by the Python
 memory manager.</p>
@@ -3946,7 +3946,7 @@ larger than the memory actually used by the Python code.</p>
 allocator (See <a href="https://docs.python.org/3/c-api/memory.html">Memory management</a> in the Python manual). It does not
 include memory allocated by native extensions and libraries directly
 via libc.</p>
-<h3 id="tracemalloc">Tracemalloc<a class="headerlink" href="#tracemalloc" title="Permanent link">&para;</a></h3>
+<h3 id="tracemalloc">Tracemalloc</h3>
 <p>Tracemalloc is part of the CPython interpreter, and tracks allocations and
 frees. It's implemented efficiently and runs with relatively low overhead.
 It also allows the user to compare memory in different points in time to
