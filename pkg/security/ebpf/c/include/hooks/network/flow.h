@@ -695,26 +695,35 @@ __attribute__((always_inline)) int register_connected_flow(struct sock *sk, u64 
     return 0;
 }
 
-// The socket returned by accept() holds the concrete local address the connection landed on, which
-// the BIND_ENTRY of a wildcard listener doesn't cover. Before Linux 7.0 that IPv6 socket was classified
-// on its first transmit, causing security_sk_classify_flow to be called and classify the flow.
-// Starting with Linux 7.0 that security_sk_classify_flow call is only done on a route miss in inet6_csk_xmit,
-// this means that we miss the classification in the hit case.
-__attribute__((always_inline)) int register_accepted_flow(struct sock *sk) {
-    // Only native IPv6 sockets lost that classification with Linux 7.0, IPv4 always reaches
-    // security_sk_classify_flow, so the flow registration is already handled by the security_sk_classify_flow hook
+// Before Linux 7.0 an IPv6 socket was classified on its first transmit, once its source address and port
+// were known. Starting with Linux 7.0 inet6_csk_xmit only calls security_sk_classify_flow on a route miss.
+__attribute__((always_inline)) int register_native_ipv6_flow(struct sock *sk, u64 pid_tgid) {
+    // IPv4 and ipv4 mapped addresses still reach security_sk_classify_flow with a usable flow
     if (get_family_from_sock_common((void *)sk) != AF_INET6) {
         return 0;
     }
 
     u64 addr[2] = {};
     bpf_probe_read(&addr, sizeof(addr), &sk->__sk_common.skc_v6_rcv_saddr);
-    // ipv4 mapped addresses already go through the security_sk_classify_flow path
     if (is_ipv4_mapped_ipv6_addr(addr)) {
         return 0;
     }
 
-    return register_connected_flow(sk, bpf_get_current_pid_tgid());
+    return register_connected_flow(sk, pid_tgid);
+}
+
+// the BIND_ENTRY of a wildcard listener doesn't cover the local address the connection landed on
+__attribute__((always_inline)) int register_accepted_flow(struct sock *sk) {
+    return register_native_ipv6_flow(sk, bpf_get_current_pid_tgid());
+}
+
+// tcp_v6_connect classifies the flow before inet_hash_connect assigns the ephemeral port
+__attribute__((always_inline)) int register_connecting_flow(struct sock *sk, u64 pid_tgid) {
+    if (sk == NULL) {
+        return 0;
+    }
+
+    return register_native_ipv6_flow(sk, pid_tgid);
 }
 
 #endif
