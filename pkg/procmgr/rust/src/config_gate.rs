@@ -25,6 +25,7 @@ mod yaml_load;
 
 use env_bindings::{env_bool_for_config_key, env_configured_for_key, env_string_for_config_key};
 
+use crate::env::expand_env_vars;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -391,9 +392,10 @@ pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
 
     let mut yaml = YamlCache(HashMap::new());
     conditions.iter().any(|file| {
+        let path = expand_env_vars(&file.path);
         file.keys.iter().any(|key| {
-            config_key_enabled(&file.path, key, &mut yaml).unwrap_or_else(|err| {
-                log::debug!("condition_config_any: {} key {key}: {err:#}", file.path);
+            config_key_enabled(&path, key, &mut yaml).unwrap_or_else(|err| {
+                log::debug!("condition_config_any: {path} key {key}: {err:#}");
                 false
             })
         })
@@ -553,9 +555,10 @@ pub fn condition_config_summary(conditions: &[ConditionConfigFile]) -> String {
     conditions
         .iter()
         .flat_map(|file| {
+            let path = expand_env_vars(&file.path);
             file.keys
                 .iter()
-                .map(move |key| format!("{}:{}", file.path, key))
+                .map(move |key| format!("{path}:{key}"))
         })
         .collect::<Vec<_>>()
         .join(", ")
@@ -1942,6 +1945,28 @@ process_config:
             assert!(!condition_config_any_met(
                 &process_agent_windows_conditions(agent, sysprobe)
             ));
+        });
+    }
+
+    #[test]
+    fn condition_config_any_expands_dd_conf_dir_in_path() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let conf_dir = dir.path().join("agent-conf");
+            std::fs::create_dir_all(&conf_dir).unwrap();
+            write_config(
+                &conf_dir,
+                "datadog.yaml",
+                "process_config:\n  process_collection:\n    enabled: true\n",
+            );
+            let _conf = EnvGuard::set("DD_CONF_DIR", conf_dir.to_string_lossy().as_ref());
+            let conditions = vec![ConditionConfigFile {
+                path: "${DD_CONF_DIR}/datadog.yaml".into(),
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
         });
     }
 
