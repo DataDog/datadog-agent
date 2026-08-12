@@ -102,7 +102,7 @@ func NewProcessKillerOS(killFunc func(pid, sig uint32) error, cgroupResolver *cg
 	}
 }
 
-// KillCgroup kills every process of the target cgroup, and of its descendant cgroups, at once
+// KillCgroup kills every process of the target cgroup at once
 func (p *ProcessKillerLinux) KillCgroup(target cgroupKillTarget) error {
 	if p.cgroupKiller == nil {
 		return errCgroupKillUnavailable

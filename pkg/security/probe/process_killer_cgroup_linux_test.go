@@ -110,6 +110,22 @@ func TestCgroupKillerRefusesAgentOwnCgroup(t *testing.T) {
 	assert.NoError(t, killer.kill(cgroupKillTarget{id: "/kubepods/podother", inode: otherInode}), "unrelated cgroups must still be killable")
 }
 
+func TestCgroupKillerRefusesCgroupWithDescendants(t *testing.T) {
+	// cgroup.kill also kills the processes of descendant cgroups, and those are not part of the
+	// pid list the caller checked against the excluded binaries. Killing only what has been
+	// checked means leaving these cgroups to the per-process path.
+	base := t.TempDir()
+	dir, inode := fakeCgroup(t, base, "/kubepods/podabc")
+	fakeCgroup(t, base, "/kubepods/podabc/child")
+
+	killer := &cgroupKiller{bases: []string{base}}
+	assert.Error(t, killer.kill(cgroupKillTarget{id: "/kubepods/podabc", inode: inode}))
+
+	content, err := os.ReadFile(filepath.Join(dir, cgroupKillFile))
+	require.NoError(t, err)
+	assert.Empty(t, content, "nothing should have been written to cgroup.kill")
+}
+
 func TestCgroupKillerRejectsUnsafeCgroupIDs(t *testing.T) {
 	base := t.TempDir()
 	_, inode := fakeCgroup(t, base, "/kubepods/podabc")

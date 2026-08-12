@@ -13,5 +13,5 @@ enhancements:
     since Linux 5.14. The kernel handles concurrent forks and process migrations
     itself, so a forking process can no longer outrun the kill. Hosts that do not
     provide a pure cgroup v2 hierarchy, kill actions using a signal other than
-    ``SIGKILL``, and cgroups that cannot be killed at once still fall back to
-    signalling each process individually.
+    ``SIGKILL``, cgroups that have child cgroups, and cgroups that cannot be
+    killed at once still fall back to signalling each process individually.
