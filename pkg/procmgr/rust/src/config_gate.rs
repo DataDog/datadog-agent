@@ -178,31 +178,18 @@ impl GatedKeySpec {
     }
 }
 
-fn agent_datadog_yaml(config_path: &str) -> String {
-    let path = Path::new(config_path);
-    if path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.eq_ignore_ascii_case("datadog.yaml"))
-    {
-        return config_path.to_owned();
-    }
-    path.parent()
-        .map(|dir| dir.join("datadog.yaml"))
-        .map(|joined| joined.to_string_lossy().into_owned())
-        .unwrap_or_else(|| config_path.to_owned())
-}
-
 pub(super) struct YamlCache(HashMap<String, serde_yaml::Value>);
 
 impl YamlCache {
-    /// Mirrors `pkg/config/setup/config_windows.go` `FleetConfigOverride`: env → datadog.yaml → registry/default.
+    /// Mirrors system-probe/agent fleet policy loading: env → gated config file → registry/default.
+    ///
+    /// System-probe gates do not inherit `fleet_policies_dir` from sibling `datadog.yaml`
+    /// (matches `applyFleetPolicy` on the system-probe config object).
     fn fleet_policies_dir(&mut self, config_path: &str) -> anyhow::Result<Option<String>> {
         if let Some(dir) = env_bindings::env_var_value_for_name("DD_FLEET_POLICIES_DIR") {
             return Ok(Some(dir));
         }
-        let agent = agent_datadog_yaml(config_path);
-        if let Some(dir) = self.fleet_policies_dir_in_yaml(&agent)? {
+        if let Some(dir) = self.fleet_policies_dir_in_yaml(config_path)? {
             return Ok(Some(dir));
         }
         #[cfg(windows)]
@@ -216,8 +203,8 @@ impl YamlCache {
         }
     }
 
-    fn fleet_policies_dir_in_yaml(&mut self, agent_yaml: &str) -> anyhow::Result<Option<String>> {
-        let Some(value) = self.dotted_key_if_exists(agent_yaml, "fleet_policies_dir")? else {
+    fn fleet_policies_dir_in_yaml(&mut self, config_path: &str) -> anyhow::Result<Option<String>> {
+        let Some(value) = self.dotted_key_if_exists(config_path, "fleet_policies_dir")? else {
             return Ok(None);
         };
         Self::string_value(value)
@@ -1171,7 +1158,81 @@ process_config:
     }
 
     #[test]
-    fn fleet_policies_dir_from_agent_yaml_when_config_path_is_system_probe() {
+    fn fleet_policies_dir_from_system_probe_yaml_enables_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "network_config:\n  enabled: true\n",
+            );
+            let fleet_dir_str = fleet_dir.to_string_lossy();
+            write_config(dir.path(), "datadog.yaml", "# empty\n");
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                &format!(
+                    "fleet_policies_dir: {fleet_dir_str}\nnetwork_config:\n  enabled: false\n"
+                ),
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: sysprobe,
+                keys: vec!["network_config.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn fleet_policies_dir_in_datadog_yaml_ignored_for_system_probe_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let fleet_dir = dir.path().join("fleet");
+            let other_fleet_dir = dir.path().join("other-fleet");
+            std::fs::create_dir(&fleet_dir).unwrap();
+            std::fs::create_dir(&other_fleet_dir).unwrap();
+            write_config(
+                &fleet_dir,
+                "system-probe.yaml",
+                "network_config:\n  enabled: true\n",
+            );
+            write_config(
+                &other_fleet_dir,
+                "system-probe.yaml",
+                "network_config:\n  enabled: false\n",
+            );
+            let fleet_dir_str = fleet_dir.to_string_lossy();
+            let other_fleet_dir_str = other_fleet_dir.to_string_lossy();
+            write_config(
+                dir.path(),
+                "datadog.yaml",
+                &format!("fleet_policies_dir: {other_fleet_dir_str}\n"),
+            );
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                &format!(
+                    "fleet_policies_dir: {fleet_dir_str}\nnetwork_config:\n  enabled: false\n"
+                ),
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: sysprobe,
+                keys: vec!["network_config.enabled".into()],
+            }];
+            assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    /// Linux/non-Windows: no registry fallback, so datadog-only fleet dir must not apply.
+    #[cfg(not(windows))]
+    #[test]
+    fn fleet_policies_dir_only_in_datadog_yaml_ignored_for_system_probe_gate() {
         with_env_lock(|| {
             clear_gated_env_vars();
 
@@ -1189,17 +1250,16 @@ process_config:
                 "datadog.yaml",
                 &format!("fleet_policies_dir: {fleet_dir_str}\n"),
             );
-            let sysprobe = dir.path().join("system-probe.yaml");
-            write_config(
+            let sysprobe = write_config(
                 dir.path(),
                 "system-probe.yaml",
                 "network_config:\n  enabled: false\n",
             );
             let conditions = vec![ConditionConfigFile {
-                path: sysprobe.to_string_lossy().into_owned(),
+                path: sysprobe,
                 keys: vec!["network_config.enabled".into()],
             }];
-            assert!(condition_config_any_met(&conditions));
+            assert!(!condition_config_any_met(&conditions));
         });
     }
 
