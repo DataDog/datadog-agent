@@ -3,12 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Platform paths par-control needs before it has read any configuration.
+//! Platform paths needed before configuration is loaded.
 //!
-//! Deliberately a small copy of the equivalent helpers in
-//! `pkg/procmgr/rust/src/platform/windows.rs`. Sharing them would mean
-//! extracting a crate out of the shipped dd-procmgrd daemon; keep the two in
-//! sync until that refactor happens.
+//! Keep the Windows helpers aligned with `pkg/procmgr/rust/src/platform/windows.rs`.
 
 #[cfg(windows)]
 mod imp {
@@ -36,11 +33,7 @@ mod imp {
         PathBuf::from(base).join("Datadog")
     }
 
-    /// Root directory for agent program data (config, logs).
-    ///
-    /// Mirrors `pkg/util/winutil.GetProgramDataDir` in Go and
-    /// `platform::program_data_root` in dd-procmgrd:
-    /// `HKLM\SOFTWARE\Datadog\Datadog Agent\ConfigRoot`, else `%ProgramData%\Datadog`.
+    /// Agent program-data root from `ConfigRoot`, or `%ProgramData%\Datadog`.
     pub fn program_data_root() -> PathBuf {
         open_datadog_agent_key()
             .and_then(|k| registry_nonempty_string(&k, "ConfigRoot"))
@@ -48,8 +41,7 @@ mod imp {
             .unwrap_or_else(default_program_data_root)
     }
 
-    /// `fleet_policies_dir` as written to the registry by the installer. Linux
-    /// passes the equivalent through `DD_FLEET_POLICIES_DIR` in the unit file.
+    /// `fleet_policies_dir` written by the Windows installer.
     pub fn fleet_policies_dir() -> Option<String> {
         open_datadog_agent_key().and_then(|k| registry_nonempty_string(&k, "fleet_policies_dir"))
     }
@@ -66,12 +58,9 @@ pub use imp::fleet_policies_dir;
 #[cfg(windows)]
 pub use imp::program_data_root;
 
-/// Default `datadog.yaml` location, matching the Agent's own default.
 pub fn default_config_path() -> &'static str {
     #[cfg(windows)]
     {
-        // The process-manager unit passes `--config` explicitly; this default only
-        // matters for interactive runs.
         r"C:\ProgramData\Datadog\datadog.yaml"
     }
     #[cfg(not(windows))]
@@ -80,15 +69,7 @@ pub fn default_config_path() -> &'static str {
     }
 }
 
-/// Where par-control should persist its own diagnostics, or `None` when stdout
-/// is durable.
-///
-/// On Windows, services normally have no inheritable stdout/stderr handles, so
-/// dd-procmgrd's `stdout: inherit` degrades to the null device
-/// (`stdio_from_config` in `pkg/procmgr/rust/src/process.rs`). Write to the
-/// standard agent log directory instead, exactly as dd-procmgrd does for
-/// itself. The path is derived from the program-data root rather than from
-/// `--config` so that relocating the config does not relocate the logs.
+/// Log to a file on Windows, where services normally lack stdout/stderr handles.
 pub fn default_log_file() -> Option<std::path::PathBuf> {
     #[cfg(windows)]
     {
@@ -96,7 +77,6 @@ pub fn default_log_file() -> Option<std::path::PathBuf> {
     }
     #[cfg(not(windows))]
     {
-        // dd-procmgrd inherits stdout into the agent's own logging.
         None
     }
 }

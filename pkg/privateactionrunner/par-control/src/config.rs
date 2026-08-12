@@ -77,9 +77,7 @@ impl Config {
     }
 }
 
-/// Load the Fleet Automation policy layered over the local configuration.
-/// A missing policy file is equivalent to an empty policy, matching the Agent
-/// config component's `MergeFleetPolicy` behavior.
+/// Load the Fleet policy; a missing file is an empty policy, as in `MergeFleetPolicy`.
 fn read_fleet_policy(dir: &str) -> Result<Option<RawConfig>> {
     if dir.is_empty() {
         return Ok(None);
@@ -99,7 +97,6 @@ fn read_fleet_policy(dir: &str) -> Result<Option<RawConfig>> {
         .map(Some)
 }
 
-/// A non-empty environment value wins over the YAML value.
 fn env_string(env: EnvLookup<'_>, name: &str, yaml_value: Option<String>) -> Option<String> {
     env(name).filter(|value| !value.is_empty()).or(yaml_value)
 }

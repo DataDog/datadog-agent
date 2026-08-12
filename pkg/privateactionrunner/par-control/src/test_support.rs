@@ -3,12 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! An in-process stand-in for `dd-procmgrd`, for tests that need to exercise the
-//! real gRPC client rather than a hand-rolled fake of our own trait.
-//!
-//! Deliberately returns a socket path rather than a built client: the client
-//! constructor changes as par-control gains configuration, and the harness
-//! should not have to change with it.
+//! In-process `dd-procmgrd` stand-in for testing the real gRPC client.
 
 use crate::proto::procmgr;
 use crate::proto::procmgr::process_manager_server::{ProcessManager, ProcessManagerServer};
@@ -16,12 +11,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tonic::{Request, Response, Status};
 
-/// Scripted process-manager behavior.
-///
-/// `states` is consumed one entry per `Describe` so a test can drive a state
-/// sequence; the final entry sticks, so a single-element script means "always
-/// this state". `None` means the process manager reports no detail at all, i.e.
-/// the definition has vanished.
+/// Scripted process-manager behavior. Each `Describe` consumes a state, with the
+/// final state repeated. `None` represents a missing process definition.
 #[derive(Default)]
 pub struct FakeProcmgr {
     states: Mutex<Vec<Option<i32>>>,
@@ -29,12 +20,10 @@ pub struct FakeProcmgr {
     stop_result: Mutex<Option<Status>>,
     starts: Mutex<Vec<String>>,
     stops: Mutex<Vec<String>>,
-    /// Accept the connection but never answer, to exercise RPC deadlines.
     hang: bool,
 }
 
 impl FakeProcmgr {
-    /// Always report `state`.
     pub fn in_state(state: procmgr::ProcessState) -> Arc<Self> {
         Arc::new(Self {
             states: Mutex::new(vec![Some(state as i32)]),
@@ -42,7 +31,6 @@ impl FakeProcmgr {
         })
     }
 
-    /// Report each state in turn, then stay in the last one.
     pub fn in_states(states: &[procmgr::ProcessState]) -> Arc<Self> {
         Arc::new(Self {
             states: Mutex::new(states.iter().map(|s| Some(*s as i32)).collect()),
@@ -50,7 +38,6 @@ impl FakeProcmgr {
         })
     }
 
-    /// Report no process detail: the definition is gone.
     pub fn vanished() -> Arc<Self> {
         Arc::new(Self {
             states: Mutex::new(vec![None]),
@@ -58,7 +45,6 @@ impl FakeProcmgr {
         })
     }
 
-    /// Accept connections but never answer any RPC.
     pub fn unresponsive() -> Arc<Self> {
         Arc::new(Self {
             hang: true,
@@ -66,7 +52,6 @@ impl FakeProcmgr {
         })
     }
 
-    /// Fail `Start` with `status`, reporting `state` beforehand.
     pub fn failing_start(state: procmgr::ProcessState, status: Status) -> Arc<Self> {
         Arc::new(Self {
             states: Mutex::new(vec![Some(state as i32)]),
@@ -75,12 +60,10 @@ impl FakeProcmgr {
         })
     }
 
-    /// Process names passed to `Start`, in order.
     pub fn started(&self) -> Vec<String> {
         self.starts.lock().unwrap().clone()
     }
 
-    /// Process names passed to `Stop`, in order.
     pub fn stopped(&self) -> Vec<String> {
         self.stops.lock().unwrap().clone()
     }
@@ -95,12 +78,7 @@ impl FakeProcmgr {
     }
 }
 
-/// Newtype so the trait impl has a local self type.
-///
-/// Under Bazel the generated bindings live in a foreign crate, so
-/// `impl ProcessManager for Arc<FakeProcmgr>` would break the orphan rule even
-/// though it compiles under `cargo`, where `include_proto!` generates the trait
-/// locally.
+/// Local newtype required by the orphan rule when Bazel supplies foreign bindings.
 #[derive(Clone)]
 pub struct FakeService(pub Arc<FakeProcmgr>);
 
@@ -154,8 +132,6 @@ impl ProcessManager for FakeService {
         }
     }
 
-    // The remaining RPCs are not part of par-control's contract with the daemon.
-
     async fn list(
         &self,
         _: Request<procmgr::ListRequest>,
@@ -192,10 +168,7 @@ impl ProcessManager for FakeService {
     }
 }
 
-/// Serve `fake` on a temporary Unix socket.
-///
-/// The returned [`tempfile::TempDir`] owns the socket, so callers must keep it
-/// alive for the duration of the test.
+/// Serve `fake` on a temporary socket owned by the returned directory.
 #[cfg(unix)]
 pub async fn serve_procmgr(fake: Arc<FakeProcmgr>) -> (PathBuf, tempfile::TempDir) {
     use tokio_stream::wrappers::UnixListenerStream;

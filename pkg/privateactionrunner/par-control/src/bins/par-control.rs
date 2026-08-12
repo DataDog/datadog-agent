@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! par-control installation and executor-lifecycle scaffold.
-
 use anyhow::Result;
 use clap::Parser;
 use par_control::config::Config;
@@ -22,9 +20,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    // Report the failure through the logger only. Returning `Err` from `main`
-    // would also have anyhow print it to stderr, which dd-procmgrd captures
-    // alongside the log, duplicating every failure.
+    // Avoid logging errors twice through both anyhow and dd-procmgrd's stderr capture.
     let code = match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -45,8 +41,7 @@ async fn run() -> Result<()> {
         .map_or(log::LevelFilter::Info, |c| c.log_level);
     if let Err(error) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
-        // The logger API requires a Level. Use Error for Off during
-        // initialization, then apply the exact filter below.
+        // The logger requires a Level; the filter below handles Off.
         level: log_level.to_level().unwrap_or(log::Level::Error),
         log_file: platform::default_log_file(),
     }) {
@@ -65,20 +60,12 @@ async fn run() -> Result<()> {
 
     tokio::select! {
         _ = shutdown_signal() => {
-            // Do not call back into dd-procmgrd here. It serializes every RPC
-            // through the loop in `ProcessManager::run`, and by the time we get
-            // a stop signal that loop is either gone (daemon shutdown stops the
-            // gRPC server before stopping processes) or blocked holding the
-            // process write lock inside `handle_stop`, waiting for this very
-            // process to exit. Either way an RPC would deadlock until
-            // `stop_timeout` expires and the job object kills us. dd-procmgrd
-            // owns both processes and stops the executor itself.
+            // Do not call dd-procmgrd here: its command loop may be waiting for
+            // par-control to exit while holding the process lock.
             log::info!("par-control is exiting");
             Ok(())
         }
         state = lifecycle.wait_for_failure() => {
-            // Only a genuine failure lands here; a clean exit or an explicit stop
-            // is the on-demand executor's normal idle path.
             Err(anyhow::anyhow!("executor failed with state {:?}", state?))
         }
     }
@@ -100,11 +87,7 @@ async fn shutdown_signal() {
     }
 }
 
-/// dd-procmgrd stops children with `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT)`
-/// (see `send_graceful_stop` in `pkg/procmgr/rust/src/platform/windows.rs`), so
-/// CTRL_BREAK is the event that matters in production; CTRL_C only covers
-/// interactive runs. Missing CTRL_BREAK would mean waiting out `stop_timeout`
-/// and being force-killed with the job object.
+/// Listen for the CTRL_BREAK event dd-procmgrd uses for graceful Windows stops.
 #[cfg(windows)]
 async fn shutdown_signal() {
     match tokio::signal::windows::ctrl_break() {

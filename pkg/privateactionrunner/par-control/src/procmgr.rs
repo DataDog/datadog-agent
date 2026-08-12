@@ -16,15 +16,9 @@ use tonic::transport::Channel;
 const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
 const STATE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
-/// Bounds each process-manager RPC. dd-procmgrd serializes every command
-/// through a single loop (`ProcessManager::run`), so one wedged operation stalls
-/// all callers; without a deadline par-control would wait forever on a socket
-/// that accepts connections but never answers, and would keep reporting itself
-/// healthy while the executor is gone.
+/// Bound RPCs because dd-procmgrd serializes commands through one loop.
 const PROCMGR_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Resolve dd-procmgrd's listening endpoint through the shared client so the
-/// daemon, CLI, and par-control follow the same platform and environment rules.
 pub fn default_socket_path() -> PathBuf {
     dd_procmgr_client::ipc_path()
 }
@@ -37,8 +31,6 @@ pub struct ProcmgrLifecycle {
 }
 
 impl ProcmgrLifecycle {
-    /// Build a client for the executor process, resolving dd-procmgrd's socket
-    /// from the environment exactly as the daemon does.
     pub fn from_env() -> Self {
         Self::with_socket(&default_socket_path(), EXECUTOR_PROCESS_NAME.to_string())
     }
@@ -80,10 +72,7 @@ impl ProcmgrLifecycle {
             .await;
         match result {
             Ok(_) => Ok(()),
-            // dd-procmgrd rejects Start when the executor is already alive. This
-            // is the normal path when par-control is restarted underneath a
-            // still-running executor, since the two are siblings under
-            // dd-procmgrd rather than parent and child.
+            // par-control can restart while its sibling executor remains alive.
             Err(RpcError::Status(status)) if status.code() == tonic::Code::FailedPrecondition => {
                 log::info!("executor {:?} is already running", self.process_name);
                 Ok(())
@@ -94,14 +83,8 @@ impl ProcmgrLifecycle {
         }
     }
 
-    /// Stop the executor.
-    ///
-    /// Never call this from par-control's own shutdown path. dd-procmgrd
-    /// serializes RPCs through the loop in `ProcessManager::run`, and that loop
-    /// is either gone (daemon shutdown, which stops the gRPC server before
-    /// stopping processes) or blocked holding the process write lock inside
-    /// `handle_stop` waiting for par-control itself to exit. Either way the call
-    /// deadlocks until `stop_timeout` expires and the job object kills us.
+    /// Stop the executor. Do not call this while par-control itself is stopping:
+    /// dd-procmgrd may hold the process lock while waiting for par-control to exit.
     pub async fn stop(&self) -> Result<()> {
         let result = self
             .rpc("Stop", |mut client, request| async move {
@@ -114,7 +97,6 @@ impl ProcmgrLifecycle {
             .await;
         match result {
             Ok(_) => Ok(()),
-            // Already stopped: nothing to reap.
             Err(RpcError::Status(status)) if status.code() == tonic::Code::FailedPrecondition => {
                 Ok(())
             }
@@ -124,14 +106,7 @@ impl ProcmgrLifecycle {
         }
     }
 
-    /// Watch the executor and return only when it has *failed*.
-    ///
-    /// A clean exit or an explicit stop is expected rather than fatal: the
-    /// executor is on-demand, so it exits 0 once it has been idle and is started
-    /// again on the next task. Treating that as an error would make par-control
-    /// exit non-zero, and dd-procmgrd's `restart: on-failure` would then restart
-    /// par-control, which would immediately re-spawn the executor and defeat idle
-    /// shutdown entirely.
+    /// Watch until the executor fails. Clean idle exits and explicit stops are expected.
     pub async fn wait_for_failure(&self) -> Result<procmgr::ProcessState> {
         let mut last_reported = None;
         loop {
@@ -147,8 +122,6 @@ impl ProcmgrLifecycle {
             }
             match state {
                 procmgr::ProcessState::Failed => return Ok(state),
-                // dd-procmgrd only reports Unknown if its own bookkeeping is
-                // broken; there is no state to wait for.
                 procmgr::ProcessState::Unknown => {
                     bail!(
                         "process-manager reports an unknown state for {:?}",
@@ -187,7 +160,6 @@ impl ProcmgrLifecycle {
             .transpose()
     }
 
-    /// Issue one RPC under [`PROCMGR_RPC_TIMEOUT`].
     async fn rpc<F, Fut, T>(&self, name: &str, call: F) -> std::result::Result<T, RpcError>
     where
         F: FnOnce(ProcessManagerClient<Channel>, String) -> Fut,
@@ -261,9 +233,6 @@ mod tests {
         assert_eq!(fake.started(), vec![TEST_PROCESS_NAME.to_string()]);
     }
 
-    /// Start is rejected when the executor is already alive. par-control is
-    /// restarted independently of the executor, so adopting it must not be an
-    /// error.
     #[cfg(unix)]
     #[tokio::test]
     async fn ensure_started_tolerates_an_already_running_executor() {
@@ -279,8 +248,6 @@ mod tests {
             .expect("an already-running executor is not an error");
     }
 
-    /// Any other Start failure must surface: a missing process definition means
-    /// the packaging is broken and par-control cannot do its job.
     #[cfg(unix)]
     #[tokio::test]
     async fn ensure_started_propagates_other_failures() {
@@ -295,10 +262,6 @@ mod tests {
         assert!(rendered.contains("not found"), "{rendered}");
     }
 
-    /// A clean exit is the idle-shutdown path and must not terminate the watch,
-    /// otherwise par-control would exit non-zero, get restarted by
-    /// dd-procmgrd's `restart: on-failure`, and immediately re-spawn the
-    /// executor it just let go idle.
     #[cfg(unix)]
     #[tokio::test]
     async fn wait_for_failure_ignores_clean_exits_and_stops() {
@@ -324,8 +287,6 @@ mod tests {
         assert!(rendered.contains("lost the definition"), "{rendered}");
     }
 
-    /// A socket that accepts but never answers must not hang par-control
-    /// forever; the RPC deadline turns it into a reportable error.
     #[cfg(unix)]
     #[tokio::test]
     async fn rpcs_time_out_against_an_unresponsive_daemon() {
@@ -338,7 +299,6 @@ mod tests {
 
     #[test]
     fn socket_path_prefers_the_daemon_environment_override() {
-        // Guarded: `default_socket_path` reads process-wide state.
         let previous = std::env::var_os("DD_PM_SOCKET_PATH");
         unsafe { std::env::set_var("DD_PM_SOCKET_PATH", "/tmp/custom-procmgrd.sock") };
         assert_eq!(
