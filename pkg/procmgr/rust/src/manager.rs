@@ -453,6 +453,15 @@ fn should_stop_running_after_reload(proc: &ManagedProcess, gate_was: Option<bool
     !proc.should_start()
 }
 
+/// Whether a process stopped for a config update should be respawned with the new definition.
+fn should_restart_after_config_update(proc: &ManagedProcess) -> bool {
+    if proc.config().auto_start {
+        proc.should_start()
+    } else {
+        proc.start_conditions_met()
+    }
+}
+
 /// Reconcile a config-managed process after reload: restart after definition change,
 /// stop when config gates close, or start when gates open.
 async fn reconcile_process_after_reload(
@@ -472,7 +481,7 @@ async fn reconcile_process_after_reload(
 
     if stopped_for_config_update {
         proc.wait_for_stop().await;
-        if want_start {
+        if should_restart_after_config_update(proc) {
             info!("[{}] restarting with updated config", proc.name());
             if let Err(e) = proc.spawn() {
                 warn!("[{}] failed to restart: {e:#}", proc.name());
@@ -855,6 +864,78 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_restarts_running_auto_start_false_after_config_change() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                ..sleep_def("action-executor").config
+            },
+        }]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, restart_tx) = reload_test_channels();
+
+        mgr.handle_start("action-executor", &exit_tx).await?;
+        let old_pid = mgr.processes().await[0].pid().unwrap();
+
+        config_loader.set(vec![ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                ..sleep_def_secs("action-executor", 120).config
+            },
+        }]);
+        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert!(result.modified.contains(&"action-executor".to_string()));
+
+        let procs = mgr.processes().await;
+        let expected_args = sleep_def_secs("_", 120).config.args;
+        assert_eq!(procs[0].config().args, expected_args);
+        assert!(
+            procs[0].is_running(),
+            "running auto_start=false process should restart after config change"
+        );
+        assert_ne!(procs[0].pid().unwrap(), old_pid);
+
+        test_helpers::cleanup_process(procs[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_auto_start_false_stopped_process_stays_stopped(
+    ) -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                ..sleep_def("action-executor").config
+            },
+        }]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, restart_tx) = reload_test_channels();
+
+        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_stop("action-executor").await?;
+
+        config_loader.set(vec![ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                ..sleep_def_secs("action-executor", 120).config
+            },
+        }]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(procs[0].state(), ProcessState::Stopped);
+        assert!(
+            !procs[0].is_running(),
+            "stopped auto_start=false process should not restart after config change"
+        );
         Ok(())
     }
 
