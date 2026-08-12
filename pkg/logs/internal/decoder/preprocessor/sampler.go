@@ -89,19 +89,6 @@ func adaptiveSamplerLogHashTag(tokens []Token) string {
 	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
 }
 
-func adaptiveSamplerSeverityTag(level severityeventsdef.SeverityLevel) string {
-	switch level {
-	case severityeventsdef.SeverityLow:
-		return "low"
-	case severityeventsdef.SeverityMedium:
-		return "medium"
-	case severityeventsdef.SeverityHigh:
-		return "high"
-	default:
-		return "unknown"
-	}
-}
-
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
 type AdaptiveSamplerConfig struct {
 	// MaxPatterns is the maximum number of distinct patterns tracked simultaneously.
@@ -323,7 +310,7 @@ func (s *AdaptiveSampler) recordSmartSeverityOutcome(outcome string) {
 	if !s.config.SmartSeverityProfilesEnabled || !s.appliedLevelInitialized {
 		return
 	}
-	tlmAdaptiveSamplerOutcomes.Inc(adaptiveSamplerSeverityTag(s.appliedLevel), outcome)
+	tlmAdaptiveSamplerOutcomes.Inc(s.appliedLevel.String(), outcome)
 }
 
 // Process applies credit-based rate limiting to the message.

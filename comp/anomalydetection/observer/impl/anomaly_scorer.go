@@ -73,20 +73,6 @@ func nextSeverityLevel(ewma float64, current severityeventsdef.SeverityLevel, lo
 	return severityeventsdef.SeverityLow
 }
 
-// severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(l severityeventsdef.SeverityLevel) string {
-	switch l {
-	case severityeventsdef.SeverityLow:
-		return "Low"
-	case severityeventsdef.SeverityMedium:
-		return "Medium"
-	case severityeventsdef.SeverityHigh:
-		return "High"
-	default:
-		return fmt.Sprintf("SeverityLevel(%d)", int(l))
-	}
-}
-
 // ---------------------------------------------------------------------------
 // EWMA helpers
 // ---------------------------------------------------------------------------
@@ -691,8 +677,8 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 		pkglog.Infof("[observer] anomaly scorer %s severity %s to %s (was %s, t=%d)",
 			s.Name(),
 			direction,
-			severityLevelName(evt.ToLevel),
-			severityLevelName(evt.FromLevel),
+			evt.ToLevel.DisplayName(),
+			evt.FromLevel.DisplayName(),
 			evt.Timestamp,
 		)
 	}

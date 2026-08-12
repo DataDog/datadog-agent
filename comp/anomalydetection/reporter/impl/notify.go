@@ -17,7 +17,6 @@ import (
 	"unicode/utf8"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -252,11 +251,11 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	switch evt.Kind {
 	case observerdef.CorrelatorEventEpisodeStarted:
 		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
-			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+			evt.FromLevel.String(), evt.ToLevel.String())
 		direction = "started"
 	case observerdef.CorrelatorEventEpisodeEnded:
 		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
-			severityLevelName(evt.FromLevel), severityLevelName(evt.ToLevel))
+			evt.FromLevel.String(), evt.ToLevel.String())
 		direction = "ended"
 	default:
 		return fmt.Errorf("unsupported CorrelatorEventKind %d", evt.Kind)
@@ -303,8 +302,8 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 					"change_metadata": map[string]any{
 						"episode_pattern":   evt.Correlation.Pattern,
 						"episode_direction": direction,
-						"from_level":        severityLevelName(evt.FromLevel),
-						"to_level":          severityLevelName(evt.ToLevel),
+						"from_level":        evt.FromLevel.String(),
+						"to_level":          evt.ToLevel.String(),
 						"first_seen":        time.Unix(evt.Correlation.FirstSeen, 0).UTC().Format(time.RFC3339),
 						"last_updated":      time.Unix(evt.Correlation.LastUpdated, 0).UTC().Format(time.RFC3339),
 					},
@@ -332,20 +331,6 @@ func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observe
 			evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
 	}
 	return truncateBytesValidUTF8(message, changeEventMessageMaxLen)
-}
-
-// severityLevelName returns a human-readable label for a SeverityLevel.
-func severityLevelName(level severityeventsdef.SeverityLevel) string {
-	switch level {
-	case severityeventsdef.SeverityLow:
-		return "low"
-	case severityeventsdef.SeverityMedium:
-		return "medium"
-	case severityeventsdef.SeverityHigh:
-		return "high"
-	default:
-		return fmt.Sprintf("level(%d)", int(level))
-	}
 }
 
 // buildChangeEventPayload returns the v2 Events API JSON envelope for a
