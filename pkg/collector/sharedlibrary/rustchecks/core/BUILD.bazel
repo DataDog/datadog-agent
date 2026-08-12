@@ -1,4 +1,4 @@
-load("@rules_rust//rust:defs.bzl", "rust_library")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 
 # Rust shared-library checks are Linux-only (see the omnibus/agent.build wiring;
 # the loader only ships them on Linux).
@@ -20,4 +20,12 @@ rust_library(
         "@crates//:serde",
         "@crates//:serde_yaml",
     ],
+)
+
+# Unit tests embedded in the crate sources (run with `bazel test`).
+rust_test(
+    name = "shlib_core_test",
+    crate = ":shlib_core",
+    edition = "2024",
+    target_compatible_with = _LINUX,
 )

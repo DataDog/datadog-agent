@@ -57,7 +57,7 @@ func (t *ADTemplateIssue) BuildIssue(context map[string]string) (*healthplatform
 	return &healthplatform.Issue{
 		IssueName:   templateIssueName,
 		IssueType:   templateIssueType,
-		Title:       templateIssueName + " on '" + entityName + "'",
+		Title:       fmt.Sprintf("%s on %q", templateIssueName, entityName),
 		Description: "Autodiscovery template resolution error: " + errorMessage,
 		Category:    category,
 		Location:    location,

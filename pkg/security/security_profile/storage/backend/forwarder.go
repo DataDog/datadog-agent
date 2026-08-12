@@ -7,10 +7,10 @@
 package backend
 
 import (
-	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -88,37 +88,51 @@ func writeDump(writer *multipart.Writer, raw []byte) error {
 	return nil
 }
 
-func buildBody(header []byte, data []byte) (*multipart.Writer, *bytes.Buffer, error) {
-	body := bytes.NewBuffer(nil)
-	var multipartWriter *multipart.Writer
+// sendToEndpoint streams the multipart body straight into the HTTP request instead of
+// materializing the whole gzipped payload in memory (encoding chain: protobuf dump -> multipart
+// -> gzip -> io.Pipe -> request body).
+func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey string, header []byte, data []byte) error {
+	boundary := multipart.NewWriter(io.Discard).Boundary()
+	contentType := "multipart/form-data; boundary=" + boundary
 
-	compressor := gzip.NewWriter(body)
-	defer compressor.Close()
-
-	multipartWriter = multipart.NewWriter(compressor)
-	defer multipartWriter.Close()
-
-	if err := writeEventMetadata(multipartWriter, header); err != nil {
-		return nil, nil, err
+	newBody := func() (io.ReadCloser, error) {
+		pr, pw := io.Pipe()
+		go func() {
+			err := func() error {
+				gzipWriter := gzip.NewWriter(pw)
+				multipartWriter := multipart.NewWriter(gzipWriter)
+				if err := multipartWriter.SetBoundary(boundary); err != nil {
+					return err
+				}
+				if err := writeEventMetadata(multipartWriter, header); err != nil {
+					return err
+				}
+				if err := writeDump(multipartWriter, data); err != nil {
+					return err
+				}
+				if err := multipartWriter.Close(); err != nil {
+					return err
+				}
+				return gzipWriter.Close()
+			}()
+			_ = pw.CloseWithError(err)
+		}()
+		return pr, nil
 	}
 
-	if err := writeDump(multipartWriter, data); err != nil {
-		return nil, nil, err
-	}
-	return multipartWriter, body, nil
-}
+	body, _ := newBody()
 
-func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey string, writer *multipart.Writer, body *bytes.Buffer) error {
-	r, err := http.NewRequest("POST", url, bytes.NewBuffer(body.Bytes()))
+	r, err := http.NewRequest("POST", url, body)
 	if err != nil {
+		// Unblock the writer goroutine, which is otherwise waiting on a reader for the pipe.
+		_ = body.Close()
 		return err
 	}
-	r.Header.Add("Content-Type", writer.FormDataContentType())
-	r.Header.Add("dd-api-key", apiKey)
 
-	if /*request.Compression*/ true {
-		r.Header.Set("Content-Encoding", "gzip")
-	}
+	r.GetBody = newBody
+	r.Header.Set("Content-Type", contentType)
+	r.Header.Set("dd-api-key", apiKey)
+	r.Header.Set("Content-Encoding", "gzip")
 
 	resp, err := backend.client.Do(r)
 	if err != nil {
@@ -136,11 +150,6 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 
 // HandleActivityDump sends the activity dump to the remote backend
 func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error {
-	writer, body, err := buildBody(header, data)
-	if err != nil {
-		return fmt.Errorf("couldn't build request: %w", err)
-	}
-
 	// The Multi-Region Failover (MRF) endpoint must only receive dumps while a failover is
 	// actually active. Activity dumps are shipped over the EvP (logs) intake, so they honor the
 	// `multi_region_failover.failover_logs` switch that Remote Configuration toggles during a
@@ -155,8 +164,8 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 
 		url := utils.GetEndpointURL(endpoint, "api/v2/secdump")
 
-		if err := backend.sendToEndpoint(url, endpoint.GetAPIKey(), writer, body); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), len(data), err)
+		if err := backend.sendToEndpoint(url, endpoint.GetAPIKey(), header, data); err != nil {
+			seclog.Warnf("couldn't sent activity dump to [%s, dump size: %d]: %v", url, len(data), err)
 		} else {
 			seclog.Infof("[%s] file for activity dump [image_name:%s image_tag:%s] successfully sent to [%s]", protobufFormat, imageName, imageTag, url)
 		}
