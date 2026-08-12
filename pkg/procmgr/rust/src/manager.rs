@@ -151,7 +151,7 @@ impl ProcessManager {
         #[cfg(windows)]
         if proc.complete_late_exit_cleanup(event.pid) {
             debug!(
-                "[{}] released Windows spawn resources after late exit (pid {})",
+                "[{}] released deferred Windows profile after late exit (pid {})",
                 proc.name(),
                 event.pid
             );
