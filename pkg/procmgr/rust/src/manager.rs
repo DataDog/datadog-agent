@@ -494,8 +494,9 @@ impl ProcessManager {
 
         let mgr = self.clone();
         tokio::spawn(async move {
-            let deadline = Instant::now() + ManagedProcess::FORCE_KILL_TIMEOUT;
-            while Instant::now() < deadline {
+            let started = Instant::now();
+            let mut warned = false;
+            loop {
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 if mgr.try_finish_deferred_job_drain(&name, pid).await {
                     debug!(
@@ -503,9 +504,36 @@ impl ProcessManager {
                     );
                     return;
                 }
+                if !mgr.deferred_job_drain_pending(&name, pid).await {
+                    debug!(
+                        "[{name}] deferred job drain finished elsewhere (pid {pid})"
+                    );
+                    return;
+                }
+                if !warned && started.elapsed() >= ManagedProcess::FORCE_KILL_TIMEOUT {
+                    warn!(
+                        "[{name}] deferred job drain still waiting for job members to exit (pid {pid})"
+                    );
+                    warned = true;
+                }
             }
-            warn!("[{name}] deferred job drain timed out (pid {pid})");
         });
+    }
+
+    #[cfg(windows)]
+    async fn deferred_job_drain_pending(&self, name: &str, pid: u32) -> bool {
+        {
+            let procs = self.processes.read().await;
+            if let Some(proc) = procs.iter().find(|p| p.name() == name) {
+                if proc.has_deferred_job_drain(pid) {
+                    return true;
+                }
+            }
+        }
+        let orphaned = self.orphaned_deferred_exit_cleanups.read().await;
+        orphaned.iter().any(|entry| {
+            entry.name == name && entry.pid == pid && entry.job_object.is_some()
+        })
     }
 
     #[cfg(windows)]
