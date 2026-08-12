@@ -91,12 +91,8 @@ bazel:test:macos-arm64:
 # time fail. This job covers everything but the Go tests.
 bazel:test:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
-  artifacts:
-    paths:
-      - exec_python_CI.log
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel build @cpython//:python_win --execution_log_compact_file=exec_python_CI.log;
       bazel test --config=gorace --config=no-dd-agent-go-tests --keep_going //... --
       -//test/new-e2e/...
       -//bazel/rules/dd_packaging/...
