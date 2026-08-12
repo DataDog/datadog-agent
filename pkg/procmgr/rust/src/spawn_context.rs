@@ -5,6 +5,7 @@
 
 //! Shared spawn error messages for platform backends.
 
+#[cfg(unix)]
 pub(crate) fn failed_message(process_name: &str, command: &str) -> String {
     format!("[{process_name}] failed to spawn: {command}")
 }
