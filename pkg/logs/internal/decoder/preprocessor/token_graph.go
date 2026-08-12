@@ -45,31 +45,50 @@ func (m *TokenGraph) add(ts []Token) {
 	}
 }
 
+// leadingRun returns the number of matching transitions at the start of ts, stopping
+// at the first transition the graph does not contain.
+func (m *TokenGraph) leadingRun(ts []Token) int {
+	n := 0
+	for i := 0; i+1 < len(ts); i++ {
+		row := m.adjacencies[ts[i]]
+		if row == nil || !row[ts[i+1]] {
+			break
+		}
+		n++
+	}
+	return n
+}
+
 // MatchProbability returns the probability of a sequence of tokens being represented by the graph.
 func (m *TokenGraph) MatchProbability(ts []Token) MatchContext {
 	if len(ts) < m.minimumTokenLength {
 		return MatchContext{}
 	}
 
+	// A long enough run of matches at the very start of the input is a full match,
+	// whatever follows it. maxSubsequence maximises the sum rather than the average,
+	// so it keeps extending past such a run while the running total still climbs,
+	// and the extra tokens dilute the average it reports. A line that opens with an
+	// exact match would otherwise be scored on that diluted window. Answering here
+	// also skips the scan below, which is the common case for lines that start a log.
+	//
+	// A run of zero is not a match, even where minimumTokenLength is also zero.
+	if run := m.leadingRun(ts); run > 0 && run >= m.minimumTokenLength {
+		return MatchContext{
+			probability: 1,
+			start:       0,
+			end:         run,
+		}
+	}
+
 	lastToken := ts[0]
-	prefixRun := 0
-	inPrefixRun := true
 	// A function used by maxSubsequence to look up a match in the graph for a pair of tokens.
-	// maxSubsequence walks the indices in order, so the same pass also measures the
-	// leading run of matches.
 	matchForIndex := func(idx int) int {
 		match := -1
 		if m.adjacencies[lastToken] != nil && m.adjacencies[lastToken][ts[idx+1]] {
 			match = 1
 		}
 		lastToken = ts[idx+1]
-		if inPrefixRun {
-			if match == 1 {
-				prefixRun++
-			} else {
-				inPrefixRun = false
-			}
-		}
 		return match
 	}
 
@@ -78,21 +97,6 @@ func (m *TokenGraph) MatchProbability(ts []Token) MatchContext {
 	// This code may seem overcomplicated but it's designed this way to avoid allocating an additional buffer to
 	// store the matches while remaining testable and clear.
 	avg, start, end := maxSubsequence(len(ts)-1, matchForIndex)
-
-	// A long enough run of matches at the very start of the input is a full match,
-	// whatever follows it. maxSubsequence maximises the sum rather than the average,
-	// so it keeps extending past such a run while the running total still climbs,
-	// and the extra tokens dilute the average it reports. A line that opens with an
-	// exact match would otherwise be scored on that diluted window.
-	//
-	// A run of zero is not a match, even where minimumTokenLength is also zero.
-	if prefixRun > 0 && prefixRun >= m.minimumTokenLength {
-		return MatchContext{
-			probability: 1,
-			start:       0,
-			end:         prefixRun,
-		}
-	}
 
 	// Reject sequences of tokens that are less than the minimum token length.
 	if end-start < m.minimumTokenLength {
@@ -108,10 +112,6 @@ func (m *TokenGraph) MatchProbability(ts []Token) MatchContext {
 
 // maxSubsequence is a modified Kadane’s Algorithm that returns the average, start, and end of the largest subsequence.
 // It takes a length of the target input, and a function used to look up values for each index.
-//
-// matchForIndex is called exactly once per index, in ascending order from 0, and never
-// after an early return. Callers rely on that order to accumulate state as the walk
-// proceeds, so preserve it when changing this function.
 func maxSubsequence(length int, matchForIndex func(idx int) int) (float64, int, int) {
 	if length == 0 {
 		return 0, 0, 0
