@@ -1,4 +1,8 @@
-"""Wrapping Visual Studio and MSBuild to let Bazel track it.
+"""Wrap a host Visual Studio installation for MSBuild-only targets.
+
+Only the DatadogInterop vcxproj still needs a host installation, via VSTUDIO_ROOT.
+Everything else, CPython included, builds against the hermetic compiler, Windows
+SDK and MSBuild from @toolchains_msvc (see MODULE.bazel).
 """
 
 load("@rules_python//python/private:repo_utils.bzl", "repo_utils")  # buildifier: disable=bzl-visibility
@@ -105,7 +109,7 @@ visual_studio = repository_rule(
             doc = "Environment variable pointing to Visual Studio's installation root path",
         ),
         "version": attr.string(
-            doc = "Installation Version. If set, it must match the version for the installation pointed at by path",
+            doc = "Optional installationVersion pin. Prefer @toolchains_msvc for compiler versioning.",
         ),
     },
     local = True,
