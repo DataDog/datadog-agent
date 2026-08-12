@@ -22,10 +22,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Property values in these tests are in the form TDH produces for each declared
-// out-type, per the Microsoft-Windows-GroupPolicy manifest: a braced GUID for
-// win:GUID, decimal for win:UInt32, "0x…" for win:HexInt32, and "true"/"false"
-// for win:Boolean.
+// Property values here are in the form TDH produces for each out-type declared by
+// the Microsoft-Windows-GroupPolicy manifest: a braced GUID for win:GUID, decimal
+// for win:UInt32, "0x…" for win:HexInt32, and "true"/"false" for win:Boolean.
 
 const (
 	cseRegistryGUID  = "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"
@@ -53,14 +52,12 @@ type gpFixture struct {
 func newGPFixture(t *testing.T) *gpFixture {
 	t.Helper()
 	f := &gpFixture{t: t, coll: newCollector()}
-	// Kernel-General 12 is what sets this in production. Without it every
-	// offset collapses to zero and the placement assertions say nothing.
+	// Kernel-General 12 sets this in production; without it every offset is zero.
 	f.coll.timeline.BootStart = gpTestBoot
 	return f
 }
 
-// send dispatches one Group Policy event through processEvent, so every test
-// exercises the real provider routing rather than calling a parser directly.
+// send dispatches one Group Policy event through processEvent, exercising the real provider routing.
 func (f *gpFixture) send(activity windows.GUID, id uint16, offset time.Duration, props ...property) {
 	f.t.Helper()
 	e := makeEvent(guidGroupPolicy, id, gpTestBoot.Add(offset), props...)
@@ -68,9 +65,7 @@ func (f *gpFixture) send(activity windows.GUID, id uint16, offset time.Duration,
 	processEvent(f.coll, e)
 }
 
-// sendPartial dispatches an event whose TDH decode failed after the properties
-// given, which is what a partial bulk decode looks like: the properties before
-// the failure are recovered and everything after it is absent.
+// sendPartial dispatches an event whose TDH decode failed after the properties given.
 func (f *gpFixture) sendPartial(activity windows.GUID, id uint16, offset time.Duration, failedAt string, props ...property) {
 	f.t.Helper()
 	e := makeEvent(guidGroupPolicy, id, gpTestBoot.Add(offset), props...)
@@ -107,20 +102,7 @@ func (f *gpFixture) cseStart(activity windows.GUID, offset time.Duration, guid, 
 	f.send(activity, evtCSEStart, offset, props...)
 }
 
-// cseStop emits a 5016/6016/7016 extension stop.
-//
-// Two properties the parser does not read are populated anyway, so the synthetic
-// event stays faithful to the real template and every test that asserts on an
-// emitted invocation also proves neither one leaks into it:
-//
-//   - CSEElaspedTimeInMilliSeconds disagrees with the measured interval, so any
-//     duration assertion proves the provider-reported field is not the one
-//     emitted.
-//   - ErrorCode is non-zero - E_PENDING, which the audit extension really does
-//     return - so nothing here can pass by rendering a zero code as absent.
-//
-// Their positions also matter: CSEExtensionId is declared last on this template,
-// which is the premise TestPartialDecodeDegradesAStartButDropsAStop rests on.
+// cseStop emits a 5016/6016/7016 extension stop. CSEExtensionId is declared last on this template.
 func (f *gpFixture) cseStop(activity windows.GUID, offset time.Duration, id uint16, guid, name string) {
 	f.send(activity, id, offset,
 		property{Name: "CSEExtensionId", Value: guid},
@@ -143,23 +125,18 @@ func (f *gpFixture) finalize() *GroupPolicyDetails {
 	return f.coll.groupPolicy.finalize(f.coll.timeline)
 }
 
-// gpoFragment builds an ApplicableGPOList value: a rootless sequence of <GPO>
-// siblings, which is what a boot capture showed the provider emitting.
+// gpoFragment builds an ApplicableGPOList value: a rootless sequence of <GPO> siblings.
 func gpoFragment(entries ...string) string {
 	return strings.Join(entries, "")
 }
 
-// gpoEntry is one entry in the shape a real 4016 carries: ID attribute and Name
-// only.
+// gpoEntry is one entry in the shape a real 4016 carries: ID attribute and Name only.
 func gpoEntry(id, name string) string {
 	return fmt.Sprintf(`<GPO ID="%s"><Name>%s</Name></GPO>`, id, name)
 }
 
-// gpoRichEntry is the fuller entry shape the 5312 inventory carries, which
-// embeds the applying extensions' own GUIDs. 5312 is not collected, so this is
-// never what the parser sees in production - it is here to prove the walk reads
-// ID attributes rather than scanning for braces, which is the precondition that
-// makes the fallback scan safe.
+// gpoRichEntry is the fuller entry shape the 5312 inventory carries.
+// Its <Extensions>[{CSE GUID}]</Extensions> holds a GUID a brace scan would misread as a GPO.
 func gpoRichEntry(id, name string) string {
 	return fmt.Sprintf(
 		`<GPO ID="%s"><Name>%s</Name><Version>65539</Version><SOM>DC=corp,DC=example</SOM><FSPath>\\corp\SysVol</FSPath><Extensions>[{35378EAC-683F-11D2-A89A-00C04FBBCFA2}]</Extensions></GPO>`,
@@ -169,11 +146,6 @@ func gpoRichEntry(id, name string) string {
 // --- Pairing and outcomes ---
 
 func TestCSEPairingOutcomes(t *testing.T) {
-	// The three terminal events share one template and differ only in severity,
-	// so the event ID is the whole of the outcome. The fixture sends a non-zero
-	// ErrorCode on every one of them, which is what makes the success row mean
-	// something: a provider status of E_PENDING still reports success, because the
-	// ID is what is read.
 	cases := []struct {
 		name    string
 		eventID uint16
@@ -208,8 +180,6 @@ func TestCSEPairingOutcomes(t *testing.T) {
 }
 
 func TestCSEZeroDurationIsReported(t *testing.T) {
-	// An extension completing in under a millisecond has a real duration of
-	// zero. It must survive marshalling rather than being elided as empty.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
@@ -224,13 +194,6 @@ func TestCSEZeroDurationIsReported(t *testing.T) {
 }
 
 func TestCSEAsyncIsFlagged(t *testing.T) {
-	// For an asynchronous extension the terminal event marks the dispatch of a
-	// worker thread. The interval is still real - it is the cost of the
-	// dispatch - and async is what tells a consumer to read it that way.
-	//
-	// The audit extension is also why the outcome comes from the terminal event ID
-	// rather than from a status: Microsoft documents it returning E_PENDING by
-	// design, so a 5016 carrying a non-zero code is a success and not a failure.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseAuditGUID, "Audit Policy", true, "")
@@ -243,8 +206,6 @@ func TestCSEAsyncIsFlagged(t *testing.T) {
 }
 
 func TestCSECrossActivityIsolation(t *testing.T) {
-	// The same extension runs in both passes. Pairing on the extension GUID
-	// alone would cross them, so the activity ID is part of the key.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.startUserPass()
@@ -281,8 +242,6 @@ func TestInvocationsAreOrderedChronologically(t *testing.T) {
 // --- Records with no measurable interval are dropped ---
 
 func TestCSEMissingStartIsOmitted(t *testing.T) {
-	// A terminal event with no start has no interval, so it cannot be placed on
-	// the timeline. It is a collection diagnostic, not latency data.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
@@ -299,8 +258,6 @@ func TestCSEMissingTerminalIsOmitted(t *testing.T) {
 }
 
 func TestCSETraceEndsMidInvocation(t *testing.T) {
-	// The capture window closes when the Agent service starts, so a trailing
-	// open invocation is the normal tail case. The completed one survives.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
@@ -313,9 +270,6 @@ func TestCSETraceEndsMidInvocation(t *testing.T) {
 }
 
 func TestCSEDuplicateOpenStartsNeverGuess(t *testing.T) {
-	// Two starts for one key cannot be disambiguated. The later one wins - it
-	// gives the shorter, more conservative interval - and exactly one record is
-	// emitted rather than one real and one invented.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
@@ -329,7 +283,6 @@ func TestCSEDuplicateOpenStartsNeverGuess(t *testing.T) {
 }
 
 func TestCSEStopBeforeStartIsDropped(t *testing.T) {
-	// A negative interval is not a duration.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 16*time.Second, cseRegistryGUID, "Registry", false, "")
@@ -360,17 +313,11 @@ func TestDetailsOmittedWhenNoCompleteInvocation(t *testing.T) {
 // --- Attribution: only the boot pass, never a guess ---
 
 func TestGPUpdateInvocationsAreExcluded(t *testing.T) {
-	// A gpupdate, a network-state change, and a periodic refresh each run their
-	// own policy processing instance with its own activity ID. Their extension
-	// invocations are not part of the boot pass, and counting them there would
-	// let the child durations sum past the parent pass duration.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
-	// Manual processing (4004) is not collected at all, and its extension
-	// invocations carry an activity ID that matches no boot pass.
 	f.send(gpOtherRun, 4004, 40*time.Second)
 	f.cseStart(gpOtherRun, 41*time.Second, cseFolderRedGUID, "Folder Redirection", false, "")
 	f.cseStop(gpOtherRun, 42*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection")
@@ -382,13 +329,6 @@ func TestGPUpdateInvocationsAreExcluded(t *testing.T) {
 }
 
 func TestInvocationBackstopKeepsTheLeastHealthyAndTheSlowest(t *testing.T) {
-	// maxCSEInvocationsPerScope cannot fire on a machine whose extension list is
-	// sane - an extension runs at most once per pass per scope, and Windows
-	// registers on the order of 57 of them - so this drives it deliberately past
-	// the cap. What it locks is the selection rule: because the emitted array is
-	// ordered chronologically, truncating that order would drop whichever
-	// extensions ran late, and on a pass slow enough to reach the cap that is as
-	// likely as not to be the slow one worth finding.
 	const extra = 10
 
 	f := newGPFixture(t)
@@ -398,9 +338,7 @@ func TestInvocationBackstopKeepsTheLeastHealthyAndTheSlowest(t *testing.T) {
 
 	for i := 0; i < maxCSEInvocationsPerScope+extra; i++ {
 		start := 13*time.Second + time.Duration(i)*100*time.Millisecond
-		// Duration grows with i, so the low indices are the fastest. Index 0 is the
-		// fastest of all and also the only failure, which is what separates the
-		// health rule from the duration rule.
+		// Duration grows with i, so index 0 is the fastest and also the only failure.
 		stop := start + time.Duration(i+1)*time.Millisecond
 		result := evtCSEStopSuccess
 		if i == 0 {
@@ -418,11 +356,9 @@ func TestInvocationBackstopKeepsTheLeastHealthyAndTheSlowest(t *testing.T) {
 		kept[inv.CSEID] = inv
 	}
 
-	// The fastest invocation in the pass survives because it failed.
 	require.Contains(t, kept, cseID(0), "a non-success outcome is kept regardless of how fast it was")
 	assert.Equal(t, cseResultError, kept[cseID(0)].Result)
 
-	// What went instead is exactly the fastest successes.
 	for i := 1; i <= extra; i++ {
 		assert.NotContains(t, kept, cseID(i), "the fastest successful invocations are the ones dropped")
 	}
@@ -430,7 +366,6 @@ func TestInvocationBackstopKeepsTheLeastHealthyAndTheSlowest(t *testing.T) {
 		assert.Contains(t, kept, cseID(i))
 	}
 
-	// Selection reorders, so the emitted array must still come back chronological.
 	for i := 1; i < len(d.Computer); i++ {
 		assert.LessOrEqual(t, d.Computer[i-1].OffsetMs, d.Computer[i].OffsetMs,
 			"the block is ordered chronologically no matter how selection ranked it")
@@ -438,8 +373,6 @@ func TestInvocationBackstopKeepsTheLeastHealthyAndTheSlowest(t *testing.T) {
 }
 
 func TestCSEWithNoBootPassIsOmitted(t *testing.T) {
-	// An activity ID matching no boot pass is never attributed to whichever
-	// pass happened to start most recently.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.startUserPass()
@@ -450,8 +383,6 @@ func TestCSEWithNoBootPassIsOmitted(t *testing.T) {
 }
 
 func TestPassActivityPinnedFirstWriteWins(t *testing.T) {
-	// Mirrors MachineGPStart's own first-write-wins rule, so the invocations
-	// collected always belong to the pass boot_timeline reports.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.send(gpOtherRun, evtMachineGPStart, 40*time.Second)
@@ -467,9 +398,6 @@ func TestPassActivityPinnedFirstWriteWins(t *testing.T) {
 }
 
 func TestZeroActivityIDNeverPins(t *testing.T) {
-	// Events outside any pass carry a zero ActivityId - 4117, 5324, and 5351
-	// were all observed that way in a real trace. Pinning zero for a scope would
-	// sweep every unattributed invocation into that pass.
 	f := newGPFixture(t)
 	f.send(windows.GUID{}, evtMachineGPStart, 12*time.Second)
 	f.cseStart(windows.GUID{}, 13*time.Second, cseRegistryGUID, "Registry", false, "")
@@ -479,10 +407,6 @@ func TestZeroActivityIDNeverPins(t *testing.T) {
 }
 
 func TestPassStopAloneNeverPins(t *testing.T) {
-	// Only a pass start claims a scope. A stop event arriving without its start
-	// leaves the scope unclaimed, so its invocations are not attributed - which is
-	// what keeps this block from describing slices of a pass boot_timeline has no
-	// milestone for, since the milestone comes from the same start event.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.endComputerPass()
@@ -497,9 +421,6 @@ func TestPassStopAloneNeverPins(t *testing.T) {
 }
 
 func TestPassActivityIsNotSharedBetweenScopes(t *testing.T) {
-	// One activity cannot be both passes. If it were accepted for the second
-	// scope, buildScope would read the same bucket twice and emit every
-	// invocation under computer and user alike.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.send(gpTestActivity, evtUserGPStart, 30*time.Second)
@@ -515,9 +436,6 @@ func TestPassActivityIsNotSharedBetweenScopes(t *testing.T) {
 // --- Offsets share the boot_timeline axis ---
 
 func TestCSEOffsetsShareTheBootTimelineAxis(t *testing.T) {
-	// buildTimelineMilestones collapses the login-screen idle gap out of
-	// post-logon offsets. An invocation placed on a raw boot-relative axis would
-	// land outside its own parent milestone, so both go through bootOffsetFunc.
 	f := newGPFixture(t)
 	f.coll.timeline.LoginUIDone = gpTestBoot.Add(10 * time.Second)
 	f.coll.timeline.SessionLogon = gpTestBoot.Add(70 * time.Second)
@@ -550,8 +468,6 @@ func TestCSEOffsetsShareTheBootTimelineAxis(t *testing.T) {
 // --- Group Policy objects ---
 
 func TestGPOInlinedPerInvocation(t *testing.T) {
-	// GPOs are repeated on every invocation that references them rather than
-	// pooled in a shared table, so a consumer rendering the tree needs no join.
 	f := newGPFixture(t)
 	f.startComputerPass()
 
@@ -572,10 +488,6 @@ func TestGPOInlinedPerInvocation(t *testing.T) {
 }
 
 func TestOmittedGPOCountReachesTheInvocation(t *testing.T) {
-	// The count has to survive the whole path - the list walk, the pending record,
-	// and finalize - because its only job is to tell a reader of the emitted
-	// document that the array is a prefix. A capped array with no count beside it
-	// is indistinguishable from a machine that applies exactly that many objects.
 	const extra = 7
 
 	f := newGPFixture(t)
@@ -596,8 +508,6 @@ func TestOmittedGPOCountReachesTheInvocation(t *testing.T) {
 }
 
 func TestOmittedGPOCountAbsentWhenNothingDropped(t *testing.T) {
-	// omitempty is what keeps the field free: an invocation whose list fit carries
-	// no trace of the cap at all.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
@@ -610,11 +520,6 @@ func TestOmittedGPOCountAbsentWhenNothingDropped(t *testing.T) {
 }
 
 func TestGPONamesComeFromTheApplicableList(t *testing.T) {
-	// A boot capture confirms ApplicableGPOList carries ID and Name, so 4016 is
-	// the only event needed and the 5312 inventory is not collected. The fuller
-	// inventory shape is fed here to prove the walk reads ID attributes rather
-	// than scanning: a scan would report the GUID inside <Extensions>, which is an
-	// extension's own identity and not an applicable GPO.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
@@ -628,15 +533,6 @@ func TestGPONamesComeFromTheApplicableList(t *testing.T) {
 }
 
 func TestGPONamesSurviveUnescapedAmpersand(t *testing.T) {
-	// Windows concatenates ApplicableGPOList without escaping display names, so a
-	// GPO named "R&D Baseline" arrives carrying a bare ampersand - a boot capture
-	// carried exactly that, in the first position of every list. Non-strict
-	// decoding leaves the malformed entity alone, so the whole list still parses.
-	//
-	// Under strict parsing the walk would abort on that entry: with the offending
-	// name first the fallback recovers the IDs and the payload shows GUIDs with no
-	// names at all, and with it mid-list the walk returns a prefix and the tail is
-	// dropped outright. Both positions are covered here for that reason.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
@@ -655,18 +551,12 @@ func TestGPONamesSurviveUnescapedAmpersand(t *testing.T) {
 }
 
 func TestGPONameSharedFromAnotherInvocationsList(t *testing.T) {
-	// The name lookup spans the trace and resolves at finalize, so an invocation
-	// whose own list carried no name still gets one from a list that did - even a
-	// later one. That is what supplies names on the degraded path, where the walk
-	// ended early and the fallback scan recovered GUIDs without their names.
 	f := newGPFixture(t)
 	f.startComputerPass()
 
-	// This invocation's list is a bare GUID: no name available from it.
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, gpoDefaultDomainGUID)
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
-	// A later invocation names the same object.
 	f.cseStart(gpTestActivity, 15*time.Second, cseFolderRedGUID, "Folder Redirection", false,
 		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
 	f.cseStop(gpTestActivity, 16*time.Second, evtCSEStopSuccess, cseFolderRedGUID, "Folder Redirection")
@@ -699,7 +589,6 @@ func TestGPOMultiplePerCSE(t *testing.T) {
 }
 
 func TestGPODuplicateDisplayNamesStayDistinct(t *testing.T) {
-	// The GUID is the identity. Two GPOs may legitimately share a display name.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, gpoFragment(
@@ -716,9 +605,6 @@ func TestGPODuplicateDisplayNamesStayDistinct(t *testing.T) {
 }
 
 func TestGPONamesWithoutASurvivingInvocationEmitNothing(t *testing.T) {
-	// The name lookup is not an inventory: an entry reaches the wire only when a
-	// surviving invocation references it. Here the list was parsed and its name
-	// recorded, but the invocation never closed, so nothing is emitted.
 	f := newGPFixture(t)
 	f.startComputerPass()
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
@@ -728,8 +614,6 @@ func TestGPONamesWithoutASurvivingInvocationEmitNothing(t *testing.T) {
 }
 
 func TestGPORefsFromList(t *testing.T) {
-	// A boot capture confirms the XML shape, and the scan stays as a fallback for
-	// a fragment the walk cannot finish or a value with another delimiter.
 	cases := []struct {
 		name      string
 		raw       string
@@ -738,9 +622,6 @@ func TestGPORefsFromList(t *testing.T) {
 	}{
 		{name: "empty"},
 		{
-			// The fuller inventory shape embeds <Extensions>[{CSE GUID}]</Extensions>.
-			// A bare braced-GUID scan over it would report the extension's own GUID
-			// as an applicable GPO; the walk reads ID attributes instead.
 			name:      "xml fragment reads id attributes only",
 			raw:       gpoFragment(gpoRichEntry(gpoDefaultDomainGUID, "Default Domain Policy")),
 			wantIDs:   []string{gpoDefaultDomainGUID},
@@ -776,10 +657,6 @@ func TestGPORefsFromList(t *testing.T) {
 			wantIDs:   []string{gpoDefaultDomainGUID},
 			wantNames: map[string]string{gpoDefaultDomainGUID: "Real"},
 		},
-		// An unescaped ampersand does not end the walk: non-strict decoding leaves
-		// the malformed entity in the character data. Both positions are covered
-		// because strict decoding would fail differently in each - IDs kept and
-		// names lost when it is first, tail dropped when it is not.
 		{
 			name: "unescaped ampersand first keeps every id and name",
 			raw: gpoFragment(
@@ -806,13 +683,6 @@ func TestGPORefsFromList(t *testing.T) {
 				gpoThirdGUID:         "Sales & Marketing",
 			},
 		},
-		// Non-strict decoding forgives malformed entities and missing end tags but
-		// not broken tag syntax, so a display name whose "<" does not open a
-		// well-formed tag really does end the walk. (A name containing "<Test>"
-		// would not: that parses as a nested element and only costs the text after
-		// it.) These are the rows that exercise the fallback on a partial walk -
-		// without a completeness signal the parser would return only the entries
-		// before the break and drop the rest of the list outright.
 		{
 			name: "unparsable angle bracket first recovers every id",
 			raw: gpoFragment(
@@ -832,10 +702,6 @@ func TestGPORefsFromList(t *testing.T) {
 			wantNames: map[string]string{gpoDefaultDomainGUID: "Plain Name"},
 		},
 		{
-			// A mismatched end tag is the subtler case: the offending entry decodes
-			// without error and is reported, and the walk only fails on the token
-			// after it. So ids is non-empty at the break and the completeness signal
-			// is the only thing that saves the tail.
 			name: "mismatched end tag mid-list recovers the tail",
 			raw: `<GPO ID="` + gpoDefaultDomainGUID + `"><Name>Plain Name</Nam></GPO>` +
 				gpoEntry(gpoDomainCtlGUID, "Second Policy"),
@@ -864,9 +730,6 @@ func TestGPORefsFromList(t *testing.T) {
 		})
 	}
 
-	// A list far past any plausible size still contributes its references. There is
-	// no input-size limit to reject it: a rejection would emit an invocation with no
-	// GPOs at all, which reads as an extension that applied none.
 	t.Run("a list past any plausible size still yields references", func(t *testing.T) {
 		raw := strings.Repeat("x", 256*1024) + gpoEntry(gpoDefaultDomainGUID, "Late Policy")
 		ids, names, omitted := gpoRefsFromList(raw)
@@ -898,18 +761,11 @@ func TestGPORefsFromList(t *testing.T) {
 		assert.Equal(t, extra, omitted)
 	})
 
-	// A repeat is not a loss, and the reference that matters here is one repeated
-	// *past* the cap. Deduplicating against the kept IDs alone would catch a repeat
-	// of a reference that made it into the array, but a reference the cap already
-	// rejected is not in that list, so every further sighting of it would be counted
-	// as another distinct loss. Only a record of every reference seen distinguishes
-	// one omitted GPO listed fifty times from fifty omitted GPOs.
 	t.Run("a reference repeated past the cap counts once", func(t *testing.T) {
 		var b strings.Builder
 		for i := 0; i < maxGPOsPerCSE; i++ {
 			fmt.Fprintf(&b, "{%08X-0000-0000-0000-000000000000};", i)
 		}
-		// Distinct from every ID above, so the cap rejects it, and then it recurs.
 		const beyondCap = "{FFFFFFFF-0000-0000-0000-000000000000};"
 		for i := 0; i < 50; i++ {
 			b.WriteString(beyondCap)
@@ -923,15 +779,6 @@ func TestGPORefsFromList(t *testing.T) {
 // --- Collection gate ---
 
 func TestAcceptedGroupPolicyIDsSnapshot(t *testing.T) {
-	// acceptedIDs is a hard pre-parse gate: analyzeETL hands it to the ETW filter
-	// and processEvent never re-checks it, so an ID the parser handles but the map
-	// omits is dropped in production with nothing else to catch it.
-	//
-	// This is a snapshot, not a derivation. It catches an ID being removed from
-	// the map, and it documents the intended set - but because want is a literal
-	// rather than the switch's own cases, it cannot catch a new case being added
-	// to Parse without a matching entry here. Closing that would take an AST walk
-	// over Parse; until then the gate is a two-place edit by construction.
 	want := map[uint16]struct{}{
 		evtMachineGPStart: {}, evtMachineGPEnd: {},
 		evtUserGPStart: {}, evtUserGPEnd: {},
@@ -941,11 +788,8 @@ func TestAcceptedGroupPolicyIDsSnapshot(t *testing.T) {
 	got := newCollector().providers[guidGroupPolicy].acceptedIDs
 	assert.Equal(t, want, got)
 
-	// Documenting what the set deliberately excludes, and why. 4002/4003 are
-	// network-state change, 4004/4005 manual processing, 4006/4007 periodic
-	// refresh; each has its own start/stop pair, so none is the boot pass
-	// boot_timeline reports. 5312/5313 are the applicable and filtered-out GPO
-	// inventories, which 4016's own list makes redundant.
+	// 4002/4003 network-state change, 4004/4005 manual, 4006/4007 periodic refresh: each
+	// its own pass, not boot. 5312/5313 are the GPO inventories 4016's own list replaces.
 	for _, id := range []uint16{4002, 4003, 4004, 4005, 4006, 4007, 5312, 5313} {
 		assert.NotContains(t, got, id, "event %d must not be collected", id)
 	}
@@ -956,10 +800,6 @@ func TestActivityIDOfNilEventIsZero(t *testing.T) {
 }
 
 func TestEventPropertyReaderUsesThePartialBulkDecode(t *testing.T) {
-	// A 4016 carries seven properties. TDH stops at the first it cannot decode,
-	// and EventProperties returns what it recovered alongside the error. The
-	// per-property path returns "" for the whole event in that case, so reading
-	// the partial bulk result is the only way these values survive.
 	e := makeEvent(guidGroupPolicy, evtCSEStart, gpTestBoot,
 		property{Name: "CSEExtensionId", Value: cseRegistryGUID},
 		property{Name: "CSEExtensionName", Value: "Registry"},
@@ -975,15 +815,9 @@ func TestEventPropertyReaderUsesThePartialBulkDecode(t *testing.T) {
 }
 
 func TestPartialDecodeDegradesAStartButDropsAStop(t *testing.T) {
-	// The two templates order CSEExtensionId differently: first on 4016, last on
-	// 5016/6016/7016. Since a partial decode recovers only the properties before
-	// the failure, the same failure costs a start its trailing fields but costs a
-	// stop the identity itself - and with it the whole invocation.
 	t.Run("a partial start keeps its identity and interval", func(t *testing.T) {
 		f := newGPFixture(t)
 		f.startComputerPass()
-		// Decode died at IsExtensionAsyncProcessing, so the async flag and the GPO
-		// list are gone but the GUID and name are not.
 		f.sendPartial(gpTestActivity, evtCSEStart, 13*time.Second, "IsExtensionAsyncProcessing",
 			property{Name: "CSEExtensionId", Value: cseRegistryGUID},
 			property{Name: "CSEExtensionName", Value: "Registry"},
@@ -1001,9 +835,6 @@ func TestPartialDecodeDegradesAStartButDropsAStop(t *testing.T) {
 		f := newGPFixture(t)
 		f.startComputerPass()
 		f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
-		// CSEExtensionId is the last property on this template, so a decode that
-		// died at CSEExtensionName never reaches it. Without the identity the stop
-		// cannot be paired, and the start is dropped at finalize.
 		f.sendPartial(gpTestActivity, evtCSEStopSuccess, 14*time.Second, "CSEExtensionName",
 			property{Name: "CSEElaspedTimeInMilliSeconds", Value: "999999"},
 			property{Name: "ErrorCode", Value: "0x00000000"},
@@ -1037,10 +868,6 @@ func TestNormalizeGUID(t *testing.T) {
 }
 
 func TestParseETWBool(t *testing.T) {
-	// TDH renders win:Boolean as "true"/"false". The numeric spellings are
-	// accepted because the provider declares the sibling IsMachine as win:Boolean
-	// on version 0 of the pass boundary events and win:UInt32 on version 1, so a
-	// same-named field really can arrive either way across builds.
 	cases := []struct {
 		in    string
 		want  bool
@@ -1067,28 +894,18 @@ func TestTruncateProviderText(t *testing.T) {
 	assert.LessOrEqual(t, len(got), maxCSENameBytes)
 	assert.True(t, strings.HasSuffix(got, "..."))
 
-	// Truncation must not split a multi-byte rune.
 	multibyte := strings.Repeat("日", maxCSENameBytes)
 	got = truncateProviderText(multibyte, maxCSENameBytes)
 	assert.LessOrEqual(t, len(got), maxCSENameBytes)
 	assert.True(t, utf8.ValidString(got))
 }
 
-// The name caps are byte limits applied to text an administrator chose, so the
-// question they have to answer is not whether they truncate at the limit but
-// whether an ordinary name reaches it in a script that is not Latin. Active
-// Directory allows a displayName of 256 characters; at three bytes per rune a cap
-// set at 256 bytes would cut an ordinary name at 85 of them.
-//
-// These drive the real parse path rather than truncateProviderText directly,
-// because that is where the cap is actually applied to a name.
 func TestGPONamesSurviveNonLatinScripts(t *testing.T) {
 	cases := []struct {
 		name  string
 		runes string
 		count int
 	}{
-		// A long but realistic name in each of the widths that matter.
 		{name: "three-byte script", runes: "本", count: 120},
 		{name: "two-byte script", runes: "П", count: 256},
 		{name: "latin at the AD character limit", runes: "A", count: 256},
@@ -1107,8 +924,6 @@ func TestGPONamesSurviveNonLatinScripts(t *testing.T) {
 }
 
 func TestGPONameTruncationKeepsValidUTF8(t *testing.T) {
-	// Past the cap the name is still cut, and the cut still lands on a rune
-	// boundary rather than in the middle of one.
 	oversize := strings.Repeat("本", maxGPONameBytes)
 	_, names, _ := gpoRefsFromList(gpoEntry(gpoDefaultDomainGUID, oversize))
 

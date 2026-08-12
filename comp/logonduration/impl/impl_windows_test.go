@@ -321,8 +321,7 @@ func TestBuildCustomPayload(t *testing.T) {
 
 }
 
-// newPayloadTestComponent builds a component wired to a no-op forwarder, whose
-// Purge returns the exact bytes sendEvent marshalled.
+// newPayloadTestComponent wires a component to a no-op forwarder whose Purge returns the bytes sendEvent marshalled.
 func newPayloadTestComponent(t *testing.T) (*logonDurationComponent, eventplatform.Forwarder) {
 	t.Helper()
 	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
@@ -334,8 +333,7 @@ func newPayloadTestComponent(t *testing.T) (*logonDurationComponent, eventplatfo
 	}, forwarder
 }
 
-// submitAndDecodeCustom submits a result and returns the custom attribute bag
-// as it appears on the wire.
+// submitAndDecodeCustom submits a result and returns the custom bag as it appears on the wire.
 func submitAndDecodeCustom(t *testing.T, result *AnalysisResult) (map[string]interface{}, int) {
 	t.Helper()
 	comp, forwarder := newPayloadTestComponent(t)
@@ -354,8 +352,6 @@ func submitAndDecodeCustom(t *testing.T, result *AnalysisResult) (map[string]int
 }
 
 func TestBuildCustomPayload_GroupPolicyAbsentWhenNil(t *testing.T) {
-	// A trace with no Group Policy events at all omits the block entirely, so
-	// existing consumers see exactly what they saw before.
 	custom := buildCustomPayload(fullBootTimeline(time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)), nil)
 	assert.NotContains(t, custom, "group_policy_details")
 	assert.Contains(t, custom, "boot_timeline")
@@ -371,7 +367,6 @@ func TestBuildCustomPayload_ExistingKeysUnchanged(t *testing.T) {
 		Computer: []CSEInvocation{{CSEID: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"}},
 	})
 
-	// Adding the block must not perturb either existing key.
 	for _, key := range []string{"boot_timeline", "durations"} {
 		before, err := json.Marshal(withoutGP[key])
 		require.NoError(t, err)
@@ -380,8 +375,7 @@ func TestBuildCustomPayload_ExistingKeysUnchanged(t *testing.T) {
 		assert.JSONEq(t, string(before), string(after), "%s must be unaffected", key)
 	}
 
-	// An integer on the wire, not a float: the payload is a shipped contract and
-	// a change to a float64 would render as 28394.0 for every consumer.
+	// An int64 on the wire, not a float: the payload is a shipped contract.
 	durations := withGP["durations"].(map[string]interface{})
 	_, isInt64 := durations["total_boot_duration_ms"].(int64)
 	assert.True(t, isInt64, "total_boot_duration_ms must stay an int64")
@@ -422,45 +416,19 @@ func TestSubmitEvent_GroupPolicyReachesTheWire(t *testing.T) {
 	assert.Equal(t, "success", inv["result"])
 	assert.NotContains(t, inv, "scope", "the enclosing array carries the scope")
 
-	// GPOs are inlined, so a consumer rendering pass -> CSE -> GPO needs no join.
 	gpos := inv["gpos"].([]interface{})
 	require.Len(t, gpos, 1)
 	assert.Equal(t, "{31B2F340-016D-11D2-945F-00C04FB984F9}", gpos[0].(map[string]interface{})["id"])
 	assert.Equal(t, "Default Domain Policy", gpos[0].(map[string]interface{})["name"])
 
-	// A pass with nothing measured is simply absent; boot_timeline is what says
-	// whether the pass ran.
 	assert.NotContains(t, block, "user")
 
-	// The existing keys still ride alongside.
 	assert.Contains(t, custom, "boot_timeline")
 }
 
 func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
-	// The largest payload the caps permit, built from the caps themselves rather
-	// than from numbers restated alongside them. maxCSEInvocationsPerScope,
-	// maxGPOsPerCSE, maxGPONameBytes and maxCSENameBytes are coupled through this
-	// one budget: raising any of them multiplies the event, and the point of
-	// deriving the fixture from all four is that it fails here when that happens
-	// instead of in the field.
-	//
-	// This is a growth tripwire, and it is the only size control this payload has.
-	// The event-management pipeline sets useStreamStrategy, and epforwarder hands
-	// BatchMaxContentSize to the batch strategy only, so the 5 MB that pipeline
-	// configures is logged at startup and never enforced against anything the
-	// stream strategy sends. What is left is the intake's own refusal, an HTTP 413
-	// the logs library drops non-retryably long after the Agent has moved on.
-	//
-	// So the ceiling here is deliberately well below that 5 MB rather than level
-	// with it: the margin is the whole point. A per-GPO field added later multiplies
-	// across every reference on every invocation, and a tripwire set at the real
-	// limit would let that land in the field instead of failing here. The comparison
-	// is against uncompressed bytes, which is both how the batch strategy applies
-	// its own limit and the conservative direction, since the body is compressed
-	// before it is sent and this fixture of repeated GUIDs and names compresses hard.
-	// Not derived from constants.DefaultBatchMaxContentSize directly: depguard
-	// forbids pkg/config/setup inside comp, and the number is worth stating in one
-	// place rather than plumbing a config component into a serialization test.
+	// The four caps are coupled through this one byte budget, so raising any of them fails here.
+	// Uncompressed bytes, and deliberately well below the intake's own limit: the margin is the point.
 	const maxWorstCaseBytes = 3_000_000
 
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
@@ -477,15 +445,13 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 		invs := make([]CSEInvocation, 0, maxCSEInvocationsPerScope)
 		for i := 0; i < maxCSEInvocationsPerScope; i++ {
 			invs = append(invs, CSEInvocation{
-				CSEID:      fmt.Sprintf("{%08X-683F-11D2-A89A-00C04FBBCFA2}", i),
-				CSEName:    strings.Repeat("N", maxCSENameBytes),
-				OffsetMs:   int64(i) * 1000,
-				DurationMs: int64(i),
-				Result:     cseResultError,
-				Async:      true,
-				GPOs:       gpos,
-				// The cap having fired is part of the worst case: an invocation that
-				// dropped references carries the count as well as the array.
+				CSEID:       fmt.Sprintf("{%08X-683F-11D2-A89A-00C04FBBCFA2}", i),
+				CSEName:     strings.Repeat("N", maxCSENameBytes),
+				OffsetMs:    int64(i) * 1000,
+				DurationMs:  int64(i),
+				Result:      cseResultError,
+				Async:       true,
+				GPOs:        gpos,
 				GPOsOmitted: 4096,
 			})
 		}
@@ -497,9 +463,6 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 		GroupPolicy: &GroupPolicyDetails{Computer: pass(), User: pass()},
 	})
 
-	// Logged rather than only asserted: the margin is the useful number when the
-	// caps are next revisited, and a tripwire that reports how close it came is
-	// worth more than one that only says it has not tripped yet.
 	t.Logf("worst case %d bytes of %d (%d invocations x %d GPO refs at %d-byte names), %d bytes of margin",
 		size, maxWorstCaseBytes, 2*maxCSEInvocationsPerScope, maxGPOsPerCSE, maxGPONameBytes,
 		maxWorstCaseBytes-size)

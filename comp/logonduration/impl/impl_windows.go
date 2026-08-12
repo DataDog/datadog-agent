@@ -226,18 +226,9 @@ func durationBetween(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
-// bootOffsetFunc returns the boot-relative offset in milliseconds of a
-// timestamp, on the axis boot_timeline places milestones on.
-//
-// The idle time at the login screen (LoginUIDone -> SessionLogon) is collapsed
-// out of post-logon offsets so the timeline renders contiguously; each
-// milestone's Timestamp keeps wall-clock truth. Group Policy extension
-// invocations are placed with this same function, which is what guarantees an
-// invocation nests inside its parent pass milestone instead of the two sitting
-// on separate copies of the rule that can drift apart.
-//
-// Without a boot reference every offset is zero, reproducing what the timeline
-// already reported in that case.
+// bootOffsetFunc returns the boot-relative offset in milliseconds of a timestamp. The idle time at the
+// login screen (LoginUIDone -> SessionLogon) is collapsed out of post-logon offsets so the timeline
+// renders contiguously; the per-milestone Timestamp retains wall-clock truth.
 func bootOffsetFunc(tl BootTimeline) func(time.Time) int64 {
 	boot := tl.BootStart
 	if boot.IsZero() {
@@ -344,11 +335,6 @@ func buildCustomPayload(tl BootTimeline, gp *GroupPolicyDetails) map[string]inte
 		custom["durations"] = durations
 	}
 
-	// Omitted entirely when no extension invocation was measured end to end.
-	// Whether a pass ran at all is already answered by boot_timeline, which
-	// carries a computer_group_policy / user_group_policy milestone exactly when
-	// that pass's start was observed - the same event that lets a scope here
-	// claim any invocations at all, so a populated array always has its parent.
 	if gp != nil {
 		custom["group_policy_details"] = gp
 	}
@@ -374,9 +360,6 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	totalMs := getDurationMilliseconds(tl.BootStart, tl.LoginUIStart) + getDurationMilliseconds(tl.SessionLogon, tl.DesktopVisibleStart)
 	title := buildEventTitle(complete, totalMs)
 
-	// totalMs is used directly rather than read back out of the payload map:
-	// there it is an interface{}, and formatting it with %d only worked because
-	// the boxed value happened to be an int64.
 	msg := "Total boot duration analysis after reboot"
 	if complete {
 		msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)

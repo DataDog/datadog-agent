@@ -26,25 +26,19 @@ type property struct {
 }
 
 // mockEvent implements eventWithProperties for testing.
-//
-// It deliberately does not implement directPropertyLookup, so parsers that
-// probe for it exercise their fallback path. It does implement activityScoped
-// and bulkPropertyLookup, which the Group Policy parser relies on.
+// It deliberately omits directPropertyLookup, so parsers that probe for it exercise their fallback path.
 type mockEvent struct {
 	providerID windows.GUID
 	eventID    uint16
 	activityID windows.GUID
 	timestamp  time.Time
 	props      map[string]interface{}
-	// propsErr simulates a partial TDH decode: EventProperties returns the
-	// properties gathered so far alongside an error.
+	// propsErr simulates a partial TDH decode: the properties gathered so far, plus an error.
 	propsErr error
 }
 
 func (m *mockEvent) GetPropertyString(name string) string {
-	// A real Event routes this through EventProperties and returns "" on any
-	// error, so the same has to hold here. Serving values regardless would make
-	// the bulk-read path unobservable: every test would pass with or without it.
+	// A real Event returns "" on any error; serving values despite propsErr would leave the bulk-read path untested.
 	if m.propsErr != nil {
 		return ""
 	}
@@ -463,9 +457,7 @@ func TestProcessEvent(t *testing.T) {
 	})
 }
 
-// withActivity stamps an event with an ETW activity ID. Real Group Policy
-// events carry one on EVENT_HEADER, and the collector refuses to attribute an
-// invocation without it, so a fixture that omits it collects nothing.
+// withActivity stamps an ETW activity ID, without which the collector attributes no invocation.
 func withActivity(e *mockEvent, activity windows.GUID) *mockEvent {
 	e.activityID = activity
 	return e
@@ -481,9 +473,6 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(guidWinlogon, 103, boot.Add(8*time.Second)),
 		makeEvent(guidWinlogon, 104, boot.Add(10*time.Second)),
 		withActivity(makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)), machinePass),
-		// A client-side extension invoked inside the computer Group Policy pass.
-		// Its ApplicableGPOList is in the shape a boot capture showed: a rootless
-		// <GPO> sequence carrying the ID attribute and the display name.
 		withActivity(makeEvent(guidGroupPolicy, 4016, boot.Add(14*time.Second),
 			property{Name: "CSEExtensionId", Value: "{35378EAC-683F-11D2-A89A-00C04FBBCFA2}"},
 			property{Name: "CSEExtensionName", Value: "Registry"},
@@ -543,9 +532,7 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, int64(8000), durations["boot_duration_ms"])
 	assert.Equal(t, int64(26000), durations["logon_duration_ms"])
 
-	// The aggregate milestones are unchanged by the Group Policy detail, which
-	// arrives as its own sibling key. This event set produces 8 of the 11
-	// candidates; the extension invocations must not add a 9th.
+	// This event set produces 8 of the 11 candidates; the extension invocations must not add a 9th.
 	milestones := custom["boot_timeline"].([]Milestone)
 	require.Len(t, milestones, 8)
 	for _, m := range milestones {
@@ -562,8 +549,6 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, int64(3000), inv.DurationMs,
 		"the measured 4016 -> 5016 interval, not the provider's 2980")
 
-	// The invocation nests inside the computer_group_policy milestone, because
-	// both are placed by bootOffsetFunc.
 	var parent Milestone
 	for _, m := range milestones {
 		if m.ID == "computer_group_policy" {

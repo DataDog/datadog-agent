@@ -27,8 +27,7 @@ import (
 type Event struct {
 	ProviderID windows.GUID
 	EventID    uint16
-	// ActivityID correlates events belonging to the same logical operation.
-	// It is the zero GUID when the provider does not set one.
+	// ActivityID correlates events in the same logical operation; zero GUID when the provider sets none.
 	ActivityID  windows.GUID
 	Timestamp   time.Time
 	eventRecord C.PEVENT_RECORD
@@ -36,13 +35,9 @@ type Event struct {
 
 // EventProperties returns a map of property names to values for this event.
 // Uses TDH (Trace Data Helper) to parse the event schema and user data.
-//
-// On failure it returns the properties parsed so far alongside the error, so a
-// caller that only needs the leading fields of an event can still use them.
-// Parsing stops at the first failure and never skips ahead: parseSimpleType
-// advances a cursor shared by every property, so once a property fails to
-// decode its byte count is unknown and every later property would be garbage
-// rather than merely missing.
+// On failure it returns the properties parsed so far alongside the error.
+// Stops at the first failure and does not skip past it: every property is decoded
+// from one shared user-data cursor, so anything after a failure would be garbage.
 func (e *Event) EventProperties() (map[string]interface{}, error) {
 	if e.eventRecord == nil {
 		return nil, errors.New("event record is nil or no longer valid")
@@ -75,11 +70,7 @@ func (e *Event) GetPropertyByName(name string) (string, error) {
 
 // GetEventPropertyString returns the string value of a named property.
 // GetPropertyString on Event provides the same functionality as a method.
-//
-// A failed decode yields "" even for a property that precedes the failure and
-// was recovered. Callers that want the partial result should call
-// EventProperties directly; changing this would silently alter what every
-// existing caller sees.
+// A failed decode yields "" even for a property that precedes the failure and was recovered.
 func GetEventPropertyString(e *Event, name string) string {
 	props, err := e.EventProperties()
 	if err != nil {
@@ -107,9 +98,7 @@ func (e *Event) GetEventID() uint16 {
 	return e.EventID
 }
 
-// GetActivityID returns the event's activity GUID, used to correlate events
-// belonging to the same logical operation. Returns the zero GUID when the
-// provider does not populate one.
+// GetActivityID returns the event's activity GUID, or the zero GUID when the provider does not populate one.
 func (e *Event) GetActivityID() windows.GUID {
 	return e.ActivityID
 }

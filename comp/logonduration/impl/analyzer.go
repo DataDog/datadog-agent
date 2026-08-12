@@ -60,13 +60,7 @@ const (
 	evtUserGPStart    uint16 = 4001
 	evtUserGPEnd      uint16 = 8001
 
-	// Group Policy client-side extensions. The three stop events share an
-	// identical template and differ only in severity.
-	//
-	// The applicable-GPO inventory events 5312 and 5313 are deliberately not
-	// collected: 4016's own ApplicableGPOList carries both the GUID and the
-	// display name of every object feeding that invocation, so an inventory adds
-	// nothing an emitted invocation does not already have.
+	// Group Policy client-side extensions
 	evtCSEStart       uint16 = 4016
 	evtCSEStopSuccess uint16 = 5016
 	evtCSEStopWarning uint16 = 6016
@@ -173,11 +167,7 @@ func buildProviders(timeline *BootTimeline, gp *gpAccumulator) map[windows.GUID]
 			parser: &userProfileParser{timeline: timeline},
 		},
 		guidGroupPolicy: {
-			// This map is a hard pre-parse gate: analyzeETL hands it to the ETW
-			// filter, so an ID missing here never reaches the parser at all.
-			// processEvent does not re-check it, which means no unit test that
-			// drives processEvent can catch an omission - see
-			// TestAcceptedGroupPolicyIDsSnapshot.
+			// Handed to the ETW filter, so an ID missing here never reaches the parser.
 			acceptedIDs: map[uint16]struct{}{
 				evtMachineGPStart: {}, evtMachineGPEnd: {},
 				evtUserGPStart: {}, evtUserGPEnd: {},
@@ -200,8 +190,7 @@ func buildProviders(timeline *BootTimeline, gp *gpAccumulator) map[windows.GUID]
 // AnalysisResult holds the structured output from ETL analysis.
 type AnalysisResult struct {
 	Timeline BootTimeline
-	// GroupPolicy holds the client-side-extension invocations measured during
-	// each boot Group Policy pass. It is nil when none were.
+	// GroupPolicy holds the client-side-extension invocations measured during each boot Group Policy pass; nil when none were.
 	GroupPolicy *GroupPolicyDetails
 }
 
@@ -262,10 +251,8 @@ func analyzeETL(_ context.Context, etlPath string) (*AnalysisResult, error) {
 // directPropertyLookup is optionally implemented by events that support
 // looking up a single property by name (via TdhGetProperty), bypassing
 // sequential parsing that can fail on schema-mismatched properties.
-//
-// It is only correct for string-typed properties: the underlying call returns
-// the property's raw bytes, which are then read as UTF-16. A GUID, boolean, or
-// integer property decodes to silent garbage this way.
+// Only valid for string properties: the call returns the property's raw bytes read
+// as UTF-16, so a GUID, boolean or integer decodes to garbage.
 type directPropertyLookup interface {
 	GetPropertyByName(name string) (string, error)
 }
@@ -282,9 +269,7 @@ type bulkPropertyLookup interface {
 	EventProperties() (map[string]interface{}, error)
 }
 
-// activityIDOf returns an event's ETW activity ID, or the zero GUID when the
-// event does not expose one. Safe on a nil event: a type assertion on a nil
-// interface simply reports false.
+// activityIDOf returns an event's ETW activity ID, or the zero GUID when the event does not expose one.
 func activityIDOf(e eventWithProperties) windows.GUID {
 	if scoped, ok := e.(activityScoped); ok {
 		return scoped.GetActivityID()
@@ -293,17 +278,8 @@ func activityIDOf(e eventWithProperties) windows.GUID {
 }
 
 // eventPropertyReader returns a lookup function over an event's properties.
-//
-// Property access has no cache: each GetPropertyString call re-parses the whole
-// event schema and every property in it, so reading five fields the naive way
-// costs five full TDH decodes. When the event supports a bulk read, this does
-// one decode and serves every subsequent lookup from the result. A bulk read
-// that fails part-way still returns the properties preceding the failure, so
-// the partial result is used when it has anything in it.
-//
-// A bulk read that fails having recovered nothing serves empty directly rather
-// than falling through, because the per-property path routes back into the same
-// decode and would re-run the identical failure on every lookup.
+// Property access has no cache, so each GetPropertyString call re-decodes the whole event; when the event supports
+// a bulk read this does one decode and serves every lookup from it, including a partial result that recovered anything.
 func eventPropertyReader(e eventWithProperties) func(string) string {
 	if e == nil {
 		return func(string) string { return "" }
@@ -312,6 +288,7 @@ func eventPropertyReader(e eventWithProperties) func(string) string {
 		props, err := bulk.EventProperties()
 		if err != nil {
 			log.Debugf("Logon duration: partial property decode (%d properties recovered): %v", len(props), err)
+			// Recovered nothing: serve empty directly, since the per-property path re-enters the same decode and repeats the failure on every lookup.
 			if len(props) == 0 {
 				return func(string) string { return "" }
 			}
@@ -432,9 +409,7 @@ func (p *userProfileParser) Parse(_ eventWithProperties, id uint16, ts time.Time
 	}
 }
 
-// groupPolicyParser processes Group Policy events: the aggregate pass
-// milestones (4000/4001 start, 8000/8001 end) and the client-side-extension
-// invocations within each pass (4016 start, 5016/6016/7016 stop).
+// groupPolicyParser processes Group Policy pass milestones and the client-side-extension invocations within each pass.
 type groupPolicyParser struct {
 	timeline *BootTimeline
 	gp       *gpAccumulator
@@ -442,10 +417,6 @@ type groupPolicyParser struct {
 
 func (p *groupPolicyParser) Parse(e eventWithProperties, id uint16, ts time.Time) {
 	switch id {
-	// Only the pass start events seed the activity table. Taking it from the
-	// same event that sets the milestone is what keeps the two consistent: a
-	// scope can never claim invocations without also reporting the pass they
-	// belong to.
 	case evtMachineGPStart:
 		if p.timeline.MachineGPStart.IsZero() {
 			p.timeline.MachineGPStart = ts
@@ -478,21 +449,14 @@ func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
 
 	guid, guidString, ok := normalizeGUID(prop("CSEExtensionId"))
 	if !ok {
-		// Without an extension identity the invocation cannot be paired with
-		// its terminal event, so there is nothing meaningful to record.
+		// Without an extension identity the invocation cannot be paired with its terminal event.
 		log.Debugf("Logon duration: CSE start event has no usable CSEExtensionId")
 		return
 	}
 
-	// Absent or unrecognized, treat the extension as synchronous: that is the
-	// common case, and the flag only annotates the duration's meaning.
+	// Absent or unrecognized, treat the extension as synchronous: the flag only annotates the duration's meaning.
 	isAsync, _ := parseETWBool(prop("IsExtensionAsyncProcessing"))
 
-	// ApplicableGPOList carries the GUID and the display name of every object
-	// feeding this invocation, so one walk yields both. Names go into the
-	// accumulator's shared lookup rather than onto the record: a list this walk
-	// could not finish contributes IDs without their names, and another
-	// invocation that listed the same object successfully fills them in.
 	ids, names, omitted := gpoRefsFromList(prop("ApplicableGPOList"))
 	p.gp.mergeGPONames(names)
 
@@ -506,32 +470,11 @@ func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
 	}, ts)
 }
 
-// parseCSEStop handles events 5016, 6016, and 7016, which close an extension
-// invocation.
-//
-// The provider's own CSEElaspedTimeInMilliSeconds is deliberately not read. The
-// emitted duration is the measured 4016-to-terminal interval, which is the same
-// kind of wall-clock measurement as the pass duration it is a slice of; a
-// second, differently-derived number would leave consumers without a clear
-// authoritative field.
-//
-// ErrorCode is not read either. The event ID already carries the outcome, and
-// the status behind a failure is a Group Policy health question rather than
-// latency data - see CSEInvocation.Result.
-//
-// One asymmetry with 4016 is worth knowing about. These templates declare
-// CSEExtensionId last, where 4016 declares it first, and EventProperties
-// recovers only the properties preceding a decode failure. So a partial decode
-// of a 4016 merely loses the async flag and the GPO list, while a partial
-// decode here loses the identity and therefore the whole invocation - its start
-// is left open and dropped at finalize. GetPropertyByName is not the fallback:
-// it reads the property's raw bytes as UTF-16, which turns a 16-byte win:GUID
-// into eight junk runes. Recovering it would need a raw-bytes accessor in the
-// etw package. The first three properties are two fixed-width integers and a
-// string, so the exposure is small.
+// parseCSEStop handles events 5016, 6016, and 7016, which close an extension invocation.
 func (p *groupPolicyParser) parseCSEStop(e eventWithProperties, id uint16, ts time.Time) {
 	prop := eventPropertyReader(e)
 
+	// No GetPropertyByName fallback for CSEExtensionId: it would read a win:GUID as UTF-16 junk.
 	guid, guidString, ok := normalizeGUID(prop("CSEExtensionId"))
 	if !ok {
 		log.Debugf("Logon duration: CSE stop event %d has no usable CSEExtensionId", id)
