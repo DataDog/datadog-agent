@@ -868,7 +868,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reload_restarts_running_auto_start_false_after_config_change() -> anyhow::Result<()> {
+    async fn test_reload_restarts_running_auto_start_false_after_config_change()
+    -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
             name: "action-executor".to_string(),
             config: ProcessConfig {
@@ -906,8 +907,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reload_modified_auto_start_false_stopped_process_stays_stopped(
-    ) -> anyhow::Result<()> {
+    async fn test_reload_modified_auto_start_false_stopped_process_stays_stopped()
+    -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
             name: "action-executor".to_string(),
             config: ProcessConfig {
