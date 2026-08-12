@@ -174,7 +174,7 @@ impl ManagedProcess {
     }
 
     #[cfg(windows)]
-    fn clear_windows_spawn_resources(&mut self) {
+    pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;
     }
@@ -260,6 +260,8 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Starting);
         let result = self.try_spawn();
         if result.is_err() {
+            #[cfg(windows)]
+            self.clear_windows_spawn_resources();
             self.transition_to(ProcessState::Failed);
         }
         result

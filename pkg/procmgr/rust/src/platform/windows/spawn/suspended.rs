@@ -30,25 +30,48 @@ impl SuspendedChild {
         }
     }
 
-    /// Assign the child to `job`, store it on `process`, then resume the initial thread.
+    /// Assign the child to `job`, resume the initial thread, then store the job on `process`.
     pub(super) fn supervise(
         self,
         process: &mut ManagedProcess,
         job: JobObject,
     ) -> Result<ProcessHandle> {
         let process_name = process.name();
-        match job.assign_process(self.pid) {
-            Ok(()) => process.set_job_object(job),
-            Err(e) => warn!("[{process_name}] failed to assign to job object: {e:#}"),
-        }
+        let job_assigned = match job.assign_process(self.pid) {
+            Ok(()) => true,
+            Err(e) => {
+                warn!("[{process_name}] failed to assign to job object: {e:#}");
+                false
+            }
+        };
+
         let previous_count = unsafe { ResumeThread(self.thread.as_handle()) };
         if previous_count == u32::MAX {
+            terminate_suspended_child(process_name, self.pid, job_assigned, &job);
+            process.clear_windows_spawn_resources();
             bail!(
                 "ResumeThread({}) failed: {}",
                 self.pid,
                 std::io::Error::last_os_error()
             );
         }
+
+        if job_assigned {
+            process.set_job_object(job);
+        }
         Ok(ProcessHandle::from_raw(self.pid, self.process.raw()))
+    }
+}
+
+fn terminate_suspended_child(process_name: &str, pid: u32, job_assigned: bool, job: &JobObject) {
+    let result = if job_assigned {
+        job.terminate()
+    } else {
+        super::super::send_force_kill(pid)
+    };
+    if let Err(e) = result {
+        warn!(
+            "[{process_name}] failed to terminate suspended child (pid={pid}) after ResumeThread failure: {e:#}"
+        );
     }
 }
