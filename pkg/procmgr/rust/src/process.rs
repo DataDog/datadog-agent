@@ -177,6 +177,11 @@ impl ManagedProcess {
     }
 
     #[cfg(windows)]
+    pub(crate) fn clear_windows_job_object(&mut self) {
+        self.job_object = None;
+    }
+
+    #[cfg(windows)]
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;
@@ -382,7 +387,8 @@ impl ManagedProcess {
             if let Err(e) = job.terminate() {
                 warn!("[{}] job object terminate failed: {e}", self.name);
             } else {
-                self.clear_windows_spawn_resources();
+                // Child exit is asynchronous; keep user_profile until set_last_status.
+                self.clear_windows_job_object();
                 return;
             }
         }
@@ -451,18 +457,35 @@ impl ManagedProcess {
                     warn!("[{}] still running after force-kill, giving up", self.name);
                 }
             }
-        } else if self.has_child_handle() && time::timeout(stop, self.wait()).await.is_err() {
-            warn!(
-                "[{}] stop timeout ({}s) reached, force-killing",
-                self.name,
-                stop.as_secs()
-            );
-            self.force_kill();
-            if time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait())
-                .await
-                .is_err()
-            {
-                warn!("[{}] still running after force-kill, giving up", self.name);
+        } else if self.has_child_handle() {
+            match time::timeout(stop, self.wait()).await {
+                Ok(Ok(status)) => {
+                    self.set_last_status(status);
+                    return;
+                }
+                Ok(Err(e)) => {
+                    warn!("[{}] wait failed during stop: {e:#}", self.name);
+                }
+                Err(_) => {
+                    warn!(
+                        "[{}] stop timeout ({}s) reached, force-killing",
+                        self.name,
+                        stop.as_secs()
+                    );
+                    self.force_kill();
+                    match time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait()).await {
+                        Ok(Ok(status)) => {
+                            self.set_last_status(status);
+                            return;
+                        }
+                        Ok(Err(e)) => {
+                            warn!("[{}] wait failed after force-kill: {e:#}", self.name);
+                        }
+                        Err(_) => {
+                            warn!("[{}] still running after force-kill, giving up", self.name);
+                        }
+                    }
+                }
             }
         }
         self.mark_stopped();
@@ -473,7 +496,7 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
-        self.clear_windows_spawn_resources();
+        self.clear_windows_job_object();
     }
 
     #[cfg(test)]
