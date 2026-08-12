@@ -377,6 +377,10 @@ variables:
 
   # Job cloning strategy
   GIT_STRATEGY: "fetch"
+  # Shallow clone by default to speed up checkouts. Jobs that need full history
+  # (e.g. `git merge-base`, `git log` over a range, `git describe --tags`) must
+  # override this to GIT_DEPTH: 0 (full clone/fetch).
+  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)

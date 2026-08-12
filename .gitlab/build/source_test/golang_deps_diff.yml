@@ -13,6 +13,7 @@ golang_deps_diff:
   variables:
     KUBERNETES_CPU_REQUEST: 8
     GIT_STRATEGY: "clone" # needed because this job uses `git merge-base`
+    GIT_DEPTH: 0 # full history needed to compute the merge-base
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
