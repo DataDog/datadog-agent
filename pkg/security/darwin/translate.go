@@ -76,20 +76,43 @@ type nameResolver interface {
 }
 
 // resolveNames fills in the user and group names for an entry's credentials.
+// resolveNames derives the user and group names from the ids already on the
+// entry, overwriting whatever was there.
+//
+// Overwriting is the point rather than an optimisation detail. The process
+// resolver's insertExecEntry copies the whole Credentials struct from the previous
+// entry at that pid, names included, so an exec that changes uid arrives carrying
+// the OLD name. Filling in only empty names left events reporting uid 502 as
+// "root". A name that disagrees with the id beside it is worse than no name, so on
+// failure the name is cleared rather than left stale.
 func (t *Translator) resolveNames(entry *model.ProcessCacheEntry) {
-	if t.userGroup == nil {
+	resolveCredentialNames(t.userGroup, &entry.Credentials)
+}
+
+// resolveCredentialNames derives the user and group names from the ids in creds,
+// overwriting whatever was there. It is the single place that enforces the
+// invariant "the names describe the ids stored beside them", and both the
+// translator and the snapshot go through it.
+//
+// A nil resolver clears the names rather than leaving them: an inherited name
+// that cannot be verified is exactly the wrong-attribution case this guards.
+func resolveCredentialNames(ug nameResolver, creds *model.Credentials) {
+	if ug == nil {
+		creds.User = ""
+		creds.Group = ""
 		return
 	}
 
-	if entry.Credentials.User == "" {
-		if name, err := t.userGroup.ResolveUser(int(entry.Credentials.UID)); err == nil {
-			entry.Credentials.User = name
-		}
+	if name, err := ug.ResolveUser(int(creds.UID)); err == nil {
+		creds.User = name
+	} else {
+		creds.User = ""
 	}
-	if entry.Credentials.Group == "" {
-		if name, err := t.userGroup.ResolveGroup(int(entry.Credentials.GID)); err == nil {
-			entry.Credentials.Group = name
-		}
+
+	if name, err := ug.ResolveGroup(int(creds.GID)); err == nil {
+		creds.Group = name
+	} else {
+		creds.Group = ""
 	}
 }
 

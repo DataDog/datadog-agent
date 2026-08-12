@@ -85,14 +85,7 @@ func Snapshot(pr *process.EBPFLessResolver, ug nameResolver) (int, error) {
 		// tree, so leaving their names empty is the most visible version of the
 		// missing-username problem. The resolver's LRU makes this a handful of
 		// lookups across hundreds of processes.
-		if ug != nil {
-			if name, err := ug.ResolveUser(int(entry.Credentials.UID)); err == nil {
-				entry.Credentials.User = name
-			}
-			if name, err := ug.ResolveGroup(int(entry.Credentials.GID)); err == nil {
-				entry.Credentials.Group = name
-			}
-		}
+		resolveCredentialNames(ug, &entry.Credentials)
 
 		inserted++
 	}

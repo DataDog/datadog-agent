@@ -289,6 +289,89 @@ func TestTranslateNeverPopulatesEnvs(t *testing.T) {
 	assert.Empty(t, entry.Process.EnvsEntry.Values, "environment variables must never be captured")
 }
 
+// fakeNameResolver maps a couple of ids to names deterministically, so credential
+// naming can be tested on any unix rather than only on a machine with these
+// accounts.
+type fakeNameResolver struct{}
+
+func (fakeNameResolver) ResolveUser(uid int) (string, error) {
+	switch uid {
+	case 0:
+		return "root", nil
+	case 502:
+		return "alice", nil
+	}
+	return "", errors.New("unknown uid")
+}
+
+func (fakeNameResolver) ResolveGroup(gid int) (string, error) {
+	switch gid {
+	case 0:
+		return "wheel", nil
+	case 20:
+		return "staff", nil
+	}
+	return "", errors.New("unknown gid")
+}
+
+// TestExecDoesNotInheritStaleUserName is a regression test for a wrong-attribution
+// bug seen in staging: events reported "uid": 502 alongside "user": "root".
+//
+// The process resolver's insertExecEntry copies the whole Credentials struct from
+// the previous entry at that pid, names included. Overwriting only the numeric ids
+// afterwards therefore leaves the inherited name in place, and an event ends up
+// attributing a user's activity to root. Misattribution is worse than a missing
+// name, so the names have to be re-derived whenever the ids they describe change.
+//
+// Note that the group looked correct in the wild purely by coincidence: the
+// inherited gid happened to match too. The uid is what exposed it.
+func TestExecDoesNotInheritStaleUserName(t *testing.T) {
+	tr := newTestTranslator(t)
+	tr.userGroup = fakeNameResolver{}
+
+	// First exec at this pid runs as root, as a snapshotted or setuid parent would.
+	_, err := tr.Translate(execMessageCreds(t, 5000, 1, "/usr/bin/sudo", []string{"sudo"}, 0, 0, 0, 0))
+	require.NoError(t, err)
+
+	entry := tr.resolver.Resolve(process.CacheResolverKey{Pid: 5000})
+	require.NotNil(t, entry)
+	require.Equal(t, "root", entry.Credentials.User)
+
+	// A second exec at the SAME pid, now as uid 502. insertExecEntry inherits the
+	// previous credentials, so this is where the stale name used to survive.
+	_, err = tr.Translate(execMessageCreds(t, 5000, 1, "/bin/sh", []string{"sh"}, 502, 502, 20, 20))
+	require.NoError(t, err)
+
+	entry = tr.resolver.Resolve(process.CacheResolverKey{Pid: 5000})
+	require.NotNil(t, entry)
+
+	assert.EqualValues(t, 502, entry.Credentials.UID)
+	assert.Equal(t, "alice", entry.Credentials.User,
+		"the user name must match the uid set alongside it, not the inherited one")
+	assert.Equal(t, "staff", entry.Credentials.Group)
+}
+
+// TestUnresolvableUIDLeavesNameEmpty checks the degraded case is empty rather than
+// stale: an unknown uid must not keep a previous entry's name.
+func TestUnresolvableUIDLeavesNameEmpty(t *testing.T) {
+	tr := newTestTranslator(t)
+	tr.userGroup = fakeNameResolver{}
+
+	_, err := tr.Translate(execMessageCreds(t, 5001, 1, "/usr/bin/sudo", []string{"sudo"}, 0, 0, 0, 0))
+	require.NoError(t, err)
+
+	// uid 4242 is unknown to the resolver.
+	_, err = tr.Translate(execMessageCreds(t, 5001, 1, "/bin/sh", []string{"sh"}, 4242, 4242, 20, 20))
+	require.NoError(t, err)
+
+	entry := tr.resolver.Resolve(process.CacheResolverKey{Pid: 5001})
+	require.NotNil(t, entry)
+
+	assert.EqualValues(t, 4242, entry.Credentials.UID)
+	assert.Empty(t, entry.Credentials.User,
+		"an unresolvable uid must leave the name empty, never inherit a stale one")
+}
+
 // TestTranslateSetsCredentials checks the uid/gid plumbing that process.user
 // depends on.
 func TestTranslateSetsCredentials(t *testing.T) {
