@@ -42,32 +42,3 @@ func setPathname(fileEvent *model.FileEvent, pathnameStr string) {
 	}
 	fileEvent.SetBasenameStr(baseName)
 }
-
-// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
-func GetProcessArgv(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		argv = argv[1:]
-	}
-	pr.Argv = argv
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv, pr.ArgsTruncated
-}
-
-// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
-func GetProcessArgv0(pr *model.Process) (string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv0, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		pr.Argv0 = argv[0]
-	}
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv0, pr.ArgsTruncated
-}
