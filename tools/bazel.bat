@@ -79,9 +79,60 @@ for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
 )
 
 set "args=%*"
+call :find_bazel_command
+set "needs_msys2_sync="
+if /i "!bazel_cmd!" == "build" set "needs_msys2_sync=1"
+if /i "!bazel_cmd!" == "test" set "needs_msys2_sync=1"
+if /i "!bazel_cmd!" == "run" set "needs_msys2_sync=1"
+if /i "!bazel_cmd!" == "coverage" set "needs_msys2_sync=1"
+if defined needs_msys2_sync call :sync_msys2_if_needed
+if !errorlevel! neq 0 exit /b !errorlevel!
+
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
+
+:: Find the Bazel command after startup options.
+:find_bazel_command
+set "bazel_cmd="
+set "next_args=!args!"
+:find_next_arg
+for /f "tokens=1* delims= " %%i in ("!next_args!") do (
+  set "arg=%%~i"
+  if "!arg:~0,1!" equ "-" (
+    set "next_args=%%j"
+  ) else (
+    set "bazel_cmd=%%i"
+    exit /b 0
+  )
+)
+if not defined bazel_cmd if defined next_args goto :find_next_arg
+exit /b 0
+
+:: Install pinned MSYS2 when bash is missing, or when force install is requested.
+:sync_msys2_if_needed
+set "msys2_root=C:\tools\msys64"
+set "msys2_bash=!msys2_root!\usr\bin\bash.exe"
+if defined MSYS2_INSTALL_ROOT set "msys2_root=!MSYS2_INSTALL_ROOT!"
+if defined MSYS2_INSTALL_ROOT set "msys2_bash=!msys2_root!\usr\bin\bash.exe"
+
+set "msys2_fetch_args=fetch @msys2_base//:bash_files"
+if defined DD_BAZEL_MSYS2_FORCE_INSTALL set "MSYS2_FORCE_INSTALL=!DD_BAZEL_MSYS2_FORCE_INSTALL!"
+if /i "!MSYS2_FORCE_INSTALL!" == "1" (
+  set "msys2_fetch_args=!msys2_fetch_args! --repo_env=MSYS2_FORCE_INSTALL=1"
+  goto :do_msys2_fetch
+)
+if exist "!msys2_bash!" exit /b 0
+
+:do_msys2_fetch
+"%BAZEL_REAL%" !startup_options! !msys2_fetch_args!
+if !errorlevel! neq 0 exit /b !errorlevel!
+if not exist "!msys2_bash!" (
+  >&2 echo 🔴 MSYS2 bash was not installed at !msys2_bash!
+  >&2 echo     Set DD_BAZEL_MSYS2_FORCE_INSTALL=1 to replace an existing install.
+  exit /b 2
+)
+exit /b 0
 
 :: "--startup cmd ..." -> "--startup cmd --config=ci ..."
 :insert_extra_args
