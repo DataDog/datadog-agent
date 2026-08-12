@@ -26,10 +26,10 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
     let profile = profile_for(process.name());
     let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
 
-    let process_name = process.name();
+    let process_name = process.name().to_owned();
     info!("[{process_name}] spawn profile: {profile}");
     if matches!(profile, SpawnProfile::Privileged) {
-        privileged::validate_process_request(process_name, &request)?;
+        privileged::validate_process_request(&process_name, &request)?;
     }
 
     // Create the job before spawning so a CreateJobObjectW / SetInformationJobObject
@@ -43,7 +43,7 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
         SpawnProfile::Privileged => AgentAccount::LocalSystem,
     };
 
-    let (suspended, user_profile) = spawn_as_primary_token(process_name, &request, &account)
+    let (suspended, user_profile) = spawn_as_primary_token(&process_name, &request, &account)
         .with_context(|| format!("[{process_name}] CreateProcessAsUserW spawn failed"))?;
     if let Some(profile) = user_profile {
         process.set_user_profile_guard(profile);
