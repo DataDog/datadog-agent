@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -41,6 +42,32 @@ var (
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
 )
+
+// conntrackPathAllowlist contains the exact conntrack_path values allowed
+// in addition to the default (empty string, which disables conntrack collection)
+// and the paths matched by conntrackPathAllowlistRegex.
+var conntrackPathAllowlist = []string{
+	"",
+	"/usr/bin/conntrack",
+	"/usr/sbin/conntrack",
+	"/sbin/conntrack",
+}
+
+// conntrackPathAllowlistRegex matches Nix store paths, e.g.
+// /nix/store/<hash>-conntrack-tools-<version>/conntrack
+var conntrackPathAllowlistRegex = regexp.MustCompile(`^/nix/store/.*/conntrack$`)
+
+func isConntrackPathAllowed(cfgpath string) bool {
+	if slices.Contains(conntrackPathAllowlist, cfgpath) {
+		return true
+	}
+	cleanedPath := path.Clean(cfgpath)
+	// Only allow absolute paths that have no dot or dot-dot expansion to prevent traversal
+	if cfgpath != cleanedPath {
+		return false
+	}
+	return conntrackPathAllowlistRegex.MatchString(cleanedPath)
+}
 
 type ethtoolInterface interface {
 	DriverInfo(intf string) (ethtool.DrvInfo, error)
@@ -937,6 +964,11 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 	err = yaml.Unmarshal(rawInstance, &c.config.instance)
 	if err != nil {
 		return err
+	}
+
+	if !isConntrackPathAllowed(c.config.instance.ConntrackPath) {
+		log.Errorf("network check: conntrack_path %q is not allowed, disabling conntrack metrics collection", c.config.instance.ConntrackPath)
+		c.config.instance.ConntrackPath = ""
 	}
 
 	if c.config.instance.ExcludedInterfaceRe != "" {
