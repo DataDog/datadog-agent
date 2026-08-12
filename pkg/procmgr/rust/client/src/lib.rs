@@ -4,10 +4,6 @@
 // Copyright 2026-present Datadog, Inc.
 
 //! Rust client plumbing for the local dd-procmgrd gRPC API.
-//!
-//! This crate owns the process-manager protobuf bindings, endpoint resolution,
-//! and platform connector. Daemon server transport and process supervision stay
-//! in `dd-procmgrd`.
 
 use anyhow::{Context as _, Result};
 use std::path::{Path, PathBuf};
@@ -42,32 +38,28 @@ const DEFAULT_IPC_PATH: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
 #[cfg(windows)]
 const DEFAULT_IPC_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 
-const DUMMY_ENDPOINT: &str = "http://[::]:50051";
+const TONIC_PLACEHOLDER_URI: &str = "http://[::]:50051";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Return the platform's default dd-procmgrd endpoint.
 pub fn default_ipc_path() -> PathBuf {
     PathBuf::from(DEFAULT_IPC_PATH)
 }
 
-/// Resolve the daemon endpoint from `DD_PM_SOCKET_PATH`, falling back to the
-/// platform default.
 pub fn ipc_path() -> PathBuf {
     std::env::var("DD_PM_SOCKET_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| default_ipc_path())
 }
 
-/// Open the platform-local stream used by dd-procmgrd.
 pub async fn connect_stream(path: &Path) -> std::io::Result<IpcStream> {
     connect_platform(path).await
 }
 
-/// Connect eagerly to dd-procmgrd at `path`.
+/// Connect eagerly to dd-procmgrd.
 pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
     let endpoint = path.to_path_buf();
     let display_path = endpoint.clone();
-    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
+    tonic::transport::Endpoint::from_static(TONIC_PLACEHOLDER_URI)
         .connect_with_connector(tower::service_fn(move |_| {
             let endpoint = endpoint.clone();
             async move {
@@ -85,11 +77,10 @@ pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
         })
 }
 
-/// Build a channel that connects on the first RPC and reconnects after the
-/// daemon restarts.
+/// Connect lazily to dd-procmgrd and reconnect if it restarted.
 pub fn connect_lazy(path: &Path) -> tonic::transport::Channel {
     let path = path.to_path_buf();
-    tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
+    tonic::transport::Endpoint::from_static(TONIC_PLACEHOLDER_URI)
         .connect_timeout(CONNECT_TIMEOUT)
         .connect_with_connector_lazy(tower::service_fn(move |_| {
             let path = path.clone();
