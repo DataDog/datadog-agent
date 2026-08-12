@@ -80,6 +80,47 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+// ConfigureAptMirrors hardens apt against package-mirror outages on apt-based hosts.
+// It bounds apt's per-request timeout and retries so an unreachable mirror fails within
+// minutes instead of hanging until the CI job's 2h timeout, and on Ubuntu rewrites the apt
+// sources to a "mirror+file" list so apt fails over to the global archive.ubuntu.com /
+// ports.ubuntu.com mirrors when the regional EC2 mirror is down. This mirrors the pattern
+// used in Dockerfiles/agent/Dockerfile. See incident 58780.
+func (h *Host) ConfigureAptMirrors() {
+	if h.pkgManager != "apt" {
+		return
+	}
+	// Fail fast when a mirror is unreachable instead of retrying with long default TCP timeouts.
+	h.remote.MustExecute(`printf 'Acquire::Retries "2";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
+	// Ubuntu EC2 AMIs point at a single regional mirror with no fallback; add global mirrors.
+	if h.os.Flavor != e2eos.Ubuntu {
+		return
+	}
+	h.remote.MustExecute(`printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
+	h.remote.MustExecute(`printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
+	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
+}
+
+// ConfigureYumMirrors is the yum counterpart to ConfigureAptMirrors. CentOS 7 is EOL and its
+// stock /centos/7/ path on vault.centos.org now returns HTTP 403, breaking any "yum install".
+// It repoints base/updates/extras at the versioned vault archive (7.9.2009), with the CERN and
+// kernel.org vault mirrors as ordered fallbacks (failovermethod=priority) plus skip_if_unavailable
+// and a bounded timeout to fail fast. vault's http path matches the agent's production
+// kernel-header downloader (pkg/util/kernel/headers/download/rpm/centos.go). See incident 58780.
+func (h *Host) ConfigureYumMirrors() {
+	if h.pkgManager != "yum" {
+		return
+	}
+	// Only CentOS 7 needs this — its EOL content lives at vault.centos.org/7.9.2009. Other yum
+	// distros (RHEL, Amazon Linux) and CentOS 6 (different vault tree) are left untouched.
+	if h.os.Flavor != e2eos.CentOS || !strings.HasPrefix(h.os.Version, "7") {
+		return
+	}
+	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base\nbaseurl=http://vault.centos.org/7.9.2009/os/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/os/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/os/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates\nbaseurl=http://vault.centos.org/7.9.2009/updates/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/updates/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/updates/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras\nbaseurl=http://vault.centos.org/7.9.2009/extras/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/extras/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/extras/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
+	// Drop metadata cached against the previous (403ing) repo config so the next yum call uses the new mirror.
+	h.remote.MustExecute("sudo yum clean all")
+}
+
 // dockerImage returns the ECR pull-through URL for ecrPath when a registry is configured,
 // or publicFallback otherwise.
 func (h *Host) dockerImage(ecrPath, publicFallback string) string {
