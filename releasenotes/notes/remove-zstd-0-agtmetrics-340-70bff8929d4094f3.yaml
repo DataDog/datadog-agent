@@ -1,0 +1,4 @@
+---
+security:
+  - |
+    Update agent-payload to v5.0.209 to remove the legacy zstd_0 dependency.
