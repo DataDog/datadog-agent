@@ -68,8 +68,7 @@ type ProcessInfo struct {
 	EnvsTruncated bool
 }
 
-// newProcessInfo builds the slim ProcessInfo from a model.Process, scrubbing and resolving
-// args and envs on a copy so the raw ArgsEntry/EnvsEntry and Envp can be dropped.
+// newProcessInfo builds the slim ProcessInfo from a model.Process.
 func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessInfo {
 	pc := *p
 	if resolver != nil {
@@ -81,31 +80,29 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 	sprocess.GetProcessArgv0(&pc)
 
 	return ProcessInfo{
-		Pid:              pc.Pid,
-		Tid:              pc.Tid,
-		PPid:             pc.PPid,
-		Cookie:           pc.Cookie,
-		IsThread:         pc.IsThread,
-		IsExecExec:       pc.IsExecExec,
-		FileEvent:        pc.FileEvent,
-		CGroup:           pc.CGroup,
-		TTYName:          pc.TTYName,
-		Comm:             pc.Comm,
-		ForkTime:         pc.ForkTime,
-		ExitTime:         pc.ExitTime,
-		ExecTime:         pc.ExecTime,
-		Credentials:      pc.Credentials,
-		Argv0:            pc.Argv0,
-		Argv:             pc.Argv,
-		ArgsTruncated:    pc.ArgsTruncated,
-		Envs:             pc.Envs,
-		EnvsTruncated:    pc.EnvsTruncated,
+		Pid:           pc.Pid,
+		Tid:           pc.Tid,
+		PPid:          pc.PPid,
+		Cookie:        pc.Cookie,
+		IsThread:      pc.IsThread,
+		IsExecExec:    pc.IsExecExec,
+		FileEvent:     pc.FileEvent,
+		CGroup:        pc.CGroup,
+		TTYName:       pc.TTYName,
+		Comm:          pc.Comm,
+		ForkTime:      pc.ForkTime,
+		ExitTime:      pc.ExitTime,
+		ExecTime:      pc.ExecTime,
+		Credentials:   pc.Credentials,
+		Argv0:         pc.Argv0,
+		Argv:          pc.Argv,
+		ArgsTruncated: pc.ArgsTruncated,
+		Envs:          pc.Envs,
+		EnvsTruncated: pc.EnvsTruncated,
 	}
 }
 
-// ToModelProcess rebuilds a model.Process from the slim ProcessInfo. The container ID is
-// a workload-level property (constant across the tree), so it is threaded in from the
-// snapshotting profile rather than stored on every node.
+// ToModelProcess rebuilds a model.Process from the slim ProcessInfo.
 func (pi *ProcessInfo) ToModelProcess(containerID containerutils.ContainerID) model.Process {
 	return model.Process{
 		PIDContext:       model.PIDContext{Pid: pi.Pid, Tid: pi.Tid},
