@@ -7,7 +7,7 @@ configure/make actions. The repo expects the tree at `C:/tools/msys64` (see
 `@msys2_base` is a `local` repository rule that:
 
 1. Downloads a pinned MSYS2 base archive plus overlay pacman packages (autotools stack)
-2. On **native Windows Bazel** (`ctx.os.name == "windows"`), copies the tree to
+2. On **native Windows Bazel** (`ctx.os.name` starts with `windows`), copies the tree to
    `MSYS2_INSTALL_ROOT` (default `C:/tools/msys64`) via `install.ps1`
 
 Run Bazel from **cmd.exe or PowerShell**, not Git Bash or WSL — those report a

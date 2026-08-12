@@ -76,7 +76,8 @@ def _msys2_base_repository_impl(ctx):
     install_root = ctx.getenv("MSYS2_INSTALL_ROOT") or _DEFAULT_INSTALL_ROOT
     install_root = install_root.replace("\\", "/")
 
-    if ctx.os.name != "windows":
+    # repository_os.name is the lowercased Java os.name, e.g. "windows 11".
+    if not ctx.os.name.startswith("windows"):
         ctx.template(
             "BUILD.bazel",
             ctx.attr._build_file_template,
