@@ -1,13 +1,75 @@
 #!/bin/sh
+CONFIG_DIR=/etc/datadog-agent
+CONFIG_FILE="$CONFIG_DIR/datadog.yaml"
+EXAMPLE_FILE="$CONFIG_DIR/datadog.yaml.example"
+
+# installp has no mechanism to pass parameters/env vars at install time
+# (unlike apt/yum, which the Linux install script relies on), so this is the
+# only way to configure the agent unattended on AIX. Mirrors the env vars
+# handled by https://github.com/DataDog/agent-linux-install-script.
+# Only touches the config file on a fresh install: if datadog.yaml already
+# exists, it is left untouched.
+if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ]; then
+    if cp "$EXAMPLE_FILE" "$CONFIG_FILE" 2>/dev/null; then
+        # AIX sed has no -i flag, so every edit goes through a temp file and an
+        # mv. The mv swaps in a new inode each time, so ownership/permissions
+        # must be (re)applied once at the end, after all edits below — setting
+        # them here would just be clobbered by the first edit's mv.
+        set_config_value() {
+            # $1 = sed anchor regex (matched to end of line), $2 = replacement line
+            sed "s|$1.*|$2|" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+        }
+
+        set_config_value '^api_key:' "api_key: $DD_API_KEY"
+
+        [ -n "$DD_SITE" ] && set_config_value '^# site:' "site: $DD_SITE"
+        [ -n "$DD_HOSTNAME" ] && set_config_value '^# hostname:' "hostname: $DD_HOSTNAME"
+        [ -n "$DD_ENV" ] && set_config_value '^# env:' "env: $DD_ENV"
+        [ -n "$DD_INFRASTRUCTURE_MODE" ] && set_config_value '^# infrastructure_mode:' "infrastructure_mode: $DD_INFRASTRUCTURE_MODE"
+
+        if [ -n "$DD_TAGS" ]; then
+            formatted_tags=$(echo "$DD_TAGS" | sed "s/,/', '/g")
+            set_config_value '^# tags:' "tags: ['$formatted_tags']"
+        fi
+
+        # Proxy settings: https://docs.datadoghq.com/agent/proxy/
+        # DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+        # vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
+        proxy_http="${DD_PROXY_HTTP:-${HTTP_PROXY:-${http_proxy:-}}}"
+        proxy_https="${DD_PROXY_HTTPS:-${HTTPS_PROXY:-${https_proxy:-}}}"
+        proxy_no_proxy="${DD_PROXY_NO_PROXY:-${NO_PROXY:-${no_proxy:-}}}"
+
+        if [ -n "$proxy_http" ] || [ -n "$proxy_https" ] || [ -n "$proxy_no_proxy" ]; then
+            set_config_value '^# proxy:' "proxy:"
+            [ -n "$proxy_http" ] && set_config_value '^#   http:' "  http: $proxy_http"
+            [ -n "$proxy_https" ] && set_config_value '^#   https:' "  https: $proxy_https"
+            if [ -n "$proxy_no_proxy" ]; then
+                formatted_no_proxy=$(echo "$proxy_no_proxy" | sed "s/[, ][, ]*/', '/g")
+                set_config_value '^#   no_proxy:' "  no_proxy: ['$formatted_no_proxy']"
+            fi
+        fi
+
+        chown dd-agent:dd-agent "$CONFIG_FILE" 2>/dev/null || true
+        chmod 640 "$CONFIG_FILE" 2>/dev/null || true
+    fi
+fi
+
 chown -R dd-agent:dd-agent /etc/datadog-agent \
                            /var/log/datadog \
                            /var/run/datadog \
                            /opt/datadog-agent 2>/dev/null || true
 
-if [ -f /etc/datadog-agent/datadog.yaml ]; then
-    startsrc -s datadog-agent
-    startsrc -s datadog-trace-agent
-    startsrc -s datadog-agent-data-plane
+if [ -f "$CONFIG_FILE" ]; then
+    if [ -z "$DD_INSTALL_ONLY" ]; then
+        startsrc -s datadog-agent
+        startsrc -s datadog-trace-agent
+        startsrc -s datadog-agent-data-plane
+    else
+        echo ""
+        echo "DD_INSTALL_ONLY is set: the Datadog Agent was not started."
+        echo "Start it with:  startsrc -s datadog-agent && startsrc -s datadog-trace-agent && startsrc -s datadog-agent-data-plane"
+        echo ""
+    fi
 else
     echo ""
     echo "Datadog Agent installed."
