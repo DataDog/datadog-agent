@@ -12,8 +12,6 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // modelTypes serves the generated SECL object types to CEL.
@@ -76,38 +74,39 @@ func (m *modelTypes) FindStructFieldType(structType, field string) (*types.Field
 			if !ok {
 				return nil, fmt.Errorf("%w: %T is not a SECL event position", errUnsupportedValue, obj)
 			}
-			return read(object.ctx, object.elem), nil
+			return read(object), nil
 		},
 	}, true
 }
 
 // bindMember resolves what a SECL path denotes — an iterated field, a leaf, or
-// an object to descend into — and returns the one way of reading it.
+// an object to descend into — and returns the one way of reading it from the
+// position the member was selected on.
 //
 // Everything that depends on the name rather than on the event is done here, so
 // that reading a field is a call through a closure and nothing else.
-func bindMember(path string, fieldType *types.Type) func(ctx *eval.Context, elem any) ref.Val {
+func bindMember(path string, fieldType *types.Type) func(o *seclObject) ref.Val {
 	if cursor, ok := celIterators[path]; ok {
-		return func(ctx *eval.Context, _ any) ref.Val {
-			return newIteratedList(ctx, cursor, fieldType)
+		return func(o *seclObject) ref.Val {
+			return newIteratedList(o.ctx, cursor, fieldType)
 		}
 	}
 
 	if reader, ok := celReaders[path]; ok {
-		return func(ctx *eval.Context, elem any) ref.Val {
-			return reader(ctx, elem)
+		return func(o *seclObject) ref.Val {
+			return reader(o.ctx, o.elem)
 		}
 	}
 
 	if _, ok := modelShapes[fieldType.TypeName()]; ok {
-		return func(ctx *eval.Context, elem any) ref.Val {
-			return &seclObject{ctx: ctx, typ: fieldType, elem: elem}
+		return func(o *seclObject) ref.Val {
+			return o.member(fieldType)
 		}
 	}
 
 	// The types and the readers are two outputs of one generator run, so a path
 	// that is typed but unreadable means they have drifted.
-	return func(*eval.Context, any) ref.Val {
+	return func(*seclObject) ref.Val {
 		return types.NewErr("%q is declared but has no reader", path)
 	}
 }
@@ -120,8 +119,8 @@ func join(prefix, segment string) string {
 }
 
 // ModelTypes returns the environment options that declare the SECL fields: the
-// generated object types as a type provider, plus one variable per top level
-// segment.
+// generated object types as a type provider, plus the one variable the whole
+// namespace hangs under — see EventRoot.
 //
 // Passing these to NewEnv is what turns Compile from a well-formedness check
 // into a real one, so that comparing a string field against an integer, or
@@ -133,19 +132,10 @@ func ModelTypes() ([]cel.EnvOption, error) {
 		return nil, fmt.Errorf("creating the CEL type registry: %w", err)
 	}
 
-	opts := []cel.EnvOption{cel.CustomTypeProvider(&modelTypes{Provider: registry})}
-
-	roots := make([]string, 0, len(modelRoots))
-	for root := range modelRoots {
-		roots = append(roots, root)
-	}
-	sort.Strings(roots)
-
-	for _, root := range roots {
-		opts = append(opts, cel.Variable(root, modelRoots[root]))
-	}
-
-	return opts, nil
+	return []cel.EnvOption{
+		cel.CustomTypeProvider(&modelTypes{Provider: registry}),
+		cel.Variable(EventRoot, modelRootType),
+	}, nil
 }
 
 // NewModelEnv returns a CEL environment that declares the SECL helper functions

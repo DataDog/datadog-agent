@@ -96,7 +96,9 @@ func TestListnessBeatsGetFieldMetadata(t *testing.T) {
 }
 
 func TestGeneratedTypesShape(t *testing.T) {
-	process, ok := modelRoots["process"]
+	// The top level segments are members of the root type, not declarations of
+	// their own.
+	process, ok := modelShapes[modelRootType.TypeName()]["process"]
 	require.True(t, ok)
 	require.Equal(t, types.StructKind, process.Kind())
 
@@ -139,17 +141,9 @@ func TestGeneratedTypesShape(t *testing.T) {
 			}
 		}
 	}
-	for _, root := range modelRoots {
-		r := root
-		if r.Kind() == types.ListKind {
-			r = r.Parameters()[0]
-		}
-		if r.Kind() == types.StructKind {
-			walk(r.TypeName())
-		}
-	}
+	walk(modelRootType.TypeName())
 	for name := range modelShapes {
-		assert.True(t, reachable[name], "type %q is not reachable from any root", name)
+		assert.True(t, reachable[name], "type %q is not reachable from the root", name)
 	}
 
 	// The pseudo fields are absent, which is what keeps the types a tree.

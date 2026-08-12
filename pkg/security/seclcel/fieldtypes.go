@@ -5,14 +5,20 @@
 
 package seclcel
 
-// FieldTypes tells the translator which SECL fields hold several values.
+// FieldTypes tells the translator what it cannot read off the syntax: which
+// names are fields, and which of them hold several values.
 //
-// That is the one thing the syntax does not say and the translation cannot do
-// without: SECL reads a comparison between an array field and a scalar as "any
-// element matches", so `process.ancestors.file.name == "sh"` and
+// The second is the one the translation cannot do without: SECL reads a
+// comparison between an array field and a scalar as "any element matches", so
+// `process.ancestors.file.name == "sh"` and
 // `process.ancestors.file.name in [ "sh" ]` both mean an existential quantifier
 // that has to be written out in CEL.
 type FieldTypes interface {
+	// IsFieldRoot reports whether name is a top level segment of the field
+	// namespace, and so whether a name starting with it is a field rather than a
+	// macro or a constant. Only a field is rooted at EventRoot.
+	IsFieldRoot(name string) bool
+
 	// ListPrefix returns the longest prefix of the field that is an iterated
 	// node, e.g. "process.ancestors" for "process.ancestors.file.name". It
 	// returns an empty string when nothing along the path is iterated.

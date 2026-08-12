@@ -45,6 +45,42 @@ type seclObject struct {
 	// therefore read from one pointer, which is what makes correlating them free
 	// instead of quadratic.
 	elem any
+
+	// firstMember and nextMember cache the positions reached from this one, as a
+	// list threaded through the positions themselves so that the cache is two
+	// words and allocates nothing of its own.
+	//
+	// It is what keeps rooting the namespace from costing an allocation per event.
+	// A position with no element holds nothing but the context and its type, so it
+	// is the same value for every event the context is reused for — the argument
+	// the activation's root already rests on. The root is held by the activation,
+	// so `evt.process.file.path` allocates its two intermediate positions on the
+	// first event and none afterwards, where reading it through an unrooted
+	// `process` allocated one on every event.
+	//
+	// The members reached from one position are few, so a walk beats a map. They
+	// are compared by type pointer, which identifies the member: the types come
+	// from modelShapes, and the planner hands the same pointer back on every read.
+	firstMember, nextMember *seclObject
+}
+
+// member returns the position one member of this one denotes.
+func (o *seclObject) member(typ *types.Type) *seclObject {
+	if o.elem != nil {
+		// One element of an iterated field: the position belongs to the element, so
+		// there is nothing to reuse across events.
+		return &seclObject{ctx: o.ctx, typ: typ, elem: o.elem}
+	}
+
+	for m := o.firstMember; m != nil; m = m.nextMember {
+		if m.typ == typ {
+			return m
+		}
+	}
+
+	m := &seclObject{ctx: o.ctx, typ: typ, nextMember: o.firstMember}
+	o.firstMember = m
+	return m
 }
 
 // celObjectType is what the checker sees; the runtime value carries the shape it
@@ -125,36 +161,23 @@ func cidrToVal(ipnet net.IPNet) ref.Val {
 // activation resolves the names a translated expression refers to against an
 // event, which the SECL context holds.
 //
+// There is almost nothing to resolve: the fields hang under one name, so the
+// activation hands out one value and every field select below it was bound to
+// the field it denotes when the rule was planned.
+//
 // An activation may be kept for as long as its context, across the events the
-// context is reused for. The values it hands out hold the context rather than
-// the event, and every read goes through ctx.Event, so none of them go stale
-// when the context is reset onto the next event.
+// context is reused for. The root it hands out holds the context rather than the
+// event, and every read goes through ctx.Event, so it does not go stale when the
+// context is reset onto the next event.
 type activation struct {
-	ctx *eval.Context
-
-	// roots caches the value standing for each top level name. Each name is
-	// resolved once per evaluation, so the cache earns its keep across
-	// evaluations rather than within one: a rule evaluated for every event
-	// allocates its root object once rather than every time. The names are few
-	// enough that a scan beats a map, and holding them inline means the cache
-	// itself never allocates.
-	roots  [cachedRoots]cachedRoot
-	cached int
-}
-
-// cachedRoots is how many top level names an activation remembers. Expressions
-// mention one or two; any beyond that simply resolve as they did before.
-const cachedRoots = 4
-
-type cachedRoot struct {
-	name  string
-	value ref.Val
+	ctx  *eval.Context
+	root ref.Val
 }
 
 // NewActivation returns the CEL activation for a SECL evaluation context, so that
 // a program built by Program can be evaluated against the event it holds.
 func NewActivation(ctx *eval.Context) interpreter.Activation {
-	return &activation{ctx: ctx}
+	return &activation{ctx: ctx, root: &seclObject{ctx: ctx, typ: modelRootType}}
 }
 
 // Parent implements interpreter.Activation; SECL evaluations have no enclosing
@@ -163,29 +186,16 @@ func (a *activation) Parent() interpreter.Activation { return nil }
 
 // ResolveName implements interpreter.Activation.
 func (a *activation) ResolveName(name string) (any, bool) {
-	if name == NowVar {
+	switch name {
+	case EventRoot:
+		return a.root, true
+	case NowVar:
 		return a.ctx.Now().UnixNano(), true
 	}
 
-	for i := range a.roots[:a.cached] {
-		if a.roots[i].name == name {
-			return a.roots[i].value, true
-		}
-	}
-
-	rootType, ok := modelRoots[name]
-	if !ok {
-		// vars is declared for SECL's ${…} variables but not populated yet, so an
-		// expression using one fails rather than silently reading nothing.
-		return nil, false
-	}
-
-	value := bindMember(name, rootType)(a.ctx, nil)
-	if a.cached < len(a.roots) {
-		a.roots[a.cached] = cachedRoot{name: name, value: value}
-		a.cached++
-	}
-	return value, true
+	// vars is declared for SECL's ${…} variables but not populated yet, so an
+	// expression using one fails rather than silently reading nothing.
+	return nil, false
 }
 
 // Program translates a SECL expression and returns an evaluable CEL program.

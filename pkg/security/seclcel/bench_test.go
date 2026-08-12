@@ -25,45 +25,57 @@ package seclcel
 //   - Nothing else measurable. Checking the result costs 2.5 ns and is the same
 //     either way.
 //
-// What is left out is building the CEL activation: 108 ns and 144 B, once. That
-// is right only if an activation lives as long as the pooled context it is bound
-// to, which it may — see the note on the activation type. If the integration
-// ends up building one per event, that cost belongs in these figures, and the
-// activation's root cache needs re-measuring against it: the cache is what makes
-// the activation 144 B rather than 8.
+// What is left out is building the CEL activation: 126 ns and 72 B in two
+// allocations, once — the activation and the root position it hands out. That is
+// right only if an activation lives as long as the pooled context it is bound to,
+// which it may — see the note on the activation type. If the integration ends up
+// building one per event, that cost belongs in these figures. Rooting the
+// namespace halved it: the activation used to cache the value of each top level
+// name it resolved, 144 B in one allocation, and now holds one root.
 //
-// As measured on one machine, before and after the generated readers replaced
-// resolving a field by joining its path and looking the accessor up by name:
+// As measured in one session, before and after the field namespace was rooted
+// under a single variable — which adds one select to every field read, and lets
+// every position above a leaf be reused for as long as the context:
 //
-//	                 SECL              CEL before          CEL now
-//	Comm             177 ns,  2 allocs    672 ns,    6     250 ns,   1
-//	Path             189 ns,  2           846 ns,    8     330 ns,   2
-//	InList           172 ns,  2                          — 271 ns,   1
-//	Regex            360 ns,  2                          — 607 ns,   4
-//	Glob             274 ns,  2                          — 404 ns,   3
-//	Ancestors        6.5 µs, 12          18.8 µs,  178    1.70 µs,   9
-//	DeepAncestors   56.3 µs, 304          150 µs, 1066    41.9 µs, 205
+//	                 SECL              CEL unrooted        CEL rooted
+//	Comm             172 ns,  2 allocs    247 ns,   1      262 ns,   1
+//	Path             180 ns,  2           338 ns,   2      279 ns,   1
+//	InList           172 ns,  2           267 ns,   1      282 ns,   1
+//	Regex            360 ns,  2           612 ns,   4      561 ns,   3
+//	Glob             273 ns,  2           407 ns,   3      373 ns,   2
+//	Ancestors       7.45 µs, 12          59.9 µs, 304     60.8 µs, 304
+//	DeepAncestors   57.2 µs, 304         41.8 µs, 205     42.5 µs, 205
 //
-// The three shapes with no before column were added with planningOptions, which
-// is what makes them affordable: unplanned they cost 724 ns, 2847 ns and 736 ns,
-// because the list literal, the regexp and the glob pattern were rebuilt on
-// every event.
+// The extra select costs 15 ns where a rule reads a leaf directly under a root,
+// which is Comm and InList. Everywhere a rule reads through an intermediate
+// object the reuse more than pays it back, one allocation fewer per event: Path,
+// Regex and Glob all come out ahead of what they cost unrooted. An iterated field
+// is 1 to 2% dearer, because an element position carries the two words of a reuse
+// list that only a position with no element can use.
 //
-// Decomposing what is left of a scalar read, the 250 ns of Comm: 30 ns is
+// An earlier reading, before the generated readers replaced resolving a field by
+// joining its path and looking the accessor up by name, put Comm at 672 ns and 6
+// allocations, Path at 846 ns and 8, Ancestors at 18.8 µs and DeepAncestors at
+// 150 µs. Three shapes were added later, with planningOptions, which is what
+// makes them affordable: unplanned, InList, Regex and Glob cost 724 ns, 2847 ns
+// and 736 ns, because the list literal, the regexp and the glob pattern were
+// rebuilt on every event.
+//
+// Decomposing what is left of a scalar read, the 262 ns of Comm: 30 ns is
 // resetting the context, which SECL pays too; 47 ns is cel-go evaluating a
-// program that reads nothing at all; 7 ns is the activation handing back a
-// cached root; 47 ns is the reader, of which the struct read is 3 ns and boxing
-// the result 2 ns; and the remaining ~120 ns is cel-go resolving the attribute
-// and dispatching the comparison. Almost none of it is the model, which is why
-// the readers cannot close the gap on their own.
+// program that reads nothing at all; 7 ns is the activation handing back its
+// root; 47 ns is the reader, of which the struct read is 3 ns and boxing the
+// result 2 ns; and the remaining ~130 ns is cel-go resolving the attribute, two
+// qualifiers deep now, and dispatching the comparison. Almost none of it is the
+// model, which is why the readers cannot close the gap on their own.
 //
 // A CPU profile puts the rest of it where nothing here can reach: acquiring and
 // releasing the pooled ExecutionFrame is around a fifth of a scalar evaluation.
 // cel-go will accept a frame passed to Eval instead of taking one from the pool,
 // which is what BenchmarkCELScaffolding measures — that and the rest of what
-// surrounds an evaluation is a third of a bucket rule. Its documentation says a
-// frame must not be stored, so that remains a question for whoever wires up the
-// rule engine rather than a change to make here.
+// surrounds an evaluation is over a quarter of a bucket rule. Its documentation
+// says a frame must not be stored, so that remains a question for whoever wires
+// up the rule engine rather than a change to make here.
 //
 // The same profile is what found the type adapter: every read returns a ref.Val
 // already, and the interpreter adapted it anyway, through a type switch dozens
@@ -84,8 +96,8 @@ package seclcel
 // iterated field as a list of positions meant reading its length — a full walk
 // of the ancestry — before the predicate saw the first element, and then
 // resolving each position by walking from the root again, so reading positions
-// 0, 1, 2… cost O(N²). A cursor yields the elements, so Ancestors stops at the
-// second of 150 rather than paying for all of them first.
+// 0, 1, 2… cost O(N²). A cursor yields the elements, so a match stops at the
+// element that matched rather than paying for all of them first.
 //
 // Where the two engines now stand:
 //
@@ -95,7 +107,10 @@ package seclcel
 //     to do.
 //   - A shallow match on a deep iterated field is dearer through SECL, because
 //     an array field is resolved whole — 150 strings, 9 kB — before anything
-//     compares them, where a cursor stops at the element that matched.
+//     compares them, where a cursor stops at the element that matched. No
+//     benchmark shows this any more: since 71aa80a both ancestor shapes match at
+//     the end of the chain, so the Ancestors row above measures a full walk
+//     through both engines.
 //   - A correlated read at depth is O(N) through CEL and O(N²) through SECL,
 //     but the benchmark barely shows it. SECL clears the register cache after
 //     every position (rule.go:246), so each position is reached by walking from
@@ -160,8 +175,10 @@ func benchEvent() *model.Event {
 	event.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = "bash"
 	event.BaseEvent.ProcessContext.Process.Comm = "sh"
 
-	// "sshd" is the second ancestor, so the shallow benchmarks stop early while
-	// the deep one runs to the end of the chain.
+	// "sshd" is the last ancestor, so both ancestor benchmarks run to the end of
+	// the chain. It was the second one until 71aa80a moved it, which is why the
+	// Ancestors figures recorded before that commit are an order of magnitude
+	// lower than the ones above.
 	comms := make([]string, benchAncestry)
 	uids := make([]uint32, benchAncestry)
 	for i := range comms {
@@ -298,36 +315,36 @@ func BenchmarkCEL(b *testing.B) {
 // Bucket/ is the same question asked where it matters most: both costs are per
 // Eval, so a bucket of r rules pays them r times per event.
 //
-// Measured (ns/op, mean of six runs at -cpu=1; allocations are identical across
-// all three, the pool was already giving the frame back for free):
+// Measured (ns/op, median of three runs at -cpu=1; allocations are identical
+// across all three, the pool was already giving the frame back for free):
 //
 //	                 activation      frame       exec
-//	Comm                    269        231        216
-//	Path                    394        346        333
-//	InList                  294        248        235
-//	Regex                   743        692        649
-//	Glob                    530        478        445
-//	Ancestors              2048       1977       1992
-//	DeepAncestors         49269      49724      49754
-//	Bucket/10  per rule     258        199        182
-//	Bucket/50  per rule     273        210        185
-//	Bucket/200 per rule     281        226        202
+//	Comm                    293        243        216
+//	Path                    304        259        241
+//	InList                  308        265        249
+//	Regex                   673        618        587
+//	Glob                    447        395        370
+//	Ancestors             72830      72668      71992
+//	DeepAncestors         51541      51084      51655
+//	Bucket/10  per rule     272        209        194
+//	Bucket/50  per rule     282        232        201
+//	Bucket/200 per rule     301        244        217
 //
-// Both are costs per Eval rather than per predicate: 40 to 60 ns for the frame,
-// and a further 13 to 25 ns for the wrapper — more on Regex and Glob, where the
+// Both are costs per Eval rather than per predicate: 43 to 57 ns for the frame,
+// and a further 16 to 31 ns for the wrapper — more on Regex and Glob, where the
 // only difference from the shapes around them is that the plan reaches a
 // function binding through the dispatcher, which the benchmark cannot explain
-// and which is too small to change the reading. Both are invisible on
-// DeepAncestors, which pays them once for 50 µs of folding, and together they
-// are around a third of a bucket rule — the shape production actually runs, one
-// Eval per rule per event, nearly all of them short circuiting immediately.
+// and which is too small to change the reading. Both are invisible on the
+// ancestor shapes, which pay them once for tens of µs of folding, and together
+// they are over a quarter of a bucket rule — the shape production actually runs,
+// one Eval per rule per event, nearly all of them short circuiting immediately.
 //
 // Read against BenchmarkBucket's finding that merging a bucket into one
-// disjunction saves 66 ns per rule: that saving and these are largely the same
+// disjunction saves 70 ns per rule: that saving and these are largely the same
 // money, since all of it is scaffolding around one Eval, and none of it touches
-// what a predicate costs. A bucket rule that costs 281 ns can be made to cost
-// 202, and it bottoms out there: what is left is the predicate, which costs
-// cel-go about 179 ns wherever it sits, against 29 ns for the closure the
+// what a predicate costs. A bucket rule that costs 301 ns can be made to cost
+// 217, and it bottoms out there: what is left is the predicate, which costs
+// cel-go about 200 ns wherever it sits, against 29 ns for the closure the
 // compiler plans it into. Every trick cel-go has for evaluating a rule faster,
 // taken together and taken past what its own documentation sanctions, closes a
 // third of the gap the compiler exists to close.
@@ -480,27 +497,32 @@ func celInput(b *testing.B, ctx *eval.Context, frame bool) any {
 // Measured (ns/op, both including the ~30 ns context reset):
 //
 //	n        SECL All   CEL All    SECL short   CEL short
-//	1          164        251          45          249
-//	2          257        387          46          255
-//	4          421        660          46          260
-//	8          852       1214          45          266
-//	16        1733       2369          47          271
+//	1          166        259          46          258
+//	2          270        420          45          264
+//	4          411        730          47          269
+//	8          806       1313          46          275
+//	16        1802       2612          45          283
+//	22        2201       3614          45          282
 //
 // Two readings:
 //
-//   - Per predicate the engines are close. The slopes over 1..16 are 105 ns for
-//     SECL and 141 ns for CEL: CEL costs about 36 ns more per predicate, 1.34x,
+//   - Per predicate the engines are close. The slopes over 1..16 are 109 ns for
+//     SECL and 157 ns for CEL: CEL costs about 48 ns more per predicate, 1.44x,
 //     and it does not degrade as the expression grows. On allocations CEL is
 //     ahead — 1 per predicate against SECL's 2, because SECL appends to its
-//     matching subexpression list on every comparison that holds.
+//     matching subexpression list on every comparison that holds. The last six
+//     predicates are the ones under process.file, and they are where rooting the
+//     namespace shows: the position stands for the whole run, so CEL allocates 15
+//     times at 22 predicates where it allocated 21 unrooted, and the row is the
+//     one place it is faster (3614 ns against 3673).
 //
 //   - Per rule they are not close. A rule that short circuits on its first
-//     predicate costs SECL 15 ns of evaluation and CEL 220 ns, and that gap is
+//     predicate costs SECL 15 ns of evaluation and CEL 228 ns, and that gap is
 //     paid by every rule in the bucket on every event, matching or not. It is
 //     the interpreter's own scaffolding: acquiring and releasing the pooled
 //     ExecutionFrame is about 50 ns of it, the rest is attribute resolution and
-//     dispatch. Growing the expression barely moves it — 249 ns at one
-//     predicate, 271 ns at sixteen — because the skipped predicates cost about
+//     dispatch. Growing the expression barely moves it — 258 ns at one
+//     predicate, 283 ns at sixteen — because the skipped predicates cost about
 //     1 ns each.
 //
 // So the cost of CEL is roughly 200 ns per rule evaluated, not per predicate.
@@ -629,20 +651,20 @@ func BenchmarkScale(b *testing.B) {
 // Measured (ns/op for the whole bucket, no rule matching):
 //
 //	rules    SECL per-rule   CEL per-rule   SECL one   CEL one
-//	10           219            2196           209       1785
-//	50          1150           11516          1040       8674
-//	200         6335           48936          5766      35796
+//	10           220            2327           213       1892
+//	50          1208           12629          1019       9475
+//	200         6347           54464          6087      40116
 //
 // CEL is 8 to 10 times dearer, and the ratio holds as the bucket grows. Per
-// rule that is 220 ns against 22 ns at ten rules, 245 against 32 at two hundred.
+// rule that is 233 ns against 22 ns at ten rules, 272 against 32 at two hundred.
 // CEL also allocates once per rule where SECL allocates nothing, so a bucket of
 // 200 costs 3.2 kB per event.
 //
-// Evaluating the bucket as one disjunction saves 66 ns per rule — a quarter —
+// Evaluating the bucket as one disjunction saves 70 ns per rule — a quarter —
 // and no more. That is worth knowing because it bounds the idea: what it removes
 // is the per-Eval scaffolding, the pooled execution frame and the rest of
 // prog.Eval. What is left is the predicate itself, and a predicate costs cel-go
-// about 179 ns wherever it sits, against 29 ns for the closure SECL compiles it
+// about 200 ns wherever it sits, against 29 ns for the closure SECL compiles it
 // into. Merging rules does not make a predicate cheaper.
 //
 // Note how the per predicate figures differ from BenchmarkScale's: there every
@@ -778,7 +800,7 @@ var boolSink bool
 //	a closure pair (the compiler inlines these)     2.4 ns
 //	the generated accessor's own closure            3.9 ns
 //	SECL's compiled rule, end to end               12.7 ns
-//	cel-go, per predicate in a bucket             ~179 ns
+//	cel-go, per predicate in a bucket             ~200 ns
 //
 // The third line is not a real closure call — both closures are defined and
 // called in the same function, so they inline away. The fourth is: the accessor

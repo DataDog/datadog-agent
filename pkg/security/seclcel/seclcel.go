@@ -14,7 +14,8 @@
 //
 // Most of SECL maps onto standard CEL. The rest maps onto the math and network
 // extension libraries, and only what CEL has no equivalent for at all becomes a
-// helper function, declared by NewEnv:
+// helper function, declared by NewEnv. Field names appear here as they are
+// written, without the root the next section adds:
 //
 //	SECL                        CEL
 //	---------------------------------------------------------------
@@ -46,6 +47,30 @@
 //	a.b[0].c                    a.b[0].c
 //	a.b[X].c == "x"             a.b.exists(X, X.c == "x")
 //
+// # Field rooting
+//
+// The whole field namespace hangs under one CEL variable, EventRoot, so a field
+// is translated with `evt.` in front of it:
+//
+//	SECL                        CEL
+//	---------------------------------------------------------------
+//	process.file.path           evt.process.file.path
+//	event.timestamp             evt.event.timestamp
+//	${foo}                      vars.foo
+//	MY_MACRO, S_IFREG           MY_MACRO, S_IFREG
+//
+// Only a field is rooted, which is the other thing FieldTypes is consulted for: a
+// name whose first segment is not a top level segment of the namespace is a macro
+// or a constant, and is left for the environment to resolve. Without field types
+// nothing is known to be a field, so nothing is rooted and the untyped forms of
+// Translate and Compile need an environment that declares the top level names
+// itself.
+//
+// Rooting is what lets the top level segments be members of one object type
+// rather than declarations of their own: which field a select denotes is then
+// settled once, when the rule is planned, for the first segment as for every
+// other one — see EventRoot and provider.go.
+//
 // # Array semantics
 //
 // SECL reads a comparison against an array field as "some element matches", and
@@ -54,16 +79,16 @@
 // generated into celtypes_unix.go and celtypes_windows.go — the translation
 // writes that quantifier out:
 //
-//	SECL                                CEL
+//	SECL                                  CEL
 //	---------------------------------------------------------------
-//	process.ancestors.file.name == "x"  process.ancestors.exists(e, e.file.name == "x")
-//	process.ancestors.uid in [0, 1]     process.ancestors.exists(e, e.uid in [0, 1])
-//	process.ancestors.file.name not in b  !process.ancestors.exists(e, e.file.name in b)
-//	process.ancestors.file.name allin b   process.ancestors.all(e, e.file.name in b)
-//	process.argv == "-l"                process.argv.exists(e, e == "-l")
-//	process.ancestors.args_flags == "c" process.ancestors.exists(e, e.args_flags.exists(e2, e2 == "c"))
-//	process.argv.length > 2             size(process.argv) > 2
-//	process.ancestors.file.name.length  process.ancestors.exists(e, size(e.file.name) …)
+//	process.ancestors.file.name == "x"    evt.process.ancestors.exists(e, e.file.name == "x")
+//	process.ancestors.uid in [0, 1]       evt.process.ancestors.exists(e, e.uid in [0, 1])
+//	process.ancestors.file.name not in b  !evt.process.ancestors.exists(e, e.file.name in b)
+//	process.ancestors.file.name allin b   evt.process.ancestors.all(e, e.file.name in b)
+//	process.argv == "-l"                  evt.process.argv.exists(e, e == "-l")
+//	process.ancestors.args_flags == "c"   evt.process.ancestors.exists(e, e.args_flags.exists(e2, e2 == "c"))
+//	process.argv.length > 2               size(evt.process.argv) > 2
+//	process.ancestors.file.name.length    evt.process.ancestors.exists(e, size(e.file.name) …)
 //
 // Without field types those comparisons are translated literally, which is valid
 // CEL but means "the list equals the scalar". NewModelEnv pairs the same type
@@ -86,8 +111,9 @@
 //     the checker reports it.
 //
 //   - `%{field}` resolves against event fields only, never against macros,
-//     constants or variables, while a bare name tries all of them. CEL has one
-//     namespace, so both spellings produce the same qualified name.
+//     constants or variables, while a bare name tries all of them. Both spellings
+//     are translated the same way, so a `%{…}` naming a macro reaches the macro
+//     instead of being rejected.
 //
 //   - A `[0]` subscript in the middle of a field name is read as an array index.
 //     SECL reads a trailing `[0]` that way but treats the same subscript
@@ -112,12 +138,16 @@ import (
 
 // Translate renders the CEL source text a SECL expression translates to. It is
 // the readable form of Parse, useful for migrating rules and for debugging.
+//
+// With no field types nothing is known to be a field, so names are translated as
+// they were written: use TranslateWithTypes for the form a rule is compiled from.
 func Translate(expr string) (string, error) {
 	return TranslateWithTypes(expr, nil)
 }
 
 // TranslateWithTypes is Translate against a set of field types, so that the
-// array semantics SECL leaves implicit are written out.
+// fields are rooted at EventRoot and the array semantics SECL leaves implicit are
+// written out.
 func TranslateWithTypes(expr string, fieldTypes FieldTypes) (string, error) {
 	a, err := ParseWithTypes(expr, fieldTypes)
 	if err != nil {
@@ -128,7 +158,9 @@ func TranslateWithTypes(expr string, fieldTypes FieldTypes) (string, error) {
 
 // Compile translates a SECL expression and type-checks it against env, which
 // must declare the fields, macros and variables the expression uses on top of
-// what NewEnv already provides.
+// what NewEnv already provides. Without field types the fields are not rooted, so
+// env has to declare the top level names themselves rather than come from
+// NewModelEnv; CompileWithTypes is the pairing to use against the real model.
 //
 // The type-checking goes through the CEL source form, because cel.Env only
 // checks an AST that its own parser produced. That is not a translation of a

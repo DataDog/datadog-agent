@@ -22,10 +22,11 @@ func TestDescribeEnv(t *testing.T) {
 
 	described := DescribeEnv(env)
 
-	// the declared variables, and the types they lead to. A type is named after
-	// the path it describes, so secl.ConnectAddr rather than a secl.Addr shared
-	// with every other address.
-	assert.Contains(t, described, "process: secl.Process\n")
+	// the one declared variable the fields hang under, and the types it leads to.
+	// A type is named after the path it describes, so secl.ConnectAddr rather than
+	// a secl.Addr shared with every other address.
+	assert.Contains(t, described, EventRoot+": secl.Root\n")
+	assert.Contains(t, described, "\tprocess: secl.Process\n")
 	assert.Contains(t, described, "\nsecl.ConnectAddr {\n")
 
 	// CEL's own notation for each shape of type

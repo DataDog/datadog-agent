@@ -29,55 +29,55 @@ var typedTranslations = []struct {
 	cel  string
 }{
 	// a scalar field is unaffected
-	{`process.file.name == "sh"`, `process.file.name == "sh"`},
-	{`exec.file.path =~ "/usr/*"`, `secl.glob(exec.file.path, "/usr/*")`},
+	{`process.file.name == "sh"`, `evt.process.file.name == "sh"`},
+	{`exec.file.path =~ "/usr/*"`, `secl.glob(evt.exec.file.path, "/usr/*")`},
 
 	// comparing an iterated field against a scalar means "some element matches"
-	{`process.ancestors.file.name == "sh"`, `process.ancestors.exists(elem, elem.file.name == "sh")`},
-	{`process.ancestors.uid == 0`, `process.ancestors.exists(elem, elem.uid == 0)`},
+	{`process.ancestors.file.name == "sh"`, `evt.process.ancestors.exists(elem, elem.file.name == "sh")`},
+	{`process.ancestors.uid == 0`, `evt.process.ancestors.exists(elem, elem.uid == 0)`},
 	// the negation belongs to the comparison, not to the quantifier
-	{`process.ancestors.file.name != "sh"`, `process.ancestors.exists(elem, elem.file.name != "sh")`},
+	{`process.ancestors.file.name != "sh"`, `evt.process.ancestors.exists(elem, elem.file.name != "sh")`},
 
 	// membership over an iterated field
 	{`process.ancestors.file.name in [ "sh", "bash" ]`,
-		`process.ancestors.exists(elem, elem.file.name in ["sh", "bash"])`},
+		`evt.process.ancestors.exists(elem, elem.file.name in ["sh", "bash"])`},
 	// `not in` negates the whole quantifier
 	{`process.ancestors.file.name not in [ "sh" ]`,
-		`!process.ancestors.exists(elem, elem.file.name in ["sh"])`},
+		`!evt.process.ancestors.exists(elem, elem.file.name in ["sh"])`},
 	{`process.ancestors.file.name in [ ~"/usr/*" ]`,
-		`process.ancestors.exists(elem, secl.glob(elem.file.name, "/usr/*"))`},
+		`evt.process.ancestors.exists(elem, secl.glob(elem.file.name, "/usr/*"))`},
 	// `allin` asks for every element
 	{`process.ancestors.file.name allin [ "sh" ]`,
-		`process.ancestors.all(elem, elem.file.name in ["sh"])`},
+		`evt.process.ancestors.all(elem, elem.file.name in ["sh"])`},
 
 	// a list valued leaf is quantified in its own right
-	{`process.argv == "-l"`, `process.argv.exists(elem, elem == "-l")`},
-	{`process.argv in [ "-l", "-a" ]`, `process.argv.exists(elem, elem in ["-l", "-a"])`},
-	{`process.argv allin [ "-l" ]`, `process.argv.all(elem, elem in ["-l"])`},
+	{`process.argv == "-l"`, `evt.process.argv.exists(elem, elem == "-l")`},
+	{`process.argv in [ "-l", "-a" ]`, `evt.process.argv.exists(elem, elem in ["-l", "-a"])`},
+	{`process.argv allin [ "-l" ]`, `evt.process.argv.all(elem, elem in ["-l"])`},
 
 	// a list valued leaf inside an iterated node needs one quantifier per level
 	{`process.ancestors.args_flags == "c"`,
-		`process.ancestors.exists(elem, elem.args_flags.exists(elem2, elem2 == "c"))`},
+		`evt.process.ancestors.exists(elem, elem.args_flags.exists(elem2, elem2 == "c"))`},
 
 	// an iterator variable is already an existential, and correlates the
 	// comparisons at one index
 	{`process.ancestors[A].file.name == "sh" && process.ancestors[A].uid == 0`,
-		`process.ancestors.exists(A, A.file.name == "sh" && A.uid == 0)`},
+		`evt.process.ancestors.exists(A, A.file.name == "sh" && A.uid == 0)`},
 
 	// size() applies to the list itself, so this counts the arguments
-	{`process.argv.length > 2`, `size(process.argv) > 2`},
+	{`process.argv.length > 2`, `size(evt.process.argv) > 2`},
 	// but for an iterated field it is the length of each element's value
 	{`process.ancestors.file.name.length > 3`,
-		`process.ancestors.exists(elem, size(elem.file.name) > 3)`},
+		`evt.process.ancestors.exists(elem, size(elem.file.name) > 3)`},
 	{`dns.question.name.root_domain == "example.com"`,
-		`secl.rootDomain(dns.question.name) == "example.com"`},
+		`secl.rootDomain(evt.dns.question.name) == "example.com"`},
 
 	// only the iterated side is quantified
 	{`process.file.name == "sh" && process.ancestors.file.name == "bash"`,
-		`process.file.name == "sh" && process.ancestors.exists(elem, elem.file.name == "bash")`},
+		`evt.process.file.name == "sh" && evt.process.ancestors.exists(elem, elem.file.name == "bash")`},
 
 	{`network.destination.ip in 10.0.0.0/8`,
-		`secl.cidrMatch(network.destination.ip, cidr("10.0.0.0/8"))`},
+		`secl.cidrMatch(evt.network.destination.ip, cidr("10.0.0.0/8"))`},
 }
 
 func TestTranslateWithTypes(t *testing.T) {
@@ -105,6 +105,28 @@ func TestCompileWithTypes(t *testing.T) {
 			assert.Equal(t, cel.BoolType, checked.OutputType())
 		})
 	}
+}
+
+// TestOnlyAFieldIsRooted is the other half of the rooting. A name the model does
+// not know is not a field, so it is left as it was written for the environment to
+// resolve, which is how a macro or a constant reaches its declaration — and why
+// declaring one can no longer collide with a top level segment.
+func TestOnlyAFieldIsRooted(t *testing.T) {
+	const expr = `process.file.name in my_macro && process.file.mode == S_IFREG`
+
+	translated, err := TranslateWithTypes(expr, ModelFieldTypes{})
+	require.NoError(t, err)
+	assert.Equal(t, `evt.process.file.name in my_macro && evt.process.file.mode == S_IFREG`, translated)
+
+	env, err := NewModelEnv(
+		cel.Variable("my_macro", cel.ListType(cel.StringType)),
+		cel.Variable("S_IFREG", cel.IntType),
+	)
+	require.NoError(t, err)
+
+	checked, err := CompileWithTypes(env, expr, ModelFieldTypes{})
+	require.NoError(t, err)
+	assert.True(t, checked.IsChecked())
 }
 
 // TestModelEnvRejects covers what the type tree lets the checker catch, which

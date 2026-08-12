@@ -13,6 +13,12 @@ import (
 	{{if .Tree.UsesCIDR}}"github.com/google/cel-go/ext"{{end}}
 )
 
+// modelRootType is the type of the whole SECL field namespace, and the only type
+// a CEL environment declares a variable for. Its members are the top level
+// segments, so `process` is a member select like every other one rather than a
+// name of its own.
+var modelRootType = types.NewObjectType("{{.Tree.Root}}")
+
 // modelShapes holds every CEL object type the SECL field namespace is made of,
 // keyed by type name and then by member name.
 //
@@ -25,7 +31,7 @@ import (
 // denotes exactly one SECL field — see modelPaths.
 var modelShapes = map[string]map[string]*types.Type{
 {{- range .Tree.Shapes}}
-	// {{.Name}} is the type of {{.Path}}.
+	// {{.Name}} is the type of {{if .Path}}{{.Path}}{{else}}the namespace itself{{end}}.
 	"{{.Name}}": {
 	{{- range .Members}}
 		"{{.Name}}": {{. | CELTypeExpr}},
@@ -38,17 +44,10 @@ var modelShapes = map[string]map[string]*types.Type{
 //
 // It is what makes a member select resolvable at planning time: joining the type's
 // path with the member name gives the SECL field, and so the reader for it, once
-// per rule rather than once per read.
+// per rule rather than once per read. The root's path is empty, so joining it
+// yields the top level segment itself.
 var modelPaths = map[string]string{
 {{- range .Tree.Shapes}}
 	"{{.Name}}": "{{.Path}}",
-{{- end}}
-}
-
-// modelRoots holds the top level segments of the SECL field namespace, which are
-// the names a CEL environment declares as variables.
-var modelRoots = map[string]*types.Type{
-{{- range .Tree.Roots}}
-	"{{.Name}}": {{. | CELTypeExpr}},
 {{- end}}
 }

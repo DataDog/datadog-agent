@@ -13,6 +13,12 @@ import (
 	"github.com/google/cel-go/ext"
 )
 
+// modelRootType is the type of the whole SECL field namespace, and the only type
+// a CEL environment declares a variable for. Its members are the top level
+// segments, so `process` is a member select like every other one rather than a
+// name of its own.
+var modelRootType = types.NewObjectType("secl.Root")
+
 // modelShapes holds every CEL object type the SECL field namespace is made of,
 // keyed by type name and then by member name.
 //
@@ -2152,6 +2158,54 @@ var modelShapes = map[string]map[string]*types.Type{
 	"secl.RmdirSyscall": {
 		"path": types.StringType,
 	},
+	// secl.Root is the type of the namespace itself.
+	"secl.Root": {
+		"accept":               types.NewObjectType("secl.Accept"),
+		"bind":                 types.NewObjectType("secl.Bind"),
+		"bpf":                  types.NewObjectType("secl.Bpf"),
+		"capabilities":         types.NewObjectType("secl.Capabilities"),
+		"capset":               types.NewObjectType("secl.Capset"),
+		"cgroup_write":         types.NewObjectType("secl.CgroupWrite"),
+		"chdir":                types.NewObjectType("secl.Chdir"),
+		"chmod":                types.NewObjectType("secl.Chmod"),
+		"chown":                types.NewObjectType("secl.Chown"),
+		"connect":              types.NewObjectType("secl.Connect"),
+		"dns":                  types.NewObjectType("secl.Dns"),
+		"event":                types.NewObjectType("secl.Event"),
+		"exec":                 types.NewObjectType("secl.Exec"),
+		"exit":                 types.NewObjectType("secl.Exit"),
+		"imds":                 types.NewObjectType("secl.Imds"),
+		"link":                 types.NewObjectType("secl.Link"),
+		"load_module":          types.NewObjectType("secl.LoadModule"),
+		"mkdir":                types.NewObjectType("secl.Mkdir"),
+		"mmap":                 types.NewObjectType("secl.Mmap"),
+		"mount":                types.NewObjectType("secl.Mount"),
+		"mprotect":             types.NewObjectType("secl.Mprotect"),
+		"network":              types.NewObjectType("secl.Network"),
+		"network_flow_monitor": types.NewObjectType("secl.NetworkFlowMonitor"),
+		"ondemand":             types.NewObjectType("secl.Ondemand"),
+		"open":                 types.NewObjectType("secl.Open"),
+		"packet":               types.NewObjectType("secl.Packet"),
+		"prctl":                types.NewObjectType("secl.Prctl"),
+		"process":              types.NewObjectType("secl.Process"),
+		"ptrace":               types.NewObjectType("secl.Ptrace"),
+		"removexattr":          types.NewObjectType("secl.Removexattr"),
+		"rename":               types.NewObjectType("secl.Rename"),
+		"rmdir":                types.NewObjectType("secl.Rmdir"),
+		"selinux":              types.NewObjectType("secl.Selinux"),
+		"setgid":               types.NewObjectType("secl.Setgid"),
+		"setrlimit":            types.NewObjectType("secl.Setrlimit"),
+		"setsockopt":           types.NewObjectType("secl.Setsockopt"),
+		"setuid":               types.NewObjectType("secl.Setuid"),
+		"setxattr":             types.NewObjectType("secl.Setxattr"),
+		"signal":               types.NewObjectType("secl.Signal"),
+		"socket":               types.NewObjectType("secl.Socket"),
+		"splice":               types.NewObjectType("secl.Splice"),
+		"sysctl":               types.NewObjectType("secl.Sysctl"),
+		"unlink":               types.NewObjectType("secl.Unlink"),
+		"unload_module":        types.NewObjectType("secl.UnloadModule"),
+		"utimes":               types.NewObjectType("secl.Utimes"),
+	},
 	// secl.Selinux is the type of selinux.
 	"secl.Selinux": {
 		"bool":        types.NewObjectType("secl.SelinuxBool"),
@@ -3302,7 +3356,8 @@ var modelShapes = map[string]map[string]*types.Type{
 //
 // It is what makes a member select resolvable at planning time: joining the type's
 // path with the member name gives the SECL field, and so the reader for it, once
-// per rule rather than once per read.
+// per rule rather than once per read. The root's path is empty, so joining it
+// yields the top level segment itself.
 var modelPaths = map[string]string{
 	"secl.Accept":                                         "accept",
 	"secl.AcceptAddr":                                     "accept.addr",
@@ -3493,6 +3548,7 @@ var modelPaths = map[string]string{
 	"secl.RmdirFile":                                      "rmdir.file",
 	"secl.RmdirFilePackage":                               "rmdir.file.package",
 	"secl.RmdirSyscall":                                   "rmdir.syscall",
+	"secl.Root":                                           "",
 	"secl.Selinux":                                        "selinux",
 	"secl.SelinuxBool":                                    "selinux.bool",
 	"secl.SelinuxBoolCommit":                              "selinux.bool_commit",
@@ -3580,54 +3636,4 @@ var modelPaths = map[string]string{
 	"secl.UtimesFile":                                     "utimes.file",
 	"secl.UtimesFilePackage":                              "utimes.file.package",
 	"secl.UtimesSyscall":                                  "utimes.syscall",
-}
-
-// modelRoots holds the top level segments of the SECL field namespace, which are
-// the names a CEL environment declares as variables.
-var modelRoots = map[string]*types.Type{
-	"accept":               types.NewObjectType("secl.Accept"),
-	"bind":                 types.NewObjectType("secl.Bind"),
-	"bpf":                  types.NewObjectType("secl.Bpf"),
-	"capabilities":         types.NewObjectType("secl.Capabilities"),
-	"capset":               types.NewObjectType("secl.Capset"),
-	"cgroup_write":         types.NewObjectType("secl.CgroupWrite"),
-	"chdir":                types.NewObjectType("secl.Chdir"),
-	"chmod":                types.NewObjectType("secl.Chmod"),
-	"chown":                types.NewObjectType("secl.Chown"),
-	"connect":              types.NewObjectType("secl.Connect"),
-	"dns":                  types.NewObjectType("secl.Dns"),
-	"event":                types.NewObjectType("secl.Event"),
-	"exec":                 types.NewObjectType("secl.Exec"),
-	"exit":                 types.NewObjectType("secl.Exit"),
-	"imds":                 types.NewObjectType("secl.Imds"),
-	"link":                 types.NewObjectType("secl.Link"),
-	"load_module":          types.NewObjectType("secl.LoadModule"),
-	"mkdir":                types.NewObjectType("secl.Mkdir"),
-	"mmap":                 types.NewObjectType("secl.Mmap"),
-	"mount":                types.NewObjectType("secl.Mount"),
-	"mprotect":             types.NewObjectType("secl.Mprotect"),
-	"network":              types.NewObjectType("secl.Network"),
-	"network_flow_monitor": types.NewObjectType("secl.NetworkFlowMonitor"),
-	"ondemand":             types.NewObjectType("secl.Ondemand"),
-	"open":                 types.NewObjectType("secl.Open"),
-	"packet":               types.NewObjectType("secl.Packet"),
-	"prctl":                types.NewObjectType("secl.Prctl"),
-	"process":              types.NewObjectType("secl.Process"),
-	"ptrace":               types.NewObjectType("secl.Ptrace"),
-	"removexattr":          types.NewObjectType("secl.Removexattr"),
-	"rename":               types.NewObjectType("secl.Rename"),
-	"rmdir":                types.NewObjectType("secl.Rmdir"),
-	"selinux":              types.NewObjectType("secl.Selinux"),
-	"setgid":               types.NewObjectType("secl.Setgid"),
-	"setrlimit":            types.NewObjectType("secl.Setrlimit"),
-	"setsockopt":           types.NewObjectType("secl.Setsockopt"),
-	"setuid":               types.NewObjectType("secl.Setuid"),
-	"setxattr":             types.NewObjectType("secl.Setxattr"),
-	"signal":               types.NewObjectType("secl.Signal"),
-	"socket":               types.NewObjectType("secl.Socket"),
-	"splice":               types.NewObjectType("secl.Splice"),
-	"sysctl":               types.NewObjectType("secl.Sysctl"),
-	"unlink":               types.NewObjectType("secl.Unlink"),
-	"unload_module":        types.NewObjectType("secl.UnloadModule"),
-	"utimes":               types.NewObjectType("secl.Utimes"),
 }

@@ -57,10 +57,23 @@ const (
 // what lets the pattern be compiled at planning time when it is a literal.
 const globPatternArg = 1
 
+// EventRoot is the CEL identifier the event fields are rooted at:
+// `process.file.path` translates to `evt.process.file.path`.
+//
+// One rooted variable rather than one per top level segment, because a segment
+// is then a member select like every other one: which field it denotes is
+// settled when the rule is planned, by the same code that settles every other
+// select, instead of being resolved against a table on every evaluation. It also
+// leaves the top level names to the macros, the constants and the iterator
+// variables, none of which can then collide with a field or shadow one.
+//
+// It is spelled `evt` rather than `event` because `event` is itself a SECL root:
+// `event.timestamp` translates to `evt.event.timestamp`.
+const EventRoot = "evt"
+
 // VariablesRoot is the CEL identifier that SECL variables are rooted at:
-// `${foo.bar}` translates to `vars.foo.bar`. Fields keep their own names, so
-// the prefix is what keeps a variable from colliding with a field of the same
-// name.
+// `${foo.bar}` translates to `vars.foo.bar`, which is what keeps a variable from
+// colliding with anything else.
 const VariablesRoot = "vars"
 
 // seclAdapter converts a Go value into a CEL one, ahead of the adapter the

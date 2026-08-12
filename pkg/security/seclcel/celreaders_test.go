@@ -104,12 +104,11 @@ func TestGeneratedReadersCoverTheTypeTree(t *testing.T) {
 		unclaimedIterators[field] = true
 	}
 
-	// Every root's type must describe the root's own path, which is what makes
-	// joining a type's path with a member name give the field.
-	for name, rootType := range modelRoots {
-		require.Equal(t, types.StructKind, rootType.Kind(), "root %q is not an object", name)
-		assert.Equal(t, name, modelPaths[rootType.TypeName()], "the type of root %q describes another path", name)
-	}
+	// The root type describes the namespace itself, which is what makes joining a
+	// type's path with a member name give the field: its members are the top level
+	// segments, so the join is the segment.
+	require.Contains(t, modelShapes, modelRootType.TypeName(), "the root type is not described")
+	assert.Empty(t, modelPaths[modelRootType.TypeName()], "the root type describes a path of its own")
 
 	for typeName, members := range modelShapes {
 		path, ok := modelPaths[typeName]

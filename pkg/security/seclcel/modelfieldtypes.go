@@ -30,6 +30,12 @@ func (ModelFieldTypes) IsListLeaf(field string) bool {
 	return ok && fieldType.Kind() == types.ListKind
 }
 
+// IsFieldRoot implements FieldTypes.
+func (ModelFieldTypes) IsFieldRoot(name string) bool {
+	_, ok := modelShapes[modelRootType.TypeName()][name]
+	return ok
+}
+
 // IsPseudoField implements FieldTypes.
 func (ModelFieldTypes) IsPseudoField(field string) bool {
 	// A pseudo field is absent from the type tree, because `x.length` would
@@ -58,19 +64,11 @@ func (ModelFieldTypes) IsPseudoField(field string) bool {
 // through such a list yields the element type, so the returned type is the one a
 // single element holds — a string for process.ancestors.file.name.
 func walkModel(field string) (*types.Type, string, bool) {
-	segments := strings.Split(field, ".")
+	// The top level segments are members of the root type, so every segment is
+	// looked up the same way.
+	fieldType, prefix, listPrefix := modelRootType, "", ""
 
-	fieldType, ok := modelRoots[segments[0]]
-	if !ok {
-		return nil, "", false
-	}
-
-	prefix, listPrefix := segments[0], ""
-	if elem, isObjectList := objectListElem(fieldType); isObjectList {
-		listPrefix, fieldType = prefix, elem
-	}
-
-	for _, segment := range segments[1:] {
+	for _, segment := range strings.Split(field, ".") {
 		if fieldType.Kind() != types.StructKind {
 			return nil, "", false
 		}
@@ -80,7 +78,7 @@ func walkModel(field string) (*types.Type, string, bool) {
 		}
 
 		fieldType = next
-		prefix += "." + segment
+		prefix = join(prefix, segment)
 		if elem, isObjectList := objectListElem(fieldType); isObjectList {
 			listPrefix, fieldType = prefix, elem
 		}

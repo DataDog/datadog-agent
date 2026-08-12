@@ -12,6 +12,12 @@ import (
 	"github.com/google/cel-go/common/types"
 )
 
+// modelRootType is the type of the whole SECL field namespace, and the only type
+// a CEL environment declares a variable for. Its members are the top level
+// segments, so `process` is a member select like every other one rather than a
+// name of its own.
+var modelRootType = types.NewObjectType("secl.Root")
+
 // modelShapes holds every CEL object type the SECL field namespace is made of,
 // keyed by type name and then by member name.
 //
@@ -264,6 +270,24 @@ var modelShapes = map[string]map[string]*types.Type{
 		"name":        types.StringType,
 		"path":        types.StringType,
 	},
+	// secl.Root is the type of the namespace itself.
+	"secl.Root": {
+		"change_permission": types.NewObjectType("secl.ChangePermission"),
+		"create":            types.NewObjectType("secl.Create"),
+		"create_key":        types.NewObjectType("secl.CreateKey"),
+		"delete":            types.NewObjectType("secl.Delete"),
+		"delete_key":        types.NewObjectType("secl.DeleteKey"),
+		"event":             types.NewObjectType("secl.Event"),
+		"exec":              types.NewObjectType("secl.Exec"),
+		"exit":              types.NewObjectType("secl.Exit"),
+		"open":              types.NewObjectType("secl.Open"),
+		"open_key":          types.NewObjectType("secl.OpenKey"),
+		"process":           types.NewObjectType("secl.Process"),
+		"rename":            types.NewObjectType("secl.Rename"),
+		"set":               types.NewObjectType("secl.Set"),
+		"set_key_value":     types.NewObjectType("secl.SetKeyValue"),
+		"write":             types.NewObjectType("secl.Write"),
+	},
 	// secl.Set is the type of set.
 	"secl.Set": {
 		"registry":   types.NewObjectType("secl.SetRegistry"),
@@ -303,7 +327,8 @@ var modelShapes = map[string]map[string]*types.Type{
 //
 // It is what makes a member select resolvable at planning time: joining the type's
 // path with the member name gives the SECL field, and so the reader for it, once
-// per rule rather than once per read.
+// per rule rather than once per read. The root's path is empty, so joining it
+// yields the top level segment itself.
 var modelPaths = map[string]string{
 	"secl.ChangePermission":          "change_permission",
 	"secl.Create":                    "create",
@@ -340,30 +365,11 @@ var modelPaths = map[string]string{
 	"secl.Rename":                    "rename",
 	"secl.RenameFile":                "rename.file",
 	"secl.RenameFileDestination":     "rename.file.destination",
+	"secl.Root":                      "",
 	"secl.Set":                       "set",
 	"secl.SetKeyValue":               "set_key_value",
 	"secl.SetKeyValueRegistry":       "set_key_value.registry",
 	"secl.SetRegistry":               "set.registry",
 	"secl.Write":                     "write",
 	"secl.WriteFile":                 "write.file",
-}
-
-// modelRoots holds the top level segments of the SECL field namespace, which are
-// the names a CEL environment declares as variables.
-var modelRoots = map[string]*types.Type{
-	"change_permission": types.NewObjectType("secl.ChangePermission"),
-	"create":            types.NewObjectType("secl.Create"),
-	"create_key":        types.NewObjectType("secl.CreateKey"),
-	"delete":            types.NewObjectType("secl.Delete"),
-	"delete_key":        types.NewObjectType("secl.DeleteKey"),
-	"event":             types.NewObjectType("secl.Event"),
-	"exec":              types.NewObjectType("secl.Exec"),
-	"exit":              types.NewObjectType("secl.Exit"),
-	"open":              types.NewObjectType("secl.Open"),
-	"open_key":          types.NewObjectType("secl.OpenKey"),
-	"process":           types.NewObjectType("secl.Process"),
-	"rename":            types.NewObjectType("secl.Rename"),
-	"set":               types.NewObjectType("secl.Set"),
-	"set_key_value":     types.NewObjectType("secl.SetKeyValue"),
-	"write":             types.NewObjectType("secl.Write"),
 }

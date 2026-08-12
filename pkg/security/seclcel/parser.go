@@ -332,8 +332,19 @@ func (p *parser) intLit(n int64, start, end int) celast.Expr {
 }
 
 // selectChain builds the CEL identifier and field selections for a dotted SECL
-// name. CEL resolves such a chain against the declared names, so a field, a
-// macro and a constant all translate the same way.
+// name.
+//
+// A field is rooted at EventRoot, so `process.file.path` becomes
+// `evt.process.file.path`. Everything else — a macro, a constant, a SECL variable
+// already rooted at VariablesRoot — keeps the name it was written with, since
+// only the fields are declared under the root. Without field types nothing is
+// known to be a field, so nothing is rooted: see the FieldTypes doc.
+//
+// This is the only place a dotted name becomes an expression, which is what makes
+// the rooting exhaustive. The bound variables are the names that must *not* be
+// rooted, and they never come through here: an iterator variable, SECL's own or
+// one this translation introduced, is built as a plain identifier by nameExpr and
+// quantifyExpr.
 func (p *parser) selectChain(name string, start, end int) (celast.Expr, *ParseError) {
 	parts := strings.Split(name, ".")
 	for _, part := range parts {
@@ -342,7 +353,13 @@ func (p *parser) selectChain(name string, start, end int) (celast.Expr, *ParseEr
 		}
 	}
 
-	e := p.fac.NewIdent(p.id(start, end), parts[0])
+	var e celast.Expr
+	if p.types != nil && p.types.IsFieldRoot(parts[0]) {
+		e = p.fac.NewSelect(p.id(start, end), p.fac.NewIdent(p.id(start, end), EventRoot), parts[0])
+	} else {
+		e = p.fac.NewIdent(p.id(start, end), parts[0])
+	}
+
 	for _, part := range parts[1:] {
 		e = p.fac.NewSelect(p.id(start, end), e, part)
 	}

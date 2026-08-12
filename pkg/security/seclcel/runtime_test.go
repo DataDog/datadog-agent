@@ -281,25 +281,31 @@ func TestProgramResolvesOnlyWhatIsMentioned(t *testing.T) {
 	assert.Equal(t, 2, reads["comm"], "no match, so every element is read once")
 }
 
-// TestActivationOutlivesTheEvent pins what the activation's root cache rests
-// on: the values it hands out hold the context rather than the event, and every
-// read goes through ctx.Event, so an activation stays correct after its context
-// has been reset onto the next event.
+// TestActivationOutlivesTheEvent pins what lets an activation be built once per
+// context: the root it hands out holds the context rather than the event, and
+// every read goes through ctx.Event, so an activation stays correct after its
+// context has been reset onto the next event.
 //
-// Without that, caching a root would pin the event it was first resolved
-// against, and a rule would go on matching the event before it.
+// It covers the positions below the root as well as the root itself, because they
+// are reused on the same argument — a position with no element holds nothing that
+// belongs to one event. Without that, the first event a rule saw would be pinned
+// somewhere along the chain and the rule would go on matching it.
 func TestActivationOutlivesTheEvent(t *testing.T) {
 	env, err := NewModelEnv()
 	require.NoError(t, err)
 
-	program, err := Program(env, `process.comm == "sh"`, ModelFieldTypes{})
+	// Two segments below the root, so the reused position in the middle is part of
+	// what is being pinned.
+	program, err := Program(env, `process.comm == "sh" && process.file.name == "dash"`, ModelFieldTypes{})
 	require.NoError(t, err)
 
 	matching := model.NewFakeEvent()
 	matching.BaseEvent.ProcessContext.Process.Comm = "sh"
+	matching.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = "dash"
 
 	other := model.NewFakeEvent()
-	other.BaseEvent.ProcessContext.Process.Comm = "zsh"
+	other.BaseEvent.ProcessContext.Process.Comm = "sh"
+	other.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = "zsh"
 
 	ctx := eval.NewContext(matching)
 	activation := NewActivation(ctx)
@@ -333,8 +339,9 @@ func TestActivationOutlivesTheEvent(t *testing.T) {
 // could still match if only one field were known, and so what can be filtered in
 // eBPF. Nothing about the node graph had to change for it to work.
 //
-// It also guards the activation's root cache: a cached root that resolved past
-// the unknown patterns would silently turn an unknown into a value, and the
+// It also guards the rooting: an attribute pattern names the qualifiers the
+// translation emits, so withholding a field means naming it under EventRoot. A
+// pattern that missed would silently turn an unknown into a value, and the
 // approvers built from it would be wrong.
 func TestPartialEvaluation(t *testing.T) {
 	env, err := NewModelEnv()
@@ -351,14 +358,15 @@ func TestPartialEvaluation(t *testing.T) {
 	event.BaseEvent.ProcessContext.Process.Credentials.UID = 999
 
 	// process.uid is withheld, so the answer depends on what it turns out to be.
+	// The pattern is rooted like the field it names.
 	partial, err := cel.PartialVars(NewActivation(eval.NewContext(event)),
-		cel.AttributePattern("process").QualString("uid"))
+		cel.AttributePattern(EventRoot).QualString("process").QualString("uid"))
 	require.NoError(t, err)
 
 	out, _, err := program.Eval(partial)
 	require.NoError(t, err)
 	require.True(t, types.IsUnknown(out), "got %s", out)
-	assert.Contains(t, out.(*types.Unknown).String(), "process.uid",
+	assert.Contains(t, out.(*types.Unknown).String(), EventRoot+".process.uid",
 		"the unknown names the field the outcome hangs on")
 
 	// The half that is known still decides it when it can, which is what makes
@@ -464,15 +472,13 @@ func countingEnv(t *testing.T, reads map[string]int) *cel.Env {
 	registry, err := types.NewRegistry()
 	require.NoError(t, err)
 
-	opts := []cel.EnvOption{cel.CustomTypeProvider(&countingProvider{
-		Provider: &modelTypes{Provider: registry},
-		reads:    reads,
-	})}
-	for name, root := range modelRoots {
-		opts = append(opts, cel.Variable(name, root))
-	}
-
-	env, err := NewEnv(opts...)
+	env, err := NewEnv(
+		cel.CustomTypeProvider(&countingProvider{
+			Provider: &modelTypes{Provider: registry},
+			reads:    reads,
+		}),
+		cel.Variable(EventRoot, modelRootType),
+	)
 	require.NoError(t, err)
 	return env
 }
@@ -497,6 +503,33 @@ func (c *countingProvider) FindStructFieldType(structType, field string) (*types
 			return getFrom(obj)
 		},
 	}, true
+}
+
+// TestABoundVariableCannotShadowAField is why rooting the fields needs no scope
+// analysis to be safe.
+//
+// A bound variable and a field no longer share a namespace, so an iterator
+// variable named after a top level segment is still only the iterator variable,
+// and the field it ranges over is still reachable from inside the quantifier.
+// Nothing rooted this expression's `process` because a bound variable is not
+// built as a name — see selectChain.
+func TestABoundVariableCannotShadowAField(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	const expr = `process.ancestors[process].comm == "sh" && process.comm == "zsh"`
+
+	translated, err := TranslateWithTypes(expr, ModelFieldTypes{})
+	require.NoError(t, err)
+	assert.Equal(t,
+		`evt.process.ancestors.exists(process, process.comm == "sh" && evt.process.comm == "zsh")`,
+		translated)
+
+	event := model.NewFakeEvent()
+	event.BaseEvent.ProcessContext.Process.Comm = "zsh"
+	ancestry(event, []string{"sh"}, []uint32{0})
+
+	assert.True(t, evalSECL(t, env, event, expr))
 }
 
 // TestProgramVariablesAreNotWired pins the phase 3 gap: SECL's ${…} variables are

@@ -12,8 +12,9 @@ import (
 )
 
 // The CEL type tree describes the SECL fields as a tree of object types, so
-// that a CEL environment can declare `process` as a type with a `file` member
-// rather than declaring every dotted name as its own variable.
+// that a CEL environment can declare one variable holding a type with a
+// `process` member, which in turn has a `file` member, rather than declaring
+// every dotted name as its own variable.
 //
 // The tree is built from the SECL field *names*, not from the Go structs behind
 // them. Those two do not agree: `connect.addr` draws its members from a nested
@@ -62,10 +63,12 @@ type CELShape struct {
 
 // CELTypeTree is the generated view of the SECL field namespace.
 type CELTypeTree struct {
-	// Shapes are sorted by name.
+	// Shapes are sorted by name, and include the root.
 	Shapes []CELShape
-	// Roots are the top level segments, sorted by name.
-	Roots []CELMember
+	// Root is the name of the type the whole namespace hangs under, whose
+	// members are the top level segments. It is the one type a CEL environment
+	// declares a variable for.
+	Root string
 	// UsesCIDR reports whether any field is IP or CIDR valued, which decides
 	// whether the generated file needs the network extension library.
 	UsesCIDR bool
@@ -73,6 +76,12 @@ type CELTypeTree struct {
 
 // celTypePrefix namespaces the generated CEL type names.
 const celTypePrefix = "secl."
+
+// celRootType is the type of the whole field namespace. The top level segments
+// are its members rather than declarations of their own, so that every field
+// select — including the first — is bound to the field it denotes when a rule is
+// planned, and so that a macro or a constant cannot be named after a segment.
+const celRootType = celTypePrefix + "Root"
 
 type celNode struct {
 	children map[string]*celNode
@@ -166,11 +175,10 @@ func BuildCELTypeTree(module *Module) (*CELTypeTree, error) {
 		node.list = true
 	}
 
-	tree := &CELTypeTree{}
+	tree := &CELTypeTree{Root: celRootType}
 	if err := nameShapes(root, tree); err != nil {
 		return nil, err
 	}
-	tree.Roots = membersOf(root)
 
 	for _, shape := range tree.Shapes {
 		for _, member := range shape.Members {
@@ -218,16 +226,23 @@ func nameShapes(root *celNode, tree *CELTypeTree) error {
 		if node.isLeaf {
 			return nil
 		}
+
+		// The root holds the whole namespace, so it is named rather than
+		// camel cased from its empty path.
+		name := celRootType
 		if node != root {
-			name := celTypePrefix + camelPath(strings.Split(path, "."))
-			// Paths are unique, but two of them can camel case to one name:
-			// `x.file_metadata` and `x.file.metadata` both give FileMetadata.
-			if claimed, ok := taken[name]; ok {
-				return fmt.Errorf("paths %q and %q both name the type %q", claimed, path, name)
-			}
-			taken[name] = path
-			node.shape = name
+			name = celTypePrefix + camelPath(strings.Split(path, "."))
 		}
+		// Paths are unique, but two of them can camel case to one name:
+		// `x.file_metadata` and `x.file.metadata` both give FileMetadata. The root
+		// is named first, so a top level `root` field collides with it here rather
+		// than silently taking its place.
+		if claimed, ok := taken[name]; ok {
+			return fmt.Errorf("paths %s and %s both name the type %q", pathLabel(claimed), pathLabel(path), name)
+		}
+		taken[name] = path
+		node.shape = name
+
 		for _, segment := range sortedKeys(node.children) {
 			if err := walk(node.children[segment], join(path, segment)); err != nil {
 				return err
@@ -246,13 +261,11 @@ func nameShapes(root *celNode, tree *CELTypeTree) error {
 		if node.isLeaf {
 			return
 		}
-		if node != root {
-			tree.Shapes = append(tree.Shapes, CELShape{
-				Name:    node.shape,
-				Members: membersOf(node),
-				Path:    path,
-			})
-		}
+		tree.Shapes = append(tree.Shapes, CELShape{
+			Name:    node.shape,
+			Members: membersOf(node),
+			Path:    path,
+		})
 		for _, segment := range sortedKeys(node.children) {
 			emit(node.children[segment], join(path, segment))
 		}
@@ -262,6 +275,14 @@ func nameShapes(root *celNode, tree *CELTypeTree) error {
 	sort.Slice(tree.Shapes, func(i, j int) bool { return tree.Shapes[i].Name < tree.Shapes[j].Name })
 
 	return nil
+}
+
+// pathLabel names a path in an error message. The root has no path.
+func pathLabel(path string) string {
+	if path == "" {
+		return "the root"
+	}
+	return fmt.Sprintf("%q", path)
 }
 
 // camelPath joins SECL path segments into a Go style type name.
