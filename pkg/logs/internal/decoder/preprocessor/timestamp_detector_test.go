@@ -112,6 +112,40 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 	}
 }
 
+// TestZeroThresholdRejectsNoMatch guards against a zero-valued MatchContext
+// (returned when there aren't enough tokens, or the matched subsequence is
+// shorter than minimumTokenLength) satisfying an inclusive >= comparison
+// against a threshold of 0. A zero threshold should still accept genuine,
+// positive-probability matches while continuing to reject non-matches.
+func TestZeroThresholdRejectsNoMatch(t *testing.T) {
+	mockConfig := configmock.New(t)
+	tokenizer := NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
+	timestampDetector := NewTimestampDetector(0)
+
+	noMatchInputs := []string{
+		"short",
+		" .  a at some log",
+		"      at system.com.blah",
+	}
+	for _, input := range noMatchInputs {
+		context := &messageContext{
+			rawMessage: []byte(input),
+			label:      aggregate,
+		}
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
+		assert.True(t, timestampDetector.ProcessAndContinue(context))
+		assert.Equal(t, aggregate, context.label, fmt.Sprintf("input %q should not start a group with a zero threshold", input))
+	}
+
+	context := &messageContext{
+		rawMessage: []byte("2023-03-27 12:34:56 INFO App started successfully"),
+		label:      aggregate,
+	}
+	context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
+	assert.True(t, timestampDetector.ProcessAndContinue(context))
+	assert.Equal(t, startGroup, context.label, "a genuine timestamp match should still start a group with a zero threshold")
+}
+
 func printMatchUnderline(t *testing.T, context *messageContext, input string, match MatchContext) {
 	mockConfig := configmock.New(t)
 	maxLen := mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
