@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	typedFileProvisionerDefaultID = "typed-file"
+	staticStackProvisionerDefaultID = "static-stack"
 )
 
-// TypedFileProvisioner is a provisioner that reads a single JSON file and
+// StaticStackProvisioner is a provisioner that reads a single JSON file and
 // populates a typed environment directly.
 //
 // # JSON file format
@@ -108,34 +108,34 @@ const (
 // This design means no `import` struct tags need to be added to built-in
 // environment types such as [environments.Kubernetes], and no Pulumi provisioner
 // code needs to change.
-type TypedFileProvisioner[Env any] struct {
+type StaticStackProvisioner[Env any] struct {
 	id       string
 	filePath string
 }
 
-var _ TypedProvisioner[any] = &TypedFileProvisioner[any]{}
+var _ TypedProvisioner[any] = &StaticStackProvisioner[any]{}
 
-// NewTypedFileProvisioner returns a new TypedFileProvisioner.
-// Pass an empty id to use the default ("typed-file").
+// NewStaticStackProvisioner returns a new StaticStackProvisioner.
+// Pass an empty id to use the default ("static-stack").
 // filePath must be the path to a single JSON descriptor file.
-func NewTypedFileProvisioner[Env any](id string, filePath string) *TypedFileProvisioner[Env] {
+func NewStaticStackProvisioner[Env any](id string, filePath string) *StaticStackProvisioner[Env] {
 	if id == "" {
-		id = typedFileProvisionerDefaultID
+		id = staticStackProvisionerDefaultID
 	}
-	return &TypedFileProvisioner[Env]{
+	return &StaticStackProvisioner[Env]{
 		id:       id,
 		filePath: filePath,
 	}
 }
 
 // ID returns the provisioner's identifier.
-func (fp *TypedFileProvisioner[Env]) ID() string {
+func (fp *StaticStackProvisioner[Env]) ID() string {
 	return fp.id
 }
 
 // ProvisionEnv reads the JSON file, expands its top-level keys into [RawResources],
 // and wires the matching fields in *env.
-func (fp *TypedFileProvisioner[Env]) ProvisionEnv(_ context.Context, _ string, _ io.Writer, env *Env) (RawResources, error) {
+func (fp *StaticStackProvisioner[Env]) ProvisionEnv(_ context.Context, _ string, _ io.Writer, env *Env) (RawResources, error) {
 	resources, err := fp.readResources()
 	if err != nil {
 		return nil, err
@@ -148,14 +148,14 @@ func (fp *TypedFileProvisioner[Env]) ProvisionEnv(_ context.Context, _ string, _
 	return resources, nil
 }
 
-// Destroy is a no-op for the TypedFileProvisioner.
-func (fp *TypedFileProvisioner[Env]) Destroy(context.Context, string, io.Writer) error {
+// Destroy is a no-op for the StaticStackProvisioner.
+func (fp *StaticStackProvisioner[Env]) Destroy(context.Context, string, io.Writer) error {
 	return nil
 }
 
 // readResources reads the single JSON file and expands its top-level keys into
 // separate RawResources entries.  Keys prefixed with "_" are ignored.
-func (fp *TypedFileProvisioner[Env]) readResources() (RawResources, error) {
+func (fp *StaticStackProvisioner[Env]) readResources() (RawResources, error) {
 	fmt.Printf("Reading file: %s\n", fp.filePath)
 	data, err := os.ReadFile(fp.filePath)
 	if err != nil {
@@ -179,12 +179,12 @@ func (fp *TypedFileProvisioner[Env]) readResources() (RawResources, error) {
 
 // wireEnv iterates over the exported fields of *Env.  For each field that
 // implements [components.Importable] it resolves a resource key (see the
-// [TypedFileProvisioner] type-level doc for the full naming rules) and then:
+// [StaticStackProvisioner] type-level doc for the full naming rules) and then:
 //   - match found: calls SetKey so that BuildEnvFromResources can locate and
 //     unmarshal the payload.
 //   - no match: sets the field to nil so that BuildEnvFromResources skips it
 //     without error.
-func (fp *TypedFileProvisioner[Env]) wireEnv(env *Env, resources RawResources) error {
+func (fp *StaticStackProvisioner[Env]) wireEnv(env *Env, resources RawResources) error {
 	importableType := reflect.TypeOf((*components.Importable)(nil)).Elem()
 
 	envValue := reflect.ValueOf(env).Elem()

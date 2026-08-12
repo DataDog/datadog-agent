@@ -23,18 +23,18 @@ import (
 // Produce one with the kind_nopulumi helper or by exporting a live Pulumi stack.
 var envDescriptorPath = flag.String("env-descriptor", "", "path to the environment JSON descriptor file")
 
-type fileProvisionerSuite struct {
+type staticStackSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-// TestFileProvisionerSuite demonstrates using [provisioners.TypedFileProvisioner]
+// TestStaticStackSuite demonstrates using [provisioners.StaticStackProvisioner]
 // to load a pre-existing Kubernetes environment from a JSON file at runtime,
 // without spinning up any Pulumi infrastructure.
 //
 // Run with:
 //
-//	go test ./examples/ -run TestFileProvisionerSuite -env-descriptor /path/to/env.json
-func TestFileProvisionerSuite(t *testing.T) {
+//	go test ./examples/ -run TestStaticStackSuite -env-descriptor /path/to/env.json
+func TestStaticStackSuite(t *testing.T) {
 	if *envDescriptorPath == "" {
 		t.Skip("no --env-descriptor provided; pass -env-descriptor=/path/to/env.json to run")
 	}
@@ -44,12 +44,12 @@ func TestFileProvisionerSuite(t *testing.T) {
 		t.Fatalf("invalid --env-descriptor path: %v", err)
 	}
 
-	e2e.Run(t, &fileProvisionerSuite{},
-		e2e.WithProvisioner(provisioners.NewTypedFileProvisioner[environments.Kubernetes]("", absPath)),
+	e2e.Run(t, &staticStackSuite{},
+		e2e.WithProvisioner(provisioners.NewStaticStackProvisioner[environments.Kubernetes]("", absPath)),
 	)
 }
 
-func (s *fileProvisionerSuite) TestKubernetesClusterIsLoaded() {
+func (s *staticStackSuite) TestKubernetesClusterIsLoaded() {
 	kc := s.Env().KubernetesCluster
 
 	pods, err := kc.KubernetesClient.K8sClient.CoreV1().Pods("kube-system").List(context.TODO(), v1.ListOptions{})
@@ -62,7 +62,7 @@ func (s *fileProvisionerSuite) TestKubernetesClusterIsLoaded() {
 	s.Assert().NotNil(kc.KubernetesClient)
 }
 
-func (s *fileProvisionerSuite) TestFakeIntakeIsLoaded() {
+func (s *staticStackSuite) TestFakeIntakeIsLoaded() {
 	fi := s.Env().FakeIntake
 
 	s.Require().NotNil(fi)
@@ -70,7 +70,7 @@ func (s *fileProvisionerSuite) TestFakeIntakeIsLoaded() {
 	s.Assert().NotNil(fi.Client())
 }
 
-func (s *fileProvisionerSuite) TestAgentIsNil() {
-	// Agent was not part of the descriptor — TypedFileProvisioner sets it to nil.
+func (s *staticStackSuite) TestAgentIsNil() {
+	// Agent was not part of the descriptor — StaticStackProvisioner sets it to nil.
 	s.Assert().Nil(s.Env().Agent)
 }
