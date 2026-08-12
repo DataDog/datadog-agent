@@ -9,15 +9,18 @@ package darwin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/pkg/security/darwin/eslogger"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -25,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // EventSender ships a security event to the intake.
@@ -135,18 +139,15 @@ func (c *Collector) Run(ctx context.Context) error {
 		c.ruleSet.Evaluate(event)
 
 		for _, match := range c.recorder.Matches() {
-			raw, err := serializers.MarshalEvent(match.Event, c.scrubber)
+			raw, err := c.buildPayload(match)
 			if err != nil {
 				log.Warnf("serialize %s: %v", match.RuleID, err)
 				continue
 			}
 
-			// The rule id has to travel as a TAG, not just in the RuleID field.
-			// DirectEventMsgSender forwards msg.Tags to the log origin, and that is
-			// what surfaces as @agent.rule_id in the backend -- which is in turn
-			// what a Workload Protection detection rule matches on. Without this
-			// the agent event arrives and renders, but no signal can ever be built
-			// from it. pkg/security/module/server.go does the same thing on Linux.
+			// rule_id also travels as a tag, which is how it becomes a facet.
+			// The attribute that detection rules match on is @agent.rule_id, and
+			// that comes from the payload body -- see buildPayload.
 			tags := []string{"rule_id:" + match.RuleID}
 			tags = append(tags, match.Event.GetTags()...)
 
@@ -175,6 +176,62 @@ func (c *Collector) Run(ctx context.Context) error {
 		return nil
 	}
 	return err
+}
+
+// buildPayload produces the wire payload for a rule match.
+//
+// The serialized event is only half of it. A Workload Protection detection rule
+// matches on @agent.rule_id, which is an ATTRIBUTE of the payload body, not a
+// log tag -- so the event has to be wrapped in an events.BackendEvent supplying
+// the "agent" object and a "title". Sending the rule id only as a tag makes it a
+// facet, which looks right in the events explorer but cannot be turned into a
+// signal.
+//
+// pkg/security/module/server.go does the same on Linux and merges the two JSON
+// objects with an unexported mergeJSON; the same concatenation is repeated here
+// rather than exporting it.
+func (c *Collector) buildPayload(match Match) ([]byte, error) {
+	eventJSON, err := serializers.MarshalEvent(match.Event, c.scrubber)
+	if err != nil {
+		return nil, fmt.Errorf("serialize event: %w", err)
+	}
+
+	backendEvent := events.BackendEvent{
+		AgentContext: events.AgentContext{
+			RuleID:         match.RuleID,
+			OriginalRuleID: match.RuleID,
+			Version:        version.AgentVersion,
+			OS:             runtime.GOOS,
+			Arch:           utils.RuntimeArch(),
+			// Origin distinguishes this event source from the eBPF and ptrace
+			// ones, which matters as soon as macOS events sit next to Linux ones.
+			Origin: "eslogger",
+		},
+	}
+	if match.Rule != nil && match.Rule.PolicyRule != nil {
+		if def := match.Rule.Def; def != nil {
+			backendEvent.Title = def.Description
+			backendEvent.AgentContext.RuleVersion = def.Version
+		}
+		backendEvent.AgentContext.PolicyName = match.Rule.Policy.Name
+		backendEvent.AgentContext.PolicyVersion = match.Rule.Policy.Version
+	}
+
+	backendJSON, err := json.Marshal(backendEvent)
+	if err != nil {
+		return nil, fmt.Errorf("serialize agent context: %w", err)
+	}
+
+	return mergeJSONObjects(backendJSON, eventJSON)
+}
+
+// mergeJSONObjects concatenates two JSON objects into one.
+func mergeJSONObjects(j1, j2 []byte) ([]byte, error) {
+	if len(j1) < 2 || len(j2) < 2 {
+		return nil, errors.New("malformed json")
+	}
+	merged := append(j1[:len(j1)-1], ',')
+	return append(merged, j2[1:]...), nil
 }
 
 // traceEvent logs the exact values the rule engine will match on: the event's

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -75,6 +76,66 @@ func TestSerializeExecProducesLinuxShapedPayload(t *testing.T) {
 	assert.NotEmpty(t, ancestors)
 
 	t.Logf("exec payload: %s", raw)
+}
+
+// TestBuildPayloadCarriesAgentRuleID is the precondition for turning an agent
+// event into a signal. A Workload Protection detection rule matches on
+// @agent.rule_id, which is an ATTRIBUTE of the payload body -- not a log tag.
+// Sending the rule id only as a tag makes it a facet, which looks correct in the
+// events explorer but can never produce a signal. That is exactly what happened
+// on the first live run.
+func TestBuildPayloadCarriesAgentRuleID(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rec := &MatchRecorder{}
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+	rs.AddListener(rec)
+
+	_, err = tr.Translate(execMessage(t, 950, 1, "/usr/local/bin/npm", []string{"npm", "install"}))
+	require.NoError(t, err)
+	_, err = tr.Translate(forkMessage(t, 951, 950, "/usr/local/bin/npm"))
+	require.NoError(t, err)
+	ev, err := tr.Translate(execMessage(t, 951, 950, "/bin/sh", []string{"sh", "-c", "echo hi"}))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	rs.Evaluate(ev)
+	require.Len(t, rec.Matches(), 1)
+
+	collector := &Collector{scrubber: testScrubber(t)}
+	raw, err := collector.buildPayload(rec.Matches()[0])
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload), "the merged payload must be valid JSON")
+
+	agent, ok := payload["agent"].(map[string]any)
+	require.True(t, ok, "payload must carry an agent context")
+	assert.Equal(t, "macos_pkg_manager_spawns_shell", agent["rule_id"],
+		"@agent.rule_id is what a detection rule matches on")
+	assert.Equal(t, "darwin", agent["os"])
+	assert.Equal(t, "eslogger", agent["origin"],
+		"origin must distinguish this source from the eBPF and ptrace ones")
+	assert.NotEmpty(t, agent["version"])
+
+	// The event half must survive the merge intact.
+	assert.Contains(t, payload, "evt")
+	assert.Contains(t, payload, "process")
+	assert.NotEmpty(t, payload["title"], "the rule description becomes the title")
+
+	t.Logf("wire payload: %s", raw)
+}
+
+func TestMergeJSONObjectsRejectsMalformedInput(t *testing.T) {
+	_, err := mergeJSONObjects([]byte(""), []byte("{}"))
+	assert.Error(t, err)
+	_, err = mergeJSONObjects([]byte("{}"), []byte(""))
+	assert.Error(t, err)
+
+	merged, err := mergeJSONObjects([]byte(`{"a":1}`), []byte(`{"b":2}`))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"a":1,"b":2}`, string(merged))
 }
 
 // TestSerializeCarriesInterpreterForScripts checks that an interpreted entry

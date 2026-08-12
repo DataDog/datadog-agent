@@ -33,6 +33,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/proto/api",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
@@ -42,6 +43,7 @@ go_library(
             "//pkg/security/serializers",
             "//pkg/security/utils",
             "//pkg/util/log",
+            "//pkg/version",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -73,6 +75,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/security/darwin/eslogger",
+            "//pkg/security/events",
             "//pkg/security/proto/api",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
@@ -82,6 +85,7 @@ go_library(
             "//pkg/security/serializers",
             "//pkg/security/utils",
             "//pkg/util/log",
+            "//pkg/version",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
         "@rules_go//go/platform:linux": [
