@@ -38,9 +38,11 @@ const baselineAnalysisDisabledYAML = `  baseline_analysis:
 
 // Canonical observer telemetry names.
 const (
-	telemetrySeriesCount  = "observer.series.count"
-	telemetryLogsInFlight = "observer.logs.in_flight"
-	telemetryLogsIngested = "observer.logs.ingested"
+	telemetrySeriesCount    = "observer.series.count"
+	telemetryLogsInFlight   = "observer.logs.in_flight"
+	telemetryLogsIngested   = "observer.logs.ingested"
+	telemetryReportsEmitted = "observer.reports.emitted"
+	telemetryReportsOngoing = "observer.reports.ongoing"
 	// scorerHelperEscalationMarker is emitted by anomalyScorer.OnSeverityTransition
 	// when output.logs=true and the EWMA rises above low_threshold (an escalation event).
 	// Logged at info level, captured by journald, and serves as the assertion target.
