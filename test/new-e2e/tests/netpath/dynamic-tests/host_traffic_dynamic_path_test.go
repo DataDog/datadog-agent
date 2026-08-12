@@ -171,14 +171,13 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	}, 2*time.Minute, 5*time.Second)
 	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
 	s.remoteConfigAdded = true
-	statsAfterAdd, err := fakeintake.RCStats()
-	require.NoError(s.T(), err)
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		stats, err := fakeintake.RCStats()
-		assert.NoError(c, err)
-		assert.Greater(c, stats.Polls, statsAfterAdd.Polls, "agent did not poll Remote Config after the dynamic config was added")
-	}, 2*time.Minute, 5*time.Second)
 
+	// We deliberately don't gate setup on the agent re-polling Remote Config here.
+	// The agent's RC refresh cadence is defaultRefreshInterval (1m) plus exponential
+	// backoff on transient errors, so the next poll can legitimately land beyond a
+	// short deadline and would flake this gate. TestHostTrafficDynamicNetworkPath
+	// already waits for the RC-admitted network path to appear, which inherently
+	// proves the agent polled and applied this config.
 	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
 }
 
