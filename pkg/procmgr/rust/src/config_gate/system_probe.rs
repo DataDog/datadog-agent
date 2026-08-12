@@ -89,6 +89,11 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
         return Ok(true);
     }
 
+    // config.go:187-188 — DiscoveryModule (schema platform_default: linux true, fargate/other false)
+    if cfg.effective_discovery_enabled()? {
+        return Ok(true);
+    }
+
     // config.go:165-194 — remaining modules with a single config knob each
     for key in [
         "system_probe_config.process_config.enabled",
@@ -96,7 +101,6 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache) -> anyh
         "system_probe_config.language_detection.enabled",
         "ping.enabled",
         "traceroute.enabled",
-        "discovery.enabled",
         "privileged_logs.enabled",
         "noisy_neighbor.enabled",
         "windows_crash_detection.enabled",
@@ -187,6 +191,11 @@ impl<'a> Cfg<'a> {
         self.sp_bool("service_monitoring_config.enabled")
     }
 
+    /// `discovery.enabled` with schema platform defaults (`system-probe_schema.yaml`).
+    fn effective_discovery_enabled(&mut self) -> anyhow::Result<bool> {
+        self.sp_bool_default("discovery.enabled", discovery_enabled_platform_default())
+    }
+
     /// Discovery service map after `adjustDiscovery` conflict checks.
     fn effective_discovery_service_map(&mut self) -> anyhow::Result<bool> {
         if !self.sp_bool("discovery.service_map.enabled")? {
@@ -204,4 +213,26 @@ impl<'a> Cfg<'a> {
         }
         Ok(true)
     }
+}
+
+/// Schema `platform_default` for `discovery.enabled`.
+fn discovery_enabled_platform_default() -> bool {
+    #[cfg(not(target_os = "linux"))]
+    {
+        return false;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        !is_ecs_fargate()
+    }
+}
+
+/// Mirrors `IsECSFargate` in `pkg/config/env/environment.go`.
+#[cfg(target_os = "linux")]
+fn is_ecs_fargate() -> bool {
+    std::env::var("ECS_FARGATE").is_ok_and(|v| !v.is_empty())
+        || matches!(
+            std::env::var("AWS_EXECUTION_ENV").ok().as_deref(),
+            Some("AWS_ECS_FARGATE")
+        )
 }
