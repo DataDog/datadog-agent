@@ -105,7 +105,7 @@ def bazel(
 ) -> str | Result:
     """Execute a bazel command.
 
-    env: environment variables that would expose secrets if passed through the corresponding Bazel `--*_env=` flags.
+    env: environment variables when passing them through the corresponding Bazel `--*_env=` flags is not suitable.
     ignore_errors: do not fail fast, but instead return the raw `Result`, whether the Bazel command succeeded or not.
     """
 
