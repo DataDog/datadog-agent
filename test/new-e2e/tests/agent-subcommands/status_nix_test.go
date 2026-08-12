@@ -90,6 +90,13 @@ func (v *linuxStatusSuite) TestChecksMetadataUnix() {
 }
 
 func (v *linuxStatusSuite) TestDefaultInstallStatus() {
+	_, err := v.Env().RemoteHost.Execute("sudo systemctl stop datadog-installer.service")
+	v.Require().NoError(err)
+	defer func() {
+		_, err := v.Env().RemoteHost.Execute("sudo systemctl start datadog-installer.service")
+		v.Require().NoError(err)
+	}()
+
 	// wake up the trace-agent
 	resp, _ := v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
 	if resp != nil {
