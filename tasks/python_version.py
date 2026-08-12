@@ -89,6 +89,7 @@ def update(
         updates.append(_prepare_omnibus_update(target_version))
         updates.append(_prepare_bazel_update(target_version, sha256_hash))
         updates.append(_prepare_test_update(target_version))
+        updates.append(_prepare_aix_update(target_version))
     except Exit:
         # If any validation fails, don't write anything
         raise
@@ -288,6 +289,24 @@ def _prepare_test_update(version: str) -> tuple[Path, str]:
 
     if count != 1:
         raise Exit(f"Expected 1 version match in {file_path}, found {count}")
+
+    return (file_path, new_content)
+
+
+def _prepare_aix_update(version: str) -> tuple[Path, str]:
+    """Prepare Python version update for the AIX packaging scripts.
+
+    Returns:
+        Tuple of (file_path, new_content) ready to write
+    """
+    file_path = Path("packaging/aix/lib/env.sh")
+    content = file_path.read_text()
+
+    pattern = r'^(PYTHON_VERSION=")([0-9.]+)(")$'
+    new_content, count = re.subn(pattern, rf'\g<1>{version}\g<3>', content, flags=re.MULTILINE)
+
+    if count != 1:
+        raise Exit(f"Expected 1 PYTHON_VERSION match in {file_path}, found {count}")
 
     return (file_path, new_content)
 
