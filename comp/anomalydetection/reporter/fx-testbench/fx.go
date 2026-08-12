@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build anomalydetectiontestbench
+
 // Package fx provides the testbench fx module for the reporter component.
 // Wire this in the testbench binary: it provides the SSE-pushing reporter.Reporter
 // and exposes SSEAccess for the HTTP API to register browser clients.
