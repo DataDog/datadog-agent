@@ -36,19 +36,37 @@ go_library(
         "ebpf_bytecode.go",
         "usm_debugger.go",
     ],
-    embedsrcs = [
-        "shared-libraries-debug.o",
-        "usm-debug.o",
-    ],
+    embedsrcs = select({
+        "@rules_go//go/platform:android": [
+            "shared-libraries-debug.o",
+            "usm-debug.o",
+        ],
+        "@rules_go//go/platform:linux": [
+            "shared-libraries-debug.o",
+            "usm-debug.o",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/debugger/cmd",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
-    deps = [
-        "//pkg/config/setup",
-        "//pkg/network/config",
-        "//pkg/network/usm",
-        "//pkg/system-probe/config",
-        "//pkg/util/log",
-        "//pkg/util/log/setup",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "//pkg/network/config",
+            "//pkg/network/usm",
+            "//pkg/system-probe/config",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "//pkg/network/config",
+            "//pkg/network/usm",
+            "//pkg/system-probe/config",
+            "//pkg/util/log",
+            "//pkg/util/log/setup",
+        ],
+        "//conditions:default": [],
+    }),
 )
