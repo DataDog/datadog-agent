@@ -468,6 +468,7 @@ async fn reconcile_process_after_reload(
 
     let want_start = proc.should_start();
     let gate_was = proc.last_config_gate_met();
+    let start_conditions_was = proc.last_start_conditions_met();
 
     if stopped_for_config_update {
         proc.wait_for_stop().await;
@@ -504,10 +505,13 @@ async fn reconcile_process_after_reload(
         info!("[{}] start conditions no longer met, stopping", proc.name());
         proc.request_stop();
         proc.wait_for_stop().await;
-    } else if !proc.is_running() && want_start && gate_was == Some(false) {
-        info!("[{}] config gate now met, starting", proc.name());
+    } else if !proc.is_running() && want_start && start_conditions_was == Some(false) {
+        info!("[{}] start conditions now met, starting", proc.name());
         if let Err(e) = proc.spawn() {
-            warn!("[{}] failed to start after gate opened: {e:#}", proc.name());
+            warn!(
+                "[{}] failed to start after start conditions opened: {e:#}",
+                proc.name()
+            );
             queue_restart(proc, restart_tx);
         } else {
             spawn_watcher(proc, exit_tx.clone());
@@ -839,6 +843,52 @@ mod tests {
             "manually started auto_start=false process should survive unchanged reload"
         );
         test_helpers::cleanup_process(procs[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_restarts_process_when_path_reappears() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let marker = dir.path().join("ready");
+        std::fs::write(&marker, b"")?;
+        let path_str = marker.to_str().unwrap().to_string();
+
+        let def_with_path = |path: &str| ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                auto_start: true,
+                condition_path_exists: Some(path.to_string()),
+                ..sleep_def("svc-a").config
+            },
+        };
+
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, restart_tx) = reload_test_channels();
+
+        config_loader.set(vec![def_with_path(&path_str)]);
+        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert!(result.added.contains(&"svc-a".to_string()));
+        assert!(mgr.processes().await[0].is_running());
+
+        std::fs::remove_file(&marker)?;
+        config_loader.set(vec![def_with_path(&path_str)]);
+        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert!(result.unchanged.contains(&"svc-a".to_string()));
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "process should stop when condition_path_exists is no longer met"
+        );
+
+        std::fs::write(&marker, b"")?;
+        config_loader.set(vec![def_with_path(&path_str)]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "process should restart when condition_path_exists is met again"
+        );
+
+        test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
         Ok(())
     }
 
