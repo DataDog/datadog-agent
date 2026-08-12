@@ -191,6 +191,7 @@ go_library(
 dd_agent_go_test(
     name = "compliance_test",
     srcs = [
+        "agent_race_test.go",
         "agent_test.go",
         "cri_test.go",
         "k8s_reflectors_test.go",
@@ -207,15 +208,23 @@ dd_agent_go_test(
             "orchestrator",
         ],
         [
+            "cel",
             "docker",
             "kubelet",
         ],
     ],
     deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
         "//comp/core/secrets/noop-impl",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/impl",
+        "//comp/def",
         "//comp/logs-library/client",
         "//comp/logs/agent/config",
         "//comp/serializer/logscompression/fx-mock",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//rbac/v1:rbac",
