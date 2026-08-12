@@ -1938,6 +1938,76 @@ process_config:
         });
     }
 
+    /// Linux default: empty system-probe.yaml enables discovery → system-probe gate open.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn derived_discovery_linux_default_enables_system_probe_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            assert!(condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    /// Fargate platform_default overrides Linux discovery default.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn derived_discovery_fargate_default_disables_system_probe_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _fargate = EnvGuard::set("AWS_EXECUTION_ENV", "AWS_ECS_FARGATE");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    /// Explicit YAML false still disables discovery on Linux.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn derived_discovery_explicit_false_disables_on_linux() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(
+                dir.path(),
+                "system-probe.yaml",
+                "discovery:\n  enabled: false\n",
+            );
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
+    /// DD_DISCOVERY_ENABLED=false overrides Linux platform default.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn derived_discovery_env_disable_on_linux() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+            let _discovery = EnvGuard::set("DD_DISCOVERY_ENABLED", "false");
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
+            let sysprobe = write_config(dir.path(), "system-probe.yaml", "# empty\n");
+            assert!(!condition_config_any_met(
+                &process_agent_windows_conditions(agent, sysprobe)
+            ));
+        });
+    }
+
     #[test]
     fn derived_usm_env_enables_system_probe_gate() {
         with_env_lock(|| {
