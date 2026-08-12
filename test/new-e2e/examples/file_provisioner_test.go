@@ -6,10 +6,12 @@
 package examples
 
 import (
+	"context"
 	"flag"
-	"os"
 	"path/filepath"
 	"testing"
+
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -43,14 +45,16 @@ func TestFileProvisionerSuite(t *testing.T) {
 	}
 
 	e2e.Run(t, &fileProvisionerSuite{},
-		e2e.WithProvisioner(provisioners.NewTypedFileProvisioner[environments.Kubernetes]("",
-			os.DirFS(filepath.Dir(absPath)),
-		)),
+		e2e.WithProvisioner(provisioners.NewTypedFileProvisioner[environments.Kubernetes]("", absPath)),
 	)
 }
 
 func (s *fileProvisionerSuite) TestKubernetesClusterIsLoaded() {
 	kc := s.Env().KubernetesCluster
+
+	pods, err := kc.KubernetesClient.K8sClient.CoreV1().Pods("kube-system").List(context.TODO(), v1.ListOptions{})
+	s.Require().NoError(err)
+	s.Assert().NotEmpty(pods.Items)
 
 	s.Require().NotNil(kc)
 	s.Assert().NotEmpty(kc.ClusterName)

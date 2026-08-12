@@ -10,8 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
-	"path/filepath"
+	"os"
 	"reflect"
 	"strings"
 
@@ -22,40 +21,110 @@ const (
 	typedFileProvisionerDefaultID = "typed-file"
 )
 
-// TypedFileProvisioner is a provisioner that reads JSON files from a filesystem and
+// TypedFileProvisioner is a provisioner that reads a single JSON file and
 // populates a typed environment directly.
 //
-// Each JSON file is treated as a multi-resource document: its top-level keys become
-// independent entries in [RawResources] (keys prefixed with "_" are skipped as
-// metadata).  This mirrors the snapshot format produced by real Pulumi stacks, where
-// a single JSON file contains one object per deployed component.
+// # JSON file format
 //
-// During [ProvisionEnv] the provisioner also walks the exported fields of *Env.  For
-// every field that implements [components.Importable] it derives a canonical resource
-// key (the `import` struct tag when present, otherwise the field name with its first
-// letter lowercased).  If a matching resource exists the field's key is set via
-// [components.Importable.SetKey]; otherwise the field is set to nil so that
-// [environments.BuildEnvFromResources] skips it gracefully.
+// The file must be a JSON object whose top-level keys are resource names.  Each
+// value is the raw JSON payload for that resource.  Keys prefixed with "_" are
+// treated as metadata and are ignored.
 //
-// This design means no `import` struct tags need to be added to built-in environment
-// types such as [environments.Kubernetes], and no Pulumi provisioner code needs to
-// change.
+//	{
+//	  "_source": "pulumi-stack-my-stack",
+//	  "kubernetesCluster": { "clusterName": "my-cluster", "kubeConfig": "…" },
+//	  "fakeIntake":        { "host": "localhost", "port": 8080 },
+//	  "agent":             { "version": "7.x" }
+//	}
+//
+// # Field naming and key resolution
+//
+// For each exported pointer field in *Env that implements [components.Importable],
+// the provisioner derives a resource key using the following priority order:
+//
+//  1. The value of the `import` struct tag, when present.
+//  2. The field name with its first letter lowercased (lowerCamelCase).
+//
+// The derived key is then looked up in the JSON object:
+//   - Match found: [components.Importable.SetKey] is called so that
+//     [environments.BuildEnvFromResources] can unmarshal the payload into the field.
+//   - No match: the field is set to nil and silently skipped.
+//
+// # Naming convention
+//
+// For the provisioner to wire a field automatically, the corresponding JSON key
+// must equal the lowerCamelCase form of the Go field name — unless the field
+// carries an explicit `import` tag that overrides it.
+//
+// Given this environment struct:
+//
+//	type MyEnv struct {
+//	    KubernetesCluster *components.KubernetesCluster `import:"kubernetesCluster"` // explicit tag
+//	    FakeIntake        *components.FakeIntake                                      // → key "fakeIntake"
+//	    Agent             *components.KubernetesAgent                                 // → key "agent"
+//	}
+//
+// The expected JSON keys are "kubernetesCluster", "fakeIntake", and "agent".
+// A field whose JSON key is absent from the file is set to nil (not an error);
+// a JSON key that has no matching field is silently ignored.
+//
+// Use the `import` tag when the field name and the JSON key diverge — for
+// example when a legacy snapshot uses a different naming convention, or when
+// two fields of the same type would otherwise produce duplicate keys.
+//
+// # Embedded structs and nesting
+//
+// The provisioner inspects only the direct fields of *Env — it does not recurse
+// into embedded structs.
+//
+// Value-embedded structs (e.g. CoverageBase in environments.Host) are silently
+// skipped because they have kind Struct, not Ptr.  This is harmless as long as
+// those helpers carry no [components.Importable] fields themselves.
+//
+//	// OK — CoverageBase is a value embed with no Importable fields.
+//	// wireEnv skips it and still finds RemoteHost, FakeIntake, Agent, Updater.
+//	type Host struct {
+//	    CoverageBase                      // skipped (Struct, not Ptr)
+//	    RemoteHost *components.RemoteHost // → key "remoteHost"
+//	    FakeIntake *components.FakeIntake // → key "fakeIntake"
+//	    Agent      *components.RemoteHostAgent  // → key "agent"
+//	    Updater    *components.RemoteHostUpdater // → key "updater"
+//	}
+//
+// Embedding another environment struct by value does NOT work: its component
+// pointer fields are invisible to wireEnv because Go reflection reports only
+// the direct (non-promoted) fields at the outermost level.
+//
+//	// NOT OK — RemoteHost, FakeIntake, Agent, Updater inside Host are never seen.
+//	type ExtendedHost struct {
+//	    Host                            // skipped (Struct, not Ptr); its fields are invisible
+//	    ExtraComp *components.FakeIntake // → key "extraComp" (only this is wired)
+//	}
+//
+// If you need to extend an existing environment, declare all component pointer
+// fields directly on the outer struct and use `import` tags where the JSON keys
+// must match a specific name.
+//
+// This design means no `import` struct tags need to be added to built-in
+// environment types such as [environments.Kubernetes], and no Pulumi provisioner
+// code needs to change.
 type TypedFileProvisioner[Env any] struct {
-	id string
-	fs fs.FS
+	id       string
+	filePath string
 }
 
 var _ TypedProvisioner[any] = &TypedFileProvisioner[any]{}
 
 // NewTypedFileProvisioner returns a new TypedFileProvisioner.
 // Pass an empty id to use the default ("typed-file").
-func NewTypedFileProvisioner[Env any](id string, filesystem fs.FS) *TypedFileProvisioner[Env] {
+// filePath must be the path to a single JSON descriptor file.
+func NewTypedFileProvisioner[Env any](id string, filePath string) *TypedFileProvisioner[Env] {
 	if id == "" {
 		id = typedFileProvisionerDefaultID
 	}
 	return &TypedFileProvisioner[Env]{
-		id: id,
-		fs: filesystem,
+		id:       id,
+		filePath: filePath,
 	}
 }
 
@@ -64,8 +133,8 @@ func (fp *TypedFileProvisioner[Env]) ID() string {
 	return fp.id
 }
 
-// ProvisionEnv reads all JSON files from the filesystem, expands each file's
-// top-level keys into [RawResources], and wires the matching fields in *env.
+// ProvisionEnv reads the JSON file, expands its top-level keys into [RawResources],
+// and wires the matching fields in *env.
 func (fp *TypedFileProvisioner[Env]) ProvisionEnv(_ context.Context, _ string, _ io.Writer, env *Env) (RawResources, error) {
 	resources, err := fp.readResources()
 	if err != nil {
@@ -84,46 +153,37 @@ func (fp *TypedFileProvisioner[Env]) Destroy(context.Context, string, io.Writer)
 	return nil
 }
 
-// readResources walks the FS and expands each JSON file's top-level keys into
+// readResources reads the single JSON file and expands its top-level keys into
 // separate RawResources entries.  Keys prefixed with "_" are ignored.
 func (fp *TypedFileProvisioner[Env]) readResources() (RawResources, error) {
-	resources := make(RawResources)
+	fmt.Printf("Reading file: %s\n", fp.filePath)
+	data, err := os.ReadFile(fp.filePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", fp.filePath, err)
+	}
 
-	err := fs.WalkDir(fp.fs, ".", func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return fs.SkipDir
-		}
-		if !d.Type().IsRegular() || filepath.Ext(path) != fileExtFilter {
-			return nil
-		}
+	var topLevel map[string]json.RawMessage
+	if err := json.Unmarshal(data, &topLevel); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", fp.filePath, err)
+	}
 
-		data, err := fs.ReadFile(fp.fs, path)
-		if err != nil {
-			return fmt.Errorf("reading %s: %w", path, err)
+	resources := make(RawResources, len(topLevel))
+	for key, value := range topLevel {
+		if strings.HasPrefix(key, "_") {
+			continue // skip metadata fields (e.g. _source)
 		}
-
-		var topLevel map[string]json.RawMessage
-		if err := json.Unmarshal(data, &topLevel); err != nil {
-			return fmt.Errorf("parsing %s: %w", path, err)
-		}
-
-		for key, value := range topLevel {
-			if strings.HasPrefix(key, "_") {
-				continue // skip metadata fields (e.g. _source)
-			}
-			resources[key] = []byte(value)
-		}
-		return nil
-	})
-	return resources, err
+		resources[key] = []byte(value)
+	}
+	return resources, nil
 }
 
 // wireEnv iterates over the exported fields of *Env.  For each field that
-// implements [components.Importable]:
-//   - if a matching resource key exists: calls SetKey so that
-//     BuildEnvFromResources can locate and unmarshal it.
-//   - if no matching resource key exists: sets the field to nil so that
-//     BuildEnvFromResources skips it without error.
+// implements [components.Importable] it resolves a resource key (see the
+// [TypedFileProvisioner] type-level doc for the full naming rules) and then:
+//   - match found: calls SetKey so that BuildEnvFromResources can locate and
+//     unmarshal the payload.
+//   - no match: sets the field to nil so that BuildEnvFromResources skips it
+//     without error.
 func (fp *TypedFileProvisioner[Env]) wireEnv(env *Env, resources RawResources) error {
 	importableType := reflect.TypeOf((*components.Importable)(nil)).Elem()
 
