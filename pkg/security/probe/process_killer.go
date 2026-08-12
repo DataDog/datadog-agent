@@ -534,24 +534,29 @@ type pendingKillBatch struct {
 // groupPendingKillsByCgroup collects the pending kills of the given reports into one batch per
 // cgroup target, dropping duplicated pids. Reports without a cgroup target share a single batch
 // that is killed process by process.
+//
+// Batches are only created for pids that survive deduplication: a pid queued under two different
+// cgroups, which happens if a process migrated between them during the warmup window, would
+// otherwise leave the second cgroup with an empty batch, and killing a cgroup we have no process
+// to validate or report is exactly what the caller guards against.
 func groupPendingKillsByCgroup(reports []*KillActionReport) []*pendingKillBatch {
 	var batches []*pendingKillBatch
 	byCgroupID := make(map[containerutils.CGroupID]*pendingKillBatch)
 	seen := make(map[int]bool)
 
 	for _, r := range reports {
-		batch, ok := byCgroupID[r.cgroupTarget.id]
-		if !ok {
-			batch = &pendingKillBatch{target: r.cgroupTarget}
-			byCgroupID[r.cgroupTarget.id] = batch
-			batches = append(batches, batch)
-		}
-
 		for _, kc := range r.pendingKills {
 			if seen[kc.pid] {
 				continue
 			}
 			seen[kc.pid] = true
+
+			batch, ok := byCgroupID[r.cgroupTarget.id]
+			if !ok {
+				batch = &pendingKillBatch{target: r.cgroupTarget}
+				byCgroupID[r.cgroupTarget.id] = batch
+				batches = append(batches, batch)
+			}
 			batch.kcs = append(batch.kcs, kc)
 		}
 	}
