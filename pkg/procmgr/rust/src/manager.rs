@@ -39,10 +39,13 @@ pub struct ProcessManager {
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
         let configs = config_loader.load();
-        let processes: Vec<ManagedProcess> = configs
+        let mut processes: Vec<ManagedProcess> = configs
             .into_iter()
             .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
             .collect();
+        for proc in &mut processes {
+            proc.record_config_gate_met();
+        }
         let startup_result = recompute_startup_order(&processes);
         Self {
             processes: Arc::new(RwLock::new(processes)),
@@ -274,6 +277,7 @@ impl ProcessManager {
         let pid = proc.pid();
         let state = proc.state();
         spawn_watcher(proc, exit_tx.clone());
+        proc.record_config_gate_met();
         Ok(StartResult { uuid, pid, state })
     }
 
@@ -454,12 +458,15 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
 /// Whether a running process should be stopped during reload reconciliation.
 ///
 /// `auto_start: false` processes may be started manually; they are kept running across
-/// unchanged reloads unless a config gate transitions from met to unmet.
-fn should_stop_running_after_reload(proc: &ManagedProcess, gate_was: Option<bool>) -> bool {
+/// unchanged reloads unless start conditions (path + config gates) transition from met to unmet.
+fn should_stop_running_after_reload(
+    proc: &ManagedProcess,
+    start_conditions_was: Option<bool>,
+) -> bool {
     if !proc.config().auto_start {
-        return !proc.config_gate_met() && gate_was == Some(true);
+        return !proc.start_conditions_met() && start_conditions_was == Some(true);
     }
-    !proc.should_start()
+    !proc.start_conditions_met()
 }
 
 /// Whether a process stopped for a config update should be respawned with the new definition.
@@ -485,7 +492,6 @@ async fn reconcile_process_after_reload(
     }
 
     let want_start = proc.should_start();
-    let gate_was = proc.last_config_gate_met();
     let start_conditions_was = proc.last_start_conditions_met();
 
     if stopped_for_config_update {
@@ -519,7 +525,7 @@ async fn reconcile_process_after_reload(
         } else {
             info!("[{}] not restarting: start conditions not met", proc.name());
         }
-    } else if proc.is_running() && should_stop_running_after_reload(proc, gate_was) {
+    } else if proc.is_running() && should_stop_running_after_reload(proc, start_conditions_was) {
         info!("[{}] start conditions no longer met, stopping", proc.name());
         proc.request_stop();
         proc.wait_for_stop().await;
@@ -980,6 +986,41 @@ mod tests {
             "manually started auto_start=false process should survive unchanged reload"
         );
         test_helpers::cleanup_process(procs[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_stops_manually_started_auto_start_false_when_path_gate_closes()
+    -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let marker = dir.path().join("ready");
+        std::fs::write(&marker, b"")?;
+        let path_str = marker.to_str().unwrap().to_string();
+
+        let def_with_path = |path: &str| ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                condition_path_exists: Some(path.to_string()),
+                ..sleep_def("action-executor").config
+            },
+        };
+
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![def_with_path(&path_str)]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, restart_tx) = reload_test_channels();
+
+        mgr.handle_start("action-executor", &exit_tx).await?;
+        assert!(mgr.processes().await[0].is_running());
+
+        std::fs::remove_file(&marker)?;
+        config_loader.set(vec![def_with_path(&path_str)]);
+        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert!(result.unchanged.contains(&"action-executor".to_string()));
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "manually started auto_start=false process should stop when path gate closes"
+        );
         Ok(())
     }
 
