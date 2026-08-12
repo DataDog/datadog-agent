@@ -62,7 +62,7 @@ def _prebuilt_file(rctx):
     target_path = rctx.path(actual_label)
 
     # Windows will probably have a .exe extension, so we can fall back to that.
-    if not target_path.exists and rctx.os.name == "windows":
+    if not target_path.exists and rctx.os.name.startswith("windows"):
         actual_label = rctx.attr.target_label.same_package_label(rctx.attr.target_label.name + ".exe")
         target_path = rctx.path(actual_label)
     rctx.watch(target_path)
