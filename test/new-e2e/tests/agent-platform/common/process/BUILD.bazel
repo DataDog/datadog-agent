@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "process",
+    srcs = [
+        "process.go",
+        "unix.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/components",
+        "//test/new-e2e/tests/windows/common",
+    ],
+)

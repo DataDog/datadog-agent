@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "networkdevices",
+    srcs = [
+        "connectivity_check.go",
+        "entrypoint.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkdevices",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//pkg/config/helper",
+        "//pkg/config/setup",
+        "//pkg/networkdevices/connectivity",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)
+
+dd_agent_go_test(
+    name = "networkdevices_test",
+    srcs = ["connectivity_check_test.go"],
+    embed = [":networkdevices"],
+    deps = [
+        "//comp/core/ipc/mock",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

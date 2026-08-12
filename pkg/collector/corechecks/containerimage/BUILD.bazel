@@ -20,6 +20,7 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/config/setup",
         "//pkg/util/aggregatingqueue",
+        "//pkg/util/containers/image",
         "//pkg/util/hostname",
         "//pkg/util/log",
         "//pkg/util/option",

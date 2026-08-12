@@ -9,7 +9,6 @@
 package ddflareextensionimpl
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -45,8 +44,6 @@ import (
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-
-	"go.uber.org/zap"
 )
 
 func getExtensionTestConfig(t *testing.T) *Config {
@@ -65,12 +62,17 @@ func getExtensionTestConfig(t *testing.T) *Config {
 }
 
 func getTestExtension(t *testing.T, optIpc option.Option[ipc.Component]) (ddflareextension.Component, error) {
-	c := context.Background()
-	telemetry := component.TelemetrySettings{}
+	telemetry := componenttest.NewNopTelemetrySettings()
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewComponent(c, cfg, telemetry, info, optIpc, true, false)
+	ext, err := NewComponent(t.Context(), cfg, telemetry, info, optIpc, true, false)
+	if err == nil {
+		t.Cleanup(func() {
+			require.NoError(t, ext.Shutdown(t.Context()))
+		})
+	}
+	return ext, err
 }
 
 func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride string) *httptest.ResponseRecorder {
@@ -96,7 +98,6 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	require.NoError(t, err)
 
 	ddExt := ext.(*ddExtension)
-	ddExt.telemetry.Logger = zap.New(zap.NewNop().Core())
 
 	host := newHostWithExtensions(
 		map[component.ID]component.Component{
@@ -104,10 +105,10 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 		},
 	)
 
-	ddExt.Start(context.TODO(), host)
+	ddExt.Start(t.Context(), host)
 
 	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), true))
-	ddExt.NotifyConfig(context.TODO(), conf)
+	ddExt.NotifyConfig(t.Context(), conf)
 	assert.NoError(t, err)
 
 	handler := ddExt.server.srv.Handler

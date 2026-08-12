@@ -6,7 +6,6 @@
 package ddflareextensionimpl
 
 import (
-	"context"
 	"os"
 	"path"
 	"strings"
@@ -84,7 +83,6 @@ func newEnvConfMapFromYAML(t *testing.T, yamlStr string) *envConfMap {
 	err := os.WriteFile(path, []byte(yamlStr), 0644)
 	require.NoError(t, err)
 
-	ctx := context.Background()
 	configProviderSettings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs: []string{path},
@@ -97,7 +95,7 @@ func newEnvConfMapFromYAML(t *testing.T, yamlStr string) *envConfMap {
 		},
 	}
 
-	envConfMap, err := newEnvConfMap(ctx, configProviderSettings)
+	envConfMap, err := newEnvConfMap(t.Context(), configProviderSettings)
 	require.NoError(t, err)
 	return envConfMap
 }

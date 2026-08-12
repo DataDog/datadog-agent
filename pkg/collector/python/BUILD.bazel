@@ -194,7 +194,15 @@ dd_agent_go_test(
         "version_test.go",
     ],
     embed = [":python"],
-    gotags_sets = [["python"]],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+        "python",
+    ]],
     include_default = False,
     deps = [
         "//pkg/util/cache",

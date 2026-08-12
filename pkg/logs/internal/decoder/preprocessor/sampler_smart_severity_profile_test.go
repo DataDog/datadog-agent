@@ -49,7 +49,7 @@ func newAnomalyProfileSampler(profiles [severityeventsdef.NumSeverityLevels]Samp
 		SmartSeverityProfilesEnabled: true,
 		Profiles:                     profiles,
 		SeverityProvider:             provider,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 }
 
 func TestAdaptiveSampler_SmartSeverityProfilesDisabled_IgnoresPublishedLevel(t *testing.T) {

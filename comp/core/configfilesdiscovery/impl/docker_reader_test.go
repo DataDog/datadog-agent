@@ -249,7 +249,7 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 	}
 }
 
-func TestDockerReaderReadEnvVarsSkipsInspectForEmptyWhitelist(t *testing.T) {
+func TestDockerReaderReadEnvVarsSkipsInspectForNilPredicate(t *testing.T) {
 	client := &fakeDockerClient{}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
@@ -260,31 +260,19 @@ func TestDockerReaderReadEnvVarsSkipsInspectForEmptyWhitelist(t *testing.T) {
 	assert.Empty(t, client.getEnvCalls)
 }
 
-func TestDockerReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
+func TestDockerReaderReadEnvVarsFiltersWithPredicate(t *testing.T) {
 	client := &fakeDockerClient{
-		env: []string{
-			"REDIS_PASSWORD=first",
-			"MALFORMED",
-			"WITH_EQUALS=a=b=c",
-			"EMPTY=",
-			"REDIS_PASSWORD=last",
-			"UNREQUESTED=value",
-		},
+		env: []string{"KAFKA_NODE_ID=1"},
 	}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{
-		"REDIS_PASSWORD",
-		"WITH_EQUALS",
-		"EMPTY",
-		"MISSING",
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
-		"REDIS_PASSWORD": "last",
-		"WITH_EQUALS":    "a=b=c",
-		"EMPTY":          "",
+		"KAFKA_NODE_ID": "1",
 	}, env)
 	assert.Equal(t, []string{"container-id"}, client.getEnvCalls)
 }
@@ -294,7 +282,9 @@ func TestDockerReaderReadEnvVarsSurfacesGetEnvErrors(t *testing.T) {
 	client := &fakeDockerClient{getEnvErr: expectedErr}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{"REDIS_PASSWORD"})
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
+	})
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, env)

@@ -1,0 +1,24 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "fleet_test",
+    srcs = [
+        "config_test.go",
+        "extensions_test.go",
+        "preservation_test.go",
+        "upgrade_test.go",
+    ],
+    deps = [
+        "//pkg/fleet/installer/fixtures",
+        "//pkg/fleet/installer/paths",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/new-e2e/tests/ddot",
+        "//test/new-e2e/tests/fleet/agent",
+        "//test/new-e2e/tests/fleet/backend",
+        "//test/new-e2e/tests/fleet/suite",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

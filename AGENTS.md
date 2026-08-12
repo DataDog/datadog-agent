@@ -204,15 +204,15 @@ AGENTS.md                          ← repo-wide: architecture, workflow, review
 ├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
 ├── tasks/AGENTS.md                ← invoke tasks: categories, libs layout, Bazel migration idioms
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
-├── test/new-e2e/AGENTS.md         ← E2E test guidelines: writing fast, reliable tests
+├── test/new-e2e/AGENTS.md         ← E2E test tree: layout, suite naming, build tags
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
 └── .agents/skills/*/SKILL.md      ← task-specific: step-by-step procedures
 ```
 
-Each level inherits context from its parent via `CLAUDE.md` (`@../../CLAUDE.md`
-→ `@AGENTS.md`). Keep information at the right level — don't duplicate
-repo-wide rules in sub-project files.
+Nested context files should not reference those in parent directories as they
+are already loaded by agents during initialization. Keep information at the
+right level; don't duplicate repo-wide rules in sub-project files.
 
 ### What to update and when
 

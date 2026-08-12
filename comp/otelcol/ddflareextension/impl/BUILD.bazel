@@ -95,6 +95,5 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_receiver_nopreceiver//:nopreceiver",
         "@io_opentelemetry_go_collector_receiver_otlpreceiver//:otlpreceiver",
         "@io_opentelemetry_go_collector_service//telemetry/otelconftelemetry",
-        "@org_uber_go_zap//:zap",
     ],
 )

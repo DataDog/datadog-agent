@@ -95,6 +95,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVersa,
 		metrics.MetricSourceWlan,
 		metrics.MetricSourceWindowsCertificateStore,
+		metrics.MetricSourceThermal,
 		// Plugins and non-checks
 		metrics.MetricSourceCloudFoundry,
 		metrics.MetricSourceJenkins,
@@ -1161,6 +1162,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 525
 	case metrics.MetricSourceKueue:
 		return 526
+	case metrics.MetricSourceThermal:
+		return 527
 	default:
 		return 0
 	}

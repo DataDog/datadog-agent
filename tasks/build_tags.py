@@ -290,7 +290,8 @@ def get_build_tags(include, exclude):
     for tag in unknown_exclude:
         print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.", file=sys.stderr)
 
-    return list(known_include - known_exclude)
+    # sort build tags to have the same order and ensure caching hits properly
+    return sorted(known_include - known_exclude)
 
 
 def compute_config_build_tags(

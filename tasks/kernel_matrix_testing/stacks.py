@@ -276,7 +276,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
 
 def build_start_microvms_binary(ctx):
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     # building the binary improves start up time for local usage where we invoke this multiple times.
     ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")

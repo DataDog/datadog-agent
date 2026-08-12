@@ -6,10 +6,13 @@
 package sources
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 type LogSourceSuite struct {
@@ -35,6 +38,69 @@ func (s *LogSourceSuite) TestDump() {
 	assert.Contains(s.T(), dump, "mysource")
 }
 
+// TestDumpConcurrentWithProcessingInfo runs Dump() concurrently with ProcessingInfo.Inc() to catch races (-race).
+func (s *LogSourceSuite) TestDumpConcurrentWithProcessingInfo() {
+	source := NewLogSource("racesource", nil)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				source.ProcessingInfo.Inc("exclude_rule")
+			}
+		}
+	})
+
+	wg.Go(func() {
+		for i := 0; i < 1000; i++ {
+			source.Dump(true)
+		}
+		close(stop)
+	})
+
+	wg.Wait()
+}
+
 func TestTrackerSuite(t *testing.T) {
 	suite.Run(t, new(LogSourceSuite))
+}
+
+// TestConcurrentTailingModeAndStatusAccess guards against a regression of the data race
+// between the file launcher mutating TailingMode/Status and the status builder reading them.
+func TestConcurrentTailingModeAndStatusAccess(t *testing.T) {
+	t.Parallel()
+	source := NewLogSource("test", &config.LogsConfig{TailingMode: "end"})
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	// writer: mimics (*Launcher).launchTailers/addSource mutating the source concurrently.
+	wg.Go(func() {
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if i%2 == 0 {
+				source.SetTailingMode("beginning")
+			} else {
+				source.SetTailingMode("end")
+			}
+			source.SetStatus(NewLogSource("test", nil).Status())
+		}
+	})
+
+	// reader: mimics (*Builder).configToDictionary/getIntegrations reading the source concurrently.
+	for i := 0; i < 1000; i++ {
+		_ = source.GetTailingMode()
+		_ = source.Status()
+	}
+	close(stop)
+	wg.Wait()
 }

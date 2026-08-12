@@ -132,6 +132,8 @@ func WithPulumiDependsOn(resources ...pulumi.ResourceOption) func(*Params) error
 	}
 }
 
+// WithEnvironmentVariables sets variables for the docker compose command and compose-file
+// interpolation only. Use [WithAgentServiceEnvVariable] for variables the agent process must see.
 func WithEnvironmentVariables(environmentVariables pulumi.StringMap) func(*Params) error {
 	return func(p *Params) error {
 		p.EnvironmentVariables = environmentVariables

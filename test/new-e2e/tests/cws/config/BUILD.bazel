@@ -1,5 +1,10 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+exports_files([
+    "e2e-security-agent.yaml",
+    "e2e-system-probe.yaml",
+])
+
 go_library(
     name = "config",
     srcs = ["config.go"],

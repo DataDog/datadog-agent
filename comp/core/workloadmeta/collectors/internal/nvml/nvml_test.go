@@ -17,16 +17,37 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
+
+func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
+	t.Helper()
+
+	config := config.NewMock(t)
+	config.SetInTest("gpu.enabled", true)
+
+	return newCollector(store, config)
+}
+
+func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
+	env.SetFeatures(t, env.NVML)
+
+	c := newCollector(nil, config.NewMock(t))
+	err := c.Start(context.Background(), nil)
+
+	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)
+}
 
 func TestPull(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMock()
 
-	c := newCollector(wmetaMock, nil)
+	c := newTestCollector(t, wmetaMock)
 
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -189,7 +210,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 		}),
 	)
 
-	c := newCollector(wmetaMock, nil)
+	c := newTestCollector(t, wmetaMock)
 
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -228,7 +249,7 @@ func TestProcessEntities(t *testing.T) {
 		return processInfo[uuid], nvml.SUCCESS
 	}))
 
-	c := newCollector(wmetaMock, nil)
+	c := newTestCollector(t, wmetaMock)
 	c.integrateWithWorkloadmetaProcesses = true
 
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -317,7 +338,7 @@ func TestProcessEntityMerging(t *testing.T) {
 			return procinfo, nvml.SUCCESS
 		}),
 	)
-	c := newCollector(wmetaMock, nil)
+	c := newTestCollector(t, wmetaMock)
 	c.integrateWithWorkloadmetaProcesses = true
 
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -400,7 +421,7 @@ func TestPullWithMIGDevices(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMock()
 
-	c := newCollector(wmetaMock, nil)
+	c := newTestCollector(t, wmetaMock)
 
 	ddnvml.WithMockNVML(t, nvmlMock)
 

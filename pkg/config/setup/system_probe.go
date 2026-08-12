@@ -12,6 +12,4 @@ import (
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
 func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	initMainSystemProbeConfig(cfg)
-	initCWSSystemProbeConfig(cfg)
-	initUSMSystemProbeConfig(cfg)
 }

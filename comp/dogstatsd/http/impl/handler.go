@@ -12,6 +12,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
 
@@ -36,10 +37,11 @@ func (ctx *requestCtx) respond(status int, format string, args ...any) {
 }
 
 type handlerBase struct {
-	log      log.Component
-	tagger   tagger.Component
-	hostname string
-	out      serializer
+	log        log.Component
+	tagger     tagger.Component
+	hostname   string
+	filterList filterlist.Component
+	out        serializer
 }
 
 func (h *handlerBase) handle(
@@ -86,7 +88,7 @@ type seriesHandler struct {
 
 func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handle(w, r, func(origin origin, payload *pb.Payload) error {
-		it, err := newSeriesIterator(payload, origin, h.hostname)
+		it, err := newSeriesIterator(payload, origin, h.hostname, h.filterList.GetMetricFilterList())
 		if err != nil {
 			return err
 		}
@@ -104,7 +106,7 @@ type sketchesHandler struct {
 
 func (h *sketchesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handle(w, r, func(origin origin, payload *pb.Payload) error {
-		it, err := newSketchIterator(payload, origin, h.hostname)
+		it, err := newSketchIterator(payload, origin, h.hostname, h.filterList.GetMetricFilterList())
 		if err != nil {
 			return err
 		}

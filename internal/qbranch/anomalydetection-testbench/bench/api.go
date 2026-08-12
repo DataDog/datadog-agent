@@ -1249,6 +1249,14 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		observerdef.AnomalyScorerConfig
 		CooldownSecs int64 `json:"cooldown_secs"`
 	}
+	type scorerReportContributor struct {
+		Name  string  `json:"name"`
+		Share float64 `json:"share"`
+	}
+	type scorerReport struct {
+		Timestamp    int64                     `json:"timestamp"`
+		Contributors []scorerReportContributor `json:"contributors"`
+	}
 	defaults := observerimpl.DefaultAnomalyScorerConfig()
 	req := replayRequest{AnomalyScorerConfig: defaults.AnomalyScorerConfig, CooldownSecs: defaults.CooldownSecs}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1298,7 +1306,10 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		return sorted[i].Timestamp < sorted[j].Timestamp
 	})
 
-	scorerCfg := observerimpl.AnomalyScorerConfig{AnomalyScorerConfig: req.AnomalyScorerConfig}
+	scorerCfg := observerimpl.DefaultAnomalyScorerConfig()
+	scorerCfg.AnomalyScorerConfig = req.AnomalyScorerConfig
+	scorerCfg.CorrelationEvents = true
+	scorerCfg.CooldownSecs = req.CooldownSecs
 	scorer := observerimpl.NewAnomalyScorer(scorerCfg)
 
 	first := sorted[0].Timestamp
@@ -1315,20 +1326,45 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	defer subscription.Unsubscribe()
 
 	ai := 0
+	var reports []scorerReport
+	storage := api.tb.debug.StorageReader()
 	for sec := first; sec <= last; sec++ {
 		for ai < len(sorted) && sorted[ai].Timestamp == sec {
 			scorer.ProcessAnomaly(sorted[ai])
 			ai++
 		}
 		scorer.Advance(sec)
+		for _, event := range scorer.PendingEvents() {
+			if event.Kind != observerdef.CorrelatorEventEpisodeStarted {
+				continue
+			}
+			report := scorerReport{Timestamp: event.Timestamp}
+			for _, contributor := range event.Contributors {
+				meta := storage.GetSeriesMeta(contributor.Handle.Ref)
+				if meta == nil {
+					continue
+				}
+				report.Contributors = append(report.Contributors, scorerReportContributor{
+					Name: observerdef.SeriesDescriptor{
+						Namespace: meta.Namespace,
+						Name:      meta.Name,
+						Tags:      meta.Tags,
+						Aggregate: contributor.Handle.Aggregate,
+					}.DisplayName(),
+					Share: contributor.Share,
+				})
+			}
+			reports = append(reports, report)
+		}
 	}
 
 	// Return a wrapper that adds the collected events alongside the state snapshot.
 	state := scorer.ScoreState()
 	api.writeJSON(w, struct {
 		observerdef.AnomalyScoreState
-		Events []severityeventsdef.SeverityEvent `json:"events"`
-	}{AnomalyScoreState: state, Events: collector.events})
+		Events  []severityeventsdef.SeverityEvent `json:"events"`
+		Reports []scorerReport                    `json:"reports"`
+	}{AnomalyScoreState: state, Events: collector.events, Reports: reports})
 }
 
 // scorerEventCollector implements severityeventsdef.SeverityEventListener, accumulating

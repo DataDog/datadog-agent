@@ -51,6 +51,7 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 			hookFunc("hook_inet_shutdown"),
 			hookFunc("hook_inet_bind"),
 			hookFunc("rethook_inet_bind"),
+			hookFunc("hook_accept"),
 			hookFunc("hook_sk_common_release"),
 			hookFunc("hook_path_get"),
 			hookFunc("hook_proc_fd_link"),
@@ -663,6 +664,8 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			}}},
 
 		// List of probes required to capture accept events
+		// hook_accept is also part of NetworkSelectors because it keeps flow_pid up to date, it is
+		// kept here so that accept events are still captured when network tracking is off
 		"accept": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_accept"),

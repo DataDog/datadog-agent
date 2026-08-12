@@ -1,0 +1,25 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "script_test",
+    srcs = [
+        "all_scripts_test.go",
+        "databricks_test.go",
+        "default_script_test.go",
+        "ssi_script_test.go",
+    ],
+    tags = ["manual"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/new-e2e/tests/installer/host",
+        "//test/new-e2e/tests/installer/unix",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)

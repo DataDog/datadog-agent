@@ -31,7 +31,7 @@ var (
 	distPath     string
 )
 
-// Private default path constants for reference. BindEnvAndSetDefault uses getter functions after init().
+// Private default path constants for reference. Agent configuration defaults use getter functions at runtime.
 // These are the static default values before init() may update them based on registry.
 // These are the raw, untransformed paths. Use getter functions for correct runtime transformed paths.
 const (
@@ -304,4 +304,9 @@ func GetDefaultDDAgentBin() string {
 // GetDefaultDataPlaneLogFile returns the default log file used by the data-plane agent if not configured
 func GetDefaultDataPlaneLogFile() string {
 	return dataPlaneLogFile
+}
+
+// GetDefaultDataPlaneBin returns the default path to the data-plane agent binary.
+func GetDefaultDataPlaneBin() string {
+	return filepath.Join(GetEmbeddedBinPath(), "agent", "agent-data-plane.exe")
 }

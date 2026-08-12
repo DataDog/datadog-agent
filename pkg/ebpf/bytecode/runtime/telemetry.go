@@ -38,6 +38,11 @@ const (
 	outputFileErr
 	_
 	compilationErr
+	// resultReadErr is retained for stability of the RuntimeCompilationResult
+	// payload enum but is no longer emitted: reading the compiled object was
+	// folded into the permission check (VerifyAssetPermissionsAndOpen), so a
+	// failure to open/read a verified object is now reported as outputFileErr.
+	// Do not remove or reorder these values.
 	resultReadErr
 	headerFetchErr
 	compiledOutputFound

@@ -2,12 +2,10 @@
 #define _HOOKS_ACCEPT_H_
 
 #include "constants/offsets/network.h"
+#include "helpers/events.h"
+#include "hooks/network/flow.h"
 
 int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct sock * sock) {
-    if(sock == NULL) {
-        return 0;
-    }
-
     struct accept_event_t event = {0};
 
     // Extract family from the socket
@@ -39,7 +37,17 @@ int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct 
 HOOK_EXIT("inet_csk_accept")
 int hook_accept(ctx_t *ctx) {
     struct sock *sock = (struct sock*)CTX_PARMRET(ctx);
-    return read_sock_and_send_event(ctx, sock);
+    if (sock == NULL || IS_ERR(sock)) {
+        return 0;
+    }
+
+    // this hook is loaded along with the network probes so that flow_pid stays up to date, hence the
+    // event itself is only sent when a rule asks for it
+    if (is_event_enabled(EVENT_ACCEPT)) {
+        read_sock_and_send_event(ctx, sock);
+    }
+
+    return register_accepted_flow(sock);
 }
 
 #endif /* _HOOKS_ACCEPT_H_ */

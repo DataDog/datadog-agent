@@ -114,6 +114,21 @@ func (s *LogSource) SetStatus(newStatus *status.LogStatus) {
 	s.lock.Unlock()
 }
 
+// GetTailingMode returns the tailing mode configured for this source.
+func (s *LogSource) GetTailingMode() string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.Config.TailingMode
+}
+
+// SetTailingMode sets the tailing mode configured for this source. This is mutated after
+// creation when a tailing mode is inferred at launch time, so it must go through the lock.
+func (s *LogSource) SetTailingMode(mode string) {
+	s.lock.Lock()
+	s.Config.TailingMode = mode
+	s.lock.Unlock()
+}
+
 // SetSourceType sets a format that give information on how the source lines should be parsed
 func (s *LogSource) SetSourceType(sourceType SourceType) {
 	s.lock.Lock()
@@ -212,7 +227,8 @@ func (s *LogSource) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("info: %#v,"), s.info)
 	fmt.Fprintf(&b, ws("parentSource: %p,"), s.ParentSource)
 	fmt.Fprintf(&b, ws("LatencyStats: %#v,"), s.LatencyStats)
-	fmt.Fprintf(&b, ws("ProcessingInfo: %#v,"), s.ProcessingInfo)
+	// ProcessingInfo has its own locking; %#v would bypass it via reflection.
+	fmt.Fprintf(&b, ws("ProcessingInfo: %s,"), s.ProcessingInfo)
 	fmt.Fprintf(&b, ws("hiddenFromStatus: %t}"), s.hiddenFromStatus)
 	return b.String()
 }

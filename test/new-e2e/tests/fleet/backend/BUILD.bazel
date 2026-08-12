@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "backend",
+    srcs = ["backend.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/environments",
+        "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_google_go_containerregistry//pkg/crane",
+        "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//nacl/box",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+dd_agent_go_test(
+    name = "backend_test",
+    srcs = ["backend_test.go"],
+    embed = [":backend"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

@@ -67,7 +67,7 @@ def build_scorer(ctx):
     Builds the anomalydetection-scorer binary to bin/anomalydetection-scorer.
     """
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run("go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
 
@@ -78,10 +78,10 @@ def build_testbench(ctx):
     Builds the anomalydetection-testbench binary to bin/anomalydetection-testbench.
     """
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(
-        "go build -C internal/qbranch/anomalydetection-testbench -tags python -o ../../../bin/anomalydetection-testbench ."
+        "go build -C internal/qbranch/anomalydetection-testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench ."
     )
 
 

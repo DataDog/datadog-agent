@@ -104,6 +104,10 @@ type DCAClient struct {
 	clusterAgentVersion    version.Version // Version of the cluster-agent we're connected to
 	clusterAgentAPIClient  *http.Client
 	leaderClient           *leaderClient
+
+	// reconnectHandlerOnce ensures startReconnectHandler is only ever started once for
+	// this DCAClient, even if init() runs concurrently (e.g. via overlapping retries).
+	reconnectHandlerOnce sync.Once
 }
 
 // resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
@@ -153,8 +157,12 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	// Run DCA connection refresh
-	c.startReconnectHandler(time.Duration(pkgconfigsetup.Datadog().GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
+	// Run DCA connection refresh. Guarded by a sync.Once so that concurrent calls to
+	// init() (e.g. overlapping retries from GetClusterAgentClient) don't spawn multiple
+	// reconnect-handler goroutines racing on this DCAClient's state.
+	c.reconnectHandlerOnce.Do(func() {
+		c.startReconnectHandler(time.Duration(pkgconfigsetup.Datadog().GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
+	})
 
 	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.clusterAgentVersion.String())
 	return nil
@@ -208,9 +216,11 @@ func (c *DCAClient) initHTTPClient() error {
 	}
 
 	// We need to have a client to perform `GetVersion`, only happens during the first call
+	c.clusterAgentClientLock.Lock()
 	if c.clusterAgentAPIClient == nil {
 		c.clusterAgentAPIClient = clusterAgentAPIClient
 	}
+	c.clusterAgentClientLock.Unlock()
 
 	// Validate the cluster-agent client by checking the version
 	clusterAgentVersion, err := c.getVersion()

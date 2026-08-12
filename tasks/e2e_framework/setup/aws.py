@@ -8,8 +8,20 @@ from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.setup.ssh_keys import KeyInfo, add_key_to_ssh_agent, default_key_paths
-from tasks.e2e_framework.tool import ask, ask_yesno, error, get_aws_cmd, info, warn, write_secret_file
+from tasks.e2e_framework.setup.ssh_keys import (
+    KeyInfo,
+    add_key_to_ssh_agent,
+    default_key_paths,
+)
+from tasks.e2e_framework.tool import (
+    ask,
+    ask_yesno,
+    error,
+    get_aws_cmd,
+    info,
+    warn,
+    write_secret_file,
+)
 
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
@@ -56,6 +68,7 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     if not aws.publicKeyPath:
         aws.publicKeyPath = str(default_pub)
 
+    setup_aws_sso_config(config)
     # AWS authentication (SSO profile in ~/.aws/config + active aws-vault session) is
     # handled outside of this task — by your org tooling or manually. The keypair check
     # below uses aws-vault and will surface any auth errors with the standard aws-vault
@@ -199,11 +212,8 @@ sso_session = {sso_session_name}
 sso_account_id = {acct_id}
 sso_role_name = {role}
 region = {region}
-
-[sso-session {sso_session_name}]
-sso_start_url = {start_url}
 sso_region = {region}
-sso_registration_scopes = sso:account:access
+sso_start_url = {start_url}
 
 [profile exec-{profile_name}]
 credential_process = aws-vault exec {profile_name} --json
@@ -256,7 +266,10 @@ def _aws_create_keypair(
 
     # check if key pair already exists
     if not check_existing_aws_keypair(
-        ctx, keypair_name, use_aws_vault=use_aws_vault, aws_account_name=aws_account_name
+        ctx,
+        keypair_name,
+        use_aws_vault=use_aws_vault,
+        aws_account_name=aws_account_name,
     ):
         return
     if Path(private_key_path).exists():
@@ -423,7 +436,8 @@ def aws_resolve_keypair_opts(
             account_part = f"{awsConf.account}_" if awsConf.account else ""
             account_part = account_part.replace("-", "_")
             default_private_key_path = Path.home().joinpath(
-                ".ssh", f'id_{key_type or "rsa"}_e2e_{account_part}{keypair_name}.{key_format}'
+                ".ssh",
+                f'id_{key_type or "rsa"}_e2e_{account_part}{keypair_name}.{key_format}',
             )
         while True:
             private_key_path = ask(f"🔑 Private key path (default: {default_private_key_path}): ")
@@ -557,7 +571,10 @@ def _aws_import_keypair(
 
     # check if key pair already exists
     if not check_existing_aws_keypair(
-        ctx, keypair_name, use_aws_vault=use_aws_vault, aws_account_name=aws_account_name
+        ctx,
+        keypair_name,
+        use_aws_vault=use_aws_vault,
+        aws_account_name=aws_account_name,
     ):
         return
 

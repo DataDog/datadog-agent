@@ -74,7 +74,6 @@ const (
 	fieldDDOtelMetricConfig      = "dd-otel-metric-config"
 	fieldDDOtelMetricConfigValue = `{"resource_attributes_as_tags": true}`
 	fieldAPIKey                  = "api_key"
-	fieldAppKey                  = "app_key"
 )
 
 // OTEL config path prefixes

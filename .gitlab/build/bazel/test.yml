@@ -36,7 +36,7 @@ bazel:coverage:linux-amd64:
   extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --jobs=$KUBERNETES_CPU_REQUEST --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --jobs=$KUBERNETES_CPU_REQUEST --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
   after_script:
     - !reference [.bazel:test:reporting, after_script]
     - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
@@ -52,20 +52,20 @@ bazel:test:linux-amd64:
   extends: [.bazel:test:reporting, .bazel:runner:linux-amd64, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
 
 bazel:test:linux-arm64:
   extends: [.bazel:test:reporting, .bazel:runner:linux-arm64, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - bazel test --config=gorace --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
 
 bazel:test:macos-amd64:
   extends: [.bazel:test:reporting, .bazel:runner:macos-amd64, .bazel:test]
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - bazel test --config=gorace --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //... -- -//test/new-e2e/...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
@@ -75,7 +75,7 @@ bazel:test:macos-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --config=gorace --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --execution_log_compact_file=$CI_PROJECT_DIR/bazel-exec.log //...
+    - bazel test --config=gorace --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE --execution_log_compact_file=$CI_PROJECT_DIR/bazel-exec.log //... -- -//test/new-e2e/...
   after_script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
@@ -94,6 +94,7 @@ bazel:test:windows-amd64:
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --config=gorace --config=no-dd-agent-go-tests --keep_going //... --
+      -//test/new-e2e/...
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
 
@@ -101,6 +102,8 @@ bazel:test:windows-amd64:go:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going //... --
+      bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going
+      //... --
+      -//test/new-e2e/...
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
