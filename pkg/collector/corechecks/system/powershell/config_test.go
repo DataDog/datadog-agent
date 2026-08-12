@@ -115,6 +115,107 @@ tag_by:
 	assert.True(t, inst.Metrics[0].isVirtual())
 }
 
+func TestMetricMappingResolution(t *testing.T) {
+	data := []byte(`
+cmdlet: Get-NetAdapter
+metrics:
+  - property: Status
+    name: adapter.status
+    mapping:
+      Up: 1
+      Down: 0
+      Disabled: 0
+    default_value: -1
+`)
+	inst, err := parseInstanceConfig(data)
+	require.NoError(t, err)
+	m := &inst.Metrics[0]
+
+	// Lookups are case-insensitive: finalize lower-cases the configured keys and
+	// resolveValue lower-cases the observed value.
+	v, ok := m.resolveValue("Up")
+	require.True(t, ok)
+	assert.Equal(t, float64(1), v)
+
+	v, ok = m.resolveValue("up")
+	require.True(t, ok)
+	assert.Equal(t, float64(1), v)
+
+	v, ok = m.resolveValue("DOWN")
+	require.True(t, ok)
+	assert.Equal(t, float64(0), v)
+
+	// An unmapped value falls back to default_value rather than failing the run —
+	// this is what makes vocabulary drift survivable.
+	v, ok = m.resolveValue("Degraded")
+	require.True(t, ok)
+	assert.Equal(t, float64(-1), v)
+
+	// A null property (Select-Object emits one for an absent property) likewise.
+	v, ok = m.resolveValue(nil)
+	require.True(t, ok)
+	assert.Equal(t, float64(-1), v)
+
+	// An already-numeric value bypasses the mapping entirely: toFloat runs first.
+	v, ok = m.resolveValue(float64(7))
+	require.True(t, ok)
+	assert.Equal(t, float64(7), v)
+}
+
+func TestMetricMappingRequiresDefaultValue(t *testing.T) {
+	// Without a default, one unexpected enum member would abort the whole
+	// collection interval, so the pairing is enforced at parse time.
+	_, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-X\nmetrics:\n  - property: S\n    name: s\n    mapping: {up: 1}\n"))
+	assert.Error(t, err)
+}
+
+func TestMetricDefaultValueWithoutMappingIsAllowed(t *testing.T) {
+	inst, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-X\nmetrics:\n  - property: S\n    name: s\n    default_value: -1\n"))
+	require.NoError(t, err)
+	v, ok := inst.Metrics[0].resolveValue("not-a-number")
+	require.True(t, ok)
+	assert.Equal(t, float64(-1), v)
+}
+
+func TestMetricDefaultValueZeroIsDistinctFromUnset(t *testing.T) {
+	// The reason DefaultValue is an option.Option rather than a bare float64.
+	inst, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-X\nmetrics:\n  - property: S\n    name: s\n    mapping: {up: 1}\n    default_value: 0\n"))
+	require.NoError(t, err)
+	v, ok := inst.Metrics[0].resolveValue("unknown")
+	require.True(t, ok)
+	assert.Equal(t, float64(0), v)
+}
+
+func TestMetricResolveValueFailsWithoutMappingOrDefault(t *testing.T) {
+	// A metric configuring neither keeps the existing loud behavior, so a typo'd
+	// property still surfaces in `agent status` instead of silently emitting nothing.
+	inst, err := parseInstanceConfig([]byte("cmdlet: Get-X\nmetrics:\n  - [Status, s]\n"))
+	require.NoError(t, err)
+	_, ok := inst.Metrics[0].resolveValue("Running")
+	assert.False(t, ok)
+}
+
+func TestMetricMappingRejectedOnVirtualMetric(t *testing.T) {
+	// A virtual metric always submits 1, so there is no value to translate.
+	_, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-X\nmetrics:\n  - property: 1\n    name: s\n    mapping: {up: 1}\n    default_value: 0\n"))
+	assert.Error(t, err)
+
+	_, err = parseInstanceConfig([]byte(
+		"cmdlet: Get-X\nmetrics:\n  - property: 1\n    name: s\n    default_value: 0\n"))
+	assert.Error(t, err)
+}
+
+func TestMetricMappingRejectsCaseCollidingKeys(t *testing.T) {
+	// Lower-casing would silently discard one of these.
+	_, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-X\nmetrics:\n  - property: S\n    name: s\n    mapping: {Up: 1, up: 0}\n    default_value: -1\n"))
+	assert.Error(t, err)
+}
+
 func TestSelectPropertiesDedup(t *testing.T) {
 	inst := &instanceConfig{
 		Metrics: []metricEntry{

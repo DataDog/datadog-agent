@@ -38,7 +38,9 @@ func createSchema() ([]byte, error) {
 }
 
 // JSONSchemaBytes lets metricEntry accept either a [property, name, type] tuple
-// or a {property, name, type} mapping.
+// or a {property, name, type, mapping, default_value} mapping. Because this
+// replaces the reflected schema for the type, option.Option needs no type
+// mapping registered on the reflector — its fields are never introspected.
 func (metricEntry) JSONSchemaBytes() ([]byte, error) {
 	return []byte(`{
   "oneOf": [
@@ -52,7 +54,12 @@ func (metricEntry) JSONSchemaBytes() ([]byte, error) {
         "type": {
           "type": "string",
           "enum": ["gauge", "rate", "count", "monotonic_count", "histogram", "distribution"]
-        }
+        },
+        "mapping": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "default_value": { "type": "number" }
       }
     }
   ]

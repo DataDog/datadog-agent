@@ -45,6 +45,44 @@ parameters:
 	assert.NoError(t, validateInstanceSchema(data))
 }
 
+func TestSchemaAcceptsMetricMapping(t *testing.T) {
+	data := []byte(`
+cmdlet: Get-NetAdapter
+metrics:
+  - property: Status
+    name: adapter.status
+    mapping:
+      Up: 1
+      Down: 0
+    default_value: -1
+`)
+	assert.NoError(t, validateInstanceSchema(data))
+}
+
+func TestSchemaRejectsNonNumericMappingValue(t *testing.T) {
+	data := []byte(`
+cmdlet: Get-NetAdapter
+metrics:
+  - property: Status
+    name: adapter.status
+    mapping:
+      Up: sometimes
+    default_value: -1
+`)
+	assert.Error(t, validateInstanceSchema(data))
+}
+
+func TestSchemaRejectsNonNumericDefaultValue(t *testing.T) {
+	data := []byte(`
+cmdlet: Get-NetAdapter
+metrics:
+  - property: Status
+    name: adapter.status
+    default_value: none
+`)
+	assert.Error(t, validateInstanceSchema(data))
+}
+
 func TestSchemaAcceptsWhereForms(t *testing.T) {
 	data := []byte(`
 cmdlet: Get-SmbShare

@@ -127,6 +127,28 @@
 #     ##
 #     ## Use the literal 1 as the property for a metric that emits a constant 1 whose
 #     ## tags carry the signal - useful when all the interesting columns are strings.
+#     ##
+#     ## The mapping form also accepts `mapping` and `default_value`, which turn a
+#     ## non-numeric property into a metric value. Keys are matched
+#     ## case-insensitively, and `default_value` is REQUIRED whenever `mapping` is
+#     ## set, so a value outside the table can never fail the check:
+#     ##
+#     ##   metrics:
+#     ##     - property: Status
+#     ##       name: adapter.status
+#     ##       mapping:
+#     ##         Up: 1
+#     ##         Down: 0
+#     ##       default_value: -1      # anything not listed above, including null
+#     ##
+#     ## Resolution order: an already-numeric value is used as is, then `mapping`,
+#     ## then `default_value`. A numeric value therefore cannot be remapped.
+#     ##
+#     ## `default_value` may also be set on its own, as a fallback for a property
+#     ## that is sometimes null. Neither option applies to a virtual (property 1)
+#     ## metric. With neither set, a non-numeric value is a check error - so a
+#     ## metric pointing at the wrong property still fails loudly rather than
+#     ## silently reporting nothing.
 #     #
 #     metrics:
 #       - [Status, service.status, gauge]
