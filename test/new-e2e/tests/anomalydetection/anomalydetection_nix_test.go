@@ -82,7 +82,7 @@ anomaly_detection:
 }
 
 // TestMetricsTriggeredEmitsOnDSDSpike sends a stable gauge baseline then a large
-// spike, expecting CUSUM to fire and the stdout reporter to emit its marker.
+// spike, expecting CUSUM to fire and the scorer to open an episode.
 //
 // Point counts: 15 baseline (well above the 5-point CUSUM minimum) followed by
 // 10 spike points — total ~25 seconds of data. The spike is 5000× the baseline
@@ -150,8 +150,8 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 		s.T().Log("done sending metrics")
 	}()
 
-	waitForReportsTelemetry(s)
-	s.T().Log("reports telemetry detected")
+	waitForScorerEpisode(s, metricName)
+	s.T().Log("scorer episode detected")
 }
 
 // logTriggeredSuite exercises the external log collection path of the observer.
@@ -326,6 +326,6 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
 		s.T().Log("done writing log lines")
 	}()
 
-	waitForReportsTelemetry(s)
-	s.T().Log("reports telemetry detected via log trigger")
+	waitForScorerEpisode(s, "filename:e2e-anomaly-test.log")
+	s.T().Log("scorer episode detected via log trigger")
 }
