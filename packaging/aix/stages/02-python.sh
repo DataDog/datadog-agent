@@ -329,6 +329,11 @@ log "AIX patching complete."
 #   Matches the Linux omnibus/bazel build (deps/cpython.BUILD.bazel), which links
 #   no dbm backend either — the agent and its checks don't use Python's dbm module.
 # --without-ensurepip : we bootstrap pip manually below (step 7)
+# --without-mimalloc : mimalloc keeps a per-thread arena cache using native TLS
+#   (thread_local/__thread), which hits the same AIX local-exec/shared-library
+#   incompatibility that Step 3 above patches around in pystate.c. Rather than
+#   patch mimalloc too, disable it; Python falls back to its default pymalloc
+#   allocator.
 # ac_cv_header_libintl_h=no / ac_cv_lib_intl_textdomain=no : suppress libintl link.
 #   Python's configure tests for libintl.h (ac_cv_header_libintl_h) and then
 #   textdomain() in -lintl (ac_cv_lib_intl_textdomain). If both pass, it adds

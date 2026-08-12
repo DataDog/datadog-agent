@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "pkg-manager",
+    srcs = [
+        "apt.go",
+        "types.go",
+        "yum.go",
+        "zypper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/testing/components"],
+)

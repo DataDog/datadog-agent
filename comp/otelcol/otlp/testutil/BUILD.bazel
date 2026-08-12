@@ -14,7 +14,6 @@ go_library(
         "//comp/core/tagger/types",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/opentelemetry-mapping-go/inframetadata/payload",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
         "//pkg/proto/pbgo/trace",

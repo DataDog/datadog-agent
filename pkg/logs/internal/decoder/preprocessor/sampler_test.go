@@ -19,13 +19,18 @@ import (
 
 // helpers
 
+// staticSourceTag returns a sourceTag closure that always resolves to src.
+func staticSourceTag(src string) func() string {
+	return func() string { return src }
+}
+
 func newSampler(maxPatterns int, burstSize, rateLimit float64) *AdaptiveSampler {
 	return NewAdaptiveSampler(AdaptiveSamplerConfig{
 		MaxPatterns:    maxPatterns,
 		RateLimit:      rateLimit,
 		BurstSize:      burstSize,
 		MatchThreshold: 0.9,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 }
 
 func newSamplerWithProtect(maxPatterns int, burstSize, rateLimit float64, protect bool) *AdaptiveSampler {
@@ -35,7 +40,7 @@ func newSamplerWithProtect(maxPatterns int, burstSize, rateLimit float64, protec
 		BurstSize:            burstSize,
 		MatchThreshold:       0.9,
 		ProtectImportantLogs: protect,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 }
 
 func testMsg() *message.Message {
@@ -205,7 +210,7 @@ func TestAdaptiveSampler_DetectionOnlyTagsWouldDrop(t *testing.T) {
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		DetectionOnly:  true,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -227,7 +232,7 @@ func TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill(t *test
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		DetectionOnly:  true,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -387,7 +392,7 @@ func TestAdaptiveSampler_DetectionOnlyHashUsesMatchedPatternAfterBubbling(t *tes
 		MatchThreshold: 0.9,
 		DetectionOnly:  true,
 		TagPatternHash: true,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -451,7 +456,7 @@ func TestAdaptiveSampler_TagPatternHashSkipsUnimpactedLogs(t *testing.T) {
 		MatchThreshold: 0.9,
 		TagPatternHash: true,
 		Exclude:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`bypass`)}},
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 
 	out1 := s.Process(testMsgWith("bypass me", message.StatusInfo), patternA)
 	require.NotNil(t, out1)
@@ -473,7 +478,7 @@ func TestAdaptiveSampler_TagPatternHashSkipsSampledCountLogs(t *testing.T) {
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		TagPatternHash: true,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -583,7 +588,7 @@ func TestAdaptiveSampler_IncludeFiltersSampleMatchingLogs(t *testing.T) {
 				BurstSize:      1,
 				MatchThreshold: 0.9,
 				Include:        []AdaptiveSamplerFilter{tt.filter},
-			}, "test", 0)
+			}, staticSourceTag("test"), 0)
 			t0 := time.Now()
 			s.now = func() time.Time { return t0 }
 
@@ -601,7 +606,7 @@ func TestAdaptiveSampler_IncludeFiltersBypassNonMatchingLogs(t *testing.T) {
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`error`)}},
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 	msg := testMsgWith("ordinary info log", message.StatusInfo)
 	tokens := tokenize("ordinary info log")
 
@@ -617,7 +622,7 @@ func TestAdaptiveSampler_EmptyConfiguredIncludeBypassesAllLogs(t *testing.T) {
 		BurstSize:         1,
 		MatchThreshold:    0.9,
 		IncludeConfigured: true,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 	msg := testMsgWith("ordinary info log", message.StatusInfo)
 	tokens := tokenize("ordinary info log")
 
@@ -655,7 +660,7 @@ func TestAdaptiveSampler_ExcludeFiltersBypassMatchingLogs(t *testing.T) {
 				BurstSize:      1,
 				MatchThreshold: 0.9,
 				Exclude:        []AdaptiveSamplerFilter{tt.filter},
-			}, "test", 0)
+			}, staticSourceTag("test"), 0)
 
 			require.NotNil(t, s.Process(tt.msg, tt.tokens))
 			require.NotNil(t, s.Process(tt.msg, tt.tokens))
@@ -672,7 +677,7 @@ func TestAdaptiveSampler_ExcludeTakesPrecedenceOverInclude(t *testing.T) {
 		MatchThreshold: 0.9,
 		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`foo.*bar`)}},
 		Exclude:        []AdaptiveSamplerFilter{{SampleTokens: tokenize("foo hello bar").Borrow()}},
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 	msg := testMsgWith("foo hello bar", message.StatusInfo)
 	tokens := tokenize("foo hello bar")
 
@@ -707,7 +712,7 @@ func TestAdaptiveSampler_TagBytesDropped(t *testing.T) {
 		RateLimit:      0,
 		BurstSize:      1,
 		MatchThreshold: 0.9,
-	}, "test_tags", 42)
+	}, staticSourceTag("test_tags"), 42)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -729,7 +734,7 @@ func TestAdaptiveSampler_TagBytesDroppedIncludesParsingExtra(t *testing.T) {
 		RateLimit:      0,
 		BurstSize:      1,
 		MatchThreshold: 0.9,
-	}, "test_tags_extra", 10)
+	}, staticSourceTag("test_tags_extra"), 10)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -754,7 +759,7 @@ func TestAdaptiveSampler_TagBytesDroppedZeroWhenNoTags(t *testing.T) {
 		RateLimit:      0,
 		BurstSize:      1,
 		MatchThreshold: 0.9,
-	}, "test_tags_zero", 0)
+	}, staticSourceTag("test_tags_zero"), 0)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -777,7 +782,7 @@ func TestAdaptiveSampler_DetectionOnly_TracksBytesWithoutDropping(t *testing.T) 
 		BurstSize:      1,
 		MatchThreshold: 0.9,
 		DetectionOnly:  true,
-	}, "test_detect", 20)
+	}, staticSourceTag("test_detect"), 20)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 
@@ -810,7 +815,7 @@ func TestAdaptiveSampler_IsSourceDisabled(t *testing.T) {
 			BurstSize:        1,
 			MatchThreshold:   0.3,
 			IsSourceDisabled: func() bool { return true },
-		}, "test", 0)
+		}, staticSourceTag("test"), 0)
 		s.now = func() time.Time { return t0 }
 
 		tokens := tokenize("connection timeout to host abc")
@@ -826,7 +831,7 @@ func TestAdaptiveSampler_IsSourceDisabled(t *testing.T) {
 			BurstSize:        1,
 			MatchThreshold:   0.3,
 			IsSourceDisabled: func() bool { return false },
-		}, "test", 0)
+		}, staticSourceTag("test"), 0)
 		s.now = func() time.Time { return t0 }
 
 		tokens := tokenize("connection timeout to host abc")
@@ -841,7 +846,7 @@ func TestAdaptiveSampler_IsSourceDisabled(t *testing.T) {
 			BurstSize:        1,
 			MatchThreshold:   0.3,
 			IsSourceDisabled: nil,
-		}, "test", 0)
+		}, staticSourceTag("test"), 0)
 		s.now = func() time.Time { return t0 }
 
 		tokens := tokenize("connection timeout to host abc")
@@ -857,7 +862,7 @@ func TestAdaptiveSampler_IsSourceDisabled(t *testing.T) {
 			BurstSize:        1,
 			MatchThreshold:   0.3,
 			IsSourceDisabled: func() bool { return disabled },
-		}, "test", 0)
+		}, staticSourceTag("test"), 0)
 		s.now = func() time.Time { return t0 }
 
 		tokens := tokenize("connection timeout to host abc")
@@ -870,5 +875,50 @@ func TestAdaptiveSampler_IsSourceDisabled(t *testing.T) {
 
 		disabled = false
 		assert.Nil(t, s.Process(testMsg(), tokens), "fifth message dropped — re-enabled, credits still exhausted")
+	})
+}
+
+func TestAdaptiveSampler_ResolveSourceTag(t *testing.T) {
+	t.Run("uses the resolved source", func(t *testing.T) {
+		s := newSampler(10, 1, 0)
+		s.sourceTag = staticSourceTag("nginx")
+		assert.Equal(t, "nginx", s.resolveSourceTag())
+	})
+
+	t.Run("empty source falls back to unknown", func(t *testing.T) {
+		s := newSampler(10, 1, 0)
+		s.sourceTag = staticSourceTag("")
+		assert.Equal(t, UnknownSourceTag, s.resolveSourceTag())
+	})
+
+	t.Run("nil closure falls back to unknown", func(t *testing.T) {
+		s := newSampler(10, 1, 0)
+		s.sourceTag = nil
+		assert.Equal(t, UnknownSourceTag, s.resolveSourceTag())
+	})
+
+	t.Run("re-resolved per message so source swaps are picked up", func(t *testing.T) {
+		src := "before"
+		s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+			MaxPatterns:    10,
+			RateLimit:      0,
+			BurstSize:      1,
+			MatchThreshold: 0.9,
+		}, func() string { return src }, 0)
+		t0 := time.Now()
+		s.now = func() time.Time { return t0 }
+
+		tokens := tokenize("hello world 123")
+
+		// First message establishes the pattern and is emitted, tagged "before".
+		beforeKept := tlmAdaptiveSamplerKept.WithValues("before").Get()
+		require.NotNil(t, s.Process(testMsg(), tokens))
+		assert.Equal(t, float64(1), tlmAdaptiveSamplerKept.WithValues("before").Get()-beforeKept)
+
+		// Swap the source; the next drop must be attributed to the new value.
+		src = "after"
+		beforeDropped := tlmAdaptiveSamplerDropped.WithValues("after", "false").Get()
+		require.Nil(t, s.Process(testMsg(), tokens))
+		assert.Equal(t, float64(1), tlmAdaptiveSamplerDropped.WithValues("after", "false").Get()-beforeDropped)
 	})
 }

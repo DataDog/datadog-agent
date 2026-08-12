@@ -104,6 +104,17 @@ func TestPopulateCapabilities(t *testing.T) {
 	}
 }
 
+func TestGenerateDefaultNvmlPathsIncludesSupportedLinuxArchitectures(t *testing.T) {
+	t.Setenv("HOST_ROOT", "/host")
+
+	require.Equal(t, []string{
+		"/host/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+		"/host/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+		"/host/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",
+		"/host/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",
+	}, generateDefaultNvmlPaths())
+}
+
 // Tests for the NvmlAPIError type
 func TestNvmlAPIError(t *testing.T) {
 	// Define test cases with different error codes and API names

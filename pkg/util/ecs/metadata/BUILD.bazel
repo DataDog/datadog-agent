@@ -33,6 +33,7 @@ dd_agent_go_test(
     data = ["//pkg/util/ecs/metadata/v1:testdata"],
     embed = [":metadata"],
     gotags_sets = [[
+        "cel",
         "docker",
         "kubelet",
     ]],

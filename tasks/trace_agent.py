@@ -32,7 +32,7 @@ def build(
     """
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, fix=True)
+    schema_codegen(ctx)
 
     flavor = AgentFlavor[flavor]
 
@@ -96,7 +96,7 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
         print("Argument --bench=<bench_regex> is required.")
         return
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     with ctx.cd("./pkg/trace"):
         ctx.run(f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")

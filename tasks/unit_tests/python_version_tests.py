@@ -202,6 +202,32 @@ const (
         self.assertIn('ExpectedPythonVersion2 = "2.7.18"', new_content)
 
 
+class TestAixUpdate(unittest.TestCase):
+    @unittest.mock.patch('tasks.python_version.Path')
+    def test_update_aix_python_version(self, mock_path):
+        """Test preparing version update for AIX packaging env.sh."""
+        from tasks.python_version import _prepare_aix_update
+
+        original_content = '''# lib/env.sh — shared environment sourced by every stage script
+
+PYTHON_VERSION="3.13.7"
+PYTHON_MAJ_MIN="${PYTHON_VERSION%.*}"
+export PYTHON_VERSION PYTHON_MAJ_MIN
+'''
+
+        # Mock file operations
+        mock_file = unittest.mock.MagicMock()
+        mock_file.read_text.return_value = original_content
+        mock_path.return_value = mock_file
+
+        # Prepare update to new version
+        file_path, new_content = _prepare_aix_update("3.13.9")
+
+        # Verify version was updated
+        self.assertIn('PYTHON_VERSION="3.13.9"', new_content)
+        self.assertNotIn('PYTHON_VERSION="3.13.7"', new_content)
+
+
 class TestGetPythonSha256Hash(unittest.TestCase):
     VALID_SBOM = json.dumps(
         {

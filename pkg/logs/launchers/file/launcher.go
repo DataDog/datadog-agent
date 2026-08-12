@@ -440,10 +440,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			}
 		}
 
-		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
+		mode, isSet := config.TailingModeFromString(source.GetTailingMode())
 		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
-			source.Config.TailingMode = mode.String()
+			source.SetTailingMode(mode.String())
 		}
 
 		newTailerStarted := s.startNewTailer(file, mode, fingerprint)

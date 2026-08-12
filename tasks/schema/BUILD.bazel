@@ -27,16 +27,15 @@ py_binary(
 )
 
 # Used by //pkg/config/setup:codegen_settings to generate *_settings.go source
-# files from the merged schema.  Mirrors what `dda inv schema.codegen
-# --keep-orig-order --fix` does but writes to a caller-supplied output
-# directory instead of the source tree, so it can run as a Bazel action.
+# files from the merged schema.  Mirrors what `dda inv schema.codegen`
+# does but writes to a caller-supplied output directory instead of the source
+# tree, so it can run as a Bazel action.
 py_binary(
     name = "codegen_settings_main",
     srcs = [
         "codegen_init_settings.py",
         "codegen_settings_main.py",
         "merge_schema.py",
-        "settings_source_analyzer.py",
     ],
     main = "codegen_settings_main.py",
     visibility = ["//pkg/config/setup:__pkg__"],

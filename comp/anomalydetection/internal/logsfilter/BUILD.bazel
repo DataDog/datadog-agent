@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//pkg/config/structure",
+        "//pkg/util/log",
     ],
 )
 

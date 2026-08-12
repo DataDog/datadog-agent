@@ -45,12 +45,12 @@ func findInvalidConfigIssue(issues map[string]*healthplatformpayload.Issue) *hea
 }
 
 // requireSchema skips the test when the compressed schema files haven't been
-// generated yet (run `dda inv schema.generate`). CI always has them; local
+// generated yet (run `dda inv schema.compress`). CI always has them; local
 // dev builds do not unless explicitly generated.
 func requireSchema(t *testing.T) {
 	t.Helper()
 	if _, err := pkgconfigschema.GetCoreSchema(); err != nil {
-		t.Skipf("embedded schema not available (%v); run `dda inv schema.generate`", err)
+		t.Skipf("embedded schema not available (%v); run `dda inv schema.compress`", err)
 	}
 }
 

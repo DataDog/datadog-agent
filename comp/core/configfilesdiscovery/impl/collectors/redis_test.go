@@ -405,7 +405,7 @@ func (r *redisCollectorTestReader) ReadFile(_ context.Context, path string) (con
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }
 
-func (r *redisCollectorTestReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
+func (r *redisCollectorTestReader) ReadEnvVars(context.Context, configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
 	return nil, errors.New("not implemented")
 }
 

@@ -435,11 +435,11 @@
     id: 'C01R6Q0HQDD'
 '@datadog/q-branch':
   notification:
-    name: '#agent-q-branch'
-    id: 'C09UDTU0H18'
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
   review:
-    name: '#agent-q-branch'
-    id: 'C09UDTU0H18'
+    name: '#agent-anomaly-detection'
+    id: 'C0ABFN05CMU'
 '@datadog/windows-products':
   notification:
     name: '#windows-products-ops'

@@ -112,7 +112,7 @@
 //			// Sub test 2
 //		})
 //
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")))))
 //
 //		// Second group of subsets
 //		suite.T().Run("MySubTest3", func(t *testing.T) {
@@ -129,7 +129,7 @@
 //			// Sub test 2
 //		})
 //
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: info")))))
 //
 //		// Second group of subsets
 //		suite.T().Run("MySubTest3", func(t *testing.T) {

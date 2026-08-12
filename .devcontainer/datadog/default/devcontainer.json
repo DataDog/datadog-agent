@@ -21,6 +21,6 @@
     "-v",
     "/sys/kernel/debug:/sys/kernel/debug",
     "-v",
-    "/etc/os-release:/etc/os-release",
-  ],
+    "/etc/os-release:/etc/os-release"
+  ]
 }

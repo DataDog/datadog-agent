@@ -9,10 +9,38 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 )
+
+// readEnvVars returns selected environment variables in deterministic name order.
+func readEnvVars(
+	ctx context.Context,
+	reader configfilesdiscoveryimpl.ConfigReader,
+	predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate,
+) ([]configfilesdiscoveryimpl.ConfigEnvVar, error) {
+	env, err := reader.ReadEnvVars(ctx, predicate)
+	if err != nil {
+		return nil, err
+	}
+	if len(env) == 0 {
+		return nil, nil
+	}
+
+	names := make([]string, 0, len(env))
+	for name := range env {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	envVars := make([]configfilesdiscoveryimpl.ConfigEnvVar, 0, len(env))
+	for _, name := range names {
+		envVars = append(envVars, configfilesdiscoveryimpl.ConfigEnvVar{Name: name, Value: env[name]})
+	}
+	return envVars, nil
+}
 
 func unwrapShellCommandline(args []string) []string {
 	if len(args) < 3 || !isShellExecutable(args[0]) || args[1] != "-c" {

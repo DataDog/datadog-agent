@@ -1,0 +1,23 @@
+---
+features:
+  - |
+    Adds an Agent Data Plane (ADP) preflight mode, controlled by the new
+    ``data_plane.preflight_mode`` setting (enabled by default).
+
+    When ``data_plane.enabled`` has not been set at all, the Agent starts ADP once at
+    startup for 90 seconds in an isolated configuration, sends a single
+    throwaway metric through it, then stops it and reports any startup errors to Datadog
+    as agent telemetry. This surfaces environment-specific ADP problems before ADP is
+    enabled for real.
+
+    The preflight process handles no customer data: it runs in standalone mode, listens only on
+    a temporary DogStatsD endpoint under the Agent's run directory, does not register with
+    the Agent's remote agent registry, and never takes over the Agent's own DogStatsD port.
+    The temporary configuration it is given contains the Agent's resolved configuration, so it
+    is written user-only and removed once the run finishes. To keep values that were only ever
+    held in memory from being written out this way, the pre-flight does not run at all when
+    secrets are in use: when ``secret_backend_command``, ``secret_backend_type`` or
+    ``multi_secret_backends`` is set, or when any setting has already been resolved from a
+    secret. Setting ``data_plane.enabled`` explicitly to either ``true`` or ``false``, or
+    setting ``data_plane.preflight_mode`` to ``false``, also disables the pre-flight, as does
+    running an Agent package that does not ship ADP.

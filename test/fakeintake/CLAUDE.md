@@ -1,2 +1,1 @@
-@../../CLAUDE.md
 @AGENTS.md

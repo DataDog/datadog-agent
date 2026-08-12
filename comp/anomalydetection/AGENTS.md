@@ -97,7 +97,7 @@ its behavior or cost.
 - Test live defaults, disabled mode, high-cardinality eviction and cleanup,
   non-blocking drops, replay parity, and both `python`/`!python` builds. Benchmark
   changes on ingestion or per-second advance paths.
-- Register config keys in `pkg/config/setup/common_settings.go` and update
+- Declare config keys in the config schema (`pkg/config/schema/yaml/`) and update
   `BUILD.bazel` files when sources or dependencies change.
 
 ## Data Ingress (Handle Sources)
@@ -191,7 +191,7 @@ See `reporter/reporter.allium` for the payload contract.
   When migrating legacy switches, define compatibility and precedence, then test
   no consumer, each consumer alone, multiple consumers, and explicit overrides.
 
-Keys are registered in `pkg/config/setup/common_settings.go`.
+Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 
 | Key | Default | Purpose |
 |-----|---------|---------|

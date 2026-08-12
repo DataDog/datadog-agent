@@ -48,14 +48,19 @@ An environment defines what infrastructure a test needs:
 |------|-----------|-------------|----------|
 | `environments.Host` | VM + Agent + FakeIntake | `awshost.Provisioner()` | System checks, agent commands, file-based config |
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
-| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `awskubernetes.Provisioner()` | K8s checks, DaemonSet, Cluster Agent |
-| `environments.ECS` | ECS cluster + Agent + FakeIntake | `awsecs.Provisioner()` | ECS-specific tests |
+| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
+| `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
 
 Provisioners create the environment's infrastructure. Built-in provisioners
 live in `testing/provisioners/` organized by cloud provider (aws, azure, gcp, local).
+The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm}`;
+tests commonly alias the kind one as `awskubernetes`, and the ECS one as `awsecs`, which are
+import aliases rather than package names. Azure, GCP and local provisioners take their options
+directly (`azurehost.WithAgentOptions(...)`) rather than nesting them inside `WithRunOptions`
+as the AWS example below does.
 
 ```go
 // Host on AWS EC2
@@ -181,6 +186,25 @@ dda inv new-e2e-tests.run --targets=./tests/<area>/...
 
 Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
 SSH in and inspect the agent directly.
+
+## macOS hosts
+
+`awshost.Provisioner` supports macOS (`ec2.WithOS(e2eos.MacOSDefault)`), but two
+constraints shape how a macOS suite must be wired into CI:
+
+- **Dedicated hosts.** `scenarios/aws/ec2/vm.go` allocates a `mac1.metal`
+  (amd64) or `mac2.metal` (arm64) dedicated host, which AWS bills with a 24-hour
+  minimum. Keep macOS jobs manual.
+- **The agent comes from a DMG in the macOS testing bucket.** `host_macos.go`
+  installs via the install script with `DD_REPO_URL` pointing at
+  `pipeline-<id>-<arch>`, which only exists once `deploy_dmg_testing-a7_<arch>`
+  has run. That job has its own rules, so a macOS e2e job must gate on
+  `.on_deploy` and mark the `needs` optional. Note the arch segment there is
+  `x64`, not the descriptor's `x86_64` — `macosPipelineArch` does the mapping.
+
+Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
+(installs by hand, `ec2.WithoutAgent()`) and
+`tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
 
 ## Fakeintake image version
 

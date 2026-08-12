@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    OTLP: Mapped the ``service.namespace`` resource attribute to a
+    ``service.namespace`` tag by default. OpenTelemetry semantic conventions
+    only guarantee ``service.name`` / ``service.instance.id`` uniqueness within
+    a ``service.namespace``, so it is now preserved to keep service identity.

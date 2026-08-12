@@ -1,4 +1,37 @@
 services:
+  kafka-env-configfilesdiscovery:
+    image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/confluentinc/cp-kafka:7.7.0@sha256:1fa3cdb3ef77b75bc56e7040bbdfa2bd6950b6ee6363381b2493f7a83e07a0b3
+    container_name: kafka-env-configfilesdiscovery
+    # Keep the Kafka image running without a broker process or properties path,
+    # so discovery has to rely on the container environment.
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - "trap : TERM INT; sleep 2147483647 & wait"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_CFG_OAUTH_ACCESS_TOKEN: must-not-be-forwarded
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_SASL_OAUTHBEARER_TOKEN_ENDPOINT_URL: https://identity.example/oauth2/token
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "kafka": {
+            "init_config": {
+              "is_jmx": true,
+              "collect_default_metrics": true
+            },
+            "instances": [
+              {
+                "host": "%%host%%",
+                "port": 9999
+              }
+            ]
+          }
+        }
+
   kafka-configfilesdiscovery-default:
     image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/confluentinc/cp-kafka:7.7.0@sha256:1fa3cdb3ef77b75bc56e7040bbdfa2bd6950b6ee6363381b2493f7a83e07a0b3
     container_name: kafka-configfilesdiscovery-default

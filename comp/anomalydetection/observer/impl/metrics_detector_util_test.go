@@ -42,6 +42,15 @@ func (s *seriesListOnlyStorage) ListSeries(filter observer.SeriesFilter) []obser
 	return s.metas
 }
 
+func (s *seriesListOnlyStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.SeriesMeta {
+	for i := range s.metas {
+		if s.metas[i].Ref == ref {
+			return &s.metas[i]
+		}
+	}
+	return nil
+}
+
 func (s *seriesListOnlyStorage) GetSeriesRange(observer.SeriesRef, int64, int64, observer.Aggregate) *observer.Series {
 	return nil
 }

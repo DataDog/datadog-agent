@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "host",
+    srcs = ["host.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/environments",
+    ],
+)

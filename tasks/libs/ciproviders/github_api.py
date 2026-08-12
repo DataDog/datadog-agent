@@ -732,20 +732,22 @@ def get_pr_size(pr) -> str:
     # - hard PRs are merged in more than 1 week
     # More details: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
     _SIZE_CRITERIA = {
-        'easy': {'files': 4, 'lines': 150, 'comments': 2},
+        'easy': {'files': 4, 'lines': 150, 'comments': 3},
         'hard': {'files': 12, 'lines': 650, 'comments': 9},
     }
-
+    human_review_comments = sum(
+        1 for comment in pr.get_review_comments() if comment.user is not None and "[bot]" not in comment.user.login
+    )
     if (
         pr.changed_files < _SIZE_CRITERIA['easy']['files']
         and pr.additions + pr.deletions < _SIZE_CRITERIA['easy']['lines']
-        and pr.review_comments < _SIZE_CRITERIA['easy']['comments']
+        and human_review_comments < _SIZE_CRITERIA['easy']['comments']
     ):
         return 'small'
     if (
         pr.changed_files > _SIZE_CRITERIA['hard']['files']
         or pr.additions + pr.deletions > _SIZE_CRITERIA['hard']['lines']
-        or pr.review_comments > _SIZE_CRITERIA['hard']['comments']
+        or human_review_comments > _SIZE_CRITERIA['hard']['comments']
     ):
         return 'large'
     return 'medium'

@@ -139,7 +139,7 @@ def go_build(
         check_deadcode = False
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, fix=True)
+    schema_codegen(ctx)
 
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
@@ -172,7 +172,8 @@ def go_build(
     if echo:
         cmd += " -x"
     if build_tags:
-        cmd += f" -tags \"{','.join(build_tags)}\""
+        # sort build tags to have the same order and ensure caching hits properly
+        cmd += f" -tags \"{','.join(sorted(build_tags))}\""
     if bin_path:
         cmd += f" -o {bin_path}"
     if gcflags:

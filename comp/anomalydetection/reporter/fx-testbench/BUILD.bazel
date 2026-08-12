@@ -4,7 +4,7 @@ go_library(
     name = "fx-testbench",
     srcs = ["fx.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench",
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
     deps = [
         "//comp/anomalydetection/reporter/impl-testbench",
         "//pkg/util/fxutil",
