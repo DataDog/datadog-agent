@@ -19,7 +19,6 @@ pub async fn connect(path: &Path) -> io::Result<IpcStream> {
     open_with_retry(path.as_os_str()).await
 }
 
-/// Open a named-pipe client, retrying when every server instance is busy.
 async fn open_with_retry(name: &OsStr) -> io::Result<IpcStream> {
     let mut backoff = PIPE_BUSY_BACKOFF_MS;
     for attempt in 0..PIPE_BUSY_RETRIES {

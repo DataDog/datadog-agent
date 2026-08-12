@@ -4,6 +4,5 @@
 // Copyright 2026-present Datadog, Inc.
 
 fn main() {
-    // Tests use this cfg to omit reflection from Bazel's generated service.
     println!("cargo::rustc-check-cfg=cfg(bazel)");
 }

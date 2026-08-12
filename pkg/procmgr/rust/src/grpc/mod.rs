@@ -6,8 +6,6 @@
 pub mod server;
 pub mod service;
 
-/// Process-manager protobuf and gRPC bindings are owned by the shared client
-/// crate so daemon and client consumers compile against one generated API.
 pub mod proto {
     pub use dd_procmgr_client::proto::*;
 }
