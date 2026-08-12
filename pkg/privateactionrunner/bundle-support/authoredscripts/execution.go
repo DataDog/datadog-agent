@@ -6,17 +6,43 @@
 package authoredscripts
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	commandsupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/command"
 )
 
-const defaultOutputLimit = 10 * 1024 * 1024
+const (
+	defaultOutputLimit = 10 * 1024 * 1024
+	maxErrorStderrSize = 16 * 1024
+)
 
 var errOutputLimitExceeded = errors.New("authored-script output limit exceeded")
+
+// Result contains the observable result of an authored-script execution.
+type Result struct {
+	ExitCode int
+	Stdout   string
+	Stderr   string
+	Duration time.Duration
+}
+
+// ExecuteCommand runs an authored-script command with bounded output and process cleanup.
+func ExecuteCommand(ctx context.Context, cmd *exec.Cmd) (Result, error) {
+	if ctx == nil {
+		return Result{}, errors.New("authored-script context is required")
+	}
+
+	result, err := executeCommand(cmd, defaultOutputLimit)
+	if err != nil {
+		return result, formatExecutionError(ctx, result, err)
+	}
+	return result, nil
+}
 
 func executeCommand(cmd *exec.Cmd, outputLimit int64) (Result, error) {
 	if cmd == nil {
@@ -55,4 +81,26 @@ func executeCommand(cmd *exec.Cmd, outputLimit int64) (Result, error) {
 		return result, fmt.Errorf("could not terminate authored-script process group: %w", terminationErr)
 	}
 	return result, nil
+}
+
+func formatExecutionError(ctx context.Context, result Result, err error) error {
+	if errors.Is(err, errOutputLimitExceeded) {
+		return err
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("authored-script execution canceled: %w", ctxErr)
+	}
+
+	if stderr := errorStderr(result.Stderr); stderr != "" {
+		return fmt.Errorf("authored-script command failed with exit code %d: %w; stderr: %s", result.ExitCode, err, stderr)
+	}
+	return fmt.Errorf("authored-script command failed with exit code %d: %w", result.ExitCode, err)
+}
+
+func errorStderr(stderr string) string {
+	stderr = strings.TrimSpace(stderr)
+	if len(stderr) <= maxErrorStderrSize {
+		return stderr
+	}
+	return "[truncated] " + stderr[len(stderr)-maxErrorStderrSize:]
 }

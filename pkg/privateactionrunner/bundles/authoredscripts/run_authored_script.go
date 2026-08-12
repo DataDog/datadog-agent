@@ -8,8 +8,11 @@ package com_datadoghq_authoredscripts
 import (
 	"context"
 	"errors"
+	"fmt"
+	"runtime"
 
-	authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/authoredscripts"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/artifacts"
+	authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -34,15 +37,52 @@ func (h *RunAuthoredScriptHandler) Run(
 	ctx context.Context,
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
-) (interface{}, error) {
+) (output interface{}, err error) {
 	if h == nil {
 		return nil, errors.New("authored-script handler is not configured")
 	}
 	if task == nil || task.Data.Attributes == nil {
 		return nil, errors.New("authored-script task is required")
 	}
+	fqn := task.GetFQN()
 
-	result, err := authoredscripts.Execute(ctx, task.GetFQN(), task.Data.Attributes.Inputs)
+	descriptor, err := authoredscripts.NewStaticCatalog().Lookup(fqn, artifacts.Platform{
+		OS:   runtime.GOOS,
+		Arch: runtime.GOARCH,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve artifact for %q: %w", fqn, err)
+	}
+	// TODO: Replace direct local-store access with the artifact manager when the Fleet downloader is available.
+	store, err := artifacts.NewUserCacheStore()
+	if err != nil {
+		return nil, err
+	}
+	artifact, err := store.Open(descriptor)
+	if err != nil {
+		return nil, fmt.Errorf("could not open artifact for %q: %w", fqn, err)
+	}
+	scriptPackage, err := authoredscripts.LoadPackage(fqn, descriptor, artifact)
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := authoredscripts.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cleanupErr := session.Cleanup(); cleanupErr != nil {
+			output = nil
+			err = errors.Join(err, cleanupErr)
+		}
+	}()
+
+	cmd, err := authoredscripts.NewCommand(ctx, scriptPackage, session, task.Data.Attributes.Inputs)
+	if err != nil {
+		return nil, err
+	}
+	result, err := authoredscripts.ExecuteCommand(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}

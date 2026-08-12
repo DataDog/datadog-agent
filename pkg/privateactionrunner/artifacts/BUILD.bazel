@@ -4,11 +4,13 @@ go_library(
     name = "artifacts",
     srcs = [
         "catalog.go",
-        "local_provider.go",
-        "provider.go",
-        "resolver.go",
+        "local_store.go",
         "static_catalog.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/artifacts",
     visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@com_github_opencontainers_go_digest//:go-digest",
+    ],
 )

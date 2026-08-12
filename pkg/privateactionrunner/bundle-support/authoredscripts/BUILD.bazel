@@ -11,11 +11,9 @@ go_library(
         "package.go",
         "process_linux.go",
         "process_other.go",
-        "provider.go",
-        "run.go",
         "session.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/authoredscripts",
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/tmpl",

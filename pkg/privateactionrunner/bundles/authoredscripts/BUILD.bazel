@@ -10,7 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/authoredscripts",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/privateactionrunner/authoredscripts",
+        "//pkg/privateactionrunner/artifacts",
+        "//pkg/privateactionrunner/bundle-support/authoredscripts",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
     ],
