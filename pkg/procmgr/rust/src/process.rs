@@ -100,6 +100,8 @@ pub struct ManagedProcess {
     last_exit_status: Option<std::process::ExitStatus>,
     /// Last observed `condition_config_any` result; used to detect gate transitions on reload.
     last_config_gate_met: Option<bool>,
+    /// Last observed path + config gate result; used to restart after start conditions open.
+    last_start_conditions_met: Option<bool>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
@@ -132,6 +134,7 @@ impl ManagedProcess {
             origin,
             last_exit_status: None,
             last_config_gate_met: None,
+            last_start_conditions_met: None,
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
@@ -222,10 +225,30 @@ impl ManagedProcess {
 
     pub(crate) fn record_config_gate_met(&mut self) {
         self.last_config_gate_met = Some(self.config_gate_met());
+        self.last_start_conditions_met = Some(self.start_conditions_met());
     }
 
     pub(crate) fn last_config_gate_met(&self) -> Option<bool> {
         self.last_config_gate_met
+    }
+
+    pub(crate) fn last_start_conditions_met(&self) -> Option<bool> {
+        self.last_start_conditions_met
+    }
+
+    fn condition_path_exists_met(&self) -> bool {
+        match &self.config.condition_path_exists {
+            None => true,
+            Some(raw) => {
+                let path = expand_env_vars(raw);
+                std::path::Path::new(&path).exists()
+            }
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn start_conditions_met(&self) -> bool {
+        self.condition_path_exists_met() && self.config_gate_met()
     }
 
     #[must_use]
@@ -234,12 +257,12 @@ impl ManagedProcess {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
         }
-        if let Some(ref raw) = self.config.condition_path_exists {
-            let path = expand_env_vars(raw);
-            if !std::path::Path::new(&path).exists() {
+        if !self.condition_path_exists_met() {
+            if let Some(ref raw) = self.config.condition_path_exists {
+                let path = expand_env_vars(raw);
                 info!("[{}] condition_path_exists not met: {path}", self.name);
-                return false;
             }
+            return false;
         }
         if !self.config_gate_met() {
             info!(
