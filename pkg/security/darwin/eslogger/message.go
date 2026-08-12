@@ -164,8 +164,12 @@ type ForkEvent struct {
 // ExitEvent is es_event_exit_t.
 //
 // Stat is a wait(2)-style status word, not an exit code: a process that exits
-// 78 reports Stat 19968 (0x4E00). Use ExitCode and Signal rather than reading
-// Stat directly.
+// 78 reports Stat 19968 (0x4E00). Use ExitCode, Signal and CoreDumped rather
+// than reading Stat directly.
+//
+// The bit layout mirrors what the Linux probe decodes in
+// model.ExitEvent.UnmarshalBinary, so that a darwin exit event and a Linux one
+// report the same cause and code for the same underlying termination.
 type ExitEvent struct {
 	Stat int32 `json:"stat"`
 }
@@ -188,4 +192,10 @@ func (e *ExitEvent) Signal() uint32 {
 		return 0
 	}
 	return uint32(e.Stat) & 0x7f
+}
+
+// CoreDumped reports whether the terminating signal also produced a core dump.
+// Only meaningful when Exited reports false.
+func (e *ExitEvent) CoreDumped() bool {
+	return !e.Exited() && e.Stat&0x80 == 0x80
 }

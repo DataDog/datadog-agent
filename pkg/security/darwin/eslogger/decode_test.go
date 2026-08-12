@@ -211,17 +211,21 @@ func TestFixtureContainsRealProcessTree(t *testing.T) {
 // not 19968 — reporting the raw word would put nonsense in the payload.
 func TestExitStatusDecoding(t *testing.T) {
 	tests := []struct {
-		name   string
-		stat   int32
-		exited bool
-		code   uint32
-		signal uint32
+		name       string
+		stat       int32
+		exited     bool
+		code       uint32
+		signal     uint32
+		coreDumped bool
 	}{
 		{name: "clean exit", stat: 0, exited: true, code: 0, signal: 0},
 		{name: "real xpcproxy exit from fixture", stat: 19968, exited: true, code: 78, signal: 0},
 		{name: "exit 1", stat: 256, exited: true, code: 1, signal: 0},
 		{name: "killed by SIGKILL", stat: 9, exited: false, code: 0, signal: 9},
 		{name: "killed by SIGSEGV", stat: 11, exited: false, code: 0, signal: 11},
+		// 0x80 set alongside the signal means the signal produced a core dump.
+		{name: "SIGSEGV with coredump", stat: 11 | 0x80, exited: false, code: 0, signal: 11, coreDumped: true},
+		{name: "SIGQUIT with coredump", stat: 3 | 0x80, exited: false, code: 0, signal: 3, coreDumped: true},
 	}
 
 	for _, tc := range tests {
@@ -229,6 +233,7 @@ func TestExitStatusDecoding(t *testing.T) {
 			e := &ExitEvent{Stat: tc.stat}
 			assert.Equal(t, tc.exited, e.Exited(), "Exited")
 			assert.Equal(t, tc.signal, e.Signal(), "Signal")
+			assert.Equal(t, tc.coreDumped, e.CoreDumped(), "CoreDumped")
 			if tc.exited {
 				assert.Equal(t, tc.code, e.ExitCode(), "ExitCode")
 			}
