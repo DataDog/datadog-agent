@@ -91,12 +91,12 @@ fn try_auto_start(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::config::{
         ConfigLoader, ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader,
     };
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, UuidGenerator, V4UuidGenerator};
+    use std::io::Write;
     use std::sync::Arc;
     use tokio::sync::mpsc;
 
@@ -134,6 +134,50 @@ mod tests {
             config: ProcessConfig {
                 command: cmd.to_string(),
                 args,
+                ..Default::default()
+            },
+        }
+    }
+
+    fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        ProcessDefinition {
+            name: name.to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                condition_config_any: vec![ConditionConfigFile {
+                    path: agent_yaml.to_string(),
+                    keys: vec!["process_config.process_collection.enabled".into()],
+                }],
+                ..Default::default()
+            },
+        }
+    }
+
+    fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
+        let path = dir.join("datadog.yaml");
+        let body = format!(
+            "process_config:\n  process_collection:\n    enabled: {process_collection_enabled}\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
+        );
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(body.as_bytes()).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    fn gated_on_failure_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        ProcessDefinition {
+            name: name.to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                restart: RestartPolicy::OnFailure,
+                restart_sec: Some(2.0),
+                condition_config_any: vec![ConditionConfigFile {
+                    path: agent_yaml.to_string(),
+                    keys: vec!["process_config.process_collection.enabled".into()],
+                }],
                 ..Default::default()
             },
         }
