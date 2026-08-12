@@ -211,6 +211,56 @@ func TestRecycledPIDIsDetected(t *testing.T) {
 		"a fork for a pid with a live cache entry is real pid reuse")
 }
 
+// TestTranslateExecOfScriptReportsScriptAsFile pins the interpreted entry point
+// mapping, which is the difference between a working macOS rule and one that
+// silently never fires.
+//
+// Endpoint Security reports the INTERPRETER as exec.target.executable for a
+// shebang script and supplies the script separately, so a script named npm
+// arrives looking like "sh". SECL models it the other way round: exec.file is
+// the script and exec.interpreter.file is the interpreter (model_unix.go,
+// "Script interpreter as identified by the shebang"). Real npm is a
+// #!/usr/bin/env node script, so getting this backwards makes
+// exec.file.name == "npm" unmatchable on macOS.
+//
+// The values here are from a real capture: ES gave executable=/bin/sh with
+// script=/private/tmp/fake-a/npm.
+func TestTranslateExecOfScriptReportsScriptAsFile(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	ev, err := tr.Translate(execMessageScript(t, 1259, 1,
+		"/bin/sh", "/private/tmp/fake-a/npm", []string{"/bin/sh", "/private/tmp/fake-a/npm"}))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	p := ev.Exec.Process
+	assert.Equal(t, "/private/tmp/fake-a/npm", p.FileEvent.PathnameStr,
+		"exec.file.path must be the script, not the interpreter")
+	assert.Equal(t, "npm", p.FileEvent.BasenameStr,
+		"exec.file.name must be the script basename, so rules on npm can match")
+
+	assert.True(t, p.HasInterpreter(), "the interpreter must be marked valid")
+	assert.Equal(t, "/bin/sh", p.LinuxBinprm.FileEvent.PathnameStr,
+		"exec.interpreter.file.path must be the interpreter")
+	assert.Equal(t, "sh", p.LinuxBinprm.FileEvent.BasenameStr)
+}
+
+// TestTranslateExecOfBinaryHasNoInterpreter is the other half: a real Mach-O
+// binary has no script, so file is the executable and there is no interpreter.
+func TestTranslateExecOfBinaryHasNoInterpreter(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	ev, err := tr.Translate(execMessage(t, 1269, 1, "/private/tmp/fake-c/npm", []string{"npm"}))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	p := ev.Exec.Process
+	assert.Equal(t, "/private/tmp/fake-c/npm", p.FileEvent.PathnameStr)
+	assert.Equal(t, "npm", p.FileEvent.BasenameStr)
+	assert.False(t, p.HasInterpreter(),
+		"a real binary must not be reported as having an interpreter")
+}
+
 func TestTranslateSkipsUnmappedKind(t *testing.T) {
 	tr := newTestTranslator(t)
 
@@ -276,6 +326,25 @@ func execMessageVersioned(t *testing.T, pid, ppid uint32, path string, args []st
 				"audit_token": map[string]any{"pid": pid, "pidversion": pidversion},
 			},
 			"args": args,
+		},
+	})
+	require.NoError(t, err)
+	return &eslogger.Message{Time: "2026-08-12T00:00:00Z", Event: body}
+}
+
+// execMessageScript builds an exec message shaped like a shebang execution: the
+// executable is the interpreter and the script is supplied separately.
+func execMessageScript(t *testing.T, pid, ppid uint32, interpreter, script string, args []string) *eslogger.Message {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"exec": map[string]any{
+			"target": map[string]any{
+				"executable":  map[string]any{"path": interpreter},
+				"ppid":        ppid,
+				"audit_token": map[string]any{"pid": pid, "pidversion": pid},
+			},
+			"script": map[string]any{"path": script},
+			"args":   args,
 		},
 	})
 	require.NoError(t, err)

@@ -79,6 +79,12 @@ type darwinProcessSerializer struct {
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
 
 	Executable *darwinFileSerializer `json:"executable,omitempty"`
+	// Interpreter is set when the process was an interpreted script. Endpoint
+	// Security reports the interpreter as the executable and the script
+	// separately; the translator maps that onto SECL's convention, where the
+	// executable is the script. Reporting both is what lets a reader see that
+	// "npm" was really run by /bin/sh.
+	Interpreter *darwinFileSerializer `json:"interpreter,omitempty"`
 }
 
 // darwinProcessContextSerializer serializes a process and its lineage.
@@ -162,6 +168,10 @@ func newDarwinProcessSerializer(p *model.Process, event *model.Event) *darwinPro
 		ExecTime:      utils.NewEasyjsonTimeIfNotZero(p.ExecTime),
 		ExitTime:      utils.NewEasyjsonTimeIfNotZero(p.ExitTime),
 		Executable:    newDarwinFileSerializer(&p.FileEvent, event),
+	}
+
+	if p.HasInterpreter() {
+		ps.Interpreter = newDarwinFileSerializer(&p.LinuxBinprm.FileEvent, event)
 	}
 
 	if p.PPid != 0 {

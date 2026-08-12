@@ -110,6 +110,39 @@ func TestDeepTreeUnderPackageManagerFires(t *testing.T) {
 	assert.Equal(t, "macos_pkg_manager_spawns_shell", rec.Matches()[0].RuleID)
 }
 
+// TestScriptNamedPackageManagerFiresRule is the case that matters in the real
+// world and that a live run proved was broken: npm is a #!/usr/bin/env node
+// script, so Endpoint Security reports the interpreter as the executable and the
+// package manager was invisible to the rule. The message shapes here are taken
+// from a real capture.
+func TestScriptNamedPackageManagerFiresRule(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rec := &MatchRecorder{}
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+	rs.AddListener(rec)
+
+	// A shebang script named npm: ES reports /bin/sh as the executable.
+	_, err = tr.Translate(execMessageScript(t, 1264, 1,
+		"/bin/sh", "/private/tmp/fake-b/npm", []string{"/bin/sh", "/private/tmp/fake-b/npm"}))
+	require.NoError(t, err)
+
+	// It forks a child, which execs a shell.
+	_, err = tr.Translate(forkMessage(t, 1265, 1264, "/bin/sh"))
+	require.NoError(t, err)
+
+	ev, err := tr.Translate(execMessage(t, 1265, 1264, "/bin/sh", []string{"sh", "-c", "echo pwned"}))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	rs.Evaluate(ev)
+
+	require.Len(t, rec.Matches(), 1,
+		"a shell spawned by a SCRIPT named npm must fire, since real npm is a script")
+	assert.Equal(t, "macos_pkg_manager_spawns_shell", rec.Matches()[0].RuleID)
+}
+
 // TestPolicyRejectsUnsupportedField proves NewDarwinModel's gate works: a policy
 // field darwin never populates must fail to load rather than load and silently
 // never match.

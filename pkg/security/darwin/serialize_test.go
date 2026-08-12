@@ -77,6 +77,55 @@ func TestSerializeExecProducesLinuxShapedPayload(t *testing.T) {
 	t.Logf("exec payload: %s", raw)
 }
 
+// TestSerializeCarriesInterpreterForScripts checks that an interpreted entry
+// point reports both files: the script as the executable (SECL's convention) and
+// the interpreter alongside it. Without both, a reader cannot tell that "npm"
+// was really run by /bin/sh.
+func TestSerializeCarriesInterpreterForScripts(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	ev, err := tr.Translate(execMessageScript(t, 940, 1,
+		"/bin/sh", "/private/tmp/fake-b/npm", []string{"/bin/sh", "/private/tmp/fake-b/npm"}))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	raw, err := serializers.MarshalEvent(ev, testScrubber(t))
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+
+	proc, ok := payload["process"].(map[string]any)
+	require.True(t, ok)
+
+	exe, ok := proc["executable"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "npm", exe["name"], "the executable must be the script")
+
+	interp, ok := proc["interpreter"].(map[string]any)
+	require.True(t, ok, "an interpreted script must report its interpreter")
+	assert.Equal(t, "sh", interp["name"])
+	assert.Equal(t, "/bin/sh", interp["path"])
+
+	t.Logf("script payload: %s", raw)
+}
+
+// TestSerializeOmitsInterpreterForBinaries guards the other direction: a real
+// binary must not grow an empty interpreter section.
+func TestSerializeOmitsInterpreterForBinaries(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	ev, err := tr.Translate(execMessage(t, 941, 1, "/private/tmp/fake-c/npm", []string{"npm"}))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	raw, err := serializers.MarshalEvent(ev, testScrubber(t))
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(raw), "interpreter",
+		"a real binary has no interpreter and must not report one")
+}
+
 // TestSerializeNeverEmitsEnvs is the last line of the privacy defence: whatever
 // happens upstream, the wire payload must not contain environment variables.
 func TestSerializeNeverEmitsEnvs(t *testing.T) {

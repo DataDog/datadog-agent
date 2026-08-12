@@ -127,18 +127,23 @@ func (t *Translator) translateExec(body *eslogger.ExecEvent, ts time.Time) *mode
 	target := body.Target
 	pid := target.AuditToken.PID
 
-	// Diagnostic only, pending a decision on how to map interpreted entry points.
-	// Endpoint Security reports the interpreter as target.executable for a shebang
-	// script, so a script named npm appears as "sh"; SECL's model is the other way
-	// round (exec.file is the script, exec.interpreter.file the interpreter). This
-	// records whether ES gives us the script path to bridge that gap.
+	// Endpoint Security and SECL disagree about which file an interpreted
+	// execution is "about", and the disagreement is not cosmetic.
+	//
+	// For a shebang script ES reports the INTERPRETER as target.executable and
+	// supplies the script separately, so a script named npm arrives looking like
+	// "sh". SECL is the other way round: Process.FileEvent is the script and
+	// Process.LinuxBinprm is the "script interpreter as identified by the
+	// shebang". Following SECL is what makes exec.file.name == "npm" match a real
+	// npm, which is itself a #!/usr/bin/env node script.
+	execPath, interpreterPath := target.Path(), ""
+	if body.Script != nil && body.Script.Path != "" {
+		execPath, interpreterPath = body.Script.Path, target.Path()
+	}
+
 	if log.ShouldLog(log.TraceLvl) {
-		scriptPath := "<nil>"
-		if body.Script != nil {
-			scriptPath = body.Script.Path
-		}
-		log.Tracef("exec pid=%d executable=%q script=%q dyld_exec_path=%q",
-			pid, target.Path(), scriptPath, body.DyldExecPath)
+		log.Tracef("exec pid=%d file=%q interpreter=%q dyld_exec_path=%q",
+			pid, execPath, interpreterPath, body.DyldExecPath)
 	}
 
 	if t.resolver.Resolve(key(pid)) == nil {
@@ -153,7 +158,7 @@ func (t *Translator) translateExec(body *eslogger.ExecEvent, ts time.Time) *mode
 	entry := t.resolver.AddExecEntry(
 		key(pid),
 		target.PPID,
-		target.Path(),
+		execPath,
 		body.Args,
 		false, // argsTruncated
 		nil,   // envs
@@ -168,6 +173,7 @@ func (t *Translator) translateExec(body *eslogger.ExecEvent, ts time.Time) *mode
 	}
 
 	applyCredentials(entry, target)
+	setInterpreter(entry, interpreterPath)
 
 	ev := t.newEvent()
 	ev.Type = uint32(model.ExecEventType)
@@ -179,6 +185,23 @@ func (t *Translator) translateExec(body *eslogger.ExecEvent, ts time.Time) *mode
 	ev.Exec.Process = &entry.Process
 
 	return ev
+}
+
+// setInterpreter records the shebang interpreter, if there was one.
+//
+// SECL treats an interpreter as present only when LinuxBinprm's inode is
+// non-zero (Process.HasInterpreter). macOS has no inode to offer here, so
+// model.SetInterpreterFields is used to stamp the sentinel the SECL model
+// reserves for exactly this purpose.
+func setInterpreter(entry *model.ProcessCacheEntry, interpreterPath string) {
+	if interpreterPath == "" {
+		return
+	}
+
+	entry.Process.LinuxBinprm.FileEvent.PathnameStr = interpreterPath
+	entry.Process.LinuxBinprm.FileEvent.BasenameStr = basename(interpreterPath)
+	// The subField argument only has to be something other than "file.inode".
+	_, _ = model.SetInterpreterFields(&entry.Process.LinuxBinprm, "file.path", nil)
 }
 
 func (t *Translator) translateFork(body *eslogger.ForkEvent, ts time.Time) *model.Event {
