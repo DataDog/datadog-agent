@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package daemon
+package statusapiimpl
 
 import (
 	"context"
@@ -35,30 +35,23 @@ func tempSocketPath(t *testing.T) string {
 // serveStatusSocket binds and serves the status socket at socketPath, going through
 // the same listenStatusSocket the daemon uses so the permission recipe is what is
 // under test.
-func serveStatusSocket(t *testing.T, daemon statusProvider, socketPath string) {
+func serveStatusSocket(t *testing.T, socketPath string) {
 	t.Helper()
 
 	listener, err := listenStatusSocket(socketPath)
 	require.NoError(t, err)
-	api := newStatusAPI(daemon, listener)
-	require.NoError(t, api.Start(context.Background()))
-	t.Cleanup(func() { _ = api.Stop(context.Background()) })
-}
-
-func startTestStatusAPI(t *testing.T, response StatusAPIResponse) string {
-	t.Helper()
-
-	socketPath := tempSocketPath(t)
-	serveStatusSocket(t, &testStatusProvider{response: response}, socketPath)
-
-	return socketPath
+	s := newServer(&testStatusProvider{}, listener)
+	require.NoError(t, s.start(context.Background()))
+	t.Cleanup(func() { _ = s.stop(context.Background()) })
 }
 
 // The whole point of this second listener is that the Agent user can reach it,
 // unlike the daemon's 0700 local API. If the mode regresses the Agent silently
 // starts reporting the installer as unreachable, so pin it.
-func TestStatusAPISocketPermissions(t *testing.T) {
-	socketPath := startTestStatusAPI(t, StatusAPIResponse{})
+func TestStatusSocketPermissions(t *testing.T) {
+	socketPath := tempSocketPath(t)
+
+	serveStatusSocket(t, socketPath)
 
 	info, err := os.Stat(socketPath)
 	require.NoError(t, err)
@@ -69,11 +62,11 @@ func TestStatusAPISocketPermissions(t *testing.T) {
 // The socket lives in a directory dd-agent can write to, so an unprivileged
 // process can plant a regular file at the path. Refusing to start on it would hand
 // that process a way to stop the daemon, so the file is replaced instead.
-func TestStatusAPIReplacesPlantedFile(t *testing.T) {
+func TestStatusSocketReplacesPlantedFile(t *testing.T) {
 	socketPath := tempSocketPath(t)
 	require.NoError(t, os.WriteFile(socketPath, []byte("not a socket"), 0600))
 
-	serveStatusSocket(t, &testStatusProvider{}, socketPath)
+	serveStatusSocket(t, socketPath)
 
 	info, err := os.Stat(socketPath)
 	require.NoError(t, err)
@@ -82,20 +75,14 @@ func TestStatusAPIReplacesPlantedFile(t *testing.T) {
 
 // The mode comes from the umask at bind time rather than a chmod afterwards, so it
 // has to hold whatever the process umask happens to be.
-func TestStatusAPISocketModeIgnoresProcessUmask(t *testing.T) {
+func TestStatusSocketModeIgnoresProcessUmask(t *testing.T) {
 	// Before the swap: the socket's own directory has to stay usable.
 	socketPath := tempSocketPath(t)
 
-	umaskMu.Lock()
 	previous := syscall.Umask(0777)
-	umaskMu.Unlock()
-	t.Cleanup(func() {
-		umaskMu.Lock()
-		syscall.Umask(previous)
-		umaskMu.Unlock()
-	})
+	t.Cleanup(func() { syscall.Umask(previous) })
 
-	serveStatusSocket(t, &testStatusProvider{}, socketPath)
+	serveStatusSocket(t, socketPath)
 
 	info, err := os.Stat(socketPath)
 	require.NoError(t, err)
@@ -103,7 +90,7 @@ func TestStatusAPISocketModeIgnoresProcessUmask(t *testing.T) {
 }
 
 // A stale socket from a previous daemon run must be replaced, not rejected.
-func TestStatusAPIReplacesStaleSocket(t *testing.T) {
+func TestStatusSocketReplacesStaleSocket(t *testing.T) {
 	socketPath := tempSocketPath(t)
 	stale, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
@@ -111,5 +98,5 @@ func TestStatusAPIReplacesStaleSocket(t *testing.T) {
 	stale.(*net.UnixListener).SetUnlinkOnClose(false)
 	require.NoError(t, stale.Close())
 
-	serveStatusSocket(t, &testStatusProvider{}, socketPath)
+	serveStatusSocket(t, socketPath)
 }

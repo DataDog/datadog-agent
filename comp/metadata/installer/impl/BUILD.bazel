@@ -3,7 +3,12 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["installer.go"],
+    srcs = [
+        "client.go",
+        "client_nix.go",
+        "client_windows.go",
+        "installer.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/installer/impl",
     visibility = ["//visibility:public"],
     deps = [
@@ -15,23 +20,31 @@ go_library(
         "//comp/metadata/installer/def",
         "//comp/metadata/internal/util",
         "//comp/metadata/runner/def",
-        "//pkg/fleet/daemon",
+        "//comp/updater/statusapi/def",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/util/http",
         "//pkg/util/uuid",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["installer_test.go"],
+    srcs = [
+        "client_nix_test.go",
+        "installer_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/mock",
-        "//pkg/fleet/daemon",
+        "//comp/updater/statusapi/def",
         "//pkg/serializer/mocks",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

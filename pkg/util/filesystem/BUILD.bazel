@@ -10,6 +10,7 @@ go_library(
         "disk_usage.go",
         "disk_windows.go",
         "file.go",
+        "listen_nix.go",
         "open_nix.go",
         "open_windows.go",
         "permission_check.go",

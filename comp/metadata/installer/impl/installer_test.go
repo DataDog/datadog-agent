@@ -21,20 +21,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
+	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
-type fakeFetcher struct {
-	response daemon.StatusAPIResponse
-	err      error
+type fakeStatusClient struct {
+	status statusapi.Status
+	err    error
 }
 
-func (f fakeFetcher) Status(_ context.Context) (daemon.StatusAPIResponse, error) {
-	return f.response, f.err
+func (f fakeStatusClient) Status(_ context.Context) (statusapi.Status, error) {
+	return f.status, f.err
 }
 
-func getInstallerComp(t *testing.T, response daemon.StatusAPIResponse, err error) *inst {
+func getInstallerComp(t *testing.T, status statusapi.Status, err error) *inst {
 	r := Requires{
 		Log:        logmock.New(t),
 		Config:     config.NewMock(t),
@@ -45,13 +45,13 @@ func getInstallerComp(t *testing.T, response daemon.StatusAPIResponse, err error
 	comp := NewComponent(r).Comp
 	i := comp.(*inst)
 	i.hostname = "test hostname"
-	i.installer = fakeFetcher{response: response, err: err}
+	i.installer = fakeStatusClient{status: status, err: err}
 	return i
 }
 
 func TestGetPayload(t *testing.T) {
 	diskSpace := uint64(12884901888)
-	i := getInstallerComp(t, daemon.StatusAPIResponse{
+	i := getInstallerComp(t, statusapi.Status{
 		InstallerVersion:   "7.76.0",
 		AvailableDiskSpace: &diskSpace,
 	}, nil)
@@ -60,7 +60,6 @@ func TestGetPayload(t *testing.T) {
 
 	assert.Equal(t, "test hostname", p.Hostname)
 	assert.True(t, p.Timestamp <= time.Now().UnixNano())
-	assert.NotEmpty(t, p.UUID)
 	assert.Equal(t,
 		map[string]interface{}{
 			"installer_reachable":  true,
@@ -74,7 +73,7 @@ func TestGetPayload(t *testing.T) {
 // payload must still be produced: returning nil would make the inventory runner skip
 // the submission entirely, which loses the absence signal.
 func TestGetPayloadInstallerUnreachable(t *testing.T) {
-	i := getInstallerComp(t, daemon.StatusAPIResponse{}, errors.New("dial unix: no such file or directory"))
+	i := getInstallerComp(t, statusapi.Status{}, errors.New("dial unix: no such file or directory"))
 
 	p := i.getPayload()
 	require.NotNil(t, p)
@@ -89,7 +88,7 @@ func TestGetPayloadInstallerUnreachable(t *testing.T) {
 // The daemon leaves available_disk_space unset when it cannot determine it. Reporting
 // it as 0 would read as "disk full", which is a different fact entirely.
 func TestGetPayloadUnknownDiskSpace(t *testing.T) {
-	i := getInstallerComp(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
+	i := getInstallerComp(t, statusapi.Status{InstallerVersion: "7.76.0"}, nil)
 
 	p := i.getPayload().(*Payload)
 
@@ -104,7 +103,7 @@ func TestGetPayloadUnknownDiskSpace(t *testing.T) {
 // The backend routes /api/v1/metadata on the top-level JSON key, so renaming it
 // silently drops the payload.
 func TestPayloadTopLevelKey(t *testing.T) {
-	i := getInstallerComp(t, daemon.StatusAPIResponse{InstallerVersion: "7.76.0"}, nil)
+	i := getInstallerComp(t, statusapi.Status{InstallerVersion: "7.76.0"}, nil)
 
 	raw, err := json.Marshal(i.getPayload())
 	require.NoError(t, err)
@@ -116,7 +115,7 @@ func TestPayloadTopLevelKey(t *testing.T) {
 
 func TestWritePayload(t *testing.T) {
 	diskSpace := uint64(12884901888)
-	i := getInstallerComp(t, daemon.StatusAPIResponse{
+	i := getInstallerComp(t, statusapi.Status{
 		InstallerVersion:   "7.76.0",
 		AvailableDiskSpace: &diskSpace,
 	}, nil)

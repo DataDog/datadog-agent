@@ -5,10 +5,9 @@
 
 //go:build windows
 
-package daemon
+package statusapiimpl
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -16,14 +15,13 @@ import (
 
 	"github.com/Microsoft/go-winio"
 
+	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
-	statusNamedPipePath = `\\.\pipe\DD_INSTALLER_STATUS`
-
 	// DACL template for the status named pipe, allowing ddagentuser to read it.
 	// SE_DACL_PROTECTED (P), SE_DACL_AUTO_INHERITED (AI)
 	// Allow Administrators (BA), Local System (SY)
@@ -32,19 +30,19 @@ const (
 	// Same descriptor as system-probe's named pipe
 	// (pkg/system-probe/api/server/listener_windows.go): the local API pipe stays
 	// SYSTEM + Administrators only because its routes are privileged mutations.
-	statusPipeSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;FRFW;;;%s)"
+	pipeSecurityDescriptorTemplate = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)(A;NP;FRFW;;;%s)"
 
 	// Default DACL for the status named pipe, used when the ddagentuser SID cannot
 	// be resolved. The Agent will not be able to read the status, but the daemon
 	// must still start.
-	statusPipeDefaultSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)"
+	pipeDefaultSecurityDescriptor = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)"
 
 	// SID representing Everyone
 	everyoneSid = "S-1-1-0"
 )
 
-// setupStatusSecurityDescriptor prepares the security descriptor for the status named pipe.
-func setupStatusSecurityDescriptor() (string, error) {
+// setupSecurityDescriptor prepares the security descriptor for the status named pipe.
+func setupSecurityDescriptor() (string, error) {
 	sid, err := winutil.GetDDAgentUserSID()
 	if err != nil {
 		return "", fmt.Errorf("failed to get SID for ddagentuser: %w", err)
@@ -64,53 +62,39 @@ func setupStatusSecurityDescriptor() (string, error) {
 	}
 
 	log.Debugf("installer status named pipe DACL prepared with ddagentuser %s", sidString)
-	return fmt.Sprintf(statusPipeSecurityDescriptorTemplate, sidString), nil
+	return fmt.Sprintf(pipeSecurityDescriptorTemplate, sidString), nil
 }
 
-// NewStatusAPI returns a new StatusAPI.
-func NewStatusAPI(daemon Daemon) (StatusAPI, error) {
+// listen creates the status named pipe, readable by ddagentuser.
+func listen() (net.Listener, error) {
 	// Prevent daemon from running in insecure directories
 	if err := paths.IsInstallerDataDirSecure(); err != nil {
 		return nil, err
 	}
 
-	sd, err := setupStatusSecurityDescriptor()
+	sd, err := setupSecurityDescriptor()
 	if err != nil {
 		// The default security descriptor does not include ddagentuser: the Agent's
 		// installer metadata will report the installer as unreachable, but the daemon
 		// itself keeps working.
 		log.Errorf("failed to setup installer status security descriptor, ddagentuser is denied: %s", err)
-		sd = statusPipeDefaultSecurityDescriptor
+		sd = pipeDefaultSecurityDescriptor
 	}
 
-	return listenStatusPipe(daemon, statusNamedPipePath, sd)
+	return listenStatusPipe(statusapi.Endpoint(), sd)
 }
 
-// listenStatusPipe creates the listener with an explicit security descriptor, so
-// tests do not depend on a ddagentuser existing on the machine.
+// listenStatusPipe takes the path and the security descriptor explicitly, so tests
+// do not depend on a ddagentuser existing on the machine.
 //
 // Note that a named pipe is claimed by whoever creates it first: on a host with no
 // installer daemon, any local user can create this pipe and answer in its place.
 // Nothing served here is privileged, and the consequence is a host reporting
 // attacker-chosen metadata about itself, so this is treated the same way
 // system-probe treats its own pipe.
-func listenStatusPipe(daemon statusProvider, statusPipePath string, sd string) (StatusAPI, error) {
-	listener, err := winio.ListenPipe(statusPipePath, &winio.PipeConfig{
+func listenStatusPipe(pipePath string, sd string) (net.Listener, error) {
+	return winio.ListenPipe(pipePath, &winio.PipeConfig{
 		SecurityDescriptor: sd,
 		MessageMode:        false,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	return newStatusAPI(daemon, listener), nil
-}
-
-// NewStatusAPIClient returns a new StatusAPIClient.
-func NewStatusAPIClient() StatusAPIClient {
-	return newStatusAPIClient(statusNamedPipePath)
-}
-
-func dialStatus(ctx context.Context, namedPipePath string) (net.Conn, error) {
-	return winio.DialPipeContext(ctx, namedPipePath)
 }

@@ -20,7 +20,7 @@ import (
 	installer "github.com/DataDog/datadog-agent/comp/metadata/installer/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
-	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
+	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -48,7 +48,7 @@ type inst struct {
 
 	log       log.Component
 	hostname  string
-	installer daemon.StatusAPIClient
+	installer statusClient
 }
 
 // Requires defines the dependencies for the installer metadata component
@@ -75,7 +75,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		// The client is stateless and bounds its own requests, so there is nothing to
 		// rebuild per collection.
-		installer: daemon.NewStatusAPIClient(),
+		installer: newStatusClient(statusapi.Endpoint()),
 	}
 	i.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, i.getPayload, flareFileName)
 
@@ -110,7 +110,7 @@ func (i *inst) getInstallerMetadata() map[string]interface{} {
 
 	// The client bounds the request itself; there is no ambient context to inherit
 	// here, as the metadata runner calls getPayload without one.
-	response, err := i.installer.Status(context.Background())
+	status, err := i.installer.Status(context.Background())
 	if err != nil {
 		// Debug only: not having an installer daemon is the normal case on a host
 		// without remote updates, and it must not produce recurring error logs.
@@ -119,9 +119,9 @@ func (i *inst) getInstallerMetadata() map[string]interface{} {
 	}
 
 	metadata["installer_reachable"] = true
-	metadata["installer_version"] = response.InstallerVersion
-	if response.AvailableDiskSpace != nil {
-		metadata["available_disk_space"] = *response.AvailableDiskSpace
+	metadata["installer_version"] = status.InstallerVersion
+	if status.AvailableDiskSpace != nil {
+		metadata["available_disk_space"] = *status.AvailableDiskSpace
 	}
 	return metadata
 }

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const (
@@ -34,8 +35,8 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	}
 	// The mode is set at bind time rather than with a chmod afterwards: this socket
 	// lives in a directory dd-agent can write to, so a chmod by path can be pointed
-	// at a symlink of that user's choosing. See listenStatusSocket.
-	listener, err := listenWithMode(socketPath, socketMode)
+	// at a symlink of that user's choosing.
+	listener, err := filesystem.ListenUnixSocketWithMode(socketPath, socketMode)
 	if err != nil {
 		return nil, err
 	}

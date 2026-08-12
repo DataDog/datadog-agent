@@ -16,9 +16,15 @@ Instead the daemon exposes a second, read-only listener — a unix socket at
 `/opt/datadog-packages/run/installer-status.sock`, or the `\\.\pipe\DD_INSTALLER_STATUS`
 named pipe on Windows — permissioned so the Agent user can read it, following
 system-probe (mode `0720` with the socket's group set to the Agent user's; a DACL
-granting the `ddagentuser` SID on Windows). This component reads that endpoint.
-Access control is the socket permissions; there is no auth token, as with
-system-probe.
+granting the `ddagentuser` SID on Windows). That listener is `comp/updater/statusapi`,
+which runs in the installer daemon; this component is the client. Access control is
+the socket permissions; there is no auth token, as with system-probe.
+
+Both sides share `comp/updater/statusapi/def` — the payload type and the endpoint
+path — and nothing else. In particular the client does not link `pkg/fleet/daemon`:
+the daemon's own dependencies (the OCI registry client, the package repository, the
+Remote Config client) are about a megabyte the Agent has no other use for, and it
+ships in flavors that never run an installer at all.
 
 The values here are therefore only as trustworthy as the local machine: anything
 that can bind the socket path or create the named pipe before the daemon does can

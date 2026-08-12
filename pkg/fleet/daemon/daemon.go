@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/nacl/box"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
@@ -80,7 +81,7 @@ type Daemon interface {
 	GetState(ctx context.Context) (map[string]PackageState, error)
 	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
-	GetStatus() StatusAPIResponse
+	GetStatus() statusapi.Status
 }
 
 type daemonImpl struct {
@@ -248,8 +249,8 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 // a busy installer look unreachable. Nothing read here needs it: d.env and
 // d.installer are set once in newDaemon and never reassigned, and
 // AvailableDiskSpace is a statfs with no shared state.
-func (d *daemonImpl) GetStatus() StatusAPIResponse {
-	response := StatusAPIResponse{
+func (d *daemonImpl) GetStatus() statusapi.Status {
+	status := statusapi.Status{
 		InstallerVersion: version.AgentVersion,
 	}
 	availableDiskSpace, err := d.installer(d.env).AvailableDiskSpace()
@@ -257,9 +258,9 @@ func (d *daemonImpl) GetStatus() StatusAPIResponse {
 		// Left nil so consumers can tell "unknown" from a genuine zero.
 		log.Warnf("could not get available disk space: %v", err)
 	} else {
-		response.AvailableDiskSpace = &availableDiskSpace
+		status.AvailableDiskSpace = &availableDiskSpace
 	}
-	return response
+	return status
 }
 
 // GetPackage returns the package with the given name and version.

@@ -8,13 +8,21 @@ package statusapiimpl
 
 import (
 	"context"
+	"encoding/json"
+	"net"
+	"net/http"
+	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	statusapi "github.com/DataDog/datadog-agent/comp/updater/statusapi/def"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater/def"
-	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
+	"github.com/DataDog/datadog-agent/pkg/api/middleware"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// readTimeout bounds how long a client can take to send its request headers, so a
+// connection that opens and then goes quiet cannot pin a goroutine.
+const readTimeout = 10 * time.Second
 
 // Requires defines the dependencies for the installer status api component.
 type Requires struct {
@@ -28,12 +36,25 @@ type Provides struct {
 	Comp statusapi.Component
 }
 
-// nopStatusAPI stands in when the listener could not be created, so that the
-// lifecycle hook stays unconditional.
-type nopStatusAPI struct{}
+// statusProvider is the slice of the daemon this listener is allowed to reach.
+// Narrowing it here keeps the privileged parts of the daemon out of reach of a
+// listener the Agent user can talk to.
+type statusProvider interface {
+	GetStatus() statusapi.Status
+}
 
-func (nopStatusAPI) Start(context.Context) error { return nil }
-func (nopStatusAPI) Stop(context.Context) error  { return nil }
+// server serves the daemon's read-only status to the Agent user.
+//
+// It is intentionally a second listener rather than a route on the daemon's local
+// API: that API's other routes install, remove and promote packages as root, so its
+// socket is 0700 and must stay that way. Only add non-sensitive, read-only routes
+// here — in particular never serve secrets_pub_key or anything from
+// GetRemoteConfigState.
+type server struct {
+	daemon   statusProvider
+	listener net.Listener
+	server   *http.Server
+}
 
 // NewComponent creates a new installer status api component.
 //
@@ -44,11 +65,57 @@ func (nopStatusAPI) Stop(context.Context) error  { return nil }
 // Agent user can write to, so an unprivileged process has some influence over
 // whether the bind succeeds.
 func NewComponent(reqs Requires) Provides {
-	api, err := daemon.NewStatusAPI(reqs.Updater)
+	listener, err := listen()
 	if err != nil {
 		log.Errorf("Could not create the installer status API, installer metadata will report the installer as unreachable: %v", err)
-		api = nopStatusAPI{}
+		// Component is empty, so anything satisfies it: with no listener there is
+		// nothing to run, and no lifecycle hook to register.
+		return Provides{Comp: struct{}{}}
 	}
-	reqs.Lifecycle.Append(compdef.Hook{OnStart: api.Start, OnStop: api.Stop})
-	return Provides{Comp: api}
+
+	s := newServer(reqs.Updater, listener)
+	reqs.Lifecycle.Append(compdef.Hook{OnStart: s.start, OnStop: s.stop})
+	return Provides{Comp: s}
+}
+
+// newServer wraps an already-permissioned listener. The listener is what differs
+// between platforms; everything below it does not.
+func newServer(daemon statusProvider, listener net.Listener) *server {
+	return &server{
+		daemon:   daemon,
+		listener: listener,
+		server: &http.Server{
+			ReadHeaderTimeout: readTimeout,
+			IdleTimeout:       readTimeout,
+		},
+	}
+}
+
+func (s *server) start(_ context.Context) error {
+	s.server.Handler = s.handler()
+	go func() {
+		err := s.server.Serve(s.listener)
+		if err != nil {
+			log.Infof("Installer status API server stopped: %v", err)
+		}
+	}()
+	return nil
+}
+
+func (s *server) stop(ctx context.Context) error {
+	return s.server.Shutdown(ctx)
+}
+
+func (s *server) handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /status", s.status)
+	return middleware.RequireContentType("application/json")(mux)
+}
+
+// example: curl --unix-socket /opt/datadog-packages/run/installer-status.sock -H 'Content-Type: application/json' http://installer/status
+func (s *server) status(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(s.daemon.GetStatus()); err != nil {
+		log.Warnf("could not write installer status response: %v", err)
+	}
 }
