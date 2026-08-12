@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Result, bail};
+use log::warn;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, HANDLE_FLAG_INHERIT,
@@ -30,28 +31,39 @@ pub(super) fn map_stdio_setting(
 ) -> Result<MappedStdioHandle> {
     match setting {
         StdioSetting::Null => MappedStdioHandle::nul(),
-        StdioSetting::Inherit => {
-            let inheritable = match kind {
-                STD_OUTPUT_HANDLE => super::super::stdout_inheritable(),
-                STD_ERROR_HANDLE => super::super::stderr_inheritable(),
-                _ => false,
-            };
-            if !inheritable {
-                return MappedStdioHandle::nul();
-            }
-            let source = unsafe {
-                let h = GetStdHandle(kind);
-                if h == INVALID_HANDLE_VALUE || h.is_null() {
-                    bail!("GetStdHandle({kind}) returned invalid");
-                }
-                h
-            };
-            Ok(MappedStdioHandle(duplicate_inheritable_handle(source)?))
-        }
+        StdioSetting::Inherit => map_stdio_inherit(kind),
         StdioSetting::File(path) => {
-            open_stdio_file_as_account(process_name, path.to_string_lossy().as_ref(), account)
+            let path = path.to_string_lossy();
+            match open_stdio_file_as_account(process_name, path.as_ref(), account) {
+                Ok(handle) => Ok(handle),
+                Err(e) => {
+                    warn!(
+                        "[{process_name}] failed to open stdio file {path}: {e:#}, falling back to inherit"
+                    );
+                    map_stdio_inherit(kind)
+                }
+            }
         }
     }
+}
+
+fn map_stdio_inherit(kind: u32) -> Result<MappedStdioHandle> {
+    let inheritable = match kind {
+        STD_OUTPUT_HANDLE => super::super::stdout_inheritable(),
+        STD_ERROR_HANDLE => super::super::stderr_inheritable(),
+        _ => false,
+    };
+    if !inheritable {
+        return MappedStdioHandle::nul();
+    }
+    let source = unsafe {
+        let h = GetStdHandle(kind);
+        if h == INVALID_HANDLE_VALUE || h.is_null() {
+            bail!("GetStdHandle({kind}) returned invalid");
+        }
+        h
+    };
+    Ok(MappedStdioHandle(duplicate_inheritable_handle(source)?))
 }
 
 pub(super) fn map_stdio_handle_nul() -> Result<MappedStdioHandle> {
@@ -193,5 +205,20 @@ mod tests {
         assert!(StdioSetting::Inherit.is_inherit_or_null());
         assert!(StdioSetting::Null.is_inherit_or_null());
         assert!(!StdioSetting::File(PathBuf::from(r"C:\logs\trace.log")).is_inherit_or_null());
+    }
+
+    #[test]
+    fn unopenable_file_path_falls_back_to_inherit() {
+        let bad_path = StdioSetting::File(PathBuf::from(
+            r"C:\nonexistent_pmgr_stdio_dir\out.log",
+        ));
+        let handle = map_stdio_setting(
+            "test-proc",
+            &bad_path,
+            STD_OUTPUT_HANDLE,
+            &AgentAccount::LocalSystem,
+        )
+        .expect("map_stdio_setting should fall back instead of failing spawn");
+        assert!(!handle.raw().is_null());
     }
 }
