@@ -98,23 +98,6 @@ func (r *Registry) Supports(apiVersion, kind string) bool {
 	return false
 }
 
-// Target returns the normalized target resource for a DDI reference.
-func (r *Registry) Target(apiVersion, kind string) (Resource, bool) {
-	if r == nil {
-		return Resource{}, false
-	}
-	if apiVersion != "" {
-		target, found := r.targets[resourceKey(apiVersion, kind)]
-		return target, found
-	}
-	for _, target := range r.targets {
-		if target.Kind == kind && isBuiltinTarget(target) {
-			return target, true
-		}
-	}
-	return Resource{}, false
-}
-
 func (r *Registry) descriptor(apiVersion, kind string) (resourceDescriptor, bool) {
 	descriptor, found := r.resources[resourceKey(apiVersion, kind)]
 	return descriptor, found
