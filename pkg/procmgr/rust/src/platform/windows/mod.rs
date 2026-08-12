@@ -38,8 +38,8 @@ use windows_sys::Win32::System::Console::{
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-    JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation, QueryInformationJobObject,
-    SetInformationJobObject, TerminateJobObject,
+    JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
+    QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
     OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
@@ -183,9 +183,10 @@ impl JobObject {
         while std::time::Instant::now() < deadline {
             match self.active_process_count() {
                 Ok(0) => return true,
-                Ok(_) => std::thread::sleep(POLL_INTERVAL.min(
-                    deadline.saturating_duration_since(std::time::Instant::now()),
-                )),
+                Ok(_) => std::thread::sleep(
+                    POLL_INTERVAL
+                        .min(deadline.saturating_duration_since(std::time::Instant::now())),
+                ),
                 Err(_) => return false,
             }
         }

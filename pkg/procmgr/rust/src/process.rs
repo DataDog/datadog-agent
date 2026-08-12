@@ -257,7 +257,10 @@ impl ManagedProcess {
                     );
                 }
                 Err(e) => {
-                    warn!("[{}] failed to query job active processes: {e:#}", self.name);
+                    warn!(
+                        "[{}] failed to query job active processes: {e:#}",
+                        self.name
+                    );
                 }
             }
         }
@@ -378,10 +381,6 @@ impl ManagedProcess {
     pub(crate) fn record_config_gate_met(&mut self) {
         self.last_config_gate_met = Some(self.config_gate_met());
         self.last_start_conditions_met = Some(self.start_conditions_met());
-    }
-
-    pub(crate) fn last_config_gate_met(&self) -> Option<bool> {
-        self.last_config_gate_met
     }
 
     pub(crate) fn last_start_conditions_met(&self) -> Option<bool> {
@@ -511,7 +510,7 @@ impl ManagedProcess {
         } else {
             self.transition_to(ProcessState::Failed);
         }
-        needs_job_drain.then(|| exited_pid).flatten()
+        needs_job_drain.then_some(exited_pid).flatten()
     }
 
     /// Mark the process for stop and send a graceful-stop signal. The watcher
