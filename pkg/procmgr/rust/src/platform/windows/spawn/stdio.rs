@@ -303,4 +303,19 @@ mod tests {
         let contents = std::fs::read_to_string(&path).unwrap();
         assert!(contents.contains("fileline"), "got {contents:?}");
     }
+
+    #[test]
+    fn unopenable_file_path_falls_back_to_inherit() {
+        let bad_path = StdioSetting::File(PathBuf::from(
+            r"C:\nonexistent_pmgr_stdio_dir\out.log",
+        ));
+        let handle = map_stdio_setting(
+            "test-proc",
+            &bad_path,
+            STD_OUTPUT_HANDLE,
+            &AgentAccount::LocalSystem,
+        )
+        .expect("map_stdio_setting should fall back instead of failing spawn");
+        assert!(!handle.raw().is_null());
+    }
 }
