@@ -26,7 +26,7 @@ pub(crate) fn resolve_executable_in_env(
     }
 
     if contains_path_separator(command) {
-        if Path::new(command).is_file() {
+        if path_is_existing_file(Path::new(command)) {
             return Ok(command.to_string());
         }
         bail!("secretBackendCommand '{command}' does not exist");
@@ -46,13 +46,37 @@ pub(crate) fn resolve_executable_in_env(
         for ext in &extensions {
             let candidate_name = format!("{command}{ext}");
             let candidate = dir.join(&candidate_name);
-            if candidate.is_file() {
+            if path_is_existing_file(&candidate) {
                 return Ok(candidate.to_string_lossy().into_owned());
             }
         }
     }
 
     bail!("secretBackendCommand '{command}' does not exist");
+}
+
+fn path_is_existing_file(path: &Path) -> bool {
+    if path.is_file() {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        let Some(name) = path.file_name() else {
+            return false;
+        };
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let Ok(entries) = std::fs::read_dir(parent) else {
+            return false;
+        };
+        return entries.flatten().any(|entry| {
+            entry.file_name().eq_ignore_ascii_case(name)
+                && entry.file_type().is_ok_and(|t| t.is_file())
+        });
+    }
+    #[cfg(not(windows))]
+    false
 }
 
 fn contains_path_separator(command: &str) -> bool {
@@ -100,7 +124,7 @@ fn pathext_extensions(env: &HashMap<String, String>) -> Vec<String> {
 fn find_on_path(command: &str, path_dirs: &[PathBuf]) -> Option<String> {
     for dir in path_dirs {
         let candidate = dir.join(command);
-        if candidate.is_file() {
+        if path_is_existing_file(&candidate) {
             return Some(candidate.to_string_lossy().into_owned());
         }
     }
