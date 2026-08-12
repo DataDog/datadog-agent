@@ -695,16 +695,18 @@ __attribute__((always_inline)) int register_connected_flow(struct sock *sk, u64 
     return 0;
 }
 
-// Before Linux 7.0 an IPv6 socket was classified on its first transmit, once its source address and port
-// were known. Starting with Linux 7.0 inet6_csk_xmit only calls security_sk_classify_flow on a route miss.
+// Before Linux 7.0 an IPv6 socket was classified on its first transmit by security_sk_classify_flow.
+// Starting with Linux 7.0, security_sk_classify_flow is only called by inet6_csk_xmit on a route miss,
+// so IPv6 sockets need to call this helper to register the corresponding flow.
 __attribute__((always_inline)) int register_native_ipv6_flow(struct sock *sk, u64 pid_tgid) {
-    // IPv4 and ipv4 mapped addresses still reach security_sk_classify_flow with a usable flow
+    // IPv4 sockets still reach security_sk_classify_flow with a usable flow
     if (get_family_from_sock_common((void *)sk) != AF_INET6) {
         return 0;
     }
 
     u64 addr[2] = {};
     bpf_probe_read(&addr, sizeof(addr), &sk->__sk_common.skc_v6_rcv_saddr);
+    // IPv6 sockets using IPv4 mapped addresses still reach security_sk_classify_flow with a usable flow
     if (is_ipv4_mapped_ipv6_addr(addr)) {
         return 0;
     }
