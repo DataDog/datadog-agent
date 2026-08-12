@@ -265,10 +265,6 @@ func (t *observerTelemetry) recordLogExtractionDuration(duration time.Duration) 
 	t.logExtractionTime.Observe(duration.Seconds())
 }
 
-func (t *observerTelemetry) setScorerSeverity(scorer string, severity float64) {
-	t.scorerSeverity.Set(severity, scorer)
-}
-
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {
 	switch logSource {
 	case "internal":

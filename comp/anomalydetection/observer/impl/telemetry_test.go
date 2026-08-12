@@ -37,7 +37,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordInputRateLimiterDropped("internal", "high")
 	tel.recordDetectorEmission("bocpd", "medium")
 	tel.recordLogExtractionDuration(time.Millisecond)
-	tel.setScorerSeverity("anomaly_scorer", 2)
+	tel.scorerSeverity.Set(2, "anomaly_scorer")
 }
 
 func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
@@ -54,7 +54,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordDetectorEmission("bocpd", "medium")
 	tel.setLogPatternCount(3)
 	tel.recordLogExtractionDuration(time.Millisecond)
-	tel.setScorerSeverity("anomaly_scorer", 2)
+	tel.scorerSeverity.Set(2, "anomaly_scorer")
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "kubelet"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
