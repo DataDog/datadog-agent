@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CWS: Fix activity dump uploads to additional (dual-shipped) remote storage
+    endpoints when the configured host already includes a port (for example
+    ``cws-intake.datadoghq.com.:443``). The port is no longer appended twice, which
+    previously produced a malformed URL and caused every upload to that endpoint to
+    fail.
