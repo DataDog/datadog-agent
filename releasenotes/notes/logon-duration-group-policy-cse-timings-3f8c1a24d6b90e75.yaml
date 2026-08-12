@@ -9,3 +9,8 @@ enhancements:
     ``durations``, split into ``computer`` and ``user`` arrays to match the two pass
     milestones it drills into. It is omitted when no extension invocation was measured
     end to end.
+
+    Each invocation carries at most 32 Group Policy object references. When an extension
+    applies more than that, the remainder is reported as a ``gpos_omitted`` count on the
+    invocation rather than dropped silently, so a shortened list is distinguishable from
+    a complete one.

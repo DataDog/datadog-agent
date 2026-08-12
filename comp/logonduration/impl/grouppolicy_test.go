@@ -381,6 +381,62 @@ func TestGPUpdateInvocationsAreExcluded(t *testing.T) {
 	assert.Empty(t, d.User)
 }
 
+func TestInvocationBackstopKeepsTheLeastHealthyAndTheSlowest(t *testing.T) {
+	// maxCSEInvocationsPerScope cannot fire on a machine whose extension list is
+	// sane - an extension runs at most once per pass per scope, and Windows
+	// registers on the order of 57 of them - so this drives it deliberately past
+	// the cap. What it locks is the selection rule: because the emitted array is
+	// ordered chronologically, truncating that order would drop whichever
+	// extensions ran late, and on a pass slow enough to reach the cap that is as
+	// likely as not to be the slow one worth finding.
+	const extra = 10
+
+	f := newGPFixture(t)
+	f.startComputerPass()
+
+	cseID := func(i int) string { return fmt.Sprintf("{%08X-683F-11D2-A89A-00C04FBBCFA2}", i) }
+
+	for i := 0; i < maxCSEInvocationsPerScope+extra; i++ {
+		start := 13*time.Second + time.Duration(i)*100*time.Millisecond
+		// Duration grows with i, so the low indices are the fastest. Index 0 is the
+		// fastest of all and also the only failure, which is what separates the
+		// health rule from the duration rule.
+		stop := start + time.Duration(i+1)*time.Millisecond
+		result := evtCSEStopSuccess
+		if i == 0 {
+			result = evtCSEStopError
+		}
+		f.cseStart(gpTestActivity, start, cseID(i), "Extension", false, "")
+		f.cseStop(gpTestActivity, stop, result, cseID(i), "Extension")
+	}
+
+	d := f.details()
+	require.Len(t, d.Computer, maxCSEInvocationsPerScope)
+
+	kept := make(map[string]CSEInvocation, len(d.Computer))
+	for _, inv := range d.Computer {
+		kept[inv.CSEID] = inv
+	}
+
+	// The fastest invocation in the pass survives because it failed.
+	require.Contains(t, kept, cseID(0), "a non-success outcome is kept regardless of how fast it was")
+	assert.Equal(t, cseResultError, kept[cseID(0)].Result)
+
+	// What went instead is exactly the fastest successes.
+	for i := 1; i <= extra; i++ {
+		assert.NotContains(t, kept, cseID(i), "the fastest successful invocations are the ones dropped")
+	}
+	for i := extra + 1; i < maxCSEInvocationsPerScope+extra; i++ {
+		assert.Contains(t, kept, cseID(i))
+	}
+
+	// Selection reorders, so the emitted array must still come back chronological.
+	for i := 1; i < len(d.Computer); i++ {
+		assert.LessOrEqual(t, d.Computer[i-1].OffsetMs, d.Computer[i].OffsetMs,
+			"the block is ordered chronologically no matter how selection ranked it")
+	}
+}
+
 func TestCSEWithNoBootPassIsOmitted(t *testing.T) {
 	// An activity ID matching no boot pass is never attributed to whichever
 	// pass happened to start most recently.
@@ -513,6 +569,44 @@ func TestGPOInlinedPerInvocation(t *testing.T) {
 		assert.Equal(t, gpoDefaultDomainGUID, inv.GPOs[0].ID)
 		assert.Equal(t, "Default Domain Policy", inv.GPOs[0].Name)
 	}
+}
+
+func TestOmittedGPOCountReachesTheInvocation(t *testing.T) {
+	// The count has to survive the whole path - the list walk, the pending record,
+	// and finalize - because its only job is to tell a reader of the emitted
+	// document that the array is a prefix. A capped array with no count beside it
+	// is indistinguishable from a machine that applies exactly that many objects.
+	const extra = 7
+
+	f := newGPFixture(t)
+	f.startComputerPass()
+
+	entries := make([]string, 0, maxGPOsPerCSE+extra)
+	for i := 0; i < maxGPOsPerCSE+extra; i++ {
+		entries = append(entries, gpoEntry(fmt.Sprintf("{%08X-016D-11D2-945F-00C04FB984F9}", i), "Policy"))
+	}
+
+	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, gpoFragment(entries...))
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
+
+	invs := f.details().Computer
+	require.Len(t, invs, 1)
+	assert.Len(t, invs[0].GPOs, maxGPOsPerCSE)
+	assert.Equal(t, extra, invs[0].GPOsOmitted)
+}
+
+func TestOmittedGPOCountAbsentWhenNothingDropped(t *testing.T) {
+	// omitempty is what keeps the field free: an invocation whose list fit carries
+	// no trace of the cap at all.
+	f := newGPFixture(t)
+	f.startComputerPass()
+	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false,
+		gpoFragment(gpoEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
+	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
+
+	invs := f.details().Computer
+	require.Len(t, invs, 1)
+	assert.Zero(t, invs[0].GPOsOmitted)
 }
 
 func TestGPONamesComeFromTheApplicableList(t *testing.T) {
@@ -763,35 +857,66 @@ func TestGPORefsFromList(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ids, names := gpoRefsFromList(tc.raw)
+			ids, names, omitted := gpoRefsFromList(tc.raw)
 			assert.Equal(t, tc.wantIDs, ids)
 			assert.Equal(t, tc.wantNames, names)
+			assert.Zero(t, omitted, "no case here reaches the per-invocation cap")
 		})
 	}
 
-	t.Run("oversize list is rejected before scanning", func(t *testing.T) {
-		ids, names := gpoRefsFromList(strings.Repeat("x", maxGPOListBytes+1))
-		assert.Nil(t, ids)
-		assert.Nil(t, names)
+	// A list far past any plausible size still contributes its references. There is
+	// no input-size limit to reject it: a rejection would emit an invocation with no
+	// GPOs at all, which reads as an extension that applied none.
+	t.Run("a list past any plausible size still yields references", func(t *testing.T) {
+		raw := strings.Repeat("x", 256*1024) + gpoEntry(gpoDefaultDomainGUID, "Late Policy")
+		ids, names, omitted := gpoRefsFromList(raw)
+		assert.Equal(t, []string{gpoDefaultDomainGUID}, ids)
+		assert.Equal(t, map[string]string{gpoDefaultDomainGUID: "Late Policy"}, names)
+		assert.Zero(t, omitted)
 	})
 
-	t.Run("references are bounded per invocation", func(t *testing.T) {
+	t.Run("references are bounded per invocation and the remainder is counted", func(t *testing.T) {
+		const extra = 20
 		var b strings.Builder
-		for i := 0; i < maxGPOsPerCSE+20; i++ {
+		for i := 0; i < maxGPOsPerCSE+extra; i++ {
 			fmt.Fprintf(&b, "{%08X-0000-0000-0000-000000000000};", i)
 		}
-		ids, _ := gpoRefsFromList(b.String())
+		ids, _, omitted := gpoRefsFromList(b.String())
 		assert.Len(t, ids, maxGPOsPerCSE)
+		assert.Equal(t, extra, omitted, "every distinct reference past the cap is counted")
 	})
 
 	t.Run("names are bounded with the ids they belong to", func(t *testing.T) {
+		const extra = 20
 		var b strings.Builder
-		for i := 0; i < maxGPOsPerCSE+20; i++ {
+		for i := 0; i < maxGPOsPerCSE+extra; i++ {
 			b.WriteString(gpoEntry(fmt.Sprintf("{%08X-0000-0000-0000-000000000000}", i), "Policy"))
 		}
-		ids, names := gpoRefsFromList(b.String())
+		ids, names, omitted := gpoRefsFromList(b.String())
 		assert.Len(t, ids, maxGPOsPerCSE)
 		assert.Len(t, names, maxGPOsPerCSE, "a name is only kept for an ID that was taken")
+		assert.Equal(t, extra, omitted)
+	})
+
+	// A repeat is not a loss, and the reference that matters here is one repeated
+	// *past* the cap. Deduplicating against the kept IDs alone would catch a repeat
+	// of a reference that made it into the array, but a reference the cap already
+	// rejected is not in that list, so every further sighting of it would be counted
+	// as another distinct loss. Only a record of every reference seen distinguishes
+	// one omitted GPO listed fifty times from fifty omitted GPOs.
+	t.Run("a reference repeated past the cap counts once", func(t *testing.T) {
+		var b strings.Builder
+		for i := 0; i < maxGPOsPerCSE; i++ {
+			fmt.Fprintf(&b, "{%08X-0000-0000-0000-000000000000};", i)
+		}
+		// Distinct from every ID above, so the cap rejects it, and then it recurs.
+		const beyondCap = "{FFFFFFFF-0000-0000-0000-000000000000};"
+		for i := 0; i < 50; i++ {
+			b.WriteString(beyondCap)
+		}
+		ids, _, omitted := gpoRefsFromList(b.String())
+		assert.Len(t, ids, maxGPOsPerCSE)
+		assert.Equal(t, 1, omitted, "one GPO was lost, not fifty")
 	})
 }
 
@@ -947,4 +1072,48 @@ func TestTruncateProviderText(t *testing.T) {
 	got = truncateProviderText(multibyte, maxCSENameBytes)
 	assert.LessOrEqual(t, len(got), maxCSENameBytes)
 	assert.True(t, utf8.ValidString(got))
+}
+
+// The name caps are byte limits applied to text an administrator chose, so the
+// question they have to answer is not whether they truncate at the limit but
+// whether an ordinary name reaches it in a script that is not Latin. Active
+// Directory allows a displayName of 256 characters; at three bytes per rune a cap
+// set at 256 bytes would cut an ordinary name at 85 of them.
+//
+// These drive the real parse path rather than truncateProviderText directly,
+// because that is where the cap is actually applied to a name.
+func TestGPONamesSurviveNonLatinScripts(t *testing.T) {
+	cases := []struct {
+		name  string
+		runes string
+		count int
+	}{
+		// A long but realistic name in each of the widths that matter.
+		{name: "three-byte script", runes: "本", count: 120},
+		{name: "two-byte script", runes: "П", count: 256},
+		{name: "latin at the AD character limit", runes: "A", count: 256},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := strings.Repeat(tc.runes, tc.count)
+			_, names, _ := gpoRefsFromList(gpoEntry(gpoDefaultDomainGUID, want))
+
+			got := names[gpoDefaultDomainGUID]
+			assert.Equal(t, want, got, "an ordinary %s name must reach the wire whole", tc.name)
+			assert.NotContains(t, got, "...", "nothing about this name should have been dropped")
+		})
+	}
+}
+
+func TestGPONameTruncationKeepsValidUTF8(t *testing.T) {
+	// Past the cap the name is still cut, and the cut still lands on a rune
+	// boundary rather than in the middle of one.
+	oversize := strings.Repeat("本", maxGPONameBytes)
+	_, names, _ := gpoRefsFromList(gpoEntry(gpoDefaultDomainGUID, oversize))
+
+	got := names[gpoDefaultDomainGUID]
+	assert.LessOrEqual(t, len(got), maxGPONameBytes)
+	assert.True(t, utf8.ValidString(got), "a cap that splits a rune emits invalid UTF-8")
+	assert.True(t, strings.HasSuffix(got, "..."))
 }

@@ -493,15 +493,16 @@ func (p *groupPolicyParser) parseCSEStart(e eventWithProperties, ts time.Time) {
 	// accumulator's shared lookup rather than onto the record: a list this walk
 	// could not finish contributes IDs without their names, and another
 	// invocation that listed the same object successfully fills them in.
-	ids, names := gpoRefsFromList(prop("ApplicableGPOList"))
+	ids, names, omitted := gpoRefsFromList(prop("ApplicableGPOList"))
 	p.gp.mergeGPONames(names)
 
 	p.gp.startCSE(activityIDOf(e), observedCSEStart{
-		guid:       guid,
-		guidString: guidString,
-		name:       prop("CSEExtensionName"),
-		isAsync:    isAsync,
-		gpoIDs:     ids,
+		guid:        guid,
+		guidString:  guidString,
+		name:        prop("CSEExtensionName"),
+		isAsync:     isAsync,
+		gpoIDs:      ids,
+		gposOmitted: omitted,
 	}, ts)
 }
 

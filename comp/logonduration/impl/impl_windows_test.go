@@ -437,31 +437,35 @@ func TestSubmitEvent_GroupPolicyReachesTheWire(t *testing.T) {
 }
 
 func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
-	// The largest payload the caps actually permit, so the number below is what
-	// the code can emit rather than what it is expected to emit. Windows registers
-	// on the order of 57 policy extensions, so 60 invocations per pass is past what
-	// either scope can produce, and every GPO list is at maxGPOsPerCSE with
-	// maximum-length names.
+	// The largest payload the caps permit, built from the caps themselves rather
+	// than from numbers restated alongside them. maxCSEInvocationsPerScope,
+	// maxGPOsPerCSE, maxGPONameBytes and maxCSENameBytes are coupled through this
+	// one budget: raising any of them multiplies the event, and the point of
+	// deriving the fixture from all four is that it fails here when that happens
+	// instead of in the field.
 	//
-	// This is a growth tripwire, not a wire limit: nothing in the event-management
-	// pipeline enforces a size (it streams one event per request with no size
-	// check) and the body is compressed before it is sent, so a payload of highly
-	// repetitive GUIDs and names is far smaller in flight. The ceiling exists so
-	// that a future field multiplied across every invocation fails here instead of
-	// quietly tripling the event.
-	const (
-		invocationsPerPass = 60
-		gposPerInvocation  = maxGPOsPerCSE
+	// This is a growth tripwire, and it is the only size control this payload has.
+	// The event-management pipeline sets useStreamStrategy, and epforwarder hands
+	// BatchMaxContentSize to the batch strategy only, so the 5 MB that pipeline
+	// configures is logged at startup and never enforced against anything the
+	// stream strategy sends. What is left is the intake's own refusal, an HTTP 413
+	// the logs library drops non-retryably long after the Agent has moved on.
+	//
+	// So the ceiling here is deliberately well below that 5 MB rather than level
+	// with it: the margin is the whole point. A per-GPO field added later multiplies
+	// across every reference on every invocation, and a tripwire set at the real
+	// limit would let that land in the field instead of failing here. The comparison
+	// is against uncompressed bytes, which is both how the batch strategy applies
+	// its own limit and the conservative direction, since the body is compressed
+	// before it is sent and this fixture of repeated GUIDs and names compresses hard.
+	// Not derived from constants.DefaultBatchMaxContentSize directly: depguard
+	// forbids pkg/config/setup inside comp, and the number is worth stating in one
+	// place rather than plumbing a config component into a serialization test.
+	const maxWorstCaseBytes = 3_000_000
 
-		// Derivation: a GPORef at maxGPONameBytes is ~313 bytes and an invocation
-		// without its array ~266, so an invocation at the cap is ~20 KB and 120 of
-		// them are ~2.45 MB. The ceiling leaves room for the boot_timeline and
-		// durations blocks without leaving room for a new per-GPO field.
-		maxWorstCaseBytes = 3 * 1024 * 1024
-	)
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 
-	gpos := make([]GPORef, gposPerInvocation)
+	gpos := make([]GPORef, maxGPOsPerCSE)
 	for i := range gpos {
 		gpos[i] = GPORef{
 			ID:   fmt.Sprintf("{%08X-016D-11D2-945F-00C04FB984F9}", i),
@@ -470,8 +474,8 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 	}
 
 	pass := func() []CSEInvocation {
-		invs := make([]CSEInvocation, 0, invocationsPerPass)
-		for i := 0; i < invocationsPerPass; i++ {
+		invs := make([]CSEInvocation, 0, maxCSEInvocationsPerScope)
+		for i := 0; i < maxCSEInvocationsPerScope; i++ {
 			invs = append(invs, CSEInvocation{
 				CSEID:      fmt.Sprintf("{%08X-683F-11D2-A89A-00C04FBBCFA2}", i),
 				CSEName:    strings.Repeat("N", maxCSENameBytes),
@@ -480,6 +484,9 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 				Result:     cseResultError,
 				Async:      true,
 				GPOs:       gpos,
+				// The cap having fired is part of the worst case: an invocation that
+				// dropped references carries the count as well as the array.
+				GPOsOmitted: 4096,
 			})
 		}
 		return invs
@@ -490,8 +497,16 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 		GroupPolicy: &GroupPolicyDetails{Computer: pass(), User: pass()},
 	})
 
+	// Logged rather than only asserted: the margin is the useful number when the
+	// caps are next revisited, and a tripwire that reports how close it came is
+	// worth more than one that only says it has not tripped yet.
+	t.Logf("worst case %d bytes of %d (%d invocations x %d GPO refs at %d-byte names), %d bytes of margin",
+		size, maxWorstCaseBytes, 2*maxCSEInvocationsPerScope, maxGPOsPerCSE, maxGPONameBytes,
+		maxWorstCaseBytes-size)
+
 	assert.Less(t, size, maxWorstCaseBytes,
-		"the largest payload the caps permit must stay under the ceiling (was %d bytes)", size)
+		"the largest payload the caps permit must stay under the ceiling (was %d bytes for %d invocations x %d GPO refs)",
+		size, 2*maxCSEInvocationsPerScope, maxGPOsPerCSE)
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {

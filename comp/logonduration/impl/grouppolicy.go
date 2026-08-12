@@ -32,29 +32,51 @@ import (
 // so a GPO is emitted as an untimed reference and never inherits a CSE's
 // duration.
 
+// Bounds on what one payload may carry. They are fixed at compile time rather
+// than made configurable because an oversize event fails silently and the Agent
+// can never learn that a larger bound was a mistake: this payload rides the
+// event-management pipeline, which selects the stream strategy and so enforces no
+// size of its own - the 5 MB that pipeline configures reaches the batch strategy
+// only - and the intake's refusal arrives as an HTTP 413 that the logs library
+// treats as a non-retryable drop, long after SendEventPlatformEventBlocking has
+// already returned nil. So these are what stands between a large domain and a
+// silently discarded event, and they are deliberately independent of the
+// intake-side limit rather than sized to just fit inside it.
+//
+// The four are coupled through one byte budget rather than independent, and
+// TestSubmitEvent_WorstCasePayloadSize computes that budget from them: raising
+// any one fails there rather than quietly multiplying the event.
 const (
-	// maxGPOListBytes rejects an implausibly large ApplicableGPOList before any
-	// parsing work happens.
-	maxGPOListBytes = 256 * 1024
+	// maxCSEInvocationsPerScope is a backstop, not a working limit. A registered
+	// extension is invoked at most once per pass per scope and Windows registers on
+	// the order of 57 of them, so this cannot fire on a machine whose extension
+	// list is sane. It exists because nothing else bounds the invocation count
+	// while the byte budget above assumes it is bounded, and enforcing what the
+	// budget already assumes costs nothing.
+	maxCSEInvocationsPerScope = 64
 
-	// maxGPOsPerCSE bounds the GPO references carried by one invocation. GPOs
-	// are inlined per invocation rather than pooled in a shared table, so this
-	// is what keeps a pathological ApplicableGPOList - 256 KB of braced GUIDs is
-	// roughly 6,700 of them - from being repeated across every invocation.
+	// maxGPOsPerCSE bounds the GPO references carried by one invocation. GPOs are
+	// inlined per invocation rather than pooled in a shared table, so one
+	// invocation's list is repeated in full for every extension that applied the
+	// same objects; this is what keeps that multiplication bounded.
 	//
-	// It truncates silently, consistent with this component's posture of
-	// omitting rather than annotating: a 64-entry gpos array is indistinguishable
-	// from a machine that genuinely applies 64 objects to one extension. The
-	// number is what keeps the emitted document a sane size, since nothing bounds
-	// the invocation count: at maxGPONameBytes a GPORef is roughly 313 bytes and
-	// an invocation without its array roughly 266, so an invocation at this cap
-	// costs about 20 KB, and Windows registers on the order of 57 extensions, for
-	// a two-pass worst case around 2.4 MB before compression.
-	maxGPOsPerCSE = 64
+	// It sits well below what a large domain can produce, deliberately. A GPORef
+	// carries no timing - no Windows event reports a duration for an individual
+	// GPO - so the fortieth reference costs the same bytes as the first while
+	// answering nothing the first has not already answered. What the cap drops is
+	// reported in GPOsOmitted rather than left to be inferred, which is what makes
+	// a truncated list distinguishable from a complete one of the same length.
+	maxGPOsPerCSE = 32
 
-	// Provider-supplied text is never emitted unbounded.
+	// Provider-supplied text is never emitted unbounded. Both are byte limits and
+	// both are sized for the worst UTF-8 case rather than the ASCII one: Active
+	// Directory permits a GPO displayName of up to 256 characters, and a byte limit
+	// set at the character limit would truncate ordinary names in non-Latin domains
+	// while never firing in Latin ones. 512 carries a name of the full 256
+	// characters in any two-byte script and about 170 in a three-byte one, which is
+	// far longer than display names actually run.
 	maxCSENameBytes = 128
-	maxGPONameBytes = 256
+	maxGPONameBytes = 512
 )
 
 // cseResult is the outcome of a CSE invocation, derived from which terminal
@@ -128,6 +150,14 @@ type CSEInvocation struct {
 	Async bool `json:"async,omitempty"`
 
 	GPOs []GPORef `json:"gpos,omitempty"`
+
+	// GPOsOmitted counts the distinct GPO references maxGPOsPerCSE dropped from
+	// GPOs, present only when the cap actually fired. Without it a capped array is
+	// indistinguishable from a machine that genuinely applies exactly that many
+	// objects to one extension, which makes an incomplete list unfalsifiable rather
+	// than merely incomplete. It costs nothing on the wire when nothing was
+	// dropped, which is the whole of the case for carrying it.
+	GPOsOmitted int `json:"gpos_omitted,omitempty"`
 }
 
 // GPORef identifies one Group Policy object that fed an invocation. It carries
@@ -143,11 +173,12 @@ type GPORef struct {
 
 // observedCSEStart is the decoded content of a 4016 extension-start event.
 type observedCSEStart struct {
-	guid       windows.GUID
-	guidString string
-	name       string
-	isAsync    bool
-	gpoIDs     []string
+	guid        windows.GUID
+	guidString  string
+	name        string
+	isAsync     bool
+	gpoIDs      []string
+	gposOmitted int
 }
 
 // observedCSEStop is the decoded content of a 5016/6016/7016 extension-stop
@@ -162,13 +193,14 @@ type observedCSEStop struct {
 // cseRecord is a completed invocation held until finalize, which is where its
 // scope is decided. It deliberately carries no scope of its own.
 type cseRecord struct {
-	cseID      string
-	name       string
-	start      time.Time
-	durationMs int64
-	result     cseResult
-	async      bool
-	gpoIDs     []string
+	cseID       string
+	name        string
+	start       time.Time
+	durationMs  int64
+	result      cseResult
+	async       bool
+	gpoIDs      []string
+	gposOmitted int
 }
 
 // openCSE is an invocation whose start was observed and which is awaiting a
@@ -270,11 +302,12 @@ func (a *gpAccumulator) startCSE(activityID windows.GUID, o observedCSEStart, ts
 	a.open[key] = &openCSE{
 		start: ts,
 		rec: cseRecord{
-			cseID:  o.guidString,
-			name:   truncateProviderText(o.name, maxCSENameBytes),
-			start:  ts,
-			async:  o.isAsync,
-			gpoIDs: o.gpoIDs,
+			cseID:       o.guidString,
+			name:        truncateProviderText(o.name, maxCSENameBytes),
+			start:       ts,
+			async:       o.isAsync,
+			gpoIDs:      o.gpoIDs,
+			gposOmitted: o.gposOmitted,
 		},
 	}
 }
@@ -375,14 +408,21 @@ func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64
 	out := make([]CSEInvocation, 0, len(records))
 	for _, r := range records {
 		out = append(out, CSEInvocation{
-			CSEID:      r.cseID,
-			CSEName:    r.name,
-			OffsetMs:   offsetOf(r.start),
-			DurationMs: r.durationMs,
-			Result:     r.result,
-			Async:      r.async,
-			GPOs:       a.gpoRefs(r.gpoIDs),
+			CSEID:       r.cseID,
+			CSEName:     r.name,
+			OffsetMs:    offsetOf(r.start),
+			DurationMs:  r.durationMs,
+			Result:      r.result,
+			Async:       r.async,
+			GPOs:        a.gpoRefs(r.gpoIDs),
+			GPOsOmitted: r.gposOmitted,
 		})
+	}
+
+	if len(out) > maxCSEInvocationsPerScope {
+		log.Warnf("Logon duration: %d Group Policy extension invocations in one pass exceeds the %d the payload carries, keeping the least healthy and the slowest",
+			len(out), maxCSEInvocationsPerScope)
+		out = retainMostRelevant(out)
 	}
 
 	// Chronological, with the extension GUID breaking ties so the order is
@@ -394,6 +434,30 @@ func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64
 		return out[i].CSEID < out[j].CSEID
 	})
 	return out
+}
+
+// retainMostRelevant cuts an implausibly long invocation list down to
+// maxCSEInvocationsPerScope, keeping what a reader would ask for first: every
+// outcome that was not a plain success, then the longest durations.
+//
+// Selection is by value and not by position because the caller orders the result
+// chronologically. Truncating that order instead would drop whichever extensions
+// happened to run late in the pass, which on a pass slow enough to reach this cap
+// is as likely as not to be the slow one the payload exists to identify.
+func retainMostRelevant(invocations []CSEInvocation) []CSEInvocation {
+	ranked := make([]CSEInvocation, len(invocations))
+	copy(ranked, invocations)
+	sort.SliceStable(ranked, func(i, j int) bool {
+		iOK, jOK := ranked[i].Result == cseResultSuccess, ranked[j].Result == cseResultSuccess
+		if iOK != jOK {
+			return jOK
+		}
+		if ranked[i].DurationMs != ranked[j].DurationMs {
+			return ranked[i].DurationMs > ranked[j].DurationMs
+		}
+		return ranked[i].CSEID < ranked[j].CSEID
+	})
+	return ranked[:maxCSEInvocationsPerScope]
 }
 
 // gpoRefs resolves an invocation's GPO references against the name lookup. It
@@ -437,56 +501,90 @@ var bracedGUIDPattern = regexp.MustCompile(
 // <Extensions>[{CSE GUID}]</Extensions> element in each of its entries, which
 // the scan would report as applicable GPOs. Not collecting 5312 at all is what
 // makes that structural rather than a rule to remember.
-func gpoRefsFromList(raw string) (ids []string, names map[string]string) {
+//
+// Both tiers walk the whole value rather than stopping at maxGPOsPerCSE, and the
+// input carries no size limit of its own. The parse is a single linear pass over
+// a string TDH has already materialized, so stopping early would save little; it
+// would cost the omitted count its meaning, since a reference cannot be known to
+// be new without having looked at the ones behind it. Rejecting an oversize value
+// outright would be worse still: it emits an invocation with no GPOs at all,
+// which reads as an extension that applied none - the precise opposite of the
+// truth.
+func gpoRefsFromList(raw string) (ids []string, names map[string]string, omitted int) {
 	if raw == "" {
-		return nil, nil
-	}
-	if len(raw) > maxGPOListBytes {
-		log.Debugf("Logon duration: ApplicableGPOList of %d bytes exceeds the parsable size", len(raw))
-		return nil, nil
+		return nil, nil, 0
 	}
 
-	complete := forEachGPOElement(raw, func(id, name string) {
-		before := len(ids)
-		ids = appendUniqueGPOID(ids, id)
-		// Only name an ID that was actually taken, which bounds the names by the
-		// same per-invocation cap.
-		if name == "" || len(ids) == before {
-			return
-		}
-		if names == nil {
-			names = make(map[string]string)
-		}
-		names[id] = name
-	})
-	if len(ids) > 0 && complete {
-		return ids, names
+	var refs gpoCollector
+	complete := forEachGPOElement(raw, refs.add)
+	if len(refs.ids) > 0 && complete {
+		return refs.ids, refs.names, refs.omitted
 	}
 
-	// Appending keeps document order, and appendUniqueGPOID drops what the walk
+	// Appending keeps document order, and the collector drops what the walk
 	// already found, so a partial walk contributes its names and the scan
 	// contributes the IDs it could not reach.
-	for _, match := range bracedGUIDPattern.FindAllString(raw, -1) {
-		if _, normalized, ok := normalizeGUID(match); ok {
-			ids = appendUniqueGPOID(ids, normalized)
+	//
+	// The scan advances match by match rather than calling FindAllString, which
+	// would materialize every match in the value before the cap could discard all
+	// but maxGPOsPerCSE of them.
+	for rest := raw; ; {
+		loc := bracedGUIDPattern.FindStringIndex(rest)
+		if loc == nil {
+			break
 		}
+		if _, normalized, ok := normalizeGUID(rest[loc[0]:loc[1]]); ok {
+			refs.add(normalized, "")
+		}
+		rest = rest[loc[1]:]
 	}
-	return ids, names
+	return refs.ids, refs.names, refs.omitted
 }
 
-// appendUniqueGPOID adds an ID unless it is empty, already present, or the
-// per-invocation bound has been reached. The list is short enough that a linear
-// scan beats maintaining a set.
-func appendUniqueGPOID(ids []string, id string) []string {
-	if id == "" || len(ids) >= maxGPOsPerCSE {
-		return ids
+// gpoCollector accumulates the GPO references of one invocation: the first
+// maxGPOsPerCSE distinct IDs in document order, the display names recovered
+// alongside them, and a count of the distinct references it had to leave behind.
+//
+// The seen set is what makes that count exact rather than an estimate of it. A
+// repeated GUID is not a loss and must not be counted as one, so establishing
+// that a reference beyond the cap is new means comparing it against every
+// reference already observed, not only against the ones that were kept. It is
+// transient, freed with the event, and strictly smaller than the property string
+// the caller already holds.
+type gpoCollector struct {
+	ids     []string
+	names   map[string]string
+	seen    map[string]struct{}
+	omitted int
+}
+
+// add records one reference. An empty ID is not a reference, a repeat is not a
+// loss, and only an ID that was kept is given a name - which is what bounds the
+// names by the same cap as the IDs.
+func (c *gpoCollector) add(id, name string) {
+	if id == "" {
+		return
 	}
-	for _, existing := range ids {
-		if existing == id {
-			return ids
-		}
+	if _, dup := c.seen[id]; dup {
+		return
 	}
-	return append(ids, id)
+	if c.seen == nil {
+		c.seen = make(map[string]struct{})
+	}
+	c.seen[id] = struct{}{}
+
+	if len(c.ids) >= maxGPOsPerCSE {
+		c.omitted++
+		return
+	}
+	c.ids = append(c.ids, id)
+	if name == "" {
+		return
+	}
+	if c.names == nil {
+		c.names = make(map[string]string)
+	}
+	c.names[id] = name
 }
 
 // gpoXML is the decoded body of one <GPO> element. The GUID lives in an
