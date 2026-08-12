@@ -10,6 +10,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -91,11 +92,12 @@ type engine struct {
 	trackCorrelationHistory bool
 
 	// Optional callbacks for direct telemetry emission.
-	onStorageSeriesEvicted func(reason string, count int)
-	onStorageCapacityHit   func()
-	onAdvanceSkipped       func(reason string)
-	onProcessingTime       func(detectorTag string, durationNs float64)
-	onDetectorEmission     func(detector, severity string)
+	onStorageSeriesEvicted  func(reason string, count int)
+	onStorageCapacityHit    func()
+	onAdvanceSkipped        func(reason string)
+	onProcessingTime        func(detectorTag string, durationNs float64)
+	onDetectorEmission      func(detector, severity string)
+	onLogExtractionDuration func(extractor string, duration time.Duration)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -313,8 +315,17 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	sourceTag := e.sourceTagForIngest(source)
 	view := &logView{obs: l}
 	for _, extractor := range e.extractors {
+		extractorName := extractor.Name()
+		var started time.Time
+		if e.onLogExtractionDuration != nil {
+			started = time.Now()
+		}
 		out := extractor.ProcessLog(view)
-		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
+		if e.onLogExtractionDuration != nil {
+			duration := time.Since(started)
+			e.onLogExtractionDuration(extractorName, duration)
+		}
+		e.removeEvictedMetricSeries(extractorName, out.EvictedMetricNames)
 		for _, m := range out.Metrics {
 			// Avoid copying m.Tags when sourceTag is already present: storage.Add
 			// performs its own deep copy on first-write of a series via
@@ -330,13 +341,13 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
 			tags = canonicalizeTags(tags)
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, tags)]; ok {
+				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractorName, m.Name, tags)]; ok {
 					continue
 				}
 			}
 			timestamp := l.timestampMs / 1000
 			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
-				if !e.logCounts.observe(extractor.Name(), m, timestamp, tags) {
+				if !e.logCounts.observe(extractorName, m, timestamp, tags) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)
@@ -345,7 +356,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.Add(extractor.Name(), m.Name, m.Value, timestamp, tags)
+			res := e.storage.Add(extractorName, m.Name, m.Value, timestamp, tags)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}

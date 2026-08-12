@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
@@ -36,7 +37,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordAdvanceSkipped("input")
 	tel.recordInputRateLimiterDropped("internal", "high")
 	tel.recordDetectorEmission("bocpd", "medium")
-	tel.recordLogExtractionDuration(time.Millisecond)
+	tel.recordLogExtractionDuration("log_pattern_extractor", time.Millisecond)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 }
 
@@ -53,7 +54,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordDetectorEmission("bocpd", "medium")
 	tel.recordDetectorEmission("bocpd", "medium")
 	tel.setLogPatternCount(3)
-	tel.recordLogExtractionDuration(time.Millisecond)
+	tel.recordLogExtractionDuration("log_pattern_extractor", time.Millisecond)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "kubelet"}).GetCounter().GetValue())
@@ -63,8 +64,34 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogsInputRateLimiterDropped, map[string]string{"source": "internal", "priority": "high"}).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryDetectorEmissions, map[string]string{"detector": "bocpd", "severity": "medium"}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
-	assert.Equal(t, uint64(1), observerMetric(t, telComp, telemetryLogExtractionProcessingDuration, nil).GetHistogram().GetSampleCount())
+	assert.Equal(t, uint64(1), observerMetric(t, telComp, telemetryLogExtractionProcessingDuration, map[string]string{"extractor": "log_pattern_extractor"}).GetHistogram().GetSampleCount())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
+}
+
+func TestEngineRecordsDefaultLogExtractorDurations(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	tel := newObserverTelemetry(telComp)
+	e := newEngine(engineConfig{
+		storage: newTimeSeriesStorage(),
+		extractors: []observerdef.LogMetricsExtractor{
+			NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
+			NewLogPatternExtractor(DefaultLogPatternExtractorConfig()),
+		},
+	})
+	e.onLogExtractionDuration = tel.recordLogExtractionDuration
+
+	e.IngestLog("logs", &logObs{
+		content:     "WARN GET /users/123 returned 500",
+		status:      "warn",
+		tags:        []string{"service:api"},
+		timestampMs: 1_000,
+	})
+
+	assert.Equal(t, uint64(1), observerMetric(t, telComp, telemetryLogExtractionProcessingDuration, map[string]string{"extractor": "log_metrics_extractor"}).GetHistogram().GetSampleCount())
+	assert.Equal(t, uint64(1), observerMetric(t, telComp, telemetryLogExtractionProcessingDuration, map[string]string{"extractor": "log_pattern_extractor"}).GetHistogram().GetSampleCount())
 }
 
 func observerMetric(t *testing.T, telemetryComp telemetry.Component, metricName string, wantLabels map[string]string) *dto.Metric {

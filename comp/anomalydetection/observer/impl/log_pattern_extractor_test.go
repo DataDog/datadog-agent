@@ -136,7 +136,7 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 	require.Empty(t, e.taggedClusterer.GetAllClusters(), "Reset must clear cluster state")
 }
 
-func TestLogPatternExtractorTelemetryTracksActivePatternsAndDuration(t *testing.T) {
+func TestLogPatternExtractorTelemetryTracksActivePatterns(t *testing.T) {
 	telComp := telemetryimpl.GetCompatComponent()
 	telComp.Reset()
 	t.Cleanup(telComp.Reset)
@@ -158,7 +158,6 @@ func TestLogPatternExtractorTelemetryTracksActivePatternsAndDuration(t *testing.
 	})
 
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
-	assert.Equal(t, uint64(2), observerMetric(t, telComp, telemetryLogExtractionProcessingDuration, nil).GetHistogram().GetSampleCount())
 
 	e.Reset()
 	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())

@@ -33,7 +33,7 @@ const (
 	telemetryLogsInputRateLimiterDropped     = "observer.logs.input_rate_limiter.dropped"     // Logs dropped by the observer ingress rate limiter.
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
 	telemetryDetectorEmissions               = "observer.detections.detector_emissions"       // Deduplicated detector emissions by score severity before correlation.
-	telemetryLogExtractionProcessingDuration = "observer.log_extraction.processing_duration"  // Duration of log pattern extraction in seconds.
+	telemetryLogExtractionProcessingDuration = "observer.log_extraction.processing_duration"  // Duration of each log extractor's ProcessLog call in seconds.
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
 	telemetryScorerSeverity                  = "observer.scorer.severity"                     // Current anomaly scorer severity level (0=Low,1=Medium,2=High).
 )
@@ -161,8 +161,8 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 		logExtractionTime: telemetryComp.NewHistogram(
 			"observer",
 			telemetryLogExtractionProcessingDuration,
-			nil,
-			"Duration in seconds of log pattern extraction",
+			[]string{"extractor"},
+			"Duration in seconds of each log extractor's ProcessLog call",
 			logExtractionDurationBuckets,
 		),
 		scorerEwma: telemetryComp.NewGauge(
@@ -261,8 +261,8 @@ func (t *observerTelemetry) recordDetectorEmission(detector, severity string) {
 	t.detectorEmissions.Add(1, detector, severity)
 }
 
-func (t *observerTelemetry) recordLogExtractionDuration(duration time.Duration) {
-	t.logExtractionTime.Observe(duration.Seconds())
+func (t *observerTelemetry) recordLogExtractionDuration(extractor string, duration time.Duration) {
+	t.logExtractionTime.Observe(duration.Seconds(), extractor)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {

@@ -188,11 +188,7 @@ func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	if e.telemetry != nil {
-		started := time.Now()
-		defer func() {
-			e.telemetry.setLogPatternCount(e.activePatternCount)
-			e.telemetry.recordLogExtractionDuration(time.Since(started))
-		}()
+		defer func() { e.telemetry.setLogPatternCount(e.activePatternCount) }()
 	}
 
 	logUnixSec := log.GetTimestampUnixMilli() / 1000

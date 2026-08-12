@@ -314,6 +314,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
 	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
+	eng.onLogExtractionDuration = obsTelemetry.recordLogExtractionDuration
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
