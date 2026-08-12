@@ -1,3 +1,8 @@
+# Prevent any CRLF/LF conversion by default, regardless of core.autocrlf setting.
+# Local setting of core.autocrlf can differ between machines and get in the way
+# of Bazel functionality that relies on hashing the contents of files.
+* -text
+
 # Set batch file line endings to CRLF so that they can be executed on Windows
 *.bat text eol=crlf
 *.cmd text eol=crlf
