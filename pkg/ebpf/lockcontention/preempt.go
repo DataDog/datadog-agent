@@ -5,11 +5,12 @@
 
 //go:build linux_bpf
 
-package ebpf
+package lockcontention
 
 import (
 	"fmt"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +26,7 @@ func EBPFPreemptCountSupported() bool {
 }
 
 func PreemptCountConstants() (map[string]uint64, error) {
-	preemptCountMissing, err := VerifyKernelFuncs("__preempt_count")
+	preemptCountMissing, err := ddebpf.VerifyKernelFuncs("__preempt_count")
 	if err != nil {
 		return nil, fmt.Errorf("error verifying kernel symbol: %w", err)
 	}

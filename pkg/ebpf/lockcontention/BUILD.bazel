@@ -1,0 +1,72 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+# gazelle:exclude types_linux_test.go
+
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+    visibility = ["//visibility:public"],
+)
+
+# keep
+dd_agent_go_test(
+    name = "types_linux_test",
+    srcs = ["types_linux_test.go"],
+    embed = [":lockcontention"],
+    gotags_sets = [["linux_bpf"]],
+    # keep
+    deps = [
+        "//pkg/ebpf/ebpftest:cgo_align",
+    ],
+)
+
+go_library(
+    name = "lockcontention",
+    srcs = [
+        "lockcontention.go",
+        "lockcontention_noop.go",
+        "preempt.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/lockcontention",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//link",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_ebpf_manager//tracefs",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)
+
+dd_agent_go_test(
+    name = "lockcontention_test",
+    srcs = ["lockcontention_test.go"],
+    embed = [":lockcontention"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/util/kernel",
+        "//pkg/util/testutil/flake",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//link",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_datadog_ebpf_manager//tracefs",
+        "@com_github_stretchr_testify//require",
+    ],
+)

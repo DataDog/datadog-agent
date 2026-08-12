@@ -5,7 +5,9 @@
 
 //go:build linux_bpf
 
-package ebpf
+// Package lockcontention provides a prometheus collector for eBPF lock
+// contention metrics.
+package lockcontention
 
 import (
 	"errors"
@@ -22,6 +24,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -250,7 +253,7 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 			continue
 		}
 
-		module, err := GetModuleFromMapID(mp.id)
+		module, err := ddebpf.GetModuleFromMapID(mp.id)
 		if err != nil {
 			module = "n/a"
 		}
@@ -302,7 +305,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			return err
 		}
 
-		if name, err = GetMapNameFromMapID(uint32(mapid)); err != nil {
+		if name, err = ddebpf.GetMapNameFromMapID(uint32(mapid)); err != nil {
 			if !trackAllResources {
 				if err := mp.Close(); err != nil {
 					return fmt.Errorf("failed to close map: %w", err)
@@ -320,7 +323,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	constants := make(map[string]uint64)
 	l.objects = new(bpfObjects)
 
-	kaddrs, err := GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
+	kaddrs, err := ddebpf.GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
 	if err != nil {
 		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 	}
@@ -331,7 +334,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 	var ranges uint32
 	var cpus uint32
-	if err := LoadCOREAsset("lock_contention.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+	if err := ddebpf.LoadCOREAsset("lock_contention.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %w", err)
@@ -511,11 +514,11 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	l.contention = make([]ContentionData, l.ranges)
 
 	// add name and module mappings
-	AddNameMappingsForMap(l.objects.MapAddrFd, "map_addr_fd", "lock-contention")
-	AddNameMappingsForMap(l.objects.Ranges, "ranges", "lock-contention")
-	AddNameMappingsForMap(l.objects.LockStats, "lock_stats", "lock-contention")
-	AddNameMappingsForProgram(l.objects.TpContentionBegin, "tracepoint__contention_begin", "lock-contention")
-	AddNameMappingsForProgram(l.objects.TpContentionEnd, "tracepoint__contention_end", "lock-contention")
+	ddebpf.AddNameMappingsForMap(l.objects.MapAddrFd, "map_addr_fd", "lock-contention")
+	ddebpf.AddNameMappingsForMap(l.objects.Ranges, "ranges", "lock-contention")
+	ddebpf.AddNameMappingsForMap(l.objects.LockStats, "lock_stats", "lock-contention")
+	ddebpf.AddNameMappingsForProgram(l.objects.TpContentionBegin, "tracepoint__contention_begin", "lock-contention")
+	ddebpf.AddNameMappingsForProgram(l.objects.TpContentionEnd, "tracepoint__contention_end", "lock-contention")
 
 	log.Infof("lock contention collector initialized")
 	l.initialized = true

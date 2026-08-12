@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package ebpf
+package lockcontention
 
 import (
 	"net"
@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -166,16 +167,12 @@ func TestLockRanges(t *testing.T) {
 			t.Cleanup(func() {
 				m.Close()
 				l.Close()
-				ResetAllMappings()
+				ddebpf.ResetAllMappings()
 			})
 
-			mInfo, err := m.Info()
-			require.NoError(t, err)
+			ddebpf.AddNameMappingsForMap(m, spec.Name, "lockcontention_test")
 
-			id, _ := mInfo.ID()
-			mapNameMapping[uint32(id)] = spec.Name
-
-			err = l.Initialize(false)
+			err := l.Initialize(false)
 			require.NoError(t, err)
 
 			require.Equal(t, entries(l.objects.MapAddrFd), c.lockCount)
@@ -227,7 +224,7 @@ func tracepointExists(group, name string) bool {
 func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
 	var depths *ebpf.Map
 
-	err := LoadCOREAsset("preempt_test.o", func(bc bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset("preempt_test.o", func(bc bytecode.AssetReader, opts manager.Options) error {
 		spec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		require.NoError(t, err)
 
