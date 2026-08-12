@@ -53,6 +53,10 @@ anomaly_detection:
   anomaly_scorer:
     dry_run:
       enabled: true
+    # CUSUM produces a single anomalous series in this test. Keep the scorer
+    # thresholds below its first EWMA update so the report path sees High.
+    low_threshold: 0.000001
+    high_threshold: 0.00001
   metrics:
     enabled: true
   logs:
