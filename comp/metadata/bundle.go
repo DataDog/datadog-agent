@@ -20,6 +20,7 @@ import (
 	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	securityagent "github.com/DataDog/datadog-agent/comp/metadata/securityagent/fx"
 	systemprobe "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/fx"
+	workloadbalancingmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/workloadbalancing/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -40,6 +41,7 @@ func Bundle() fxutil.BundleOptions {
 		systemprobe.Module(),
 		securityagent.Module(),
 		haagentmetadatafx.Module(),
+		workloadbalancingmetadatafx.Module(),
 	)
 }
 

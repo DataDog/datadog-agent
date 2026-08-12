@@ -1,0 +1,11 @@
+{{ if .enabled -}}
+<div class="stat">
+  <span class="stat_title">Workload Balancing Metadata</span>
+  <span class="stat_data">
+    enabled: {{ .workload_balancing_metadata.Enabled }}<br>
+    {{- range $group, $state := .workload_balancing_metadata.Groups }}
+    {{ $group }}: {{ $state }}<br>
+    {{- end }}
+  </span>
+</div>
+{{- end }}

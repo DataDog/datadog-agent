@@ -131,6 +131,7 @@ go_library(
         "//comp/metadata/runner/def",
         "//comp/metadata/securityagent/def",
         "//comp/metadata/systemprobe/def",
+        "//comp/metadata/workloadbalancing/def",
         "//comp/metriclookback/def",
         "//comp/metriclookback/fx",
         "//comp/ndmtmp",

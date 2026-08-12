@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "status.go",
+        "workloadbalancing.go",
+        "workloadbalancingimpl.go",
+    ],
+    embedsrcs = [
+        "status_templates/inventory.tmpl",
+        "status_templates/inventoryHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/workloadbalancing/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/def",
+        "//comp/metadata/workloadbalancing/def",
+        "//comp/workloadbalancing/def",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/http",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["workloadbalancingimpl_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/mock",
+        "//comp/workloadbalancing/def",
+        "//comp/workloadbalancing/mock",
+        "//pkg/serializer/mocks",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -21,6 +21,7 @@ go_library(
         "//comp/metadata/runner/fx",
         "//comp/metadata/securityagent/fx",
         "//comp/metadata/systemprobe/fx",
+        "//comp/metadata/workloadbalancing/fx",
         "//pkg/util/fxutil",
     ],
 )

@@ -62,8 +62,10 @@ import (
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
 	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
+	workloadbalancingmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/workloadbalancing/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -167,6 +169,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostfx.Module(),
 				inventoryhostfx.Module(),
 				haagentmetadatafx.Module(),
+				// workloadbalancingmetadatafx needs the component it reports on
+				workloadbalancingfx.Module(),
+				workloadbalancingmetadatafx.Module(),
 				resourcesfx.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
 				// the backend a nil will work.

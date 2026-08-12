@@ -155,6 +155,7 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
+	workloadbalancingmetadata "github.com/DataDog/datadog-agent/comp/metadata/workloadbalancing/def"
 	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
@@ -298,6 +299,7 @@ func run(log log.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ haagentmetadata.Component,
+	_ workloadbalancingmetadata.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
