@@ -11,6 +11,8 @@ use crate::grpc;
 use crate::ordering;
 use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
+#[cfg(windows)]
+use crate::process::OrphanedDeferredExitCleanup;
 use crate::shutdown;
 use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
@@ -34,6 +36,9 @@ pub struct ProcessManager {
     startup_order: Arc<RwLock<Vec<usize>>>,
     config_loader: Arc<dyn ConfigLoader>,
     uuid_gen: Arc<dyn UuidGenerator>,
+    /// Profiles deferred by removed processes until a matching late exit arrives.
+    #[cfg(windows)]
+    orphaned_deferred_exit_cleanups: Arc<RwLock<Vec<OrphanedDeferredExitCleanup>>>,
 }
 
 impl ProcessManager {
@@ -52,6 +57,8 @@ impl ProcessManager {
             startup_order: Arc::new(RwLock::new(startup_result.order)),
             config_loader,
             uuid_gen,
+            #[cfg(windows)]
+            orphaned_deferred_exit_cleanups: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -146,6 +153,19 @@ impl ProcessManager {
     }
 
     pub(crate) async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::Sender<String>) {
+        #[cfg(windows)]
+        if self
+            .complete_orphaned_late_exit_cleanup(&event.name, event.pid)
+            .await
+        {
+            debug!(
+                "[{}] released orphaned deferred Windows profile after late exit (pid {})",
+                event.name,
+                event.pid
+            );
+            return;
+        }
+
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);
@@ -334,6 +354,8 @@ impl ProcessManager {
         for proc in &mut stopped_procs {
             proc.wait_for_stop().await;
         }
+        #[cfg(windows)]
+        self.adopt_deferred_exit_cleanups(&mut stopped_procs).await;
 
         let mut added = Vec::new();
         let mut modified = Vec::new();
@@ -419,6 +441,27 @@ impl ProcessManager {
             .collect();
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
+    }
+
+    #[cfg(windows)]
+    async fn adopt_deferred_exit_cleanups(&self, procs: &mut [ManagedProcess]) {
+        let mut orphaned = self.orphaned_deferred_exit_cleanups.write().await;
+        for proc in procs {
+            orphaned.extend(proc.drain_deferred_exit_cleanups(proc.name()));
+        }
+    }
+
+    #[cfg(windows)]
+    async fn complete_orphaned_late_exit_cleanup(&self, name: &str, pid: u32) -> bool {
+        let mut orphaned = self.orphaned_deferred_exit_cleanups.write().await;
+        let Some(idx) = orphaned
+            .iter()
+            .position(|entry| entry.name == name && entry.pid == pid)
+        else {
+            return false;
+        };
+        orphaned.remove(idx);
+        true
     }
 }
 
