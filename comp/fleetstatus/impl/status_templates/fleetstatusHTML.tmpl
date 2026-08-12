@@ -1,0 +1,36 @@
+{{- with .fleetAutomationStatus }}
+<div class="stat">
+  <span class="stat_title">Fleet Status</span>
+  <span class="stat_data">
+    Fleet Management is {{ if .FleetAutomationEnabled }}enabled{{ else }}disabled{{ end }}<br>
+    Remote Management Status: {{ if .RemoteManagementEnabled }}Enabled{{ else }}Disabled{{ end }}<br>
+    Datadog Installer Status: {{ if .InstallerRunning }}Running{{ else }}Not running{{ end }}<br>
+    Installer API: {{ if .InstallerStatus.Reachable }}Reachable{{ else }}Unreachable{{ end }}<br>
+    {{- with .InstallerStatus.Error }}
+    Error: {{ . }}<br>
+    {{- end }}
+  </span>
+</div>
+{{- range $package := .InstallerStatus.Packages }}
+<div class="stat">
+  <span class="stat_title">Installer Package: {{ .Package }}</span>
+  <span class="stat_data">
+    {{- with .StableVersion }}Stable version: {{ . }}<br>{{ end }}
+    {{- with .ExperimentVersion }}Experiment version: {{ . }}<br>{{ end }}
+    {{- with .RunningVersion }}Running version: {{ . }}<br>{{ end }}
+    {{- with .StableConfigVersion }}Stable config version: {{ . }}<br>{{ end }}
+    {{- with .ExperimentConfigVersion }}Experiment config version: {{ . }}<br>{{ end }}
+    {{- with .RunningConfigVersion }}Running config version: {{ . }}<br>{{ end }}
+    {{- with .Task }}
+    Task state: {{ .State }}<br>
+    {{- with .Id }}Task ID: {{ . }}<br>{{ end }}
+    Task completion: {{ printf "%g" $package.Completion }}<br>
+    {{- with .Error }}
+    Task error code: {{ .Code }}<br>
+    Task error message: {{ .Message }}<br>
+    {{- end }}
+    {{- end }}
+  </span>
+</div>
+{{- end }}
+{{- end }}

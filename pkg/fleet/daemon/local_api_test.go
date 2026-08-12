@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	localapiclient "github.com/DataDog/datadog-agent/comp/updater/localapiclient/def"
+	localapiclientimpl "github.com/DataDog/datadog-agent/comp/updater/localapiclient/impl"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -104,7 +106,7 @@ func (m *testDaemon) SetConfigCatalog(configs map[string]installerConfig) {
 type testLocalAPI struct {
 	i *testDaemon
 	s *localAPIImpl
-	c *localAPIClientImpl
+	c localapiclient.Component
 }
 
 func newTestLocalAPI(t *testing.T) *testLocalAPI {
@@ -117,10 +119,7 @@ func newTestLocalAPI(t *testing.T) *testLocalAPI {
 		daemon:   daemon,
 	}
 	apiServer.Start(context.Background())
-	apiClient := &localAPIClientImpl{
-		client: &http.Client{},
-		addr:   l.Addr().String(),
-	}
+	apiClient := localapiclientimpl.NewClient(&http.Client{}, l.Addr().String())
 	return &testLocalAPI{daemon, apiServer, apiClient}
 }
 

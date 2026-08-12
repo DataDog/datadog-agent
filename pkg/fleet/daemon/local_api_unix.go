@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
@@ -22,7 +23,7 @@ const (
 )
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
+func NewLocalAPI(daemon Daemon) (localapi.Component, error) {
 	socketPath := filepath.Join(paths.RunPath, socketName)
 	err := os.RemoveAll(socketPath)
 	if err != nil {
@@ -40,18 +41,4 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 		listener: listener,
 		daemon:   daemon,
 	}, nil
-}
-
-// NewLocalAPIClient returns a new LocalAPIClient.
-func NewLocalAPIClient() LocalAPIClient {
-	return &localAPIClientImpl{
-		addr: "daemon", // this has no meaning when using a unix socket
-		client: &http.Client{
-			Transport: &http.Transport{
-				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("unix", filepath.Join(paths.RunPath, socketName))
-				},
-			},
-		},
-	}
 }

@@ -1,12 +1,34 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["localapiclient.go"],
+    srcs = [
+        "localapiclient.go",
+        "localapiclient_unix.go",
+        "localapiclient_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/updater/localapiclient/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/updater/localapi/def",
         "//comp/updater/localapiclient/def",
-        "//pkg/fleet/daemon",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": ["//pkg/fleet/installer/paths"],
+    }),
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["localapiclient_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/updater/localapi/def",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//require",
     ],
 )
