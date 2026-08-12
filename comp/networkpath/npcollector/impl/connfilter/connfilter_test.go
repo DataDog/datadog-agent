@@ -310,6 +310,19 @@ filters:
 			expectedCustomFilterCount: 0,
 		},
 		{
+			name:   "default datadog intake ELB CNAME excluded",
+			config: ``,
+			expectedMatches: []expectedMatch{
+				// Datadog intake ELBs CNAME'd from *.datadoghq.com, any region.
+				{domain: "l4-metrics-agent-s0-7c551d28c9ca34fc.elb.us-east-1.amazonaws.com", shouldMatch: false},
+				{domain: "l4-metrics-agent-s1-56401ca284db905a.elb.eu-west-1.amazonaws.com", shouldMatch: false},
+				// Customer-owned ELBs must still be tested.
+				{domain: "my-app-lb-1234567890.elb.us-east-1.amazonaws.com", shouldMatch: true},
+				{domain: "l4-metrics-agent.example.com", shouldMatch: true},
+			},
+			expectedCustomFilterCount: 0,
+		},
+		{
 			name: "include all domain",
 			config: `
 filters:
@@ -461,4 +474,85 @@ func TestEvaluateReturnsWinningRuleTestConfigID(t *testing.T) {
 
 	_, _, tags = filter.EvaluateWithTags("excluded.example.com", netip.Addr{})
 	assert.Empty(t, tags, "excluded connections never produce tagged payloads")
+}
+
+func TestEvaluateDomains(t *testing.T) {
+	ddName := "7-81-3-app.agent.datadoghq.com"
+	elbName := "l4-metrics-agent-s0-7c551d28c9ca34fc.elb.us-east-1.amazonaws.com"
+	otherELB := "my-app-lb-1234567890.elb.us-east-1.amazonaws.com"
+
+	tests := []struct {
+		name          string
+		config        string
+		domains       []string
+		wantIncluded  bool
+		wantHostnames []string // any of these is an acceptable selection
+	}{
+		{
+			name:         "datadoghq name alongside ELB name is excluded (datadoghq first)",
+			domains:      []string{ddName, elbName},
+			wantIncluded: false,
+		},
+		{
+			name:         "datadoghq name alongside ELB name is excluded (ELB first)",
+			domains:      []string{elbName, ddName},
+			wantIncluded: false,
+		},
+		{
+			name:         "ELB name alone is excluded by default intake filter",
+			domains:      []string{elbName},
+			wantIncluded: false,
+		},
+		{
+			name:          "unrelated names are included",
+			domains:       []string{"api.example.com", otherELB},
+			wantIncluded:  true,
+			wantHostnames: []string{"api.example.com"},
+		},
+		{
+			name: "customer include re-enables a defaulted Datadog domain",
+			config: `
+filters:
+  - match_domain: '*.datadoghq.com'
+    type: include
+`,
+			domains:       []string{ddName, "api.example.com"},
+			wantIncluded:  true,
+			wantHostnames: []string{ddName, "api.example.com"},
+		},
+		{
+			name:         "no domains is excluded",
+			domains:      nil,
+			wantIncluded: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			connFilter, err := getConnFilter(t, tt.config, "", false)
+			require.NoError(t, err)
+
+			included, hostname, _, _ := connFilter.EvaluateDomains(tt.domains, netip.Addr{})
+			assert.Equal(t, tt.wantIncluded, included)
+			if tt.wantIncluded && len(tt.wantHostnames) > 0 {
+				assert.Contains(t, tt.wantHostnames, hostname)
+			}
+		})
+	}
+}
+
+func TestEvaluateDomainsPrefersIncludeMatchedName(t *testing.T) {
+	// An RC include rule marks its name as the preferred path test hostname,
+	// even when it is not the first name in the list.
+	filter, errs := NewConnFilter([]Config{
+		{Type: FilterTypeInclude, MatchDomain: "*.example.com", TestConfigID: "remote-a", Tags: []string{"team:payments"}},
+	}, "", false)
+	require.Empty(t, errs)
+
+	included, hostname, testConfigID, tags := filter.EvaluateDomains(
+		[]string{"host.other.test", "host.example.com"}, netip.Addr{})
+	assert.True(t, included)
+	assert.Equal(t, "host.example.com", hostname)
+	assert.Equal(t, "remote-a", testConfigID)
+	assert.Equal(t, []string{"team:payments"}, tags)
 }

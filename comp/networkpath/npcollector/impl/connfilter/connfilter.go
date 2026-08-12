@@ -27,6 +27,17 @@ type Filter struct {
 	Tags         []string
 }
 
+// matches reports whether the filter matches the given domain and/or IP.
+func (filter *Filter) matches(domain string, ip netip.Addr) bool {
+	if filter.matchDomain != nil && filter.matchDomain.MatchString(domain) {
+		return true
+	}
+	if filter.matchIPCidr.IsValid() && ip.IsValid() && filter.matchIPCidr.Contains(ip) {
+		return true
+	}
+	return false
+}
+
 // ConnFilter class
 type ConnFilter struct {
 	filters []Filter
@@ -115,18 +126,7 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 		isIncluded = false
 	}
 	for _, filter := range f.filters {
-		matched := false
-		if filter.matchDomain != nil {
-			if filter.matchDomain.MatchString(domain) {
-				matched = true
-			}
-		}
-		if filter.matchIPCidr.IsValid() && ip.IsValid() {
-			if filter.matchIPCidr.Contains(ip) {
-				matched = true
-			}
-		}
-		if matched {
+		if filter.matches(domain, ip) {
 			testConfigID = filter.TestConfigID
 			tags = filter.Tags
 			if filter.Type == FilterTypeExclude {
@@ -140,4 +140,59 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 		return false, "", nil
 	}
 	return true, testConfigID, tags
+}
+
+// EvaluateDomains evaluates the filter across every DNS name mapped to a
+// destination IP, rather than a single pre-selected name. It exists because a
+// destination IP can be reverse-resolved to more than one name (e.g. a Datadog
+// intake endpoint CNAME'd to an AWS ELB, where both the datadoghq.com name and
+// the ELB name are cached for the same IP). Evaluating only the first name lets
+// Datadog infrastructure slip past the default excludes depending on cache
+// ordering.
+//
+// Semantics:
+//   - Every name is evaluated through the full filter chain. Because the chain
+//     is last-match-wins, a customer include rule still overrides a default
+//     exclude for a given name — customers can re-enable Datadog domains.
+//   - The connection is excluded if any name evaluates to excluded. This is what
+//     closes the CNAME gap: a name that resolves to Datadog intake excludes the
+//     connection even when another cached name for the same IP does not.
+//   - When included, the returned hostname is the preferred name for the path
+//     test: a name admitted by an include rule if any, else the first included
+//     name.
+func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, string, string, []string) {
+	if len(domains) == 0 {
+		domains = []string{""}
+	}
+
+	firstIncluded := -1
+	includeMatched := -1
+	var testConfigID string
+	var tags []string
+	for i, domain := range domains {
+		included, id, t := f.EvaluateWithTags(domain, ip)
+		if !included {
+			// Any excluded name excludes the whole connection. A customer
+			// include rule flips a name back to included (last-match-wins in
+			// EvaluateWithTags), which is how defaults are overridden.
+			return false, "", "", nil
+		}
+		if firstIncluded == -1 {
+			firstIncluded, testConfigID, tags = i, id, t
+		}
+		// A non-empty TestConfigID means an RC include rule admitted this name;
+		// prefer it as the path test hostname.
+		if id != "" && includeMatched == -1 {
+			includeMatched, testConfigID, tags = i, id, t
+		}
+	}
+
+	if firstIncluded == -1 {
+		return false, "", "", nil
+	}
+	hostname := domains[firstIncluded]
+	if includeMatched != -1 {
+		hostname = domains[includeMatched]
+	}
+	return true, hostname, testConfigID, tags
 }
