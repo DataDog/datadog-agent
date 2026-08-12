@@ -113,10 +113,10 @@ pub struct ManagedProcess {
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
-    /// Profile deferred from a prior generation when `mark_stopped` gave up waiting
-    /// for exit; released when the matching late `ExitEvent` arrives.
+    /// Profiles deferred from prior generations when `mark_stopped` gave up waiting
+    /// for exit; each entry is released when its matching late `ExitEvent` arrives.
     #[cfg(windows)]
-    deferred_exit_cleanup: Option<DeferredExitCleanup>,
+    deferred_exit_cleanups: Vec<DeferredExitCleanup>,
 }
 
 impl ManagedProcess {
@@ -151,7 +151,7 @@ impl ManagedProcess {
             #[cfg(windows)]
             user_profile: None,
             #[cfg(windows)]
-            deferred_exit_cleanup: None,
+            deferred_exit_cleanups: Vec::new(),
         }
     }
 
@@ -205,13 +205,14 @@ impl ManagedProcess {
     /// generation's job/profile if the process was respawned in the meantime.
     #[cfg(windows)]
     pub(crate) fn complete_late_exit_cleanup(&mut self, pid: u32) -> bool {
-        let Some(deferred) = &self.deferred_exit_cleanup else {
+        let Some(idx) = self
+            .deferred_exit_cleanups
+            .iter()
+            .position(|deferred| deferred.pid == pid)
+        else {
             return false;
         };
-        if deferred.pid != pid {
-            return false;
-        }
-        self.deferred_exit_cleanup = None;
+        self.deferred_exit_cleanups.remove(idx);
         true
     }
 
@@ -547,7 +548,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         if let Some(pid) = self.pid {
             if let Some(profile) = self.user_profile.take() {
-                self.deferred_exit_cleanup = Some(DeferredExitCleanup {
+                self.deferred_exit_cleanups.push(DeferredExitCleanup {
                     pid,
                     user_profile: profile,
                 });
