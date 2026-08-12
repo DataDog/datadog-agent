@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
@@ -69,14 +70,78 @@ const (
 type ProcessKillerLinux struct {
 	killFunc       func(pid, sig uint32) error
 	cgroupResolver *cgroup.Resolver
+	// cgroupKiller is nil when the host can't kill cgroups in a single operation, in which case
+	// processes are killed one by one.
+	cgroupKiller *cgroupKiller
 }
 
 // NewProcessKillerOS returns a ProcessKillerOS
 func NewProcessKillerOS(killFunc func(pid, sig uint32) error, cgroupResolver *cgroup.Resolver) ProcessKillerOS {
+	// Without a cgroup resolver there is no cgroup to resolve a kill scope to, so don't pay the
+	// cost of looking up the cgroup mount points.
+	var cgroupKiller *cgroupKiller
+	if cgroupResolver != nil {
+		var err error
+		if cgroupKiller, err = newCgroupKiller(); err != nil {
+			seclog.Infof("cgroups will be killed process by process: %s", err)
+		}
+	}
+
 	return &ProcessKillerLinux{
 		killFunc:       killFunc,
 		cgroupResolver: cgroupResolver,
+		cgroupKiller:   cgroupKiller,
 	}
+}
+
+// KillCgroup kills every process of the target cgroup, and of its descendant cgroups, at once
+func (p *ProcessKillerLinux) KillCgroup(target cgroupKillTarget) error {
+	if p.cgroupKiller == nil {
+		return errCgroupKillUnavailable
+	}
+	return p.cgroupKiller.kill(target)
+}
+
+// getCgroupKillTarget returns the cgroup to kill in a single operation for the given scope
+func (p *ProcessKillerLinux) getCgroupKillTarget(scope string, entry *model.ProcessCacheEntry) (cgroupKillTarget, bool) {
+	if p.cgroupKiller == nil || (scope != "container" && scope != "cgroup") {
+		return cgroupKillTarget{}, false
+	}
+
+	cacheEntry, err := p.getCgroupCacheEntry(entry)
+	if err != nil {
+		return cgroupKillTarget{}, false
+	}
+
+	target := cgroupKillTarget{
+		id:    cacheEntry.GetCGroupID(),
+		inode: cacheEntry.GetCGroupInode(),
+	}
+	if target.id == "" || target.inode == 0 {
+		return cgroupKillTarget{}, false
+	}
+	return target, true
+}
+
+// getCgroupCacheEntry returns the cgroup the given process belongs to
+func (p *ProcessKillerLinux) getCgroupCacheEntry(entry *model.ProcessCacheEntry) (*cgroupModel.CacheEntry, error) {
+	if p.cgroupResolver == nil {
+		return nil, errors.New("no cgroup resolver")
+	}
+
+	if !entry.ContainerContext.IsNull() {
+		cacheEntry := p.cgroupResolver.GetCacheEntryContainerID(entry.ContainerContext.ContainerID)
+		if cacheEntry == nil {
+			return nil, errors.New("container not found")
+		}
+		return cacheEntry, nil
+	}
+
+	cacheEntry := p.cgroupResolver.GetCacheEntryByCgroupID(entry.CGroup.CGroupID)
+	if cacheEntry == nil {
+		return nil, errors.New("cgroup not found")
+	}
+	return cacheEntry, nil
 }
 
 // Kill tries to kill from userspace
@@ -109,17 +174,9 @@ func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *
 
 		// Use the CGroupResolver to get all PIDs of the container
 		if p.cgroupResolver != nil {
-			var cacheEntry *cgroupModel.CacheEntry
-			if !entry.ContainerContext.IsNull() {
-				cacheEntry = p.cgroupResolver.GetCacheEntryContainerID(entry.ContainerContext.ContainerID)
-				if cacheEntry == nil {
-					return pcs, errors.New("container not found")
-				}
-			} else {
-				cacheEntry = p.cgroupResolver.GetCacheEntryByCgroupID(entry.CGroup.CGroupID)
-				if cacheEntry == nil {
-					return pcs, errors.New("cgroup not found")
-				}
+			cacheEntry, err := p.getCgroupCacheEntry(entry)
+			if err != nil {
+				return pcs, err
 			}
 
 			for _, pid := range cacheEntry.GetPIDs() {

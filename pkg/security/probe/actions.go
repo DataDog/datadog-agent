@@ -66,6 +66,7 @@ type KillActionReport struct {
 	// internal
 	Pid              uint32
 	pendingKills     []killContext
+	cgroupTarget     cgroupKillTarget // set when the whole cgroup can be killed in one operation
 	resolved         bool
 	rule             *rules.Rule
 	containerContext RemediationContainerContext // This is an internal field needed for remediation status events
