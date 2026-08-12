@@ -290,6 +290,13 @@ impl ManagedProcess {
         true
     }
 
+    #[cfg(windows)]
+    pub(crate) fn has_deferred_job_drain(&self, pid: u32) -> bool {
+        self.deferred_exit_cleanups
+            .iter()
+            .any(|entry| entry.pid == pid && entry.job_object.is_some())
+    }
+
     /// Release a deferred Windows profile when a detached watcher reports exit after
     /// `mark_stopped` already cleared the live PID. Does not touch the current
     /// generation's job/profile if the process was respawned in the meantime.
