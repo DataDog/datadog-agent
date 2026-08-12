@@ -20,6 +20,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/security/darwin/eslogger",
@@ -28,6 +29,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/security/darwin/eslogger",
@@ -49,6 +51,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/security/darwin/eslogger",
@@ -57,6 +60,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/security/darwin/eslogger",
@@ -65,6 +69,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/security/darwin/eslogger",
@@ -86,6 +91,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/security/darwin/eslogger",
@@ -94,6 +100,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/security/darwin/eslogger",
@@ -102,6 +109,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/security/darwin/eslogger",
@@ -110,6 +118,7 @@ go_library(
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/rules",
+            "//pkg/util/log",
         ],
         "//conditions:default": [],
     }),

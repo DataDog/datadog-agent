@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -127,6 +129,8 @@ func (c *Collector) Run(ctx context.Context) error {
 			continue
 		}
 
+		c.traceEvent(event)
+
 		c.recorder.Reset()
 		c.ruleSet.Evaluate(event)
 
@@ -137,9 +141,19 @@ func (c *Collector) Run(ctx context.Context) error {
 				continue
 			}
 
+			// The rule id has to travel as a TAG, not just in the RuleID field.
+			// DirectEventMsgSender forwards msg.Tags to the log origin, and that is
+			// what surfaces as @agent.rule_id in the backend -- which is in turn
+			// what a Workload Protection detection rule matches on. Without this
+			// the agent event arrives and renders, but no signal can ever be built
+			// from it. pkg/security/module/server.go does the same thing on Linux.
+			tags := []string{"rule_id:" + match.RuleID}
+			tags = append(tags, match.Event.GetTags()...)
+
 			c.cfg.Sender.Send(&api.SecurityEventMessage{
 				RuleID:    match.RuleID,
 				Data:      raw,
+				Tags:      tags,
 				Service:   "runtime-security-agent",
 				Hostname:  c.cfg.Hostname,
 				Timestamp: timestamppb.New(time.Now()),
@@ -152,7 +166,61 @@ func (c *Collector) Run(ctx context.Context) error {
 
 	c.logSummary(decoder.Stats(), runner.Stderr())
 
-	return runner.Wait()
+	// Cancelling the context is how the collector shuts down, and it kills
+	// eslogger, so Wait reports "signal: killed". That is a clean stop, not a
+	// failure, and reporting it as one made the driver exit non-zero on a normal
+	// Ctrl-C.
+	err = runner.Wait()
+	if ctx.Err() != nil {
+		return nil
+	}
+	return err
+}
+
+// traceEvent logs the exact values the rule engine will match on: the event's
+// own file name and its ancestor lineage. Without this, a rule that does not
+// fire is indistinguishable from an event that never arrived, and the difference
+// matters -- for interpreted entry points Endpoint Security reports the
+// interpreter as the executable, not the script.
+//
+// Guarded on the log level because building the lineage string allocates per
+// event, and exec volume on a laptop is high.
+func (c *Collector) traceEvent(event *model.Event) {
+	if !log.ShouldLog(log.TraceLvl) {
+		return
+	}
+
+	eventType := event.GetEventType()
+	if eventType != model.ExecEventType && eventType != model.ForkEventType {
+		return
+	}
+
+	var lineage []string
+	for entry := event.ProcessCacheEntry; entry != nil; entry = entry.Ancestor {
+		name := entry.Process.FileEvent.BasenameStr
+		if name == "" {
+			name = "<none>"
+		}
+		lineage = append(lineage, fmt.Sprintf("%s(%d)", name, entry.Process.Pid))
+		if len(lineage) > 12 {
+			lineage = append(lineage, "...")
+			break
+		}
+	}
+
+	// argv matters here: when the executable is an interpreter, the script path
+	// appears in the arguments rather than in file.path.
+	argv := event.FieldHandlers.ResolveProcessArgvScrubbed(event, &event.ProcessContext.Process)
+
+	log.Tracef("%s pid=%d file.name=%q file.path=%q argv0=%q argv=%v lineage=%s",
+		eventType,
+		event.PIDContext.Pid,
+		event.ProcessContext.Process.FileEvent.BasenameStr,
+		event.ProcessContext.Process.FileEvent.PathnameStr,
+		event.ProcessContext.Process.Argv0,
+		argv,
+		strings.Join(lineage, " <- "),
+	)
 }
 
 // logSummary reports what the run saw. The counters matter as much as the events:

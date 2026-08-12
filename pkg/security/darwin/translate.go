@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Translator converts Endpoint Security messages into SECL events.
@@ -125,6 +126,20 @@ func (t *Translator) Translate(m *eslogger.Message) (*model.Event, error) {
 func (t *Translator) translateExec(body *eslogger.ExecEvent, ts time.Time) *model.Event {
 	target := body.Target
 	pid := target.AuditToken.PID
+
+	// Diagnostic only, pending a decision on how to map interpreted entry points.
+	// Endpoint Security reports the interpreter as target.executable for a shebang
+	// script, so a script named npm appears as "sh"; SECL's model is the other way
+	// round (exec.file is the script, exec.interpreter.file the interpreter). This
+	// records whether ES gives us the script path to bridge that gap.
+	if log.ShouldLog(log.TraceLvl) {
+		scriptPath := "<nil>"
+		if body.Script != nil {
+			scriptPath = body.Script.Path
+		}
+		log.Tracef("exec pid=%d executable=%q script=%q dyld_exec_path=%q",
+			pid, target.Path(), scriptPath, body.DyldExecPath)
+	}
 
 	if t.resolver.Resolve(key(pid)) == nil {
 		// No entry for this pid means we never saw the fork: either it was
