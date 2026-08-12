@@ -19,12 +19,14 @@ import (
 // between runtime.Callers and the user call site.
 const stackSearchBuf = MaxStackFrames + 16
 
-// stackPCsAttrKey is the slog attribute key used by SyncCapture to carry
+// stackPCsCtxKey is the context key used by SyncCapture to carry
 // stack PCs captured in the emitting goroutine across an async handler
-// boundary. Handler.Handle reads this attr before falling back to
+// boundary. Handler.Handle reads this value before falling back to
 // runtime.Callers so full-stack dedup is preserved even when the handler
 // runs in an async worker goroutine.
-const stackPCsAttrKey = "errortracking.pcs"
+const stackPCsCtxKey stackPCsAttrTy = "errortracking.pcs"
+
+type stackPCsAttrTy string
 
 var _ slog.Handler = (*Handler)(nil)
 
@@ -119,7 +121,7 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 // bouncer-key-is-a-hash-of-the-full-stack choice means two distinct
 // stacks reaching the same terminal function each get their own dedup
 // window.
-func (h *Handler) Handle(_ context.Context, r slog.Record) error {
+func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	if r.Level < slog.LevelError {
 		return nil
 	}
@@ -139,15 +141,9 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	// is NOT behind handlers.NewAsync or any other async boundary).
 	var pcs [MaxStackFrames]uintptr
 	var pcsLen int
-	r.Attrs(func(a slog.Attr) bool {
-		if a.Key == stackPCsAttrKey {
-			if captured, ok := a.Value.Any().([]uintptr); ok {
-				pcsLen = copy(pcs[:], captured)
-			}
-			return false
-		}
-		return true
-	})
+	if captured, ok := ctx.Value(stackPCsCtxKey).([]uintptr); ok {
+		pcsLen = copy(pcs[:], captured)
+	}
 	if pcsLen == 0 {
 		var buf [stackSearchBuf]uintptr
 		n := runtime.Callers(1, buf[:]) // skip runtime.Callers itself
@@ -244,9 +240,9 @@ func hashPCs(pcs []uintptr) uint64 {
 // other async wrapper) so that Handle is called in the same goroutine that
 // emitted the log record.
 //
-// Handler.Handle reads the pre-captured PCs from the stackPCsAttrKey slog
-// attribute added by SyncCapture.Handle, bypassing its own runtime.Callers
-// call when the attr is present.
+// Handler.Handle reads the pre-captured PCs from the stackPCsCtxKey context value
+// added by SyncCapture.Handle, bypassing its own runtime.Callers call when the
+// value is present.
 type SyncCapture struct {
 	inner slog.Handler
 }
@@ -266,7 +262,7 @@ func (s *SyncCapture) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 // Handle captures the current goroutine's call stack anchored at r.PC,
-// attaches the PCs as a stackPCsAttrKey slog attribute, then forwards to
+// attaches the PCs as a stackPCsCtxKey context value, then forwards to
 // the inner handler. Must be called from the goroutine that emitted r.
 func (s *SyncCapture) Handle(ctx context.Context, r slog.Record) error {
 	if r.Level < slog.LevelError {
@@ -278,7 +274,7 @@ func (s *SyncCapture) Handle(ctx context.Context, r slog.Record) error {
 		if buf[i] == r.PC {
 			pcs := make([]uintptr, n-i)
 			copy(pcs, buf[i:n])
-			r.AddAttrs(slog.Any(stackPCsAttrKey, pcs))
+			ctx = context.WithValue(ctx, stackPCsCtxKey, pcs)
 			break
 		}
 	}
