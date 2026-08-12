@@ -805,6 +805,120 @@ func testUnclassifiedProtocol(t *testing.T, tr *tracer.Tracer, clientHost, targe
 	}
 }
 
+// testRedisRESPValidation exercises is_redis() over a raw socket, covering both
+// directions of the guarantee it has to provide: valid RESP frames must still be
+// classified as Redis, and payloads that merely begin with a RESP type byte must
+// not be.
+//
+// The second half is the regression test for the TLS-reported-as-plaintext bug.
+// is_redis() used to accept any buffer whose first byte was one of the 14 RESP
+// type bytes, i.e. ~5.5% of arbitrary payloads. TLS ciphertext hit that often
+// enough to lock the application layer to Redis, and once the app layer is set,
+// protocol_classifier_entrypoint stops calling is_tls() for the life of the
+// connection — so encrypted connections were reported with tls_encrypted:false.
+// On one staging cluster that was 6.00k connections in an hour.
+//
+// Deliberately raw-socket rather than Docker-based: this asserts on the byte
+// validation itself, so it must not depend on a Redis server being reachable.
+func testRedisRESPValidation(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
+	// Each case gets its own port. Sharing one would make the positive
+	// assertions meaningless: validateProtocolConnection matches *any*
+	// connection between the target and server addresses carrying the expected
+	// stack, so a case expecting Redis can be satisfied by a connection an
+	// earlier case already classified — it passes without the payload under
+	// test ever having been accepted. Observed: with a deliberately crippled
+	// validator that cannot accept "+PONG\r\n", the simple-string case still
+	// passed, matching a leftover connection from a previous case.
+	const respValidationBasePort = 9095
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	// Stand-in for TLS ciphertext. Contains no \r and no \n on purpose: that
+	// makes rejection deterministic rather than dependent on whether the bytes
+	// chosen happen to contain a CRLF.
+	cipherTail := []byte{0x9f, 0x1a, 0x03, 0xc7, 0x5e, 0xb2, 0x41, 0xf8, 0x2d, 0x96, 0x77, 0x08, 0xe4, 0x3b, 0xa1, 0x60}
+	nonRESP := func(prefix byte) []byte {
+		return append([]byte{prefix}, cipherTail...)
+	}
+
+	redisStack := &protocols.Stack{Application: protocols.Redis}
+	unclassified := &protocols.Stack{}
+
+	cases := []struct {
+		name     string
+		payload  []byte
+		expected *protocols.Stack
+	}{
+		// Valid RESP must still be classified as Redis.
+		{"resp array command", []byte("*1\r\n$4\r\nPING\r\n"), redisStack},
+		{"resp bulk string", []byte("$6\r\nfoobar\r\n"), redisStack},
+		{"resp simple string", []byte("+PONG\r\n"), redisStack},
+		{"resp error", []byte("-ERR unknown command\r\n"), redisStack},
+		{"resp integer", []byte(":42\r\n"), redisStack},
+		{"resp negative integer", []byte(":-1\r\n"), redisStack},
+		{"resp null bulk string", []byte("$-1\r\n"), redisStack},
+
+		// A RESP type byte followed by ciphertext must not be classified as
+		// Redis. Every one of these was a false positive before the fix.
+		{"array prefix then ciphertext", nonRESP('*'), unclassified},
+		{"bulk prefix then ciphertext", nonRESP('$'), unclassified},
+		{"simple string prefix then ciphertext", nonRESP('+'), unclassified},
+		{"error prefix then ciphertext", nonRESP('-'), unclassified},
+		{"integer prefix then ciphertext", nonRESP(':'), unclassified},
+		{"map prefix then ciphertext", nonRESP('%'), unclassified},
+		{"push prefix then ciphertext", nonRESP('>'), unclassified},
+		{"verbatim string prefix then ciphertext", nonRESP('='), unclassified},
+	}
+
+	tests := make([]protocolClassificationAttributes, 0, len(cases))
+	for i, tc := range cases {
+		port := strconv.Itoa(respValidationBasePort + i)
+		serverAddress := net.JoinHostPort(serverHost, port)
+		targetAddress := net.JoinHostPort(targetHost, port)
+
+		server := tracertestutil.NewTCPServerOnAddress(serverAddress, func(c net.Conn) {
+			_, _ = io.Copy(c, c)
+		})
+		require.NoError(t, server.Run())
+		t.Cleanup(server.Shutdown)
+
+		tests = append(tests, protocolClassificationAttributes{
+			name: tc.name,
+			context: testContext{
+				serverPort:    port,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := defaultDialer.Dial("tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = c.Close() })
+
+				_, err = c.Write(tc.payload)
+				require.NoError(t, err)
+
+				// Read the echo back, so the server-to-client direction carries
+				// the same bytes and the exchange has completed before the
+				// classification is inspected.
+				_, err = io.ReadFull(c, make([]byte, len(tc.payload)))
+				require.NoError(t, err)
+			},
+			validation: validateProtocolConnection(tc.expected),
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
+}
+
 func testMySQLProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
 }
@@ -2232,6 +2346,10 @@ func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name:     "redis",
 			testFunc: testRedisProtocolClassification,
+		},
+		{
+			name:     "redis RESP validation",
+			testFunc: testRedisRESPValidation,
 		},
 		{
 			name:     "amqp",
