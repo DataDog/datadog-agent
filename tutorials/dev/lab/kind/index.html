@@ -4057,21 +4057,21 @@
   
 
 
-<h1 id="kind">Kind</h1>
+<h1 id="kind">Kind<a class="headerlink" href="#kind" title="Permanent link">&para;</a></h1>
 <hr />
 <p><a href="https://kind.sigs.k8s.io/">Kind</a> (Kubernetes in Docker) creates lightweight local Kubernetes clusters for development and testing.</p>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Docker (or an equivalent container runtime)</li>
 <li><a href="https://kind.sigs.k8s.io/docs/user/quick-start/#installation">kind</a></li>
 <li><a href="https://helm.sh/docs/intro/install/">helm</a></li>
 <li><a href="https://kubernetes.io/docs/tasks/tools/">kubectl</a></li>
 </ul>
-<h2 id="quick-start">Quick start</h2>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Create a local Kind lab environment (installs the Agent by default)</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>dda<span class="w"> </span>lab<span class="w"> </span><span class="nb">local</span><span class="w"> </span>kind<span class="w"> </span>--id<span class="w"> </span>dev
 </span></code></pre></div>
-<h2 id="create-cluster">Create cluster</h2>
+<h2 id="create-cluster">Create cluster<a class="headerlink" href="#create-cluster" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Create a cluster without installing the Agent</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>dda<span class="w"> </span>lab<span class="w"> </span><span class="nb">local</span><span class="w"> </span>kind<span class="w"> </span>--id<span class="w"> </span>dev<span class="w"> </span>--no-agent
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
@@ -4081,9 +4081,9 @@
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Recreate existing cluster</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>dda<span class="w"> </span>lab<span class="w"> </span><span class="nb">local</span><span class="w"> </span>kind<span class="w"> </span>--id<span class="w"> </span>dev<span class="w"> </span>--force
 </span></code></pre></div>
-<h2 id="deploy-agent">Deploy agent</h2>
+<h2 id="deploy-agent">Deploy agent<a class="headerlink" href="#deploy-agent" title="Permanent link">&para;</a></h2>
 <p>By default, <code>dda lab local kind</code> installs the Datadog Agent via Helm. Provide an API key with <code>E2E_API_KEY</code> or <code>~/.test_infra_config.yaml</code> (see <a href="../#configuration">Lab environments</a>).</p>
-<h3 id="from-registry">From registry</h3>
+<h3 id="from-registry">From registry<a class="headerlink" href="#from-registry" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Default agent image (Agent installation is enabled by default)</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>dda<span class="w"> </span>lab<span class="w"> </span><span class="nb">local</span><span class="w"> </span>kind<span class="w"> </span>--id<span class="w"> </span>dev
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
@@ -4093,7 +4093,7 @@
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># With custom Helm values</span>
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>dda<span class="w"> </span>lab<span class="w"> </span><span class="nb">local</span><span class="w"> </span>kind<span class="w"> </span>--id<span class="w"> </span>dev<span class="w"> </span>--helm-values<span class="w"> </span>./values.yaml
 </span></code></pre></div>
-<h3 id="build-locally-custom-build-command">Build locally (custom build command)</h3>
+<h3 id="build-locally-custom-build-command">Build locally (custom build command)<a class="headerlink" href="#build-locally-custom-build-command" title="Permanent link">&para;</a></h3>
 <p>If you want to build a local Agent image using a custom command, pass <code>--build-command</code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -4105,11 +4105,11 @@
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>dda<span class="w"> </span>lab<span class="w"> </span><span class="nb">local</span><span class="w"> </span>kind<span class="w"> </span>--id<span class="w"> </span>dev<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--build-command<span class="w"> </span><span class="s2">&quot;dda inv agent.hacky-dev-image-build --target-image datadog/agent-dev:local&quot;</span>
 </span></code></pre></div>
-<h3 id="load-existing-image">Load existing image</h3>
+<h3 id="load-existing-image">Load existing image<a class="headerlink" href="#load-existing-image" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Load pre-built local image</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>dda<span class="w"> </span>lab<span class="w"> </span><span class="nb">local</span><span class="w"> </span>kind<span class="w"> </span>--id<span class="w"> </span>dev<span class="w"> </span>--load-image<span class="w"> </span>myagent:dev
 </span></code></pre></div>
-<h2 id="working-with-the-cluster">Working with the cluster</h2>
+<h2 id="working-with-the-cluster">Working with the cluster<a class="headerlink" href="#working-with-the-cluster" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Switch kubectl context</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>kubectl<span class="w"> </span>config<span class="w"> </span>use-context<span class="w"> </span>kind-&lt;id&gt;
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
@@ -4122,7 +4122,7 @@
 </span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># View agent logs</span>
 </span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>datadog<span class="w"> </span>-l<span class="w"> </span><span class="nv">app</span><span class="o">=</span>datadog<span class="w"> </span>-f
 </span></code></pre></div>
-<h2 id="options">Options</h2>
+<h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
