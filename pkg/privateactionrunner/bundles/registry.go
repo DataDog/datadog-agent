@@ -8,16 +8,12 @@
 package privatebundles
 
 import (
-	"runtime"
-
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/artifacts"
-	authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/authoredscripts"
 	com_datadoghq_authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/authoredscripts"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
@@ -70,18 +66,9 @@ type Registry struct {
 }
 
 func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component) *Registry {
-	authoredScriptResolver := artifacts.NewResolver(
-		authoredscripts.NewStaticCatalog(),
-		authoredscripts.NewStaticProvider(configuration.ArtifactsDirectory),
-	)
-	authoredScriptRunner := authoredscripts.NewRunner(authoredScriptResolver, artifacts.Platform{
-		OS:   runtime.GOOS,
-		Arch: runtime.GOARCH,
-	})
-
 	return &Registry{
 		Bundles: map[string]types.Bundle{
-			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(authoredScriptRunner),
+			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(),
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),

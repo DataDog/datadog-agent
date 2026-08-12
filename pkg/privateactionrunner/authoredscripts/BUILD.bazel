@@ -12,7 +12,7 @@ go_library(
         "process_linux.go",
         "process_other.go",
         "provider.go",
-        "runner.go",
+        "run.go",
         "session.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/authoredscripts",

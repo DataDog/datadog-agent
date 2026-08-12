@@ -16,11 +16,10 @@ import (
 
 // RunAuthoredScriptHandler executes the package authorized for an authored action.
 type RunAuthoredScriptHandler struct {
-	runner *authoredscripts.Runner
 }
 
-func NewRunAuthoredScriptHandler(runner *authoredscripts.Runner) *RunAuthoredScriptHandler {
-	return &RunAuthoredScriptHandler{runner: runner}
+func NewRunAuthoredScriptHandler() *RunAuthoredScriptHandler {
+	return &RunAuthoredScriptHandler{}
 }
 
 // RunAuthoredScriptOutputs contains the process result returned by an authored action.
@@ -36,14 +35,14 @@ func (h *RunAuthoredScriptHandler) Run(
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	if h == nil || h.runner == nil {
-		return nil, errors.New("authored-script runner is not configured")
+	if h == nil {
+		return nil, errors.New("authored-script handler is not configured")
 	}
 	if task == nil || task.Data.Attributes == nil {
 		return nil, errors.New("authored-script task is required")
 	}
 
-	result, err := h.runner.Run(ctx, task.GetFQN(), task.Data.Attributes.Inputs)
+	result, err := authoredscripts.Execute(ctx, task.GetFQN(), task.Data.Attributes.Inputs)
 	if err != nil {
 		return nil, err
 	}
