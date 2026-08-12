@@ -865,7 +865,7 @@ def kmt_secagent_prepare(
         )
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
@@ -1258,7 +1258,7 @@ def kmt_sysprobe_prepare(
     info("[+] Compiling tests...")
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 

@@ -367,7 +367,7 @@ def test(
         args["go"] = os.path.join(go_root, "bin", "go")
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
@@ -1841,7 +1841,7 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 

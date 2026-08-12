@@ -183,6 +183,39 @@ func TestKafkaCollectorResolvesAndReadsRelativeProcessConfig(t *testing.T) {
 	require.Len(t, collected.ConfigFiles, 1)
 }
 
+func TestIncludeKafkaEnvVar(t *testing.T) {
+	tests := []struct {
+		envName string
+		want    bool
+	}{
+		{envName: "KAFKA_CONTROLLER_LISTENER_NAMES", want: true},
+		{envName: "KAFKA_CFG_PROCESS_ROLES", want: true},
+		{envName: "CONFLUENT_BALANCER_ENABLE", want: true},
+		{envName: "CLUSTER_ID", want: true},
+		{envName: "UNREQUESTED"},
+		{envName: "KAFKA_node_id"},
+		{envName: "KAFKA_OPTS"},
+		{envName: "KAFKA_JMX_OPTS"},
+		{envName: "KAFKA_JVM_PERFORMANCE_OPTS"},
+		{envName: "KAFKA_CFG_JVM_OPTS"},
+		{envName: "CONFLUENT_JVM_OPTS"},
+		{envName: "KAFKA_EXTRA_ARGS"},
+		{envName: "KAFKA_EXTRA_FLAGS"},
+		{envName: "KAFKA_CFG_EXTRA_ARGS"},
+		{envName: "KAFKA_SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO"},
+		{envName: "KAFKA_CONFLUENT_METRICS_REPORTER_BASIC_AUTH_USER_INFO"},
+		{envName: "KAFKA_SUPER_USERS"},
+		{envName: "KAFKA_CFG_SUPER_USERS"},
+		{envName: "KAFKA_SSL_KEYSTORE_LOCATION", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.envName, func(t *testing.T) {
+			assert.Equal(t, tt.want, includeKafkaEnvVar(tt.envName))
+		})
+	}
+}
+
 func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
@@ -193,12 +226,18 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 			Content:   []byte("broker.id=1\n"),
 			Truncated: true,
 		},
+		env: map[string]string{
+			"KAFKA_NODE_ID":       "1",
+			"KAFKA_PROCESS_ROLES": "broker",
+			"UNREQUESTED":         "value",
+		},
 	}
 	collector := NewKafka()
 
 	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
+	requireKafkaEnvVarPredicate(t, reader)
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
 	require.Len(t, collected.ConfigFiles, 1)
 	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
@@ -207,7 +246,104 @@ func TestKafkaCollectorReadsDetectedConfig(t *testing.T) {
 		Truncated:     true,
 		PayloadFormat: kafkaConfigPayloadFormat,
 	}, collected.ConfigFiles[0])
-	assert.Empty(t, collected.EnvVars)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "KAFKA_NODE_ID", Value: "1"},
+		{Name: "KAFKA_PROCESS_ROLES", Value: "broker"},
+	}, collected.EnvVars)
+}
+
+func TestKafkaCollectorCollectsEnvOnly(t *testing.T) {
+	tests := []struct {
+		name        string
+		commandline []string
+		env         map[string]string
+		want        []configfilesdiscoveryimpl.ConfigEnvVar
+	}{
+		{
+			name:        "Confluent",
+			commandline: []string{"/etc/kafka/docker/run"},
+			env: map[string]string{
+				"CLUSTER_ID":          "cluster-id",
+				"KAFKA_NODE_ID":       "1",
+				"KAFKA_PROCESS_ROLES": "broker,controller",
+			},
+			want: []configfilesdiscoveryimpl.ConfigEnvVar{
+				{Name: "CLUSTER_ID", Value: "cluster-id"},
+				{Name: "KAFKA_NODE_ID", Value: "1"},
+				{Name: "KAFKA_PROCESS_ROLES", Value: "broker,controller"},
+			},
+		},
+		{
+			name:        "Bitnami",
+			commandline: []string{"/opt/bitnami/scripts/kafka/run.sh"},
+			env: map[string]string{
+				"KAFKA_CFG_PROCESS_ROLES":                       "broker",
+				"KAFKA_CFG_CONTROLLER_QUORUM_BOOTSTRAP_SERVERS": "controller:9093",
+				"KAFKA_INITIAL_CONTROLLERS":                     "1@controller:9093:dir",
+				"KAFKA_TLS_TYPE":                                "PEM",
+			},
+			want: []configfilesdiscoveryimpl.ConfigEnvVar{
+				{Name: "KAFKA_CFG_CONTROLLER_QUORUM_BOOTSTRAP_SERVERS", Value: "controller:9093"},
+				{Name: "KAFKA_CFG_PROCESS_ROLES", Value: "broker"},
+				{Name: "KAFKA_INITIAL_CONTROLLERS", Value: "1@controller:9093:dir"},
+				{Name: "KAFKA_TLS_TYPE", Value: "PEM"},
+			},
+		},
+		{
+			name:        "Confluent Enterprise",
+			commandline: []string{"/etc/kafka/docker/run"},
+			env: map[string]string{
+				"CONFLUENT_BALANCER_ENABLE": "true",
+				"CONFLUENT_TIER_S3_BUCKET":  "tiered-storage",
+			},
+			want: []configfilesdiscoveryimpl.ConfigEnvVar{
+				{Name: "CONFLUENT_BALANCER_ENABLE", Value: "true"},
+				{Name: "CONFLUENT_TIER_S3_BUCKET", Value: "tiered-storage"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := &kafkaCollectorTestReader{
+				runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: tt.commandline},
+				env:                tt.env,
+			}
+
+			collected, err := NewKafka().Collect(context.Background(), reader)
+
+			require.NoError(t, err)
+			assert.Equal(t, slices.Concat(kafkaDefaultConfigPathGroups...), reader.readFileCalls)
+			assert.Empty(t, collected.ConfigFiles)
+			assert.Equal(t, tt.want, collected.EnvVars)
+		})
+	}
+}
+
+func TestKafkaCollectorFiltersSecretEnvVars(t *testing.T) {
+	reader := &kafkaCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/etc/kafka/docker/run"},
+		},
+		env: map[string]string{
+			"CONFLUENT_ADMIN_PWD":                              "secret",
+			"KAFKA_CFG_OAUTH_ACCESS_TOKEN":                     "secret",
+			"KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR": "3",
+			"KAFKA_NODE_ID":                                    "1",
+			"KAFKA_OPTS":                                       "-Dsome.token=secret",
+			"KAFKA_SASL_OAUTHBEARER_TOKEN_ENDPOINT_URL":        "https://identity.example/oauth2/token",
+			"KAFKA_SASL_PWD":                                   "secret",
+		},
+	}
+
+	collected, err := NewKafka().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR", Value: "3"},
+		{Name: "KAFKA_NODE_ID", Value: "1"},
+		{Name: "KAFKA_SASL_OAUTHBEARER_TOKEN_ENDPOINT_URL", Value: "https://identity.example/oauth2/token"},
+	}, collected.EnvVars)
 }
 
 func TestKafkaCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T) {
@@ -225,6 +361,7 @@ func TestKafkaCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T)
 	collected, err := collector.Collect(context.Background(), reader)
 
 	require.NoError(t, err)
+	requireKafkaEnvVarPredicate(t, reader)
 	assert.Empty(t, reader.readFileCalls)
 	assert.Empty(t, collected.ConfigFiles)
 	assert.Empty(t, collected.EnvVars)
@@ -445,6 +582,52 @@ func TestKafkaCollectorReturnsCommandlineErrors(t *testing.T) {
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Equal(t, 1, reader.processCommandlineCalls)
+	assert.Empty(t, reader.readEnvVarPredicates)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
+}
+
+func TestKafkaCollectorReadsDetectedConfigWhenEnvVarsFail(t *testing.T) {
+	expectedErr := errors.New("env unavailable")
+	reader := &kafkaCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"kafka-server-start.sh", "/etc/kafka/server.properties"},
+		},
+		file: configfilesdiscoveryimpl.ConfigFile{
+			Path:    "/etc/kafka/server.properties",
+			Content: []byte("broker.id=1\n"),
+		},
+		readEnvVarsErr: expectedErr,
+	}
+	collector := NewKafka()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigFile{
+		{
+			Path:          "/etc/kafka/server.properties",
+			Content:       []byte("broker.id=1\n"),
+			PayloadFormat: kafkaConfigPayloadFormat,
+		},
+	}, collected.ConfigFiles)
+	assert.Empty(t, collected.EnvVars)
+}
+
+func TestKafkaCollectorReturnsEnvVarErrorsWithoutConfigPath(t *testing.T) {
+	expectedErr := errors.New("env unavailable")
+	reader := &kafkaCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/etc/kafka/docker/run"},
+		},
+		readEnvVarsErr: expectedErr,
+	}
+	collector := NewKafka()
+
+	collected, err := collector.Collect(context.Background(), reader)
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Equal(t, slices.Concat(kafkaDefaultConfigPathGroups...), reader.readFileCalls)
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
@@ -474,6 +657,9 @@ type kafkaCollectorTestReader struct {
 	file                    configfilesdiscoveryimpl.ConfigFile
 	files                   map[string]configfilesdiscoveryimpl.ConfigFile
 	readFileErr             error
+	env                     map[string]string
+	readEnvVarPredicates    []configfilesdiscoveryimpl.ConfigEnvVarPredicate
+	readEnvVarsErr          error
 }
 
 func (r *kafkaCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
@@ -496,8 +682,23 @@ func (r *kafkaCollectorTestReader) ReadFile(_ context.Context, path string) (con
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }
 
-func (r *kafkaCollectorTestReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
-	return nil, errors.New("not implemented")
+func (r *kafkaCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
+	r.readEnvVarPredicates = append(r.readEnvVarPredicates, predicate)
+	if r.readEnvVarsErr != nil {
+		return nil, r.readEnvVarsErr
+	}
+
+	env := make(map[string]string)
+	for name, value := range r.env {
+		if configfilesdiscoveryimpl.IsSecretEnvVarName(name) {
+			continue
+		}
+		if predicate == nil || !predicate(name) {
+			continue
+		}
+		env[name] = value
+	}
+	return env, nil
 }
 
 func (r *kafkaCollectorTestReader) ReadRuntimeCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
@@ -510,4 +711,11 @@ func (r *kafkaCollectorTestReader) ReadRuntimeCommandline(context.Context) (conf
 func (r *kafkaCollectorTestReader) ReadLiveProcessCommandlines(context.Context) []configfilesdiscoveryimpl.TargetCommandline {
 	r.processCommandlineCalls++
 	return r.liveProcessCommandlines
+}
+
+func requireKafkaEnvVarPredicate(t *testing.T, reader *kafkaCollectorTestReader) configfilesdiscoveryimpl.ConfigEnvVarPredicate {
+	t.Helper()
+	require.Len(t, reader.readEnvVarPredicates, 1)
+	require.NotNil(t, reader.readEnvVarPredicates[0])
+	return reader.readEnvVarPredicates[0]
 }
