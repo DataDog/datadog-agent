@@ -519,23 +519,13 @@ fn lookup_dotted_key_in_mapping<'a>(
 
 fn value_as_bool(value: &serde_yaml::Value) -> Option<bool> {
     match value {
+        // Plain YAML 1.1 bools (`yes`/`on`/…) are coerced to bool at load time in [`yaml_load`].
         serde_yaml::Value::Bool(enabled) => Some(*enabled),
         serde_yaml::Value::Number(number) => number.as_i64().map(|n| n != 0),
-        serde_yaml::Value::String(text) => Some(bool_from_yaml_string(text)),
+        // Quoted scalars and env vars: `strconv.ParseBool` only.
+        serde_yaml::Value::String(text) => Some(parse_agent_bool_string(text).unwrap_or(false)),
         _ => None,
     }
-}
-
-/// YAML string scalars: `strconv.ParseBool` spellings plus YAML 1.1 (`yes`/`on`/…).
-/// Env vars use [`parse_agent_bool_string`] only (`ParseBool`, no YAML 1.1).
-fn bool_from_yaml_string(text: &str) -> bool {
-    parse_agent_bool_string(text)
-        .or_else(|| match text.to_ascii_lowercase().as_str() {
-            "yes" | "on" | "y" => Some(true),
-            "no" | "off" | "n" => Some(false),
-            _ => None,
-        })
-        .unwrap_or(false)
 }
 
 /// Mirrors Go `strconv.ParseBool` for env var bindings.
@@ -1707,32 +1697,16 @@ process_config:
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("TRUE".into())),
-            Some(true)
-        );
-        assert_eq!(
             value_as_bool(&serde_yaml::Value::String("1".into())),
             Some(true)
         );
         assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("t".into())),
-            Some(true)
-        );
-        assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("0".into())),
-            Some(false)
-        );
-        assert_eq!(
             value_as_bool(&serde_yaml::Value::String("yes".into())),
-            Some(true)
-        );
-        assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("on".into())),
-            Some(true)
-        );
-        assert_eq!(
-            value_as_bool(&serde_yaml::Value::String("no".into())),
             Some(false)
+        );
+        assert_eq!(
+            value_as_bool(&serde_yaml::Value::Bool(true)),
+            Some(true)
         );
     }
 
@@ -1752,6 +1726,25 @@ process_config:
                 keys: vec!["process_config.process_discovery.enabled".into()],
             }];
             assert!(condition_config_any_met(&conditions));
+        });
+    }
+
+    #[test]
+    fn quoted_yaml_yes_does_not_enable_gate() {
+        with_env_lock(|| {
+            clear_gated_env_vars();
+
+            let dir = tempfile::tempdir().unwrap();
+            let agent = write_config(
+                dir.path(),
+                "datadog.yaml",
+                "process_config:\n  process_discovery:\n    enabled: \"yes\"\n",
+            );
+            let conditions = vec![ConditionConfigFile {
+                path: agent,
+                keys: vec!["process_config.process_discovery.enabled".into()],
+            }];
+            assert!(!condition_config_any_met(&conditions));
         });
     }
 

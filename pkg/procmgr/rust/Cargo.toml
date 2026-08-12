@@ -28,6 +28,7 @@ log.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true
+saphyr-parser = { workspace = true }
 dd-agent-log.workspace = true
 dd-procmgr-client.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
