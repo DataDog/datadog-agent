@@ -86,6 +86,13 @@ pub enum ProcessOrigin {
 // ManagedProcess
 // ---------------------------------------------------------------------------
 
+/// Windows user profile held until a late exit event arrives after force-kill timeout.
+#[cfg(windows)]
+struct DeferredExitCleanup {
+    pid: u32,
+    user_profile: platform::UserProfileGuard,
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -106,10 +113,10 @@ pub struct ManagedProcess {
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
-    /// PID of a child whose exit is still pending after `mark_stopped` gave up
-    /// waiting; used to release Windows profile resources on a late `ExitEvent`.
+    /// Profile deferred from a prior generation when `mark_stopped` gave up waiting
+    /// for exit; released when the matching late `ExitEvent` arrives.
     #[cfg(windows)]
-    awaiting_exit_pid: Option<u32>,
+    deferred_exit_cleanup: Option<DeferredExitCleanup>,
 }
 
 impl ManagedProcess {
@@ -144,7 +151,7 @@ impl ManagedProcess {
             #[cfg(windows)]
             user_profile: None,
             #[cfg(windows)]
-            awaiting_exit_pid: None,
+            deferred_exit_cleanup: None,
         }
     }
 
@@ -191,18 +198,20 @@ impl ManagedProcess {
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;
-        self.awaiting_exit_pid = None;
     }
 
-    /// Release Windows spawn resources when a detached watcher reports exit after
-    /// `mark_stopped` already cleared the live PID.
+    /// Release a deferred Windows profile when a detached watcher reports exit after
+    /// `mark_stopped` already cleared the live PID. Does not touch the current
+    /// generation's job/profile if the process was respawned in the meantime.
     #[cfg(windows)]
     pub(crate) fn complete_late_exit_cleanup(&mut self, pid: u32) -> bool {
-        if self.awaiting_exit_pid != Some(pid) {
+        let Some(deferred) = &self.deferred_exit_cleanup else {
+            return false;
+        };
+        if deferred.pid != pid {
             return false;
         }
-        self.awaiting_exit_pid = None;
-        self.clear_windows_spawn_resources();
+        self.deferred_exit_cleanup = None;
         true
     }
 
@@ -536,8 +545,13 @@ impl ManagedProcess {
         self.stop_requested = false;
         self.transition_to(ProcessState::Stopped);
         #[cfg(windows)]
-        if self.user_profile.is_some() {
-            self.awaiting_exit_pid = self.pid;
+        if let Some(pid) = self.pid {
+            if let Some(profile) = self.user_profile.take() {
+                self.deferred_exit_cleanup = Some(DeferredExitCleanup {
+                    pid,
+                    user_profile: profile,
+                });
+            }
         }
         self.pid = None;
         #[cfg(windows)]
