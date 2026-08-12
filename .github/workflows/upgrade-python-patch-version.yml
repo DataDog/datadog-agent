@@ -76,6 +76,7 @@ jobs:
             - Updated `omnibus/config/software/python3.rb` with new version and SHA256
             - Updated `deps/cpython/cpython.MODULE.bazel` with new version and SHA256
             - Updated `test/new-e2e/tests/agent-platform/common/agent_behaviour.go` with expected version
+            - Updated `packaging/aix/lib/env.sh` with new version
             - Created release note documenting the upgrade
             
             ### Motivation
