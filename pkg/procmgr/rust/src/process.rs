@@ -91,6 +91,7 @@ pub enum ProcessOrigin {
 struct DeferredExitCleanup {
     pid: u32,
     user_profile: platform::UserProfileGuard,
+    job_object: Option<platform::JobObject>,
 }
 
 /// Deferred profile retained after a managed process object is dropped (e.g. config removal).
@@ -99,6 +100,33 @@ pub(crate) struct OrphanedDeferredExitCleanup {
     pub name: String,
     pub pid: u32,
     pub user_profile: platform::UserProfileGuard,
+    pub job_object: Option<platform::JobObject>,
+}
+
+#[cfg(windows)]
+fn finish_deferred_exit_cleanup(entry: DeferredExitCleanup, process_name: &str) {
+    if let Some(job) = entry.job_object {
+        if !job.wait_until_empty(ManagedProcess::FORCE_KILL_TIMEOUT) {
+            if let Ok(count) = job.active_process_count() {
+                warn!(
+                    "[{process_name}] job still has {count} active process(es) after drain timeout (pid {})",
+                    entry.pid
+                );
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn finish_orphaned_deferred_exit_cleanup(entry: OrphanedDeferredExitCleanup) {
+    finish_deferred_exit_cleanup(
+        DeferredExitCleanup {
+            pid: entry.pid,
+            user_profile: entry.user_profile,
+            job_object: entry.job_object,
+        },
+        &entry.name,
+    );
 }
 
 pub struct ManagedProcess {
@@ -128,7 +156,7 @@ pub struct ManagedProcess {
 }
 
 impl ManagedProcess {
-    const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+    pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -208,6 +236,60 @@ impl ManagedProcess {
         self.user_profile = None;
     }
 
+    /// Drop Windows spawn resources once the supervision job has no active members.
+    /// Returns `true` when profile unload was deferred and a background job drain is needed.
+    #[cfg(windows)]
+    fn release_windows_spawn_resources_after_exit(&mut self, exited_pid: Option<u32>) -> bool {
+        if let Some(ref job) = self.job_object {
+            if job.wait_until_empty(Self::FORCE_KILL_TIMEOUT) {
+                self.clear_windows_spawn_resources();
+                return false;
+            }
+            if let (Some(pid), Some(profile)) = (exited_pid, self.user_profile.take()) {
+                let job = self.job_object.take();
+                info!(
+                    "[{}] deferring profile unload until job members exit (pid {})",
+                    self.name, pid
+                );
+                self.deferred_exit_cleanups.push(DeferredExitCleanup {
+                    pid,
+                    user_profile: profile,
+                    job_object: job,
+                });
+                return true;
+            }
+            if let Ok(count) = job.active_process_count() {
+                warn!(
+                    "[{}] job still has {count} active process(es) after drain timeout",
+                    self.name
+                );
+            }
+        }
+        self.clear_windows_spawn_resources();
+        false
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn try_finish_deferred_job_drain(&mut self, pid: u32) -> bool {
+        let Some(idx) = self
+            .deferred_exit_cleanups
+            .iter()
+            .position(|entry| entry.pid == pid && entry.job_object.is_some())
+        else {
+            return false;
+        };
+        let job = self.deferred_exit_cleanups[idx]
+            .job_object
+            .as_ref()
+            .expect("deferred job drain entry must have a job");
+        if job.active_process_count() != Ok(0) {
+            return false;
+        }
+        let entry = self.deferred_exit_cleanups.remove(idx);
+        finish_deferred_exit_cleanup(entry, &self.name);
+        true
+    }
+
     /// Release a deferred Windows profile when a detached watcher reports exit after
     /// `mark_stopped` already cleared the live PID. Does not touch the current
     /// generation's job/profile if the process was respawned in the meantime.
@@ -220,7 +302,8 @@ impl ManagedProcess {
         else {
             return false;
         };
-        self.deferred_exit_cleanups.remove(idx);
+        let entry = self.deferred_exit_cleanups.remove(idx);
+        finish_deferred_exit_cleanup(entry, &self.name);
         true
     }
 
@@ -236,6 +319,7 @@ impl ManagedProcess {
                 name: process_name.to_owned(),
                 pid: deferred.pid,
                 user_profile: deferred.user_profile,
+                job_object: deferred.job_object,
             })
             .collect()
     }
@@ -398,11 +482,17 @@ impl ManagedProcess {
     /// Record that the child exited. If a stop was explicitly requested via
     /// `request_stop`, the process transitions to Stopped (skipping restarts).
     /// Otherwise it transitions to Exited or Failed based on the exit code.
-    pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
+    ///
+    /// On Windows, returns the exited PID when profile unload was deferred pending
+    /// job-wide drain (caller should spawn a background drain task).
+    pub fn set_last_status(&mut self, status: std::process::ExitStatus) -> Option<u32> {
         self.last_exit_status = Some(status);
+        let exited_pid = self.pid;
         self.pid = None;
         #[cfg(windows)]
-        self.clear_windows_spawn_resources();
+        let needs_job_drain = self.release_windows_spawn_resources_after_exit(exited_pid);
+        #[cfg(not(windows))]
+        let needs_job_drain = false;
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
@@ -411,6 +501,7 @@ impl ManagedProcess {
         } else {
             self.transition_to(ProcessState::Failed);
         }
+        needs_job_drain.then(|| exited_pid).flatten()
     }
 
     /// Mark the process for stop and send a graceful-stop signal. The watcher
@@ -492,9 +583,11 @@ impl ManagedProcess {
 
     /// Wait for the process to stop after a graceful-stop signal has been sent.
     /// Escalates to force-kill if the process doesn't exit within `stop_timeout`.
-    pub async fn wait_for_stop(&mut self) {
+    ///
+    /// Returns the exited PID when Windows profile unload was deferred pending job drain.
+    pub async fn wait_for_stop(&mut self) -> Option<u32> {
         if !self.is_running() {
-            return;
+            return None;
         }
         let stop = self.stop_timeout();
         if let Some(handle) = self.take_watcher_handle() {
@@ -529,14 +622,12 @@ impl ManagedProcess {
                 }
             };
             if let Some(status) = status {
-                self.set_last_status(status);
-                return;
+                return self.set_last_status(status);
             }
         } else if self.has_child_handle() {
             match time::timeout(stop, self.wait()).await {
                 Ok(Ok(status)) => {
-                    self.set_last_status(status);
-                    return;
+                    return self.set_last_status(status);
                 }
                 Ok(Err(e)) => {
                     warn!("[{}] wait failed during stop: {e:#}", self.name);
@@ -550,8 +641,7 @@ impl ManagedProcess {
                     self.force_kill();
                     match time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait()).await {
                         Ok(Ok(status)) => {
-                            self.set_last_status(status);
-                            return;
+                            return self.set_last_status(status);
                         }
                         Ok(Err(e)) => {
                             warn!("[{}] wait failed after force-kill: {e:#}", self.name);
@@ -564,6 +654,7 @@ impl ManagedProcess {
             }
         }
         self.mark_stopped();
+        None
     }
 
     fn mark_stopped(&mut self) {
@@ -575,12 +666,13 @@ impl ManagedProcess {
                 self.deferred_exit_cleanups.push(DeferredExitCleanup {
                     pid,
                     user_profile: profile,
+                    job_object: self.job_object.take(),
                 });
+            } else {
+                self.clear_windows_job_object();
             }
         }
         self.pid = None;
-        #[cfg(windows)]
-        self.clear_windows_job_object();
     }
 
     #[cfg(test)]
