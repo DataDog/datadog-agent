@@ -10,11 +10,11 @@ use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
 use crate::platform;
-use crate::process::{ManagedProcess, ProcessOrigin};
-#[cfg(windows)]
-use crate::process::finish_orphaned_deferred_exit_cleanup;
 #[cfg(windows)]
 use crate::process::OrphanedDeferredExitCleanup;
+#[cfg(windows)]
+use crate::process::finish_orphaned_deferred_exit_cleanup;
+use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::shutdown;
 use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
@@ -162,8 +162,7 @@ impl ProcessManager {
         {
             debug!(
                 "[{}] matched orphaned deferred Windows cleanup after late exit (pid {})",
-                event.name,
-                event.pid
+                event.name, event.pid
             );
             if self
                 .deferred_job_drain_pending(&event.name, event.pid)
@@ -212,13 +211,17 @@ impl ProcessManager {
             return;
         }
         info!("[{}] exited with {}", proc.name(), event.status);
+        #[cfg(windows)]
         let drain_pid = proc.set_last_status(event.status);
-        let process_name = proc.name().to_owned();
+        #[cfg(not(windows))]
+        {
+            proc.set_last_status(event.status);
+        }
         queue_restart(proc, restart_tx);
         drop(procs);
         #[cfg(windows)]
         if let Some(pid) = drain_pid {
-            self.spawn_deferred_job_drain(process_name, pid);
+            self.spawn_deferred_job_drain(event.name.clone(), pid);
         }
     }
 
@@ -333,9 +336,15 @@ impl ProcessManager {
             )));
         }
         let uuid = proc.uuid().to_owned();
-        proc.request_stop();
-        let drain_pid = proc.wait_for_stop().await;
+        #[cfg(windows)]
         let process_name = proc.name().to_owned();
+        proc.request_stop();
+        #[cfg(windows)]
+        let drain_pid = proc.wait_for_stop().await;
+        #[cfg(not(windows))]
+        {
+            proc.wait_for_stop().await;
+        }
         let state = proc.state();
         drop(procs);
         #[cfg(windows)]
@@ -380,9 +389,13 @@ impl ProcessManager {
         }
 
         for proc in &mut stopped_procs {
+            #[cfg(windows)]
             if let Some(pid) = proc.wait_for_stop().await {
-                #[cfg(windows)]
                 pending_job_drains.push((proc.name().to_owned(), pid));
+            }
+            #[cfg(not(windows))]
+            {
+                proc.wait_for_stop().await;
             }
         }
         #[cfg(windows)]
@@ -436,18 +449,20 @@ impl ProcessManager {
         {
             let mut procs = self.processes.write().await;
             for proc in procs.iter_mut() {
-                if let Some((name, pid)) = reconcile_process_after_reload(
+                let drain = reconcile_process_after_reload(
                     proc,
                     exit_tx,
                     restart_tx,
                     stopped_for_config_update.contains(proc.name()),
                     modified_names.contains(proc.name()),
                 )
-                .await
-                {
-                    #[cfg(windows)]
-                    pending_job_drains.push((name, pid));
+                .await;
+                #[cfg(windows)]
+                if let Some(drain) = drain {
+                    pending_job_drains.push(drain);
                 }
+                #[cfg(not(windows))]
+                let _ = drain;
             }
         }
         #[cfg(windows)]
@@ -517,9 +532,7 @@ impl ProcessManager {
                     return;
                 }
                 if !mgr.deferred_job_drain_pending(&name, pid).await {
-                    debug!(
-                        "[{name}] deferred job drain finished elsewhere (pid {pid})"
-                    );
+                    debug!("[{name}] deferred job drain finished elsewhere (pid {pid})");
                     return;
                 }
                 if !warned && started.elapsed() >= ManagedProcess::FORCE_KILL_TIMEOUT {
@@ -543,9 +556,9 @@ impl ProcessManager {
             }
         }
         let orphaned = self.orphaned_deferred_exit_cleanups.read().await;
-        orphaned.iter().any(|entry| {
-            entry.name == name && entry.pid == pid && entry.job_object.is_some()
-        })
+        orphaned
+            .iter()
+            .any(|entry| entry.name == name && entry.pid == pid && entry.job_object.is_some())
     }
 
     #[cfg(windows)]
@@ -591,9 +604,11 @@ impl ProcessManager {
         else {
             return false;
         };
-        if orphaned[idx].job_object.as_ref().is_some_and(|job| {
-            job.active_process_count().is_ok_and(|count| count > 0)
-        }) {
+        if orphaned[idx]
+            .job_object
+            .as_ref()
+            .is_some_and(|job| job.active_process_count().is_ok_and(|count| count > 0))
+        {
             return true;
         }
         let entry = orphaned.remove(idx);
