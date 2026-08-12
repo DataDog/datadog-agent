@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    OTLP ingest: Logs received through the OTLP receiver now map the instrumentation
+    OTLP ingest and DDOT: Logs received through the OTLP receiver now map the instrumentation
     scope name and version to ``otel.scope.name`` and ``otel.scope.version``. Incoming
     ``otel.library.name``/``otel.library.version`` attributes (the deprecated
     OpenTelemetry predecessors) are remapped to the canonical ``otel.scope.*`` keys.
