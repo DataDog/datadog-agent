@@ -24,7 +24,7 @@ var observerMetricNames = []string{
 	"observer.rrcf.score",
 	"observer.rrcf.threshold",
 	"observer.log_pattern_extractor.pattern_count",
-	telemetryLogsIngested,
+	telemetryObservationsAccepted,
 	"observer.logs.processed_bytes",
 	"observer.logs.dropped",
 	telemetrySeriesCount,

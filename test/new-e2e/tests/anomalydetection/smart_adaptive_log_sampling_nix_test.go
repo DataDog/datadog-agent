@@ -25,11 +25,11 @@ import (
 )
 
 const (
-	smartSeverityLogFileName = "smart-severity-profiles.log"
-	smartSeverityLogFilePath = logutils.LinuxLogsFolderPath + "/" + smartSeverityLogFileName
-	smartSeverityService     = "smart-severity-e2e"
-	smartSeverityScorerEWMA  = "observer.scorer.ewma"
-	smartSeverityScorerState = "observer.scorer.state"
+	smartSeverityLogFileName    = "smart-severity-profiles.log"
+	smartSeverityLogFilePath    = logutils.LinuxLogsFolderPath + "/" + smartSeverityLogFileName
+	smartSeverityService        = "smart-severity-e2e"
+	smartSeverityScorerEWMA     = "observer.scorer.ewma"
+	smartSeverityScorerSeverity = "observer.scorer.severity"
 
 	smartSeverityFakeintakeTick = 10 * time.Second
 	smartSeverityLowThreshold   = 0.04
@@ -177,8 +177,8 @@ func (s *smartSeverityProfilesSuite) TestSmartSeverityProfilesDriveAdaptiveSampl
 	s.sendMetricTicks(metricPrefix, seriesCount, baseline, baselineTicks)
 	s.T().Logf("phase=spike metrics prefix=%s series=%d ticks=%d value=%.1f", metricPrefix, seriesCount, spikeTicks, spike)
 	s.sendMetricTicks(metricPrefix, seriesCount, spike, spikeTicks)
-	s.T().Log("waiting for scorer escalation state")
-	s.waitForScorerState("direction:escalation")
+	s.T().Log("waiting for scorer escalation severity")
+	s.waitForScorerSeverityAtLeast(1) // Medium or High
 
 	s.T().Logf("phase=medium-log-burst message=%q count=%d", mediumMessage, logBurst)
 	s.appendRepeatedLog(mediumMessage, logBurst)
@@ -244,25 +244,19 @@ func (s *smartSeverityProfilesSuite) waitForStartupLowProfile(metricPrefix strin
 	}, 2*time.Minute, 3*time.Second)
 }
 
-func (s *smartSeverityProfilesSuite) waitForScorerState(directionTag string) {
+func (s *smartSeverityProfilesSuite) waitForScorerSeverityAtLeast(want float64) {
 	s.T().Helper()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		tel := observerTelemetryOutput(s)
-		tagParts := strings.SplitN(directionTag, ":", 2)
-		require.Len(s.T(), tagParts, 2, "direction tag must be key:value")
-		s.T().Logf(
-			"poll scorer state telemetry: present=%t wanted_tag=%q tagged=%t",
-			containsMetric(tel, smartSeverityScorerState),
-			directionTag,
-			containsMetricWithTag(tel, smartSeverityScorerState, tagParts[0], tagParts[1]),
-		)
-		line := findMetricLine(tel, metricNameVariants(smartSeverityScorerState)...)
-		if line != "" {
-			s.T().Logf("sample scorer state line=%s", line)
-		}
-		require.True(c, containsMetric(tel, smartSeverityScorerState), "expected scorer state telemetry")
-		require.True(c, containsMetricWithTag(tel, smartSeverityScorerState, tagParts[0], tagParts[1]),
-			"expected scorer state telemetry tagged with %s", directionTag)
+		line := findMetricLine(tel, metricNameVariants(smartSeverityScorerSeverity)...)
+		s.T().Logf("poll scorer severity telemetry: line=%q wanted_at_least=%.0f", line, want)
+		require.NotEmpty(c, line, "expected scorer severity telemetry")
+		require.True(c, containsMetricWithTag(tel, smartSeverityScorerSeverity, "scorer", "anomaly_scorer"),
+			"expected scorer severity telemetry tagged with the anomaly scorer")
+		severity, ok := scorerStateValue(line)
+		require.True(c, ok, "could not parse scorer severity from line %q", line)
+		require.GreaterOrEqual(c, severity, want,
+			"expected scorer severity %.0f to be at least %.0f after the anomaly", severity, want)
 	}, 2*time.Minute, smartSeverityFakeintakeTick)
 }
 
