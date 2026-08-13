@@ -154,16 +154,15 @@ func TestLockAndActiveMarkerDescriptorSurviveExec(t *testing.T) {
 	defer stdinWriter.Close()
 	command := exec.Command(os.Args[0],
 		"-test.run=^TestGateHelperProcess$", "--",
-		"--component", "agent", "--", "sh", "-c",
-		`test ! -e "$TEST_PREPARED_PATH" && read uid pid fd < "$DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_ACTIVE_PATH" && test "$pid" = "$$" && test "/proc/$$/fd/$fd" -ef "$DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_ACTIVE_PATH" && echo exec-ready && read line`,
+		"--component", "agent", "--state-dir", dir, "--", "sh", "-c",
+		`test ! -e "$TEST_PREPARED_PATH" && test -z "$DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_POD_UID" && test -z "$DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_POD_IP" && read uid pid fd < "$TEST_ACTIVE_PATH" && test "$pid" = "$$" && test "/proc/$$/fd/$fd" -ef "$TEST_ACTIVE_PATH" && echo exec-ready && read line`,
 	)
 	command.Env = append(os.Environ(),
 		gateHelperEnv+"=1",
-		lockPathEnv+"="+lockPath,
-		preparedPathEnv+"="+preparedPath,
-		activePathEnv+"="+activePath,
 		podUIDEnv+"=replacement-pod",
+		podIPEnv+"=192.0.2.10",
 		"TEST_PREPARED_PATH="+preparedPodPath,
+		"TEST_ACTIVE_PATH="+activePath,
 	)
 	command.Stdin = stdin
 	stdout, err := command.StdoutPipe()
@@ -244,13 +243,10 @@ func TestTerminatedWaitingGateHasNoLivePreparedDescriptor(t *testing.T) {
 
 	command := exec.Command(os.Args[0],
 		"-test.run=^TestGateHelperProcess$", "--",
-		"--component", "agent", "--", "true",
+		"--component", "agent", "--state-dir", dir, "--", "true",
 	)
 	command.Env = append(os.Environ(),
 		gateHelperEnv+"=1",
-		lockPathEnv+"="+lockPath,
-		preparedPathEnv+"="+preparedPath,
-		activePathEnv+"="+activePath,
 		podUIDEnv+"=replacement-pod",
 	)
 	if err := command.Start(); err != nil {

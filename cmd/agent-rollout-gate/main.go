@@ -16,15 +16,17 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const (
-	lockPathEnv     = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_LOCK_PATH"
-	preparedPathEnv = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_PREPARED_PATH"
-	activePathEnv   = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_ACTIVE_PATH"
-	podUIDEnv       = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_POD_UID"
-	podIPEnv        = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_POD_IP"
+	defaultStateDir       = "/var/run/datadog-agent-rollout"
+	legacyLockPathEnv     = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_LOCK_PATH"
+	legacyPreparedPathEnv = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_PREPARED_PATH"
+	legacyActivePathEnv   = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_ACTIVE_PATH"
+	podUIDEnv             = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_POD_UID"
+	podIPEnv              = "DD_EXPERIMENTAL_NODE_AGENT_ROLLOUT_POD_IP"
 )
 
 type options struct {
@@ -38,6 +40,7 @@ type options struct {
 }
 
 type probeOptions struct {
+	component              string
 	kind                   string
 	handler                string
 	port                   int
@@ -75,37 +78,28 @@ func run(args []string, stderr io.Writer) error {
 
 func parseOptions(args []string, stderr io.Writer) (options, error) {
 	var opts options
+	var stateDir string
 	flags := flag.NewFlagSet("agent-rollout-gate", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.StringVar(&opts.component, "component", "", "Agent container component name")
+	flags.StringVar(&stateDir, "state-dir", "", "directory containing host-local rollout state (defaults to "+defaultStateDir+")")
 	flags.StringVar(&opts.waitFile, "wait-file", "", "file that must exist and be non-empty after lock acquisition")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 
-	opts.lockPath = os.Getenv(lockPathEnv)
-	opts.preparedPath = os.Getenv(preparedPathEnv)
-	opts.activePath = os.Getenv(activePathEnv)
 	opts.podUID = os.Getenv(podUIDEnv)
 	opts.command = flags.Args()
 
-	if opts.component == "" {
-		return options{}, errors.New("--component is required")
+	lockPath, preparedPath, activePath, err := resolveStatePaths(opts.component, stateDir)
+	if err != nil {
+		return options{}, err
 	}
+	opts.lockPath = lockPath
+	opts.preparedPath = preparedPath
+	opts.activePath = activePath
 	if len(opts.command) == 0 {
 		return options{}, errors.New("a command is required after --")
-	}
-	if !filepath.IsAbs(opts.lockPath) || filepath.Base(opts.lockPath) != opts.component+".lock" {
-		return options{}, fmt.Errorf("%s must be an absolute path ending in %q", lockPathEnv, opts.component+".lock")
-	}
-	if !filepath.IsAbs(opts.preparedPath) || filepath.Base(opts.preparedPath) != opts.component+".prepared" {
-		return options{}, fmt.Errorf("%s must be an absolute path ending in %q", preparedPathEnv, opts.component+".prepared")
-	}
-	if !filepath.IsAbs(opts.activePath) || filepath.Base(opts.activePath) != opts.component+".active" {
-		return options{}, fmt.Errorf("%s must be an absolute path ending in %q", activePathEnv, opts.component+".active")
-	}
-	if filepath.Dir(opts.lockPath) != filepath.Dir(opts.preparedPath) || filepath.Dir(opts.lockPath) != filepath.Dir(opts.activePath) {
-		return options{}, errors.New("lock, Prepared marker, and Active marker must share a directory")
 	}
 	if opts.podUID == "" {
 		return options{}, fmt.Errorf("%s is required", podUIDEnv)
@@ -118,8 +112,11 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 
 func parseProbeOptions(args []string, stderr io.Writer) (probeOptions, error) {
 	var opts probeOptions
+	var stateDir string
 	flags := flag.NewFlagSet("agent-rollout-gate probe", flag.ContinueOnError)
 	flags.SetOutput(stderr)
+	flags.StringVar(&opts.component, "component", "", "Agent container component name")
+	flags.StringVar(&stateDir, "state-dir", "", "directory containing host-local rollout state (defaults to "+defaultStateDir+")")
 	flags.StringVar(&opts.kind, "kind", "", "probe kind: startup")
 	flags.StringVar(&opts.handler, "handler", "active", "active, http, or tcp")
 	flags.IntVar(&opts.port, "port", 0, "Pod HTTP or TCP port")
@@ -134,13 +131,14 @@ func parseProbeOptions(args []string, stderr io.Writer) (probeOptions, error) {
 		return probeOptions{}, errors.New("probe does not accept positional arguments")
 	}
 
-	opts.preparedPath = os.Getenv(preparedPathEnv)
-	opts.activePath = os.Getenv(activePathEnv)
 	opts.podUID = os.Getenv(podUIDEnv)
 	opts.address = os.Getenv(podIPEnv)
-	if !filepath.IsAbs(opts.preparedPath) || !filepath.IsAbs(opts.activePath) || filepath.Dir(opts.preparedPath) != filepath.Dir(opts.activePath) {
-		return probeOptions{}, errors.New("Prepared and Active marker paths must be absolute and share a directory")
+	_, preparedPath, activePath, err := resolveStatePaths(opts.component, stateDir)
+	if err != nil {
+		return probeOptions{}, err
 	}
+	opts.preparedPath = preparedPath
+	opts.activePath = activePath
 	if opts.podUID == "" {
 		return probeOptions{}, fmt.Errorf("%s is required", podUIDEnv)
 	}
@@ -178,4 +176,53 @@ func parseProbeOptions(args []string, stderr io.Writer) (probeOptions, error) {
 		return probeOptions{}, errors.New("active probe does not accept --port or --path")
 	}
 	return opts, nil
+}
+
+func resolveStatePaths(component, stateDir string) (string, string, string, error) {
+	if component == "" {
+		return "", "", "", errors.New("--component is required")
+	}
+	if filepath.Base(component) != component || component == "." || component == ".." {
+		return "", "", "", errors.New("--component must be a single path element")
+	}
+	if stateDir != "" {
+		if !filepath.IsAbs(stateDir) {
+			return "", "", "", errors.New("--state-dir must be absolute")
+		}
+		return derivedStatePaths(component, stateDir)
+	}
+
+	legacy := []string{os.Getenv(legacyLockPathEnv), os.Getenv(legacyPreparedPathEnv), os.Getenv(legacyActivePathEnv)}
+	if legacy[0] == "" && legacy[1] == "" && legacy[2] == "" {
+		return derivedStatePaths(component, defaultStateDir)
+	}
+	if legacy[0] == "" || legacy[1] == "" || legacy[2] == "" {
+		return "", "", "", errors.New("legacy lock, Prepared, and Active paths must be configured together")
+	}
+	wantNames := []string{component + ".lock", component + ".prepared", component + ".active"}
+	for i, path := range legacy {
+		if !filepath.IsAbs(path) || filepath.Base(path) != wantNames[i] {
+			return "", "", "", fmt.Errorf("legacy rollout path must be absolute and end in %q", wantNames[i])
+		}
+		if filepath.Dir(path) != filepath.Dir(legacy[0]) {
+			return "", "", "", errors.New("legacy lock, Prepared, and Active paths must share a directory")
+		}
+	}
+	return legacy[0], legacy[1], legacy[2], nil
+}
+
+func derivedStatePaths(component, stateDir string) (string, string, string, error) {
+	return filepath.Join(stateDir, component+".lock"), filepath.Join(stateDir, component+".prepared"), filepath.Join(stateDir, component+".active"), nil
+}
+
+func agentEnvironment(environment []string) []string {
+	clean := make([]string, 0, len(environment))
+	for _, entry := range environment {
+		name, _, _ := strings.Cut(entry, "=")
+		if name == legacyLockPathEnv || name == legacyPreparedPathEnv || name == legacyActivePathEnv || name == podUIDEnv || name == podIPEnv {
+			continue
+		}
+		clean = append(clean, entry)
+	}
+	return clean
 }

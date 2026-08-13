@@ -90,7 +90,7 @@ func waitAndExec(opts options, stderr io.Writer) error {
 	}
 
 	fmt.Fprintf(stderr, "agent-rollout-gate: %s acquired component lock; starting %s\n", opts.component, opts.command[0])
-	if err := syscall.Exec(path, opts.command, os.Environ()); err != nil {
+	if err := syscall.Exec(path, opts.command, agentEnvironment(os.Environ())); err != nil {
 		return fmt.Errorf("exec command after acquiring component lock: %w", err)
 	}
 	return nil
