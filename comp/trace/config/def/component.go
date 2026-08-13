@@ -34,6 +34,13 @@ type Component interface {
 
 	// OnUpdateAPIKey registers a callback for API Key changes
 	OnUpdateAPIKey(func(oldKey, newKey string))
+
+	// OnAdditionalEndpointsChanged registers a callback invoked when any additional_endpoints
+	// config value the trace-agent cares about changes at runtime (e.g. a delegated-auth key
+	// resolving or rotating). The callback should rebuild anything that snapshots those values
+	// (the HTTP receiver rebuilds its proxy handlers); without it a resolved key would never
+	// reach the live proxies.
+	OnAdditionalEndpointsChanged(func())
 }
 
 // Params defines the parameters for the config component.

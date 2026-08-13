@@ -142,9 +142,18 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 		}
-		for _, k := range apiKeys {
+		realKeys, hasPendingDelegatedAuth := utils.PartitionRealAndPendingKeys(apiKeys)
+		for _, k := range realKeys {
 			*endpoints = append(*endpoints, apicfg.Endpoint{
 				APIKey:            utils.SanitizeAPIKey(k),
+				Endpoint:          u,
+				ConfigSettingPath: configPath,
+			})
+		}
+		if len(realKeys) == 0 && hasPendingDelegatedAuth {
+			// Placeholder for a fully-pending domain - see PartitionRealAndPendingKeys' doc comment.
+			*endpoints = append(*endpoints, apicfg.Endpoint{
+				APIKey:            "",
 				Endpoint:          u,
 				ConfigSettingPath: configPath,
 			})

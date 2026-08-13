@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"text/template"
 	"time"
@@ -2323,6 +2324,192 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	configC := config.(*cfg)
 	configC.updateAPIKey("foo", "bar")
 	assert.Equal(t, 1, n)
+}
+
+// TestReloadAdditionalEndpointsAfterDelayedResolution is a regression test for WIF-48: a
+// delegated auth DELA(...) directive at one of the trace-relevant additional_endpoints-shaped
+// config keys can resolve asynchronously, well after this component built its initial
+// Endpoints/AdditionalEndpoints snapshot at startup (e.g. the synchronous exchange fails and a
+// background retry succeeds later). Before this fix, that later config.Set only updated core
+// config - the live trace AgentConfig kept serving the unresolved literal forever. Simulates that
+// by writing the initial (unresolved) value, building the component, then writing a "resolved"
+// value the way delegatedauth's mergeIntoAdditionalEndpoints does (config.Set at SourceSecret),
+// and asserting the live AgentConfig reflects it without rebuilding the component.
+func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
+	t.Run("apm_config.additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("apm_config.additional_endpoints", map[string][]string{
+			"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Len(t, cfg.Endpoints, 1, "a pending DELA(...) directive must not be sent as a literal API key")
+
+		coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
+			"https://second-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		require.Len(t, cfg.Endpoints, 2, "main endpoint must be preserved, resolved endpoint must now be added")
+		assert.Equal(t, "https://second-org.datadoghq.com", cfg.Endpoints[1].Host)
+		assert.Equal(t, "resolved-real-key", cfg.Endpoints[1].APIKey)
+	})
+
+	t.Run("apm_config.additional_endpoints preserves the MRF endpoint", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("multi_region_failover.enabled", true)
+		coreConfig.SetInTest("multi_region_failover.site", "site2")
+		coreConfig.SetInTest("apm_config.additional_endpoints", map[string][]string{
+			"https://second-org.datadoghq.com": {"DELA(second-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Len(t, cfg.Endpoints, 2, "a pending DELA(...) directive must not be sent as a literal API key")
+		require.True(t, cfg.Endpoints[1].IsMRF)
+
+		coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
+			"https://second-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		require.Len(t, cfg.Endpoints, 3)
+		assert.True(t, cfg.Endpoints[1].IsMRF, "MRF endpoint must be preserved")
+		assert.Equal(t, "resolved-real-key", cfg.Endpoints[2].APIKey)
+	})
+
+	t.Run("apm_config.profiling_additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("apm_config.profiling_additional_endpoints", map[string][]string{
+			"https://intake.profile.datadoghq.eu/api/v2/profile": {"DELA(profiling-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Equal(t, []string{"DELA(profiling-org-uuid, aws)"}, cfg.ProfilingProxy.AdditionalEndpoints["https://intake.profile.datadoghq.eu/api/v2/profile"])
+
+		coreConfig.Set("apm_config.profiling_additional_endpoints", map[string][]string{
+			"https://intake.profile.datadoghq.eu/api/v2/profile": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		assert.Equal(t, []string{"resolved-real-key"}, cfg.ProfilingProxy.AdditionalEndpoints["https://intake.profile.datadoghq.eu/api/v2/profile"])
+	})
+
+	t.Run("evp_proxy_config.additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("evp_proxy_config.additional_endpoints", map[string][]string{
+			"https://third-org.datadoghq.com": {"DELA(third-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Equal(t, []string{"DELA(third-org-uuid, aws)"}, cfg.EVPProxy.AdditionalEndpoints["https://third-org.datadoghq.com"])
+
+		coreConfig.Set("evp_proxy_config.additional_endpoints", map[string][]string{
+			"https://third-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		assert.Equal(t, []string{"resolved-real-key"}, cfg.EVPProxy.AdditionalEndpoints["https://third-org.datadoghq.com"])
+	})
+
+	t.Run("apm_config.debugger_additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("apm_config.debugger_additional_endpoints", map[string][]string{
+			"https://debugger-org.datadoghq.com": {"DELA(debugger-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Equal(t, []string{"DELA(debugger-org-uuid, aws)"}, cfg.DebuggerProxy.AdditionalEndpoints["https://debugger-org.datadoghq.com"])
+
+		coreConfig.Set("apm_config.debugger_additional_endpoints", map[string][]string{
+			"https://debugger-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		assert.Equal(t, []string{"resolved-real-key"}, cfg.DebuggerProxy.AdditionalEndpoints["https://debugger-org.datadoghq.com"])
+	})
+
+	t.Run("apm_config.debugger_diagnostics_additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("apm_config.debugger_diagnostics_additional_endpoints", map[string][]string{
+			"https://dbgdiag-org.datadoghq.com": {"DELA(dbgdiag-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Equal(t, []string{"DELA(dbgdiag-org-uuid, aws)"}, cfg.DebuggerIntakeProxy.AdditionalEndpoints["https://dbgdiag-org.datadoghq.com"])
+
+		coreConfig.Set("apm_config.debugger_diagnostics_additional_endpoints", map[string][]string{
+			"https://dbgdiag-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		assert.Equal(t, []string{"resolved-real-key"}, cfg.DebuggerIntakeProxy.AdditionalEndpoints["https://dbgdiag-org.datadoghq.com"])
+	})
+
+	t.Run("apm_config.symdb_additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("apm_config.symdb_additional_endpoints", map[string][]string{
+			"https://symdb-org.datadoghq.com": {"DELA(symdb-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Equal(t, []string{"DELA(symdb-org-uuid, aws)"}, cfg.SymDBProxy.AdditionalEndpoints["https://symdb-org.datadoghq.com"])
+
+		coreConfig.Set("apm_config.symdb_additional_endpoints", map[string][]string{
+			"https://symdb-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		assert.Equal(t, []string{"resolved-real-key"}, cfg.SymDBProxy.AdditionalEndpoints["https://symdb-org.datadoghq.com"])
+	})
+
+	t.Run("apm_config.telemetry.additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("apm_config.telemetry.enabled", true)
+		coreConfig.SetInTest("apm_config.telemetry.additional_endpoints", map[string][]string{
+			"https://telemetry-org.datadoghq.com": {"DELA(telemetry-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Len(t, cfg.TelemetryConfig.Endpoints, 1, "a pending DELA(...) directive must not be sent as a literal API key")
+
+		coreConfig.Set("apm_config.telemetry.additional_endpoints", map[string][]string{
+			"https://telemetry-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		require.Len(t, cfg.TelemetryConfig.Endpoints, 2, "main telemetry endpoint must be preserved, resolved endpoint must now be added")
+		assert.Equal(t, "https://telemetry-org.datadoghq.com", cfg.TelemetryConfig.Endpoints[1].Host)
+		assert.Equal(t, "resolved-real-key", cfg.TelemetryConfig.Endpoints[1].APIKey)
+	})
+
+	t.Run("ol_proxy_config.additional_endpoints", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("ol_proxy_config.additional_endpoints", map[string][]string{
+			"https://ol-org.datadoghq.com": {"DELA(ol-org-uuid, aws)"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Equal(t, []string{"DELA(ol-org-uuid, aws)"}, cfg.OpenLineageProxy.AdditionalEndpoints["https://ol-org.datadoghq.com"])
+
+		coreConfig.Set("ol_proxy_config.additional_endpoints", map[string][]string{
+			"https://ol-org.datadoghq.com": {"resolved-real-key"},
+		}, configmodel.SourceSecret)
+
+		assert.Equal(t, []string{"resolved-real-key"}, cfg.OpenLineageProxy.AdditionalEndpoints["https://ol-org.datadoghq.com"])
+	})
+}
+
+// TestOnAdditionalEndpointsChangedFiresOnReload verifies that an additional_endpoints config
+// change triggers the OnAdditionalEndpointsChanged callback, which the agent wires to rebuild its
+// HTTP handlers so the proxy transports re-read the updated endpoints. Without it a delegated-auth
+// key that resolves or rotates after startup would never reach the live proxies.
+func TestOnAdditionalEndpointsChangedFiresOnReload(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.SetInTest("apm_config.profiling_additional_endpoints", map[string][]string{
+		"https://intake.profile.datadoghq.eu/api/v2/profile": {"DELA(profiling-org-uuid, aws)"},
+	})
+	config := buildComponent(t, true, coreConfig)
+
+	var fired atomic.Int32
+	config.OnAdditionalEndpointsChanged(func() { fired.Add(1) })
+
+	coreConfig.Set("apm_config.profiling_additional_endpoints", map[string][]string{
+		"https://intake.profile.datadoghq.eu/api/v2/profile": {"resolved-real-key"},
+	}, configmodel.SourceSecret)
+
+	assert.Equal(t, int32(1), fired.Load(), "additional_endpoints change must fire the rebuild callback")
 }
 
 func buildConfigComponent(t *testing.T, setHostnameInConfig bool) Component {

@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Delegated authentication (Workload Identity Federation) can now manage the API key for a
+    second (or later) Datadog org when dual/multi-org shipping via ``additional_endpoints``.
+    Instead of a static API key, an entry in ``additional_endpoints`` can be a
+    ``DELA(<org_uuid>, <provider>[, key=value, ...])`` directive (for example
+    ``DELA(11111111-2222-3333-4444-555555555555, aws)``); the Agent resolves it to a real,
+    automatically refreshed intake API key for that org.

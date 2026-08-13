@@ -235,6 +235,23 @@ func TestOpenLineageEndpoint(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "https://intake.testing.com/different-api", urls[0].String())
 	})
+
+	t.Run("pending delegated auth directive", func(t *testing.T) {
+		// Regression test: a still-unresolved DELA(...) directive must not be sent as a literal
+		// DD-API-KEY - the delegatedauth component resolves it asynchronously and writes the real
+		// key back into this same config slot, at which point a config reload picks it up.
+		var cfg config.AgentConfig
+		cfg.OpenLineageProxy.APIKey = "test_api_key"
+		cfg.OpenLineageProxy.AdditionalEndpoints = map[string][]string{
+			"datadoghq.eu": {"DELA(some-org-uuid, aws)", "test_api_key_1"},
+		}
+		urls, keys, err := openLineageEndpoints(&cfg)
+		assert.NoError(t, err)
+		assert.Len(t, keys, 2, "the pending directive must be skipped, only the main and real-key endpoints remain")
+		assert.Equal(t, "test_api_key", keys[0])
+		assert.Equal(t, "test_api_key_1", keys[1])
+		assert.Equal(t, "https://data-obs-intake.datadoghq.eu/api/v1/lineage", urls[1].String())
+	})
 }
 
 func TestOpenLineageProxyHandler(t *testing.T) {

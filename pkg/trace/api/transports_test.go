@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -138,5 +139,55 @@ func TestForwardingTransport_MultipleTargets(t *testing.T) {
 			rt := setupTransport(t)
 			validateResponse(t, rt, c.req)
 		})
+	}
+}
+
+// capturingRoundTripper records the DD-API-KEY header of every request it sees. The forwarding
+// transport dispatches to additional targets on separate goroutines concurrently with the main
+// target, so accesses must be synchronized.
+type capturingRoundTripper struct {
+	mu   sync.Mutex
+	keys []string
+}
+
+func (c *capturingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.mu.Lock()
+	c.keys = append(c.keys, req.Header.Get("DD-API-KEY"))
+	c.mu.Unlock()
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+// TestForwardingTransport_SkipsPendingDelegatedAuthDirective is a regression test: a still
+// unresolved DELA(...) directive value must never be sent as a literal DD-API-KEY - the
+// delegatedauth component resolves it asynchronously and writes the real key back into this same
+// config slot. Shared by debugger.go and symdb.go, which both build their forwarding transport
+// straight from the raw AdditionalEndpoints config map via newForwardingTransport.
+func TestForwardingTransport_SkipsPendingDelegatedAuthDirective(t *testing.T) {
+	mainEndpoint, _ := url.Parse("http://localhost:8080")
+	additionalEndpoints := map[string][]string{
+		"http://localhost:8081": {"DELA(some-org-uuid, aws)", "real-key"},
+	}
+	crt := &capturingRoundTripper{}
+	ft := newForwardingTransport(crt, mainEndpoint, "main-key", additionalEndpoints, 25*1024*1024)
+
+	req, err := http.NewRequest("POST", "http://localhost:8080/v1/traces", strings.NewReader("test body"))
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	resp, err := ft.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("failed to round trip: %v", err)
+	}
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+
+	if len(crt.keys) != 2 {
+		t.Fatalf("expected 2 requests (main + one real key, pending directive skipped), got %d: %v", len(crt.keys), crt.keys)
+	}
+	for _, key := range crt.keys {
+		if key == "DELA(some-org-uuid, aws)" {
+			t.Errorf("pending directive must not be sent as a literal DD-API-KEY, got keys: %v", crt.keys)
+		}
 	}
 }

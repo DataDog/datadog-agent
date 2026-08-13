@@ -38,9 +38,18 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 		if err != nil {
 			return nil, fmt.Errorf("invalid %s url '%s': %s", additionalEpsKey, endpointURL, err)
 		}
-		for _, k := range apiKeys {
+		realKeys, hasPendingDelegatedAuth := utils.PartitionRealAndPendingKeys(apiKeys)
+		for _, k := range realKeys {
 			eps = append(eps, apicfg.Endpoint{
 				APIKey:            utils.SanitizeAPIKey(k),
+				Endpoint:          u,
+				ConfigSettingPath: additionalEpsKey,
+			})
+		}
+		if len(realKeys) == 0 && hasPendingDelegatedAuth {
+			// Placeholder for a fully-pending domain - see PartitionRealAndPendingKeys' doc comment.
+			eps = append(eps, apicfg.Endpoint{
+				APIKey:            "",
 				Endpoint:          u,
 				ConfigSettingPath: additionalEpsKey,
 			})
