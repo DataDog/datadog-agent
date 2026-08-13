@@ -43,10 +43,6 @@ impl Drop for OwnedProcessHandle {
     }
 }
 
-/// Platform-agnostic process handle for procmgr supervision.
-///
-/// On Unix we wrap `tokio::process::Child`.
-/// On Windows we wrap a raw process handle from `CreateProcessAsUserW`.
 pub struct ProcessHandle {
     #[cfg(not(windows))]
     child: Child,
@@ -118,9 +114,7 @@ async fn raw_wait_exit_code(process_handle: usize) -> Result<ExitStatus> {
     const WAIT_OBJECT_0: u32 = 0;
     const WAIT_FAILED: u32 = 0xFFFF_FFFF;
 
-    // Wait synchronously on the blocking pool so the future stays Send (required by
-    // supervisor tasks spawned via tokio::spawn). The process HANDLE remains owned by
-    // ProcessHandle for the duration of this wait.
+    // spawn_blocking keeps this future Send while ProcessHandle owns the HANDLE.
     let exit_code = tokio::task::spawn_blocking(move || -> Result<u32> {
         let process_handle = process_handle as HANDLE;
         let wait_result = unsafe { WaitForSingleObject(process_handle, INFINITE) };

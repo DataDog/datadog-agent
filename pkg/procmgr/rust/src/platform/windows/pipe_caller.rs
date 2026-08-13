@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Named-pipe client identity for gRPC authorization.
 
 use windows_sys::Win32::Foundation::{HANDLE, TRUE};
 use windows_sys::Win32::Security::{
@@ -16,19 +15,7 @@ use windows_sys::Win32::System::SystemServices::{
 };
 use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
-/// Returns whether the connected pipe client may invoke mutating gRPC methods (`Create`).
-///
-/// Must be called only after at least one message has been read from the pipe: the named
-/// pipe filesystem impersonates the security context of the last message read
-/// ([`ImpersonateNamedPipeClient`](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient)).
-/// Clients must connect with at least `SECURITY_IDENTIFICATION` (tokio's default; COAT
-/// uses go-winio identification). Administrator membership is read from `TokenGroups`
-/// because identification-level pipe tokens cannot be passed to `CheckTokenMembership`.
-///
-/// A `false` result does **not** drop the connection: tonic keeps serving the pipe and
-/// non-privileged RPCs (`Start`/`Stop`/`ReloadConfig`/reads) continue to work. Only
-/// handlers that call [`crate::grpc::caller_auth::require_privileged_pipe_client`] return
-/// `PERMISSION_DENIED`.
+/// True when the pipe client may call mutating gRPC methods (`Create`). Call after reading a message.
 pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
     if unsafe { ImpersonateNamedPipeClient(pipe) } == 0 {
         let err = std::io::Error::last_os_error();
@@ -56,7 +43,6 @@ pub(crate) fn pipe_client_may_mutate(pipe: HANDLE) -> bool {
     impersonated_client_may_mutate().unwrap_or_default()
 }
 
-/// Win32 error codes for clients that connect or impersonate without a usable token.
 const ERROR_NO_TOKEN: i32 = 1008;
 const ERROR_CANT_OPEN_ANONYMOUS: i32 = 1347;
 

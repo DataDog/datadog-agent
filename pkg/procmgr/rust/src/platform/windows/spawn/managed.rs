@@ -15,13 +15,7 @@ use super::super::agent_credentials::{AgentAccount, resolve_agent_account};
 use super::primary_token::spawn_as_primary_token;
 use super::privileged;
 
-/// Build a [`SpawnRequest`], spawn the child, and assign it to a supervision job.
-///
-/// Post-spawn `AssignProcessToJobObject` runs here (not in profile modules) because
-/// `CreateProcessAsUserW` cannot pass `PROC_THREAD_ATTRIBUTE_JOB_LIST` under impersonation.
-/// Children are created suspended and resumed only after job assignment.
-///
-/// Caller must hold [`super::super::console_lock`] on Windows (see `ManagedProcess::try_spawn`).
+/// Spawn suspended; job assignment is post-spawn (`CreateProcessAsUserW` + impersonation).
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
     let profile = profile_for(process.name());
     let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
@@ -32,8 +26,6 @@ pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<Process
         privileged::validate_process_request(&process_name, &request)?;
     }
 
-    // Create the job before spawning so a CreateJobObjectW / SetInformationJobObject
-    // failure cannot leave a running child with no retained handle or watcher.
     let job = JobObject::new()
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
