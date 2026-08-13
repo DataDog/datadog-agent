@@ -103,6 +103,8 @@ type logObs struct {
 	content     string
 	status      string
 	tags        []string
+	service     string
+	source      string
 	hostname    string
 	timestampMs int64
 }
@@ -125,6 +127,10 @@ func (l *logObs) Tags() []string {
 func (l *logObs) GetHostname() string {
 	return l.hostname
 }
+
+func (l *logObs) GetService() string { return l.service }
+
+func (l *logObs) GetSource() string { return l.source }
 
 // GetTimestampUnixMilli implements observerdef.LogView.
 func (l *logObs) GetTimestampUnixMilli() int64 {
@@ -694,7 +700,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter}
+	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter, scopes: o.scopes}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -963,6 +969,7 @@ func (o *observerImpl) IngestLogForReplay(source string, msg observerdef.LogView
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
 	o.replayMu.Unlock()
+	o.recordLogAccepted(scopeFromTags(lo.tags, lo.service, lo.source))
 }
 
 // IngestLogAndAdvance feeds a log directly into the engine and executes any
@@ -981,6 +988,7 @@ func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogVie
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
 	o.replayMu.Unlock()
+	o.recordLogAccepted(scopeFromTags(lo.tags, lo.service, lo.source))
 }
 
 // FinishReplayStream flushes the scheduler at end-of-input without resetting
@@ -992,13 +1000,24 @@ func (o *observerImpl) FinishReplayStream() {
 }
 
 func logObsFromView(msg observerdef.LogView) *logObs {
+	service, source := logRoutingValues(msg)
+	scope := scopeFromTags(msg.Tags(), service, source)
 	return &logObs{
 		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
-		tags:        copyTags(msg.Tags()),
+		tags:        normalizeScopeTags(msg.Tags(), scope),
+		service:     scope.service,
+		source:      scope.source,
 		hostname:    msg.GetHostname(),
 		timestampMs: msg.GetTimestampUnixMilli(),
 	}
+}
+
+func logRoutingValues(msg observerdef.LogView) (service, source string) {
+	if routing, ok := msg.(observerdef.LogRoutingView); ok {
+		return routing.GetService(), routing.GetSource()
+	}
+	return "", ""
 }
 
 func normalizeMetricSource(name, source string) string {
@@ -1011,6 +1030,7 @@ func normalizeMetricSource(name, source string) string {
 type metricIngestDecision struct {
 	source string
 	metric *metricObs
+	scope  scopeKey
 }
 
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
@@ -1027,14 +1047,16 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
+	scope := scopeFromTags(sample.GetRawTags(), "", "")
 	return metricIngestDecision{
 		source: normalizedSource,
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
-			tags:      tags,
+			tags:      canonicalizeTags(normalizeScopeTags(tags, scope)),
 			timestamp: timestamp,
 		},
+		scope: scope,
 	}
 }
 
@@ -1060,6 +1082,7 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
 	o.replayMu.Unlock()
+	o.recordMetricAccepted(decision.source, decision.scope)
 }
 
 // handle is the lightweight observation interface passed to other components.
@@ -1070,6 +1093,37 @@ type handle struct {
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
 	filter    *metricsFilterRules
+	scopes    *scopeRegistry
+}
+
+func (h *handle) recordMetricAccepted(source string, scope scopeKey) {
+	if h.telemetry != nil {
+		h.telemetry.recordMetricIngested(source)
+	}
+	if h.scopes != nil && h.scopes.admit(scope, "metric_input") && h.telemetry != nil {
+		h.telemetry.recordScopeMetricIngested(scope, h.scopes.hasTailer(scope))
+	}
+}
+
+func (h *handle) recordLogAccepted(scope scopeKey) {
+	if h.scopes != nil && h.scopes.admit(scope, "log_input") && h.telemetry != nil {
+		h.telemetry.recordScopeLogIngested(scope, h.scopes.hasTailer(scope))
+	}
+}
+
+func (o *observerImpl) recordMetricAccepted(source string, scope scopeKey) {
+	if o.telemetry != nil {
+		o.telemetry.recordMetricIngested(source)
+	}
+	if o.scopes != nil && o.scopes.admit(scope, "metric_input") && o.telemetry != nil {
+		o.telemetry.recordScopeMetricIngested(scope, o.scopes.hasTailer(scope))
+	}
+}
+
+func (o *observerImpl) recordLogAccepted(scope scopeKey) {
+	if o.scopes != nil && o.scopes.admit(scope, "log_input") && o.telemetry != nil {
+		o.telemetry.recordScopeLogIngested(scope, o.scopes.hasTailer(scope))
+	}
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -1097,6 +1151,7 @@ func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool 
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
+		h.recordMetricAccepted(decision.source, decision.scope)
 		return false
 	default:
 		h.dropCount.Add(1)
@@ -1112,6 +1167,9 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	// Use provided timestampMs if available, otherwise use current time
 	timestampMs := msg.GetTimestampUnixMilli()
 	tags := copyTags(msg.Tags())
+	service, source := logRoutingValues(msg)
+	scope := scopeFromTags(tags, service, source)
+	tags = normalizeScopeTags(tags, scope)
 	content := msg.GetContent()
 	logSource := ""
 	if h.telemetry != nil {
@@ -1127,6 +1185,8 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 			content:     content,
 			status:      msg.GetStatus(),
 			tags:        tags,
+			service:     scope.service,
+			source:      scope.source,
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
 		},
@@ -1138,6 +1198,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		if h.telemetry != nil {
 			h.telemetry.recordLogIngested(logSource, len(content))
 		}
+		h.recordLogAccepted(scope)
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
@@ -1159,3 +1220,5 @@ func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
+func (v *logView) GetService() string           { return v.obs.service }
+func (v *logView) GetSource() string            { return v.obs.source }

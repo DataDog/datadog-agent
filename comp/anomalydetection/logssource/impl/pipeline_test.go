@@ -66,6 +66,9 @@ func TestPipeline_NilRulesForwardsAll(t *testing.T) {
 	drainMessages(p, []*message.Message{msg})
 
 	require.Len(t, handle.logs, 1)
+	routing, ok := handle.logs[0].(observer.LogRoutingView)
+	require.True(t, ok)
+	assert.Equal(t, "containerd", routing.GetSource())
 }
 
 func TestPipeline_TagRuleDropsMessage(t *testing.T) {

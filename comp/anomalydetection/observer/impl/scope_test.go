@@ -7,6 +7,24 @@ package observerimpl
 
 import "testing"
 
+type routedLogView struct {
+	content     string
+	status      string
+	tags        []string
+	hostname    string
+	timestampMs int64
+	service     string
+	source      string
+}
+
+func (v *routedLogView) GetContent() string           { return v.content }
+func (v *routedLogView) GetStatus() string            { return v.status }
+func (v *routedLogView) Tags() []string               { return v.tags }
+func (v *routedLogView) GetHostname() string          { return v.hostname }
+func (v *routedLogView) GetTimestampUnixMilli() int64 { return v.timestampMs }
+func (v *routedLogView) GetService() string           { return v.service }
+func (v *routedLogView) GetSource() string            { return v.source }
+
 func TestScopeFromTagsUsesExplicitValuesAndFirstTagFallback(t *testing.T) {
 	tags := []string{"service:first", "source:nginx", "service:second", "source:apache"}
 	if got, want := scopeFromTags(tags, "", ""), (scopeKey{service: "first", source: "nginx"}); got != want {
@@ -55,4 +73,43 @@ func TestScopeTelemetryTagsAndDefaultLimit(t *testing.T) {
 	if got := scorerScopeLimit(nil); got != defaultMaxScopes {
 		t.Fatalf("scorerScopeLimit(nil) = %d, want %d", got, defaultMaxScopes)
 	}
+}
+
+func TestPrepareMetricIngestNormalizesRoutingTags(t *testing.T) {
+	decision := prepareMetricIngest("dogstatsd", &metricObs{
+		name: "requests",
+		tags: []string{"env:prod", "service:first", "source:nginx", "service:second", "source:apache"},
+	}, nil)
+	if got, want := decision.scope, (scopeKey{service: "first", source: "nginx"}); got != want {
+		t.Fatalf("scope = %#v, want %#v", got, want)
+	}
+	if got, want := decision.metric.tags, []string{"env:prod", "service:first", "source:nginx"}; !equalStringSlices(got, want) {
+		t.Fatalf("normalized tags = %#v, want %#v", got, want)
+	}
+}
+
+func TestLogObsFromViewUsesResolvedRoutingValues(t *testing.T) {
+	log := logObsFromView(&routedLogView{
+		tags:    []string{"service:tag-service", "source:tag-source", "env:prod"},
+		service: "resolved-service",
+		source:  "resolved-source",
+	})
+	if log.service != "resolved-service" || log.source != "resolved-source" {
+		t.Fatalf("resolved routing = (%q, %q)", log.service, log.source)
+	}
+	if got, want := log.tags, []string{"env:prod", "service:resolved-service", "source:resolved-source"}; !equalStringSlices(got, want) {
+		t.Fatalf("normalized tags = %#v, want %#v", got, want)
+	}
+}
+
+func equalStringSlices(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -19,6 +19,9 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordRRCFThreshold("rrcf", 0.9)
 	tel.recordLogPatternCountDelta("log_pattern_extractor", 1)
 	tel.recordLogIngested("internal", 256)
+	tel.recordMetricIngested("dogstatsd")
+	tel.recordScopeMetricIngested(scopeKey{service: "api", source: "nginx"}, false)
+	tel.recordScopeLogIngested(scopeKey{service: "api", source: "nginx"}, true)
 	tel.recordDroppedLog("logs", []string{"source:kubelet"})
 	tel.recordFilteredMetric("dogstatsd")
 	tel.incrementLogsInFlight("internal")
@@ -28,6 +31,9 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordStorageSeriesEvicted("capacity", 3)
 	tel.recordStorageCapacityHit()
 	tel.recordAdvanceSkipped("input")
+	tel.setScopeAdmitted(42)
+	tel.recordScopeOverflow("metric_input")
+	tel.setScopeScorers(3)
 }
 
 func TestClassifyLogSource(t *testing.T) {

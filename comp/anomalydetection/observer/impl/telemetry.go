@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"strconv"
 	"sync/atomic"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -22,6 +23,7 @@ const (
 	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Delta of active log-pattern count.
 	telemetryLogsIngested                    = "observer.logs.ingested"                       // Number of logs ingested by anomaly detection.
+	telemetryMetricsIngested                 = "observer.metrics.ingested"                    // Number of externally ingested metrics accepted by anomaly detection.
 	telemetryProcessedLogSize                = "observer.logs.processed_bytes"                // Total bytes processed from ingested logs.
 	telemetryDroppedLogs                     = "observer.logs.dropped"                        // Number of logs dropped before processing.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
@@ -37,6 +39,8 @@ const (
 	telemetryScopeAdmitted                   = "observer.scope.admitted"                      // Number of service/source scopes admitted by the scoped scorer experiment.
 	telemetryScopeOverflow                   = "observer.scope.overflow"                      // Number of scope admissions rejected after reaching the configured limit.
 	telemetryScopeScorers                    = "observer.scope.scorers"                       // Number of lazily-created scoped scorers.
+	telemetryScopeMetricsIngested            = "observer.scope.metrics.ingested"              // Number of accepted external metrics by service/source scope and tailer coverage.
+	telemetryScopeLogsIngested               = "observer.scope.logs.ingested"                 // Number of accepted logs by service/source scope and tailer coverage.
 )
 
 type observerTelemetry struct {
@@ -46,6 +50,7 @@ type observerTelemetry struct {
 	logPatternCount telemetry.Counter
 
 	logsIngested     telemetry.Counter
+	metricsIngested  telemetry.Counter
 	processedLogSize telemetry.Counter
 	droppedLogs      telemetry.Counter
 	filteredMetrics  telemetry.Counter
@@ -61,6 +66,8 @@ type observerTelemetry struct {
 	scopeAdmitted    telemetry.Gauge
 	scopeOverflow    telemetry.Counter
 	scopeScorers     telemetry.Gauge
+	scopeMetrics     telemetry.Counter
+	scopeLogs        telemetry.Counter
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -98,6 +105,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryLogsIngested,
 			[]string{"log_source"},
 			"Number of logs ingested by anomaly detection",
+		),
+		metricsIngested: telemetryComp.NewCounter(
+			"observer",
+			telemetryMetricsIngested,
+			[]string{"source"},
+			"Number of externally ingested metrics accepted by anomaly detection",
 		),
 		processedLogSize: telemetryComp.NewCounter(
 			"observer",
@@ -189,6 +202,18 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			nil,
 			"Number of lazily-created scoped scorers",
 		),
+		scopeMetrics: telemetryComp.NewCounter(
+			"observer",
+			telemetryScopeMetricsIngested,
+			[]string{"service", "source", "tailer_match"},
+			"Number of accepted external metrics by service/source scope and tailer coverage",
+		),
+		scopeLogs: telemetryComp.NewCounter(
+			"observer",
+			telemetryScopeLogsIngested,
+			[]string{"service", "source", "tailer_match"},
+			"Number of accepted logs by service/source scope and tailer coverage",
+		),
 	}
 }
 
@@ -211,6 +236,20 @@ func (t *observerTelemetry) recordLogPatternCountDelta(detectorName string, delt
 func (t *observerTelemetry) recordLogIngested(logSource string, sizeBytes int) {
 	t.logsIngested.Add(1, logSource)
 	t.processedLogSize.Add(float64(sizeBytes), logSource)
+}
+
+func (t *observerTelemetry) recordMetricIngested(source string) {
+	t.metricsIngested.Add(1, source)
+}
+
+func (t *observerTelemetry) recordScopeMetricIngested(scope scopeKey, tailerMatch bool) {
+	service, source := scope.telemetryTags()
+	t.scopeMetrics.Add(1, service, source, strconv.FormatBool(tailerMatch))
+}
+
+func (t *observerTelemetry) recordScopeLogIngested(scope scopeKey, tailerMatch bool) {
+	service, source := scope.telemetryTags()
+	t.scopeLogs.Add(1, service, source, strconv.FormatBool(tailerMatch))
 }
 
 func (t *observerTelemetry) recordDroppedLog(source string, tags []string) {

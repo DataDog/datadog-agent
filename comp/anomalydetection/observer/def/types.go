@@ -59,6 +59,14 @@ type LogView interface {
 	GetTimestampUnixMilli() int64
 }
 
+// LogRoutingView optionally exposes the resolved service and source associated
+// with a log. Implementations that do not provide it continue to be routed
+// using their service:/source: tags.
+type LogRoutingView interface {
+	GetService() string
+	GetSource() string
+}
+
 // LogMetricsExtractor transforms observed logs into metrics.
 // Implementations should be fast since they run synchronously on every observed
 // log. Extractors may keep lightweight internal state when needed for pattern
