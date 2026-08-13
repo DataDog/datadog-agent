@@ -809,3 +809,57 @@ const (
 	benchNoopFunc   = "bench.noop"
 	benchNoopResult = 1000
 )
+
+// BenchmarkConstantFolding is the evidence that an expression over SECL constants
+// costs nothing at evaluation, which a third of the real rules depend on: the flags
+// idiom `open.flags & (O_CREAT|…) > 0` is written in 34 of them.
+//
+// A constant is free by construction — the planner reads it out of the expression —
+// but an expression over constants is not, and cel-go's own optimizer does not fold
+// it: math.bitOr is a function call like any other. arithmeticFolding does, when the
+// rule is planned.
+//
+// Measured (ns/op, median of two, including the ~30 ns context reset):
+//
+//	Plain      `open.flags > 0`                          121   8 B, 1 alloc
+//	Constants  `open.flags & (O_CREAT|O_RDWR|O_WRONLY)`  213   8 B, 1
+//	Literal    `open.flags & 577 > 0`                    230  16 B, 2
+//
+// Constants sits one math.bitAnd call above Plain — around 91 ns, the price
+// BenchmarkRead puts on a call — where the unfolded form would sit three calls above
+// it. The extra allocation in the Literal row is not the folding: 577 & 67 is 65,
+// which boxes for free under Go's small integer table, where 577 & 577 does not.
+func BenchmarkConstantFolding(b *testing.B) {
+	env, err := NewModelEnv()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	event := benchEvent()
+	event.Open.Flags = 577
+	ctx := eval.NewContext(event)
+	activation := NewActivation(ctx)
+
+	rows := []struct{ name, expr string }{
+		{"Plain", `open.flags > 0`},
+		{"Constants", `open.flags & (O_CREAT|O_RDWR|O_WRONLY) > 0`},
+		{"Literal", `open.flags & 577 > 0`},
+	}
+
+	for _, row := range rows {
+		b.Run(row.name, func(b *testing.B) {
+			rule, err := NewRule(env, row.expr, ModelFieldTypes{})
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			b.ReportAllocs()
+			for b.Loop() {
+				resetContext(ctx, event)
+				if _, err := rule.Eval(activation); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}

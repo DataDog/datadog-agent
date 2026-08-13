@@ -167,6 +167,11 @@
 //   - Expressions that SECL parses but its compiler then rejects, such as one
 //     binding two iterator variables, are rejected here at parse time instead.
 //
+//   - A list mixing constant types, which SECL rejects outright, is accepted here:
+//     CEL widens a heterogeneous list literal to list(dyn) and then matches nothing.
+//     A rule SECL refuses to compile is one that never fires — see
+//     TestMixedConstantListIsAccepted.
+//
 //   - Partial evaluation is not wired. SECL answers "could this rule still match if
 //     one field had this value and nothing else were known" with a variant of the
 //     rule compiled per field, which approvers and discarders rest on. cel-go's own

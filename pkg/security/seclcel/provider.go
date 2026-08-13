@@ -71,10 +71,10 @@ func join(prefix, segment string) string {
 	return prefix + "." + segment
 }
 
-// ModelTypes returns the environment options that declare the SECL fields: the
-// generated object types as a type provider, the one variable the whole namespace
-// hangs under — see EventRoot — and the read functions a field becomes once the
-// expression is optimized.
+// ModelTypes returns the environment options that declare what a rule over the real
+// model can name: the generated object types as a type provider, the one variable the
+// whole namespace hangs under — see EventRoot — the read functions a field becomes once
+// the expression is optimized, and the SECL constants.
 //
 // Passing these to NewEnv is what turns Compile from a well-formedness check
 // into a real one, so that comparing a string field against an integer, or
@@ -86,10 +86,13 @@ func ModelTypes() ([]cel.EnvOption, error) {
 		return nil, fmt.Errorf("creating the CEL type registry: %w", err)
 	}
 
-	return append([]cel.EnvOption{
+	opts := []cel.EnvOption{
 		cel.CustomTypeProvider(&modelTypes{Provider: registry}),
 		cel.Variable(EventRoot, modelRootType),
-	}, readBindings()...), nil
+	}
+	opts = append(opts, readBindings()...)
+	opts = append(opts, constantDeclarations()...)
+	return opts, nil
 }
 
 // NewModelEnv returns a CEL environment that declares the SECL helper functions
