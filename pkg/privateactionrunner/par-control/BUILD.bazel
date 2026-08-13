@@ -1,3 +1,4 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
 _LINUX_OR_WINDOWS = select({
@@ -6,27 +7,55 @@ _LINUX_OR_WINDOWS = select({
     "//conditions:default": ["@platforms//:incompatible"],
 })
 
+# The executor rust_prost_library propagates C++ link requirements.
+cc_library(
+    name = "cpp_stdlib",
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["-lstdc++"],
+    }),
+)
+
 rust_library(
     name = "par-control-lib",
     srcs = [
         "src/config.rs",
+        "src/executor.rs",
         "src/lib.rs",
         "src/platform.rs",
         "src/procmgr.rs",
+        "src/proto.rs",
         "src/test_support.rs",
+        "src/tls.rs",
+        "src/transport.rs",
     ],
+    compile_data = glob(["testdata/*.txt"]),
     crate_name = "par_control",
     edition = "2024",
+    link_deps = [":cpp_stdlib"],
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/procmgr/rust/client:dd-procmgr-client",
+        "//pkg/proto/datadog/privateactionrunner:executor_rust_proto",
         "@crates//:anyhow",
+        "@crates//:datadog-agent-commons",
+        "@crates//:hyper-util",
         "@crates//:log",
+        "@crates//:prost",
+        "@crates//:rustls",
+        "@crates//:rustls-pki-types",
+        "@crates//:saluki-tls",
         "@crates//:serde",
         "@crates//:serde_yaml",
         "@crates//:tokio",
+        "@crates//:tokio-rustls",
+        "@crates//:tokio-stream",
         "@crates//:tonic",
+        "@crates//:tonic-prost",
+        "@crates//:tower",
     ] + select({
         "@platforms//os:windows": [
             "@crates//:windows-registry",
@@ -56,6 +85,7 @@ rust_test(
     name = "par-control_test",
     crate = ":par-control-lib",
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:tempfile",

@@ -18,9 +18,14 @@ path = "src/bins/par-control.rs"
 [dependencies]
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
+datadog-agent-commons.workspace = true
 dd-agent-log.workspace = true
 dd-procmgr-client.workspace = true
+hyper-util.workspace = true
 log.workspace = true
+prost.workspace = true
+rustls-pki-types.workspace = true
+saluki-tls.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 tokio = { workspace = true, features = [
@@ -29,12 +34,22 @@ tokio = { workspace = true, features = [
   "rt-multi-thread",
   "signal",
 ] }
+tokio-rustls.workspace = true
+tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }
+tonic-prost.workspace = true
+tower.workspace = true
+
+[target.'cfg(not(windows))'.dependencies]
+rustls.workspace = true
 
 [target.'cfg(windows)'.dependencies]
+rustls.workspace = true
 windows-registry.workspace = true
 windows-sys = { workspace = true, features = ["Win32_System_Registry"] }
 
 [dev-dependencies]
 tempfile.workspace = true
-tokio-stream = { workspace = true, features = ["net"] }
+
+[build-dependencies]
+tonic-prost-build.workspace = true
