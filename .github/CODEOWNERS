@@ -236,6 +236,7 @@
 /.gitlab/test/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/test/functional_test/regression_detector.yml     @DataDog/single-machine-performance
+/.gitlab/childs/smp-regression-child-pipeline.yml         @DataDog/single-machine-performance
 
 
 
