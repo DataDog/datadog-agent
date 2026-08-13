@@ -136,6 +136,8 @@ pub struct ManagedProcess {
     last_config_gate_met: Option<bool>,
     /// Last observed path + config gate result; used to restart after start conditions open.
     last_start_conditions_met: Option<bool>,
+    /// Incremented on config reload so queued restarts from before the change can be discarded.
+    config_generation: u64,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
@@ -173,6 +175,7 @@ impl ManagedProcess {
             last_exit_status: None,
             last_config_gate_met: None,
             last_start_conditions_met: None,
+            config_generation: 0,
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
@@ -357,6 +360,7 @@ impl ManagedProcess {
     }
 
     pub fn set_config(&mut self, config: ProcessConfig) {
+        self.config_generation += 1;
         self.restarts = RestartTracker::new(config.restart_delay());
         self.config = config;
     }
@@ -391,6 +395,14 @@ impl ManagedProcess {
 
     pub(crate) fn last_start_conditions_met(&self) -> Option<bool> {
         self.last_start_conditions_met
+    }
+
+    pub(crate) fn config_generation(&self) -> u64 {
+        self.config_generation
+    }
+
+    pub(crate) fn has_ever_run_successfully(&self) -> bool {
+        self.restarts.last_spawn_time.is_some()
     }
 
     fn condition_path_exists_met(&self) -> bool {
