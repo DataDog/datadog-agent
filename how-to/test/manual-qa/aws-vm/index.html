@@ -4003,13 +4003,13 @@
   
 
 
-<h1 id="aws-vm">AWS VM<a class="headerlink" href="#aws-vm" title="Permanent link">&para;</a></h1>
+<h1 id="aws-vm">AWS VM</h1>
 <p>Provisions an EC2 instance with the Datadog Agent installed. The most common
 scenario for testing agent behavior on a host.</p>
-<h2 id="create">Create<a class="headerlink" href="#create" title="Permanent link">&para;</a></h2>
+<h2 id="create">Create</h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-vm
 </span></code></pre></div>
-<h3 id="key-options">Key options<a class="headerlink" href="#key-options" title="Permanent link">&para;</a></h3>
+<h3 id="key-options">Key options</h3>
 <table>
 <thead>
 <tr>
@@ -4081,7 +4081,7 @@ scenario for testing agent behavior on a host.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<h3 id="examples">Examples</h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Ubuntu ARM VM with a pipeline build</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-vm<span class="w"> </span>--os-family<span class="o">=</span>ubuntu<span class="w"> </span>--architecture<span class="o">=</span>arm64<span class="w"> </span>--pipeline-id<span class="o">=</span><span class="m">12345678</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
@@ -4095,7 +4095,7 @@ scenario for testing agent behavior on a host.</p>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-vm<span class="w"> </span>--stack-name<span class="o">=</span>test-a
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-vm<span class="w"> </span>--stack-name<span class="o">=</span>test-b
 </span></code></pre></div>
-<h2 id="connect">Connect<a class="headerlink" href="#connect" title="Permanent link">&para;</a></h2>
+<h2 id="connect">Connect</h2>
 <p>The task prints SSH connection details when the instance is ready.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Print connection details again</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.show-vm<span class="w"> </span>--stack-name<span class="o">=</span>&lt;name&gt;
@@ -4104,10 +4104,10 @@ scenario for testing agent behavior on a host.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.get-vm-password<span class="w"> </span>--stack-name<span class="o">=</span>&lt;name&gt;
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.rdp-vm<span class="w">          </span>--stack-name<span class="o">=</span>&lt;name&gt;
 </span></code></pre></div>
-<h2 id="destroy">Destroy<a class="headerlink" href="#destroy" title="Permanent link">&para;</a></h2>
+<h2 id="destroy">Destroy</h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.destroy-vm<span class="w"> </span><span class="o">[</span>--stack-name<span class="o">=</span>&lt;name&gt;<span class="o">]</span>
 </span></code></pre></div>
-<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<h2 id="limitations">Limitations</h2>
 <ul>
 <li>FakeIntake cannot be deployed without the agent (<code>--install-agent=true</code> is required).</li>
 <li>macOS VMs require access to macOS-compatible subnets in the <code>agent-sandbox</code> account; the required flags are applied automatically when <code>--os-family=macos</code> is used.</li>
