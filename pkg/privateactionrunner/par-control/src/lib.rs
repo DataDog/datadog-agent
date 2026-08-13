@@ -9,6 +9,7 @@ pub mod executor;
 pub mod identity;
 pub mod jwt;
 pub mod opms;
+pub mod orchestrator;
 pub mod procmgr;
 pub mod proto;
 pub mod tls;
