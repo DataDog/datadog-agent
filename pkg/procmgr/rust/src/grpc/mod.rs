@@ -19,7 +19,8 @@ mod tests {
     use super::service::ProcessManagerService;
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
-    use crate::manager::ProcessManager;
+    use crate::manager::{PendingRestart, ProcessManager};
+    use hyper_util::rt::TokioIo;
     use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
@@ -75,7 +76,7 @@ mod tests {
         });
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<crate::manager::ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
         let mgr_loop = mgr.clone();
         let exit_tx_loop = exit_tx.clone();
         let restart_tx_loop = restart_tx.clone();
@@ -107,8 +108,8 @@ mod tests {
                     Some(event) = exit_rx.recv() => {
                         mgr_loop.handle_exit(event, &restart_tx_loop).await;
                     }
-                    Some(name) = restart_rx.recv() => {
-                        mgr_loop.complete_restart(&name, &exit_tx_loop, &restart_tx_loop).await;
+                    Some(pending) = restart_rx.recv() => {
+                        mgr_loop.complete_restart(pending, &exit_tx_loop, &restart_tx_loop).await;
                     }
                     else => break,
                 }
