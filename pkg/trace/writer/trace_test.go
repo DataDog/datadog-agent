@@ -93,6 +93,50 @@ func TestTraceWriter(t *testing.T) {
 	}
 }
 
+func TestTraceWriterRebuildSenders(t *testing.T) {
+	first := newTestServer()
+	defer first.Close()
+	second := newTestServer()
+	defer second.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: first.URL}},
+		TraceWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+		},
+	}
+	writer := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer writer.Stop()
+
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "456", Host: second.URL})
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	require.Len(t, writer.senders, 2)
+	assert.Equal(t, second.URL+pathTraces, writer.senders[1].cfg.url.String())
+	assert.Equal(t, "456", writer.senders[1].apiKeyManager.Get())
+}
+
+func TestTraceWriterDoesNotRebuildAfterStop(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:    testHostname,
+		DefaultEnv:  testEnv,
+		Endpoints:   []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 1},
+	}
+	writer := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	writer.Stop()
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	assert.Empty(t, writer.senders)
+}
+
 func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 	var (
 		srv = newTestServer()

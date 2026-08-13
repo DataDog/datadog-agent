@@ -45,12 +45,15 @@ const (
 // This implements the stats.Writer interface.
 type DatadogStatsWriter struct {
 	senders         []*sender
+	sendersMu       sync.RWMutex
+	stopped         bool
 	stop            chan struct{}
 	stats           *info.StatsWriterInfo
 	statsLastMinute *info.StatsWriterInfo // aggregated stats over the last minute. Shared with info package
 	conf            *config.AgentConfig
 
 	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer
+	telemetryCollector  telemetry.TelemetryCollector
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -77,6 +80,7 @@ func NewStatsWriter(
 		stop:                make(chan struct{}),
 		flushChan:           make(chan chan struct{}),
 		containerTagsBuffer: containerTagsBuffer,
+		telemetryCollector:  telemetryCollector,
 		syncMode:            cfg.SynchronousFlushing,
 		easylog:             log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 		conf:                cfg,
@@ -105,12 +109,40 @@ func NewStatsWriter(
 
 // UpdateAPIKey updates the API Key, if needed, on Stats Writer senders.
 func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
+	w.sendersMu.RLock()
+	defer w.sendersMu.RUnlock()
 	for _, s := range w.senders {
 		if oldKey == s.apiKeyManager.Get() {
 			s.apiKeyManager.Update(newKey)
 			log.Debugf("API Key updated for stats endpoint=%s", s.cfg.url)
 		}
 	}
+}
+
+// RebuildSenders recreates stats senders from the current endpoint configuration.
+func (w *DatadogStatsWriter) RebuildSenders() {
+	climit := w.conf.StatsWriter.ConnectionLimit
+	if climit == 0 {
+		climit = 5
+	}
+	qsize := w.conf.StatsWriter.QueueSize
+	if qsize == 0 {
+		payloadSize := float64(maxEntriesPerPayload * bytesPerEntry)
+		maxmem := w.conf.MaxMemory / 4
+		if maxmem == 0 {
+			maxmem = 250 * 1024 * 1024
+		}
+		qsize = int(math.Max(1, maxmem/payloadSize))
+	}
+	w.sendersMu.Lock()
+	if w.stopped {
+		w.sendersMu.Unlock()
+		return
+	}
+	oldSenders := w.senders
+	w.senders = newSenders(w.conf, w, pathStats, climit, qsize, w.telemetryCollector, w.statsd)
+	w.sendersMu.Unlock()
+	stopSenders(oldSenders)
 }
 
 // Run starts the DatadogStatsWriter, making it ready to receive stats and report w.statsd.
@@ -152,9 +184,16 @@ func (w *DatadogStatsWriter) FlushSync() error {
 
 // Stop stops a running DatadogStatsWriter.
 func (w *DatadogStatsWriter) Stop() {
+	w.sendersMu.Lock()
+	w.stopped = true
+	w.sendersMu.Unlock()
 	w.stop <- struct{}{}
 	<-w.stop
-	stopSenders(w.senders)
+	w.sendersMu.Lock()
+	senders := w.senders
+	w.senders = nil
+	w.sendersMu.Unlock()
+	stopSenders(senders)
 }
 
 // Add appends this StatsPayload to the writer's buffer (flushing immediately if syncMode is enabled)
@@ -252,7 +291,10 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 		log.Errorf("Stats encoding error: %v", err)
 		return
 	}
-	sendPayloads(w.senders, req, w.syncMode)
+	w.sendersMu.RLock()
+	senders := w.senders
+	sendPayloads(senders, req, w.syncMode)
+	w.sendersMu.RUnlock()
 }
 
 func (w *DatadogStatsWriter) sendPayloads() {

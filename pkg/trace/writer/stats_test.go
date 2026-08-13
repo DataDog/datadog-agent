@@ -418,6 +418,56 @@ func TestStatsSyncWriter(t *testing.T) {
 	})
 }
 
+func TestStatsWriterRebuildSenders(t *testing.T) {
+	first := newTestServer()
+	defer first.Close()
+	second := newTestServer()
+	defer second.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: first.URL}},
+		StatsWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+			QueueSize:       1,
+		},
+	}
+	writer := NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, containertagsbuffer.NewContainerTagsBuffer(cfg, &statsd.NoOpClient{}))
+	go writer.Run()
+	defer writer.Stop()
+
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "456", Host: second.URL})
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	require.Len(t, writer.senders, 2)
+	assert.Equal(t, second.URL+pathStats, writer.senders[1].cfg.url.String())
+	assert.Equal(t, "456", writer.senders[1].apiKeyManager.Get())
+}
+
+func TestStatsWriterDoesNotRebuildAfterStop(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		StatsWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+			QueueSize:       1,
+		},
+	}
+	writer := NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, containertagsbuffer.NewContainerTagsBuffer(cfg, &statsd.NoOpClient{}))
+	go writer.Run()
+	writer.Stop()
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	assert.Empty(t, writer.senders)
+}
+
 func TestStatsWriterUpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	sw, srv := testStatsSyncWriter()

@@ -49,9 +49,10 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 		if len(realKeys) == 0 && hasPendingDelegatedAuth {
 			// Placeholder for a fully-pending domain - see PartitionRealAndPendingKeys' doc comment.
 			eps = append(eps, apicfg.Endpoint{
-				APIKey:            "",
-				Endpoint:          u,
-				ConfigSettingPath: additionalEpsKey,
+				APIKey:                  "",
+				Endpoint:                u,
+				ConfigSettingPath:       additionalEpsKey,
+				HasPendingDelegatedAuth: true,
 			})
 		}
 	}

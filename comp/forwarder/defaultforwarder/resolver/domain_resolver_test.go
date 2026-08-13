@@ -6,6 +6,7 @@
 package resolver
 
 import (
+	"net/url"
 	"testing"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -13,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -245,6 +247,19 @@ func TestMetricToVectorResolvesSeriesEndpoints(t *testing.T) {
 
 	// Unrelated endpoints stay on the main Datadog domain.
 	assert.Equal(t, mainEndpoint, vec.Resolve(endpoints.EventsEndpoint))
+}
+
+func TestLegacyEndpointConversionPreservesPendingDelegatedAuth(t *testing.T) {
+	endpoint, err := url.Parse("https://pending.example")
+	require.NoError(t, err)
+
+	resolvers, err := NewSingleDomainResolvers(apicfg.KeysPerDomains([]apicfg.Endpoint{{
+		Endpoint:                endpoint,
+		ConfigSettingPath:       "process_config.additional_endpoints",
+		HasPendingDelegatedAuth: true,
+	}}))
+	require.NoError(t, err)
+	assert.True(t, resolvers["https://pending.example"].IsUsable())
 }
 
 func TestIsUsableWithNoKeysAndNoPendingDelegatedAuth(t *testing.T) {

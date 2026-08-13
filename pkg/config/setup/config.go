@@ -756,36 +756,6 @@ func addDelegatedAuthInstance(ctx context.Context, config pkgconfigmodel.Config,
 	}
 }
 
-// bindDelegatedAuthConfig binds all delegated authentication configuration keys for a given prefix.
-// This utility function allows any config prefix that has an api_key to also support delegated_auth configuration.
-//
-// Parameters:
-//   - config: The config object to bind keys to
-//   - prefix: The config prefix (e.g., "" for global, "logs_config" for logs, "apm_config" for APM)
-//
-// Example usage:
-//
-//	bindDelegatedAuthConfig(config, "")             // For global api_key
-//	bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
-//	bindDelegatedAuthConfig(config, "apm_config")   // For apm_config.api_key
-func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
-	// Build the config key prefix
-	var configPrefix string
-	if prefix == "" {
-		configPrefix = "delegated_auth"
-	} else {
-		configPrefix = prefix + ".delegated_auth"
-	}
-
-	// Bind all delegated auth config keys
-	config.BindEnvAndSetDefault(configPrefix+".org_uuid", "")
-	config.BindEnvAndSetDefault(configPrefix+".refresh_interval_mins", 60)
-	config.BindEnvAndSetDefault(configPrefix+".provider", "")
-
-	// Provider-specific configuration (nested under provider name)
-	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
-}
-
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
 func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	return loadCustom(config, additionalKnownEnvVars)

@@ -153,9 +153,10 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 		if len(realKeys) == 0 && hasPendingDelegatedAuth {
 			// Placeholder for a fully-pending domain - see PartitionRealAndPendingKeys' doc comment.
 			*endpoints = append(*endpoints, apicfg.Endpoint{
-				APIKey:            "",
-				Endpoint:          u,
-				ConfigSettingPath: configPath,
+				APIKey:                  "",
+				Endpoint:                u,
+				ConfigSettingPath:       configPath,
+				HasPendingDelegatedAuth: true,
 			})
 		}
 	}

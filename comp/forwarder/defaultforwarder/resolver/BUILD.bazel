@@ -30,6 +30,7 @@ dd_agent_go_test(
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/mock",
         "//pkg/config/utils",
+        "//pkg/process/util/api/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

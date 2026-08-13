@@ -67,7 +67,10 @@ type TraceWriter struct {
 
 	hostname        string
 	env             string
+	cfg             *config.AgentConfig
 	senders         []*sender
+	sendersMu       sync.RWMutex
+	stopped         bool
 	stop            chan struct{}
 	stats           *info.TraceWriterInfo
 	statsLastMinute *info.TraceWriterInfo // aggregated stats over the last minute. Shared with info package
@@ -110,6 +113,7 @@ func NewTraceWriter(
 	tw := &TraceWriter{
 		prioritySampler:    prioritySampler,
 		errorsSampler:      errorsSampler,
+		cfg:                cfg,
 		rareSampler:        rareSampler,
 		hostname:           cfg.Hostname,
 		env:                cfg.DefaultEnv,
@@ -153,12 +157,31 @@ func NewTraceWriter(
 
 // UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
 func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
+	w.sendersMu.RLock()
+	defer w.sendersMu.RUnlock()
 	for _, s := range w.senders {
 		if oldKey == s.apiKeyManager.Get() {
 			s.apiKeyManager.Update(newKey)
 			log.Debugf("API Key updated for traces endpoint=%s", s.cfg.url)
 		}
 	}
+}
+
+// RebuildSenders recreates trace senders from the current endpoint configuration.
+func (w *TraceWriter) RebuildSenders() {
+	climit := w.cfg.TraceWriter.ConnectionLimit
+	if climit == 0 {
+		climit = defaultConnectionLimit
+	}
+	w.sendersMu.Lock()
+	if w.stopped {
+		w.sendersMu.Unlock()
+		return
+	}
+	oldSenders := w.senders
+	w.senders = newSenders(w.cfg, w, pathTraces, climit, 1, w.telemetryCollector, w.statsd)
+	w.sendersMu.Unlock()
+	stopSenders(oldSenders)
 }
 
 func (w *TraceWriter) reporter() {
@@ -198,12 +221,19 @@ func (w *TraceWriter) timeFlush() {
 // Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
 func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
+	w.sendersMu.Lock()
+	w.stopped = true
+	w.sendersMu.Unlock()
 	close(w.stop)
 	// Wait for encoding/compression to complete on each payload,
 	// and submission to senders
 	w.wg.Wait()
 	w.flush()
-	stopSenders(w.senders)
+	w.sendersMu.Lock()
+	senders := w.senders
+	w.senders = nil
+	w.sendersMu.Unlock()
+	stopSenders(senders)
 	w.flushTicker.Stop()
 }
 
@@ -344,7 +374,10 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	if err := writer.Close(); err != nil {
 		log.Errorf("Error closing %s stream when writing trace payload: %v", w.compressor.Encoding(), err)
 	}
-	sendPayloads(w.senders, p, w.syncMode)
+	w.sendersMu.RLock()
+	senders := w.senders
+	sendPayloads(senders, p, w.syncMode)
+	w.sendersMu.RUnlock()
 }
 
 func (w *TraceWriter) report() {

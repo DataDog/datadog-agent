@@ -85,6 +85,20 @@ func TestKeysPerDomain(t *testing.T) {
 				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
 			},
 		},
+		{
+			input: []Endpoint{{
+				Endpoint:                getEndpoint(t, "http://pending.example"),
+				ConfigSettingPath:       "process_config.additional_endpoints",
+				HasPendingDelegatedAuth: true,
+			}},
+			expected: map[string][]utils.APIKeys{
+				"http://pending.example": {{
+					ConfigSettingPath:       "process_config.additional_endpoints",
+					Keys:                    []string{""},
+					HasPendingDelegatedAuth: true,
+				}},
+			},
+		},
 	} {
 		assert.Equal(t, tt.expected, KeysPerDomains(tt.input))
 	}
