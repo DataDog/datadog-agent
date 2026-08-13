@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.81.2:
 
-7.81.2
+7.81.2-1
 ======
 
 .. _Release Notes_7.81.2_Prelude:
