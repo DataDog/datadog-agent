@@ -15,16 +15,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
+	identitycmd "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/identity"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
-	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -51,8 +49,10 @@ Restart the Private Action Runner process to apply the new identity.`,
 }
 
 func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
-	ctx := context.Background()
+	return rotateIdentity(context.Background(), logger, cfg, hostnameComp, identitycmd.EnrollAndPersist)
+}
 
+func rotateIdentity(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc) error {
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
 		return errors.New("private_action_runner.enabled is false - set it to true before rotating the identity")
 	}
@@ -63,30 +63,14 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 		return fmt.Errorf("failed to get agent identifier: %w", err)
 	}
 
-	result, err := enrollment.Enroll(ctx, cfg, agentIdentifier)
+	result, err := enrollAndPersist(ctx, logger, cfg, agentIdentifier)
 	if err != nil {
-		return fmt.Errorf("enrollment failed: %w", err)
-	}
-
-	if err := enrollment.RotateIdentity(ctx, cfg, result); err != nil {
-		return fmt.Errorf("failed to persist new identity: %w", err)
-	}
-
-	// nil metrics client: identity rotation emits no metrics.
-	parCfg, err := parconfig.FromDDConfig(cfg, nil)
-	if err != nil {
-		logger.Warnf("Identity rotated, but failed to load runner config for auto-connection: %v", err)
-	} else if urnParts, err := parutil.ParseRunnerURN(result.URN); err != nil {
-		logger.Warnf("Identity rotated, but failed to parse URN for auto-connection: %v", err)
-	} else {
-		autoconnections.CreateConnectionsIfEnabled(
-			ctx, cfg, parCfg,
-			cfg.GetString("api_key"), cfg.GetString("app_key"), urnParts.RunnerID,
-			result, autoconnections.NewBasicTagsProvider(),
-		)
+		return err
 	}
 
 	logger.Infof("Identity successfully rotated. New URN: %s", result.URN)
 	logger.Info("Restart the Private Action Runner to apply the new identity.")
 	return nil
 }
+
+type enrollAndPersistFunc func(context.Context, log.Component, config.Component, *enrollment.AgentIdentifier) (*enrollment.Result, error)
