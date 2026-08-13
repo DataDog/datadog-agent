@@ -209,7 +209,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Enables split runner mode.
+    comment: Enables split runner mode on supported Linux and Windows hosts.
   urn:
     node_type: setting
     type: string
