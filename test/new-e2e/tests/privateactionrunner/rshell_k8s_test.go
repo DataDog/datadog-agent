@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -83,6 +84,38 @@ func (s *parK8sSuite) TestRshellHappyFlow() {
 	assert.Contains(s.T(), result.Outputs["stdout"], testDataContent)
 	assert.Equal(s.T(), "", result.Outputs["stderr"])
 	assert.NotContains(s.T(), result.Outputs, "sandboxWarnings")
+}
+
+// TestConnectionTokenV2AgentSecretHandle verifies that the deployed PAR resolves
+// a V2 connection-token handle through the Agent secret backend while preparing
+// the signed task. The rshell action runs only after credential resolution succeeds.
+func (s *parK8sSuite) TestConnectionTokenV2AgentSecretHandle() {
+	taskID := uuid.New().String()
+	err := s.Env().FakeIntake.Client().EnqueuePARTaskWithConnectionInfo(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo agent-secret-resolved",
+		"allowedCommands": []string{"rshell:echo"},
+	}, &privateactionspb.ConnectionInfo{
+		ConnectionId:    "par-e2e-agent-secret",
+		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "password"},
+			Source: &privateactionspb.ConnectionTokenV2_DatadogAgentSecret_{
+				DatadogAgentSecret: &privateactionspb.ConnectionTokenV2_DatadogAgentSecret{
+					Handle: parAgentSecretHandle,
+				},
+			},
+		}},
+	})
+	s.Require().NoError(err)
+
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().Equal(taskID, result.TaskID)
+	s.Require().True(result.Success, "Agent secret handle resolution failed: %+v", result)
+	s.Require().Zero(result.ErrorCode)
+	s.Require().Empty(result.ErrorDetails)
+	s.Require().Equal(0, rshellExitCode(s.T(), result))
+	assert.Equal(s.T(), "agent-secret-resolved\n", result.Outputs["stdout"])
+	assert.Equal(s.T(), "", result.Outputs["stderr"])
 }
 
 // TestRshellOperatorCommandPolicyNarrowsBackendPolicy verifies the backend can

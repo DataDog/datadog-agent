@@ -14,17 +14,34 @@ import (
 	"net/http"
 	"time"
 
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"google.golang.org/protobuf/proto"
 )
 
 // EnqueuePARTask enqueues a task for the Private Action Runner to dequeue and execute.
 // taskID must be a unique identifier (e.g. uuid.New().String()).
 // actionFQN is the fully-qualified action name (e.g. "com.datadoghq.remoteaction.rshell.runCommand").
 func (c *Client) EnqueuePARTask(taskID, actionFQN string, inputs map[string]interface{}) error {
+	return c.enqueuePARTask(taskID, actionFQN, inputs, nil)
+}
+
+// EnqueuePARTaskWithConnectionInfo enqueues a Private Action Runner task with
+// connection information embedded in the signed task envelope.
+func (c *Client) EnqueuePARTaskWithConnectionInfo(taskID, actionFQN string, inputs map[string]interface{}, connectionInfo *privateactionspb.ConnectionInfo) error {
+	connectionInfoData, err := proto.Marshal(connectionInfo)
+	if err != nil {
+		return fmt.Errorf("marshal PAR connection info: %w", err)
+	}
+	return c.enqueuePARTask(taskID, actionFQN, inputs, connectionInfoData)
+}
+
+func (c *Client) enqueuePARTask(taskID, actionFQN string, inputs map[string]interface{}, connectionInfoData []byte) error {
 	body, err := json.Marshal(map[string]interface{}{
-		"task_id":    taskID,
-		"action_fqn": actionFQN,
-		"inputs":     inputs,
+		"task_id":         taskID,
+		"action_fqn":      actionFQN,
+		"inputs":          inputs,
+		"connection_info": connectionInfoData,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal enqueue request: %w", err)

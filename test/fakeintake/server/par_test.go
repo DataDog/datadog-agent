@@ -100,6 +100,49 @@ func TestPARDequeueSurfacesEmptyRshellPolicyInSignedEnvelope(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"command": "cat /tmp/file"}, attributes["inputs"])
 }
 
+func TestPARDequeueSurfacesConnectionInfoInSignedEnvelope(t *testing.T) {
+	connectionInfo := &privateactionspb.ConnectionInfo{
+		ConnectionId:    "connection-1",
+		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "password"},
+			Source: &privateactionspb.ConnectionTokenV2_DatadogAgentSecret_{
+				DatadogAgentSecret: &privateactionspb.ConnectionTokenV2_DatadogAgentSecret{
+					Handle: "ENC[file@/etc/par-e2e-secrets/connection-token]",
+				},
+			},
+		}},
+	}
+	connectionInfoData, err := proto.Marshal(connectionInfo)
+	require.NoError(t, err)
+
+	fi := NewServer()
+	fi.par.queue = []parQueuedTask{{
+		TaskID:         "task-1",
+		ActionFQN:      "com.datadoghq.remoteaction.rshell.runCommand",
+		Inputs:         map[string]interface{}{"command": "echo resolved"},
+		ConnectionInfo: connectionInfoData,
+	}}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil)
+	fi.handlePARDequeue(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+
+	data := got["data"].(map[string]interface{})
+	attributes := data["attributes"].(map[string]interface{})
+	signedEnvelope := attributes["signed_envelope"].(map[string]interface{})
+	signedTaskData, err := base64.StdEncoding.DecodeString(signedEnvelope["data"].(string))
+	require.NoError(t, err)
+
+	var task privateactionspb.PrivateActionTask
+	require.NoError(t, proto.Unmarshal(signedTaskData, &task))
+	assert.True(t, proto.Equal(connectionInfo, task.GetConnectionInfo()))
+}
+
 func TestPARDequeueLeavesLegacyAllowedPathsInputInSignedEnvelope(t *testing.T) {
 	fi := NewServer()
 	legacyAllowedPaths := map[string]interface{}{"default": []string{"/tmp"}}

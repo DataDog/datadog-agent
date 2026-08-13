@@ -12,12 +12,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/metrics/event",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/client/flare",
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_samber_lo//:lo",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
