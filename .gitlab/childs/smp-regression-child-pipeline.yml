@@ -41,6 +41,7 @@ variables:
     --baseline-sha ${BASELINE_SHA} \
     --comparison-sha ${CI_COMMIT_SHA} \
     --target-config-dir ${CONFIG_DIR} \
+    ${EXPERIMENT_PATH_FILTER:+--experiment-path-filter "${EXPERIMENT_PATH_FILTER}" --runner container} \
     --submission-metadata submission_metadata \
     --tags ${SMP_TAGS} || {
       exit_code=$?
@@ -151,6 +152,46 @@ variables:
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
+    # PR-driven experiment selection (main container job only; gated by SELECT_EXPERIMENTS).
+    # Resolves CODEOWNERS involvement + applied PR labels into EXPERIMENT_PATH_FILTER, which
+    # .smp_job_submit forwards as --experiment-path-filter --runner container. On main / no PR the
+    # resolver returns the default (always-mode, e.g. quality_gates) set: no involved teams, no labels.
+    - |
+      if [ "${SELECT_EXPERIMENTS}" == "true" ]; then
+        export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr || true)
+        GH_API="https://api.github.com/repos/DataDog/datadog-agent"
+        PR_NUMBER=$(curl -sf -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+          "${GH_API}/pulls?head=DataDog:${CI_COMMIT_BRANCH}&state=open" 2>/dev/null | jq -r '.[0].number // empty' || true)
+        LABELS=""
+        : > changed_files.txt
+        if [ -n "${PR_NUMBER}" ]; then
+          echo "Resolved PR #${PR_NUMBER} for branch ${CI_COMMIT_BRANCH}"
+          LABELS=$(curl -sf -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GH_API}/pulls/${PR_NUMBER}" 2>/dev/null | jq -r '[.labels[].name] | join(",")' || true)
+          # Paginate changed files (a PR can have >100); cap at 30 pages (3000 files) and warn if hit.
+          page=1
+          while : ; do
+            resp=$(curl -sf -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GH_API}/pulls/${PR_NUMBER}/files?per_page=100&page=${page}" 2>/dev/null || echo '[]')
+            names=$(echo "${resp}" | jq -r '.[].filename' 2>/dev/null || true)
+            [ -z "${names}" ] && break
+            echo "${names}" >> changed_files.txt
+            [ "$(echo "${resp}" | jq -r 'length' 2>/dev/null || echo 0)" -lt 100 ] && break
+            page=$((page+1))
+            if [ "${page}" -gt 30 ]; then echo "WARNING: changed-files pagination hit the 30-page cap; team involvement may be incomplete"; break; fi
+          done
+        else
+          echo "No open PR for branch ${CI_COMMIT_BRANCH}; resolving default set."
+        fi
+        # Resolve the run set. On ANY failure or empty result, fall back to the always-run quality
+        # gates so a selection-tooling problem (missing dda, resolve error, network) never silently
+        # drops the gates -- the worst case is "only gates run", never "nothing runs".
+        dda inv owners.smp-resolve --config-dir "${CONFIG_DIR}" --smp-bin ./smp --changed-files changed_files.txt --labels "${LABELS}" --runner container --exclude ebpf --out experiment_path_filter.txt </dev/null || echo "owners.smp-resolve failed; falling back to quality_gates"
+        EXPERIMENT_PATH_FILTER=$(cat experiment_path_filter.txt 2>/dev/null || true)
+        if [ -z "${EXPERIMENT_PATH_FILTER}" ]; then
+          echo "Resolve produced no filter (tooling failure or empty); falling back to quality_gates."
+          EXPERIMENT_PATH_FILTER="quality_gates"
+        fi
+        echo "Experiment path filter: '${EXPERIMENT_PATH_FILTER}'"
+      fi
     - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
     - !reference [.smp_config_only_job_submit]
     - else
@@ -288,6 +329,11 @@ variables:
 single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  # id_tokens inlined (child pipelines don't inherit the parent's .dd_octo_sts anchor). Used by the
+  # SELECT_EXPERIMENTS block to mint a GitHub token for reading the PR's labels + changed files.
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   # allow_failure is driven by SMP_ALLOW_FAILURE so the parent trigger can
   # decide per-context without changing this shared child job.
   rules:
@@ -298,10 +344,13 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.27.0
+    SMP_VERSION: dev-pr4679-39a10a451
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression
+    # Enables the PR-driven experiment-selection block in the shared run template. Only the container
+    # job selects; the metal/ebpf jobs (old SMP) leave this unset and run unchanged.
+    SELECT_EXPERIMENTS: "true"
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
