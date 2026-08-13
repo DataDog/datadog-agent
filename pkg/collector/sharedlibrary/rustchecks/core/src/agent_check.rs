@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use super::aggregator::{Aggregator, MetricType, ServiceCheckStatus};
+use super::aggregator::{Aggregator, LogLevel, MetricType, ServiceCheckStatus};
 use super::config::Config;
 
 use std::ffi::{c_int, c_long};
@@ -246,5 +246,24 @@ impl AgentCheck {
             raw_event.len() as c_int,
             event_track_type,
         )
+    }
+
+    // TODO(dsec-157): make event_platform_event delegate to this.
+    pub fn event_platform_event_bytes(
+        &self,
+        raw_event: &[u8],
+        event_track_type: &str,
+    ) -> Result<()> {
+        self.aggregator.submit_event_platform_event_bytes(
+            &self.check_id,
+            raw_event,
+            raw_event.len() as c_int,
+            event_track_type,
+        )
+    }
+
+    /// Logs a message through the Agent logger at the given level.
+    pub fn log(&self, level: LogLevel, message: &str) {
+        let _ = self.aggregator.log(level, message);
     }
 }

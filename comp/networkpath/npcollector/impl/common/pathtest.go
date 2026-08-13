@@ -34,6 +34,7 @@ type Pathtest struct {
 	Origin            payload.PathOrigin
 	TestConfigID      string
 	TestConfigSource  payload.TestConfigSource
+	Tags              []string
 	Metadata          PathtestMetadata
 }
 

@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -192,9 +193,9 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		log.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
-			pkgconfigsetup.DefaultAPIKeyValidationInterval,
+			constants.DefaultAPIKeyValidationInterval,
 		)
-		validationInterval = pkgconfigsetup.DefaultAPIKeyValidationInterval
+		validationInterval = constants.DefaultAPIKeyValidationInterval
 	}
 
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"

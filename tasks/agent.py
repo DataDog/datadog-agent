@@ -144,10 +144,7 @@ def build(
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
 
-    # AIX build hosts do not have bazel; the compressed schema files are
-    # committed to the repo and do not need regeneration there.
-    if sys.platform != "aix":
-        schema_compress(ctx)
+    schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
         go_build(
@@ -265,7 +262,18 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
                 dirs_exist_ok=True,
             )
 
+    # add additional macos-only corechecks, only on macos
     if sys.platform == 'darwin':
+        for check in core_checks.MACOS_CORECHECKS:
+            check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
+            shutil.copytree(
+                f"./cmd/agent/dist/conf.d/{check}.d/",
+                check_dir,
+                ignore=shutil.ignore_patterns("BUILD.bazel"),
+                dirs_exist_ok=True,
+            )
+            # Ensure the config folders are not world writable
+            os.chmod(check_dir, mode=0o755)
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
         shutil.copy(
             "./cmd/agent/dist/conf.d/process_agent.yaml.default",

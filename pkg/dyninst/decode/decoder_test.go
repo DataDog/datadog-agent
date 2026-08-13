@@ -78,10 +78,13 @@ func FuzzDecoder(f *testing.F) {
 		irProg := generateIrForProbes(t, "simple", cases[0].goVersion, probeNames...)
 		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 		require.NoError(t, err)
-		_, _, _ = decoder.Decode(Event{
+		out, _, err := decoder.Decode(Event{
 			EntryOrLine: output.SingleEvent(item),
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, nil, []byte{})
+		if err == nil {
+			requireValidUTF8JSON(t, out)
+		}
 		require.Empty(t, decoder.entryOrLine.dataItems)
 		require.Empty(t, decoder.entryOrLine.currentlyEncoding)
 		require.Empty(t, decoder._return.dataItems)

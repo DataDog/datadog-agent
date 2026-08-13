@@ -13,6 +13,7 @@ files_inventory_check:
     GIT_STRATEGY: clone
   needs:
     - agent_deb-x64-a7
+    - iot_agent_deb-x64
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:

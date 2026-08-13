@@ -25,7 +25,7 @@ build do
     block do
         # Push all the pieces built with Bazel.
 
-        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install",
+        command "bazel run #{omnibazel_flags} -- //packages/install_dir:install --destdir=#{install_dir}",
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?
@@ -209,8 +209,10 @@ build do
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
 
-            # Edit rpath from a true path to relative path for each binary
-            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+            # Edit rpath from a true path to relative path for the non-Bazel-built binaries
+            # that still carry an absolute rpath to the embedded lib directory.
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos --search-root #{install_dir}/bin/agent", cwd: Dir.pwd, :live_stream => Omnibus.logger.live_stream(:info)
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos --search-root #{install_dir}/embedded/bin", cwd: Dir.pwd, :live_stream => Omnibus.logger.live_stream(:info)
 
             if code_signing_identity
                 # Re-unlock the keychain right before signing.  The keychain

@@ -113,6 +113,7 @@ type holtSeriesState struct {
 // are exported so callers (testbench, tests) may override defaults after
 // construction; NewHoltResidualDetector populates them.
 type HoltResidualDetector struct {
+	ready bool
 	// Alpha is the level smoothing factor (0..1). Higher = more reactive.
 	Alpha float64
 	// Beta is the trend smoothing factor (0..1). Lower = more stable.
@@ -203,11 +204,14 @@ func NewHoltResidualDetectorWithConfig(cfg HoltResidualConfig) *HoltResidualDete
 // Name implements observer.Detector.
 func (d *HoltResidualDetector) Name() string { return "holt_residual" }
 
+func (d *HoltResidualDetector) Ready() bool { return d.ready }
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *HoltResidualDetector) Reset() {
 	d.series = make(map[holtStateKey]*holtSeriesState)
 	d.cachedSeries = nil
 	d.cachedGen = 0
+	d.ready = false
 }
 
 // RemoveSeries drops per-series state for refs that storage has freed. Each
@@ -250,6 +254,9 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
+			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
+				continue
+			}
 			sk := holtStateKey{ref: meta.Ref, agg: agg}
 			state, exists := d.series[sk]
 			if !exists {
@@ -363,6 +370,9 @@ func (d *HoltResidualDetector) ingestNewPoints(
 		}
 
 		anomaly, hasFire := d.processPoint(state, p, agg)
+		if len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow {
+			d.ready = true
+		}
 
 		if hasFire {
 			fired = append(fired, anomaly)

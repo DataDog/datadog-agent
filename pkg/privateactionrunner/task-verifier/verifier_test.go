@@ -64,6 +64,11 @@ func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
 				RemoteAction: &privateactionspb.RemoteAction{
 					AllowedCommands: []string{"rshell:cat"},
 					AllowedPaths:    []string{"/tmp:ro"},
+					SystemServices: map[string]*structpb.ListValue{
+						"nginx.service": {
+							Values: []*structpb.Value{structpb.NewStringValue("read")},
+						},
+					},
 				},
 			},
 		},
@@ -86,4 +91,6 @@ func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
 	require.NotNil(t, remoteAction)
 	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
 	assert.Equal(t, []string{"/tmp:ro"}, remoteAction.AllowedPaths)
+	require.Contains(t, remoteAction.SystemServices, "nginx.service")
+	assert.Equal(t, []interface{}{"read"}, remoteAction.SystemServices["nginx.service"].AsSlice())
 }

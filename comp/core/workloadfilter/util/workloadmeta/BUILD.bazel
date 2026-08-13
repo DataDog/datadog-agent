@@ -21,6 +21,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/proto/pbgo/core",
+        "//pkg/util/kubernetes",
         "@com_github_stretchr_testify//assert",
     ],
 )

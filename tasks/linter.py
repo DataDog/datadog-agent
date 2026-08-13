@@ -860,6 +860,38 @@ def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=Fal
 
 
 @task
+def docs_links(ctx):
+    """Checks that the developer documentation links to this repository through the `repo` macro.
+
+    A hand-written link is unchecked, because the link checker skips this repository on the grounds
+    that the macro resolves every path it renders against the working tree.
+    """
+    # Double quoted because `cmd` passes a single quote through to Git, which then matches nothing.
+    # In a pathspec `*` spans directories, so this reaches every nested page.
+    result = ctx.run(
+        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "docs/public/*.md"',
+        warn=True,
+        hide=True,
+    )
+
+    # Finding nothing is what we want; anything beyond that is Git itself failing.
+    if result.exited == 1:
+        print(color_message("The documentation references this repository properly", Color.GREEN))
+        return
+    if result.exited > 1:
+        raise Exit(code=result.exited)
+
+    print(
+        color_message("Use the `repo` macro rather than a hand-written link to this repository:", Color.RED),
+        file=sys.stderr,
+    )
+    for match in result.stdout.splitlines():
+        page, number, _ = match.split(":", 2)
+        print(f"  {page}:{number}", file=sys.stderr)
+    raise Exit(code=1)
+
+
+@task
 def filenames(ctx):
     """Scans files to ensure there are no filenames too long or containing illegal characters."""
 

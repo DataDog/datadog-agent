@@ -54,6 +54,8 @@ type TimeSampler struct {
 	// dogStatsDLookback is set when metric lookback is wired in. Nil when the
 	// feature is disabled, so default DogStatsD hot-path overhead is zero.
 	dogStatsDLookback DogStatsDLookback
+
+	finalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -247,7 +249,14 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdFilteredMetrics.Inc()
 			continue
 		}
+		s.observeFinalDogStatsDSerie(serie)
 		serieSink.Append(serie)
+	}
+}
+
+func (s *TimeSampler) observeFinalDogStatsDSerie(serie *metrics.Serie) {
+	for _, observer := range s.finalDogStatsDSerieObservers {
+		observer.ObserveFinalDogStatsDSerie(serie)
 	}
 }
 
