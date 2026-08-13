@@ -104,10 +104,10 @@ func TestResolveRootOwner(t *testing.T) {
 
 func TestCreatePod(t *testing.T) {
 	tests := []struct {
-		name            string
-		pod             *workloadmeta.KubernetesPod
-		rootOwner       *core.FilterRootOwner
-		resolvedTargets []*core.FilterResolvedTarget
+		name          string
+		pod           *workloadmeta.KubernetesPod
+		rootOwner     *core.FilterRootOwner
+		matchedOwners []*core.FilterMatchedOwner
 	}{
 		{
 			name: "deployment root owner",
@@ -131,9 +131,9 @@ func TestCreatePod(t *testing.T) {
 			rootOwner: &core.FilterRootOwner{Kind: "Rollout", Name: "my-rollout"},
 		},
 		{
-			name: "resolved target",
+			name: "matched owner",
 			pod: &workloadmeta.KubernetesPod{
-				ResolvedTargets: []workloadmeta.KubernetesResolvedTarget{
+				MatchedOwners: []workloadmeta.KubernetesMatchedOwner{
 					{
 						Group:     "apps.kruise.io",
 						Version:   "v1alpha1",
@@ -143,7 +143,7 @@ func TestCreatePod(t *testing.T) {
 					},
 				},
 			},
-			resolvedTargets: []*core.FilterResolvedTarget{
+			matchedOwners: []*core.FilterMatchedOwner{
 				{
 					Group:     "apps.kruise.io",
 					Version:   "v1alpha1",
@@ -159,7 +159,7 @@ func TestCreatePod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CreatePod(tt.pod)
 			assert.Equal(t, tt.rootOwner, result.FilterPod.Rootowner)
-			assert.ElementsMatch(t, tt.resolvedTargets, result.FilterPod.ResolvedTargets)
+			assert.ElementsMatch(t, tt.matchedOwners, result.FilterPod.MatchedOwners)
 		})
 	}
 }

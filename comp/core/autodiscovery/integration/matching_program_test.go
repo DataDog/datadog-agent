@@ -120,9 +120,9 @@ func TestCreateMatchingPrograms_SingleType(t *testing.T) {
 	}
 }
 
-func TestCreateMatchingPrograms_ResolvedTarget(t *testing.T) {
+func TestCreateMatchingPrograms_MatchedOwner(t *testing.T) {
 	rules := workloadfilter.Rules{
-		Containers: []string{`container.pod.resolved_targets.exists(target, target.group == "apps.kruise.io" && target.kind == "CloneSet" && target.namespace == "default" && target.name == "nginx") && container.image.reference != ""`},
+		Containers: []string{`container.pod.matched_owners.exists(owner, owner.group == "apps.kruise.io" && owner.kind == "CloneSet" && owner.namespace == "default" && owner.name == "nginx") && container.image.reference != ""`},
 	}
 
 	programs, _, err := CreateMatchingPrograms(rules, true)
@@ -132,14 +132,14 @@ func TestCreateMatchingPrograms_ResolvedTarget(t *testing.T) {
 
 	container := workloadfilter.CreateContainer("container-id", "nginx", "nginx:latest", &workloadfilter.Pod{
 		FilterPod: &core.FilterPod{
-			ResolvedTargets: []*core.FilterResolvedTarget{
+			MatchedOwners: []*core.FilterMatchedOwner{
 				{Group: "apps.kruise.io", Kind: "CloneSet", Namespace: "default", Name: "nginx"},
 			},
 		},
 	})
 	assert.True(t, program.IsMatched(container))
 
-	container.FilterContainer.GetPod().ResolvedTargets[0].Name = "other"
+	container.FilterContainer.GetPod().MatchedOwners[0].Name = "other"
 	assert.False(t, program.IsMatched(container))
 }
 

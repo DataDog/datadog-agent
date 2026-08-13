@@ -367,15 +367,15 @@ func (*FilterContainer_Pod) isFilterContainer_Owner() {}
 func (*FilterContainer_EcsTask) isFilterContainer_Owner() {}
 
 type FilterPod struct {
-	state           protoimpl.MessageState  `protogen:"open.v1"`
-	Id              string                  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name            string                  `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Namespace       string                  `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Annotations     map[string]string       `protobuf:"bytes,4,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Rootowner       *FilterRootOwner        `protobuf:"bytes,5,opt,name=rootowner,proto3" json:"rootowner,omitempty"`
-	ResolvedTargets []*FilterResolvedTarget `protobuf:"bytes,6,rep,name=resolved_targets,json=resolvedTargets,proto3" json:"resolved_targets,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Namespace     string                 `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Annotations   map[string]string      `protobuf:"bytes,4,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Rootowner     *FilterRootOwner       `protobuf:"bytes,5,opt,name=rootowner,proto3" json:"rootowner,omitempty"`
+	MatchedOwners []*FilterMatchedOwner  `protobuf:"bytes,6,rep,name=matched_owners,json=matchedOwners,proto3" json:"matched_owners,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FilterPod) Reset() {
@@ -443,9 +443,9 @@ func (x *FilterPod) GetRootowner() *FilterRootOwner {
 	return nil
 }
 
-func (x *FilterPod) GetResolvedTargets() []*FilterResolvedTarget {
+func (x *FilterPod) GetMatchedOwners() []*FilterMatchedOwner {
 	if x != nil {
-		return x.ResolvedTargets
+		return x.MatchedOwners
 	}
 	return nil
 }
@@ -502,7 +502,7 @@ func (x *FilterRootOwner) GetName() string {
 	return ""
 }
 
-type FilterResolvedTarget struct {
+type FilterMatchedOwner struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Group         string                 `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
 	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
@@ -513,20 +513,20 @@ type FilterResolvedTarget struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *FilterResolvedTarget) Reset() {
-	*x = FilterResolvedTarget{}
+func (x *FilterMatchedOwner) Reset() {
+	*x = FilterMatchedOwner{}
 	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *FilterResolvedTarget) String() string {
+func (x *FilterMatchedOwner) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FilterResolvedTarget) ProtoMessage() {}
+func (*FilterMatchedOwner) ProtoMessage() {}
 
-func (x *FilterResolvedTarget) ProtoReflect() protoreflect.Message {
+func (x *FilterMatchedOwner) ProtoReflect() protoreflect.Message {
 	mi := &file_datadog_workloadfilter_workloadfilter_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -538,40 +538,40 @@ func (x *FilterResolvedTarget) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FilterResolvedTarget.ProtoReflect.Descriptor instead.
-func (*FilterResolvedTarget) Descriptor() ([]byte, []int) {
+// Deprecated: Use FilterMatchedOwner.ProtoReflect.Descriptor instead.
+func (*FilterMatchedOwner) Descriptor() ([]byte, []int) {
 	return file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *FilterResolvedTarget) GetGroup() string {
+func (x *FilterMatchedOwner) GetGroup() string {
 	if x != nil {
 		return x.Group
 	}
 	return ""
 }
 
-func (x *FilterResolvedTarget) GetVersion() string {
+func (x *FilterMatchedOwner) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *FilterResolvedTarget) GetKind() string {
+func (x *FilterMatchedOwner) GetKind() string {
 	if x != nil {
 		return x.Kind
 	}
 	return ""
 }
 
-func (x *FilterResolvedTarget) GetNamespace() string {
+func (x *FilterMatchedOwner) GetNamespace() string {
 	if x != nil {
 		return x.Namespace
 	}
 	return ""
 }
 
-func (x *FilterResolvedTarget) GetName() string {
+func (x *FilterMatchedOwner) GetName() string {
 	if x != nil {
 		return x.Name
 	}
@@ -886,21 +886,21 @@ const file_datadog_workloadfilter_workloadfilter_proto_rawDesc = "" +
 	"\x05image\x18\x03 \x01(\v2#.datadog.workloadfilter.FilterImageR\x05image\x125\n" +
 	"\x03pod\x18\x04 \x01(\v2!.datadog.workloadfilter.FilterPodH\x00R\x03pod\x12B\n" +
 	"\becs_task\x18\x05 \x01(\v2%.datadog.workloadfilter.FilterECSTaskH\x00R\aecsTaskB\a\n" +
-	"\x05owner\"\x83\x03\n" +
+	"\x05owner\"\xfd\x02\n" +
 	"\tFilterPod\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
 	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12T\n" +
 	"\vannotations\x18\x04 \x03(\v22.datadog.workloadfilter.FilterPod.AnnotationsEntryR\vannotations\x12E\n" +
-	"\trootowner\x18\x05 \x01(\v2'.datadog.workloadfilter.FilterRootOwnerR\trootowner\x12W\n" +
-	"\x10resolved_targets\x18\x06 \x03(\v2,.datadog.workloadfilter.FilterResolvedTargetR\x0fresolvedTargets\x1a>\n" +
+	"\trootowner\x18\x05 \x01(\v2'.datadog.workloadfilter.FilterRootOwnerR\trootowner\x12Q\n" +
+	"\x0ematched_owners\x18\x06 \x03(\v2*.datadog.workloadfilter.FilterMatchedOwnerR\rmatchedOwners\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"9\n" +
 	"\x0fFilterRootOwner\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\x8c\x01\n" +
-	"\x14FilterResolvedTarget\x12\x14\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\x8a\x01\n" +
+	"\x12FilterMatchedOwner\x12\x14\n" +
 	"\x05group\x18\x01 \x01(\tR\x05group\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
 	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1c\n" +
@@ -956,7 +956,7 @@ var file_datadog_workloadfilter_workloadfilter_proto_goTypes = []any{
 	(*FilterContainer)(nil),                // 3: datadog.workloadfilter.FilterContainer
 	(*FilterPod)(nil),                      // 4: datadog.workloadfilter.FilterPod
 	(*FilterRootOwner)(nil),                // 5: datadog.workloadfilter.FilterRootOwner
-	(*FilterResolvedTarget)(nil),           // 6: datadog.workloadfilter.FilterResolvedTarget
+	(*FilterMatchedOwner)(nil),             // 6: datadog.workloadfilter.FilterMatchedOwner
 	(*FilterProcess)(nil),                  // 7: datadog.workloadfilter.FilterProcess
 	(*FilterECSTask)(nil),                  // 8: datadog.workloadfilter.FilterECSTask
 	(*FilterKubeService)(nil),              // 9: datadog.workloadfilter.FilterKubeService
@@ -978,7 +978,7 @@ var file_datadog_workloadfilter_workloadfilter_proto_depIdxs = []int32{
 	8,  // 8: datadog.workloadfilter.FilterContainer.ecs_task:type_name -> datadog.workloadfilter.FilterECSTask
 	12, // 9: datadog.workloadfilter.FilterPod.annotations:type_name -> datadog.workloadfilter.FilterPod.AnnotationsEntry
 	5,  // 10: datadog.workloadfilter.FilterPod.rootowner:type_name -> datadog.workloadfilter.FilterRootOwner
-	6,  // 11: datadog.workloadfilter.FilterPod.resolved_targets:type_name -> datadog.workloadfilter.FilterResolvedTarget
+	6,  // 11: datadog.workloadfilter.FilterPod.matched_owners:type_name -> datadog.workloadfilter.FilterMatchedOwner
 	13, // 12: datadog.workloadfilter.FilterKubeService.annotations:type_name -> datadog.workloadfilter.FilterKubeService.AnnotationsEntry
 	14, // 13: datadog.workloadfilter.FilterKubeEndpoint.annotations:type_name -> datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
 	14, // [14:14] is the sub-list for method output_type

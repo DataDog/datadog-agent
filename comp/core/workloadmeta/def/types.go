@@ -818,7 +818,14 @@ var GetRunningContainers EntityFilterFunc[*Container] = func(container *Containe
 type KubernetesPod struct {
 	EntityID
 	EntityMeta
-	Owners                     []KubernetesPodOwner
+
+	// Owners contains the direct ownerReferences declared on the Pod.
+	Owners []KubernetesPodOwner
+
+	// MatchedOwners contains configured owners matched while traversing the Pod's
+	// ownership chain. It may include direct or indirect owners and is not the
+	// complete ownership chain.
+	MatchedOwners              []KubernetesMatchedOwner `proto:"ignore"`
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
@@ -831,7 +838,6 @@ type KubernetesPod struct {
 	GPUVendorList              []string `proto:"ignore"`
 	RuntimeClass               string
 	KubeServices               []string
-	ResolvedTargets            []KubernetesResolvedTarget `proto:"ignore"`
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string   `proto:"ignore"`
 	FinishedAt                 time.Time           `proto:"ignore"`
@@ -999,10 +1005,10 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
 	}
 
-	if len(p.ResolvedTargets) > 0 {
-		_, _ = fmt.Fprintln(&sb, "----------- Resolved Targets -----------")
-		for _, t := range p.ResolvedTargets {
-			_, _ = fmt.Fprint(&sb, t.String(verbose))
+	if len(p.MatchedOwners) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Matched Owners -----------")
+		for _, o := range p.MatchedOwners {
+			_, _ = fmt.Fprint(&sb, o.String(verbose))
 		}
 	}
 
@@ -1026,9 +1032,9 @@ type KubernetesPodOwner struct {
 	Controller *bool `proto:"ignore"`
 }
 
-// KubernetesResolvedTarget identifies a configured workload target found in a
-// Pod's Kubernetes owner-reference chain by the Cluster Agent.
-type KubernetesResolvedTarget struct {
+// KubernetesMatchedOwner identifies a configured owner matched while traversing
+// a Pod's Kubernetes owner-reference chain.
+type KubernetesMatchedOwner struct {
 	Group     string
 	Version   string
 	Kind      string
@@ -1036,10 +1042,10 @@ type KubernetesResolvedTarget struct {
 	Name      string
 }
 
-// String returns a string representation of KubernetesResolvedTarget.
-func (t KubernetesResolvedTarget) String(_ bool) string {
+// String returns a string representation of KubernetesMatchedOwner.
+func (o KubernetesMatchedOwner) String(_ bool) string {
 	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "Group:", t.Group, "Version:", t.Version, "Kind:", t.Kind, "Namespace:", t.Namespace, "Name:", t.Name)
+	_, _ = fmt.Fprintln(&sb, "Group:", o.Group, "Version:", o.Version, "Kind:", o.Kind, "Namespace:", o.Namespace, "Name:", o.Name)
 	return sb.String()
 }
 
