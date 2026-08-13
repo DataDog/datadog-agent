@@ -841,11 +841,14 @@ fn should_complete_policy_restart(proc: &ManagedProcess) -> bool {
 }
 
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
+    // Capture before restart_delay(): record() clears last_spawn_time once
+    // runtime_success_sec is met, which would misclassify the restart as bootstrap-only.
+    let had_successful_spawn = proc.has_ever_run_successfully();
     if let Some(delay) = proc.restart_delay() {
         let pending = PendingRestart {
             uuid: proc.uuid().to_owned(),
             config_generation: proc.config_generation(),
-            had_successful_spawn: proc.has_ever_run_successfully(),
+            had_successful_spawn,
         };
         let tx = restart_tx.clone();
         tokio::spawn(async move {
@@ -991,6 +994,73 @@ mod tests {
             pending.as_ref().map(|p| p.uuid.as_str()),
             Some(expected_uuid.as_str())
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_queue_restart_preserves_successful_spawn_after_runtime_success()
+    -> anyhow::Result<()> {
+        let (cmd, _) = test_helpers::sleep_cmd(60);
+        let make_def = |secs: u32| ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args: test_helpers::sleep_cmd(secs).1,
+                auto_start: true,
+                restart: RestartPolicy::Always,
+                restart_sec: Some(0.3),
+                runtime_success_sec: Some(0),
+                ..Default::default()
+            },
+        };
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![make_def(60)]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+
+        mgr.handle_start("svc", &exit_tx).await?;
+        let (pid, name) = {
+            let procs = mgr.processes().await;
+            assert!(procs[0].is_running());
+            (procs[0].pid().unwrap(), procs[0].name().to_owned())
+        };
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        test_helpers::cleanup_process(pid);
+        mgr.handle_exit(
+            ExitEvent {
+                name,
+                pid,
+                status: test_helpers::exit_status(1),
+            },
+            &restart_tx,
+        )
+        .await;
+
+        let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
+            .await
+            .expect("timed out waiting for queued restart")
+            .expect("expected queued restart event");
+        assert!(
+            pending.had_successful_spawn,
+            "crash restart after runtime_success should not look like a bootstrap retry"
+        );
+
+        config_loader.set(vec![make_def(120)]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert_ne!(
+            mgr.processes().await[0].config_generation(),
+            pending.config_generation,
+            "reload should bump config generation before the queued restart completes"
+        );
+
+        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "queued crash restart should survive config reload after a successful run"
+        );
+
+        test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
         Ok(())
     }
 
