@@ -767,7 +767,7 @@ def run(
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    cmd = f"gotestsum --format {gotestsum_format} "
+    cmd = f"--format {gotestsum_format} "
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
