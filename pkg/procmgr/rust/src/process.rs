@@ -770,7 +770,7 @@ impl ManagedProcess {
         &self.config.restart
     }
 
-    fn restart_eligibility(&self) -> Option<bool> {
+    pub(crate) fn restart_eligibility(&self) -> Option<bool> {
         restart_allowed_for_state(self.state, &self.config.restart)
     }
 

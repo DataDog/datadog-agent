@@ -833,6 +833,9 @@ fn should_retry_failed_after_config_change(proc: &ManagedProcess) -> bool {
 }
 
 fn should_complete_policy_restart(proc: &ManagedProcess) -> bool {
+    if proc.restart_eligibility() != Some(true) {
+        return false;
+    }
     if proc.config().auto_start {
         proc.should_start()
     } else {
@@ -1226,6 +1229,77 @@ mod tests {
         );
 
         test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_complete_restart_skips_stale_retry_when_restart_policy_revoked()
+    -> anyhow::Result<()> {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let always_def = ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args,
+                auto_start: false,
+                restart: RestartPolicy::Always,
+                restart_sec: Some(0.3),
+                ..Default::default()
+            },
+        };
+        let never_def = ProcessDefinition {
+            name: "action-executor".to_string(),
+            config: ProcessConfig {
+                command: test_helpers::sleep_cmd(60).0.to_string(),
+                args: test_helpers::sleep_cmd(60).1,
+                auto_start: false,
+                restart: RestartPolicy::Never,
+                restart_sec: Some(0.3),
+                ..Default::default()
+            },
+        };
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![always_def]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+
+        mgr.handle_start("action-executor", &exit_tx).await?;
+        let (pid, name) = {
+            let procs = mgr.processes().await;
+            assert!(procs[0].is_running());
+            (procs[0].pid().unwrap(), procs[0].name().to_owned())
+        };
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        test_helpers::cleanup_process(pid);
+        mgr.handle_exit(
+            ExitEvent {
+                name,
+                pid,
+                status: test_helpers::exit_status(1),
+            },
+            &restart_tx,
+        )
+        .await;
+
+        let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
+            .await
+            .expect("timed out waiting for queued restart")
+            .expect("expected queued restart event");
+        assert!(pending.had_successful_spawn);
+
+        config_loader.set(vec![never_def]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert_ne!(
+            mgr.processes().await[0].config_generation(),
+            pending.config_generation
+        );
+
+        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "stale crash retry must not respawn after restart policy is revoked"
+        );
         Ok(())
     }
 
