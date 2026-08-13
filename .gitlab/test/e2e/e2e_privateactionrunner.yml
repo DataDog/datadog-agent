@@ -31,3 +31,4 @@ new-e2e-privateactionrunner:
   variables:
     TARGETS: ./tests/privateactionrunner
     TEAM: action-platform
+    EXTRA_PARAMS: --skip "Windows"

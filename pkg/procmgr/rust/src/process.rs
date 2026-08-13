@@ -516,7 +516,6 @@ impl ManagedProcess {
 
 fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig) -> Result<()> {
     cmd.env_clear();
-    #[cfg(windows)]
     platform::apply_child_baseline_env(cmd);
 
     if let Some(ref raw_path) = config.environment_file {
@@ -646,6 +645,13 @@ fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
 }
 
 fn stdio_from_path(path: &str) -> Stdio {
+    // A log directory may not exist yet on a fresh install.
+    if let Some(parent) = std::path::Path::new(path).parent()
+        && !parent.as_os_str().is_empty()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        warn!("failed to create stdio directory {}: {e}", parent.display());
+    }
     match std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -1019,6 +1025,20 @@ pub mod tests {
             "child should NOT see PROCMGRD_TEST_SECRET"
         );
         unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_spawn_has_baseline_path() {
+        let (sh, flag) = test_helpers::shell_cmd();
+        let script =
+            "test \"$PATH\" = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'";
+        let cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        let mut proc =
+            ManagedProcess::new_config("baseline-path".into(), test_helpers::test_uuid(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert_eq!(status.code(), Some(0), "child should have a baseline PATH");
     }
 
     #[tokio::test]
@@ -1443,16 +1463,33 @@ runtime_success_sec: 5
     }
 
     #[test]
-    fn test_stdio_from_str_unopenable_path_falls_back_to_inherit() {
+    fn test_stdio_from_str_creates_missing_parent_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("logs").join("pmgr_stdio_nested.log");
         let (sh, flag) = test_helpers::shell_cmd();
-        #[cfg(unix)]
-        let bad_path = "/nonexistent_dir_pmgr_stdio/out.log";
-        #[cfg(windows)]
-        let bad_path = r"C:\nonexistent_dir_pmgr_stdio\out.log";
+        let status = std::process::Command::new(sh)
+            .arg(flag)
+            .arg("echo nested")
+            .stdout(super::stdio_from_str(path.to_str().unwrap()))
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("nested"), "got {contents:?}");
+    }
+
+    #[test]
+    fn test_stdio_from_str_unopenable_path_falls_back_to_inherit() {
+        // A regular file cannot be a parent directory, so mkdir and open both fail.
+        let dir = tempfile::tempdir().unwrap();
+        let blocker = dir.path().join("not-a-dir");
+        std::fs::write(&blocker, b"").unwrap();
+        let bad_path = blocker.join("out.log");
+        let (sh, flag) = test_helpers::shell_cmd();
         let out = std::process::Command::new(sh)
             .arg(flag)
             .arg("echo fallback_ok")
-            .stdout(super::stdio_from_str(bad_path))
+            .stdout(super::stdio_from_str(bad_path.to_str().unwrap()))
             .output()
             .unwrap();
         assert!(
