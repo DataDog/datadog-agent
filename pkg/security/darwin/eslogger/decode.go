@@ -15,9 +15,13 @@ import (
 // counted and skipped, so a macOS release that adds event types cannot break
 // the collector.
 var knownKinds = map[string]bool{
-	"exec": true,
-	"fork": true,
-	"exit": true,
+	"exec":   true,
+	"fork":   true,
+	"exit":   true,
+	"open":   true,
+	"unlink": true,
+	"rename": true,
+	"create": true,
 }
 
 const (

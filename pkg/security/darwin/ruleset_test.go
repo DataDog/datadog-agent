@@ -143,6 +143,155 @@ func TestScriptNamedPackageManagerFiresRule(t *testing.T) {
 	assert.Equal(t, "macos_pkg_manager_spawns_shell", rec.Matches()[0].RuleID)
 }
 
+// TestAllFourPoCRulesLoad checks the full RFC 5.5 rule set loads, including the
+// two that depend on file events.
+func TestAllFourPoCRulesLoad(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+
+	ids := map[string]bool{}
+	for _, rule := range rs.GetRules() {
+		ids[rule.ID] = true
+	}
+	for _, want := range []string{
+		"macos_pkg_manager_spawns_shell",
+		"macos_pkg_manager_reads_credentials",
+		"macos_launch_agent_persistence",
+		"macos_exec_from_node_modules",
+	} {
+		assert.True(t, ids[want], "rule %s must load", want)
+	}
+}
+
+// TestCredentialReadUnderPackageManagerFires is RFC 5.5 rule 2 end to end. It only
+// became reachable once open events existed; before that the rule loaded and could
+// never match.
+func TestCredentialReadUnderPackageManagerFires(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rec := &MatchRecorder{}
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+	rs.AddListener(rec)
+
+	_, err = tr.Translate(execMessage(t, 710, 1, "/usr/local/bin/npm", []string{"npm", "install"}))
+	require.NoError(t, err)
+	_, err = tr.Translate(forkMessage(t, 711, 710, "/usr/local/bin/npm"))
+	require.NoError(t, err)
+	_, err = tr.Translate(execMessage(t, 711, 710, "/usr/bin/curl", []string{"curl", "-T", "-"}))
+	require.NoError(t, err)
+
+	ev, err := tr.Translate(openMessage(t, 711, "/Users/someone/.aws/credentials"))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	rs.Evaluate(ev)
+
+	require.Len(t, rec.Matches(), 1, "reading ~/.aws/credentials under npm must fire")
+	assert.Equal(t, "macos_pkg_manager_reads_credentials", rec.Matches()[0].RuleID)
+}
+
+// TestLaunchAgentPersistenceFires is RFC 5.5 rule 3. Endpoint Security reports the
+// creation as a new_path destination, which the translator maps onto an open.
+func TestLaunchAgentPersistenceFires(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rec := &MatchRecorder{}
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+	rs.AddListener(rec)
+
+	_, err = tr.Translate(execMessage(t, 720, 1, "/bin/sh", []string{"sh"}))
+	require.NoError(t, err)
+
+	ev, err := tr.Translate(createMessage(t, 720, "/Users/someone/Library/LaunchAgents", "com.evil.plist"))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	rs.Evaluate(ev)
+
+	require.Len(t, rec.Matches(), 1, "writing a LaunchAgents plist must fire")
+	assert.Equal(t, "macos_launch_agent_persistence", rec.Matches()[0].RuleID)
+}
+
+// TestExecFromNodeModulesFires is RFC 5.5 rule 4.
+func TestExecFromNodeModulesFires(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rec := &MatchRecorder{}
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+	rs.AddListener(rec)
+
+	ev, err := tr.Translate(execMessage(t, 730, 1,
+		"/Users/someone/proj/node_modules/.bin/postinstall", []string{"postinstall"}))
+	require.NoError(t, err)
+	require.NotNil(t, ev)
+
+	rs.Evaluate(ev)
+
+	require.Len(t, rec.Matches(), 1, "executing from node_modules must fire")
+	assert.Equal(t, "macos_exec_from_node_modules", rec.Matches()[0].RuleID)
+}
+
+// TestNodeModulesRuleMissesDeepNesting documents a SECL limitation with executable
+// evidence rather than prose, because anyone extending these rules will hit it.
+//
+// Globs on .path fields cannot express "this component appears anywhere": `*` is
+// single-level, `**` is only valid at the end of a pattern, and regular
+// expressions are rejected on .path fields. The rule therefore enumerates depths,
+// and anything nested deeper is missed.
+//
+// If SECL gains a way to express this, the second assertion fails and the rule
+// should be simplified -- that would be good news.
+func TestNodeModulesRuleMissesDeepNesting(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rec := &MatchRecorder{}
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+	rs.AddListener(rec)
+
+	// Within the enumerated depths: matches.
+	ev, err := tr.Translate(execMessage(t, 750, 1,
+		"/Users/someone/a/b/node_modules/.bin/x", []string{"x"}))
+	require.NoError(t, err)
+	rs.Evaluate(ev)
+	assert.Len(t, rec.Matches(), 1, "a normally-nested project must match")
+
+	// Deeper than the enumeration: missed.
+	rec.Reset()
+	ev, err = tr.Translate(execMessage(t, 751, 1,
+		"/Users/someone/a/b/c/d/e/f/node_modules/.bin/x", []string{"x"}))
+	require.NoError(t, err)
+	rs.Evaluate(ev)
+	assert.Empty(t, rec.Matches(),
+		"KNOWN GAP: SECL globs cannot match a path component at arbitrary depth")
+}
+
+// TestUnrelatedFileReadDoesNotFire keeps the credential rule honest: the path
+// alone is not enough, a package manager must be in the tree.
+func TestUnrelatedFileReadDoesNotFire(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	rec := &MatchRecorder{}
+	rs, err := NewRuleSet("policies", func() eval.Event { return tr.newEvent() })
+	require.NoError(t, err)
+	rs.AddListener(rec)
+
+	// A login shell reading its own credentials file, no package manager involved.
+	_, err = tr.Translate(execMessage(t, 740, 1, "/bin/zsh", []string{"-zsh"}))
+	require.NoError(t, err)
+
+	ev, err := tr.Translate(openMessage(t, 740, "/Users/someone/.aws/credentials"))
+	require.NoError(t, err)
+	rs.Evaluate(ev)
+
+	assert.Empty(t, rec.Matches(), "no package manager in the tree means no match")
+}
+
 // TestPolicyRejectsUnsupportedField proves NewDarwinModel's gate works: a policy
 // field darwin never populates must fail to load rather than load and silently
 // never match.

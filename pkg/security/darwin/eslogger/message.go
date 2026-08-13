@@ -161,6 +161,72 @@ type ForkEvent struct {
 	Child *Process `json:"child"`
 }
 
+// OpenEvent is es_event_open_t.
+//
+// FFlag holds the flags the file was opened with. Note that it is NOT directly
+// comparable to SECL's open.flags constants: those are the Linux O_* values, and
+// macOS numbers them differently (O_CREAT is 0x40 on Linux, 0x200 on macOS). Path
+// based rules are therefore preferred over flag arithmetic on this platform.
+type OpenEvent struct {
+	FFlag int32 `json:"fflag"`
+	File  *File `json:"file"`
+}
+
+// UnlinkEvent is es_event_unlink_t.
+type UnlinkEvent struct {
+	Target    *File `json:"target"`
+	ParentDir *File `json:"parent_dir"`
+}
+
+// FileDestination is the destination of a rename or create.
+//
+// Endpoint Security models it as a union discriminated by destination_type: either
+// an existing file that is being replaced, or a new path expressed as a directory
+// plus a filename. Both forms have to be handled, because which one appears
+// depends on whether the target already exists.
+type FileDestination struct {
+	ExistingFile *File `json:"existing_file"`
+	NewPath      *struct {
+		Dir      *File  `json:"dir"`
+		Filename string `json:"filename"`
+	} `json:"new_path"`
+}
+
+// Path returns the destination path, joining the directory and filename when the
+// destination is a new path.
+func (d *FileDestination) Path() string {
+	if d == nil {
+		return ""
+	}
+	if d.ExistingFile != nil && d.ExistingFile.Path != "" {
+		return d.ExistingFile.Path
+	}
+	if d.NewPath != nil && d.NewPath.Dir != nil {
+		dir := d.NewPath.Dir.Path
+		if dir == "" {
+			return d.NewPath.Filename
+		}
+		if dir[len(dir)-1] == '/' {
+			return dir + d.NewPath.Filename
+		}
+		return dir + "/" + d.NewPath.Filename
+	}
+	return ""
+}
+
+// RenameEvent is es_event_rename_t.
+type RenameEvent struct {
+	Source          *File            `json:"source"`
+	DestinationType int              `json:"destination_type"`
+	Destination     *FileDestination `json:"destination"`
+}
+
+// CreateEvent is es_event_create_t.
+type CreateEvent struct {
+	DestinationType int              `json:"destination_type"`
+	Destination     *FileDestination `json:"destination"`
+}
+
 // ExitEvent is es_event_exit_t.
 //
 // Stat is a wait(2)-style status word, not an exit code: a process that exits

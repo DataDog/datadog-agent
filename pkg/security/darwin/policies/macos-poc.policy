@@ -34,3 +34,42 @@ rules:
     expression: >-
       open.file.path in credential_paths &&
       process.ancestors.file.name in package_managers
+
+  # RFC 5.5 rule 3, path-based rather than event-based.
+  #
+  # macOS does expose btm_launch_item_add, which is the real persistence signal,
+  # but SECL has no event type for it, so this matches the LaunchAgents plist
+  # instead. Endpoint Security reports a create as a new_path destination, which
+  # the translator maps onto an open of that path -- there is no create event type
+  # in SECL's unix range (CreateNewFileEventType is Windows).
+  #
+  # Deliberately no flag arithmetic: macOS numbers O_* differently from Linux
+  # (O_CREAT is 0x200 rather than 0x40), so SECL's compiled-in constants do not
+  # match and `open.flags & O_CREAT` would silently never fire here.
+  - id: macos_launch_agent_persistence
+    description: A launch agent plist was written
+    expression: >-
+      open.file.path =~ "/Users/*/Library/LaunchAgents/*.plist"
+
+  # RFC 5.5 rule 4, partial, and the depth enumeration below is not stylistic.
+  #
+  # SECL globs on .path fields cannot express "this component appears anywhere in
+  # the path": `*` matches within a single level only, `**` is allowed just at the
+  # end of a pattern, and regular expressions are not supported on .path fields at
+  # all. So `*/node_modules/*` matches nothing at realistic depths, and the
+  # alternative is to enumerate the depths worth covering. Projects nested deeper
+  # than this are missed.
+  #
+  # The rule is also weaker than the RFC's intent, which is "unsigned or
+  # ad-hoc-signed binary". eslogger does supply signing_id, team_id, cdhash and
+  # is_platform_binary per executable, but model.FileEvent has nowhere to carry
+  # them, so this stays path-only and will over-match: plenty of legitimate
+  # tooling executes from node_modules.
+  - id: macos_exec_from_node_modules
+    description: A binary was executed from node_modules
+    expression: >-
+      exec.file.path in [~"/Users/*/node_modules/**",
+                         ~"/Users/*/*/node_modules/**",
+                         ~"/Users/*/*/*/node_modules/**",
+                         ~"/Users/*/*/*/*/node_modules/**",
+                         ~"/Users/*/*/*/*/*/node_modules/**"]

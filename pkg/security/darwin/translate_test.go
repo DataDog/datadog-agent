@@ -289,6 +289,99 @@ func TestTranslateNeverPopulatesEnvs(t *testing.T) {
 	assert.Empty(t, entry.Process.EnvsEntry.Values, "environment variables must never be captured")
 }
 
+// TestTranslateFileEvents covers the file event kinds, including that each one is
+// attributed to the acting process. Without process context a file event cannot
+// satisfy any of the PoC rules, since all of them reach through
+// process.ancestors.
+func TestTranslateFileEvents(t *testing.T) {
+	tests := []struct {
+		name      string
+		msg       func(*testing.T) *eslogger.Message
+		eventType model.EventType
+		assert    func(*testing.T, *model.Event)
+	}{
+		{
+			name:      "open",
+			msg:       func(t *testing.T) *eslogger.Message { return openMessage(t, 600, "/Users/test/.aws/credentials") },
+			eventType: model.FileOpenEventType,
+			assert: func(t *testing.T, ev *model.Event) {
+				assert.Equal(t, "/Users/test/.aws/credentials", ev.Open.File.PathnameStr)
+				assert.Equal(t, "credentials", ev.Open.File.BasenameStr)
+			},
+		},
+		{
+			name:      "unlink",
+			msg:       func(t *testing.T) *eslogger.Message { return unlinkMessage(t, 600, "/tmp/victim") },
+			eventType: model.FileUnlinkEventType,
+			assert: func(t *testing.T, ev *model.Event) {
+				assert.Equal(t, "/tmp/victim", ev.Unlink.File.PathnameStr)
+				assert.Equal(t, "victim", ev.Unlink.File.BasenameStr)
+			},
+		},
+		{
+			name:      "rename to an existing file",
+			msg:       func(t *testing.T) *eslogger.Message { return renameExistingMessage(t, 600, "/tmp/a", "/tmp/b") },
+			eventType: model.FileRenameEventType,
+			assert: func(t *testing.T, ev *model.Event) {
+				assert.Equal(t, "/tmp/a", ev.Rename.Old.PathnameStr)
+				assert.Equal(t, "/tmp/b", ev.Rename.New.PathnameStr)
+			},
+		},
+		{
+			name:      "rename to a new path joins dir and filename",
+			msg:       func(t *testing.T) *eslogger.Message { return renameNewPathMessage(t, 600, "/tmp/a", "/tmp/sub", "b") },
+			eventType: model.FileRenameEventType,
+			assert: func(t *testing.T, ev *model.Event) {
+				assert.Equal(t, "/tmp/a", ev.Rename.Old.PathnameStr)
+				assert.Equal(t, "/tmp/sub/b", ev.Rename.New.PathnameStr,
+					"a new-path destination is a dir plus a filename and must be joined")
+			},
+		},
+		{
+			name: "create is reported as an open of the new path",
+			msg: func(t *testing.T) *eslogger.Message {
+				return createMessage(t, 600, "/Users/test/Library/LaunchAgents", "eve.plist")
+			},
+			eventType: model.FileOpenEventType,
+			assert: func(t *testing.T, ev *model.Event) {
+				assert.Equal(t, "/Users/test/Library/LaunchAgents/eve.plist", ev.Open.File.PathnameStr)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := newTestTranslator(t)
+
+			// The acting process must exist, or there is no process context.
+			_, err := tr.Translate(execMessage(t, 600, 1, "/usr/local/bin/npm", []string{"npm", "install"}))
+			require.NoError(t, err)
+
+			ev, err := tr.Translate(tc.msg(t))
+			require.NoError(t, err)
+			require.NotNil(t, ev)
+
+			assert.Equal(t, tc.eventType, ev.GetEventType())
+			require.NotNil(t, ev.ProcessCacheEntry, "the file event must be attributed to the acting process")
+			assert.Equal(t, "npm", ev.ProcessCacheEntry.Process.FileEvent.BasenameStr)
+			tc.assert(t, ev)
+		})
+	}
+}
+
+// TestTranslateFileEventWithoutProcessIsSkipped guards against emitting a file
+// event nobody can attribute.
+func TestTranslateFileEventWithoutProcessIsSkipped(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	body, err := json.Marshal(map[string]any{"open": map[string]any{"file": map[string]any{"path": "/etc/passwd"}}})
+	require.NoError(t, err)
+
+	ev, err := tr.Translate(&eslogger.Message{Time: "2026-08-12T00:00:00Z", Event: body})
+	require.NoError(t, err)
+	assert.Nil(t, ev, "a file event with no acting process must be skipped")
+}
+
 // fakeNameResolver maps a couple of ids to names deterministically, so credential
 // naming can be tested on any unix rather than only on a machine with these
 // accounts.
@@ -471,6 +564,69 @@ func forkMessageVersioned(t *testing.T, childPid, parentPid uint32, path string,
 	})
 	require.NoError(t, err)
 	return &eslogger.Message{Time: "2026-08-12T00:00:00Z", Event: body}
+}
+
+// fileMessage wraps a file event body with the acting process, which is where
+// Endpoint Security names the actor for file events.
+func fileMessage(t *testing.T, pid uint32, body map[string]any) *eslogger.Message {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+	return &eslogger.Message{
+		Time:    "2026-08-12T00:00:00Z",
+		Process: &eslogger.Process{AuditToken: eslogger.AuditToken{PID: pid}},
+		Event:   raw,
+	}
+}
+
+func openMessage(t *testing.T, pid uint32, path string) *eslogger.Message {
+	t.Helper()
+	return fileMessage(t, pid, map[string]any{
+		"open": map[string]any{"file": map[string]any{"path": path}, "fflag": 0},
+	})
+}
+
+func unlinkMessage(t *testing.T, pid uint32, path string) *eslogger.Message {
+	t.Helper()
+	return fileMessage(t, pid, map[string]any{
+		"unlink": map[string]any{"target": map[string]any{"path": path}},
+	})
+}
+
+func renameExistingMessage(t *testing.T, pid uint32, src, dst string) *eslogger.Message {
+	t.Helper()
+	return fileMessage(t, pid, map[string]any{
+		"rename": map[string]any{
+			"source":           map[string]any{"path": src},
+			"destination_type": 0,
+			"destination":      map[string]any{"existing_file": map[string]any{"path": dst}},
+		},
+	})
+}
+
+func renameNewPathMessage(t *testing.T, pid uint32, src, dir, filename string) *eslogger.Message {
+	t.Helper()
+	return fileMessage(t, pid, map[string]any{
+		"rename": map[string]any{
+			"source":           map[string]any{"path": src},
+			"destination_type": 1,
+			"destination": map[string]any{
+				"new_path": map[string]any{"dir": map[string]any{"path": dir}, "filename": filename},
+			},
+		},
+	})
+}
+
+func createMessage(t *testing.T, pid uint32, dir, filename string) *eslogger.Message {
+	t.Helper()
+	return fileMessage(t, pid, map[string]any{
+		"create": map[string]any{
+			"destination_type": 1,
+			"destination": map[string]any{
+				"new_path": map[string]any{"dir": map[string]any{"path": dir}, "filename": filename},
+			},
+		},
+	})
 }
 
 func exitMessage(t *testing.T, pid uint32, stat int32) *eslogger.Message {

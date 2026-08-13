@@ -183,9 +183,108 @@ func (t *Translator) Translate(m *eslogger.Message) (*model.Event, error) {
 		}
 		return t.translateExit(m.Process, &body, ts), nil
 
+	case "open":
+		var body eslogger.OpenEvent
+		if err := m.DecodeEvent(&body); err != nil {
+			return nil, fmt.Errorf("decode open: %w", err)
+		}
+		if body.File == nil || body.File.Path == "" {
+			return nil, nil
+		}
+		ev := t.newFileEvent(m, model.FileOpenEventType, ts)
+		if ev == nil {
+			return nil, nil
+		}
+		setFile(&ev.Open.File, body.File.Path)
+		// Recorded for completeness, but see OpenEvent: macOS O_* values do not
+		// match the Linux constants SECL compiles, so rules should match on path.
+		ev.Open.Flags = uint32(body.FFlag)
+		return ev, nil
+
+	case "unlink":
+		var body eslogger.UnlinkEvent
+		if err := m.DecodeEvent(&body); err != nil {
+			return nil, fmt.Errorf("decode unlink: %w", err)
+		}
+		if body.Target == nil || body.Target.Path == "" {
+			return nil, nil
+		}
+		ev := t.newFileEvent(m, model.FileUnlinkEventType, ts)
+		if ev == nil {
+			return nil, nil
+		}
+		setFile(&ev.Unlink.File, body.Target.Path)
+		return ev, nil
+
+	case "rename":
+		var body eslogger.RenameEvent
+		if err := m.DecodeEvent(&body); err != nil {
+			return nil, fmt.Errorf("decode rename: %w", err)
+		}
+		if body.Source == nil || body.Source.Path == "" {
+			return nil, nil
+		}
+		ev := t.newFileEvent(m, model.FileRenameEventType, ts)
+		if ev == nil {
+			return nil, nil
+		}
+		setFile(&ev.Rename.Old, body.Source.Path)
+		setFile(&ev.Rename.New, body.Destination.Path())
+		return ev, nil
+
+	case "create":
+		// A creation is reported as an open of the new path. macOS has no SECL
+		// create event type in the unix range -- CreateNewFileEventType is Windows
+		// -- and inventing one would mislabel the event for the backend.
+		var body eslogger.CreateEvent
+		if err := m.DecodeEvent(&body); err != nil {
+			return nil, fmt.Errorf("decode create: %w", err)
+		}
+		path := body.Destination.Path()
+		if path == "" {
+			return nil, nil
+		}
+		ev := t.newFileEvent(m, model.FileOpenEventType, ts)
+		if ev == nil {
+			return nil, nil
+		}
+		setFile(&ev.Open.File, path)
+		return ev, nil
+
 	default:
 		return nil, nil
 	}
+}
+
+// newFileEvent builds a file event attributed to the acting process.
+//
+// File events name the actor in the message's own process field rather than in the
+// event body, and without that process context a file event is close to useless
+// for a detection: every PoC rule reaches through process.ancestors.
+func (t *Translator) newFileEvent(m *eslogger.Message, eventType model.EventType, ts time.Time) *model.Event {
+	if m.Process == nil || m.Process.AuditToken.PID == 0 {
+		return nil
+	}
+	pid := m.Process.AuditToken.PID
+
+	ev := t.newEvent()
+	ev.Type = uint32(eventType)
+	ev.Timestamp = ts
+	ev.TimestampRaw = uint64(ts.UnixNano())
+	ev.PIDContext.Pid = pid
+
+	if entry := t.resolver.Resolve(key(pid)); entry != nil {
+		ev.ProcessCacheEntry = entry
+		ev.ProcessContext = &entry.ProcessContext
+	}
+
+	return ev
+}
+
+// setFile fills a SECL file event from an already-resolved absolute path.
+func setFile(fe *model.FileEvent, path string) {
+	fe.PathnameStr = path
+	fe.BasenameStr = basename(path)
 }
 
 func (t *Translator) translateExec(body *eslogger.ExecEvent, ts time.Time) *model.Event {
