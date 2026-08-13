@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed distribution metrics submitted by checks (via ``sender.Distribution``)
+    always being reported with an empty/unknown origin metadata (``OriginCategory``)
+    in the sketch payload, regardless of the submitting check. The check's
+    metric source is now correctly propagated to the sketch, matching the
+    behavior already in place for other metric types.
