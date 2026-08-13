@@ -22,23 +22,17 @@ import sys
 import yaml
 
 
-def env(*names):
+def env(*names, allow_empty=False):
+    # allow_empty=True matches os.LookupEnv semantics (used by LoadProxyFromEnv
+    # in pkg/config/setup/config.go): an explicit DD_PROXY_HTTP="" must
+    # suppress a lower-priority HTTP_PROXY rather than fall through to it.
     for name in names:
-        value = os.environ.get(name)
-        if value:
-            return value
+        if allow_empty:
+            if name in os.environ:
+                return os.environ[name]
+        elif os.environ.get(name):
+            return os.environ[name]
     return None
-
-
-def env_present(*names):
-    # Like env(), but distinguishes unset from set-but-empty (os.LookupEnv
-    # semantics, matching LoadProxyFromEnv in pkg/config/setup/config.go):
-    # an explicit DD_PROXY_HTTP="" must suppress a lower-priority HTTP_PROXY
-    # rather than fall through to it.
-    for name in names:
-        if name in os.environ:
-            return name, os.environ[name]
-    return None, None
 
 
 def split_list(value):
@@ -76,16 +70,13 @@ if tags := env("DD_TAGS"):
 # DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
 # vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
 proxy = {}
-_, http_proxy = env_present("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy")
-if http_proxy:
+if http_proxy := env("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy", allow_empty=True):
     proxy["http"] = http_proxy
-_, https_proxy = env_present("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy")
-if https_proxy:
+if https_proxy := env("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy", allow_empty=True):
     proxy["https"] = https_proxy
-no_proxy_source, no_proxy = env_present("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy")
-if no_proxy:
+if no_proxy := env("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy", allow_empty=True):
     # DD_PROXY_NO_PROXY accepts space or comma; generic NO_PROXY is comma-only.
-    if no_proxy_source == "DD_PROXY_NO_PROXY":
+    if "DD_PROXY_NO_PROXY" in os.environ:
         proxy["no_proxy"] = split_list(no_proxy)
     else:
         proxy["no_proxy"] = [p for p in no_proxy.split(",") if p]
