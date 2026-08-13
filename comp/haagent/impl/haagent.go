@@ -103,8 +103,7 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 
 		var discriminator workloadBalancingDiscriminator
 		if err := json.Unmarshal(rawConfig.Config, &discriminator); err == nil && discriminator.GroupID != "" {
-			// This document belongs to comp/workloadbalancing, not to HA Agent. Leave it alone:
-			// comp/workloadbalancing owns parsing and apply-status reporting for it.
+			// Owned by comp/workloadbalancing, not HA Agent.
 			h.log.Debugf("Skipping config %s: belongs to comp/workloadbalancing (group_id=%s)", configPath, discriminator.GroupID)
 			continue
 		}

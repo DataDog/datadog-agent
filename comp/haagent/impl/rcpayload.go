@@ -11,9 +11,8 @@ type haAgentConfig struct {
 }
 
 // workloadBalancingDiscriminator tells whether an HA_AGENT document belongs to
-// comp/workloadbalancing rather than HA Agent. Its json tag is an unenforced contract with
-// comp/workloadbalancing's own payload struct (kept separate to avoid a dependency between the
-// two) — keep them in sync by hand.
+// comp/workloadbalancing rather than HA Agent. Its json tag must match that package's own
+// payload struct by hand; the two are deliberately not shared to avoid a dependency.
 type workloadBalancingDiscriminator struct {
 	GroupID string `json:"group_id"`
 }

@@ -114,9 +114,7 @@ const (
 	ProductTesting2 = "TESTING2"
 	// ProductOrchestratorK8sCRDs receives values for k8s crds
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
-	// ProductHaAgent is the HA Agent product. comp/workloadbalancing also listens on it, as a
-	// second, independent owner distinguishing its own documents by a group_id field HA Agent's
-	// documents never set (see comp/haagent/impl/rcpayload.go's workloadBalancingDiscriminator).
+	// ProductHaAgent is the HA Agent product, also shared by comp/workloadbalancing.
 	ProductHaAgent = "HA_AGENT"
 	// ProductSyntheticsTest is the Synthetics test product
 	ProductSyntheticsTest = "SYNTHETIC_TEST"
