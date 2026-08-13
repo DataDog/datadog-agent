@@ -65,7 +65,6 @@ service_srcs = [
     "tmpl/gen/oci/datadog-agent.service",
 ]
 
-# keep
 # Selected by GetSystemdUnit on hosts without ambient capability support. These must be embedded
 # in the production library, not just in tmpl_test, or the shipped binary cannot read them.
 nocap_service_srcs = glob([
@@ -76,11 +75,12 @@ nocap_service_srcs = glob([
 go_library(
     name = "embedded",
     srcs = ["embed.go"],
+    # keep
     embedsrcs = [
         "scripts/dd-cleanup",
         "scripts/dd-container-install",
         "scripts/dd-host-install",
-    ] + service_srcs + nocap_service_srcs,  # keep
+    ] + service_srcs + nocap_service_srcs,
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
     visibility = ["//visibility:public"],
 )
