@@ -13,7 +13,10 @@ import (
 
 // maxRun is the maximum run of a char or digit before it is capped.
 // Note: This must not exceed d10 or c10 below.
-const maxRun = 10
+const (
+	maxRun         = 10
+	ipv4TokenWidth = 7 // D Period D Period D Period D
+)
 
 // maxSpecialTokenLen and the special-token/debug-string tables are generated
 // from the master list in gentokentables/main.go into token_tables_gen.go.
@@ -192,7 +195,57 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	// Flush the final run.
 	t.emitToken(input, lastToken, start, inputLen)
 
+	t.collapseHybridTokens()
 	return t.tsBuf, t.idxBuf
+}
+
+func isIPv4OctetToken(tok Token) bool {
+	return tok >= D1 && tok <= D3
+}
+
+// ipv4At reports whether tokens[i:] starts with an IPv4 dotted quad.
+// Each octet is a 1-3 digit run and each separator is a single '.'.
+// A collapsed ".." / "..." Period token is rejected via the start indices.
+func ipv4At(tokens []Token, indices []int, i int) bool {
+	if i+ipv4TokenWidth > len(tokens) {
+		return false
+	}
+	if !isIPv4OctetToken(tokens[i]) || tokens[i+1] != Period ||
+		!isIPv4OctetToken(tokens[i+2]) || tokens[i+3] != Period ||
+		!isIPv4OctetToken(tokens[i+4]) || tokens[i+5] != Period ||
+		!isIPv4OctetToken(tokens[i+6]) {
+		return false
+	}
+	return indices[i+2] == indices[i+1]+1 &&
+		indices[i+4] == indices[i+3]+1 &&
+		indices[i+6] == indices[i+5]+1
+}
+
+// collapseHybridTokens rewrites multi-token patterns into a single token.
+// IPv4 dotted quads are the first of these: as separate digit/period tokens
+// they look like timestamp fragments to the detector, and addresses with
+// different octet widths would otherwise be different sampler patterns.
+func (t *Tokenizer) collapseHybridTokens() {
+	n := len(t.tsBuf)
+	if n < ipv4TokenWidth {
+		return
+	}
+	w := 0
+	for r := 0; r < n; {
+		if ipv4At(t.tsBuf, t.idxBuf, r) {
+			t.tsBuf[w] = IPv4
+			t.idxBuf[w] = t.idxBuf[r]
+			w++
+			r += ipv4TokenWidth
+			continue
+		}
+		t.tsBuf[w] = t.tsBuf[r]
+		t.idxBuf[w] = t.idxBuf[r]
+		w++
+		r++
+	}
+	t.tsBuf = t.tsBuf[:w]
+	t.idxBuf = t.idxBuf[:w]
 }
 
 // tokensToString converts a list of tokens to a debug string.
