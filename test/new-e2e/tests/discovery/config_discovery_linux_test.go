@@ -149,7 +149,7 @@ const adContainerDiscoveryProvider = "ad-container-discovery+file"
 // schedules, so users can identify (and, if needed, exclude) metrics
 // submitted by an autodiscovered check that duplicates a manually-configured
 // one pointed at the same service from elsewhere.
-const configDiscoveryTag = "dd.internal.config_discovery:true"
+const configDiscoveryTag = "dd_config_discovery:true"
 
 // verifyKrakendCheckProvider checks that the krakend check has
 // config.provider = adContainerDiscoveryProvider in the inventory-checks

@@ -42,7 +42,15 @@ const discoveredChangesBuffer = 128
 // elsewhere, so the two can end up scraping the same target and duplicating
 // (or, for additive metric types, doubling) submitted metrics. This tag lets
 // users spot and exclude the autodiscovered side of such a duplication.
-const configDiscoveryTag = "dd.internal.config_discovery:true"
+//
+// Uses a plain `dd_`-prefixed key (not `dd.internal.*`, which is reserved for
+// tags consumed and stripped internally before reaching the backend, e.g.
+// dd.internal.resource in pkg/metrics/series.go) so it survives to the
+// backend and stays queryable, following the precedent of other
+// agent-added, customer-visible marker tags such as dd_remote_config_id /
+// dd_remote_config_rev (comp/core/tagger/tags/tags.go) and
+// dd_enable_check_intake (pkg/collector/worker/worker.go).
+const configDiscoveryTag = "dd_config_discovery:true"
 
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
 func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {

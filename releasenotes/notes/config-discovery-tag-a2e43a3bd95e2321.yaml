@@ -9,6 +9,6 @@
 enhancements:
   - |
     Check instances scheduled via configuration discovery now carry the
-    ``dd.internal.config_discovery:true`` tag. This can be used to identify,
+    ``dd_config_discovery:true`` tag. This can be used to identify,
     and if needed exclude, metrics submitted by an autodiscovered check that
     duplicates a check configured manually elsewhere for the same service.
