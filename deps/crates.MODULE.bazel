@@ -20,4 +20,12 @@ crate.annotation(
     crate = "protoc-gen-tonic",
     gen_binaries = ["protoc-gen-tonic"],
 )
+crate.annotation(
+    crate = "saluki-core",
+    rustc_flags = ["--cfg=tokio_unstable"],
+)
+crate.annotation(
+    crate = "tokio",
+    rustc_flags = ["--cfg=tokio_unstable"],
+)
 use_repo(crate, "crates")
