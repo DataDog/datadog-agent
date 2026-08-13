@@ -829,29 +829,27 @@ impl ManagedProcess {
     }
 
     /// Evaluate restart policy and burst limits. If a restart is warranted,
-    /// record the attempt, advance backoff, and return the delay the caller
-    /// should sleep before calling [`spawn`]. Returns `None` otherwise.
+    /// record the attempt, advance backoff, and return how long to wait before
+    /// respawning. Returns `None` when restart is denied or burst-limited.
     #[must_use]
-    pub fn restart_delay(&mut self) -> Option<Duration> {
+    pub fn schedule_restart(&mut self) -> Option<Duration> {
         match self.restart_eligibility() {
-            RestartDecision::NotApplicable => None,
+            RestartDecision::Allowed => self.record_restart_delay(),
             RestartDecision::Denied => {
                 self.log_restart_policy_skip();
                 None
             }
-            RestartDecision::Allowed => {
-                if let Some((delay, met_runtime_success)) =
-                    self.restarts.next_restart_delay(&self.config, &self.name)
-                {
-                    if met_runtime_success {
-                        self.had_successful_run = true;
-                    }
-                    Some(delay)
-                } else {
-                    None
-                }
-            }
+            RestartDecision::NotApplicable => None,
         }
+    }
+
+    fn record_restart_delay(&mut self) -> Option<Duration> {
+        let (delay, met_runtime_success) =
+            self.restarts.next_restart_delay(&self.config, &self.name)?;
+        if met_runtime_success {
+            self.had_successful_run = true;
+        }
+        Some(delay)
     }
 }
 
@@ -1440,13 +1438,13 @@ pub mod tests {
         proc.transition_to(ProcessState::Failed);
         assert!(proc.has_ever_run_successfully());
 
-        assert!(proc.restart_delay().is_some());
+        assert!(proc.schedule_restart().is_some());
         assert!(
             proc.has_ever_run_successfully(),
             "successful-run state should survive the first restart_delay"
         );
 
-        assert!(proc.restart_delay().is_some());
+        assert!(proc.schedule_restart().is_some());
         assert!(
             proc.has_ever_run_successfully(),
             "successful-run state should survive subsequent restart_delay calls"
@@ -1587,7 +1585,7 @@ runtime_success_sec: 5
 
         assert_eq!(proc.state(), ProcessState::Failed);
         assert!(
-            proc.restart_delay().is_some(),
+            proc.schedule_restart().is_some(),
             "on-failure should restart after stop -> start -> external kill"
         );
     }
@@ -1607,7 +1605,7 @@ runtime_success_sec: 5
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(
-            proc.restart_delay().is_none(),
+            proc.schedule_restart().is_none(),
             "stopped process should not restart even with Always policy"
         );
     }
