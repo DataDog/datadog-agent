@@ -168,29 +168,47 @@ impl ProcessManager {
         event: ExitEvent,
         restart_tx: &mpsc::Sender<PendingRestart>,
     ) {
-        #[cfg(windows)]
-        if self
-            .complete_orphaned_late_exit_cleanup(&event.name, event.pid)
-            .await
-        {
-            debug!(
-                "[{}] matched orphaned deferred Windows cleanup after late exit (pid {})",
-                event.name, event.pid
-            );
+        let mut procs = self.processes.write().await;
+        let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
+            drop(procs);
+            #[cfg(windows)]
             if self
-                .deferred_job_drain_pending(&event.name, event.pid)
+                .complete_orphaned_late_exit_cleanup(&event.name, event.pid)
                 .await
             {
-                self.spawn_deferred_job_drain(event.name.clone(), event.pid);
+                debug!(
+                    "[{}] matched orphaned deferred Windows cleanup after late exit (pid {})",
+                    event.name, event.pid
+                );
+                if self
+                    .deferred_job_drain_pending(&event.name, event.pid)
+                    .await
+                {
+                    self.spawn_deferred_job_drain(event.name.clone(), event.pid);
+                }
+                return;
+            }
+            warn!("exit event for unknown process '{}'", event.name);
+            return;
+        };
+
+        if proc.pid() == Some(event.pid) && proc.state().is_alive() {
+            info!("[{}] exited with {}", proc.name(), event.status);
+            #[cfg(windows)]
+            let drain_pid = proc.set_last_status(event.status);
+            #[cfg(not(windows))]
+            {
+                proc.set_last_status(event.status);
+            }
+            queue_restart(proc, restart_tx);
+            drop(procs);
+            #[cfg(windows)]
+            if let Some(pid) = drain_pid {
+                self.spawn_deferred_job_drain(event.name.clone(), pid);
             }
             return;
         }
 
-        let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
-            warn!("exit event for unknown process '{}'", event.name);
-            return;
-        };
         #[cfg(windows)]
         if proc.complete_late_exit_cleanup(event.pid) {
             debug!(
@@ -206,36 +224,31 @@ impl ProcessManager {
             }
             return;
         }
-        if proc.pid() != Some(event.pid) {
-            debug!(
-                "[{}] ignoring stale exit event for pid {} (current pid: {:?})",
-                proc.name(),
-                event.pid,
-                proc.pid()
-            );
-            return;
-        }
-        if !proc.state().is_alive() {
-            debug!(
-                "[{}] exit event after stop, skipping restart (state: {})",
-                proc.name(),
-                proc.state()
-            );
-            return;
-        }
-        info!("[{}] exited with {}", proc.name(), event.status);
-        #[cfg(windows)]
-        let drain_pid = proc.set_last_status(event.status);
-        #[cfg(not(windows))]
-        {
-            proc.set_last_status(event.status);
-        }
-        queue_restart(proc, restart_tx);
+
+        let name = proc.name().to_owned();
+        let current_pid = proc.pid();
+        let state = proc.state();
         drop(procs);
+
         #[cfg(windows)]
-        if let Some(pid) = drain_pid {
-            self.spawn_deferred_job_drain(event.name.clone(), pid);
+        if self
+            .complete_orphaned_late_exit_cleanup(&name, event.pid)
+            .await
+        {
+            debug!(
+                "[{name}] matched orphaned deferred Windows cleanup after late exit (pid {})",
+                event.pid
+            );
+            if self.deferred_job_drain_pending(&name, event.pid).await {
+                self.spawn_deferred_job_drain(name, event.pid);
+            }
+            return;
         }
+
+        debug!(
+            "[{name}] ignoring stale exit event for pid {} (current pid: {current_pid:?}, state: {state})",
+            event.pid
+        );
     }
 
     pub(crate) async fn complete_restart(
