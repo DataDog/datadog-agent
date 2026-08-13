@@ -4,6 +4,9 @@ go_library(
     name = "cws-macos-poc_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/cws-macos-poc",
+    # keep: main.go is `//go:build darwin`, so on every other platform this
+    # library is empty and GoLink fails the binary with "not package main".
+    target_compatible_with = ["@platforms//os:macos"],
     visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:darwin": [
@@ -35,5 +38,6 @@ go_library(
 go_binary(
     name = "cws-macos-poc",
     embed = [":cws-macos-poc_lib"],
+    target_compatible_with = ["@platforms//os:macos"],  # keep
     visibility = ["//visibility:public"],
 )
