@@ -4,27 +4,20 @@ CONFIG_FILE="$CONFIG_DIR/datadog.yaml"
 EXAMPLE_FILE="$CONFIG_DIR/datadog.yaml.example"
 PYTHON=/opt/datadog-agent/embedded/bin/python3.13
 
-# installp has no mechanism to pass parameters/env vars at install time
-# (unlike apt/yum, which the Linux install script relies on), so this is the
-# only way to configure the agent unattended on AIX. Mirrors the env vars
-# handled by https://github.com/DataDog/agent-linux-install-script.
-# Only touches the config file on a fresh install: if datadog.yaml already
-# exists, it is left untouched.
+# installp has no mechanism to pass parameters/env vars at install time, so
+# this is the only way to configure the agent unattended on AIX (mirrors
+# https://github.com/DataDog/agent-linux-install-script). Only runs on a
+# fresh install: an existing datadog.yaml is left untouched.
 if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ] && [ -f "$EXAMPLE_FILE" ] && [ -x "$PYTHON" ]; then
-    # Rendered on a private staging file, chowned/chmoded and moved into
-    # place only once everything below succeeds, so datadog.yaml (which will
-    # contain the API key) never exists at its final path in a state
-    # readable by anyone but root. umask 077 makes the initial copy
-    # root-only from the start; Python then rewrites that same file in
-    # place, which doesn't change its mode/owner.
+    # Rendered on a root-only (umask 077) staging file, only chowned/chmoded
+    # and moved into place once done, so the real datadog.yaml never exists
+    # readable by anyone but root.
     STAGING_FILE="$CONFIG_FILE.tmp.$$"
 
     if (umask 077 && cp "$EXAMPLE_FILE" "$STAGING_FILE"); then
-        # Reads DD_* directly from the environment rather than taking them as
-        # argv/heredoc-interpolated values: this heredoc is quoted ('PYEOF'),
-        # so none of it is shell-expanded, which matters because interpolating
-        # an env var into Python *source text* would let a value containing
-        # e.g. a stray '"' turn into arbitrary code execution as root.
+        # Heredoc is quoted ('PYEOF'): reads DD_* from os.environ instead of
+        # shell-interpolating them into the Python source, which a value
+        # containing a stray '"' could turn into code execution.
         "$PYTHON" - "$STAGING_FILE" <<'PYEOF'
 import os
 import sys
@@ -44,13 +37,10 @@ path = sys.argv[1]
 with open(path) as f:
     lines = f.readlines()
 
-# api_key is the only field with a real, uncommented line in the template
-# (it's required, so it ships as "api_key:" with no value); every other
-# field below ships commented out. go.yaml.in/yaml/v2 (what the Agent
-# parses config with) resolves duplicate top-level keys as *last wins*, so
-# appending a second "api_key:" would be overridden by -- not override --
-# the template's original line. Editing it in place avoids that; appending
-# the rest further down is safe since there's nothing else active to lose to.
+# api_key is the only field with a real, uncommented line in the template;
+# the rest below ship commented out. Duplicate YAML keys resolve last-wins,
+# so it must be edited in place -- appending it instead would get
+# overridden by the template's own empty "api_key:" line.
 api_key = env("DD_API_KEY")
 for i, line in enumerate(lines):
     if line.startswith("api_key:"):
