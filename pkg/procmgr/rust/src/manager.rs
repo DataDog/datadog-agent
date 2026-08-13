@@ -747,15 +747,17 @@ async fn restart_after_config_change(
         None
     };
 
-    let name = proc.name();
     if should_start_after_config_reload(proc, was_running) {
-        info!("[{name}] starting after config reload");
+        info!("[{}] starting after config reload", proc.name());
         if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
-            warn!("[{name}] failed to start after config reload: {e:#}");
+            warn!(
+                "[{}] failed to start after config reload: {e:#}",
+                proc.name()
+            );
             queue_restart(proc, restart_tx);
         }
     } else {
-        info!("[{name}] skipping start after config reload");
+        info!("[{}] skipping start after config reload", proc.name());
     }
 
     proc.record_config_gate_met();
