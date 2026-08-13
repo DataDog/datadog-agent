@@ -8,6 +8,7 @@
 package lockcontention
 
 import (
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -180,6 +181,12 @@ func TestLockRanges(t *testing.T) {
 	}
 }
 
+func SkipIfLockContentionCollectorNotSupported(t *testing.T, err error) {
+	if errors.Is(err, ErrThisCpuPtrNotPresent) || errors.Is(err, ErrRequiredVarsMissingInBTF) {
+		t.Skip("getting preempt_count in ebpf not supported")
+	}
+}
+
 func TestLoadWithMaxTrackedRanges(t *testing.T) {
 	if !lockContentionCollectorSupported() {
 		t.Skip("EBPF lock contention collector not supported")
@@ -191,6 +198,9 @@ func TestLoadWithMaxTrackedRanges(t *testing.T) {
 
 	staticRanges = true
 	err := l.Initialize(true)
+	if err != nil {
+		SkipIfLockContentionCollectorNotSupported(t, err)
+	}
 	require.NoError(t, err)
 
 	l.Close()
@@ -225,11 +235,15 @@ func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
 	var depths *ebpf.Map
 
 	err := ddebpf.LoadCOREAsset("preempt_test.o", func(bc bytecode.AssetReader, opts manager.Options) error {
+		constants, err := PreemptCountConstants(opts.VerifierOptions.Cache)
+		if err != nil {
+			SkipIfLockContentionCollectorNotSupported(t, err)
+		}
+		require.NoError(t, err)
+
 		spec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		require.NoError(t, err)
 
-		constants, err := PreemptCountConstants()
-		require.NoError(t, err)
 		for k, v := range constants {
 			if constant, ok := spec.Variables[k]; ok {
 				require.NoError(t, constant.Set(v))
@@ -339,10 +353,6 @@ func enableSysrq(t *testing.T) {
 }
 
 func TestPreemptNestingDepth(t *testing.T) {
-	if !EBPFPreemptCountSupported() {
-		t.Skip("getting preempt_count from ebpf not supported.")
-	}
-
 	t.Run("Task", func(t *testing.T) {
 		if !tracepointExists("raw_syscalls", "sys_enter") {
 			t.Skip("raw_syscalls:sys_enter tracepoint not available")

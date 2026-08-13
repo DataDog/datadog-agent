@@ -23,22 +23,22 @@ import (
 
 // HaveHelperInFentry returns whether the helper and attach type are supported together.
 var HaveHelperInFentry = funcs.MemoizeArgNoError(func(helper asm.BuiltinFunc) error {
-	return haveHelper(helper, ebpf.AttachTraceFEntry)
+	return haveHelper(helper, "tcp_connect", ebpf.AttachTraceFEntry)
 })
 
 // HaveHelperInRawTracepoint returns whether the helper is available for raw tracepoints
 var HaveHelperInRawTracepoint = funcs.MemoizeArgNoError(func(helper asm.BuiltinFunc) error {
-	return haveHelper(helper, ebpf.AttachTraceRawTp)
+	return haveHelper(helper, "sys_enter", ebpf.AttachTraceRawTp)
 })
 
-func haveHelper(helper asm.BuiltinFunc, attachType ebpf.AttachType) error {
+func haveHelper(helper asm.BuiltinFunc, attachTo string, attachType ebpf.AttachType) error {
 	if err := features.HaveProgramType(ebpf.Tracing); err != nil {
 		return err
 	}
 
 	spec := &ebpf.ProgramSpec{
 		AttachType: attachType,
-		AttachTo:   "tcp_connect",
+		AttachTo:   attachTo,
 		Type:       ebpf.Tracing,
 		Instructions: asm.Instructions{
 			helper.Call(),

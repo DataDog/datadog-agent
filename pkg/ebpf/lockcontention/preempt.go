@@ -8,25 +8,51 @@
 package lockcontention
 
 import (
+	"errors"
 	"fmt"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/btf"
 )
 
-func EBPFPreemptCountSupported() bool {
-	return features.HaveHelperInRawTracepoint(asm.FnThisCpuPtr) == nil
-}
+var ErrThisCpuPtrNotPresent = errors.New("required helper bpf_this_cpu_ptr not present")
+var ErrRequiredVarsMissingInBTF = errors.New("preempt_count in ebpf not supported. Neither __preempt_count nor pcpu_hot is available in kernel BTF")
 
-func PreemptCountConstants() (map[string]uint64, error) {
+// PreemptCountConstants checks if getting preempt_count from ebpf programs is supported.
+// If so it returns constants we need to override to select how this count is read in ebpf.
+func PreemptCountConstants(cache *btf.Cache) (map[string]uint64, error) {
+	if err := features.HaveHelperInRawTracepoint(asm.FnThisCpuPtr); err != nil {
+		return nil, ErrThisCpuPtrNotPresent
+	}
+
 	preemptCountMissing, err := ddebpf.VerifyKernelFuncs("__preempt_count")
 	if err != nil {
 		return nil, fmt.Errorf("error verifying kernel symbol: %w", err)
 	}
 
-	if len(preemptCountMissing) == 0 {
+	kSpec, err := cache.Kernel()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get kernel btf spec: %w", err)
+	}
+
+	// if the kernel btf was create with an older version of pahole it may not
+	// include per cpu variables, even if the symbol is exported in kallsyms.
+	// This happens on debian 11 shipped with kernel 5.10.
+	var typ *btf.Var
+	preempCountExistsInBTF := kSpec.TypeByName("__preempt_count", &typ) == nil
+
+	if len(preemptCountMissing) == 0 && preempCountExistsInBTF {
 		return map[string]uint64{"use_preempt_count": uint64(1)}, nil
+	}
+
+	// if __preempt_count is not present make sure that pcpu_hot is atleast present
+	// otherwise we cannot get the preempt_count. pcpu_hot was introduced in 6.1 but
+	// we may hit this case when __preempt_count is missing from btf for versions <6.1
+	pcpuHotExistsInBTF := kSpec.TypeByName("pcpu_hot", &typ) == nil
+	if !pcpuHotExistsInBTF {
+		return nil, ErrRequiredVarsMissingInBTF
 	}
 
 	return map[string]uint64{}, nil

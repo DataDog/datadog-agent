@@ -328,13 +328,14 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 	}
 
-	if !EBPFPreemptCountSupported() {
-		return errors.New("getting preempt_count in ebpf not supported. Disabling lock contention collector")
-	}
-
 	var ranges uint32
 	var cpus uint32
 	if err := ddebpf.LoadCOREAsset("lock_contention.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+		enablePreemptCount, err := PreemptCountConstants(managerOptions.VerifierOptions.Cache)
+		if err != nil {
+			return fmt.Errorf("failed to get constants to enable preempt_count support: %w", err)
+		}
+
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %w", err)
@@ -361,11 +362,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		constants["num_cpus"] = uint64(cpus)
 		for ksym, addr := range kaddrs {
 			constants[ksym] = addr
-		}
-
-		enablePreemptCount, err := PreemptCountConstants()
-		if err != nil {
-			return fmt.Errorf("failed to get constants to enable preempt_count support: %w", err)
 		}
 
 		for k, v := range enablePreemptCount {

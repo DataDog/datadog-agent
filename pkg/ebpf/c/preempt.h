@@ -32,11 +32,6 @@ struct pcpu_hot___local {
 extern struct pcpu_hot___local pcpu_hot __ksym __weak;
 #endif
 
-#define bpf_ksym_exists(sym) ({									\
-	_Static_assert(!__builtin_constant_p(!!sym), #sym " should be marked as __weak");	\
-	!!sym;											\
-})
-
 static __always_inline int get_preempt_count(void)
 {
 #if defined(bpf_target_x86)
