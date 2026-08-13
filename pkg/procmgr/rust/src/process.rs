@@ -55,6 +55,7 @@ impl RestartTracker {
         {
             self.current_delay = base_delay;
             self.count = 0;
+            self.last_spawn_time = None;
         }
         self.count += 1;
         self.timestamps.push_back(Instant::now());
@@ -1362,6 +1363,42 @@ pub mod tests {
             "delay should reset after long runtime"
         );
         assert_eq!(proc.restarts.count, 1, "counter should reset to 1");
+        assert!(
+            proc.restarts.last_spawn_time.is_none(),
+            "successful-run timestamp should be consumed after one reset"
+        );
+    }
+
+    #[test]
+    fn test_runtime_success_reset_applies_once_per_successful_run() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.restart_sec = Some(1.0);
+        cfg.runtime_success_sec = Some(0);
+        let mut proc =
+            ManagedProcess::new_config("reset-once".into(), test_helpers::test_uuid(), cfg);
+
+        proc.restarts.last_spawn_time = Some(Instant::now() - Duration::from_secs(5));
+        proc.restarts.current_delay = 16.0;
+        proc.restarts.count = 5;
+
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!((proc.restarts.current_delay - 1.0).abs() < 0.001);
+        assert_eq!(proc.restarts.count, 1);
+
+        proc.restarts.advance_backoff(10.0);
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert_eq!(
+            proc.restarts.count, 2,
+            "failed respawn should not reset count"
+        );
+        assert!(
+            (proc.restarts.current_delay - 2.0).abs() < 0.001,
+            "failed respawn should preserve advanced backoff"
+        );
     }
 
     #[test]
