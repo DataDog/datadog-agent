@@ -99,10 +99,11 @@ func TestPull(t *testing.T) {
 	}
 }
 
-func TestPullNVLinkLinkCount(t *testing.T) {
+func TestPullNVLinkVersion(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithNVLinkLinkCount(1),
+		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
+		testutil.WithNVLinkVersions([]uint32{1}),
 	)
 	c := newTestCollector(t, wmetaMock)
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -110,7 +111,22 @@ func TestPullNVLinkLinkCount(t *testing.T) {
 	c.Pull(context.Background())
 
 	for _, gpu := range wmetaMock.ListGPUs() {
-		require.Equalf(t, 1, gpu.NVLinkLinkCount, "unexpected NVLink link count for GPU %s", gpu.ID)
+		require.Equalf(t, "1.0", gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
+	}
+}
+
+func TestPullWithoutNVLink(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithNVLinkLinkCount(0),
+	)
+	c := newTestCollector(t, wmetaMock)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	c.Pull(context.Background())
+
+	for _, gpu := range wmetaMock.ListGPUs() {
+		require.Equalf(t, "not_nvlink_capable", gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
 	}
 }
 

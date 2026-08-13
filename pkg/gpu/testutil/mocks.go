@@ -243,6 +243,7 @@ type deviceOptions struct {
 	fieldValues         map[uint32]MockFieldValue
 	scopedFieldValues   map[uint32]map[uint32]MockFieldValue
 	nvlinkStates        []nvml.EnableState
+	nvlinkVersions      []uint32
 	nvlinkStateErrors   map[int]nvml.Return
 	migChildUUIDs       map[int]map[int]string
 	parentUUIDs         []string
@@ -587,6 +588,15 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return nvml.FEATURE_DISABLED, nvml.SUCCESS
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
+		},
+		GetNvLinkVersionFunc: func(link int) (uint32, nvml.Return) {
+			if isMIGUnsupported || !opts.nvlinkSupported() || link >= opts.nvlinkLinkCount {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			if opts.nvlinkVersions != nil {
+				return opts.nvlinkVersions[link], nvml.SUCCESS
+			}
+			return 0, nvml.ERROR_NOT_SUPPORTED
 		},
 		GetNvLinkUtilizationCounterFunc: func(_, _ int) (uint64, uint64, nvml.Return) {
 			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
@@ -933,6 +943,16 @@ func WithNVLinkStates(states []nvml.EnableState, stateErrors map[int]nvml.Return
 		func(o *nvmlMockOptions) {
 			o.deviceOptions.nvlinkStates = states
 			o.deviceOptions.nvlinkStateErrors = stateErrors
+		},
+	)
+}
+
+// WithNVLinkVersions sets the per-link NVLink versions returned by GetNvLinkVersion.
+func WithNVLinkVersions(versions []uint32) NvmlMockOption {
+	return WithCombinedOptions(
+		WithNVLinkLinkCount(len(versions)),
+		func(o *nvmlMockOptions) {
+			o.deviceOptions.nvlinkVersions = versions
 		},
 	)
 }

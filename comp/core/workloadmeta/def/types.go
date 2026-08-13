@@ -2323,8 +2323,8 @@ type GPU struct {
 	// It is meaningful only when FabricClusterUUID is set.
 	FabricCliqueID uint32
 
-	// NVLinkLinkCount is the number of NVLink links available on the GPU.
-	NVLinkLinkCount int
+	// NVLinkVersion is the version reported by the GPU's NVLink links.
+	NVLinkVersion string
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType

@@ -44,14 +44,19 @@ func TestNewDevice(t *testing.T) {
 
 func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 	tests := []struct {
-		name     string
-		options  []testutil.NvmlMockOption
-		expected int
+		name            string
+		options         []testutil.NvmlMockOption
+		expectedCount   int
+		expectedVersion string
 	}{
 		{
-			name:     "links present",
-			options:  []testutil.NvmlMockOption{testutil.WithNVLinkLinkCount(2)},
-			expected: 2,
+			name: "links present",
+			options: []testutil.NvmlMockOption{
+				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
+				testutil.WithNVLinkVersions([]uint32{1, 1}),
+			},
+			expectedCount:   2,
+			expectedVersion: "1.0",
 		},
 		{
 			name: "disabled link",
@@ -59,17 +64,18 @@ func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
 				testutil.WithNVLinkStates([]nvml.EnableState{nvml.FEATURE_DISABLED}, nil),
 			},
-			expected: 1,
+			expectedCount:   1,
+			expectedVersion: "1.0",
 		},
 		{
-			name:     "no links",
-			options:  []testutil.NvmlMockOption{testutil.WithNVLinkLinkCount(0)},
-			expected: 0,
+			name:          "no links",
+			options:       []testutil.NvmlMockOption{testutil.WithNVLinkLinkCount(0)},
+			expectedCount: 0,
 		},
 		{
-			name:     "unsupported link count field",
-			options:  []testutil.NvmlMockOption{testutil.WithUnsupportedFields(nvml.FI_DEV_NVLINK_LINK_COUNT)},
-			expected: 0,
+			name:          "unsupported link count field",
+			options:       []testutil.NvmlMockOption{testutil.WithUnsupportedFields(nvml.FI_DEV_NVLINK_LINK_COUNT)},
+			expectedCount: 0,
 		},
 	}
 
@@ -83,7 +89,8 @@ func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 			device, err := NewPhysicalDevice(testutil.GetDeviceMock(0))
 
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, device.NVLinkLinkCount)
+			require.Equal(t, tt.expectedCount, device.NVLinkLinkCount)
+			require.Equal(t, tt.expectedVersion, device.NVLinkVersion)
 		})
 	}
 }

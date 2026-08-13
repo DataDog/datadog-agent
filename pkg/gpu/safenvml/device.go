@@ -77,6 +77,8 @@ type SafeDevice interface {
 	GetName() (string, error)
 	// GetNvLinkState returns the state of the specified NVLink
 	GetNvLinkState(link int) (nvml.EnableState, error)
+	// GetNvLinkVersion returns the version of the specified NVLink.
+	GetNvLinkVersion(link int) (int, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
 	// GetNumFans returns the number of fans in the device
@@ -155,6 +157,8 @@ type DeviceInfo struct {
 
 	// NVLinkLinkCount is the number of NVLink links available on the device.
 	NVLinkLinkCount int
+	// NVLinkVersion is the version reported by the device's NVLink links.
+	NVLinkVersion string
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -307,6 +311,7 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
 		migChildDevice.NVLinkLinkCount = d.NVLinkLinkCount
+		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
 
 		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
@@ -422,6 +427,42 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 	}
 
 	d.NVLinkLinkCount = int(linkCount)
+	for link := range d.NVLinkLinkCount {
+		version, err := dev.GetNvLinkVersion(link)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Warnf("cannot get NVLink version for link %d: %v", link, err)
+			}
+			continue
+		}
+
+		if d.NVLinkVersion == "" {
+			d.NVLinkVersion = nvlinkVersionString(version)
+		} else if d.NVLinkVersion != nvlinkVersionString(version) && logLimiter.ShouldLog() {
+			log.Warnf("NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+		}
+	}
+}
+
+func nvlinkVersionString(version int) string {
+	switch version {
+	case 1:
+		return "1.0"
+	case 2:
+		return "2.0"
+	case 3:
+		return "2.2"
+	case 4:
+		return "3.0"
+	case 5:
+		return "3.1"
+	case 6:
+		return "4.0"
+	case 7:
+		return "5.0"
+	default:
+		return fmt.Sprintf("unknown_%d", version)
+	}
 }
 
 // coresPerMultiprocessor returns the number of cores per multiprocessor for a given SM version. It's a fallback

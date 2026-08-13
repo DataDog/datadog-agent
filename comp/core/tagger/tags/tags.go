@@ -159,8 +159,8 @@ const (
 	GPUFabricClusterUUID = "gpu_fabric_cluster_uuid"
 	// GPUFabricCliqueID is the tag for the NVLink fabric clique ID of the GPU
 	GPUFabricCliqueID = "gpu_fabric_clique_id"
-	// GPUNVLinkCapable is the tag indicating whether the GPU has one or more NVLink links.
-	GPUNVLinkCapable = "gpu_nvlink_capable"
+	// GPUNVLinkVersion is the tag for the GPU's NVLink version.
+	GPUNVLinkVersion = "gpu_nvlink_version"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

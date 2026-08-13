@@ -53,6 +53,12 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	// build the GPU device info using the pre-computed values
 	// from the device cache
 	devInfo := device.GetDeviceInfo()
+	nvlinkVersion := devInfo.NVLinkVersion
+	if devInfo.NVLinkLinkCount == 0 {
+		nvlinkVersion = "not_nvlink_capable"
+	} else if nvlinkVersion == "" {
+		nvlinkVersion = "unknown"
+	}
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
@@ -69,10 +75,10 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
 		},
-		TotalCores:      devInfo.CoreCount,
-		TotalMemory:     devInfo.Memory,
-		Architecture:    gpuutil.ArchToString(devInfo.Architecture),
-		NVLinkLinkCount: devInfo.NVLinkLinkCount,
+		TotalCores:    devInfo.CoreCount,
+		TotalMemory:   devInfo.Memory,
+		Architecture:  gpuutil.ArchToString(devInfo.Architecture),
+		NVLinkVersion: nvlinkVersion,
 	}
 
 	switch d := device.(type) {
