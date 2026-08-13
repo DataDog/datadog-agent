@@ -14,7 +14,6 @@ use crate::process::ManagedProcess;
 use super::super::JobObject;
 use super::super::win_handle::WinHandle;
 
-/// Child created with `CREATE_SUSPENDED`; resume only after job assignment.
 pub(super) struct SuspendedChild {
     pid: u32,
     process: WinHandle,
@@ -30,8 +29,6 @@ impl SuspendedChild {
         }
     }
 
-    /// Assign the child to `job`, resume the initial thread, then store the job on `process`.
-    /// Fails the spawn if job assignment fails so the child is never resumed unsupervised.
     pub(super) fn supervise(
         self,
         process: &mut ManagedProcess,

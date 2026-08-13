@@ -47,34 +47,17 @@ use windows_sys::Win32::System::Threading::{
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
 
-/// Serialize process-global console state: attach/detach, std-handle reads for inherit, and spawn.
 static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
-/// Hold while touching std handles or the attached console (graceful stop, inherit checks, spawn).
 pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
     CONSOLE_LOCK.lock().expect("console lock poisoned")
 }
 
-/// Returns the global shutdown notifier. The SCM control handler calls
-/// `notify_one()` on this from its OS thread to trigger graceful shutdown
-/// inside the tokio runtime.
 pub fn shutdown_notify() -> &'static Notify {
     SHUTDOWN_NOTIFY.get_or_init(Notify::new)
 }
 
-// ---------------------------------------------------------------------------
-// Job Object — ensures all descendants are killed together
-// ---------------------------------------------------------------------------
-
-/// RAII wrapper around a Win32 Job Object handle.
-///
-/// When a child process is assigned to a Job Object, all of its descendants
-/// automatically belong to the same job. `terminate()` kills every process
-/// in the job, matching the Unix behavior of `SIGKILL` to `-pgid`.
-///
-/// The job is configured with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, which
-/// means if the daemon process itself crashes (dropping the handle), the OS
-/// will terminate all children — a safety net against orphaned processes.
+/// Win32 job object with kill-on-close (supervises child process trees).
 pub struct JobObject {
     handle: HANDLE,
 }
@@ -86,7 +69,6 @@ unsafe impl Send for JobObject {}
 unsafe impl Sync for JobObject {}
 
 impl JobObject {
-    /// Create a new anonymous Job Object configured for kill-on-close.
     pub fn new() -> Result<Self> {
         unsafe {
             let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
@@ -116,10 +98,6 @@ impl JobObject {
         }
     }
 
-    /// Assign a process (by PID) to this Job Object post-spawn.
-    ///
-    /// Managed children are created with `CREATE_SUSPENDED` and resumed only after
-    /// this assignment so early descendants inherit job membership.
     pub fn assign_process(&self, pid: u32) -> Result<()> {
         unsafe {
             let proc_handle = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
@@ -141,7 +119,6 @@ impl JobObject {
         Ok(())
     }
 
-    /// Terminate every process in the Job Object with exit code 1.
     pub fn terminate(&self) -> Result<()> {
         unsafe {
             let ok = TerminateJobObject(self.handle, 1);
@@ -155,7 +132,6 @@ impl JobObject {
         Ok(())
     }
 
-    /// Number of processes still assigned to this job (including descendants).
     pub fn active_process_count(&self) -> Result<u32> {
         unsafe {
             let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = std::mem::zeroed();
@@ -176,13 +152,10 @@ impl JobObject {
         }
     }
 
-    /// Returns true when the job may still have running members, including when the
-    /// active process count could not be queried.
     pub(crate) fn may_have_active_members(&self) -> bool {
         !matches!(self.active_process_count(), Ok(0))
     }
 
-    /// Block until every process in the job has exited or `timeout` elapses.
     pub fn wait_until_empty(&self, timeout: std::time::Duration) -> bool {
         const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
         let deadline = std::time::Instant::now() + timeout;
@@ -208,8 +181,6 @@ impl Drop for JobObject {
     }
 }
 
-/// True when this process has a non-null stdout/stderr handle (safe to honor `inherit` in YAML).
-/// Caller must hold [`console_lock`]; cleared by [`reset_std_handles`] after [`detach_console`].
 fn std_handle_inheritable(handle: u32) -> bool {
     unsafe {
         let h = GetStdHandle(handle);
@@ -225,8 +196,6 @@ pub fn stderr_inheritable() -> bool {
     std_handle_inheritable(STD_ERROR_HANDLE)
 }
 
-/// `FreeConsole` leaves stale values in the process std-handle table; clear them so a
-/// recycled handle is not mistaken for a valid inherit target.
 fn reset_std_handles() {
     unsafe {
         for std_handle in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
@@ -242,14 +211,10 @@ fn detach_console() {
     reset_std_handles();
 }
 
-/// While injecting CTRL_BREAK for a child, treat any console control delivered to this process as
-/// handled so we do not run default service shutdown logic for the same event.
 unsafe extern "system" fn ignore_console_ctrl_events(_: u32) -> i32 {
     TRUE
 }
 
-/// Send CTRL_BREAK to the child's process group (`pid` is the group root from `CREATE_NEW_PROCESS_GROUP`).
-/// Services have no console, so we `AttachConsole(pid)` before `GenerateConsoleCtrlEvent`; then detach.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
 
@@ -289,11 +254,6 @@ pub fn send_graceful_stop(pid: u32) -> Result<()> {
     Ok(())
 }
 
-/// Force-kill a single process via `TerminateProcess`.
-///
-/// Prefer [`JobObject::terminate()`] when a job handle is available — it
-/// kills all descendants. This function is the fallback when no job exists
-/// (e.g. test helpers, or if job creation failed at spawn time).
 pub fn send_force_kill(pid: u32) -> Result<()> {
     unsafe {
         let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
@@ -337,10 +297,6 @@ pub(crate) fn registry_nonempty_string(key: &windows_registry::Key, name: &str) 
     if value.is_empty() { None } else { Some(value) }
 }
 
-/// Root directory for agent program data on Windows (logs, etc.).
-///
-/// Mirrors `pkg/util/winutil.GetProgramDataDir` in Go:
-/// `HKLM\SOFTWARE\Datadog\Datadog Agent\ConfigRoot`, else `%ProgramData%\Datadog`.
 pub fn program_data_root() -> PathBuf {
     open_datadog_agent_key()
         .and_then(|k| registry_nonempty_string(&k, "ConfigRoot"))
@@ -372,7 +328,6 @@ fn install_root() -> PathBuf {
     resolve_install_root_symlinks(root)
 }
 
-/// Match fleet installer `resolveDatadogProgramFilesInstallRoot` (`filepath.EvalSymlinks`).
 fn resolve_install_root_symlinks(path: PathBuf) -> PathBuf {
     match std::fs::canonicalize(&path) {
         Ok(resolved) => strip_verbatim_path_prefix(resolved),
@@ -380,7 +335,6 @@ fn resolve_install_root_symlinks(path: PathBuf) -> PathBuf {
     }
 }
 
-/// `std::fs::canonicalize` on Windows may prefix paths with `\\?\` or `\\?\UNC\`.
 fn strip_verbatim_path_prefix(path: PathBuf) -> PathBuf {
     let s = path.to_string_lossy();
     if let Some(stripped) = s.strip_prefix(r"\\?\UNC\") {
@@ -392,28 +346,16 @@ fn strip_verbatim_path_prefix(path: PathBuf) -> PathBuf {
     path
 }
 
-/// Default directory for process-manager YAML (`*.yaml`), same layout as Linux
-/// (`/opt/datadog-agent/processes.d`) and omnibus. Resolves the install root like
-/// `pkg/util/winutil.GetProgramFilesDirForProduct` in Go (`InstallPath` registry value,
-/// else `%ProgramFiles%\Datadog\Datadog Agent`), then appends `processes.d`.
 pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
 }
 
-/// Registry `fleet_policies_dir`, then stable managed default (no env / YAML).
-///
-/// Used by config gates after env and `datadog.yaml` `fleet_policies_dir` are ruled out
-/// (`pkg/config/setup/config_windows.go` `FleetConfigOverride`).
 pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
     fleet_policies_dir_from_registry()
         .map(PathBuf::from)
         .or_else(default_stable_fleet_policies_dir)
 }
 
-/// `DD_FLEET_POLICIES_DIR` when set, otherwise [`fleet_policies_dir_fallback`].
-///
-/// Config gates use `config_gate::YamlCache::fleet_policies_dir` for full precedence
-/// (env → sibling `datadog.yaml` → registry/default).
 pub fn resolve_fleet_policies_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("DD_FLEET_POLICIES_DIR")
         && !dir.is_empty()
@@ -437,8 +379,6 @@ fn default_stable_fleet_policies_dir() -> Option<PathBuf> {
     )
 }
 
-/// Wait for a shutdown trigger: either Ctrl+C (console mode) or an SCM
-/// stop request relayed through [`shutdown_notify()`].
 pub async fn shutdown_signal() {
     tokio::select! {
         result = tokio::signal::ctrl_c() => {
@@ -451,11 +391,8 @@ pub async fn shutdown_signal() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Spawn token environment block (`CreateProcessAsUserW`)
-// ---------------------------------------------------------------------------
+// Spawn token environment (`CreateProcessAsUserW`)
 
-/// Baseline environment for a specific logon/primary token (used by `CreateProcessAsUserW`).
 pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<String, String>> {
     if token.is_null() {
         anyhow::bail!("baseline_env_vars_from_token: null token handle");
@@ -482,7 +419,6 @@ pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<Stri
     Ok(vars)
 }
 
-/// Merge config overrides into a baseline env map using Windows case-insensitive names.
 pub(crate) fn merge_env_overrides(
     vars: &mut HashMap<String, String>,
     overrides: &[(String, String)],

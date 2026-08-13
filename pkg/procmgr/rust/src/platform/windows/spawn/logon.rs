@@ -14,16 +14,11 @@ use windows_sys::Win32::Security::{
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
 
-/// Password placeholder for gMSA `LogonUserW` (`SERVICE_ACCOUNT_PASSWORD` in lmaccess.h).
 const SERVICE_ACCOUNT_PASSWORD: &str = "_SA_{262E99C9-6160-4871-ACEC-4E61736B6F21}";
 
-/// `LogonUserW` inputs derived from the installer-configured agent service account.
 pub(super) struct LogonUserCredentials<'a> {
-    /// Registry `installedDomain` (empty for local accounts; normalize with [`logon_domain`]).
     domain: &'a str,
-    /// Registry `installedUser` (e.g. `ddagentuser`).
     username: &'a str,
-    /// Cleartext password for `LogonUserW`, `None` for built-in service SIDs that expect NULL.
     password: Option<&'a str>,
 }
 
@@ -93,7 +88,6 @@ pub(crate) fn logon_user_token(
     Ok(TokenHandle::new(logon_token))
 }
 
-/// Local account logon expects `"."` when the registry domain is empty.
 fn logon_domain(domain: &str) -> &str {
     if domain.is_empty() { "." } else { domain }
 }
@@ -124,13 +118,7 @@ impl Drop for TokenHandle {
     }
 }
 
-/// Run `f` while impersonating `token`, then revert the calling thread.
-///
-/// `f` must be synchronous (no `.await`): impersonation is per-thread, and this
-/// helper relies on the calling task not yielding until `RevertToSelf`.
-///
-/// Does not duplicate or close `token`. When calling [`CreateProcessAsUserW`], pass the
-/// same `hToken` so executable and working-directory ACL checks run as the target user.
+/// Impersonate `token` for synchronous `f` only (no `.await` before revert).
 pub(super) fn with_impersonated_token<T>(
     process_name: &str,
     token: HANDLE,

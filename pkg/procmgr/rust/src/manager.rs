@@ -30,24 +30,19 @@ pub(crate) struct ExitEvent {
     pub status: std::process::ExitStatus,
 }
 
-/// Queued restart metadata captured when scheduling a delayed retry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PendingRestart {
     uuid: String,
     config_generation: u64,
-    /// Whether the process had successfully spawned before this retry was queued.
     had_successful_spawn: bool,
 }
 
 #[derive(Clone)]
 pub struct ProcessManager {
     processes: Arc<RwLock<Vec<ManagedProcess>>>,
-    /// Indices into the `processes` Vec in dependency-resolved startup order.
-    /// Recomputed on config reload so that indices stay in sync with the Vec.
     startup_order: Arc<RwLock<Vec<usize>>>,
     config_loader: Arc<dyn ConfigLoader>,
     uuid_gen: Arc<dyn UuidGenerator>,
-    /// Profiles deferred by removed processes until a matching late exit arrives.
     #[cfg(windows)]
     orphaned_deferred_exit_cleanups: Arc<RwLock<Vec<OrphanedDeferredExitCleanup>>>,
 }
@@ -721,10 +716,6 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-/// Whether a running process should be stopped during reload reconciliation.
-///
-/// `auto_start: false` processes may be started manually; they are kept running across
-/// unchanged reloads unless start conditions (path + config gates) transition from met to unmet.
 fn should_stop_running_after_reload(
     proc: &ManagedProcess,
     start_conditions_was: Option<bool>,
@@ -735,8 +726,6 @@ fn should_stop_running_after_reload(
     !proc.start_conditions_met()
 }
 
-/// Reconcile a config-managed process after reload: restart after definition change,
-/// stop when config gates close, or start when gates open.
 async fn reconcile_process_after_reload(
     proc: &mut ManagedProcess,
     exit_tx: &mpsc::Sender<ExitEvent>,
@@ -811,8 +800,6 @@ fn should_retry_failed_after_config_change(proc: &ManagedProcess) -> bool {
 }
 
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
-    // Capture before schedule_restart(): record() clears last_spawn_time once
-    // runtime_success_sec is met, which would misclassify the restart as bootstrap-only.
     let had_successful_spawn = proc.has_ever_run_successfully();
     if let Some(delay) = proc.schedule_restart() {
         let pending = PendingRestart {
@@ -837,7 +824,6 @@ fn try_spawn_and_watch(
     Ok(())
 }
 
-/// Spawn a background task that awaits the child's exit and sends the result.
 fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     if let Some(mut handle) = proc.take_handle() {
         let name = proc.name().to_owned();
@@ -868,9 +854,6 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     }
 }
 
-/// Build `ProcessDefinition`s from the live processes Vec and resolve their
-/// dependency order. Because the definitions are built in the same index order
-/// as the Vec, the returned indices can be used directly for indexing into it.
 struct StartupOrderResult {
     order: Vec<usize>,
     warnings: Vec<String>,

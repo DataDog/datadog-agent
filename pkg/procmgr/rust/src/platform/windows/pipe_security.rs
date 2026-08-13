@@ -3,11 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Named-pipe DACL for dd-procmgrd when the service runs as LocalSystem.
-//!
-//! Mirrors `pkg/system-probe/api/server/listener_windows.go`: grant Administrators and
-//! LocalSystem full access, plus read/write to the core Agent service account SID
-//! (`winutil.GetDDAgentUserSID`) so the core Agent and `dd-procmgr` CLI can connect.
 
 use std::ffi::OsStr;
 use std::io;
@@ -30,7 +25,6 @@ const NAMED_PIPE_SECURITY_DESCRIPTOR_TEMPLATE: &str =
 const NAMED_PIPE_DEFAULT_SECURITY_DESCRIPTOR: &str = "D:PAI(A;;FA;;;BA)(A;;FA;;;SY)";
 const EVERYONE_SID: &str = "S-1-1-0";
 
-/// Create a named pipe server with an explicit DACL for agent-user clients.
 pub(crate) fn create_pipe_server(
     options: &ServerOptions,
     pipe_name: &OsStr,

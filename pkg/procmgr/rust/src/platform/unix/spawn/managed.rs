@@ -12,15 +12,12 @@ use crate::process::ManagedProcess;
 use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 use crate::spawn_context;
 
-/// Build a [`SpawnRequest`] and spawn a supervised Unix child on `process`.
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
     let profile = profile_for(process.name());
     let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
     spawn_child(process.name(), request, profile)
 }
 
-/// Spawn a managed child. On Unix, procmgr currently runs as `dd-agent`; both profiles
-/// inherit the supervisor identity until Linux [`SpawnProfile::Privileged`] lands.
 fn spawn_child(
     process_name: &str,
     request: SpawnRequest,

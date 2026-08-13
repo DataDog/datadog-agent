@@ -3,21 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Resolve the Datadog Agent Windows service account for child process spawning.
-//!
-//! Reads `installedDomain` / `installedUser` from the Agent MSI registry state and,
-//! when needed, the agent-user password stored in LSA by the installer. Mirrors
-//! `pkg/fleet/installer/packages/user/windows` and `pkg/util/filesystem/rights_windows.go`.
-//!
-//! ## Unit tests vs production
-//!
-//! [`resolve_agent_account`] returns [`AgentAccount::LocalSystem`] under `cfg!(test)`.
-//! Bazel/CI unit tests spawn agent-profile children without installer LSA secrets, so
-//! agent-profile spawn inherits the test runner token instead of calling
-//! `CreateProcessAsUserW` as `ddagentuser` or a gMSA. Helpers such as
-//! `passwordless_agent_account` are still tested directly; only the registry/LSA
-//! resolution path is bypassed. Real agent-account identity is covered by Windows E2E
-//! tests (e.g. `TestAgentProfileChildRunsAsAgentUser` in `procmgr_win_test.go`).
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
@@ -39,35 +24,26 @@ use super::{open_datadog_agent_key, registry_nonempty_string};
 const AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 
-/// Agent service account resolved from installer state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AgentAccount {
-    /// Well-known LocalSystem account (duplicate or inherit the supervisor token).
     LocalSystem,
-    /// Well-known LocalService account (`LogonUserW` expects a NULL password).
     LocalService,
-    /// Well-known NetworkService account (`LogonUserW` expects a NULL password).
     NetworkService,
-    /// Interactive/service logon with a stored password (typical `ddagentuser`).
     PasswordLogon {
         domain: String,
         user: String,
         password: String,
     },
-    /// gMSA logon without a stored LSA password (see `SERVICE_ACCOUNT_PASSWORD` in spawn/logon.rs).
     ServiceAccountLogon { domain: String, user: String },
 }
 
 impl AgentAccount {
-    /// True for `LocalSystem`: use supervisor token duplication instead of `LogonUserW`.
     pub(crate) fn inherits_supervisor_token(&self) -> bool {
         matches!(self, AgentAccount::LocalSystem)
     }
 }
 
-/// Resolve the agent service account from registry + LSA private data.
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
-    // See module docs: unit-test builds skip registry/LSA and use LocalSystem.
     if cfg!(test) {
         return Ok(AgentAccount::LocalSystem);
     }

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-/// Windows `DOMAIN\user` components for operator-facing display.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AccountName {
     domain: String,

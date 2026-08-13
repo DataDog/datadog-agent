@@ -41,12 +41,6 @@ pub fn cleanup(_path: &Path) {}
 // NamedPipeIo — wrapper for tonic's `Connected` trait
 // ---------------------------------------------------------------------------
 
-/// Pipe client authorization resolved lazily on first use.
-///
-/// `ImpersonateNamedPipeClient` impersonates the client that wrote the last message
-/// read from the pipe, so the check cannot run at accept time. Mutating RPC handlers
-/// run only after HTTP/2 has read from the connection, so [`Self::may_mutate`] is safe
-/// to call from [`crate::grpc::caller_auth::require_privileged_pipe_client`].
 #[derive(Clone)]
 pub struct PipeCallerAuth {
     pipe: PipeHandle,

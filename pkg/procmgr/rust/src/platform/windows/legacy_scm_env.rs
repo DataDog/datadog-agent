@@ -3,19 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Merge filtered legacy Windows SCM service `Environment` overrides at spawn time.
-//!
-//! When procmgr suppresses a legacy SCM service, custom per-service `Environment`
-//! registry values are no longer injected by SCM. For known legacy twins (see
-//! `cmd/agent/subcommands/run/dependent_services_windows.go`), read
-//! `HKLM\SYSTEM\CurrentControlSet\Services\<service>\Environment` on each spawn
-//! and merge into the child env block before `processes.d` overrides.
 
 use std::collections::HashMap;
 
 use super::merge_env_overrides;
 
-/// Procmgr process name → legacy SCM service name (suppressed when procmgr owns the workload).
 fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
     match process_name {
         "datadog-agent-process" => Some("datadog-process-agent"),
@@ -25,13 +17,11 @@ fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
     }
 }
 
-/// Keys intentionally migrated off SCM/`processes.d` env (registry or yaml resolution).
 const LEGACY_SCM_ENV_DENYLIST: &[&str] = &[
     "DD_FLEET_POLICIES_DIR",
     "DD_OTELCOLLECTOR_INSTALLATION_METHOD",
 ];
 
-/// Build the final child environment: token/process baseline → legacy SCM → processes.d.
 pub(crate) fn build_child_env_vars(
     process_name: &str,
     baseline: HashMap<String, String>,
@@ -43,7 +33,6 @@ pub(crate) fn build_child_env_vars(
     vars
 }
 
-/// Merge filtered legacy SCM `Environment` entries into `vars` (before processes.d overrides).
 pub(crate) fn merge_legacy_scm_env(process_name: &str, vars: &mut HashMap<String, String>) {
     let Some(service_name) = legacy_scm_service_name(process_name) else {
         return;

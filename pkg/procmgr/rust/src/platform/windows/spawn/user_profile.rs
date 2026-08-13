@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Load a service-account user profile so `CreateEnvironmentBlock` includes profile env vars.
 
 use anyhow::{Context, Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
@@ -15,9 +14,7 @@ use super::super::wide;
 use super::logon::TokenHandle;
 use super::win32::duplicate_primary_token;
 
-/// Keeps a user profile loaded for the lifetime of the guard.
 pub(crate) struct UserProfileGuard {
-    /// Duplicated token kept open until `UnloadUserProfile` runs in `Drop`.
     token: TokenHandle,
     profile_handle: HANDLE,
     _username_wide: Vec<u16>,

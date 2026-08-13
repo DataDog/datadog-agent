@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Windows child spawning by spawn profile (`CreateProcessAsUserW`).
 
 mod logon;
 mod managed;

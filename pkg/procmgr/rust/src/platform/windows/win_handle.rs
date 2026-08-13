@@ -6,7 +6,6 @@
 use std::mem;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 
-/// RAII wrapper for a Win32 kernel handle.
 pub(crate) struct WinHandle(HANDLE);
 
 // SAFETY: Win32 kernel handles are safe to send across threads.

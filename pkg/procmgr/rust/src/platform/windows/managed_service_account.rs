@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! gMSA detection for installer-configured agent users without LSA passwords.
-//!
-//! Mirrors `pkg/fleet/installer/packages/user/windows.IsServiceAccount`.
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
@@ -19,7 +16,6 @@ use windows_sys::Win32::NetworkManagement::NetManagement::{
 
 use super::wide;
 
-/// Result of querying whether an account is an installed gMSA.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ManagedServiceAccountState {
     Installed,
@@ -27,11 +23,9 @@ pub(crate) enum ManagedServiceAccountState {
     NotExist,
     CannotInstall,
     CanInstall,
-    /// Ambiguous DC lookup; treat as a regular domain account.
     AssumeRegularDomainAccount,
 }
 
-/// Query whether `domain\user` is an installed gMSA.
 pub(crate) fn query_managed_service_account(
     domain: &str,
     user: &str,

@@ -14,10 +14,6 @@ use std::collections::VecDeque;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
 
-// ---------------------------------------------------------------------------
-// RestartTracker
-// ---------------------------------------------------------------------------
-
 struct RestartTracker {
     count: u32,
     timestamps: VecDeque<Instant>,
@@ -48,7 +44,6 @@ impl RestartTracker {
         recent >= burst
     }
 
-    /// Record a restart. Resets backoff if the process ran long enough.
     /// Returns `true` when the prior run met `runtime_success_sec`.
     fn record(&mut self, base_delay: f64, runtime_success: Duration) -> bool {
         let mut met_runtime_success = false;
@@ -76,8 +71,6 @@ impl RestartTracker {
         Duration::from_secs_f64(self.current_delay)
     }
 
-    /// Record a restart attempt, advance backoff, and return the delay before respawn.
-    /// Returns `None` when the burst limit is exceeded.
     fn next_restart_delay(
         &mut self,
         config: &ProcessConfig,
@@ -99,11 +92,6 @@ impl RestartTracker {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Restart policy
-// ---------------------------------------------------------------------------
-
-/// Restart-policy evaluation for a process state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RestartDecision {
     Allowed,
@@ -117,7 +105,6 @@ impl RestartDecision {
     }
 }
 
-/// Whether a terminal exit state matches the configured restart policy.
 fn restart_allowed_for_state(state: ProcessState, policy: &RestartPolicy) -> RestartDecision {
     match (state, policy) {
         (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => {
@@ -130,21 +117,12 @@ fn restart_allowed_for_state(state: ProcessState, policy: &RestartPolicy) -> Res
     }
 }
 
-// ---------------------------------------------------------------------------
-// ProcessOrigin
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessOrigin {
     Config,
     Runtime,
 }
 
-// ---------------------------------------------------------------------------
-// ManagedProcess
-// ---------------------------------------------------------------------------
-
-/// Windows user profile held until a late exit event arrives after force-kill timeout.
 #[cfg(windows)]
 struct DeferredExitCleanup {
     pid: u32,
@@ -152,7 +130,6 @@ struct DeferredExitCleanup {
     job_object: Option<platform::JobObject>,
 }
 
-/// Deferred profile retained after a managed process object is dropped (e.g. config removal).
 #[cfg(windows)]
 pub(crate) struct OrphanedDeferredExitCleanup {
     pub name: String,
@@ -190,20 +167,14 @@ pub struct ManagedProcess {
     stop_requested: bool,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
-    /// Last observed `condition_config_any` result; used to detect gate transitions on reload.
     last_config_gate_met: Option<bool>,
-    /// Last observed path + config gate result; used to restart after start conditions open.
     last_start_conditions_met: Option<bool>,
-    /// Incremented on config reload so queued restarts from before the change can be discarded.
     config_generation: u64,
-    /// Set when a run exceeded `runtime_success_sec`; survives config reload and backoff resets.
     had_successful_run: bool,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
-    /// Profiles deferred from prior generations when `mark_stopped` gave up waiting
-    /// for exit; each entry is released when its matching late `ExitEvent` arrives.
     #[cfg(windows)]
     deferred_exit_cleanups: Vec<DeferredExitCleanup>,
 }
@@ -291,8 +262,6 @@ impl ManagedProcess {
         self.user_profile = None;
     }
 
-    /// Drop Windows spawn resources once the supervision job has no active members.
-    /// Returns `true` when profile unload was deferred and a background job drain is needed.
     #[cfg(windows)]
     fn release_windows_spawn_resources_after_exit(&mut self, exited_pid: Option<u32>) -> bool {
         let Some(job) = self.job_object.as_ref() else {
@@ -317,7 +286,6 @@ impl ManagedProcess {
         needs_drain
     }
 
-    /// Retain profile and job handles for async drain when members may still be running.
     #[cfg(windows)]
     fn defer_windows_job_drain_after_exit(&mut self, exited_pid: Option<u32>) -> bool {
         if let (Some(pid), Some(profile)) = (exited_pid, self.user_profile.take()) {
@@ -376,9 +344,6 @@ impl ManagedProcess {
             .any(|entry| entry.pid == pid && entry.job_object.is_some())
     }
 
-    /// Release a deferred Windows profile when a detached watcher reports exit after
-    /// `mark_stopped` already cleared the live PID. Does not touch the current
-    /// generation's job/profile if the process was respawned in the meantime.
     #[cfg(windows)]
     pub(crate) fn complete_late_exit_cleanup(&mut self, pid: u32) -> bool {
         if self.pid == Some(pid) && self.state.is_alive() {
@@ -403,7 +368,6 @@ impl ManagedProcess {
         true
     }
 
-    /// Move deferred profiles to manager-level storage before dropping this process.
     #[cfg(windows)]
     pub(crate) fn drain_deferred_exit_cleanups(
         &mut self,
@@ -553,8 +517,6 @@ impl ManagedProcess {
     }
 
     fn try_spawn(&mut self) -> Result<()> {
-        // On Windows, serialize spawn with console attach/detach and std-handle
-        // inheritance checks (CreateProcess reads inherit flags at spawn time).
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
@@ -578,8 +540,6 @@ impl ManagedProcess {
         self.state.is_alive()
     }
 
-    /// Hand the child handle to a watcher task.
-    /// The process remains in `Running` state — only the handle moves.
     pub fn take_handle(&mut self) -> Option<ProcessHandle> {
         self.handle.take()
     }
@@ -599,12 +559,7 @@ impl ManagedProcess {
         self.watcher_handle.take()
     }
 
-    /// Record that the child exited. If a stop was explicitly requested via
-    /// `request_stop`, the process transitions to Stopped (skipping restarts).
-    /// Otherwise it transitions to Exited or Failed based on the exit code.
-    ///
-    /// On Windows, returns the exited PID when profile unload was deferred pending
-    /// job-wide drain (caller should spawn a background drain task).
+    /// On Windows, returns the exited PID when job drain was deferred.
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) -> Option<u32> {
         self.last_exit_status = Some(status);
         let exited_pid = self.pid;
@@ -624,8 +579,6 @@ impl ManagedProcess {
         needs_job_drain.then_some(exited_pid).flatten()
     }
 
-    /// Mark the process for stop and send a graceful-stop signal. The watcher
-    /// will observe the exit and `set_last_status` will transition to Stopped.
     pub fn request_stop(&mut self) {
         if self.is_running() {
             self.stop_requested = true;
@@ -634,7 +587,6 @@ impl ManagedProcess {
         }
     }
 
-    /// Send a graceful-stop signal (SIGTERM on Unix, CTRL_BREAK on Windows).
     fn graceful_stop(&self) {
         if let Some(pid) = self.pid
             && let Err(e) = platform::send_graceful_stop(pid)
@@ -643,19 +595,13 @@ impl ManagedProcess {
         }
     }
 
-    /// Force-kill the process and all descendants.
-    ///
-    /// On Unix this sends SIGKILL to the entire process group.
-    /// On Windows this terminates the Job Object (all descendants), falling
-    /// back to `TerminateProcess` on the direct child if no job is available.
     fn force_kill(&mut self) {
         #[cfg(windows)]
         if let Some(ref job) = self.job_object {
             if let Err(e) = job.terminate() {
                 warn!("[{}] job object terminate failed: {e}", self.name);
             } else {
-                // Termination is asynchronous; retain job and profile until
-                // set_last_status observes zero active job members.
+                // Job terminate is async; keep job/profile until exit is observed.
                 return;
             }
         }
@@ -667,8 +613,6 @@ impl ManagedProcess {
         }
     }
 
-    /// Send a Unix signal to the entire process group (works even after take_handle).
-    /// Used by tests that need to send specific signals for cleanup.
     #[cfg(unix)]
     pub fn send_signal(&self, sig: nix::sys::signal::Signal) {
         if let Some(pid) = self.pid {
@@ -685,7 +629,6 @@ impl ManagedProcess {
         }
     }
 
-    /// Wait for the child to exit. Only works when we still hold the handle.
     pub async fn wait(&mut self) -> Result<std::process::ExitStatus> {
         let handle = self
             .handle
@@ -701,10 +644,7 @@ impl ManagedProcess {
         self.config.stop_timeout()
     }
 
-    /// Wait for the process to stop after a graceful-stop signal has been sent.
-    /// Escalates to force-kill if the process doesn't exit within `stop_timeout`.
-    ///
-    /// Returns the exited PID when Windows profile unload was deferred pending job drain.
+    /// On Windows, returns the exited PID when job drain was deferred.
     pub async fn wait_for_stop(&mut self) -> Option<u32> {
         if !self.is_running() {
             return None;
@@ -776,8 +716,7 @@ impl ManagedProcess {
         self.mark_stopped()
     }
 
-    /// Transition to Stopped without an exit status. On Windows, returns the PID
-    /// when profile/job cleanup was deferred and a background job drain is needed.
+    /// On Windows, returns the PID when deferred job drain is needed.
     fn mark_stopped(&mut self) -> Option<u32> {
         self.stop_requested = false;
         self.transition_to(ProcessState::Stopped);
@@ -838,9 +777,6 @@ impl ManagedProcess {
         }
     }
 
-    /// Evaluate restart policy and burst limits. If a restart is warranted,
-    /// record the attempt, advance backoff, and return how long to wait before
-    /// respawning. Returns `None` when restart is denied or burst-limited.
     #[must_use]
     pub fn schedule_restart(&mut self) -> Option<Duration> {
         match self.restart_eligibility() {
@@ -871,8 +807,6 @@ pub mod tests {
     use crate::test_helpers;
     #[cfg(unix)]
     use nix::sys::signal::Signal;
-
-    // -- ${VAR} expansion tests --
 
     #[test]
     fn test_expand_vars_substitutes_known() {
@@ -931,8 +865,6 @@ pub mod tests {
         // A dangling `${` with no closing brace is emitted verbatim.
         assert_eq!(expand_vars_with("a ${ b", lookup), "a ${ b");
     }
-
-    // -- state lifecycle tests --
 
     #[test]
     fn test_initial_state_is_created() {
@@ -1031,8 +963,6 @@ pub mod tests {
         );
     }
 
-    // -- may_auto_start tests --
-
     #[test]
     fn test_may_auto_start_auto_start_true_no_condition() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1071,8 +1001,6 @@ pub mod tests {
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(!proc.may_auto_start());
     }
-
-    // -- spawn tests --
 
     #[tokio::test]
     async fn test_spawn_and_is_running() {
@@ -1154,8 +1082,6 @@ pub mod tests {
         assert_eq!(status.code(), Some(7));
     }
 
-    // -- signal tests (Unix-only: test the raw send_signal API) --
-
     #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_sigterm() {
@@ -1183,8 +1109,6 @@ pub mod tests {
         );
         proc.send_signal(Signal::SIGTERM);
     }
-
-    // -- env tests --
 
     #[tokio::test]
     async fn test_spawn_does_not_inherit_parent_env() {
@@ -1287,8 +1211,6 @@ pub mod tests {
             "spawn should succeed when optional environment_file (- prefix) is missing"
         );
     }
-
-    // -- restart policy tests --
 
     #[test]
     fn test_should_restart_never() {
@@ -1583,8 +1505,7 @@ runtime_success_sec: 5
 
         proc.request_stop();
         let _ = proc.take_handle();
-        // Mirrors handle_stop: wait_for_stop may call mark_stopped before the exit
-        // watcher runs set_last_status, leaving stop_requested set without this clear.
+        // handle_stop may call mark_stopped before the watcher runs set_last_status.
         proc.mark_stopped();
 
         proc.spawn().unwrap();

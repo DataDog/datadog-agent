@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Resolve the core Agent service account SID from SCM.
-//!
-//! Mirrors `pkg/util/winutil/users.go` (`GetDDAgentUserSID` / `GetServiceUserSID`).
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
@@ -17,12 +14,9 @@ use windows_sys::Win32::System::Services::{
 use super::sid::{lookup_account_sid, sid_to_string};
 use super::wide;
 
-/// SCM service name for the core Datadog Agent (`winutil.GetDDAgentUserSID`).
 const DATADOG_AGENT_SERVICE: &str = "datadogagent";
-/// Manually mapped alias that SCM uses for LocalSystem (`winutil.GetServiceUserSID`).
 const LOCAL_SYSTEM_SID: &str = "S-1-5-18";
 
-/// Returns the SID string for the `datadogagent` service account.
 pub(crate) fn datadog_agent_user_sid_string() -> Result<String> {
     let service_user = service_start_name(DATADOG_AGENT_SERVICE)
         .with_context(|| format!("could not get {DATADOG_AGENT_SERVICE} service user"))?;
@@ -80,7 +74,6 @@ fn service_start_name(service_name: &str) -> Result<String> {
     Ok(start_name)
 }
 
-/// Mirrors `winutil.getUserFromServiceUser`.
 fn service_user_for_sid_lookup(user: &str) -> String {
     let mut parts = user.splitn(2, '\\');
     let first = parts.next().unwrap_or(user);

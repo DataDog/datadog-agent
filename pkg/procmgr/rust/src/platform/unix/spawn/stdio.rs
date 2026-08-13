@@ -9,7 +9,6 @@ use std::process::Stdio;
 
 use crate::spawn::StdioSetting;
 
-/// Resolve portable stdio settings for `tokio::process::Command`.
 pub(crate) fn to_command_stdio(setting: &StdioSetting, inheritable: bool) -> Stdio {
     let _ = inheritable;
     match setting {

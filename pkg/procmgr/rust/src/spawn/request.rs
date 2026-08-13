@@ -13,11 +13,6 @@ use crate::env::{expand_env_vars, parse_environment_file};
 use super::profile::SpawnProfile;
 use super::stdio_setting::{self, StdioSetting};
 
-/// Platform-agnostic spawn inputs for procmgr managed processes.
-///
-/// The platform backend is responsible for translating this into the OS-
-/// specific spawn mechanism (Unix: `Command::spawn`; Windows: primarily
-/// `CreateProcessAsUserW`, with a privileged `tokio::process::Command` fallback).
 pub struct SpawnRequest {
     pub command: String,
     pub args: Vec<String>,
@@ -54,10 +49,7 @@ impl SpawnRequest {
     }
 }
 
-/// Merge environment-file variables with inline config env (config wins on conflict).
 fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String, String)>> {
-    // Platform backends clear inherited env and merge a baseline before these overrides
-    // (e.g. Windows `child_baseline_env_vars` in `spawn/command.rs` after `env_clear`).
     let mut env = Vec::new();
 
     if let Some(ref raw_path) = config.environment_file {
