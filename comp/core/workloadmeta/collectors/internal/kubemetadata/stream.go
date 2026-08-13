@@ -940,7 +940,6 @@ func workloadmetaResolvedTargets(targets []*pb.ResolvedTarget) []workloadmeta.Ku
 			Kind:      target.Kind,
 			Namespace: target.Namespace,
 			Name:      target.Name,
-			ID:        target.Uid,
 		})
 	}
 	return resolved

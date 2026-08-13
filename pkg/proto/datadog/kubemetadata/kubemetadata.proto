@@ -75,7 +75,6 @@ message ResolvedTarget {
   string kind = 3;
   string namespace = 4;
   string name = 5;
-  string uid = 6;
 }
 
 message PodResolvedTargets {

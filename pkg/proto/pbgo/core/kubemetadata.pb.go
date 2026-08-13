@@ -644,7 +644,6 @@ type ResolvedTarget struct {
 	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
 	Namespace     string                 `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Name          string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
-	Uid           string                 `protobuf:"bytes,6,opt,name=uid,proto3" json:"uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -710,13 +709,6 @@ func (x *ResolvedTarget) GetNamespace() string {
 func (x *ResolvedTarget) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *ResolvedTarget) GetUid() string {
-	if x != nil {
-		return x.Uid
 	}
 	return ""
 }
@@ -958,14 +950,13 @@ const file_datadog_kubemetadata_kubemetadata_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x98\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x01\n" +
 	"\x0eResolvedTarget\x12\x14\n" +
 	"\x05group\x18\x01 \x01(\tR\x05group\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
 	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1c\n" +
 	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12\x12\n" +
-	"\x04name\x18\x05 \x01(\tR\x04name\x12\x10\n" +
-	"\x03uid\x18\x06 \x01(\tR\x03uid\"\xce\x01\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\"\xce\x01\n" +
 	"\x12PodResolvedTargets\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x19\n" +
 	"\bpod_name\x18\x02 \x01(\tR\apodName\x12>\n" +

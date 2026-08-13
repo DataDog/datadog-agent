@@ -107,6 +107,40 @@ func TestSubscribeToNamespaceEvents(t *testing.T) {
 	assertNotified(t, "second", ch2)
 }
 
+func TestProcessPodEventNotifiesAffectedNodeAfterProcessing(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil, staticPodTargetResolver{})
+	node1Ch := srv.subscribeToNamespaceEvents("node1")
+	defer srv.unsubscribeFromNamespaceEvents("node1", node1Ch)
+	node2Ch := srv.subscribeToNamespaceEvents("node2")
+	defer srv.unsubscribeFromNamespaceEvents("node2", node2Ch)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+				NodeName:   "node1",
+			},
+		},
+	})
+
+	assertNotified(t, "affected node", node1Ch)
+	assertNotNotified(t, "unaffected node", node2Ch)
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+				NodeName:   "node1",
+			},
+		},
+	})
+
+	assertNotified(t, "affected node after unset", node1Ch)
+	assert.NotContains(t, srv.buildMetadataSnapshot("node1").resolvedTargets, "ns1/pod1")
+}
+
 func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
 	t.Run("unsubscribing the older subscriber leaves the newer one working", func(t *testing.T) {
 		srv := NewKubeMetadataStreamServer(nil, nil)
@@ -807,6 +841,19 @@ func TestFullStateResponse(t *testing.T) {
 			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 		},
 	}
+	metadata.resolvedTargets["ns1/pod1"] = podResolvedTargetsEntry{
+		namespace: "ns1",
+		podName:   "pod1",
+		targets: []workloadmeta.KubernetesResolvedTarget{
+			{
+				Group:     "apps.kruise.io",
+				Version:   "v1alpha1",
+				Kind:      "CloneSet",
+				Namespace: "ns1",
+				Name:      "workload1",
+			},
+		},
+	}
 
 	resp := fullStateResponse(pods, metadata)
 
@@ -848,9 +895,40 @@ func TestFullStateResponse(t *testing.T) {
 				Type: pb.KubeMetadataEventType_SET,
 			},
 		},
+		ResolvedTargets: []*pb.PodResolvedTargets{
+			{
+				Namespace: "ns1",
+				PodName:   "pod1",
+				Targets: []*pb.ResolvedTarget{
+					{
+						Group:     "apps.kruise.io",
+						Version:   "v1alpha1",
+						Kind:      "CloneSet",
+						Namespace: "ns1",
+						Name:      "workload1",
+					},
+				},
+				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
 	}
 
 	assert.True(t, proto.Equal(expected, resp))
+}
+
+func TestBuildMetadataSnapshotResolvedTargetsAreNodeScoped(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	srv.resolvedTargets["node-a"] = resolvedTargetsSnapshot{
+		"ns1/pod1": {namespace: "ns1", podName: "pod1"},
+	}
+	srv.resolvedTargets["node-b"] = resolvedTargetsSnapshot{
+		"ns1/pod2": {namespace: "ns1", podName: "pod2"},
+	}
+
+	snapshot := srv.buildMetadataSnapshot("node-a")
+
+	assert.Contains(t, snapshot.resolvedTargets, "ns1/pod1")
+	assert.NotContains(t, snapshot.resolvedTargets, "ns1/pod2")
 }
 
 func testNamespaceSetEvents() []workloadmeta.Event {
@@ -883,4 +961,10 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 		t.Fatalf("%s subscriber was notified but should not have been", name)
 	case <-time.After(50 * time.Millisecond):
 	}
+}
+
+type staticPodTargetResolver struct{}
+
+func (staticPodTargetResolver) Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesResolvedTarget, error) {
+	return nil, nil
 }
