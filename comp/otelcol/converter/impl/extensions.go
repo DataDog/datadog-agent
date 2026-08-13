@@ -168,26 +168,11 @@ func wireExtensionIDToPipeline(conf *confmap.Conf, extensionID string) error {
 	return nil
 }
 
+// addExtensionToPipeline wires comp's autoconfigured instance into
+// service::extensions. It is best-effort: a config with no usable service section
+// is left untouched.
 func addExtensionToPipeline(conf *confmap.Conf, comp component) {
-	stringMapConf := conf.ToStringMap()
-	service, ok := stringMapConf["service"]
-	if !ok {
-		return
-	}
-	serviceMap, ok := service.(map[string]any)
-	if !ok {
-		return
-	}
-	_, ok = serviceMap["extensions"]
-	if !ok {
-		serviceMap["extensions"] = []any{}
-	}
-	if extensionsSlice, ok := serviceMap["extensions"].([]any); ok {
-		extensionsSlice = append(extensionsSlice, comp.EnhancedName)
-		serviceMap["extensions"] = extensionsSlice
-	}
-
-	*conf = *confmap.NewFromStringMap(stringMapConf)
+	_ = wireExtensionIDToPipeline(conf, comp.EnhancedName)
 }
 
 // reuseExtension reports whether the user already declared an extension of the
