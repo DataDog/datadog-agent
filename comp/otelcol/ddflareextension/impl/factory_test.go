@@ -9,11 +9,11 @@
 package ddflareextensionimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/extension"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -35,9 +35,13 @@ func TestNewFactoryForAgent(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 	require.NotNil(t, cfg)
 
-	ext, err := factory.Create(context.Background(), extension.Settings{}, cfg)
+	settings := extension.Settings{TelemetrySettings: componenttest.NewNopTelemetrySettings()}
+	ext, err := factory.Create(t.Context(), settings, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, ext)
+	t.Cleanup(func() {
+		require.NoError(t, ext.Shutdown(t.Context()))
+	})
 
 	_, ok := ext.(*ddExtension)
 	assert.True(t, ok)

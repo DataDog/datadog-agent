@@ -40,7 +40,7 @@ type CoverageRequiredOverrideable interface {
 
 // FileBacked is implemented by environment types that support persisting an agent
 // update back to an on-disk state file when one exists (e.g. produced by
-// cmd/e2ectl's no-Pulumi flow, read via provisioners.SingleFileProvisioner[Env]).
+// cmd/e2ectl's no-Pulumi flow, read via provisioners.StaticStackProvisioner[Env]).
 // This is optional/best-effort: an UpdateAgent implementation must work correctly
 // without it (e.g. for a Pulumi-provisioned environment, where ok is always false).
 type FileBacked interface {
@@ -49,7 +49,7 @@ type FileBacked interface {
 }
 
 // FileBackedEnv is an embeddable helper implementing FileBacked.
-// provisioners.SingleFileProvisioner[Env].ProvisionEnv populates it automatically;
+// provisioners.StaticStackProvisioner[Env].ProvisionEnv populates it automatically;
 // a Pulumi-provisioned environment simply never calls SetEnvFilePath, so EnvFilePath
 // correctly reports ok=false.
 type FileBackedEnv struct {

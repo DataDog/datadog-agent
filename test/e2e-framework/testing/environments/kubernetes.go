@@ -39,7 +39,7 @@ type Kubernetes struct {
 
 // UpdateAgent installs or upgrades the agent live into e's already-connected
 // KubernetesCluster and updates e.Agent to reflect the change. Works regardless of how
-// e was provisioned (a real Pulumi apply or a SingleFileProvisioner-backed state file)
+// e was provisioned (a real Pulumi apply or a StaticStackProvisioner-backed state file)
 // — it only relies on e.KubernetesCluster already being Init'd, exactly like every
 // other method on this environment. If e is also FileBacked, the change is
 // additionally persisted to that file for a later, separate process to see; that step

@@ -6,6 +6,7 @@ go_library(
         "file_provisioner.go",
         "provisioners.go",
         "pulumi_provisioner.go",
+        "static_stack_provisioner.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners",
     visibility = ["//visibility:public"],

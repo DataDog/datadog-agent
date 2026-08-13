@@ -45,7 +45,7 @@ func TestKindNoPulumi(t *testing.T) {
 	}
 
 	e2e.Run(t, &kindNoPulumiSuite{}, e2e.WithProvisioner(
-		provisioners.NewSingleFileProvisioner[environments.Kubernetes]("kind-nopulumi", envFile)))
+		provisioners.NewStaticStackProvisioner[environments.Kubernetes]("kind-nopulumi", envFile)))
 }
 
 func (v *kindNoPulumiSuite) TestClusterAgentStatus() {

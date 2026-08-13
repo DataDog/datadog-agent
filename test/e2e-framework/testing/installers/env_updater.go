@@ -30,7 +30,7 @@ type HelmK8sInstallParams struct {
 
 // InstallHelmK8s installs or upgrades the datadog Helm chart using cluster's (and, if
 // enabled, fakeIntake's) already-live connection info — works whether they came from a
-// real Pulumi apply or from a SingleFileProvisioner-backed state file, since both paths
+// real Pulumi apply or from a StaticStackProvisioner-backed state file, since both paths
 // call the same component Init(). API keys are resolved the same way ResolveAPIKeys
 // always has; callers never supply them. Used by environments.Kubernetes.UpdateAgent.
 func InstallHelmK8s(_ context.Context, cluster *components.KubernetesCluster, fakeIntake *components.FakeIntake, p HelmK8sInstallParams) (json.RawMessage, error) {

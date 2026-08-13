@@ -14,7 +14,7 @@ import (
 
 // envState is the on-disk state file's shape: top-level keys are
 // RawResources keys (e.g. "kubernetesCluster", "agent"), exactly what
-// SingleFileProvisioner[Env] and kind_nopulumi_test.go already read via
+// StaticStackProvisioner[Env] and kind_nopulumi_test.go already read via
 // E2E_ENV_FILE. e2ectl only adds a writer/inspector on top; the format
 // itself is unchanged from what cmd/envctl wrote.
 type envState map[string]json.RawMessage

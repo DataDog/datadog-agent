@@ -170,7 +170,7 @@ func doTest(ctx context.Context, def TestDefinition, statePath string) error {
 	// that invoke task's local (non-CI) path unconditionally attempts an AWS
 	// SSO login for ECR pull credentials and requires the Pulumi CLI to be
 	// installed, neither of which this no-Pulumi/kind flow needs — the
-	// SingleFileProvisioner path this env's TestKindNoPulumi-style test
+	// StaticStackProvisioner path this env's TestKindNoPulumi-style test
 	// follows never touches Pulumi or ECR.
 	absStatePath, err := filepath.Abs(statePath)
 	if err != nil {

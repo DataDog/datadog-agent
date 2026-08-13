@@ -2,6 +2,7 @@
 # e2e stage
 # Contains test jobs based on the new-e2e tests framework
 .new_e2e_template:
+  extends: .bazel:defs:cache:progressive
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
@@ -653,6 +654,21 @@ new-e2e-amp-adp:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+# Agent Data Plane preflight mode (comp/dataplane/preflightmode).
+#
+# One job per platform rather than one job running all three: preflight mode's eligibility rules
+# and DogStatsD transport differ per platform, so a shared job would leave it ambiguous which
+# platform regressed. The Windows job lives in .gitlab/windows/test/e2e/windows.yml.
+new-e2e-adp-preflight-mode:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_adp_preflight_mode_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-data-plane/preflight-mode
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "TestPreflightModeLinuxSuite"
+
 new-e2e-alp:
   extends: .new_e2e_template
   needs:
@@ -1016,7 +1032,6 @@ new-e2e-ha-agent-failover:
     TEAM: network-device-monitoring-core
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
-  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-anomalydetection:

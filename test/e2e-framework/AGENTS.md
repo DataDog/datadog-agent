@@ -48,14 +48,19 @@ An environment defines what infrastructure a test needs:
 |------|-----------|-------------|----------|
 | `environments.Host` | VM + Agent + FakeIntake | `awshost.Provisioner()` | System checks, agent commands, file-based config |
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
-| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `awskubernetes.Provisioner()` | K8s checks, DaemonSet, Cluster Agent |
-| `environments.ECS` | ECS cluster + Agent + FakeIntake | `awsecs.Provisioner()` | ECS-specific tests |
+| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
+| `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
 
 Provisioners create the environment's infrastructure. Built-in provisioners
 live in `testing/provisioners/` organized by cloud provider (aws, azure, gcp, local).
+The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm}`;
+tests commonly alias the kind one as `awskubernetes`, and the ECS one as `awsecs`, which are
+import aliases rather than package names. Azure, GCP and local provisioners take their options
+directly (`azurehost.WithAgentOptions(...)`) rather than nesting them inside `WithRunOptions`
+as the AWS example below does.
 
 ```go
 // Host on AWS EC2
@@ -262,9 +267,9 @@ agent status. `installers.ResolveAPIKeys()` (env vars, falling back to
 reason. See `test/new-e2e/examples/kind_nopulumi_test.go`'s
 `TestClusterAgentVersionUpdate` for the pattern.
 
-The resulting state file is consumed by `provisioners.NewSingleFileProvisioner[Env]`
-(`testing/provisioners/file_provisioner.go`), instantiated per-environment-type
-(e.g. `NewSingleFileProvisioner[environments.Kubernetes](...)`). Its
+The resulting state file is consumed by `provisioners.NewStaticStackProvisioner[Env]`
+(`testing/provisioners/static_stack_provisioner.go`), instantiated per-environment-type
+(e.g. `NewStaticStackProvisioner[environments.Kubernetes](...)`). Its
 `ProvisionEnv` reads that one JSON file's top-level keys as `RawResources`,
 same shape as `FileProvisioner` (directory of JSON files) or any Pulumi
 provisioner, and (via `common.FileBacked`) records the file's path onto the
@@ -289,9 +294,9 @@ only code path that ever sets it (`components.Export` → `SetKey`) runs
 inside a live `pulumi.Context`, and only for `TypedProvisioner[Env]`s, since
 those alone receive the live `*Env` to mutate during `ProvisionEnv`. Fields
 without `import:"..."` tags (true of every stock `environments.*` struct)
-have no other way to get a key. `SingleFileProvisioner[Env]` works around
+have no other way to get a key. `StaticStackProvisioner[Env]` works around
 this by receiving `*Env` itself and calling `SetKey` via reflection
-(`assignImportKeys`), matching each importable field to a same-named (or
+(`wireEnv`), matching each importable field to a same-named (or
 tag-named) top-level entry in the JSON file before returning
 `RawResources`. If you write a new `UntypedProvisioner` meant to feed a
 stock environment struct, it will fail with `"... has no import key set and
@@ -299,7 +304,7 @@ no annotation"` — make it a `TypedProvisioner[Env]` instead.
 
 This is a POC: no Helm-values parity with the Pulumi path (no
 kube-state-metrics/SBOM/autoscaling/APM-instrumentation/OTel/Windows/FIPS/JMX),
-`SingleFileProvisioner.Destroy` is a no-op (only `e2ectl destroy` tears down —
+`StaticStackProvisioner.Destroy` is a no-op (only `e2ectl destroy` tears down —
 `go test` never provisions or destroys anything here), and `e2ectl destroy`
 trusts the caller to pass the same `--config`/`--state` used at `run` time.
 
@@ -356,6 +361,25 @@ dda inv new-e2e-tests.run --targets=./tests/<area>/...
 Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
 SSH in and inspect the agent directly.
 
+## macOS hosts
+
+`awshost.Provisioner` supports macOS (`ec2.WithOS(e2eos.MacOSDefault)`), but two
+constraints shape how a macOS suite must be wired into CI:
+
+- **Dedicated hosts.** `scenarios/aws/ec2/vm.go` allocates a `mac1.metal`
+  (amd64) or `mac2.metal` (arm64) dedicated host, which AWS bills with a 24-hour
+  minimum. Keep macOS jobs manual.
+- **The agent comes from a DMG in the macOS testing bucket.** `host_macos.go`
+  installs via the install script with `DD_REPO_URL` pointing at
+  `pipeline-<id>-<arch>`, which only exists once `deploy_dmg_testing-a7_<arch>`
+  has run. That job has its own rules, so a macOS e2e job must gate on
+  `.on_deploy` and mark the `needs` optional. Note the arch segment there is
+  `x64`, not the descriptor's `x86_64` — `macosPipelineArch` does the mapping.
+
+Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
+(installs by hand, `ec2.WithoutAgent()`) and
+`tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
+
 ## Fakeintake image version
 
 Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
@@ -387,7 +411,8 @@ strictly-increasing CI check, publish jobs).
 - `cmd/e2ectl/` — no-Pulumi CLI: no-argument dashboard (`dashboard.go`) across every known environment, `run` (per-env interactive loop, or `--stage`/`--yes`-driven) / `destroy`; the install stage is a thin wrapper over `testing/installers`
 - `testing/installers/installers.go` — `UpdateAgent`/`Status`/`ResolveAPIKeys`, the in-process install/status API shared by `cmd/e2ectl` and tests that change agent config mid-suite
 - `testing/provisioners/local/kubernetes/kindinfra/provisioner.go` — no-Pulumi kind cluster provisioner
-- `testing/provisioners/file_provisioner.go` — `FileProvisioner` (`UntypedProvisioner`, unused) / `SingleFileProvisioner[Env]` (`TypedProvisioner[Env]`, sets import keys via reflection, fingerprints file content so `UpdateEnv` detects out-of-band changes)
+- `testing/provisioners/file_provisioner.go` — `FileProvisioner` (`UntypedProvisioner`, unused; reads a directory of resource JSON files)
+- `testing/provisioners/static_stack_provisioner.go` — `StaticStackProvisioner[Env]` (`TypedProvisioner[Env]`, reads one environment descriptor, sets import keys via reflection, and fingerprints file content so `UpdateEnv` detects out-of-band changes)
 - `testing/environments/host.go` — Host environment definition
 - `testing/environments/environments.go` — `CreateEnv` / `BuildEnvFromResources` (shared import loop)
 - `testing/provisioners/aws/host/host.go` — AWS host provisioner
