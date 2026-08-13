@@ -7,12 +7,12 @@
 
 use windows_sys::Win32::Foundation::{HANDLE, TRUE};
 use windows_sys::Win32::Security::{
-    AllocateAndInitializeSid, CheckTokenMembership, FreeSid, GetTokenInformation, IsWellKnownSid,
-    RevertToSelf, SECURITY_NT_AUTHORITY, TOKEN_QUERY, TokenUser, WinLocalSystemSid,
+    AllocateAndInitializeSid, EqualSid, FreeSid, GetTokenInformation, IsWellKnownSid, RevertToSelf,
+    SECURITY_NT_AUTHORITY, TOKEN_GROUPS, TOKEN_QUERY, TokenGroups, TokenUser, WinLocalSystemSid,
 };
 use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 use windows_sys::Win32::System::SystemServices::{
-    DOMAIN_ALIAS_RID_ADMINS, SECURITY_BUILTIN_DOMAIN_RID,
+    DOMAIN_ALIAS_RID_ADMINS, SE_GROUP_ENABLED, SECURITY_BUILTIN_DOMAIN_RID,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
@@ -22,7 +22,8 @@ use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 /// pipe filesystem impersonates the security context of the last message read
 /// ([`ImpersonateNamedPipeClient`](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient)).
 /// Clients must connect with at least `SECURITY_IDENTIFICATION` (tokio's default; COAT
-/// uses go-winio identification).
+/// uses go-winio identification). Administrator membership is read from `TokenGroups`
+/// because identification-level pipe tokens cannot be passed to `CheckTokenMembership`.
 ///
 /// A `false` result does **not** drop the connection: tonic keeps serving the pipe and
 /// non-privileged RPCs (`Start`/`Stop`/`ReloadConfig`/reads) continue to work. Only
@@ -120,6 +121,15 @@ fn token_is_local_system(token: HANDLE) -> Option<bool> {
 }
 
 fn token_is_builtin_admin(token: HANDLE) -> Option<bool> {
+    let admin_sid = allocate_builtin_administrators_sid()?;
+    let is_admin = token_has_enabled_group_sid(token, admin_sid);
+    unsafe {
+        FreeSid(admin_sid);
+    }
+    is_admin
+}
+
+fn allocate_builtin_administrators_sid() -> Option<*mut std::ffi::c_void> {
     let mut admin_sid = std::ptr::null_mut();
     let ok = unsafe {
         AllocateAndInitializeSid(
@@ -143,18 +153,44 @@ fn token_is_builtin_admin(token: HANDLE) -> Option<bool> {
         );
         return None;
     }
+    Some(admin_sid)
+}
 
-    let mut is_member = 0i32;
-    let ok = unsafe { CheckTokenMembership(token, admin_sid, &mut is_member) };
-    unsafe {
-        FreeSid(admin_sid);
+fn token_has_enabled_group_sid(token: HANDLE, target_sid: *mut std::ffi::c_void) -> Option<bool> {
+    let mut size = 0u32;
+    let _ = unsafe { GetTokenInformation(token, TokenGroups, std::ptr::null_mut(), 0, &mut size) };
+    if size == 0 {
+        return None;
     }
+    let mut buffer = vec![0u8; size as usize];
+    let ok = unsafe {
+        GetTokenInformation(
+            token,
+            TokenGroups,
+            buffer.as_mut_ptr().cast(),
+            size,
+            &mut size,
+        )
+    };
     if ok == 0 {
         log::warn!(
-            "CheckTokenMembership(Administrators) failed: {}",
+            "GetTokenInformation(TokenGroups) failed: {}",
             std::io::Error::last_os_error()
         );
         return None;
     }
-    Some(is_member != 0)
+
+    let groups = buffer.as_ptr().cast::<TOKEN_GROUPS>();
+    let count = unsafe { (*groups).GroupCount } as usize;
+    let first_group = unsafe { (*groups).Groups.as_ptr() };
+    for i in 0..count {
+        let group = unsafe { &*first_group.add(i) };
+        if group.Attributes & SE_GROUP_ENABLED as u32 == 0 {
+            continue;
+        }
+        if unsafe { EqualSid(group.Sid, target_sid) != 0 } {
+            return Some(true);
+        }
+    }
+    Some(false)
 }
