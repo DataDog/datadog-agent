@@ -115,6 +115,9 @@
   after_script:
     - |
       if [ "$CI_JOB_STATUS" = "canceled" ]; then
+        # New E2E tests use Bazel batch mode so cancellation terminates the test process.
+        # Shut down any server left by an earlier Bazel command before cleaning stacks.
+        bazelisk shutdown || echo "WARNING: failed to stop Bazel before stack cleanup"
         # after_script runs in a fresh shell, so restore the profile exported in before_script.
         export AWS_PROFILE=agent-qa-ci
         STACK_REGEX="^ci-${CI_JOB_ID}-${CI_PROJECT_ID}-.*$"
