@@ -33,7 +33,7 @@ pub(crate) struct ExitEvent {
 /// Queued restart metadata captured when scheduling a delayed retry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PendingRestart {
-    name: String,
+    uuid: String,
     config_generation: u64,
     /// Whether the process had successfully spawned before this retry was queued.
     had_successful_spawn: bool,
@@ -244,12 +244,12 @@ impl ProcessManager {
         exit_tx: &mpsc::Sender<ExitEvent>,
         restart_tx: &mpsc::Sender<PendingRestart>,
     ) {
-        let name = &pending.name;
         let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.name() == name) else {
-            warn!("restart for unknown process '{name}'");
+        let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending.uuid) else {
+            warn!("restart for unknown process '{}'", pending.uuid);
             return;
         };
+        let name = proc.name();
         if proc.is_running() {
             info!("[{name}] already running, skipping queued restart");
             return;
@@ -808,7 +808,7 @@ fn should_complete_policy_restart(proc: &ManagedProcess) -> bool {
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
     if let Some(delay) = proc.restart_delay() {
         let pending = PendingRestart {
-            name: proc.name().to_owned(),
+            uuid: proc.uuid().to_owned(),
             config_generation: proc.config_generation(),
             had_successful_spawn: proc.has_ever_run_successfully(),
         };
@@ -904,9 +904,9 @@ mod tests {
         (exit_tx, restart_tx)
     }
 
-    fn current_pending_restart(name: &str, proc: &ManagedProcess) -> PendingRestart {
+    fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
         PendingRestart {
-            name: name.to_owned(),
+            uuid: proc.uuid().to_owned(),
             config_generation: proc.config_generation(),
             had_successful_spawn: proc.has_ever_run_successfully(),
         }
@@ -948,10 +948,14 @@ mod tests {
         mgr.start_configured_processes(&exit_tx, &restart_tx).await;
 
         assert!(!mgr.processes().await[0].is_running());
+        let expected_uuid = mgr.processes().await[0].uuid().to_owned();
         let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
             .await
             .expect("timed out waiting for restart after spawn failure");
-        assert_eq!(pending.as_ref().map(|p| p.name.as_str()), Some("bad-spawn"));
+        assert_eq!(
+            pending.as_ref().map(|p| p.uuid.as_str()),
+            Some(expected_uuid.as_str())
+        );
         Ok(())
     }
 
@@ -1000,6 +1004,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_reload_discards_orphaned_retry_after_remove_and_readd() -> anyhow::Result<()> {
+        let bad_def = ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                command: "/nonexistent/dd-procmgr-orphan-retry".to_string(),
+                restart: RestartPolicy::OnFailure,
+                restart_sec: Some(0.2),
+                auto_start: true,
+                ..Default::default()
+            },
+        };
+        let auto_start_false_def = ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                command: "/nonexistent/dd-procmgr-orphan-retry".to_string(),
+                restart: RestartPolicy::OnFailure,
+                restart_sec: Some(0.2),
+                auto_start: false,
+                ..Default::default()
+            },
+        };
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![bad_def]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+
+        mgr.start_configured_processes(&exit_tx, &restart_tx).await;
+        let old_uuid = mgr.processes().await[0].uuid().to_owned();
+
+        config_loader.set(vec![]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+
+        config_loader.set(vec![auto_start_false_def]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        assert_ne!(mgr.processes().await[0].uuid(), old_uuid);
+
+        let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
+            .await
+            .expect("timed out waiting for orphaned retry")
+            .expect("expected orphaned retry event");
+        assert_eq!(pending.uuid, old_uuid);
+
+        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+
+        let procs = mgr.processes().await;
+        assert!(!procs[0].is_running());
+        assert_eq!(procs[0].state(), ProcessState::Created);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
@@ -1009,7 +1064,7 @@ mod tests {
         let pending = {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
-            current_pending_restart("svc", &procs[0])
+            current_pending_restart(&procs[0])
         };
         mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
 
@@ -1057,7 +1112,7 @@ mod tests {
 
         let pending = {
             let procs = mgr.processes().await;
-            current_pending_restart("action-executor", &procs[0])
+            current_pending_restart(&procs[0])
         };
         mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
         assert!(
