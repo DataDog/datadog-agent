@@ -70,6 +70,45 @@ impl RestartTracker {
     fn delay(&self) -> Duration {
         Duration::from_secs_f64(self.current_delay)
     }
+
+    /// Record a restart attempt, advance backoff, and return the delay before respawn.
+    /// Returns `None` when the burst limit is exceeded.
+    fn next_restart_delay(
+        &mut self,
+        config: &ProcessConfig,
+        process_name: &str,
+    ) -> Option<Duration> {
+        if self.is_burst_limited(config.burst_limit(), config.burst_interval()) {
+            warn!("[{process_name}] start limit reached, not restarting");
+            return None;
+        }
+        self.record(config.restart_delay(), config.runtime_success());
+        let delay = self.delay();
+        info!(
+            "[{process_name}] restart #{} in {:.1}s",
+            self.count,
+            delay.as_secs_f64()
+        );
+        self.advance_backoff(config.max_restart_delay());
+        Some(delay)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Restart policy
+// ---------------------------------------------------------------------------
+
+/// Whether a terminal exit state matches the configured restart policy.
+/// Returns `None` when the process state is not eligible for automatic restart
+/// (for example stopped or still starting).
+fn restart_allowed_for_state(state: ProcessState, policy: &RestartPolicy) -> Option<bool> {
+    match (state, policy) {
+        (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => Some(true),
+        (ProcessState::Failed, RestartPolicy::OnFailure) => Some(true),
+        (ProcessState::Exited, RestartPolicy::OnSuccess) => Some(true),
+        (ProcessState::Exited | ProcessState::Failed, _) => Some(false),
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -704,12 +743,12 @@ impl ManagedProcess {
 
     #[cfg(test)]
     pub fn should_restart(&self, status: &std::process::ExitStatus) -> bool {
-        match self.config.restart {
-            RestartPolicy::Never => false,
-            RestartPolicy::Always => true,
-            RestartPolicy::OnFailure => !status.success(),
-            RestartPolicy::OnSuccess => status.success(),
-        }
+        let state = if status.success() {
+            ProcessState::Exited
+        } else {
+            ProcessState::Failed
+        };
+        restart_allowed_for_state(state, &self.config.restart) == Some(true)
     }
 
     #[cfg(test)]
@@ -717,55 +756,37 @@ impl ManagedProcess {
         &self.config.restart
     }
 
-    /// Check restart policy and burst limits. If a restart is warranted,
-    /// record the attempt, advance the backoff, and return the delay the
-    /// caller should sleep before calling [`spawn`]. Returns `None` if the
-    /// process should not be restarted.
+    fn restart_eligibility(&self) -> Option<bool> {
+        restart_allowed_for_state(self.state, &self.config.restart)
+    }
+
+    fn log_restart_policy_skip(&self) {
+        if self.config.restart != RestartPolicy::Never {
+            info!(
+                "[{}] exit does not match restart policy (state={}, restart={}), not restarting",
+                self.name, self.state, self.config.restart,
+            );
+        } else {
+            debug!(
+                "[{}] not restarting (state={}, restart={})",
+                self.name, self.state, self.config.restart,
+            );
+        }
+    }
+
+    /// Evaluate restart policy and burst limits. If a restart is warranted,
+    /// record the attempt, advance backoff, and return the delay the caller
+    /// should sleep before calling [`spawn`]. Returns `None` otherwise.
     #[must_use]
-    pub fn handle_restart(&mut self) -> Option<Duration> {
-        let should_restart = match (self.state, &self.config.restart) {
-            (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => true,
-            (ProcessState::Failed, RestartPolicy::OnFailure) => true,
-            (ProcessState::Exited, RestartPolicy::OnSuccess) => true,
-            (ProcessState::Exited | ProcessState::Failed, _) => false,
-            _ => return None,
-        };
-
-        if !should_restart {
-            if self.config.restart != RestartPolicy::Never {
-                info!(
-                    "[{}] exit does not match restart policy (state={}, restart={}), not restarting",
-                    self.name, self.state, self.config.restart,
-                );
-            } else {
-                debug!(
-                    "[{}] not restarting (state={}, restart={})",
-                    self.name, self.state, self.config.restart,
-                );
+    pub fn restart_delay(&mut self) -> Option<Duration> {
+        match self.restart_eligibility() {
+            None => None,
+            Some(false) => {
+                self.log_restart_policy_skip();
+                None
             }
-            return None;
+            Some(true) => self.restarts.next_restart_delay(&self.config, &self.name),
         }
-
-        if self
-            .restarts
-            .is_burst_limited(self.config.burst_limit(), self.config.burst_interval())
-        {
-            warn!("[{}] start limit reached, not restarting", self.name);
-            return None;
-        }
-
-        self.restarts
-            .record(self.config.restart_delay(), self.config.runtime_success());
-        let delay = self.restarts.delay();
-        info!(
-            "[{}] restart #{} in {:.1}s",
-            self.name,
-            self.restarts.count,
-            delay.as_secs_f64()
-        );
-        self.restarts
-            .advance_backoff(self.config.max_restart_delay());
-        Some(delay)
     }
 }
 
@@ -1408,7 +1429,7 @@ runtime_success_sec: 5
 
         assert_eq!(proc.state(), ProcessState::Failed);
         assert!(
-            proc.handle_restart().is_some(),
+            proc.restart_delay().is_some(),
             "on-failure should restart after stop -> start -> external kill"
         );
     }
@@ -1428,7 +1449,7 @@ runtime_success_sec: 5
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(
-            proc.handle_restart().is_none(),
+            proc.restart_delay().is_none(),
             "stopped process should not restart even with Always policy"
         );
     }

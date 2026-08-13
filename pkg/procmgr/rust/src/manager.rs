@@ -806,7 +806,7 @@ fn should_complete_policy_restart(proc: &ManagedProcess) -> bool {
 }
 
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
-    if let Some(delay) = proc.handle_restart() {
+    if let Some(delay) = proc.restart_delay() {
         let pending = PendingRestart {
             name: proc.name().to_owned(),
             config_generation: proc.config_generation(),
