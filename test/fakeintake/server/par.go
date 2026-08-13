@@ -30,9 +30,10 @@ type parServerState struct {
 }
 
 type parQueuedTask struct {
-	TaskID    string                 `json:"task_id"`
-	ActionFQN string                 `json:"action_fqn"`
-	Inputs    map[string]interface{} `json:"inputs"`
+	TaskID         string                 `json:"task_id"`
+	ActionFQN      string                 `json:"action_fqn"`
+	Inputs         map[string]interface{} `json:"inputs"`
+	ConnectionInfo []byte                 `json:"connection_info,omitempty"`
 }
 
 // --- PAR-facing handlers (called by the agent) ---
@@ -70,6 +71,13 @@ func (fi *Server) handlePARDequeue(w http.ResponseWriter, r *http.Request) {
 		OrgId:      0,
 		TaskId:     task.TaskID,
 		Inputs:     inputs,
+	}
+	if len(task.ConnectionInfo) > 0 {
+		pbTask.ConnectionInfo = &privateactionspb.ConnectionInfo{}
+		if err := proto.Unmarshal(task.ConnectionInfo, pbTask.ConnectionInfo); err != nil {
+			http.Error(w, "invalid connection info", http.StatusBadRequest)
+			return
+		}
 	}
 	if remoteAction != nil {
 		pbTask.SystemInputs = &privateactionspb.SystemInputs{

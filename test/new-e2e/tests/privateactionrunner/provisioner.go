@@ -35,12 +35,18 @@ const (
 	systemServiceBackendOnly    = "par-e2e-backend-only.service"
 	systemServiceOperatorOnly   = "par-e2e-operator-only.service"
 	systemServiceOperatorPolicy = `{"par-e2e-operator-only.service":["read"],"par-e2e.service":["read"]}`
+
+	parAgentSecretHostPath  = "/var/lib/par-e2e-secrets"
+	parAgentSecretMountPath = "/etc/par-e2e-secrets"
+	parAgentSecretFileName  = "connection-token"
+	parAgentSecretHandle    = "ENC[file@" + parAgentSecretMountPath + "/" + parAgentSecretFileName + "]"
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
 // Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
 // automatically by the e2e framework's configureFakeintake when fakeintake is present.
-// %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorPolicy
+// %s parameters: clusterName, runnerURN, privateKeyB64, secretHostPath,
+// secretMountPath, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -53,10 +59,20 @@ datadog:
     privateKey: "%s"
 agents:
   useHostNetwork: true
+  volumes:
+    - name: par-e2e-secrets
+      hostPath:
+        path: "%s"
+        type: Directory
+  volumeMounts:
+    - name: par-e2e-secrets
+      mountPath: "%s"
+      readOnly: true
   containers:
     privateActionRunner:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
+        DD_SECRET_BACKEND_COMMAND: "/readsecret_multiple_providers.sh"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
         DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS: '["rshell:cat","rshell:echo","rshell:find","rshell:grep","rshell:help"]'
         DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS: '["/host/var/log/par-e2e-allowed","/tmp:rw","/var/tmp:ro"]'
@@ -118,13 +134,17 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("kubernetes.NewProvider: %w", err)
 			}
 
-			// 4. Plant allowed and operator-blocked test data on the Kind node.
+			// 4. Plant allowed and operator-blocked test data plus a secret-backend
+			// file on the Kind node.
 			_, err = host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
 					Create: pulumi.Sprintf(
-						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "mkdir -p /var/log/par-e2e-allowed /var/log/par-e2e-blocked && echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-allowed/testdata.txt && echo 'PAR_E2E_BLOCKED_VALUE=operator_path_must_block' > /var/log/par-e2e-blocked/testdata.txt"`,
+						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "mkdir -p /var/log/par-e2e-allowed /var/log/par-e2e-blocked %s && echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-allowed/testdata.txt && echo 'PAR_E2E_BLOCKED_VALUE=operator_path_must_block' > /var/log/par-e2e-blocked/testdata.txt && echo 'par-e2e-agent-secret-value' > %s/%s"`,
 						kindCluster.ClusterName,
+						parAgentSecretHostPath,
+						parAgentSecretHostPath,
+						parAgentSecretFileName,
 					),
 				},
 				utils.PulumiDependsOn(kindCluster),
@@ -143,6 +163,8 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 					ctx.Stack(),
 					runnerURN,
 					privateKeyB64,
+					parAgentSecretHostPath,
+					parAgentSecretMountPath,
 					systemServiceOperatorPolicy,
 				)),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
