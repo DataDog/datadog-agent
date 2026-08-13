@@ -52,6 +52,29 @@ var (
 	// Tags: event_type, category
 	MetricRulesNoMatch = newRuntimeMetric(".rules.no_match")
 
+	// CEL shadow metrics. The shadow evaluates the rule set through a second engine on a
+	// sample of events, to measure what that engine would cost — see pkg/security/rules/shadow.
+
+	// MetricCELShadowRules is the state of the rule set as the shadow sees it
+	// Tags: state, reason
+	MetricCELShadowRules = newRuntimeMetric(".rules.cel_shadow.rules")
+	// MetricCELShadowEvaluations is the number of events the shadow evaluated
+	MetricCELShadowEvaluations = newRuntimeMetric(".rules.cel_shadow.evaluations")
+	// MetricCELShadowRuleEvaluations is the number of rule evaluations that took, which is
+	// what the durations below are divided by to get a per-rule cost
+	MetricCELShadowRuleEvaluations = newRuntimeMetric(".rules.cel_shadow.rule_evaluations")
+	// MetricCELShadowDuration is the time each engine spent evaluating, in nanoseconds
+	// Tags: engine, first
+	MetricCELShadowDuration = newRuntimeMetric(".rules.cel_shadow.duration_ns")
+	// MetricCELShadowDisagreements is the number of times the two engines returned
+	// different verdicts for a rule
+	// Tags: rule_id
+	MetricCELShadowDisagreements = newRuntimeMetric(".rules.cel_shadow.disagreements")
+	// MetricCELShadowErrors is the number of evaluation errors, panics and failed
+	// environments the shadow hit
+	// Tags: engine, kind
+	MetricCELShadowErrors = newRuntimeMetric(".rules.cel_shadow.errors")
+
 	// Rule action metrics
 
 	// MetricRuleActionPerformed is the name of the metric used to count actions performed after a rule was matched

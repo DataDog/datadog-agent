@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/shadow"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -75,6 +76,11 @@ type RuleEngine struct {
 
 	// userspace filtering metrics (avoid statsd calls in event hot path)
 	noMatchCounters []atomic.Uint64
+
+	// celShadow evaluates the rule set through a second engine on a sample of events, to
+	// measure what that engine would cost. It is nil unless configured, decides nothing,
+	// and is replaced with the rule set — see pkg/security/rules/shadow.
+	celShadow atomic.Pointer[shadow.Shadow]
 }
 
 // APIServer defines the API server
@@ -117,8 +123,14 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 
 // SendStats flushes per-event counters as metrics
 func (e *RuleEngine) SendStats() {
-	if e.statsdClient == nil || len(e.noMatchCounters) == 0 {
+	if e.statsdClient == nil {
 		return
+	}
+
+	if shadow := e.celShadow.Load(); shadow != nil {
+		if err := shadow.SendStats(e.statsdClient); err != nil {
+			seclog.Warnf("failed to send the cel shadow stats: %v", err)
+		}
 	}
 
 	for i := range e.noMatchCounters {
@@ -430,6 +442,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
 	e.currentRuleSet.Store(rs)
+	e.loadCELShadow(rs)
 
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
@@ -453,6 +466,28 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 
 	return nil
+}
+
+// loadCELShadow compiles the new rule set for the shadow, replacing whatever the previous
+// one left behind.
+//
+// It compiles every rule a second time, so it is only done when configured. Nothing about
+// it can fail a policy load: what it cannot express it counts.
+func (e *RuleEngine) loadCELShadow(rs *rules.RuleSet) {
+	if !e.config.CELShadowEnabled {
+		return
+	}
+
+	compiled := shadow.New(rs, shadow.Config{
+		Enabled: true,
+		Rate:    e.config.CELShadowRate,
+	})
+	e.celShadow.Store(compiled)
+
+	seclog.Infof("cel shadow: evaluating %d rules, one event in %d", compiled.Rules(), max(e.config.CELShadowRate, 1))
+	for reason, count := range compiled.Skipped() {
+		seclog.Infof("cel shadow: %d rules not evaluated (%s)", count, reason)
+	}
 }
 
 func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
@@ -727,6 +762,12 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 				ruleSet.EvaluateDiscarders(event)
 			}
 		}
+	}
+
+	// Last, and only when configured: the shadow measures the two engines against each
+	// other on this event, after everything that decides anything has run.
+	if shadow := e.celShadow.Load(); shadow != nil {
+		shadow.Observe(event)
 	}
 }
 

@@ -181,6 +181,12 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorReportInternalPolicies bool
 	// RuleCacheEnabled defines if the rule cache should be enabled
 	RuleCacheEnabled bool
+
+	// CELShadowEnabled evaluates the rule set through a second engine alongside SECL, on a
+	// sample of events, to measure what it would cost — see pkg/security/rules/shadow
+	CELShadowEnabled bool
+	// CELShadowRate is the sampling rate of that evaluation, as one event in this many
+	CELShadowRate int
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 	// SocketPath is the path to the socket that is used to communicate with system-probe
@@ -568,6 +574,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
 		RuleCacheEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.rule_cache_enabled"),
+		CELShadowEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.cel_shadow.enabled"),
+		CELShadowRate:                       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.cel_shadow.rate"),
 
 		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),

@@ -65,6 +65,23 @@ properties:
         node_type: setting
         type: boolean
         default: true
+  cel_shadow:
+    node_type: section
+    type: object
+    description: Evaluates the rule set through a second engine alongside SECL, on a
+      sample of events, to measure what that engine would cost and where the two disagree.
+      Nothing it computes reaches a verdict, an action or an event.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Enable the CEL shadow evaluation
+      rate:
+        node_type: setting
+        type: integer
+        default: 100
+        description: Sample one event in this many. One means every event.
   activity_dump:
     node_type: section
     type: object

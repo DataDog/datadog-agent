@@ -23,6 +23,7 @@ go_library(
         "//pkg/security/rules/bundled",
         "//pkg/security/rules/filtermodel",
         "//pkg/security/rules/monitor",
+        "//pkg/security/rules/shadow",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/model",
         "//pkg/security/secl/rules",
