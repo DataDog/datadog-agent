@@ -113,6 +113,9 @@ func (it *sketchIterator) MoveNext() bool {
 			})
 	}
 
+	it.stats.metrics++
+	it.stats.points += uint64(len(b.Points))
+
 	return true
 }
 
