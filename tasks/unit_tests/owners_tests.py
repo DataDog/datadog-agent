@@ -114,6 +114,7 @@ class TestResolveRunSet(unittest.TestCase):
         mock_run.return_value = mock.Mock(returncode=0, stdout="logs/general,quality_gates\n", stderr="")
         out = resolve_run_set_impl(
             self.config_dir,
+            "selection.yaml",
             "/bin/smp",
             changed_files=["test/regression/logs/general/cases/exp/experiment.yaml"],
             labels="smp/logs/syslog",
@@ -124,9 +125,10 @@ class TestResolveRunSet(unittest.TestCase):
         self.assertEqual(out, "logs/general,quality_gates")
         cmd = mock_run.call_args[0][0]
         self.assertEqual(cmd[:3], ["/bin/smp", "experiments", "resolve"])
-        for flag in ("--target-config-dir", "--runner", "--format", "--exclude-path", "--label", "--involved-team"):
+        for flag in ("--target-config-dir", "--manifest", "--runner", "--format", "--exclude-path", "--label", "--involved-team"):
             self.assertIn(flag, cmd)
         self.assertIn("path-filter", cmd)
+        self.assertIn("selection.yaml", cmd)
         self.assertIn("ebpf", cmd)
         self.assertIn("smp/logs/syslog", cmd)
         self.assertIn("agent-log-pipelines", cmd)  # involved team resolved from the changed file
@@ -134,7 +136,7 @@ class TestResolveRunSet(unittest.TestCase):
     @mock.patch("subprocess.run")
     def test_no_involved_or_labels_omits_those_flags(self, mock_run):
         mock_run.return_value = mock.Mock(returncode=0, stdout="quality_gates\n", stderr="")
-        out = resolve_run_set_impl(self.config_dir, "/bin/smp", [], "", "container", ["ebpf"], self.owners_file)
+        out = resolve_run_set_impl(self.config_dir, "selection.yaml", "/bin/smp", [], "", "container", ["ebpf"], self.owners_file)
         self.assertEqual(out, "quality_gates")
         cmd = mock_run.call_args[0][0]
         self.assertNotIn("--involved-team", cmd)
@@ -144,7 +146,7 @@ class TestResolveRunSet(unittest.TestCase):
     def test_raises_on_resolve_failure(self, mock_run):
         mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="boom")
         with self.assertRaises(Exit):
-            resolve_run_set_impl(self.config_dir, "/bin/smp", [], "", "container", ["ebpf"], self.owners_file)
+            resolve_run_set_impl(self.config_dir, "selection.yaml", "/bin/smp", [], "", "container", ["ebpf"], self.owners_file)
 
 
 if __name__ == "__main__":

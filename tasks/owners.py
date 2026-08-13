@@ -162,6 +162,7 @@ def smp_inputs(
 
 def resolve_run_set_impl(
     config_dir: str,
+    manifest: str,
     smp_bin: str,
     changed_files: list[str],
     labels: str,
@@ -172,8 +173,10 @@ def resolve_run_set_impl(
     """Resolve the experiment run set to a `--experiment-path-filter` value.
 
     Combines the CODEOWNERS-derived inputs (`smp_inputs_impl`) with
-    `<smp_bin> experiments resolve ... --format path-filter`. Returns the comma-separated leaf paths
-    (empty string if nothing resolves). Raises Exit if `smp experiments resolve` fails.
+    `<smp_bin> experiments resolve --manifest <manifest> ... --format path-filter`. The manifest holds
+    the selection policy (always/codeowners/labels buckets); involvement + ownership still come from
+    CODEOWNERS. Returns the comma-separated leaf paths (empty string if nothing resolves). Raises Exit
+    if `smp experiments resolve` fails.
     """
     import subprocess
     import tempfile
@@ -190,6 +193,8 @@ def resolve_run_set_impl(
             'resolve',
             '--target-config-dir',
             config_dir,
+            '--manifest',
+            manifest,
             '--runner',
             runner,
             '--ownership',
@@ -217,6 +222,7 @@ def smp_resolve(
     _,
     config_dir,
     smp_bin,
+    manifest='test/regression/selection.yaml',
     changed_files='',
     labels='',
     runner='container',
@@ -228,12 +234,13 @@ def smp_resolve(
     Resolve the SMP experiment run set for a PR and write the `--experiment-path-filter` value.
 
     Combines `owners.smp-inputs` (CODEOWNERS -> involved teams + ownership) with
-    `<smp-bin> experiments resolve ... --format path-filter`, so the whole
+    `<smp-bin> experiments resolve --manifest <manifest> ... --format path-filter`, so the whole
     "changed files + labels -> what runs" decision is one command runnable locally against a
     locally-built smp binary. Writes the comma-separated leaf paths to `--out` (empty if nothing
     resolves) and prints them.
 
     - smp-bin: path to the smp binary (e.g. `./smp` in CI, or a local debug build).
+    - manifest: path to the selection manifest (default test/regression/selection.yaml).
     - changed-files: file listing the PR's changed files, one per line (empty => no involved teams).
     - labels: comma-separated labels applied to the PR.
     - runner: runner to resolve for (default container).
@@ -245,7 +252,7 @@ def smp_resolve(
             files = [line.strip() for line in f if line.strip()]
     excludes = [e.strip() for e in exclude.split(',') if e.strip()]
 
-    paths = resolve_run_set_impl(config_dir, smp_bin, files, labels, runner, excludes, owners_file)
+    paths = resolve_run_set_impl(config_dir, manifest, smp_bin, files, labels, runner, excludes, owners_file)
 
     with open(out, 'w') as f:
         f.write(paths)

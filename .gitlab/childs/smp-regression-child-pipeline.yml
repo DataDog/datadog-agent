@@ -184,7 +184,7 @@ variables:
         # Resolve the run set. On ANY failure or empty result, fall back to the always-run quality
         # gates so a selection-tooling problem (missing dda, resolve error, network) never silently
         # drops the gates -- the worst case is "only gates run", never "nothing runs".
-        dda inv owners.smp-resolve --config-dir "${CONFIG_DIR}" --smp-bin ./smp --changed-files changed_files.txt --labels "${LABELS}" --runner container --exclude ebpf --out experiment_path_filter.txt </dev/null || echo "owners.smp-resolve failed; falling back to quality_gates"
+        dda inv owners.smp-resolve --config-dir "${CONFIG_DIR}" --manifest "${CONFIG_DIR}/selection.yaml" --smp-bin ./smp --changed-files changed_files.txt --labels "${LABELS}" --runner container --exclude ebpf --out experiment_path_filter.txt </dev/null || echo "owners.smp-resolve failed; falling back to quality_gates"
         EXPERIMENT_PATH_FILTER=$(cat experiment_path_filter.txt 2>/dev/null || true)
         if [ -z "${EXPERIMENT_PATH_FILTER}" ]; then
           echo "Resolve produced no filter (tooling failure or empty); falling back to quality_gates."
@@ -344,7 +344,7 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: dev-pr4679-39a10a451
+    SMP_VERSION: dev-pr4702-9b56514f7
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression

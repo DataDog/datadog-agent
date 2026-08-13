@@ -1,6 +1,4 @@
 ---
-mode: codeowners
-label: smp/logs/general
 description: General log-pipeline regression suite.
 ---
 

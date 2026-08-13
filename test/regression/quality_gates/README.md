@@ -1,5 +1,4 @@
 ---
-mode: always
 description: Core Agent performance regression quality gates.
 ---
 

@@ -1,6 +1,4 @@
 ---
-mode: optional
-label: smp/logs/syslog
 description: Syslog regression experiments.
 ---
 
