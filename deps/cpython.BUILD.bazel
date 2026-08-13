@@ -55,7 +55,13 @@ run_binary(
     srcs = (
         glob(
             ["**"],
-            exclude = ["**/*.pyc", "BUILD.bazel"],
+            exclude = [
+                "**/*.pyc",
+                "BUILD.bazel",
+                # Unix-only build helper injected into the CPython repository.
+                # Keep it out of the Windows action key; the Windows build does not use it.
+                "redacted_compat.h",
+            ],
         ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
