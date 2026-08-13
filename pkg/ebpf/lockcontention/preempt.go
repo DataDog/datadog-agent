@@ -17,14 +17,17 @@ import (
 	"github.com/cilium/ebpf/btf"
 )
 
-var ErrThisCpuPtrNotPresent = errors.New("required helper bpf_this_cpu_ptr not present")
+// ErrThisCPUPtrNotPresent tells us that the helper bpf_this_cpu_ptr is not present on the running kernel
+var ErrThisCPUPtrNotPresent = errors.New("required helper bpf_this_cpu_ptr not present")
+
+// ErrRequiredVarsMissingInBTF tells us that required variables are missing from the running kernel's BTF
 var ErrRequiredVarsMissingInBTF = errors.New("preempt_count in ebpf not supported. Neither __preempt_count nor pcpu_hot is available in kernel BTF")
 
 // PreemptCountConstants checks if getting preempt_count from ebpf programs is supported.
 // If so it returns constants we need to override to select how this count is read in ebpf.
 func PreemptCountConstants(cache *btf.Cache) (map[string]uint64, error) {
 	if err := features.HaveHelperInRawTracepoint(asm.FnThisCpuPtr); err != nil {
-		return nil, ErrThisCpuPtrNotPresent
+		return nil, ErrThisCPUPtrNotPresent
 	}
 
 	preemptCountMissing, err := ddebpf.VerifyKernelFuncs("__preempt_count")
@@ -41,9 +44,9 @@ func PreemptCountConstants(cache *btf.Cache) (map[string]uint64, error) {
 	// include per cpu variables, even if the symbol is exported in kallsyms.
 	// This happens on debian 11 shipped with kernel 5.10.
 	var typ *btf.Var
-	preempCountExistsInBTF := kSpec.TypeByName("__preempt_count", &typ) == nil
+	preemptCountExistsInBTF := kSpec.TypeByName("__preempt_count", &typ) == nil
 
-	if len(preemptCountMissing) == 0 && preempCountExistsInBTF {
+	if len(preemptCountMissing) == 0 && preemptCountExistsInBTF {
 		return map[string]uint64{"use_preempt_count": uint64(1)}, nil
 	}
 

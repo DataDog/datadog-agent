@@ -182,7 +182,7 @@ func TestLockRanges(t *testing.T) {
 }
 
 func SkipIfLockContentionCollectorNotSupported(t *testing.T, err error) {
-	if errors.Is(err, ErrThisCpuPtrNotPresent) || errors.Is(err, ErrRequiredVarsMissingInBTF) {
+	if errors.Is(err, ErrThisCPUPtrNotPresent) || errors.Is(err, ErrRequiredVarsMissingInBTF) {
 		t.Skip("getting preempt_count in ebpf not supported")
 	}
 }
