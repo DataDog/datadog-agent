@@ -239,6 +239,12 @@ impl ManagedProcess {
                 }
                 Ok(_) => {
                     if let (Some(pid), Some(profile)) = (exited_pid, self.user_profile.take()) {
+                        if let Err(e) = job.terminate() {
+                            warn!(
+                                "[{}] failed to terminate residual job members before deferred drain (pid {}): {e:#}",
+                                self.name, pid
+                            );
+                        }
                         let job = self.job_object.take();
                         info!(
                             "[{}] deferring profile unload until job members exit (pid {})",
