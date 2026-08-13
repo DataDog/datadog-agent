@@ -893,11 +893,9 @@ metrics:
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
-      capabilities_required:
-        nvlink: 1
   nvlink.count.inactive:
     metadata:
       metric_type: gauge
@@ -908,11 +906,9 @@ metrics:
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
-      capabilities_required:
-        nvlink: 1
   nvlink.count.total:
     metadata:
       metric_type: gauge
@@ -923,11 +919,9 @@ metrics:
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
-      capabilities_required:
-        nvlink: 1
   nvlink.ber.effective:
     metadata:
       metric_type: gauge

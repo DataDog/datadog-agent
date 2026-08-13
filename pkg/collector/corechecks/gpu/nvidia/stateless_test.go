@@ -615,18 +615,6 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 	}
 }
 
-func TestNVLinkSampleWithoutLinks(t *testing.T) {
-	mockDevice := setupMockDevice(t,
-		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
-		testutil.WithNVLinkLinkCount(0),
-	)
-
-	collectedMetrics, _, err := nvlinkSample(mockDevice)
-
-	require.ErrorIs(t, err, errUnsupportedDevice)
-	require.Empty(t, collectedMetrics)
-}
-
 // TestProcessMemoryMetricValues tests that the correct memory metric values are emitted
 // depending on the device architecture and API availability. On Hopper+, the process_detail_list
 // API should win (higher priority). On older architectures, process_memory_usage is the only source.

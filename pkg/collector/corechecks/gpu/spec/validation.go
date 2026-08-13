@@ -385,7 +385,9 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 
 func suppressInactiveNVLinkMetric(metricName string, config GPUConfig) bool {
 	return strings.HasPrefix(metricName, "nvlink.") &&
-		// NVSwitch connectivity can be reported as zero even when no active NVLink ports are present.
+		// NVSwitch connectivity and link counts can be reported as zero even when
+		// no active NVLink ports are present.
 		metricName != "nvlink.nvswitch_connected" &&
+		!strings.HasPrefix(metricName, "nvlink.count.") &&
 		config.NVLinkLinkCount == 0
 }

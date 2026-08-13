@@ -35,11 +35,21 @@ func TestValidateMetricType(t *testing.T) {
 	})
 }
 
-func TestExpectedMetricsSuppressesInactiveNVLinkMetrics(t *testing.T) {
+func TestExpectedMetricsIncludesNVLinkCountsWithoutLinks(t *testing.T) {
 	specs := &Specs{
 		Metrics: &MetricsSpec{
 			Metrics: map[string]MetricSpec{
 				"nvlink.count.active": {
+					Support: MetricSupportSpec{
+						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
+					},
+				},
+				"nvlink.count.inactive": {
+					Support: MetricSupportSpec{
+						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
+					},
+				},
+				"nvlink.count.total": {
 					Support: MetricSupportSpec{
 						DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true},
 					},
@@ -60,7 +70,9 @@ func TestExpectedMetricsSuppressesInactiveNVLinkMetrics(t *testing.T) {
 
 	expected := ExpectedMetricsForConfig(specs, config, ValidationOptions{})
 
-	require.NotContains(t, expected, "nvlink.count.active")
+	require.Contains(t, expected, "nvlink.count.active")
+	require.Contains(t, expected, "nvlink.count.inactive")
+	require.Contains(t, expected, "nvlink.count.total")
 	require.Contains(t, expected, "nvlink.nvswitch_connected")
 }
 
