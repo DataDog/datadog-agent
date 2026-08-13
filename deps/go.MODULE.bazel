@@ -57,14 +57,8 @@ go_deps.gazelle_override(
     path = "github.com/aquasecurity/trivy",
 )
 go_deps.gazelle_override(
-    # strptime_cgo_testlib.go uses tm_gmtoff (GNU extension, absent in
-    # musl libc). Exclude the CGo test-helper files so Gazelle does not
-    # include them in the generated go_library BUILD rules.
-    build_extra_args = [
-        "-exclude=timeutils/strptime_cgo_testlib.go",
-        "-exclude=timeutils/strptime_cgo_test.go",
-    ],
-    path = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal",
+    build_extra_args = ["-build_tags=kustomize_disable_go_plugin_support"],
+    path = "sigs.k8s.io/kustomize/api",
 )
 use_repo(
     go_deps,
@@ -230,6 +224,7 @@ use_repo(
     "com_github_masterminds_sprig_v3",
     "com_github_mattn_go_sqlite3",
     "com_github_mdlayher_netlink",
+    "com_github_mdlayher_socket",
     "com_github_mdlayher_vsock",
     "com_github_microsoft_go_winio",
     "com_github_microsoft_hcsshim",
@@ -500,6 +495,7 @@ use_repo(
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
+    "sh_helm_helm_v3",
     "tools_gotest_gotestsum",
 )
 

@@ -4,6 +4,7 @@ dd_agent_go_test(
     name = "otel-agent_test",
     srcs = [
         "complete_test.go",
+        "dogtel_gateway_test.go",
         "dogtel_secrets_test.go",
         "dogtel_standalone_test.go",
         "gateway_test.go",
@@ -18,6 +19,7 @@ dd_agent_go_test(
         "receive_resource_spans_v2_test.go",
         "sampling_test.go",
         "span_derived_primary_tags_test.go",
+        "v3_series_test.go",
     ],
     data = [
         "config/complete.yml",
@@ -85,5 +87,6 @@ dd_agent_go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/fields",
+        "@io_k8s_client_go//kubernetes",
     ],
 )

@@ -1887,17 +1887,39 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 	}
 }
 
-// parseStringBytes reads the next type in the msgpack payload and
+// parseStringBytesRef reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string returning the index of the string in the string table
 func parseStringBytesRef(stringTable *StringTable, bts []byte) (uint32, []byte, error) {
-	ref, bts, err := parseStringBytes(bts)
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return stringTable.Add(""), bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	var (
+		err error
+		i   []byte
+	)
+	switch t {
+	case msgp.BinType:
+		i, bts, err = msgp.ReadBytesZC(bts)
+	case msgp.StrType:
+		i, bts, err = msgp.ReadStringZC(bts)
+	default:
+		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.StrType}
+	}
 	if err != nil {
 		return 0, bts, err
 	}
-	return stringTable.Add(ref), bts, nil
+	if !utf8.Valid(i) {
+		return stringTable.Add(repairUTF8(msgp.UnsafeString(i))), bts, nil
+	}
+	// Intern directly from the bytes: a string is only allocated on a miss.
+	return stringTable.AddBytes(i), bts, nil
 }
 
-// parseStringBytesRef reads the next type in the msgpack payload and
+// parseStringBytes reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string returning the string itself
 func parseStringBytes(bts []byte) (string, []byte, error) {
 	if msgp.IsNil(bts) {
