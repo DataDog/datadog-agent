@@ -14,7 +14,7 @@ single-machine-performance-experiments-validate:
           - test/regression/**/*
         compare_to: $COMPARE_TO_BRANCH
   variables:
-    SMP_VERSION: dev-pr4702-9b56514f7
+    SMP_VERSION: dev-pr4702-102571a41
     CONFIG_DIR: test/regression
     AWS_NAMED_PROFILE: single-machine-performance
     BOT_LOGIN: bot_login
