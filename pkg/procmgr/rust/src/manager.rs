@@ -83,12 +83,9 @@ impl ProcessManager {
         for &idx in order.iter() {
             let proc = &mut procs[idx];
             if proc.may_auto_start() {
-                match proc.spawn() {
-                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-                    Err(e) => {
-                        warn!("{e:#}");
-                        queue_restart(proc, restart_tx);
-                    }
+                if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
+                    warn!("{e:#}");
+                    queue_restart(proc, restart_tx);
                 }
             }
             proc.record_config_gate_met();
@@ -282,12 +279,9 @@ impl ProcessManager {
             proc.record_config_gate_met();
             return;
         }
-        match proc.spawn() {
-            Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-            Err(e) => {
-                warn!("[{}] restart failed: {e:#}", proc.name());
-                queue_restart(proc, restart_tx);
-            }
+        if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
+            warn!("[{name}] restart failed: {e:#}");
+            queue_restart(proc, restart_tx);
         }
         proc.record_config_gate_met();
     }
@@ -325,11 +319,10 @@ impl ProcessManager {
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
             let proc = procs.last_mut().unwrap();
-            if proc.may_auto_start() {
-                match proc.spawn() {
-                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-                    Err(e) => warn!("[{name}] auto-start failed: {e:#}"),
-                }
+            if proc.may_auto_start()
+                && let Err(e) = try_spawn_and_watch(proc, exit_tx)
+            {
+                warn!("[{name}] auto-start failed: {e:#}");
             }
         }
         let warnings = self.update_startup_order().await;
@@ -344,21 +337,21 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         let idx = resolve_index(&procs, name_or_uuid)?;
         let proc = &mut procs[idx];
+        let name = proc.name();
 
         if proc.is_running() {
             return Err(Status::failed_precondition(format!(
-                "process '{}' is already running",
-                proc.name()
+                "process '{name}' is already running",
             )));
         }
-        proc.spawn()
-            .map_err(|e| Status::internal(format!("failed to start '{}': {e:#}", proc.name())))?;
-        let uuid = proc.uuid().to_owned();
-        let pid = proc.pid();
-        let state = proc.state();
-        spawn_watcher(proc, exit_tx.clone());
+        try_spawn_and_watch(proc, exit_tx)
+            .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
         proc.record_config_gate_met();
-        Ok(StartResult { uuid, pid, state })
+        Ok(StartResult {
+            uuid: proc.uuid().to_owned(),
+            pid: proc.pid(),
+            state: proc.state(),
+        })
     }
 
     pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
@@ -465,13 +458,11 @@ impl ProcessManager {
                         self.uuid_gen.generate(),
                         np.config,
                     );
-                    if proc.may_auto_start() {
-                        if let Err(e) = proc.spawn() {
-                            warn!("[{}] failed to start: {e:#}", np.name);
-                            queue_restart(&mut proc, restart_tx);
-                        } else {
-                            spawn_watcher(&mut proc, exit_tx.clone());
-                        }
+                    if proc.may_auto_start()
+                        && let Err(e) = try_spawn_and_watch(&mut proc, exit_tx)
+                    {
+                        warn!("[{}] failed to start: {e:#}", np.name);
+                        queue_restart(&mut proc, restart_tx);
                     }
                     proc.record_config_gate_met();
                     added.push(np.name);
@@ -766,11 +757,9 @@ async fn reconcile_process_after_reload(
             .map(|pid| (proc.name().to_owned(), pid));
         if proc.may_respawn() {
             info!("[{}] restarting with updated config", proc.name());
-            if let Err(e) = proc.spawn() {
+            if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
                 warn!("[{}] failed to restart: {e:#}", proc.name());
                 queue_restart(proc, restart_tx);
-            } else {
-                spawn_watcher(proc, exit_tx.clone());
             }
         } else {
             info!("[{}] not restarting: start conditions not met", proc.name());
@@ -781,14 +770,12 @@ async fn reconcile_process_after_reload(
                 "[{}] config changed while failed, retrying start",
                 proc.name()
             );
-            if let Err(e) = proc.spawn() {
+            if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
                 warn!(
                     "[{}] failed to restart after config change: {e:#}",
                     proc.name()
                 );
                 queue_restart(proc, restart_tx);
-            } else {
-                spawn_watcher(proc, exit_tx.clone());
             }
         } else {
             info!("[{}] not restarting: start conditions not met", proc.name());
@@ -802,14 +789,12 @@ async fn reconcile_process_after_reload(
             .map(|pid| (proc.name().to_owned(), pid));
     } else if !proc.is_running() && want_start && start_conditions_was == Some(false) {
         info!("[{}] start conditions now met, starting", proc.name());
-        if let Err(e) = proc.spawn() {
+        if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
             warn!(
                 "[{}] failed to start after start conditions opened: {e:#}",
                 proc.name()
             );
             queue_restart(proc, restart_tx);
-        } else {
-            spawn_watcher(proc, exit_tx.clone());
         }
     }
 
@@ -839,6 +824,15 @@ fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRes
             let _ = tx.send(pending).await;
         });
     }
+}
+
+fn try_spawn_and_watch(
+    proc: &mut ManagedProcess,
+    exit_tx: &mpsc::Sender<ExitEvent>,
+) -> Result<()> {
+    proc.spawn()?;
+    spawn_watcher(proc, exit_tx.clone());
+    Ok(())
 }
 
 /// Spawn a background task that awaits the child's exit and sends the result.
