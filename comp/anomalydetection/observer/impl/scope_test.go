@@ -75,6 +75,15 @@ func TestScopeTelemetryTagsAndDefaultLimit(t *testing.T) {
 	}
 }
 
+func TestRecordLogTailerStartedUsesResolvedScope(t *testing.T) {
+	registry := newScopeRegistry(2, nil)
+	observer := &observerImpl{scopes: registry}
+	observer.RecordLogTailerStarted("resolved-service", "resolved-source", []string{"service:tag-service", "source:tag-source"})
+	if !registry.hasTailer(scopeKey{service: "resolved-service", source: "resolved-source"}) {
+		t.Fatal("successful tailer was not registered under its resolved scope")
+	}
+}
+
 func TestPrepareMetricIngestNormalizesRoutingTags(t *testing.T) {
 	decision := prepareMetricIngest("dogstatsd", &metricObs{
 		name: "requests",

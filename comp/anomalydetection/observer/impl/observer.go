@@ -232,7 +232,9 @@ type disabledObserver struct{}
 
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
 func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
-func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
+func (*disabledObserver) RecordLogTailerStarted(_, _ string, _ []string) {
+}
+func (*disabledObserver) DumpMetrics(_ string) error { return nil }
 
 func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
 	return severityeventsdef.SeverityEventsSubscription{}, errors.New("no active anomaly scorer")
@@ -747,6 +749,22 @@ func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 func (o *observerImpl) RecordSamplerDropped(source, priority string) {
 	if o.telemetry != nil {
 		o.telemetry.recordSamplerDropped(source, priority)
+	}
+}
+
+// RecordLogTailerStarted records a successful file or container tailer start.
+// Tailer history remains available for the lifetime of this observer so later
+// input coverage telemetry can report an exact tuple match.
+func (o *observerImpl) RecordLogTailerStarted(service, source string, tags []string) {
+	if o.scopes == nil {
+		return
+	}
+	scope := scopeFromTags(tags, service, source)
+	if !o.scopes.markTailerStarted(scope) {
+		return
+	}
+	if o.telemetry != nil {
+		o.telemetry.recordScopeTailerStarted(scope)
 	}
 }
 

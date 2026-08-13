@@ -66,6 +66,8 @@ func TestAddsRemovesSource(t *testing.T) {
 			return &tailerfactory.TestTailer{Name: source.Name}, nil
 		},
 	}
+	var startedSource *sources.LogSource
+	l.SetTailerStartedCallback(func(source *sources.LogSource) { startedSource = source })
 	addedSources := make(chan *sources.LogSource, 1)
 	removedSources := make(chan *sources.LogSource, 1)
 
@@ -80,6 +82,7 @@ func TestAddsRemovesSource(t *testing.T) {
 	tailer := l.tailers[source].(*tailerfactory.TestTailer)
 	require.Equal(t, "test-source", tailer.Name)
 	require.True(t, tailer.Started)
+	require.Same(t, source, startedSource)
 
 	removedSources <- source
 	require.True(t, l.loop(context.Background(), addedSources, removedSources))
@@ -120,6 +123,8 @@ func TestCannotStartTailer(t *testing.T) {
 			return &tailerfactory.TestTailer{Name: source.Name, StartError: true}, nil
 		},
 	}
+	called := false
+	l.SetTailerStartedCallback(func(*sources.LogSource) { called = true })
 	addedSources := make(chan *sources.LogSource, 1)
 	removedSources := make(chan *sources.LogSource, 1)
 
@@ -131,5 +136,6 @@ func TestCannotStartTailer(t *testing.T) {
 	addedSources <- source
 	require.True(t, l.loop(context.Background(), addedSources, removedSources))
 	require.Nil(t, l.tailers[source])
+	require.False(t, called)
 	require.Equal(t, "Error: uhoh", source.Status().GetError())
 }

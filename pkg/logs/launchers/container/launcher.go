@@ -65,8 +65,15 @@ type Launcher struct {
 
 	wmeta option.Option[workloadmeta.Component]
 
-	tagger   tagger.Component
-	stopOnce sync.Once
+	tagger          tagger.Component
+	stopOnce        sync.Once
+	onTailerStarted func(*sourcesPkg.LogSource)
+}
+
+// SetTailerStartedCallback installs an optional callback invoked after a
+// container tailer has started successfully. It must be fast and non-blocking.
+func (l *Launcher) SetTailerStartedCallback(callback func(*sourcesPkg.LogSource)) {
+	l.onTailerStarted = callback
 }
 
 // NewLauncher returns a new launcher
@@ -171,6 +178,9 @@ func (l *Launcher) startSource(source *sourcesPkg.LogSource) {
 	source.AddInput(source.Config.Identifier)
 
 	l.tailers[source] = tailer
+	if l.onTailerStarted != nil {
+		l.onTailerStarted(source)
+	}
 }
 
 // stopSource stops tailing from a source.

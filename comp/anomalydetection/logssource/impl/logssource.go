@@ -158,8 +158,15 @@ func NewComponent(deps Requires) (Provides, error) {
 			fileOpener,
 			fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
 		)
+		fileLauncher.SetTailerStartedCallback(func(source *sources.LogSource) {
+			recordTailerStarted(obs, source)
+		})
 		launchersMgr.AddLauncher(fileLauncher)
-		launchersMgr.AddLauncher(containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger))
+		containerLogLauncher := containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger)
+		containerLogLauncher.SetTailerStartedCallback(func(source *sources.LogSource) {
+			recordTailerStarted(obs, source)
+		})
+		launchersMgr.AddLauncher(containerLogLauncher)
 
 		sp = newSourceProvider(wmeta, logSources, pauseFilter)
 
@@ -219,4 +226,11 @@ func NewComponent(deps Requires) (Provides, error) {
 	})
 
 	return Provides{Comp: &logssourceComponent{}}, nil
+}
+
+func recordTailerStarted(observer observer.Component, source *sources.LogSource) {
+	if source == nil || source.Config == nil {
+		return
+	}
+	observer.RecordLogTailerStarted(source.Config.Service, source.Config.Source, []string(source.Config.Tags))
 }

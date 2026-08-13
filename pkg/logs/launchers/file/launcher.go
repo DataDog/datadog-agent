@@ -64,10 +64,18 @@ type Launcher struct {
 	filesChan               chan []*tailer.File
 	filesTailedBetweenScans []*tailer.File
 	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
-	oldInfoMap    map[string]*oldTailerInfo
-	fileOpener    opener.FileOpener
-	fingerprinter tailer.Fingerprinter
-	stopOnce      sync.Once
+	oldInfoMap      map[string]*oldTailerInfo
+	fileOpener      opener.FileOpener
+	fingerprinter   tailer.Fingerprinter
+	stopOnce        sync.Once
+	onTailerStarted func(*sources.LogSource)
+}
+
+// SetTailerStartedCallback installs an optional callback invoked after a file
+// tailer has started successfully. It must be fast and non-blocking because it
+// runs on the launcher path.
+func (s *Launcher) SetTailerStartedCallback(callback func(*sources.LogSource)) {
+	s.onTailerStarted = callback
 }
 
 const (
@@ -481,6 +489,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	}
 
 	s.tailers.Add(tailer)
+	s.notifyTailerStarted(tailer.Source())
 	return true
 }
 
@@ -551,6 +560,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	s.tailers.Add(tailer)
+	s.notifyTailerStarted(tailer.Source())
 	return true
 }
 
@@ -630,8 +640,15 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	// We will keep track of the rotated tailer until it is finished.
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 	s.tailers.Add(newTailer)
+	s.notifyTailerStarted(newTailer.Source())
 
 	return true
+}
+
+func (s *Launcher) notifyTailerStarted(source *sources.LogSource) {
+	if s.onTailerStarted != nil {
+		s.onTailerStarted(source)
+	}
 }
 
 // createTailer returns a new initialized tailer

@@ -59,6 +59,8 @@ func (c *recordingComponent) GetHandle(_ string) observer.Handle {
 }
 
 func (c *recordingComponent) RecordSamplerDropped(_, _ string) {}
+func (c *recordingComponent) RecordLogTailerStarted(_, _ string, _ []string) {
+}
 
 func (c *recordingComponent) DumpMetrics(_ string) error {
 	return nil

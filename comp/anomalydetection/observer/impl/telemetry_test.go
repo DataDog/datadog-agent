@@ -34,6 +34,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.setScopeAdmitted(42)
 	tel.recordScopeOverflow("metric_input")
 	tel.setScopeScorers(3)
+	tel.recordScopeTailerStarted(scopeKey{service: "api", source: "nginx"})
 }
 
 func TestClassifyLogSource(t *testing.T) {

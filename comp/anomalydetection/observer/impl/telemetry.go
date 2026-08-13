@@ -43,6 +43,7 @@ const (
 	telemetryScopeLogsIngested               = "observer.scope.logs.ingested"                 // Number of accepted logs by service/source scope and tailer coverage.
 	telemetryScopeAnomalies                  = "observer.scope.anomalies"                     // Number of anomalies routed to a service/source scorer.
 	telemetryScopeScorerScore                = "observer.scope.scorer.score"                  // Latest EWMA score for a service/source scorer.
+	telemetryScopeTailersCreated             = "observer.scope.tailers.created"               // Number of successful file/container tailer starts by scope.
 )
 
 type observerTelemetry struct {
@@ -72,6 +73,7 @@ type observerTelemetry struct {
 	scopeLogs        telemetry.Counter
 	scopeAnomalies   telemetry.Counter
 	scopeScorerScore telemetry.Gauge
+	scopeTailers     telemetry.Counter
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -230,6 +232,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"service", "source"},
 			"Latest EWMA score for a service/source scorer",
 		),
+		scopeTailers: telemetryComp.NewCounter(
+			"observer",
+			telemetryScopeTailersCreated,
+			[]string{"service", "source"},
+			"Number of successful file/container tailer starts by service/source scope",
+		),
 	}
 }
 
@@ -276,6 +284,11 @@ func (t *observerTelemetry) recordScopeAnomaly(scope scopeKey) {
 func (t *observerTelemetry) setScopeScorerScore(scope scopeKey, score float64) {
 	service, source := scope.telemetryTags()
 	t.scopeScorerScore.Set(score, service, source)
+}
+
+func (t *observerTelemetry) recordScopeTailerStarted(scope scopeKey) {
+	service, source := scope.telemetryTags()
+	t.scopeTailers.Add(1, service, source)
 }
 
 func (t *observerTelemetry) recordDroppedLog(source string, tags []string) {

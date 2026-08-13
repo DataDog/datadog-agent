@@ -83,6 +83,15 @@ func TestLauncherSetTail(t *testing.T) {
 	runLauncherSetTailTest(t, []string{t.TempDir()})
 }
 
+func TestTailerStartedCallback(t *testing.T) {
+	launcher := &Launcher{}
+	source := sources.NewLogSource("test-source", &config.LogsConfig{Source: "nginx", Service: "api"})
+	var started *sources.LogSource
+	launcher.SetTailerStartedCallback(func(got *sources.LogSource) { started = got })
+	launcher.notifyTailerStarted(source)
+	assert.Same(t, source, started)
+}
+
 func TestLauncherConfigIdentifier(t *testing.T) {
 	runLauncherConfigIdentifierTest(t, []string{t.TempDir()})
 }

@@ -26,6 +26,10 @@ type Component interface {
 	// are intentional and not tracked here.
 	RecordSamplerDropped(source, priority string)
 
+	// RecordLogTailerStarted records a successfully started file or container
+	// tailer for scoped anomaly-detection coverage telemetry.
+	RecordLogTailerStarted(service, source string, tags []string)
+
 	// DumpMetrics writes all stored metrics to the specified file (for debugging).
 	DumpMetrics(path string) error
 

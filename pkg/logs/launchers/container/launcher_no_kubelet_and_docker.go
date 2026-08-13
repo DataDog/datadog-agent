@@ -29,6 +29,9 @@ func NewLauncher(_ *sourcesPkg.LogSources, _ option.Option[workloadmeta.Componen
 	return &Launcher{}
 }
 
+// SetTailerStartedCallback is a no-op in builds without container tailer support.
+func (*Launcher) SetTailerStartedCallback(func(*sourcesPkg.LogSource)) {}
+
 // Start implements Launcher#Start.
 func (l *Launcher) Start(launchers.SourceProvider, pipeline.Provider, auditor.Registry, *tailers.TailerTracker) {
 }
