@@ -49,7 +49,7 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 	executor := helmactionsimpl.NewRollbackExecutor(client)
 	job, err := executor.Run(ctx, in)
 	if err != nil {
-		return nil, fmt.Errorf("create helm rollback job in %s: %w", in.JobNamespace, err)
+		return nil, fmt.Errorf("helm rollback handler: %w", err)
 	}
 
 	log.Infof("[HelmActions] Created rollback job %s/%s for release %s/%s (revision=%d)",
