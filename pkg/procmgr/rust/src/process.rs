@@ -281,7 +281,7 @@ impl ManagedProcess {
             .job_object
             .as_ref()
             .expect("deferred job drain entry must have a job");
-        if job.active_process_count() != Ok(0) {
+        if !matches!(job.active_process_count(), Ok(0)) {
             return false;
         }
         let entry = self.deferred_exit_cleanups.remove(idx);

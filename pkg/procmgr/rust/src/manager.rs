@@ -520,7 +520,8 @@ impl ProcessManager {
     ) {
         let mut orphaned = self.orphaned_deferred_exit_cleanups.write().await;
         for proc in procs {
-            for entry in proc.drain_deferred_exit_cleanups(proc.name()) {
+            let name = proc.name().to_owned();
+            for entry in proc.drain_deferred_exit_cleanups(&name) {
                 if entry.job_object.is_some() {
                     pending_job_drains.push((entry.name.clone(), entry.pid));
                 }
@@ -604,7 +605,7 @@ impl ProcessManager {
             .job_object
             .as_ref()
             .expect("deferred job drain entry must have a job");
-        if job.active_process_count() != Ok(0) {
+        if !matches!(job.active_process_count(), Ok(0)) {
             return false;
         }
         let entry = orphaned.remove(idx);
