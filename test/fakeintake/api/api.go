@@ -31,9 +31,9 @@ type ParsedPayload struct {
 
 //nolint:revive // TODO(APL) Fix revive linter
 type APIFakeIntakePayloadsRawGETResponse struct {
-	Payloads []Payload `json:"payloads"`
-	NextCursor uint64 `json:"next_cursor"`
-	HasMore bool `json:"has_more"`
+	Payloads   []Payload `json:"payloads"`
+	NextCursor uint64    `json:"next_cursor"`
+	HasMore    bool      `json:"has_more"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter
