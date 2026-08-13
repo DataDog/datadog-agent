@@ -1333,6 +1333,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload
 	github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil => ./pkg/network/protocols/http/testutil
 	github.com/DataDog/datadog-agent/pkg/network/usm => ./pkg/network/usm
+	github.com/DataDog/datadog-agent/pkg/network/usm/debugger/cmd => ./pkg/network/usm/debugger/cmd
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ./pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
