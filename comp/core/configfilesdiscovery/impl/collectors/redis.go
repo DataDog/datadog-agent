@@ -36,7 +36,7 @@ var redisEnvAllow = regexp.MustCompile(`^REDIS_[A-Z0-9_]+$`)
 // contain inline credentials.
 var redisEnvDeny = regexp.MustCompile(
 	`^REDIS(_[A-Z0-9]+)*_(` +
-		`REQUIREPASS|MASTERAUTH|` +
+		`AUTH|REQUIREPASS|MASTERAUTH|` +
 		`ARGS|OPTS|FLAGS|` +
 		`URL|URI|DSN|CONNECTION_STRING` +
 		`)$`,
