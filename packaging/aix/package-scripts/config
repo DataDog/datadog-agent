@@ -9,48 +9,78 @@ EXAMPLE_FILE="$CONFIG_DIR/datadog.yaml.example"
 # handled by https://github.com/DataDog/agent-linux-install-script.
 # Only touches the config file on a fresh install: if datadog.yaml already
 # exists, it is left untouched.
-if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ]; then
-    if cp "$EXAMPLE_FILE" "$CONFIG_FILE" 2>/dev/null; then
-        # AIX sed has no -i flag, so every edit goes through a temp file and an
-        # mv. The mv swaps in a new inode each time, so ownership/permissions
-        # must be (re)applied once at the end, after all edits below — setting
-        # them here would just be clobbered by the first edit's mv.
-        set_config_value() {
-            # $1 = sed anchor regex (matched to end of line), $2 = replacement line
-            sed "s|$1.*|$2|" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-        }
+if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ] && [ -f "$EXAMPLE_FILE" ]; then
+    # Escapes characters special to a sed replacement built with '|' as the
+    # delimiter: backslash, '&' (whole-match token), and the delimiter itself.
+    # Without this, a value containing one of them (e.g. a proxy URL with a
+    # '&' in it) would corrupt the substitution or break the sed script.
+    escape_sed_repl() {
+        printf '%s' "$1" | sed 's/[\&|]/\\&/g'
+    }
 
-        set_config_value '^api_key:' "api_key: $DD_API_KEY"
+    sed_script="s|^api_key:.*|api_key: $(escape_sed_repl "$DD_API_KEY")|"
 
-        [ -n "$DD_SITE" ] && set_config_value '^# site:' "site: $DD_SITE"
-        [ -n "$DD_HOSTNAME" ] && set_config_value '^# hostname:' "hostname: $DD_HOSTNAME"
-        [ -n "$DD_ENV" ] && set_config_value '^# env:' "env: $DD_ENV"
-        [ -n "$DD_INFRASTRUCTURE_MODE" ] && set_config_value '^# infrastructure_mode:' "infrastructure_mode: $DD_INFRASTRUCTURE_MODE"
+    if [ -n "$DD_SITE" ]; then
+        sed_script="$sed_script
+s|^# site:.*|site: $(escape_sed_repl "$DD_SITE")|"
+    fi
+    if [ -n "$DD_HOSTNAME" ]; then
+        sed_script="$sed_script
+s|^# hostname:.*|hostname: $(escape_sed_repl "$DD_HOSTNAME")|"
+    fi
+    if [ -n "$DD_ENV" ]; then
+        sed_script="$sed_script
+s|^# env:.*|env: $(escape_sed_repl "$DD_ENV")|"
+    fi
+    if [ -n "$DD_INFRASTRUCTURE_MODE" ]; then
+        sed_script="$sed_script
+s|^# infrastructure_mode:.*|infrastructure_mode: $(escape_sed_repl "$DD_INFRASTRUCTURE_MODE")|"
+    fi
+    if [ -n "$DD_TAGS" ]; then
+        formatted_tags=$(echo "$DD_TAGS" | sed "s/,/', '/g")
+        sed_script="$sed_script
+s|^# tags:.*|tags: ['$(escape_sed_repl "$formatted_tags")']|"
+    fi
 
-        if [ -n "$DD_TAGS" ]; then
-            formatted_tags=$(echo "$DD_TAGS" | sed "s/,/', '/g")
-            set_config_value '^# tags:' "tags: ['$formatted_tags']"
+    # Proxy settings: https://docs.datadoghq.com/agent/proxy/
+    # DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+    # vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
+    proxy_http="${DD_PROXY_HTTP:-${HTTP_PROXY:-${http_proxy:-}}}"
+    proxy_https="${DD_PROXY_HTTPS:-${HTTPS_PROXY:-${https_proxy:-}}}"
+    proxy_no_proxy="${DD_PROXY_NO_PROXY:-${NO_PROXY:-${no_proxy:-}}}"
+
+    if [ -n "$proxy_http" ] || [ -n "$proxy_https" ] || [ -n "$proxy_no_proxy" ]; then
+        sed_script="$sed_script
+s|^# proxy:.*|proxy:|"
+        if [ -n "$proxy_http" ]; then
+            sed_script="$sed_script
+s|^#   http:.*|  http: $(escape_sed_repl "$proxy_http")|"
         fi
-
-        # Proxy settings: https://docs.datadoghq.com/agent/proxy/
-        # DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
-        # vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
-        proxy_http="${DD_PROXY_HTTP:-${HTTP_PROXY:-${http_proxy:-}}}"
-        proxy_https="${DD_PROXY_HTTPS:-${HTTPS_PROXY:-${https_proxy:-}}}"
-        proxy_no_proxy="${DD_PROXY_NO_PROXY:-${NO_PROXY:-${no_proxy:-}}}"
-
-        if [ -n "$proxy_http" ] || [ -n "$proxy_https" ] || [ -n "$proxy_no_proxy" ]; then
-            set_config_value '^# proxy:' "proxy:"
-            [ -n "$proxy_http" ] && set_config_value '^#   http:' "  http: $proxy_http"
-            [ -n "$proxy_https" ] && set_config_value '^#   https:' "  https: $proxy_https"
-            if [ -n "$proxy_no_proxy" ]; then
-                formatted_no_proxy=$(echo "$proxy_no_proxy" | sed "s/[, ][, ]*/', '/g")
-                set_config_value '^#   no_proxy:' "  no_proxy: ['$formatted_no_proxy']"
-            fi
+        if [ -n "$proxy_https" ]; then
+            sed_script="$sed_script
+s|^#   https:.*|  https: $(escape_sed_repl "$proxy_https")|"
         fi
+        if [ -n "$proxy_no_proxy" ]; then
+            formatted_no_proxy=$(echo "$proxy_no_proxy" | sed "s/[, ][, ]*/', '/g")
+            sed_script="$sed_script
+s|^#   no_proxy:.*|  no_proxy: ['$(escape_sed_repl "$formatted_no_proxy")']|"
+        fi
+    fi
 
-        chown dd-agent:dd-agent "$CONFIG_FILE" 2>/dev/null || true
-        chmod 640 "$CONFIG_FILE" 2>/dev/null || true
+    # Render into a private temp file (umask 077: never group/world-readable,
+    # even transiently), apply the final ownership/mode there, then rename it
+    # into place atomically. datadog.yaml (which will contain the API key)
+    # therefore never exists at its final path in a state readable by anyone
+    # but root — unlike editing it in place across several sed+mv passes.
+    TMP_CONFIG="$CONFIG_FILE.tmp.$$"
+    if (umask 077 && sed "$sed_script" "$EXAMPLE_FILE" > "$TMP_CONFIG") \
+        && chown dd-agent:dd-agent "$TMP_CONFIG" 2>/dev/null \
+        && chmod 640 "$TMP_CONFIG" 2>/dev/null \
+        && mv "$TMP_CONFIG" "$CONFIG_FILE" 2>/dev/null
+    then
+        :
+    else
+        rm -f "$TMP_CONFIG" 2>/dev/null || true
     fi
 fi
 

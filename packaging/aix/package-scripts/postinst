@@ -65,7 +65,11 @@ mkssys -s datadog-agent-data-plane \
 # Start (or restart) the agent if datadog.yaml exists.
 # On a fresh install this starts the agent for the first time.
 # On an upgrade the preinst stopped the services; this brings them back up.
-if [ -f /etc/datadog-agent/datadog.yaml ]; then
+# Skipped when DD_INSTALL_ONLY is set: on upgrade/reinstall datadog.yaml
+# already exists at this point, so without this check DD_INSTALL_ONLY would
+# fail to prevent the (re)start, unlike the equivalent check in the config
+# script (which only ever sees a fresh, not-yet-existing config file).
+if [ -f /etc/datadog-agent/datadog.yaml ] && [ -z "$DD_INSTALL_ONLY" ]; then
     startsrc -s datadog-agent            2>/dev/null || true
     startsrc -s datadog-trace-agent      2>/dev/null || true
     startsrc -s datadog-agent-data-plane 2>/dev/null || true
