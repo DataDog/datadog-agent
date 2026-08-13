@@ -4,6 +4,7 @@
 # gazelle:exclude tmpl/*.go
 
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files(
     glob(["**/*.tmpl"]),
@@ -64,6 +65,14 @@ service_srcs = [
     "tmpl/gen/oci/datadog-agent.service",
 ]
 
+# keep
+# Selected by GetSystemdUnit on hosts without ambient capability support. These must be embedded
+# in the production library, not just in tmpl_test, or the shipped binary cannot read them.
+nocap_service_srcs = glob([
+    "tmpl/gen/debrpm-nocap/*.service",
+    "tmpl/gen/oci-nocap/*.service",
+])
+
 go_library(
     name = "embedded",
     srcs = ["embed.go"],
@@ -71,7 +80,7 @@ go_library(
         "scripts/dd-cleanup",
         "scripts/dd-container-install",
         "scripts/dd-host-install",
-    ] + service_srcs,  # keep
+    ] + service_srcs + nocap_service_srcs,  # keep
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
     visibility = ["//visibility:public"],
 )
@@ -123,5 +132,15 @@ go_test(
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//assert",
+    ],
+)
+
+dd_agent_go_test(
+    name = "embedded_test",
+    srcs = ["embed_test.go"],
+    embed = [":embedded"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -26,8 +26,13 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
+// The -nocap variants are selected by GetSystemdUnit on hosts whose kernel does not support
+// ambient capabilities, so they must be embedded alongside the base flavors.
+//
 //go:embed tmpl/gen/oci/*.service
+//go:embed tmpl/gen/oci-nocap/*.service
 //go:embed tmpl/gen/debrpm/*.service
+//go:embed tmpl/gen/debrpm-nocap/*.service
 var systemdUnits embed.FS
 
 // DDOTProcessConfig is the rendered process manager config for DDOT (deb/rpm layout). Its
