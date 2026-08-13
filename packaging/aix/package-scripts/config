@@ -11,106 +11,83 @@ PYTHON=/opt/datadog-agent/embedded/bin/python3.13
 # Only touches the config file on a fresh install: if datadog.yaml already
 # exists, it is left untouched.
 if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ] && [ -f "$EXAMPLE_FILE" ] && [ -x "$PYTHON" ]; then
-    # All edits below happen on a private staging file, never on $CONFIG_FILE
-    # directly: it is only chowned/chmoded and moved into place once, after
-    # every field has been set, so datadog.yaml (which will contain the API
-    # key) never exists at its final path in a state readable by anyone but
-    # root. The staging file itself stays root-only (600) throughout: each
-    # set_config_value call rewrites it via its own temp-file-then-rename
-    # step (embedded Python has no in-place edit, and AIX sed has no -i
-    # anyway), always recreating it with mode 600.
+    # Rendered on a private staging file, chowned/chmoded and moved into
+    # place only once everything below succeeds, so datadog.yaml (which will
+    # contain the API key) never exists at its final path in a state
+    # readable by anyone but root. umask 077 makes the initial copy
+    # root-only from the start; Python then rewrites that same file in
+    # place, which doesn't change its mode/owner.
     STAGING_FILE="$CONFIG_FILE.tmp.$$"
 
-    # set_config_value <anchor-regex> <indent-spaces> <key> [value ...]
-    # Replaces the first line matching <anchor-regex> with "key: value" (or
-    # "key: [v1, v2, ...]" for multiple values, or bare "key:" for none),
-    # indented by <indent-spaces>. Values are YAML-quoted by PyYAML rather
-    # than string-interpolated into a sed script, so there is no equivalent
-    # of sed's '&'/delimiter escaping to get wrong.
-    set_config_value() {
-        anchor="$1"
-        indent="$2"
-        key="$3"
-        shift 3
-        "$PYTHON" - "$STAGING_FILE" "$anchor" "$indent" "$key" "$@" <<'PYEOF'
+    if (umask 077 && cp "$EXAMPLE_FILE" "$STAGING_FILE"); then
+        # Reads DD_* directly from the environment rather than taking them as
+        # argv/heredoc-interpolated values: this heredoc is quoted ('PYEOF'),
+        # so none of it is shell-expanded, which matters because interpolating
+        # an env var into Python *source text* would let a value containing
+        # e.g. a stray '"' turn into arbitrary code execution as root.
+        "$PYTHON" - "$STAGING_FILE" <<'PYEOF'
 import os
-import re
 import sys
 
 import yaml
 
-path, anchor, indent, key = sys.argv[1:5]
-values = sys.argv[5:]
 
-if not values:
-    rendered = key + ":"
-else:
-    # Dump just the value (not a wrapping {key: value} dict, which
-    # default_flow_style would render as a flow-style *mapping* too, e.g.
-    # "{api_key: foo}") and take only its first line, discarding the "...\n"
-    # document-end marker PyYAML appends after a bare scalar.
-    value = values[0] if len(values) == 1 else values
-    value_yaml = yaml.safe_dump(value, default_flow_style=True).splitlines()[0]
-    rendered = key + ": " + value_yaml
-new_line = (" " * int(indent)) + rendered + "\n"
+def env(*names):
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
 
+
+path = sys.argv[1]
 with open(path) as f:
     lines = f.readlines()
 
-pattern = re.compile(anchor)
+# api_key is the only field with a real, uncommented line in the template
+# (it's required, so it ships as "api_key:" with no value); every other
+# field below ships commented out. go.yaml.in/yaml/v2 (what the Agent
+# parses config with) resolves duplicate top-level keys as *last wins*, so
+# appending a second "api_key:" would be overridden by -- not override --
+# the template's original line. Editing it in place avoids that; appending
+# the rest further down is safe since there's nothing else active to lose to.
+api_key = env("DD_API_KEY")
 for i, line in enumerate(lines):
-    if pattern.match(line):
-        lines[i] = new_line
+    if line.startswith("api_key:"):
+        value_yaml = yaml.safe_dump(api_key, default_flow_style=True).splitlines()[0]
+        lines[i] = "api_key: " + value_yaml + "\n"
         break
-else:
-    sys.exit(1)
 
-dirpath = os.path.dirname(path) or "."
-tmp_path = os.path.join(dirpath, ".datadog-config.%d.tmp" % os.getpid())
-fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-with os.fdopen(fd, "w") as f:
+extra = {}
+if env("DD_SITE"):
+    extra["site"] = env("DD_SITE")
+if env("DD_HOSTNAME"):
+    extra["hostname"] = env("DD_HOSTNAME")
+if env("DD_ENV"):
+    extra["env"] = env("DD_ENV")
+if env("DD_INFRASTRUCTURE_MODE"):
+    extra["infrastructure_mode"] = env("DD_INFRASTRUCTURE_MODE")
+if env("DD_TAGS"):
+    extra["tags"] = [t for t in env("DD_TAGS").split(",") if t]
+
+# DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+# vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
+proxy = {}
+if env("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy"):
+    proxy["http"] = env("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy")
+if env("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy"):
+    proxy["https"] = env("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy")
+if env("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy"):
+    no_proxy = env("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy")
+    proxy["no_proxy"] = no_proxy.replace(",", " ").split()
+if proxy:
+    extra["proxy"] = proxy
+
+with open(path, "w") as f:
     f.writelines(lines)
-os.rename(tmp_path, path)
+    if extra:
+        f.write("\n" + yaml.safe_dump(extra, default_flow_style=False))
 PYEOF
-    }
-
-    if (umask 077 && cp "$EXAMPLE_FILE" "$STAGING_FILE"); then
-        set_config_value '^api_key:' 0 api_key "$DD_API_KEY" || true
-
-        [ -n "$DD_SITE" ] && { set_config_value '^# site:' 0 site "$DD_SITE" || true; }
-        [ -n "$DD_HOSTNAME" ] && { set_config_value '^# hostname:' 0 hostname "$DD_HOSTNAME" || true; }
-        [ -n "$DD_ENV" ] && { set_config_value '^# env:' 0 env "$DD_ENV" || true; }
-        [ -n "$DD_INFRASTRUCTURE_MODE" ] && { set_config_value '^# infrastructure_mode:' 0 infrastructure_mode "$DD_INFRASTRUCTURE_MODE" || true; }
-
-        if [ -n "$DD_TAGS" ]; then
-            (
-                IFS=,
-                # shellcheck disable=SC2086 # word-splitting is the point: turns "a,b" into separate argv values
-                set -- $DD_TAGS
-                set_config_value '^# tags:' 0 tags "$@"
-            ) || true
-        fi
-
-        # Proxy settings: https://docs.datadoghq.com/agent/proxy/
-        # DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
-        # vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
-        proxy_http="${DD_PROXY_HTTP:-${HTTP_PROXY:-${http_proxy:-}}}"
-        proxy_https="${DD_PROXY_HTTPS:-${HTTPS_PROXY:-${https_proxy:-}}}"
-        proxy_no_proxy="${DD_PROXY_NO_PROXY:-${NO_PROXY:-${no_proxy:-}}}"
-
-        if [ -n "$proxy_http" ] || [ -n "$proxy_https" ] || [ -n "$proxy_no_proxy" ]; then
-            set_config_value '^# proxy:' 0 proxy || true
-            [ -n "$proxy_http" ] && { set_config_value '^#   http:' 2 http "$proxy_http" || true; }
-            [ -n "$proxy_https" ] && { set_config_value '^#   https:' 2 https "$proxy_https" || true; }
-            if [ -n "$proxy_no_proxy" ]; then
-                (
-                    IFS=' '
-                    # shellcheck disable=SC2046,SC2086 # word-splitting is the point: turns the space-separated list into separate argv values
-                    set -- $(printf '%s' "$proxy_no_proxy" | tr ',' ' ')
-                    set_config_value '^#   no_proxy:' 2 no_proxy "$@"
-                ) || true
-            fi
-        fi
 
         if chown dd-agent:dd-agent "$STAGING_FILE" 2>/dev/null && chmod 640 "$STAGING_FILE" 2>/dev/null; then
             mv "$STAGING_FILE" "$CONFIG_FILE" 2>/dev/null
