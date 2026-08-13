@@ -345,6 +345,10 @@ type secState struct {
 // internal watcher (logs, correlation events, cooldown, episode size cap).
 type AnomalyScorerConfig struct {
 	observerdef.AnomalyScorerConfig
+	// MaxScopes caps the number of service/source scopes retained by the
+	// scoped-scorer experiment. It must always be positive so live cardinality
+	// cannot be made unbounded through configuration.
+	MaxScopes int `json:"max_scopes"`
 	// Logs controls whether severity transitions are logged via pkglog.
 	Logs bool `json:"logs"`
 	// CorrelationEvents controls whether scorer severity episodes are tracked
@@ -394,6 +398,7 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 		Logs:                      false,
 		CorrelationEvents:         false,
 		CorrelationEventThreshold: "high",
+		MaxScopes:                 defaultMaxScopes,
 		CooldownSecs:              300,
 		MaxEpisodeAnomalies:       50,
 		MaxReportedItems:          16,
@@ -461,6 +466,13 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	} else if cfg.MaxReportedItems > maxMaxReportedItems {
 		pkglog.Warnf("anomaly_scorer: %s must be at most %d, got %d — using %d", key, maxMaxReportedItems, cfg.MaxReportedItems, maxMaxReportedItems)
 		cfg.MaxReportedItems = maxMaxReportedItems
+	}
+
+	key = prefix + "max_scopes"
+	cfg.MaxScopes = r.GetInt(key)
+	if cfg.MaxScopes <= 0 {
+		pkglog.Warnf("anomaly_scorer: %s must be > 0, got %d — using default %d", key, cfg.MaxScopes, defaults.MaxScopes)
+		cfg.MaxScopes = defaults.MaxScopes
 	}
 
 	return cfg

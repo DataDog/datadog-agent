@@ -34,6 +34,9 @@ const (
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
 	telemetryScorerState                     = "observer.scorer.state"                        // Anomaly scorer severity level on transition (0=Low,1=Medium,2=High).
+	telemetryScopeAdmitted                   = "observer.scope.admitted"                      // Number of service/source scopes admitted by the scoped scorer experiment.
+	telemetryScopeOverflow                   = "observer.scope.overflow"                      // Number of scope admissions rejected after reaching the configured limit.
+	telemetryScopeScorers                    = "observer.scope.scorers"                       // Number of lazily-created scoped scorers.
 )
 
 type observerTelemetry struct {
@@ -55,6 +58,9 @@ type observerTelemetry struct {
 	processingTime   telemetry.Gauge
 	scorerEwma       telemetry.Gauge
 	scorerState      telemetry.Gauge
+	scopeAdmitted    telemetry.Gauge
+	scopeOverflow    telemetry.Counter
+	scopeScorers     telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -165,6 +171,24 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"scorer", "direction"},
 			"Anomaly scorer severity level on transition (0=Low, 1=Medium, 2=High)",
 		),
+		scopeAdmitted: telemetryComp.NewGauge(
+			"observer",
+			telemetryScopeAdmitted,
+			nil,
+			"Number of service/source scopes admitted by the scoped scorer experiment",
+		),
+		scopeOverflow: telemetryComp.NewCounter(
+			"observer",
+			telemetryScopeOverflow,
+			[]string{"kind"},
+			"Number of scope admissions rejected after reaching the configured limit",
+		),
+		scopeScorers: telemetryComp.NewGauge(
+			"observer",
+			telemetryScopeScorers,
+			nil,
+			"Number of lazily-created scoped scorers",
+		),
 	}
 }
 
@@ -267,4 +291,16 @@ func classifyLogSource(source string, tags []string) string {
 
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
 	t.processingTime.Set(durationNs, detectorTag)
+}
+
+func (t *observerTelemetry) setScopeAdmitted(count int) {
+	t.scopeAdmitted.Set(float64(count))
+}
+
+func (t *observerTelemetry) recordScopeOverflow(kind string) {
+	t.scopeOverflow.Add(1, kind)
+}
+
+func (t *observerTelemetry) setScopeScorers(count int) {
+	t.scopeScorers.Set(float64(count))
 }

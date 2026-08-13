@@ -344,6 +344,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 		metricFilter:         compiledMetricFilter,
+		scopes:               newScopeRegistry(scorerScopeLimit(rawScorer), obsTelemetry),
 	}
 
 	// When baseline muting is enabled, subscribe a sink that publishes the mute
@@ -475,6 +476,7 @@ type observerImpl struct {
 	// unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
 	metricFilter         *metricsFilterRules
+	scopes               *scopeRegistry
 
 	// replayMu serialises engine access between the run() dispatch loop and
 	// the testbench's direct-ingest path (IngestLogForReplay, IngestMetricSync).

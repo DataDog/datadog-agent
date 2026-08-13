@@ -6083,6 +6083,11 @@ properties:
             default: 0.2
             tags:
             - golang_type:float64
+          max_scopes:
+            node_type: setting
+            type: integer
+            default: 4096
+            comment: Maximum number of service/source scopes retained by anomaly detection.
           output:
             node_type: section
             type: object

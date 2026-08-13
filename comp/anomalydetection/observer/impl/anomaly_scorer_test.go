@@ -68,6 +68,22 @@ func TestReadAnomalyScorerConfigMaxReportedItems(t *testing.T) {
 	}
 }
 
+func TestReadAnomalyScorerConfigMaxScopes(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+
+	cfg := readAnomalyScorerConfig(scorerConfigReader{
+		ints: map[string]int{prefix + "max_scopes": 7},
+	}, prefix)
+	if cfg.MaxScopes != 7 {
+		t.Errorf("MaxScopes = %d, want 7", cfg.MaxScopes)
+	}
+
+	cfg = readAnomalyScorerConfig(scorerConfigReader{}, prefix)
+	if cfg.MaxScopes != defaultMaxScopes {
+		t.Errorf("invalid MaxScopes = %d, want default %d", cfg.MaxScopes, defaultMaxScopes)
+	}
+}
+
 func TestNormalizeCorrelationEventThreshold(t *testing.T) {
 	cases := []struct {
 		value string
