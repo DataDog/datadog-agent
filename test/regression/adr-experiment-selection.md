@@ -101,8 +101,14 @@ Authors get "add it and it runs" locally/in-PR, plus enforced bucketing at the m
   (duplicate experiment names; entries resolving to nothing; malformed/non-`smp/` labels; invalid
   `runner`); *policy* (unmatched experiment) warns by default, errors under `--in-ci`. It does **not**
   warn on missing descriptions (docs are optional now).
-- **Label-sync CI job** (online, GitHub API — a GHA, not the CLI): the manifest's `labels:` keys ↔ the
-  repo's `smp/*` labels must match (no orphan repo labels; every manifest label exists to be applied).
+- **Label-sync CI job** (online, GitHub API — a GHA, not the CLI): reports drift between the manifest's
+  `labels:` keys and the repo's `smp/*` labels, emitting a copy-paste `gh label create`/`delete`
+  command per mismatch. It never mutates labels (create/delete is manual — see the labels-as-code
+  note). Enforcement is **asymmetric**: a manifest label with **no repo label only warns** (benign,
+  self-correcting — the trigger is dormant until created; after creating it, re-run the check, no
+  manifest edit needed), while a repo `smp/*` label **absent from the manifest blocks** (misleading
+  cruft that would otherwise accumulate — the block forces cleanup). Fix an orphan by deleting the
+  repo label or declaring it in the manifest.
 
 ### D10 — SMP↔CI boundary.
 
