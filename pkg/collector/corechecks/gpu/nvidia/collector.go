@@ -176,7 +176,7 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	}
 }
 
-var collectorTelemetryTagNames = []string{"collector", "gpu_device", "gpu_architecture", "gpu_nvlink_capable"}
+var collectorTelemetryTagNames = []string{"collector", "gpu_device", "gpu_architecture", "gpu_nvlink_capable", "gpu_nvlink_version"}
 
 // CollectorTelemetryTags returns the telemetry tag values for a collector and its device.
 func CollectorTelemetryTags(collector Collector) []string {
@@ -186,6 +186,7 @@ func CollectorTelemetryTags(collector Collector) []string {
 		deviceInfo.Name,
 		gpuutil.ArchToString(deviceInfo.Architecture),
 		strconv.FormatBool(deviceInfo.NVLinkLinkCount > 0),
+		deviceInfo.NVLinkVersion,
 	}
 }
 
