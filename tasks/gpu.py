@@ -4,11 +4,12 @@ import json
 import shlex
 import tempfile
 import traceback
+from pathlib import Path
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.libs.common.auth import dd_auth_api_app_keys
+from tasks.libs.common.auth import datadog_infra_token, dd_auth_api_app_keys
 from tasks.schema.generate import schema_codegen
 
 SPEC_PACKAGE = "./pkg/collector/corechecks/gpu/spec"
@@ -24,6 +25,9 @@ DEFAULT_METRICS_LIST_PATH = "gpu_metrics.tsv"
 VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
+GPU_BURNER_ARTIFACT_PATH = "gpu-burner/branches/guillermo-julian-publish-package-to-mass" "/f05853f8/gpu-burner.tar.gz"
+MASS_READ_URL = "https://mass-read.us1.ddbuild.io/internal/artifact"
+MASS_AUDIENCE = "rapid-dependency-management-mass"
 
 
 def build_binary(ctx, package: str, output_path: str, label: str) -> str:
@@ -34,6 +38,39 @@ def build_binary(ctx, package: str, output_path: str, label: str) -> str:
 
     ctx.run(f"go build -o {shlex.quote(output_path)} {package}")
     return output_path
+
+
+@task(
+    name="download-gpu-burner",
+    help={
+        "output_path": "Directory where the gpu-burner archive is extracted",
+    },
+)
+def download_gpu_burner(ctx, output_path: str):
+    """
+    Download and extract gpu-burner from mASS.
+
+    Uses authanywhere in CI and ddtool when run locally.
+    """
+    destination = Path(output_path).resolve()
+    destination.mkdir(parents=True, exist_ok=True)
+    artifact_url = f"{MASS_READ_URL}/{GPU_BURNER_ARTIFACT_PATH}"
+    token = datadog_infra_token(ctx, audience=MASS_AUDIENCE)
+
+    print(f"== Downloading gpu-burner to {destination} ==")
+    with tempfile.NamedTemporaryFile(prefix="gpu-burner-", suffix=".tar.gz") as archive:
+        ctx.run(
+            " ".join(
+                [
+                    "curl --fail --location",
+                    f"-H {shlex.quote(f'Authorization: {token}')}",
+                    shlex.quote(artifact_url),
+                    f"-o {shlex.quote(archive.name)}",
+                ]
+            ),
+            hide=True,
+        )
+        ctx.run(f"tar -xzf {shlex.quote(archive.name)} -C {shlex.quote(str(destination))}")
 
 
 @task(

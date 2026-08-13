@@ -212,17 +212,7 @@ tests_gpu:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - |
-      artifact_path="gpu-burner/branches/guillermo-julian-publish-package-to-mass"
-      artifact_path+="/f05853f8/gpu-burner.tar.gz"
-      mass_read_url="https://mass-read.us1.ddbuild.io/internal/artifact"
-      mass_audience="rapid-dependency-management-mass"
-      token_header="$(authanywhere --audience "${mass_audience}")"
-      curl --fail --location \
-        -H "${token_header}" \
-        "${mass_read_url}/${artifact_path}" \
-        -o gpu-burner.tar.gz
-      tar -xzf gpu-burner.tar.gz
+    - dda inv -- -e gpu.download-gpu-burner --output-path "$CI_PROJECT_DIR"
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
