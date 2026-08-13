@@ -35,6 +35,15 @@ type discoveryState struct {
 // of completions without blocking the worker goroutine on a busy scheduler.
 const discoveredChangesBuffer = 128
 
+// configDiscoveryTag is added to every instance of a check scheduled via
+// configuration discovery. Configuration discovery has no way of knowing
+// about a manually-configured, differently-named check (e.g. a generic
+// `openmetrics` check) that a user has pointed at the same service from
+// elsewhere, so the two can end up scraping the same target and duplicating
+// (or, for additive metric types, doubling) submitted metrics. This tag lets
+// users spot and exclude the autodiscovered side of such a duplication.
+const configDiscoveryTag = "dd.internal.config_discovery:true"
+
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
 func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
 	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
@@ -152,6 +161,11 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 		return changes
 	}
 	resolved.Source = rewriteSource(resolved.Source, svcAndADIDs.svc)
+	for i := range resolved.Instances {
+		if err := resolved.Instances[i].MergeAdditionalTags([]string{configDiscoveryTag}); err != nil {
+			log.Errorf("error adding configuration-discovery tag to config %s for service %s: %v", resolved.Name, svcID, err)
+		}
+	}
 	decrypted, err := decryptConfig(resolved, cm.secretResolver, tplDigest)
 	if err != nil {
 		log.Errorf("error decrypting discovered config %s for service %s: %v", resolved.Name, svcID, err)

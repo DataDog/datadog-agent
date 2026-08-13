@@ -154,12 +154,70 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 					"discovered instance config should have %%host%% resolved via the configresolver path")
 				assert.Equal(t, tc.wantSource, discovered.Schedule[0].Source,
 					"discovered config's Source should be tagged with the discovery provider")
+				assert.Contains(t, string(discovered.Schedule[0].Instances[0]), configDiscoveryTag,
+					"discovered instance config should carry the configuration-discovery marker tag")
 			case <-time.After(2 * time.Second):
 				t.Fatalf("timed out waiting for discovered changes")
 			}
 
 			assert.GreaterOrEqual(t, int(disco.called.Load()), 1, "stub discoverer should have been called")
 		})
+	}
+}
+
+// TestConfigMgr_DiscoveryTemplate_TagsAllInstances verifies that the
+// configuration-discovery marker tag (DSCVR-651) is added to every instance
+// of a discovered config, is merged alongside any tags the discovered
+// instance already carries rather than replacing them, and is still added
+// even when the discovered config opts out of ordinary autodiscovery tags
+// via ignore_autodiscovery_tags.
+func TestConfigMgr_DiscoveryTemplate_TagsAllInstances(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
+		return `[{
+			"instances": [
+				{"openmetrics_endpoint": "http://%%host%%:8080/metrics", "tags": ["custom:tag"]},
+				{"openmetrics_endpoint": "http://%%host%%:8081/metrics"}
+			],
+			"ignore_autodiscovery_tags": true
+		}]`, nil
+	})
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm.start()
+	defer cm.stop()
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+		Provider:      names.File,
+	}
+	svc := &dummyService{
+		ID:            "docker://k1",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+
+	_, _ = cm.processNewConfig(tpl)
+	changes := cm.processNewService(svc)
+	assertConfigsMatch(t, changes.Schedule)
+	assertConfigsMatch(t, changes.Unschedule)
+
+	ch := cm.discoveredChanges()
+	require.NotNil(t, ch)
+	select {
+	case discovered := <-ch:
+		require.Len(t, discovered.Schedule, 1)
+		require.Len(t, discovered.Schedule[0].Instances, 2)
+		assert.Contains(t, string(discovered.Schedule[0].Instances[0]), configDiscoveryTag,
+			"first instance should carry the configuration-discovery marker tag")
+		assert.Contains(t, string(discovered.Schedule[0].Instances[0]), "custom:tag",
+			"first instance's own tag should be preserved alongside the marker tag")
+		assert.Contains(t, string(discovered.Schedule[0].Instances[1]), configDiscoveryTag,
+			"second instance should also carry the configuration-discovery marker tag")
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for discovered changes")
 	}
 }
 
