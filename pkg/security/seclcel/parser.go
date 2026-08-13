@@ -778,17 +778,27 @@ func (p *parser) identOperand(tok token) (operand, *ParseError) {
 		return operand{}, err
 	}
 
-	field := tok.val
+	field, reached := tok.val, reSubscript.ReplaceAllString(tok.val, "")
+
+	var listExpr bool
 	if strings.ContainsAny(field, "[]") {
 		// A subscripted name is either indexed or bound to an iterator variable;
 		// either way it no longer denotes the whole field. Which field it *reaches*
 		// is still known, and is what the matching semantics come from.
 		field = ""
+
+		// The value it reaches may be a list all the same: process.ancestors[A].argv
+		// is one process's arguments, and comparing it against a scalar means "some
+		// argument", exactly as process.argv does. A subscript at the *end* of the
+		// name is the opposite case — it picks one element out — so it is only the
+		// name that continues past its subscript that can still be a list.
+		listExpr = p.types != nil && !strings.HasSuffix(tok.val, "]") && p.types.IsListLeaf(reached)
 	}
 	return operand{
 		expr:         expr,
 		field:        field,
-		matcherField: reSubscript.ReplaceAllString(tok.val, ""),
+		matcherField: reached,
+		listExpr:     listExpr,
 		start:        tok.start, end: tok.end,
 	}, nil
 }

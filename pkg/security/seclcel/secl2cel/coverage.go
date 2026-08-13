@@ -285,7 +285,10 @@ func readYAML(path string, into any) error {
 type stage int
 
 const (
-	stageTranslate stage = iota
+	// stageExpanded is a rule the agent rewrites before it compiles anything, so what
+	// this tool reads is not what either engine ever sees.
+	stageExpanded stage = iota
+	stageTranslate
 	stageCheck
 	stagePlan
 	stageEvaluate
@@ -294,6 +297,8 @@ const (
 
 func (s stage) String() string {
 	switch s {
+	case stageExpanded:
+		return "expanded first"
 	case stageTranslate:
 		return "translate"
 	case stageCheck:
@@ -367,6 +372,14 @@ func seclOptions(set policySet) (*eval.Opts, error) {
 
 func measureRule(policy *seclcel.PolicyEnv, seclOpts *eval.Opts, rule policyRule) ruleResult {
 	result := ruleResult{rule: rule, stopped: stageDone}
+
+	// A `fim.write.file.*` rule is rewritten into one rule per underlying event type
+	// before it is compiled (rules/fim_unix.go, expandFim), so the expression here is
+	// not one either engine sees. Counted apart rather than as a gap.
+	if strings.Contains(rule.expression, "fim.write.file.") {
+		result.stopped = stageExpanded
+		return result
+	}
 
 	// The policy's field types rather than the model's alone, so that a variable holding
 	// a list is quantified the way a field holding one is.
@@ -557,9 +570,13 @@ func reportCoverage(set policySet, results []ruleResult, macroFailures []seclcel
 		}
 	}
 
-	fmt.Printf("\n  rules planned       %4d of %d (%.1f%%)\n",
-		len(byStage[stageDone])+len(byStage[stageEvaluate]), len(set.rules),
-		100*float64(len(byStage[stageDone])+len(byStage[stageEvaluate]))/float64(len(set.rules)))
+	measured := len(set.rules) - len(byStage[stageExpanded])
+	planned := len(byStage[stageDone]) + len(byStage[stageEvaluate])
+	fmt.Printf("\n  rules planned       %4d of %d (%.1f%%)\n", planned, measured,
+		100*float64(planned)/float64(measured))
+	if expanded := len(byStage[stageExpanded]); expanded > 0 {
+		fmt.Printf("  expanded first      %4d, so not measured as written\n", expanded)
+	}
 
 	for _, stopped := range []stage{stageTranslate, stageCheck, stagePlan, stageEvaluate} {
 		failed := byStage[stopped]

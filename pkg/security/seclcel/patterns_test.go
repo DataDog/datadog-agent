@@ -396,3 +396,46 @@ func TestPatternSemanticsAreSettledWhenTheRuleIsPlanned(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "`**` is not allowed in patterns")
 }
+
+// TestSubscriptedListLeafIsQuantified covers the shape a subscript leaves behind: an
+// element of an iterated node can itself hold a list, and comparing that against a scalar
+// means "some element of it" — the same thing `process.argv == "-l"` means.
+//
+// The field name is gone by then, since a subscript binds the iteration, so what carries
+// the array semantics is the name the subscript was removed from. A subscript at the *end*
+// of a name is the opposite case and must not be quantified: it picks one element out.
+func TestSubscriptedListLeafIsQuantified(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	for _, tt := range []struct{ secl, cel string }{
+		{`process.ancestors[A].argv in [ "clone" ]`,
+			`evt.process.ancestors.exists(A, A.argv.exists(elem, elem in ["clone"]))`},
+		{`process.ancestors[A].argv == "clone"`,
+			`evt.process.ancestors.exists(A, A.argv.exists(elem, elem == "clone"))`},
+		{`process.ancestors[0].args_flags in [ "l" ]`,
+			`evt.process.ancestors[0].args_flags.exists(elem, elem in ["l"])`},
+		// a subscript at the end picks an element, which is not a list
+		{`process.argv[0] == "-l"`, `evt.process.argv[0] == "-l"`},
+		// and a scalar leaf under a subscript is unaffected
+		{`process.ancestors[A].comm == "git"`,
+			`evt.process.ancestors.exists(A, A.comm == "git")`},
+	} {
+		t.Run(tt.secl, func(t *testing.T) {
+			got, err := TranslateWithTypes(tt.secl, ModelFieldTypes{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.cel, got)
+		})
+	}
+
+	// The rule this was found by, which is the whole of CVE-2025-48384's detection: two
+	// comparisons over one ancestor, one of them against a list that ancestor holds.
+	event := patternEvent()
+	ancestry(event, []string{"git"}, []uint32{0})
+	event.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = []string{"clone", "--recursive"}
+
+	const expr = `process.ancestors[A].comm == "git" && process.ancestors[A].argv in [ "clone" ]`
+	assert.Equal(t, evalSECLEngine(t, event, expr), evalSECL(t, env, event, expr),
+		"the two engines disagree")
+	assert.True(t, evalSECL(t, env, event, expr), "and it matches")
+}
