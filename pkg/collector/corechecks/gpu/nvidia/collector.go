@@ -193,7 +193,7 @@ func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
 	deviceInfo := device.GetDeviceInfo()
 	return []string{
 		string(name),
-		deviceInfo.Name,
+		gpuutil.NormalizeGPUDeviceName(deviceInfo.Name),
 		gpuutil.ArchToString(deviceInfo.Architecture),
 		strconv.FormatBool(deviceInfo.NVLinkLinkCount > 0),
 		deviceInfo.NVLinkVersion,
