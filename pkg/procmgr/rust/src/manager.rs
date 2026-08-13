@@ -809,10 +809,10 @@ fn should_retry_failed_after_config_change(proc: &ManagedProcess) -> bool {
 }
 
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
-    // Capture before restart_delay(): record() clears last_spawn_time once
+    // Capture before schedule_restart(): record() clears last_spawn_time once
     // runtime_success_sec is met, which would misclassify the restart as bootstrap-only.
     let had_successful_spawn = proc.has_ever_run_successfully();
-    if let Some(delay) = proc.restart_delay() {
+    if let Some(delay) = proc.schedule_restart() {
         let pending = PendingRestart {
             uuid: proc.uuid().to_owned(),
             config_generation: proc.config_generation(),
