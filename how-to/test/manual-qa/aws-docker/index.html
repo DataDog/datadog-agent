@@ -4003,14 +4003,14 @@
   
 
 
-<h1 id="aws-docker-vm">AWS Docker VM</h1>
+<h1 id="aws-docker-vm">AWS Docker VM<a class="headerlink" href="#aws-docker-vm" title="Permanent link">&para;</a></h1>
 <p>Provisions an EC2 instance with Docker installed and the Datadog Agent running
 as a container. Use this to test container-specific agent behavior or Docker
 integrations.</p>
-<h2 id="create">Create</h2>
+<h2 id="create">Create<a class="headerlink" href="#create" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-docker
 </span></code></pre></div>
-<h3 id="key-options">Key options</h3>
+<h3 id="key-options">Key options<a class="headerlink" href="#key-options" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4062,20 +4062,20 @@ integrations.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="examples">Examples</h3>
+<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Docker host with a custom image</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-docker<span class="w"> </span>--full-image-path<span class="o">=</span>my-registry/agent:my-tag
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># ARM Docker host</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.create-docker<span class="w"> </span>--architecture<span class="o">=</span>arm64
 </span></code></pre></div>
-<h2 id="connect">Connect</h2>
+<h2 id="connect">Connect<a class="headerlink" href="#connect" title="Permanent link">&para;</a></h2>
 <p>SSH connection details are printed after the stack is created. The agent runs
 as a container; use <code>docker ps</code> / <code>docker logs</code> once connected.</p>
-<h2 id="destroy">Destroy</h2>
+<h2 id="destroy">Destroy<a class="headerlink" href="#destroy" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>aws.destroy-docker
 </span></code></pre></div>
-<h2 id="limitations">Limitations</h2>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The agent runs in a Docker container, not as a host package. Host-agent
   behavior (systemd, OS-level checks) is not testable with this scenario — use
