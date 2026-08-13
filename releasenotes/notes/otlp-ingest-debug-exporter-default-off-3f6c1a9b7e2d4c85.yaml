@@ -1,0 +1,17 @@
+---
+enhancements:
+  - |
+    The Agent's OTLP ingestion pipeline no longer attaches the OpenTelemetry
+    ``debug`` exporter by default. Previously it was enabled whenever
+    ``otlp_config.debug.verbosity`` was left unset, emitting one INFO log line
+    per received batch. The ``debug`` exporter is now attached only when
+    ``otlp_config.debug.verbosity`` (or ``DD_OTLP_CONFIG_DEBUG_VERBOSITY``) is
+    explicitly set to ``basic``, ``normal``, or ``detailed``.
+upgrade:
+  - |
+    OTLP ingestion no longer logs the per-batch ``debug`` exporter summary
+    lines unless ``otlp_config.debug.verbosity`` is explicitly set to a value
+    other than ``none``. If you relied on these logs to confirm that telemetry
+    is flowing, set ``otlp_config.debug.verbosity`` (or
+    ``DD_OTLP_CONFIG_DEBUG_VERBOSITY``) to ``basic``, ``normal``, or
+    ``detailed`` to restore them.

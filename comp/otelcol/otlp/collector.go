@@ -161,12 +161,15 @@ type PipelineConfig struct {
 	MetricsBatch map[string]interface{}
 }
 
-// shouldSetLoggingSection returns whether debug logging is enabled.
-// Debug logging is enabled when verbosity is set to a valid value except for "none", or left unset.
+// shouldSetLoggingSection reports whether the debug exporter should be attached
+// to the OTLP ingest pipelines. It is enabled only when the user explicitly sets
+// otlp_config.debug.verbosity to a valid value other than "none". When verbosity
+// is unset, the debug exporter is not attached, so no per-batch debug logs are
+// emitted by default.
 func (p *PipelineConfig) shouldSetLoggingSection() bool {
 	v, ok := p.Debug["verbosity"]
 	if !ok {
-		return true
+		return false
 	}
 	s, ok := v.(string)
 	if !ok {

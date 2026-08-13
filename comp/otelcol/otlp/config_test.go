@@ -729,8 +729,10 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		err       string
 	}{
 		{
+			// A debug section with no verbosity does not enable the debug exporter:
+			// only an explicit non-"none" verbosity attaches it.
 			path:      "debug/empty_but_set_debug.yaml",
-			shouldSet: true,
+			shouldSet: false,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig:           map[string]interface{}{},
 				TracePort:                    5003,
