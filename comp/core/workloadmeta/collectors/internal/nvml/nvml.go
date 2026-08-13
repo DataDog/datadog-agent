@@ -69,9 +69,10 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
 		},
-		TotalCores:   devInfo.CoreCount,
-		TotalMemory:  devInfo.Memory,
-		Architecture: gpuutil.ArchToString(devInfo.Architecture),
+		TotalCores:      devInfo.CoreCount,
+		TotalMemory:     devInfo.Memory,
+		Architecture:    gpuutil.ArchToString(devInfo.Architecture),
+		NVLinkLinkCount: devInfo.NVLinkLinkCount,
 	}
 
 	switch d := device.(type) {

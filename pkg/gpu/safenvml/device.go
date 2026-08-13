@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -151,6 +152,9 @@ type DeviceInfo struct {
 	CoreCount          int
 	Architecture       nvml.DeviceArchitecture
 	VirtualizationMode nvml.GpuVirtualizationMode
+
+	// NVLinkLinkCount is the number of NVLink links available on the device.
+	NVLinkLinkCount int
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -302,6 +306,7 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
+		migChildDevice.NVLinkLinkCount = d.NVLinkLinkCount
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
 
 		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
@@ -388,7 +393,35 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		log.Warnf("cannot get virtualization mode: %v", err)
 	}
 
+	d.fillNVLinkDataFromNVML(dev)
+
 	return nil
+}
+
+func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
+	fields := []nvml.FieldValue{{FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT}}
+	if err := dev.GetFieldValues(fields); err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get NVLink link count: %v", err)
+		}
+		return
+	}
+	if ret := nvml.Return(fields[0].NvmlReturn); ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get NVLink link count: %s", nvml.ErrorString(ret))
+		}
+		return
+	}
+
+	linkCount := binary.LittleEndian.Uint64(fields[0].Value[:])
+	if linkCount > uint64(^uint(0)>>1) {
+		if logLimiter.ShouldLog() {
+			log.Warnf("NVLink link count %d exceeds maximum integer value", linkCount)
+		}
+		return
+	}
+
+	d.NVLinkLinkCount = int(linkCount)
 }
 
 // coresPerMultiprocessor returns the number of cores per multiprocessor for a given SM version. It's a fallback

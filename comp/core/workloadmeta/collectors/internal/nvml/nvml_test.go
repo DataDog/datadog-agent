@@ -99,6 +99,21 @@ func TestPull(t *testing.T) {
 	}
 }
 
+func TestPullNVLinkLinkCount(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithNVLinkLinkCount(1),
+	)
+	c := newTestCollector(t, wmetaMock)
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	c.Pull(context.Background())
+
+	for _, gpu := range wmetaMock.ListGPUs() {
+		require.Equalf(t, 1, gpu.NVLinkLinkCount, "unexpected NVLink link count for GPU %s", gpu.ID)
+	}
+}
+
 func TestFabricInfoToTags(t *testing.T) {
 	clusterUUID := [16]uint8{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 	tests := []struct {
