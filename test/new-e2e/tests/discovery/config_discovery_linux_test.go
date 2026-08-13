@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 //go:embed testdata/compose/docker-compose.fake-krakend.yaml
@@ -109,6 +111,26 @@ func (s *configDiscoverySuite) verifyKrakendConfigDiscovery(c *assert.CollectT) 
 	// config came from the configuration-discovery path (via the Docker
 	// listener), not a plain file provider.
 	s.verifyKrakendCheckProvider(c)
+
+	// Verify the metric actually submitted by the discovered krakend check
+	// carries the configuration-discovery marker tag (DSCVR-651), not just
+	// the resolved config (checked above via configcheck).
+	s.verifyKrakendMetricHasConfigDiscoveryTag(c)
+}
+
+// verifyKrakendMetricHasConfigDiscoveryTag checks, via fakeintake, that a
+// metric submitted by the discovered krakend check (krakend.api.go.goroutines,
+// from the fake container's go_goroutines gauge) carries the
+// configDiscoveryTag marker tag end to end, not just in the resolved config.
+func (s *configDiscoverySuite) verifyKrakendMetricHasConfigDiscoveryTag(c *assert.CollectT) {
+	const metricName = "krakend.api.go.goroutines"
+
+	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(metricName,
+		fakeintakeclient.WithTags[*aggregator.MetricSeries]([]string{configDiscoveryTag}))
+	if !assert.NoError(c, err, "failed to query fakeintake for %s", metricName) {
+		return
+	}
+	assert.NotEmpty(c, metrics, "expected at least one %s series tagged with %s", metricName, configDiscoveryTag)
 }
 
 // adContainerDiscoveryProvider mirrors names.ADContainerDiscovery in
