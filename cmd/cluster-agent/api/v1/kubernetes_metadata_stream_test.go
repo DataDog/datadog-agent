@@ -148,14 +148,15 @@ func TestSubscribeToNamespaceEvents(t *testing.T) {
 	assertNotified(t, "second", ch2)
 }
 
-func TestProcessPodEventNotifiesAffectedNodeAfterProcessing(t *testing.T) {
+func TestProcessPodEvent_NotifiesAffectedNodeAfterProcessing(t *testing.T) {
 	srv := NewKubeMetadataStreamServer(nil, nil, staticPodOwnerResolver{})
+	t.Cleanup(srv.podOwnerQueue.ShutDown)
 	node1Ch := srv.subscribeToNamespaceEvents("node1")
 	defer srv.unsubscribeFromNamespaceEvents("node1", node1Ch)
 	node2Ch := srv.subscribeToNamespaceEvents("node2")
 	defer srv.unsubscribeFromNamespaceEvents("node2", node2Ch)
 
-	srv.processPodEventBatch(context.Background(), []workloadmeta.Event{
+	srv.enqueuePodEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.KubernetesPod{
@@ -164,11 +165,12 @@ func TestProcessPodEventNotifiesAffectedNodeAfterProcessing(t *testing.T) {
 			},
 		},
 	})
+	assert.True(t, srv.processNextPodEvent(context.Background()))
 
 	assertNotified(t, "affected node", node1Ch)
 	assertNotNotified(t, "unaffected node", node2Ch)
 
-	srv.processPodEventBatch(context.Background(), []workloadmeta.Event{
+	srv.enqueuePodEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.KubernetesPod{
@@ -177,9 +179,54 @@ func TestProcessPodEventNotifiesAffectedNodeAfterProcessing(t *testing.T) {
 			},
 		},
 	})
+	assert.True(t, srv.processNextPodEvent(context.Background()))
 
 	assertNotified(t, "affected node after unset", node1Ch)
 	assert.NotContains(t, srv.buildMetadataSnapshot("node1").matchedOwners, "ns1/pod1")
+}
+
+func TestProcessesPodEvent_FollowingEventHandled(t *testing.T) {
+	resolver := &blockingPodOwnerResolver{
+		started: make(chan struct{}, 1),
+		unblock: make(chan struct{}),
+	}
+	srv := NewKubeMetadataStreamServer(nil, nil, resolver)
+	t.Cleanup(srv.podOwnerQueue.ShutDown)
+
+	nodeCh := srv.subscribeToNamespaceEvents("node1")
+	setEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+			NodeName:   "node1",
+		},
+	}
+	unsetEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeUnset,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+			NodeName:   "node1",
+		},
+	}
+
+	srv.enqueuePodEvents([]workloadmeta.Event{setEvent})
+	done := make(chan struct{})
+	go func() {
+		srv.processNextPodEvent(context.Background())
+		close(done)
+	}()
+	assertNotified(t, "resolver started", resolver.started)
+
+	srv.enqueuePodEvents([]workloadmeta.Event{unsetEvent})
+	close(resolver.unblock)
+	assertNotified(t, "resolution finished", done)
+
+	assert.Contains(t, srv.buildMetadataSnapshot("node1").matchedOwners, "ns1/pod1")
+	assertNotified(t, "resolved pod event", nodeCh)
+
+	assert.True(t, srv.processNextPodEvent(context.Background()))
+	assertNotified(t, "event received during resolution", nodeCh)
+	assert.Empty(t, srv.buildMetadataSnapshot("node1").matchedOwners)
 }
 
 func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
