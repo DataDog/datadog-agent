@@ -272,7 +272,7 @@ impl ProcessManager {
                 info!("[{name}] discarding stale bootstrap retry after config reload");
                 return;
             }
-            if !should_complete_policy_restart(proc) {
+            if !proc.should_complete_pending_restart() {
                 info!("[{name}] not restarting after config reload: start conditions not met");
                 proc.record_config_gate_met();
                 return;
@@ -742,15 +742,6 @@ fn should_stop_running_after_reload(
     !proc.start_conditions_met()
 }
 
-/// Whether a process stopped for a config update should be respawned with the new definition.
-fn should_restart_after_config_update(proc: &ManagedProcess) -> bool {
-    if proc.config().auto_start {
-        proc.should_start()
-    } else {
-        proc.start_conditions_met()
-    }
-}
-
 /// Reconcile a config-managed process after reload: restart after definition change,
 /// stop when config gates close, or start when gates open.
 async fn reconcile_process_after_reload(
@@ -773,7 +764,7 @@ async fn reconcile_process_after_reload(
             .wait_for_stop()
             .await
             .map(|pid| (proc.name().to_owned(), pid));
-        if should_restart_after_config_update(proc) {
+        if proc.should_respawn() {
             info!("[{}] restarting with updated config", proc.name());
             if let Err(e) = proc.spawn() {
                 warn!("[{}] failed to restart: {e:#}", proc.name());
@@ -830,17 +821,6 @@ fn should_retry_failed_after_config_change(proc: &ManagedProcess) -> bool {
     proc.origin() == ProcessOrigin::Config
         && proc.config().auto_start
         && proc.state() == ProcessState::Failed
-}
-
-fn should_complete_policy_restart(proc: &ManagedProcess) -> bool {
-    if proc.restart_eligibility() != Some(true) {
-        return false;
-    }
-    if proc.config().auto_start {
-        proc.should_start()
-    } else {
-        proc.start_conditions_met()
-    }
 }
 
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
