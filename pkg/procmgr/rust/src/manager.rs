@@ -527,7 +527,8 @@ impl ProcessManager {
                 .await;
             drop(procs);
             for (name, pid) in self.collect_orphaned_job_drains().await {
-                self.await_deferred_job_drain(name, pid).await;
+                self.await_deferred_job_drain(name, pid, Some(ManagedProcess::FORCE_KILL_TIMEOUT))
+                    .await;
             }
             let mut orphaned = self.orphaned_deferred_exit_cleanups.write().await;
             for entry in orphaned.drain(..) {
@@ -565,7 +566,12 @@ impl ProcessManager {
     }
 
     #[cfg(windows)]
-    async fn await_deferred_job_drain(&self, name: String, pid: u32) {
+    async fn await_deferred_job_drain(
+        &self,
+        name: String,
+        pid: u32,
+        max_duration: Option<std::time::Duration>,
+    ) {
         use std::time::Instant;
 
         let started = Instant::now();
@@ -586,6 +592,12 @@ impl ProcessManager {
                 );
                 warned = true;
             }
+            if max_duration.is_some_and(|max| started.elapsed() >= max) {
+                warn!(
+                    "[{name}] deferred job drain timed out during shutdown (pid {pid}); proceeding with cleanup"
+                );
+                return;
+            }
         }
     }
 
@@ -593,7 +605,7 @@ impl ProcessManager {
     fn spawn_deferred_job_drain(&self, name: String, pid: u32) {
         let mgr = self.clone();
         tokio::spawn(async move {
-            mgr.await_deferred_job_drain(name, pid).await;
+            mgr.await_deferred_job_drain(name, pid, None).await;
         });
     }
 
