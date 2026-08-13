@@ -171,7 +171,6 @@ pub struct ManagedProcess {
     last_start_conditions_met: Option<bool>,
     config_generation: u64,
     had_successful_run: bool,
-    queued_restart_generation: Option<u64>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
@@ -209,7 +208,6 @@ impl ManagedProcess {
             last_start_conditions_met: None,
             config_generation: 0,
             had_successful_run: false,
-            queued_restart_generation: None,
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
@@ -402,6 +400,7 @@ impl ManagedProcess {
     pub fn set_config(&mut self, config: ProcessConfig) {
         self.config_generation += 1;
         self.restarts = RestartTracker::new(config.restart_delay());
+        self.had_successful_run = false;
         self.config = config;
     }
 
@@ -439,18 +438,6 @@ impl ManagedProcess {
 
     pub(crate) fn config_generation(&self) -> u64 {
         self.config_generation
-    }
-
-    pub(crate) fn queued_restart_generation(&self) -> Option<u64> {
-        self.queued_restart_generation
-    }
-
-    pub(crate) fn record_queued_restart(&mut self) {
-        self.queued_restart_generation = Some(self.config_generation);
-    }
-
-    fn clear_queued_restart(&mut self) {
-        self.queued_restart_generation = None;
     }
 
     pub(crate) fn has_ever_run_successfully(&self) -> bool {
@@ -546,7 +533,6 @@ impl ManagedProcess {
 
         self.handle = Some(handle);
         self.transition_to(ProcessState::Running);
-        self.clear_queued_restart();
         self.restarts.mark_spawned();
         Ok(())
     }
@@ -1399,7 +1385,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_set_config_preserves_successful_run_state() {
+    fn test_set_config_resets_successful_run_state() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args.clone());
         cfg.restart = RestartPolicy::Always;
@@ -1414,13 +1400,10 @@ pub mod tests {
         proc.set_config(next_cfg);
 
         assert!(
-            proc.had_successful_run,
-            "set_config should preserve successful-run state when resetting backoff"
+            !proc.had_successful_run,
+            "set_config should reset successful-run state for a fresh reload start"
         );
-        assert!(
-            proc.has_ever_run_successfully(),
-            "has_ever_run_successfully should stay true after config replacement"
-        );
+        assert!(!proc.has_ever_run_successfully());
         assert_eq!(proc.config_generation(), 1);
         assert!((proc.restarts.current_delay - 2.0).abs() < 0.001);
     }
