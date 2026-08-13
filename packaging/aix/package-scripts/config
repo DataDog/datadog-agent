@@ -30,6 +30,22 @@ def env(*names):
     return None
 
 
+def env_present(*names):
+    # Like env(), but distinguishes unset from set-but-empty (os.LookupEnv
+    # semantics, matching LoadProxyFromEnv in pkg/config/setup/config.go):
+    # an explicit DD_PROXY_HTTP="" must suppress a lower-priority HTTP_PROXY
+    # rather than fall through to it.
+    for name in names:
+        if name in os.environ:
+            return name, os.environ[name]
+    return None, None
+
+
+def split_list(value):
+    # DD_TAGS and DD_PROXY_NO_PROXY both accept space or comma as separators.
+    return [v for v in value.replace(",", " ").split() if v]
+
+
 path = sys.argv[1]
 with open(path) as f:
     lines = f.readlines()
@@ -55,17 +71,24 @@ if environment := env("DD_ENV"):
 if infrastructure_mode := env("DD_INFRASTRUCTURE_MODE"):
     extra["infrastructure_mode"] = infrastructure_mode
 if tags := env("DD_TAGS"):
-    extra["tags"] = [t for t in tags.split(",") if t]
+    extra["tags"] = split_list(tags)
 
 # DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
 # vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
 proxy = {}
-if http_proxy := env("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy"):
+_, http_proxy = env_present("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy")
+if http_proxy:
     proxy["http"] = http_proxy
-if https_proxy := env("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy"):
+_, https_proxy = env_present("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy")
+if https_proxy:
     proxy["https"] = https_proxy
-if no_proxy := env("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy"):
-    proxy["no_proxy"] = [p for p in no_proxy.split(",") if p]
+no_proxy_source, no_proxy = env_present("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy")
+if no_proxy:
+    # DD_PROXY_NO_PROXY accepts space or comma; generic NO_PROXY is comma-only.
+    if no_proxy_source == "DD_PROXY_NO_PROXY":
+        proxy["no_proxy"] = split_list(no_proxy)
+    else:
+        proxy["no_proxy"] = [p for p in no_proxy.split(",") if p]
 if proxy:
     extra["proxy"] = proxy
 
