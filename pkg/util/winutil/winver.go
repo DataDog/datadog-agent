@@ -11,20 +11,24 @@ package winutil
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/sys/windows"
+	"strings"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
 	k32        = windows.NewLazyDLL("kernel32.dll")
 	versiondll = windows.NewLazyDLL("version.dll")
+	shlwapi    = windows.NewLazyDLL("shlwapi.dll")
 
 	procGetModuleHandle          = k32.NewProc("GetModuleHandleW")
 	procGetModuleFileName        = k32.NewProc("GetModuleFileNameW")
 	procGetFileVersionInfoSizeEx = versiondll.NewProc("GetFileVersionInfoSizeExW")
 	procGetFileVersionInfoEx     = versiondll.NewProc("GetFileVersionInfoExW")
 	procVerQueryValue            = versiondll.NewProc("VerQueryValueW")
+	procSHLoadIndirectString     = shlwapi.NewProc("SHLoadIndirectString")
 )
 
 // ErrNoPEBuildTimestamp indicates the PE header timestamp is not present or zero.
@@ -156,6 +160,46 @@ func fixedFileVersion(block []uint8) string {
 	return fmt.Sprintf("%d.%d.%d.%d",
 		ffi.dwFileVersionMS>>16, ffi.dwFileVersionMS&0xFFFF,
 		ffi.dwFileVersionLS>>16, ffi.dwFileVersionLS&0xFFFF)
+}
+
+// LoadIndirectString resolves a Windows indirect string reference of the form
+// "@<dll>,-<resourceID>" against the string table of the named module, as SHLoadIndirectString
+// does. Registry values that hold user-visible text — service display names among them — are
+// commonly stored this way so that they can be localized.
+//
+// The input is returned unchanged when it is not an indirect reference. An error is returned
+// when the reference cannot be resolved, which happens routinely: the module may not exist, or
+// may not carry the resource.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-shloadindirectstring
+func LoadIndirectString(source string) (string, error) {
+	if !strings.HasPrefix(source, "@") {
+		return source, nil
+	}
+
+	sourcePtr, err := syscall.UTF16PtrFromString(source)
+	if err != nil {
+		return "", err
+	}
+
+	// Display names are short; MAX_PATH-sized buffers are what callers of this API use.
+	buffer := make([]uint16, 1024)
+	ret, _, _ := procSHLoadIndirectString.Call(
+		uintptr(unsafe.Pointer(sourcePtr)),
+		uintptr(unsafe.Pointer(&buffer[0])),
+		uintptr(len(buffer)),
+		0,
+	)
+	// The call returns an HRESULT, where any non-zero value is a failure.
+	if ret != 0 {
+		return "", fmt.Errorf("SHLoadIndirectString(%q) failed: HRESULT 0x%x", source, ret)
+	}
+
+	resolved := windows.UTF16ToString(buffer)
+	if resolved == "" {
+		return "", fmt.Errorf("SHLoadIndirectString(%q) resolved to an empty string", source)
+	}
+	return resolved, nil
 }
 
 // FileVersionInfo contains common version resource strings for a file.

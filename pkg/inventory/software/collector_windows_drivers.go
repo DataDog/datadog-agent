@@ -69,6 +69,9 @@ type driverCollector struct {
 	// versionInfoFn reads the version resource of a driver binary. It is a field so tests
 	// stay off the filesystem; nil means read the real file.
 	versionInfoFn func(path string) (winutil.FileVersionInfo, error)
+	// loadIndirectFn resolves an indirect string reference in a display name. It is a field
+	// so tests stay off the filesystem; nil means resolve against the real module.
+	loadIndirectFn func(source string) (string, error)
 }
 
 // querySystemDrivers runs the WMI query against the local machine.
@@ -144,6 +147,41 @@ func expandWinEnv(path string) string {
 	})
 }
 
+// resolveDisplayName turns the DisplayName of a driver service into text fit for a human.
+//
+// Windows lets a service store its display name as an indirect resource reference so that it
+// can be localized, e.g. "@%SystemRoot%\System32\drivers\tcpipreg.sys,-10110". WMI resolves
+// most of them, but not all, and shipping the raw reference would put a file path in the
+// software name. The comment form "@todo.dll,-100;Microsoft IPv6 Protocol Driver" carries its
+// own fallback text after the semicolon, which is used when the resource cannot be loaded.
+//
+// The service name is the last resort: it is always present and always meaningful.
+func resolveDisplayName(displayName string, serviceName string, load func(string) (string, error)) string {
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		return serviceName
+	}
+	if !strings.HasPrefix(name, "@") {
+		return name
+	}
+
+	if resolved, err := load(name); err == nil {
+		if resolved = strings.TrimSpace(resolved); resolved != "" && !strings.HasPrefix(resolved, "@") {
+			return resolved
+		}
+	}
+
+	// The reference did not resolve. Anything after the first semicolon is fallback text the
+	// author supplied for exactly this case.
+	if _, comment, found := strings.Cut(name, ";"); found {
+		if comment = strings.TrimSpace(comment); comment != "" {
+			return comment
+		}
+	}
+
+	return serviceName
+}
+
 // cutPrefixFold reports whether s starts with prefix, ignoring case, and returns the
 // remainder when it does.
 func cutPrefixFold(s, prefix string) (string, bool) {
@@ -163,6 +201,10 @@ func (c *driverCollector) Collect() ([]*Entry, []*Warning, error) {
 	versionInfo := c.versionInfoFn
 	if versionInfo == nil {
 		versionInfo = winutil.GetFileVersionInfoStrings
+	}
+	loadIndirect := c.loadIndirectFn
+	if loadIndirect == nil {
+		loadIndirect = winutil.LoadIndirectString
 	}
 
 	drivers, err := query()
@@ -209,10 +251,7 @@ func (c *driverCollector) Collect() ([]*Entry, []*Warning, error) {
 			continue
 		}
 
-		displayName := strings.TrimSpace(driver.DisplayName)
-		if displayName == "" {
-			displayName = name
-		}
+		displayName := resolveDisplayName(driver.DisplayName, name, loadIndirect)
 
 		productCode := strings.ToLower(name)
 		if _, ok := byProductCode[productCode]; ok {

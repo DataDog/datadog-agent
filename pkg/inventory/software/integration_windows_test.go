@@ -457,6 +457,8 @@ func TestIntegrationDriversAgainstServices(t *testing.T) {
 	for _, entry := range entries {
 		assert.Equal(t, softwareTypeDriver, entry.Source)
 		assert.NotEmpty(t, entry.DisplayName)
+		assert.NotContains(t, entry.DisplayName, "@",
+			"driver %q reports an unresolved resource reference as its name", entry.ProductCode)
 		assert.NotEmpty(t, entry.Version, "a driver with no version is dropped, not reported")
 		assert.NotEmpty(t, entry.InstallPath, "the resolved path feeds install_paths")
 		// Publisher is deliberately not asserted: CompanyName is absent from some drivers.

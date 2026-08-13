@@ -37,8 +37,14 @@ func driverCollectorFor(records []win32SystemDriver, versions map[string]winutil
 			}
 			return winutil.FileVersionInfo{}, errNoVersionResource
 		},
+		// Nothing resolves by default: fixtures that care supply their own resolver.
+		loadIndirectFn: func(string) (string, error) { return "", errUnresolvedIndirectString },
 	}
 }
+
+// errUnresolvedIndirectString stands in for a resource reference that cannot be loaded,
+// which happens on real hosts when the module is missing or lacks the string.
+var errUnresolvedIndirectString = errors.New("unresolved indirect string")
 
 // underWindowsDir builds a path below the real Windows directory. Collect resolves
 // \SystemRoot\ against it, and it is not spelled the same way on every host ("C:\Windows",
@@ -287,6 +293,114 @@ func TestDriverCollectorFallsBackToTheServiceName(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "ACPI", entries[0].DisplayName, "an empty display name falls back to the service name")
+}
+
+func TestResolveDisplayName(t *testing.T) {
+	// Windows lets a service store its display name as an indirect resource reference so that
+	// it can be localized. WMI resolves most of them but not all, and both unresolved forms
+	// below were observed in a real payload.
+	resolves := func(string) (string, error) { return "TCP/IP Registry Compatibility", nil }
+	fails := func(string) (string, error) { return "", errUnresolvedIndirectString }
+
+	tests := []struct {
+		name        string
+		displayName string
+		load        func(string) (string, error)
+		expected    string
+	}{
+		{
+			name:        "a plain display name is passed through",
+			displayName: "Microsoft Defender Antivirus Mini-Filter Driver",
+			load:        fails,
+			expected:    "Microsoft Defender Antivirus Mini-Filter Driver",
+		},
+		{
+			name:        "an empty display name falls back to the service name",
+			displayName: "",
+			load:        fails,
+			expected:    "TheService",
+		},
+		{
+			name:        "a resolvable reference is resolved",
+			displayName: `@%SystemRoot%\System32\drivers\tcpipreg.sys,-10110,`,
+			load:        resolves,
+			expected:    "TCP/IP Registry Compatibility",
+		},
+		{
+			name:        "an unresolvable reference falls back to the service name",
+			displayName: `@%SystemRoot%\System32\drivers\tcpipreg.sys,-10110,`,
+			load:        fails,
+			expected:    "TheService",
+		},
+		{
+			name:        "an unresolvable reference uses its comment text when it has one",
+			displayName: "@todo.dll,-100;Microsoft IPv6 Protocol Driver",
+			load:        fails,
+			expected:    "Microsoft IPv6 Protocol Driver",
+		},
+		{
+			name:        "a resolver that echoes the reference back is not trusted",
+			displayName: "@todo.dll,-100;Microsoft IPv6 Protocol Driver",
+			load:        func(s string) (string, error) { return s, nil },
+			expected:    "Microsoft IPv6 Protocol Driver",
+		},
+		{
+			name:        "a resolver returning blank text falls back",
+			displayName: "@todo.dll,-100",
+			load:        func(string) (string, error) { return "   ", nil },
+			expected:    "TheService",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, resolveDisplayName(test.displayName, "TheService", test.load))
+		})
+	}
+}
+
+func TestDriverCollectorNeverReportsARawResourceReference(t *testing.T) {
+	// Regression: these two shipped a file path and a module reference as the software name,
+	// which is also part of the backend's identity key.
+	collector := driverCollectorFor(
+		[]win32SystemDriver{
+			{Name: "tcpipreg", DisplayName: `@%SystemRoot%\System32\drivers\tcpipreg.sys,-10110,`, PathName: `C:\Windows\System32\drivers\tcpipreg.sys`},
+			{Name: "tcpip6", DisplayName: "@todo.dll,-100;Microsoft IPv6 Protocol Driver", PathName: `C:\Windows\System32\drivers\tcpip.sys`},
+		},
+		map[string]winutil.FileVersionInfo{
+			`C:\Windows\System32\drivers\tcpipreg.sys`: {FileVersionNumeric: "6.2.26100.9168"},
+			`C:\Windows\System32\drivers\tcpip.sys`:    {FileVersionNumeric: "6.2.26100.9168"},
+		},
+	)
+
+	entries, _, err := collector.Collect()
+
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+	for _, entry := range entries {
+		assert.NotContains(t, entry.DisplayName, "@", "a raw resource reference reached the payload")
+	}
+}
+
+func TestDriverCollectorKeepsServicesSharingABinary(t *testing.T) {
+	// tcpip and tcpip6 are both served by tcpip.sys on a real host. Keying on the image path
+	// would merge them; the service name keeps them apart.
+	collector := driverCollectorFor(
+		[]win32SystemDriver{
+			{Name: "tcpip", DisplayName: "TCP/IP Protocol Driver", PathName: `C:\Windows\System32\drivers\tcpip.sys`},
+			{Name: "tcpip6", DisplayName: "Microsoft IPv6 Protocol Driver", PathName: `C:\Windows\System32\drivers\tcpip.sys`},
+		},
+		map[string]winutil.FileVersionInfo{
+			`C:\Windows\System32\drivers\tcpip.sys`: {FileVersionNumeric: "6.2.26100.9168"},
+		},
+	)
+
+	entries, _, err := collector.Collect()
+
+	require.NoError(t, err)
+	require.Len(t, entries, 2, "two services sharing one binary are two drivers")
+	assert.Equal(t, "tcpip", entries[0].ProductCode)
+	assert.Equal(t, "tcpip6", entries[1].ProductCode)
 }
 
 func TestDriverCollectorEmitsAnEmptyPublisher(t *testing.T) {
