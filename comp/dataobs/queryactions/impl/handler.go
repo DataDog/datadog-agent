@@ -26,8 +26,8 @@ import (
 var databaseIdentifierVariablePattern = regexp.MustCompile(`\$\$|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*`)
 
 const (
-	defaultMySQLPort    = 3306
-	defaultPostgresPort = 5432
+	mysqlPortFallback    = "0"
+	postgresPortFallback = "5432"
 )
 
 // A "base config" is a supported DB integration.Config emitted by another provider that a DO
@@ -513,11 +513,9 @@ func evaluateMySQLIdentifier(instance map[string]any, identifier DBIdentifier) (
 		return
 	}
 
-	match.renderedIdentifier, match.renderable = renderDatabaseIdentifierWithLookup(
+	match.renderedIdentifier, match.renderable = renderMySQLDatabaseIdentifierWithLookup(
 		instance,
 		identifier.AgentHostname,
-		"$resolved_hostname",
-		defaultMySQLPort,
 		net.LookupHost,
 	)
 	match.matched = match.renderable && match.renderedIdentifier == identifier.Host
@@ -534,7 +532,8 @@ func evaluatePostgresIdentifier(instance map[string]any, identifier DBIdentifier
 		instance,
 		identifier.AgentHostname,
 		"$resolved_hostname",
-		defaultPostgresPort,
+		postgresPortFallback,
+		nil,
 		net.LookupHost,
 	)
 	match.matched = match.renderable && match.renderedIdentifier == identifier.Host
@@ -565,13 +564,33 @@ func evaluateEndpointIdentifier(instance map[string]any, targetHost string) iden
 	return identifierMatchEvaluation{}
 }
 
+// renderMySQLDatabaseIdentifierWithLookup supplies the variables exposed by the Python MySQL
+// check. Its config key is "sock", while the database_identifier template variable is
+// $mysql_sock; both $port and $mysql_sock are populated even when their config keys are absent.
+func renderMySQLDatabaseIdentifierWithLookup(
+	instance map[string]any,
+	agentHostname string,
+	lookupHost func(string) ([]string, error),
+) (string, bool) {
+	mysqlSock, _ := instance["sock"].(string)
+	return renderDatabaseIdentifierWithLookup(
+		instance,
+		agentHostname,
+		"$resolved_hostname",
+		mysqlPortFallback,
+		map[string]string{"mysql_sock": mysqlSock},
+		lookupHost,
+	)
+}
+
 // renderDatabaseIdentifierWithLookup renders a database_identifier template using the shared
 // inputs exposed by the MySQL and Postgres checks. Unknown variables stay in the result, matching
 // Python's safe_substitute.
 func renderDatabaseIdentifierWithLookup(
 	instance map[string]any,
 	agentHostname, defaultTemplate string,
-	defaultPort int,
+	portFallback string,
+	integrationValues map[string]string,
 	lookupHost func(string) ([]string, error),
 ) (string, bool) {
 	template := defaultTemplate
@@ -593,12 +612,15 @@ func renderDatabaseIdentifierWithLookup(
 	}
 
 	values := templateTagValues(instance)
+	for name, value := range integrationValues {
+		values[name] = value
+	}
 	host := instanceHost(instance)
 	values["host"] = host
 	if port, ok := instancePort(instance); ok {
 		values["port"] = strconv.Itoa(port)
-	} else if _, configured := instance["port"]; !configured && defaultPort != 0 {
-		values["port"] = strconv.Itoa(defaultPort)
+	} else if _, configured := instance["port"]; !configured && portFallback != "" {
+		values["port"] = portFallback
 	}
 
 	var resolvedHostname string

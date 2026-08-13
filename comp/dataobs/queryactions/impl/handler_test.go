@@ -111,21 +111,89 @@ func TestInstanceMatchesIdentifier_MySQL(t *testing.T) {
 		assert.True(t, instanceMatchesIdentifier(instance, identifier, "mysql"))
 	})
 
-	t.Run("database identifier uses MySQL default port", func(t *testing.T) {
-		instance := map[string]any{
-			"host": "localhost",
-			"database_identifier": map[string]any{
-				"template": "$resolved_hostname:$port",
+	testCases := []struct {
+		name     string
+		instance map[string]any
+		target   string
+	}{
+		{
+			name: "database identifier uses zero when port is absent",
+			instance: map[string]any{
+				"host": "localhost",
+				"database_identifier": map[string]any{
+					"template": "$resolved_hostname:$port",
+				},
 			},
-		}
-		identifier := DBIdentifier{
-			Type:          "self-hosted",
-			Host:          "do-test-mysql:3306",
-			AgentHostname: "do-test-mysql",
-		}
+			target: "do-test-mysql:0",
+		},
+		{
+			name: "socket database identifier still uses zero when port is absent",
+			instance: map[string]any{
+				"host": "localhost",
+				"sock": "/var/run/mysqld/mysqld.sock",
+				"database_identifier": map[string]any{
+					"template": "$resolved_hostname:$port",
+				},
+			},
+			target: "do-test-mysql:0",
+		},
+		{
+			name: "database identifier maps sock to mysql_sock",
+			instance: map[string]any{
+				"host": "localhost",
+				"sock": "/var/run/mysqld/mysqld.sock",
+				"database_identifier": map[string]any{
+					"template": "$resolved_hostname:$mysql_sock",
+				},
+			},
+			target: "do-test-mysql:/var/run/mysqld/mysqld.sock",
+		},
+		{
+			name: "database identifier uses explicit port",
+			instance: map[string]any{
+				"host": "localhost",
+				"port": 3307,
+				"database_identifier": map[string]any{
+					"template": "$resolved_hostname:$port",
+				},
+			},
+			target: "do-test-mysql:3307",
+		},
+	}
 
-		assert.True(t, instanceMatchesIdentifier(instance, identifier, "mysql"))
-		assert.False(t, instanceMatchesIdentifier(instance, identifier, defaultTestIntegration))
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			identifier := DBIdentifier{
+				Type:          "self-hosted",
+				Host:          testCase.target,
+				AgentHostname: "do-test-mysql",
+			}
+
+			match := evaluateInstanceIdentifier(testCase.instance, identifier, "mysql", nil)
+			require.True(t, match.matched)
+			assert.Equal(t, "database_identifier", match.strategy)
+			assert.Equal(t, testCase.target, match.renderedIdentifier)
+			assert.True(t, match.renderable)
+		})
+	}
+
+	t.Run("database identifier substitutes empty mysql_sock when sock is absent", func(t *testing.T) {
+		identifier, ok := renderMySQLDatabaseIdentifierWithLookup(
+			map[string]any{
+				"host": "localhost",
+				"database_identifier": map[string]any{
+					"template": "$mysql_sock",
+				},
+			},
+			"do-test-mysql",
+			func(string) ([]string, error) {
+				t.Fatal("local database hosts should not require a DNS lookup")
+				return nil, nil
+			},
+		)
+
+		require.True(t, ok)
+		assert.Empty(t, identifier)
 	})
 
 }
@@ -169,7 +237,10 @@ func TestMatchesIdentifier_DatabaseIdentifierTemplate(t *testing.T) {
 			Host:          "do-test-postgres-staging:5432",
 			AgentHostname: "do-test-postgres-staging",
 		}
-		assert.True(t, matchesIdentifier(instanceWithoutPort, dbID))
+		match := evaluateInstanceIdentifier(instanceWithoutPort, *dbID, "postgres", nil)
+		require.True(t, match.matched)
+		assert.Equal(t, "database_identifier", match.strategy)
+		assert.Equal(t, "do-test-postgres-staging:5432", match.renderedIdentifier)
 	})
 }
 
@@ -239,7 +310,8 @@ func TestRenderDatabaseIdentifier_UsesAgentHostnameForSameResolvedIPv4(t *testin
 		instance,
 		"agent.internal",
 		"$resolved_hostname",
-		defaultPostgresPort,
+		postgresPortFallback,
+		nil,
 		lookup,
 	)
 
@@ -252,7 +324,8 @@ func TestRenderDatabaseIdentifier_UsesDefaultPostgresTemplate(t *testing.T) {
 		map[string]any{"host": "localhost"},
 		"agent.internal",
 		"$resolved_hostname:$port",
-		defaultPostgresPort,
+		postgresPortFallback,
+		nil,
 		func(string) ([]string, error) {
 			t.Fatal("local database hosts should not require a DNS lookup")
 			return nil, nil
