@@ -84,6 +84,7 @@ dd_agent_go_test(
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/config/mock",
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],

@@ -2,6 +2,8 @@
 features:
   - |
     The software inventory now reports installed operating system updates on
-    Windows and macOS, and installed third-party (OEM) driver packages on
-    Windows. These are collected alongside installed applications and are
-    identified by the ``os_update`` and ``driver`` software types.
+    Windows and macOS, and installed kernel-mode drivers on Windows. Drivers
+    include software-only drivers such as endpoint-protection filter drivers,
+    which are not bound to any hardware device. These are collected alongside
+    installed applications and are identified by the ``os_update`` and
+    ``driver`` software types.

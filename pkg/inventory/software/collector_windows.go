@@ -23,7 +23,7 @@ func defaultCollectors() []Collector {
 		&msStoreAppsCollector{},
 		// osUpdateCollector collects installed OS updates from the servicing store
 		&osUpdateCollector{},
-		// driverCollector collects third-party (OEM) driver packages
+		// driverCollector collects registered kernel-mode drivers
 		&driverCollector{},
 	}
 }

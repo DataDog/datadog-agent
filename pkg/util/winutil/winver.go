@@ -133,6 +133,31 @@ func getVersionInfo(block []uint8) (ver string, err error) {
 
 }
 
+// fixedFileVersion returns the file version from the VS_FIXEDFILEINFO structure of a
+// version resource block, formatted as a dotted quad ("10.0.19041.1").
+//
+// This is preferred over the FileVersion string when a machine-comparable version is
+// needed: the fixed structure holds four 16-bit integers, so it carries no localization,
+// no decoration ("1.0.0.1 (build_lab)") and nothing to parse. It returns an empty string
+// when the resource has no fixed information.
+func fixedFileVersion(block []uint8) string {
+	subblock := windows.StringToUTF16Ptr("\\")
+	var infoptr unsafe.Pointer
+	var ulen uint32
+	ret, _, _ := procVerQueryValue.Call(uintptr(unsafe.Pointer(&block[0])),
+		uintptr(unsafe.Pointer(subblock)),
+		uintptr(unsafe.Pointer(&infoptr)),
+		uintptr(unsafe.Pointer(&ulen)))
+	if ret == 0 || infoptr == nil {
+		return ""
+	}
+
+	ffi := (*tagVSFIXEDFILEINFO)(infoptr)
+	return fmt.Sprintf("%d.%d.%d.%d",
+		ffi.dwFileVersionMS>>16, ffi.dwFileVersionMS&0xFFFF,
+		ffi.dwFileVersionLS>>16, ffi.dwFileVersionLS&0xFFFF)
+}
+
 // FileVersionInfo contains common version resource strings for a file.
 type FileVersionInfo struct {
 	CompanyName      string
@@ -141,6 +166,12 @@ type FileVersionInfo struct {
 	ProductVersion   string
 	OriginalFilename string
 	InternalName     string
+
+	// FileVersionNumeric is the file version from VS_FIXEDFILEINFO, formatted as a
+	// dotted quad. Unlike FileVersion it is machine-comparable: it is built from four
+	// 16-bit integers, so it is never localized or decorated. Empty when the resource
+	// carries no fixed information.
+	FileVersionNumeric string
 }
 
 // GetFileVersionInfoStrings returns common version resource strings for the specified file.
@@ -153,6 +184,16 @@ func GetFileVersionInfoStrings(executablePath string) (FileVersionInfo, error) {
 	if err != nil {
 		return info, err
 	}
+	if len(data) == 0 {
+		// Guard the &data[0] indexing below: getFileVersionInfo can report success with an
+		// empty block if the size query returned zero.
+		return info, errors.New("empty version information block")
+	}
+
+	// Read the fixed information before the string table: a resource may carry a valid
+	// VS_FIXEDFILEINFO without a translation table, and the lookup below gives up in that
+	// case.
+	info.FileVersionNumeric = fixedFileVersion(data)
 
 	// Get the first language/codepage from the translation table
 	translationPtr, err := syscall.UTF16PtrFromString("\\VarFileInfo\\Translation")

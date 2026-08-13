@@ -395,144 +395,91 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	}
 }
 
-// pnputilDriver is one published driver package as reported by pnputil /enum-drivers
-type pnputilDriver struct {
-	publishedName string
-	providerName  string
-	className     string
-}
+// servicesKey is the registry key that Win32_SystemDriver projects.
+const servicesKey = `SYSTEM\CurrentControlSet\Services`
 
-// parsePnputilDrivers parses the record-per-package output of pnputil /enum-drivers.
-// Records are separated by blank lines and start with a "Published Name" field.
-func parsePnputilDrivers(output string) []pnputilDriver {
-	var drivers []pnputilDriver
-	var current pnputilDriver
+// serviceDriverNames enumerates HKLM\SYSTEM\CurrentControlSet\Services and returns the
+// names of every kernel-mode driver service on the host.
+//
+// It reimplements the enumeration rather than reusing the collector on purpose: the Services
+// key is the ground truth that Win32_SystemDriver projects, so it is what the collector is
+// checked against.
+func serviceDriverNames(t *testing.T) map[string]struct{} {
+	t.Helper()
 
-	flush := func() {
-		if current.publishedName != "" {
-			drivers = append(drivers, current)
-		}
-		current = pnputilDriver{}
-	}
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, servicesKey,
+		registry.ENUMERATE_SUB_KEYS|registry.QUERY_VALUE|registry.WOW64_64KEY)
+	require.NoError(t, err)
+	defer func() { _ = key.Close() }()
 
-	for _, line := range strings.Split(output, "\n") {
-		field, value, ok := strings.Cut(strings.TrimSpace(line), ":")
-		if !ok {
+	names, err := key.ReadSubKeyNames(wantAll)
+	require.NoError(t, err)
+
+	drivers := make(map[string]struct{})
+	for _, name := range names {
+		subkey, err := registry.OpenKey(key, name, registry.QUERY_VALUE|registry.WOW64_64KEY)
+		if err != nil {
 			continue
 		}
-		value = strings.TrimSpace(value)
-		switch strings.TrimSpace(field) {
-		case "Published Name":
-			flush()
-			current.publishedName = value
-		case "Provider Name":
-			current.providerName = value
-		case "Class Name":
-			current.className = value
+		serviceType, _, err := subkey.GetIntegerValue("Type")
+		_ = subkey.Close()
+		if err != nil {
+			continue
+		}
+		// SERVICE_KERNEL_DRIVER (1) and SERVICE_FILE_SYSTEM_DRIVER (2) are what
+		// Win32_SystemDriver exposes.
+		if serviceType == 1 || serviceType == 2 {
+			drivers[strings.ToLower(name)] = struct{}{}
 		}
 	}
-	flush()
 
 	return drivers
 }
 
-func TestParsePnputilDrivers(t *testing.T) {
-	output := `Microsoft PnP Utility
-
-Published Name:     oem0.inf
-Original Name:      prnms003.inf
-Provider Name:      Microsoft
-Class Name:         Printers
-Class GUID:         {4d36e979-e325-11ce-bfc1-08002be10318}
-Driver Version:     06/21/2006 10.0.26100.1150
-Signer Name:        Microsoft Windows
-
-Published Name:     oem1.inf
-Original Name:      netwtw10.inf
-Provider Name:      Intel
-Class Name:         Net
-Driver Version:     09/13/2024 22.100.0.2
-`
-
-	drivers := parsePnputilDrivers(output)
-
-	require.Len(t, drivers, 2)
-	assert.Equal(t, "oem0.inf", drivers[0].publishedName)
-	assert.Equal(t, "Microsoft", drivers[0].providerName)
-	assert.Equal(t, "Printers", drivers[0].className)
-	assert.Equal(t, "oem1.inf", drivers[1].publishedName)
-	assert.Equal(t, "Intel", drivers[1].providerName)
-	assert.Equal(t, "Net", drivers[1].className)
-}
-
-// TestIntegrationDriversAgainstPnputil verifies against the real host that every OEM
-// driver package we report is one that pnputil also lists. The comparison is one-way:
-// pnputil additionally lists driver-store packages that are not bound to any device,
-// which the WMI-based collector does not see.
-func TestIntegrationDriversAgainstPnputil(t *testing.T) {
+// TestIntegrationDriversAgainstServices verifies against the real host that every driver the
+// collector reports is a registered kernel-mode driver service, and reports which drivers were
+// dropped and why.
+//
+// The comparison is one-way: the registry additionally lists driver services whose binary has
+// no version resource, which the collector deliberately drops.
+func TestIntegrationDriversAgainstServices(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	out, err := exec.Command("pnputil", "/enum-drivers").Output()
-	require.NoError(t, err)
-
-	// Compare on the published INF name. Both tools take it from the driver store, so it
-	// is the one field guaranteed to agree; the provider and class strings are formatted
-	// differently by each API and cannot be matched directly.
-	published := make(map[string]struct{})
-	for _, driver := range parsePnputilDrivers(string(out)) {
-		if oemInfPattern.MatchString(driver.publishedName) {
-			published[strings.ToLower(driver.publishedName)] = struct{}{}
-		}
-	}
-	if len(published) == 0 {
-		// pnputil output is localized; without parsed records there is nothing to compare against.
-		t.Skip("pnputil reported no published OEM driver packages")
-	}
-
-	records, err := queryPnPSignedDrivers()
-	require.NoError(t, err)
-
-	bound := make(map[string]struct{})
-	for _, record := range records {
-		if oemInfPattern.MatchString(record.InfName) {
-			bound[strings.ToLower(record.InfName)] = struct{}{}
-		}
-	}
-
-	// pnputil also lists driver-store packages that are not bound to any device, so the
-	// comparison only holds in this direction.
-	for inf := range bound {
-		assert.Contains(t, published, inf, "driver %s is bound to a device but not published", inf)
-	}
+	registered := serviceDriverNames(t)
+	require.NotEmpty(t, registered, "a Windows host always has kernel driver services")
 
 	entries, warnings, err := (&driverCollector{}).Collect()
 	require.NoError(t, err)
-	for _, w := range warnings {
-		t.Logf("Warning: %s", w.Message)
-	}
-
-	// One entry per INF package, less any packages whose product codes collide.
-	assert.LessOrEqual(t, len(entries), len(bound),
-		"collector reported more packages than there are bound OEM INFs")
 
 	seenIDs := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
 		assert.Equal(t, softwareTypeDriver, entry.Source)
 		assert.NotEmpty(t, entry.DisplayName)
-		assert.NotEmpty(t, entry.Version)
-		assert.NotEmpty(t, entry.Publisher)
+		assert.NotEmpty(t, entry.Version, "a driver with no version is dropped, not reported")
+		assert.NotEmpty(t, entry.InstallPath, "the resolved path feeds install_paths")
+		// Publisher is deliberately not asserted: CompanyName is absent from some drivers.
+
+		assert.Contains(t, registered, entry.ProductCode,
+			"driver %q is reported but is not a registered kernel driver service", entry.ProductCode)
 
 		_, duplicate := seenIDs[entry.GetID()]
 		assert.False(t, duplicate, "driver %q reported more than once", entry.GetID())
 		seenIDs[entry.GetID()] = struct{}{}
 	}
 
-	t.Logf("pnputil published %d OEM packages, %d are bound to a device, collector reported %d",
-		len(published), len(bound), len(entries))
+	// The drop count is the number that decides whether requiring a numeric file version is
+	// too strict. Warnings name the driver and the reason, so log them all rather than a
+	// count: a large "reports no file version" bucket is the signal to revisit the policy.
+	t.Logf("registry lists %d kernel driver services, collector reported %d, dropped %d",
+		len(registered), len(entries), len(warnings))
+	for _, w := range warnings {
+		t.Logf("  dropped: %s", w.Message)
+	}
+
 	for _, entry := range entries {
-		t.Logf("  %s %s (%s)", entry.DisplayName, entry.Version, entry.ProductCode)
+		t.Logf("  %s %s [%s] (%s)", entry.DisplayName, entry.Version, entry.Publisher, entry.ProductCode)
 	}
 }
 
