@@ -330,6 +330,7 @@ docker_build_host_profiler_standalone_arm64:
       --strip-components 4 \
       opt/datadog-agent/embedded/bin/otel-agent \
       opt/datadog-agent/embedded/bin/agent-rollout-gate
+    - mv $BUILD_CONTEXT/agent-rollout-gate $BUILD_CONTEXT/otel-agent-rollout-gate
     - |
       tar --extract --xz --file $ARCHIVE_NAME \
       --verbose \
