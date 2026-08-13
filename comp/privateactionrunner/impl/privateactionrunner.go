@@ -32,6 +32,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -67,6 +68,22 @@ type Requires struct {
 	Lifecycle     compdef.Lifecycle
 	Shutdowner    compdef.Shutdowner
 	RcClient      rcclient.Component
+	Hostname      hostname.Component
+	Tagger        tagger.Component
+	Traceroute    traceroute.Component
+	EventPlatform eventplatform.Component
+	IPC           ipc.Component
+	Statsd        statsdcomp.Component
+	HelmActions   helmactions.Component
+}
+
+// ExecutorRequires defines dependencies for split executor mode. It excludes
+// the Remote Config client because signing keys come from AgentSecure.
+type ExecutorRequires struct {
+	Config        config.Component
+	Log           log.Component
+	Lifecycle     compdef.Lifecycle
+	Shutdowner    compdef.Shutdowner
 	Hostname      hostname.Component
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
@@ -143,7 +160,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 // NewExecutorComponent creates a privateactionrunner component in on-demand executor mode.
-func NewExecutorComponent(reqs Requires) (Provides, error) {
+func NewExecutorComponent(reqs ExecutorRequires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
@@ -157,7 +174,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, nil, reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -276,7 +293,7 @@ func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
-	// Detached from ctx's deadline: the server must run until Stop(), not until the fx start timeout.
+	// The server runs until Stop, independently of the Fx startup deadline.
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	p.cancelStart = cancel
 	defer p.logger.Flush()
@@ -299,20 +316,29 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	keysManager := taskverifier.NewExecutorKeyManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
 	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 
-	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
+	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion, keysManager)
+	ipcAddress, err := confighelper.GetIPCAddress(p.coreConfig)
+	if err != nil {
+		return fmt.Errorf("resolving Core Agent IPC address: %w", err)
+	}
+	signingKeysClient, err := executor.NewAgentSigningKeysClient(
+		runCtx,
+		ipcAddress,
+		confighelper.GetIPCPort(p.coreConfig),
+		p.ipc.GetAuthToken(),
+		p.ipc.GetTLSClientConfig(),
+	)
+	if err != nil {
+		return fmt.Errorf("creating Core Agent signing-key client: %w", err)
+	}
 
 	go p.encryptionStore.Start()
-	keysManager.Start(runCtx)
-	go func() {
-		keysManager.WaitForReady()
-		p.executorServer.SetReady(true)
-		p.logger.Info("Private action runner executor ready to accept actions")
-	}()
+	p.executorServer.StartSigningKeySync(runCtx, signingKeysClient)
 
 	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
 	lis, err := executor.Listen(socketPath)

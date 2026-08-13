@@ -15,6 +15,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/rcclient",
+        "//pkg/privateactionrunner/signingkeys",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
@@ -27,11 +28,15 @@ go_library(
 
 dd_agent_go_test(
     name = "task-verifier_test",
-    srcs = ["verifier_test.go"],
+    srcs = [
+        "keys_manager_test.go",
+        "verifier_test.go",
+    ],
     embed = [":task-verifier"],
     deps = [
         "//pkg/privateactionrunner/types",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
+        "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",

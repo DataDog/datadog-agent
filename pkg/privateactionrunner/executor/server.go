@@ -21,11 +21,18 @@ import (
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
+	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 )
+
+// maxMessageSize is the control<->executor protocol limit in bytes. Action
+// inputs and outputs can approach 15 MiB, so 20 MiB leaves protobuf headroom
+// while still bounding memory use. Keep this in sync with MAX_MESSAGE_SIZE in
+// par-control's executor client.
+const maxMessageSize = 20 * 1024 * 1024
 
 type actionExecutor interface {
 	PrepareTask(ctx context.Context, task *types.Task) (*runners.PreparedWorkflowTask, *types.Task, error)
@@ -36,22 +43,25 @@ type actionExecutor interface {
 type Server struct {
 	pb.UnimplementedExecutorServer
 
-	executor actionExecutor
-	version  string
+	executor    actionExecutor
+	version     string
+	keysManager taskverifier.KeysManager
 
 	ready  atomic.Bool
 	active atomic.Int32
+	busy   atomic.Int32
 
 	lastActivity atomic.Int64
 	clock        clock.Clock
 }
 
 // NewServer builds a gRPC server that dispatches actions to the given core.
-func NewServer(executor actionExecutor, version string) *Server {
+func NewServer(executor actionExecutor, version string, keysManager taskverifier.KeysManager) *Server {
 	s := &Server{
-		executor: executor,
-		version:  version,
-		clock:    clock.New(),
+		executor:    executor,
+		version:     version,
+		keysManager: keysManager,
+		clock:       clock.New(),
 	}
 	s.touch()
 	return s
@@ -61,8 +71,17 @@ func (s *Server) touch() {
 	s.lastActivity.Store(s.clock.Now().UnixNano())
 }
 
+func (s *Server) beginActivity() func() {
+	s.touch()
+	s.busy.Add(1)
+	return func() {
+		s.touch()
+		s.busy.Add(-1)
+	}
+}
+
 func (s *Server) idleFor() time.Duration {
-	if s.active.Load() > 0 {
+	if s.busy.Load() > 0 {
 		return 0
 	}
 	return s.clock.Since(time.Unix(0, s.lastActivity.Load()))
@@ -95,11 +114,11 @@ func (s *Server) RunAction(req *pb.RunActionRequest, stream pb.Executor_RunActio
 		))
 	}
 
-	s.touch()
+	finishActivity := s.beginActivity()
 	s.active.Add(1)
 	defer func() {
-		s.touch()
 		s.active.Add(-1)
+		finishActivity()
 	}()
 
 	// Raw bytes must stay unmodified for signature verification.
@@ -162,6 +181,12 @@ const idleCheckDivisor = 10
 // Serve serves the Executor on lis until ctx is cancelled, then stops gracefully
 // bounded by the drain timeout. Pass grpcOpts to secure the socket.
 func Serve(ctx context.Context, lis net.Listener, srv *Server, opts ServeOptions, grpcOpts ...grpc.ServerOption) error {
+	// Apply the protocol limits after caller-provided options so every executor
+	// endpoint accepts the same bounded action payload sizes.
+	grpcOpts = append(grpcOpts,
+		grpc.MaxRecvMsgSize(maxMessageSize),
+		grpc.MaxSendMsgSize(maxMessageSize),
+	)
 	grpcServer := grpc.NewServer(grpcOpts...)
 	pb.RegisterExecutorServer(grpcServer, srv)
 

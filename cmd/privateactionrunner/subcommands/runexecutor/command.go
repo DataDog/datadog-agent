@@ -29,15 +29,11 @@ import (
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
-	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
-	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
-	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type cliParams struct {
@@ -69,9 +65,6 @@ func runExecutor(ctx context.Context, confPath string, extraConfFiles []string) 
 		settingsfx.Module(),
 		remotehostnameimpl.Module(),
 		ipcfx.ModuleReadWrite(),
-		rcservicefx.Module(),
-		rcclientfx.Module(),
-		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
 		getTaggerModule(),
 		remotetraceroute.Module(),
 		logscompressionfx.Module(),
