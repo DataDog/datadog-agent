@@ -116,7 +116,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+		gpuDeviceInfo.VirtualizationMode = gpuutil.VirtualizationModeToString(virtMode)
 	}
 
 	memBusWidth, err := device.GetMemoryBusWidth()
@@ -441,21 +441,4 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
-	switch nvmlVirtMode {
-	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
-		return "none"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
-		return "host_vgpu"
-	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
-		return "passthrough"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
-		return "host_vsga"
-	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
-		return "vgpu"
-	default:
-		return "unknown"
-	}
 }

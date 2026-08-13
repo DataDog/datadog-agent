@@ -180,7 +180,15 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	}
 }
 
-var collectorTelemetryTagNames = []string{"collector", "gpu_device", "gpu_architecture", "gpu_nvlink_capable", "gpu_nvlink_version"}
+var collectorTelemetryTagNames = []string{
+	"collector",
+	"gpu_device",
+	"gpu_virtualization_mode",
+	"gpu_architecture",
+	"gpu_slicing_mode",
+	"gpu_nvlink_capable",
+	"gpu_nvlink_version",
+}
 
 var collectorCreationTelemetryTagNames = append([]string{"status"}, collectorTelemetryTagNames...)
 
@@ -194,10 +202,24 @@ func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
 	return []string{
 		string(name),
 		gpuutil.NormalizeGPUDeviceName(deviceInfo.Name),
+		gpuutil.VirtualizationModeToString(deviceInfo.VirtualizationMode),
 		gpuutil.ArchToString(deviceInfo.Architecture),
+		slicingModeTag(device),
 		strconv.FormatBool(deviceInfo.NVLinkLinkCount > 0),
 		deviceInfo.NVLinkVersion,
 	}
+}
+
+func slicingModeTag(device ddnvml.Device) string {
+	switch device := device.(type) {
+	case *ddnvml.MIGDevice:
+		return "mig"
+	case *ddnvml.PhysicalDevice:
+		if len(device.MIGChildren) > 0 {
+			return "mig-parent"
+		}
+	}
+	return "none"
 }
 
 // addCollector adds a collector to the telemetry, checking that the telemetry is not nil
