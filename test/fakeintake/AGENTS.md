@@ -48,6 +48,17 @@ test/fakeintake/
 | `/api/v0.1/org` | (Remote Config) | — |
 | `/api/v0.1/status` | (Remote Config) | — |
 
+## Payload query API
+
+`GET /fakeintake/payloads?endpoint=<route>` supports optional `after=<seq>` and
+`limit=<n>` query params (both `format=raw` and `format=json`) to bound how
+many payloads a single request parses/marshals. Omitting them preserves the
+old full-dump behavior. Payloads carry a monotonically increasing `Seq`; use
+that (not array index) as a paging cursor — `CleanUpPayloadsOlderThan` trims
+from the front on a timer, so array offsets aren't stable across polls. The Go
+client (`client/client.go`, `getFakePayloads`) already pages internally with a
+fixed page size, so every existing `Filter*`/`Get*` method is unaffected.
+
 ## Client usage
 
 ```go

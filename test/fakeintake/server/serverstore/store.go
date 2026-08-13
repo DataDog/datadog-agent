@@ -28,8 +28,10 @@ type Store interface {
 	GetLastAPIKey() (string, error)
 	// CleanUpPayloadsOlderThan removes payloads older than the given time
 	CleanUpPayloadsOlderThan(time.Time)
-	// GetRawPayloads returns all raw payloads for a given route
-	GetRawPayloads(route string) []api.Payload
+	// GetRawPayloads returns raw payloads for a given route with sequence number `Seq` greater than afterSeq,
+	// up to `limit` payloads and `hasMore` if there are more payloads beyond the returned page.
+	// A `limit` of 0 returns all matching payloads.
+	GetRawPayloads(route string, afterSeq uint64, limit int) (payloads []api.Payload, hasMore bool)
 	// GetRouteStats returns the number of payloads for each route
 	GetRouteStats() map[string]int
 	// Flush flushes the store
@@ -46,20 +48,26 @@ func NewStore() Store {
 	return newInMemoryStore()
 }
 
-// GetJSONPayloads returns the parsed payloads for a given route
-func GetJSONPayloads(store Store, route string) ([]api.ParsedPayload, error) {
+// GetJSONPayloads returns the parsed payloads for a given route with sequence number `Seq` greater than afterSeq,
+// up to `limit` payloads. `nextCursor` is the sequence number of the last payload in the returned page.
+// `hasMore` is true if there are more payloads beyond the returned page.
+func GetJSONPayloads(store Store, route string, afterSeq uint64, limit int) (parsedPayloads []api.ParsedPayload, nextCursor uint64, hasMore bool, err error) {
 	parser, ok := parserMap[route]
 	if !ok {
-		return nil, fmt.Errorf("no parser for route %s", route)
+		return nil, afterSeq, false, fmt.Errorf("no parser for route %s", route)
 	}
-	payloads := store.GetRawPayloads(route)
-	parsedPayloads := make([]api.ParsedPayload, 0, len(payloads))
+	payloads, hasMore := store.GetRawPayloads(route, afterSeq, limit)
+	nextCursor = afterSeq
+	if len(payloads) > 0 {
+		nextCursor = payloads[len(payloads)-1].Seq
+	}
+	parsedPayloads = make([]api.ParsedPayload, 0, len(payloads))
 	var errs []error
 	for _, payload := range payloads {
-		parsedPayload, err := parser(payload)
-		if err != nil {
-			log.Printf("failed to parse payload %+v: %v\n", payload, err)
-			errs = append(errs, err)
+		parsedPayload, parseErr := parser(payload)
+		if parseErr != nil {
+			log.Printf("failed to parse payload %+v: %v\n", payload, parseErr)
+			errs = append(errs, parseErr)
 			continue
 		}
 		parsedPayloads = append(parsedPayloads, api.ParsedPayload{
@@ -69,5 +77,5 @@ func GetJSONPayloads(store Store, route string) ([]api.ParsedPayload, error) {
 			Encoding:  payload.Encoding,
 		})
 	}
-	return parsedPayloads, errors.Join(errs...)
+	return parsedPayloads, nextCursor, hasMore, errors.Join(errs...)
 }

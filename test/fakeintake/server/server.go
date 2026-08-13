@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -518,6 +519,34 @@ func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+// parseUintQueryParam returns the uint64 value of query param `name`, or
+// def if the param is absent or unparseable.
+func parseUintQueryParam(req *http.Request, name string, def uint64) uint64 {
+	raw := req.URL.Query().Get(name)
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return def
+	}
+	return v
+}
+
+// parseIntQueryParam returns the int value of query param `name`, or def
+// if the param is absent or unparseable.
+func parseIntQueryParam(req *http.Request, name string, def int) int {
+	raw := req.URL.Query().Get(name)
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return def
+	}
+	return v
+}
+
 func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
@@ -532,25 +561,38 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	// we could support multiple endpoints in the future
 	route := routes[0]
 	log.Printf("Handling GetPayload request for %s payloads.", route)
+
+	afterSeq := parseUintQueryParam(req, "after", 0)
+	limit := parseIntQueryParam(req, "limit", 0)
+
 	var jsonResp []byte
 	var err error
 	if req.URL.Query().Get("format") != "json" {
-		payloads := fi.store.GetRawPayloads(route)
+		payloads, hasMore := fi.store.GetRawPayloads(route, afterSeq, limit)
 
+		// nextCursor is the last payload's sequence number in the returned page
+		nextCursor := afterSeq
+		if len(payloads) > 0 {
+			nextCursor = payloads[len(payloads)-1].Seq
+		}
 		// build response
 		resp := api.APIFakeIntakePayloadsRawGETResponse{
-			Payloads: payloads,
+			Payloads:   payloads,
+			NextCursor: nextCursor,
+			HasMore:    hasMore,
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {
-		payloads, payloadErr := serverstore.GetJSONPayloads(fi.store, route)
+		payloads, nextCursor, hasMore, payloadErr := serverstore.GetJSONPayloads(fi.store, route, afterSeq, limit)
 		if payloadErr != nil {
 			writeHTTPResponse(w, buildErrorResponse(payloadErr))
 			return
 		}
 
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
-			Payloads: payloads,
+			Payloads:   payloads,
+			NextCursor: nextCursor,
+			HasMore:    hasMore,
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {

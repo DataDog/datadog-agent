@@ -40,12 +40,13 @@ func (suite *StoreTestSuite) TestAppendPayload() {
 	err := store.AppendPayload("testRoute", "1234", data, "json", "", time.Now())
 	assert.NoError(suite.T(), err)
 
-	rawPayloads := store.GetRawPayloads("testRoute")
+	rawPayloads, hasMore := store.GetRawPayloads("testRoute", 0, 0)
 	assert.Len(suite.T(), rawPayloads, 1)
 	assert.Equal(suite.T(), data, rawPayloads[0].Data)
 	assert.Equal(suite.T(), "1234", rawPayloads[0].APIKey)
+	assert.False(suite.T(), hasMore)
 
-	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
+	jsonPayloads, _, _, err := GetJSONPayloads(store, "testRoute", 0, 0)
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), jsonPayloads, 1)
 	assert.Equal(suite.T(), map[string]interface{}{"key": "value"}, jsonPayloads[0].Data)
@@ -66,17 +67,77 @@ func (suite *StoreTestSuite) TestCleanUpPayloadsOlderThan() {
 	err = store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", now)
 	require.NoError(suite.T(), err)
 
-	rawPayloads := store.GetRawPayloads("testRoute")
+	rawPayloads, _ := store.GetRawPayloads("testRoute", 0, 0)
 	assert.Len(suite.T(), rawPayloads, 2)
 
 	store.CleanUpPayloadsOlderThan(now.Add(-24 * time.Hour))
 
-	rawPayloads = store.GetRawPayloads("testRoute")
+	rawPayloads, _ = store.GetRawPayloads("testRoute", 0, 0)
 	assert.Len(suite.T(), rawPayloads, 1)
 
-	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
+	jsonPayloads, _, _, err := GetJSONPayloads(store, "testRoute", 0, 0)
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), jsonPayloads, 1)
+}
+
+// TestGetRawPayloadsPagination tests GetRawPayloads' page boundary behavior.
+func (suite *StoreTestSuite) TestGetRawPayloadsPagination() {
+	store := suite.StoreConstructor()
+	defer store.Close()
+
+	for i := 0; i < 5; i++ {
+		err := store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", time.Now())
+		require.NoError(suite.T(), err)
+	}
+
+	payloads, hasMore := store.GetRawPayloads("testRoute", 0, 0)
+	assert.Len(suite.T(), payloads, 5)
+	assert.False(suite.T(), hasMore)
+
+	payloads, hasMore = store.GetRawPayloads("testRoute", 0, 2)
+	require.Len(suite.T(), payloads, 2)
+	assert.Equal(suite.T(), uint64(1), payloads[0].Seq)
+	assert.Equal(suite.T(), uint64(2), payloads[1].Seq)
+	assert.True(suite.T(), hasMore)
+
+	payloads, hasMore = store.GetRawPayloads("testRoute", 2, 3)
+	require.Len(suite.T(), payloads, 3)
+	assert.Equal(suite.T(), uint64(3), payloads[0].Seq)
+	assert.Equal(suite.T(), uint64(5), payloads[2].Seq)
+	assert.False(suite.T(), hasMore)
+
+	payloads, hasMore = store.GetRawPayloads("testRoute", 2, 100)
+	assert.Len(suite.T(), payloads, 3)
+	assert.False(suite.T(), hasMore)
+
+	payloads, hasMore = store.GetRawPayloads("testRoute", 5, 10)
+	assert.Empty(suite.T(), payloads)
+	assert.False(suite.T(), hasMore)
+}
+
+// TestGetRawPayloadsCursorStableAcrossCleanup tests that a cursor taken before CleanUpPayloadsOlderThan 
+// trims the front of the store still returns every remaining payload with no gaps or duplicates.
+func (suite *StoreTestSuite) TestGetRawPayloadsCursorStableAcrossCleanup() {
+	store := suite.StoreConstructor()
+	defer store.Close()
+
+	now := time.Now()
+	err := store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", now.Add(-48*time.Hour))
+	require.NoError(suite.T(), err)
+	err = store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", now.Add(-48*time.Hour))
+	require.NoError(suite.T(), err)
+	err = store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", now)
+	require.NoError(suite.T(), err)
+
+	// a client has only paged through the first (soon to be trimmed) payload
+	cursor := uint64(1)
+
+	store.CleanUpPayloadsOlderThan(now.Add(-24 * time.Hour))
+
+	payloads, hasMore := store.GetRawPayloads("testRoute", cursor, 10)
+	require.Len(suite.T(), payloads, 1)
+	assert.Equal(suite.T(), uint64(3), payloads[0].Seq)
+	assert.False(suite.T(), hasMore)
 }
 
 func (suite *StoreTestSuite) TestGetRouteStats() {
@@ -106,10 +167,10 @@ func (suite *StoreTestSuite) TestFlush() {
 
 	store.Flush()
 
-	rawPayloads := store.GetRawPayloads("testRoute")
+	rawPayloads, _ := store.GetRawPayloads("testRoute", 0, 0)
 	assert.Len(suite.T(), rawPayloads, 0)
 
-	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
+	jsonPayloads, _, _, err := GetJSONPayloads(store, "testRoute", 0, 0)
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), jsonPayloads, 0)
 }

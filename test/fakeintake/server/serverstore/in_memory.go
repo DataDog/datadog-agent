@@ -8,6 +8,7 @@ package serverstore
 import (
 	"errors"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -22,6 +23,9 @@ type inMemoryStore struct {
 
 	rawPayloads map[string][]api.Payload
 	lastAPIKey  string
+	
+	// Strictly increasing sequence number assigned to each payload
+	nextSeq uint64
 
 	// NbPayloads is a prometheus metric to track the number of payloads collected by route
 	NbPayloads *prometheus.GaugeVec
@@ -60,12 +64,14 @@ func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, 
 	s.SetLastAPIKey(apiKey)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+	s.nextSeq++
 	rawPayload := api.Payload{
 		Timestamp:   collectTime,
 		APIKey:      apiKey,
 		Data:        data,
 		Encoding:    encoding,
 		ContentType: contentType,
+		Seq:         s.nextSeq,
 	}
 	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload)
 	s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
@@ -90,13 +96,27 @@ func (s *inMemoryStore) CleanUpPayloadsOlderThan(time time.Time) {
 	}
 }
 
-// GetRawPayloads returns payloads collected for route `route`
-func (s *inMemoryStore) GetRawPayloads(route string) (payloads []api.Payload) {
+// GetRawPayloads returns raw payloads for a given route with sequence number `Seq` greater than afterSeq,
+// up to `limit` payloads and `hasMore` if there are more payloads beyond the returned page.
+// A `limit` of 0 returns all matching payloads.
+func (s *inMemoryStore) GetRawPayloads(route string, afterSeq uint64, limit int) (payloads []api.Payload, hasMore bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	payloads = make([]api.Payload, len(s.rawPayloads[route]))
-	copy(payloads, s.rawPayloads[route])
-	return payloads
+
+	all := s.rawPayloads[route]
+	start := sort.Search(len(all), func(i int) bool {
+		return all[i].Seq > afterSeq
+	})
+
+	end := len(all)
+	if limit > 0 && start+limit < end {
+		end = start + limit
+		hasMore = true
+	}
+
+	payloads = make([]api.Payload, end-start)
+	copy(payloads, all[start:end])
+	return payloads, hasMore
 }
 
 // GetRouteStats returns stats on collectedraw payloads by route
@@ -115,6 +135,7 @@ func (s *inMemoryStore) Flush() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.rawPayloads = map[string][]api.Payload{}
+	s.nextSeq = 0
 	s.NbPayloads.Reset()
 }
 
