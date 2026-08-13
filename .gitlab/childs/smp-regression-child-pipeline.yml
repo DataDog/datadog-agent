@@ -159,28 +159,11 @@ variables:
     - |
       if [ "${SELECT_EXPERIMENTS}" == "true" ]; then
         export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr || true)
-        GH_API="https://api.github.com/repos/DataDog/datadog-agent"
-        PR_NUMBER=$(curl -sf -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-          "${GH_API}/pulls?head=DataDog:${CI_COMMIT_BRANCH}&state=open" 2>/dev/null | jq -r '.[0].number // empty' || true)
-        LABELS=""
-        : > changed_files.txt
-        if [ -n "${PR_NUMBER}" ]; then
-          echo "Resolved PR #${PR_NUMBER} for branch ${CI_COMMIT_BRANCH}"
-          LABELS=$(curl -sf -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GH_API}/pulls/${PR_NUMBER}" 2>/dev/null | jq -r '[.labels[].name] | join(",")' || true)
-          # Paginate changed files (a PR can have >100); cap at 30 pages (3000 files) and warn if hit.
-          page=1
-          while : ; do
-            resp=$(curl -sf -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GH_API}/pulls/${PR_NUMBER}/files?per_page=100&page=${page}" 2>/dev/null || echo '[]')
-            names=$(echo "${resp}" | jq -r '.[].filename' 2>/dev/null || true)
-            [ -z "${names}" ] && break
-            echo "${names}" >> changed_files.txt
-            [ "$(echo "${resp}" | jq -r 'length' 2>/dev/null || echo 0)" -lt 100 ] && break
-            page=$((page+1))
-            if [ "${page}" -gt 30 ]; then echo "WARNING: changed-files pagination hit the 30-page cap; team involvement may be incomplete"; break; fi
-          done
-        else
-          echo "No open PR for branch ${CI_COMMIT_BRANCH}; resolving default set."
-        fi
+        # Resolve the PR's labels + changed files. The GitHub API calls live in the dda task (via
+        # GithubAPI), not as curl/jq here. Empty outputs on no-PR/failure -> the resolver defaults.
+        dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --changed-files-out changed_files.txt --labels-out pr_labels.txt </dev/null \
+          || { echo "owners.smp-pr-context failed; resolving default set."; : > changed_files.txt; : > pr_labels.txt; }
+        LABELS=$(cat pr_labels.txt 2>/dev/null || true)
         # Resolve the run set. On ANY failure or empty result, fall back to the always-run quality
         # gates so a selection-tooling problem (missing dda, resolve error, network) never silently
         # drops the gates -- the worst case is "only gates run", never "nothing runs".

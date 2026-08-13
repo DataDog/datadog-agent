@@ -61,8 +61,10 @@ independent of the submit filter.
 ### D4 — Labels are a registry; keep the `smp/` prefix.
 
 A label is valid **iff** it's a key under `labels:`. Keys keep the `smp/` prefix so SMP labels are
-distinguishable from the repo's other labels. An applied PR label that isn't a manifest key is
-ignored. Two checks enforce this (D9).
+distinguishable from the repo's other labels; the prefix is configurable via `validate --label-prefix`
+(default `smp/`). An applied PR label that isn't a manifest key is ignored. Two checks enforce this
+(D9). Note the prefix is a `validate`-only concern — `resolve` matches applied `--label` values
+**literally** against manifest keys, so it has no prefix flag.
 
 ### D5 — `codeowners` involvement is path-derived (unchanged); no team in the manifest.
 
@@ -128,19 +130,62 @@ Authors get "add it and it runs" locally/in-PR, plus enforced bucketing at the m
 - Labels are now free-form registry keys (the tidy `label == smp/<leaf-path>` rule is gone), so the
   registry check is load-bearing.
 
-## Alternatives considered
+## Design axes: granularity × storage (why central manifest)
 
-- **Per-folder mode/label in leaf READMEs (the prior model).** Simple and local, but forces
-  folder layout to encode selection (homogeneous leaves), caps an experiment at one label, and can't
-  express cross-folder suites. Kept as a working reference; superseded here.
-- **Per-experiment mode/labels in `experiment.yaml`.** Gets mixed-mode/multi-label/cross-folder too,
-  without a central file — but violates the litmus test (puts CI-selection constructs into the
-  experiment definition) and gives no registry/audit surface. Rejected on separation-of-concerns.
-- **Per-area manifests instead of one global file.** Scopes contention + self-serve ownership, but
-  cross-team suites have no home and there's no single registry/audit. Rejected in favor of one global
-  file for full flexibility.
-- **Encoding the folder tree in the manifest.** Brittle on moves (drifts from disk). Rejected — the
-  manifest is trigger→(globs|names); structure is discovered from the filesystem.
+Two *independent* questions drove this design. Separating them shows why a central manifest isn't the
+only obvious choice — and why it won.
+
+**Axis 1 — granularity: at what level are mode/labels defined?**
+- *Per folder* (the prior model, still live as the v2 reference): one mode/label per leaf, experiments
+  inherit. Simple, and **labels are derivable from the folder path** — but folders must be homogeneous
+  (mode becomes a folder-organizing dimension), an experiment can carry only **one** label, and you
+  **cannot** express a suite that spans folders.
+- *Per experiment*: each experiment carries its own mode/labels. Unlocks **mixed-mode folders**,
+  **multi-label** (an experiment in several suites), and near-total folder freedom (an implicit
+  ownership-by-path relationship still remains). Cost: labels are **no longer derivable** from a path,
+  so they need a registry + validation to avoid sprawl.
+
+**Axis 2 — storage: where is that expressed?**
+- *Distributed* (with each experiment): local, no central contention, ownership follows the code — but
+  no single place to see/audit the whole policy, and no natural label registry.
+- *Central* (one manifest): one place to read/edit the whole policy; it **doubles as the label
+  registry**; and it's the **only** way to express a cross-team/cross-folder suite. Costs: a
+  merge-conflict hotspot on one file; and because CODEOWNERS involvement is path-derived, **moving an
+  experiment can change its `codeowners` behavior without touching the manifest** (ownership follows
+  the folder — intended, but a subtlety to know).
+
+**What we chose, and the insight that decouples the axes.** A **central manifest grouped by trigger**
+(`always` / `codeowners` / `labels:` buckets), with experiments referenced by glob or name. Because an
+experiment can appear in **multiple buckets**, this delivers the *per-experiment granularity benefits*
+(mixed-mode + multi-label + cross-folder suites) **without** the *per-experiment storage cost* — no
+CI-selection fields ever land in `experiment.yaml`. That separation matters (the Context litmus test):
+`mode`/`labels` are CI concepts with no meaning to `local-run` or to an experiment reused outside CI.
+Grouping **by trigger** (not by experiment key) is exactly what lets any experiment be assigned to any
+set of triggers.
+
+**Why not the alternatives:**
+- **Per-experiment mode/labels in `experiment.yaml`** — same granularity, but it puts CI-only fields
+  into the experiment definition (what does `mode: optional` mean to `local-run`?) and offers no
+  registry/audit surface. Rejected on separation of concerns.
+- **Per-area manifests (one per team) instead of one global file** — scopes merge contention and gives
+  self-serve ownership, but cross-team suites have no home and there's no single registry/audit.
+  Rejected in favor of one global file for full flexibility (accepting SMP as the gatekeeper).
+- **Encoding the folder tree in the manifest** — brittle: it drifts from disk on every move and would
+  need auto-regeneration. Rejected. Entries are `trigger → (globs | names)`; **structure is discovered
+  from the filesystem** (`smp experiments list`).
+
+**Costs we accept, and how they're handled:**
+- *Labels not derivable* → the manifest's `labels:` keys **are** the registry; offline `validate`
+  checks they're well-formed (+ `smp/` prefix), and an online CI job keeps them in sync with the
+  repo's GitHub labels.
+- *Merge conflicts on one file* → accepted; the file is SMP-owned, which is also the governance point
+  that keeps the label set coherent.
+- *CODEOWNERS path-coupling* → a bare glob/name in the manifest doesn't pin ownership, so moving an
+  experiment changes its `codeowners` involvement even with the manifest untouched. Intended
+  (ownership follows location), documented as a subtlety.
+- *Readability / "does the manifest mirror the folder tree?"* → **No.** It's organized **by trigger**
+  ("what runs when"), and adding an experiment usually needs **no manifest edit** if it falls under an
+  existing glob (e.g. `logs/**`) — only a *new* suite/label needs an entry.
 
 ## Open questions / future work
 
@@ -149,7 +194,11 @@ Authors get "add it and it runs" locally/in-PR, plus enforced bucketing at the m
   metal onto the manifest.
 - **Single job spanning multiple runners.** The `runner` axis is the forward-compatible input; today
   each runner-job takes its `--runner` slice.
-- **Labels-as-code.** The label-sync check (D9) could graduate from *checking* to *syncing* (create /
-  prune repo `smp/*` labels from the manifest).
+- **Labels-as-code.** Label creation is deliberately **manual** for now and the foreseeable future
+  (the D9 label-sync job only *checks* that manifest keys and repo labels agree). A possible future
+  path — not planned — is graduating that job from *checking* to *additive syncing*: auto-create
+  repo `smp/*` labels from new manifest keys, on merge to `main`, but **never** auto-prune (deleting a
+  label strips it from every PR/issue that had it — surface removals as a warning instead). This would
+  live in the GHA (an online, write-scoped op), keeping the offline CLI unchanged.
 - **Scheduled label-sync.** The GHA runs on manifest changes; out-of-band repo-label drift would need
   a scheduled run.

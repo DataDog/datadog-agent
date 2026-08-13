@@ -92,38 +92,57 @@ def _team_slugs(owners) -> list[str]:
     return sorted(slugs)
 
 
-def _discover_smp_leaves(config_dir: str, exclude: list[str]) -> list[str]:
-    """Discover SMP leaves under `config_dir`.
+def _discover_folders(config_dir: str, manifest: str, smp_bin: str, exclude: list[str]) -> list[str]:
+    """Discover the experiment folders (the dir above each `cases/`) via `smp experiments list`.
 
-    A leaf is a directory that directly contains a `cases/` subdirectory; its path relative to
-    `config_dir` (forward-slash) is the leaf path. Skips any leaf at or under an `exclude` path
-    (relative to `config_dir`, e.g. `ebpf`).
+    Sourcing discovery from the CLI keeps SMP the single discovery authority — no duplicated os.walk
+    that could drift from SMP's rules. Returns sorted unique folder paths relative to `config_dir`.
     """
-    leaves = []
-    for root, dirs, _files in os.walk(config_dir):
-        if 'cases' in dirs:
-            rel = os.path.relpath(root, config_dir).replace(os.sep, '/')
-            if rel != '.' and not any(rel == ex or rel.startswith(f"{ex}/") for ex in exclude):
-                leaves.append(rel)
-            dirs.remove('cases')  # experiments under cases/ are not themselves leaves
-    return sorted(leaves)
+    import subprocess
+
+    cmd = [
+        smp_bin,
+        'experiments',
+        'list',
+        '--target-config-dir',
+        config_dir,
+        '--manifest',
+        manifest,
+        '--format',
+        'json',
+    ]
+    if exclude:
+        cmd += ['--exclude-path', ','.join(exclude)]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exit(f"`smp experiments list` failed (exit {result.returncode}):\n{result.stderr}", code=1)
+
+    folders = set()
+    for exp in json.loads(result.stdout or '[]'):
+        folder = exp.get('path', '').split('/cases/', 1)[0]  # the dir above `cases/`
+        if folder:
+            folders.add(folder)
+    return sorted(folders)
 
 
-def _leaf_ownership(leaves: list[str], config_dir: str, owners_file: str) -> dict[str, list[str]]:
-    """Map each leaf path to its owning team slugs, resolved from CODEOWNERS."""
+def _folder_ownership(folders: list[str], config_dir: str, owners_file: str) -> dict[str, list[str]]:
+    """Map each experiment folder to its owning team slugs, resolved from CODEOWNERS."""
     base = config_dir.rstrip('/')
-    return {leaf: _team_slugs(search_owners(f"{base}/{leaf}/", owners_file)) for leaf in leaves}
+    return {folder: _team_slugs(search_owners(f"{base}/{folder}/", owners_file)) for folder in folders}
 
 
-def smp_inputs_impl(config_dir: str, changed_files: list[str], exclude: list[str], owners_file: str):
-    """Compute the CODEOWNERS-derived inputs for `smp experiments resolve` (offline, pure).
+def smp_inputs_impl(
+    config_dir: str, manifest: str, smp_bin: str, changed_files: list[str], exclude: list[str], owners_file: str
+):
+    """Compute the CODEOWNERS-derived inputs for `smp experiments resolve`.
 
     Returns `(involved_teams, ownership)`:
-    - `involved_teams`: sorted team slugs owning any of `changed_files`.
-    - `ownership`: `{leaf_path: [team_slug, ...]}` for every leaf under `config_dir` (minus `exclude`).
+    - `involved_teams`: sorted team slugs owning any of `changed_files` (pure CODEOWNERS).
+    - `ownership`: `{folder: [team_slug, ...]}` for every experiment folder SMP discovers (minus
+      `exclude`). Folders come from `smp experiments list`, so discovery has a single source of truth.
     """
     involved = _team_slugs(make_partition(changed_files, owners_file).keys()) if changed_files else []
-    ownership = _leaf_ownership(_discover_smp_leaves(config_dir, exclude), config_dir, owners_file)
+    ownership = _folder_ownership(_discover_folders(config_dir, manifest, smp_bin, exclude), config_dir, owners_file)
     return involved, ownership
 
 
@@ -131,6 +150,8 @@ def smp_inputs_impl(config_dir: str, changed_files: list[str], exclude: list[str
 def smp_inputs(
     _,
     config_dir,
+    smp_bin,
+    manifest='test/regression/selection.yaml',
     changed_files='',
     exclude='',
     ownership_out='ownership.json',
@@ -139,10 +160,13 @@ def smp_inputs(
     """
     Emit the CODEOWNERS-derived inputs for `smp experiments resolve`.
 
-    Writes the leaf -> owning-teams map to `--ownership-out` (JSON) and prints the comma-separated
-    involved teams (owners of the changed files) to stdout.
+    Writes the folder -> owning-teams map to `--ownership-out` (JSON) and prints the comma-separated
+    involved teams (owners of the changed files) to stdout. Folders are discovered via
+    `<smp-bin> experiments list` (single discovery source).
 
     - config-dir: the SMP target config dir (e.g. test/regression).
+    - smp-bin: path to the smp binary.
+    - manifest: path to the selection manifest (default test/regression/selection.yaml).
     - changed-files: path to a file listing changed files, one per line (empty => no involved teams).
     - exclude: comma-separated paths relative to config-dir to skip (e.g. ebpf).
     """
@@ -152,7 +176,7 @@ def smp_inputs(
             files = [line.strip() for line in f if line.strip()]
     excludes = [e.strip() for e in exclude.split(',') if e.strip()]
 
-    involved, ownership = smp_inputs_impl(config_dir, files, excludes, owners_file)
+    involved, ownership = smp_inputs_impl(config_dir, manifest, smp_bin, files, excludes, owners_file)
 
     with open(ownership_out, 'w') as out:
         json.dump(ownership, out, indent=2, sort_keys=True)
@@ -181,7 +205,7 @@ def resolve_run_set_impl(
     import subprocess
     import tempfile
 
-    involved, ownership = smp_inputs_impl(config_dir, changed_files, exclude, owners_file)
+    involved, ownership = smp_inputs_impl(config_dir, manifest, smp_bin, changed_files, exclude, owners_file)
 
     tf = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
     try:
@@ -257,3 +281,43 @@ def smp_resolve(
     with open(out, 'w') as f:
         f.write(paths)
     print(paths)
+
+
+def smp_pr_context_impl(branch: str, repository: str = "DataDog/datadog-agent"):
+    """Resolve the open PR for `branch`; return `(labels_csv, changed_files)` (empty if no open PR).
+
+    Uses `GITHUB_TOKEN` from the environment (mint it via `dd-octo-sts` first). Keeps the GitHub API
+    calls in Python (via `GithubAPI`) rather than as curl/jq in the CI shell.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI(repository)
+    prs = list(gh.get_pr_for_branch(head_branch_name=branch))
+    if not prs:
+        return "", []
+    pr = prs[0]
+    return ",".join(gh.get_pr_labels(pr.number)), gh.get_pr_files(pr.number)
+
+
+@task
+def smp_pr_context(
+    _,
+    branch,
+    changed_files_out='changed_files.txt',
+    labels_out='pr_labels.txt',
+    repository='DataDog/datadog-agent',
+):
+    """
+    Resolve the open PR for `branch` and write its applied labels + changed files, for SMP selection.
+
+    Reads `GITHUB_TOKEN` from the environment (mint via `dd-octo-sts` first). Writes changed files (one
+    per line) to `--changed-files-out` and the comma-separated applied labels to `--labels-out`; both
+    are empty when no open PR is found (the resolver then defaults). This keeps the GitHub API calls
+    out of the CI shell.
+    """
+    labels, files = smp_pr_context_impl(branch, repository)
+    with open(changed_files_out, 'w') as f:
+        f.write("\n".join(files))
+    with open(labels_out, 'w') as f:
+        f.write(labels)
+    print(f"labels=[{labels}] changed_files={len(files)}")
