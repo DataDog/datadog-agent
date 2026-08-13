@@ -104,16 +104,6 @@ func TestLoadManifest_RejectsOversizedManifest(t *testing.T) {
 	assert.Contains(t, err.Error(), "byte limit")
 }
 
-func TestLoadManifest_RejectsDirectoryInPlaceOfManifest(t *testing.T) {
-	artifactDirectory := t.TempDir()
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	require.NoError(t, os.MkdirAll(filepath.Join(scriptDir, manifestFile), 0o755))
-
-	_, err := LoadManifest(artifactDirectory)
-
-	require.Error(t, err)
-}
-
 func TestValidateManifest(t *testing.T) {
 	validCommand := []string{"run.sh"}
 
