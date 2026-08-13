@@ -129,6 +129,21 @@ def bazel(
     return result.stdout if capture_output else ""
 
 
+_output_base: str | None = None
+
+
+def output_base(ctx: Context) -> str:
+    """Absolute path of the Bazel output base, cached for the lifetime of the process.
+
+    External repositories live under ``<output_base>/external``, so this is the
+    anchor for the execroot-relative paths printed by `cquery --output=files`.
+    """
+    global _output_base
+    if _output_base is None:
+        _output_base = bazel(ctx, "info", "output_base", capture_output=True).strip()
+    return _output_base
+
+
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
     omnibus build environment variables.

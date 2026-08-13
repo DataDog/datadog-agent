@@ -141,6 +141,7 @@ from tasks.install_tasks import (
     install_tools,
 )
 from tasks.junit_tasks import junit_upload
+from tasks.libs.common.go_toolchain import install_go_toolchain_hook
 from tasks.licenses import (
     generate_rust_licenses,
     lint_rust_licenses,
@@ -149,6 +150,7 @@ from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
 
 Task.__call__ = custom__call__
+install_go_toolchain_hook()
 
 # the root namespace
 ns = Collection()

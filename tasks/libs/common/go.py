@@ -15,7 +15,7 @@ from invoke.context import Context, MockContext
 from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, output_base
 from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
@@ -111,8 +111,7 @@ def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[
     """
     # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
     gcc = bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
-    output_base = bazel(ctx, "info", "output_base", capture_output=True).strip()
-    mingw_bin = Path(output_base, gcc).parent
+    mingw_bin = Path(output_base(ctx), gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
 
