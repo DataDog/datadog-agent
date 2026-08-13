@@ -73,8 +73,53 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			Type:        privateconnection.BasicAuthType,
 			HttpDetails: details,
 		}, nil
+	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
+		resolvedTokens, err := resolveConnectionTokensV2(connInfo.GetTokensV2())
+		if err != nil {
+			return nil, err
+		}
+		tokens, details = privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: resolvedTokens})
+		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
+		if err != nil {
+			return nil, err
+		}
+		return &privateconnection.PrivateCredentials{
+			Tokens:      credentialTokens,
+			Type:        privateconnection.TokenAuthType,
+			HttpDetails: details,
+		}, nil
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
+}
+
+func resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
+	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
+	for _, token := range tokens {
+		if token == nil {
+			return nil, errors.New("connection token must not be nil")
+		}
+		if len(token.GetNameSegments()) == 0 {
+			return nil, errors.New("connection token name must not be empty")
+		}
+
+		tokenName := connlib.GetName(token)
+		switch source := token.GetSource().(type) {
+		case *privateactionspb.ConnectionTokenV2_PlainText_:
+			resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), source.PlainText.GetValue()))
+		case *privateactionspb.ConnectionTokenV2_EnvironmentVariable_:
+			name := source.EnvironmentVariable.GetName()
+			value, ok := os.LookupEnv(name)
+			if !ok {
+				return nil, fmt.Errorf("environment variable %q for connection token %q is not set", name, tokenName)
+			}
+			resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), value))
+		case *privateactionspb.ConnectionTokenV2_DatadogAgentSecret_:
+			return nil, fmt.Errorf("Datadog Agent secret references are not supported by the private action runner for connection token %q", tokenName)
+		default:
+			return nil, fmt.Errorf("unsupported source for connection token %q: %T", tokenName, token.GetSource())
+		}
+	}
+	return resolved, nil
 }
 
 func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {
