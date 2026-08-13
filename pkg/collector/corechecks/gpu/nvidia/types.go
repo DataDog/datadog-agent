@@ -38,6 +38,7 @@ type Metric struct {
 	HistogramBucket     *Bucket                 // HistogramBucket holds histogram-bucket data when the metric is emitted via sender.HistogramBucket.
 	AssociatedWorkloads []workloadmeta.EntityID // AssociatedWorkloads represents specific workloads that are associated with the metric, e.g. a process associated with a process-level metric. Used for tagging.
 	RateCalculationMode RateCalculationMode     // RateCalculationMode is the mode of rate calculation for the metric.
+	EventData           string                  // EventData holds the event data if this is an event
 }
 
 // Bucket carries histogram bucket data for a metric emitted with sender.HistogramBucket.

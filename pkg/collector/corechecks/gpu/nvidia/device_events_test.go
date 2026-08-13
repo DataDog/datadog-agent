@@ -205,19 +205,41 @@ func TestDeviceEventsCollector(t *testing.T) {
 	}
 	mm, err = collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm, 1)
-	assert.Equal(t, &Metric{
-		Name:     xidErrorsMetricName,
-		Value:    1,
-		Type:     metrics.GaugeType,
-		Priority: Medium,
-		Tags:     []string{"type:31", "origin:hardware"},
-	}, mm[0])
+	require.Len(t, mm, 2)
+	assert.ElementsMatch(t, []*Metric{
+		{
+			Name:      "errors.xid",
+			Type:      metrics.GaugeType,
+			Priority:  Medium,
+			Tags:      []string{"type:31", "origin:hardware"},
+			EventData: "GPU " + uuid + " - XID error 31 (hardware)",
+		},
+		{
+			Name:     xidErrorsMetricName,
+			Value:    1,
+			Type:     metrics.GaugeType,
+			Priority: Medium,
+			Tags:     []string{"type:31", "origin:hardware"},
+		},
+	}, mm)
 
 	mm, err = collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm, 1)
-	assert.Equal(t, float64(2), mm[0].Value)
+	require.Len(t, mm, 2)
+	assert.Contains(t, mm, &Metric{
+		Name:      "errors.xid",
+		Type:      metrics.GaugeType,
+		Priority:  Medium,
+		Tags:      []string{"type:31", "origin:hardware"},
+		EventData: "GPU " + uuid + " - XID error 31 (hardware)",
+	})
+	assert.Contains(t, mm, &Metric{
+		Name:     xidErrorsMetricName,
+		Value:    2,
+		Type:     metrics.GaugeType,
+		Priority: Medium,
+		Tags:     []string{"type:31", "origin:hardware"},
+	})
 
 	// make sure different xid errors produce distinct metric contexts
 	cache.events = []safenvml.DeviceEventData{
@@ -229,8 +251,15 @@ func TestDeviceEventsCollector(t *testing.T) {
 	}
 	mm2, err := collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm2, 2)
+	require.Len(t, mm2, 3)
 	assert.ElementsMatch(t, []*Metric{
+		{
+			Name:      "errors.xid",
+			Type:      metrics.GaugeType,
+			Priority:  Medium,
+			Tags:      []string{"type:12", "origin:driver"},
+			EventData: "GPU " + uuid + " - XID error 12 (driver)",
+		},
 		{
 			Name:     xidErrorsMetricName,
 			Value:    1,
@@ -247,9 +276,25 @@ func TestDeviceEventsCollector(t *testing.T) {
 		},
 	}, mm2)
 
-	// make sure there's no update in case we have no cached events
+	// make sure there's no update in case we have no cached events:
+	// totals stay the same and no new event metrics are emitted
 	cache.events = nil
 	mm3, err := collector.Collect()
 	require.NoError(t, err)
-	require.ElementsMatch(t, mm2, mm3)
+	require.ElementsMatch(t, []*Metric{
+		{
+			Name:     xidErrorsMetricName,
+			Value:    1,
+			Type:     metrics.GaugeType,
+			Priority: Medium,
+			Tags:     []string{"type:12", "origin:driver"},
+		},
+		{
+			Name:     xidErrorsMetricName,
+			Value:    2,
+			Type:     metrics.GaugeType,
+			Priority: Medium,
+			Tags:     []string{"type:31", "origin:hardware"},
+		},
+	}, mm3)
 }

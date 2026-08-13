@@ -92,17 +92,20 @@ func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 		return nil, fmt.Errorf("failed collecting device events: %w", err)
 	}
 
+	var outputMetrics []*Metric
+
 	for _, evt := range events {
 		if evt.EventType != nvml.EventTypeXidCriticalError {
 			// currently considering only xid events
 			continue
 		}
 
+		xidOrigin, ok := xidCodeToOrigin[evt.EventData]
+		if !ok {
+			xidOrigin = xidOriginUnknown
+		}
+
 		if _, ok := c.metricsByXidCode[evt.EventData]; !ok {
-			xidOrigin, ok := xidCodeToOrigin[evt.EventData]
-			if !ok {
-				xidOrigin = xidOriginUnknown
-			}
 			c.metricsByXidCode[evt.EventData] = &Metric{
 				Name:     "errors.xid.total",
 				Type:     metrics.GaugeType,
@@ -114,14 +117,25 @@ func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 			}
 		}
 
+		outputMetrics = append(outputMetrics, &Metric{
+			Name:     "errors.xid",
+			Type:     metrics.GaugeType,
+			Priority: Medium,
+			Tags: []string{
+				"type:" + strconv.Itoa(int(evt.EventData)),
+				"origin:" + xidOrigin,
+			},
+			EventData: fmt.Sprintf("GPU %s - XID error %d (%s)", c.DeviceUUID(), evt.EventData, xidOrigin),
+		})
+
 		c.metricsByXidCode[evt.EventData].Value++
 	}
 
-	var metrics []*Metric
 	for _, m := range c.metricsByXidCode {
-		metrics = append(metrics, m)
+		outputMetrics = append(outputMetrics, m)
 	}
-	return metrics, nil
+
+	return outputMetrics, nil
 }
 
 // note: watching device events seems to require specific permission/status with the NVIDIA driver,

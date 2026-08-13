@@ -11,6 +11,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -579,6 +581,28 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 		}
 
 		snd.HistogramBucket(metricName, int64(metric.Value), metric.HistogramBucket.Bounds[0], metric.HistogramBucket.Bounds[1], metric.HistogramBucket.Monotonic, "", allTags, metric.HistogramBucket.FlushFirstValue)
+		return nil
+	}
+
+	if metric.EventData != "" {
+		uuidTagIndex := slices.IndexFunc(allTags, func(tag string) bool {
+			return strings.HasPrefix(tag, "gpu_uuid")
+		})
+		uuidTag := ""
+		if uuidTagIndex != -1 {
+			uuidTag = allTags[uuidTagIndex]
+		}
+		event := event.Event{
+			AlertType:      event.AlertTypeError,
+			Priority:       event.PriorityNormal,
+			SourceTypeName: CheckName,
+			EventType:      CheckName,
+			AggregationKey: uuidTag,
+			Title:          metric.EventData,
+			Tags:           allTags,
+		}
+
+		snd.Event(event)
 		return nil
 	}
 
