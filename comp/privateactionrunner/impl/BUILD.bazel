@@ -48,6 +48,10 @@ dd_agent_go_test(
     srcs = ["privateactionrunner_test.go"],
     embed = [":impl"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/log/mock",
+        "//pkg/privateactionrunner/util",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
