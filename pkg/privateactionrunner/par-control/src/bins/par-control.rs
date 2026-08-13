@@ -7,9 +7,15 @@ use anyhow::Result;
 use clap::Parser;
 use par_control::bootstrap;
 use par_control::config::Launch;
+use par_control::executor::ExecutorDispatcher;
+use par_control::jwt::{Es256Signer, JwtSigner};
+use par_control::opms::{HttpOpms, HttpOpmsConfig};
+use par_control::orchestrator::{Orchestrator, Params};
 use par_control::platform;
+use par_control::procmgr::ProcmgrLifecycle;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
@@ -42,31 +48,76 @@ async fn main() -> ExitCode {
 async fn run() -> Result<()> {
     let cli = Cli::parse();
     // Resolve the log level first so a config error is logged at that level.
+    // A logging failure does not prevent the runner from starting.
     let launch = Launch::from_yaml_file(&cli.config);
     let log_level = launch
         .as_ref()
         .map_or(log::LevelFilter::Info, |launch| launch.log_level);
-    if let Err(error) = dd_agent_log::init(dd_agent_log::LogConfig {
+    if let Err(e) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
         level: log_level.to_level().unwrap_or(log::Level::Error),
         // dd-procmgrd redirects stdout and stderr per its process definition.
         log_file: None,
     }) {
-        eprintln!("par-control: could not initialize the logger: {error}");
+        eprintln!("par-control: could not initialize the logger: {e}");
     }
     log::set_max_level(log_level);
 
     if !launch?.gate.split_mode {
-        log::info!("private_action_runner split mode is disabled; par-control is exiting");
+        log::info!(
+            "private_action_runner.split_enabled is not enabled; \
+             the monolithic runner owns OPMS polling. Exiting."
+        );
         return Ok(());
     }
 
-    let _config =
+    let config =
         bootstrap::load_config_with_bootstrap(&cli.config, &cli.ensure_enrollment_command)?;
 
-    log::info!("par-control started");
-    shutdown_signal().await;
-    log::info!("par-control is exiting");
+    let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
+        config.identity.org_id,
+        config.identity.runner_id.clone(),
+        &config.identity.private_key,
+    )?);
+
+    let opms = Arc::new(HttpOpms::new(
+        config.opms_base_url.clone(),
+        signer,
+        HttpOpmsConfig {
+            runner_version: config.runner_version.clone(),
+            modes: config.modes.clone(),
+            timeout: config.opms_request_timeout,
+            proxy: config.proxy.clone(),
+            tls: config.tls.clone(),
+            extra_headers: config.opms_extra_headers.clone(),
+        },
+    )?);
+    let lifecycle = Arc::new(ProcmgrLifecycle::new(
+        &config.procmgr_socket,
+        config.executor_process_name.clone(),
+    ));
+    // The IPC certificate is loaded lazily because the executor may create it.
+    let dispatcher = Arc::new(ExecutorDispatcher::new(
+        &config.executor_socket,
+        Some(&config.ipc_cert_file),
+    ));
+
+    let params = Params::from_config(&config);
+    let orchestrator = Orchestrator::new(opms, lifecycle, dispatcher, params);
+
+    log::info!(
+        "par-control starting: version={} urn={} opms={} executor_socket={} procmgr_socket={} ipc_cert={}",
+        config.runner_version,
+        config.identity.urn,
+        config.opms_base_url,
+        config.executor_socket.display(),
+        config.procmgr_socket.display(),
+        config.ipc_cert_file.display(),
+    );
+
+    orchestrator.run(shutdown_signal()).await;
+    log::info!("par-control stopped");
+    log::logger().flush();
     Ok(())
 }
 
