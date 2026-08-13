@@ -44,11 +44,12 @@ type ScriptConfig struct {
 	Command           []string               `yaml:"command"`
 	ParameterSchema   map[string]interface{} `yaml:"parameterSchema"`
 	AllowedEnvVars    []string               `yaml:"allowedEnvVars"`
+	SetGlobalEnvVars  []EnvironmentVariable  `yaml:"setGlobalEnvVars"`
 	SetSessionEnvVars []EnvironmentVariable  `yaml:"setSessionEnvVars"`
 }
 
 // EnvironmentVariable describes an environment value created for a script. File and
-// directory values are paths relative to the script's session directory.
+// directory values are paths relative to their global or session state directory.
 type EnvironmentVariable struct {
 	Name  string `yaml:"name"`
 	Value string `yaml:"value"`
@@ -115,19 +116,29 @@ func validateManifest(manifest *Manifest) error {
 	if len(manifest.Config.Command) == 0 || manifest.Config.Command[0] == "" {
 		return errors.New("authored-script manifest command is required")
 	}
-	for _, environmentVariable := range manifest.Config.SetSessionEnvVars {
-		if environmentVariable.Name == "" || environmentVariable.Value == "" || environmentVariable.Kind == "" {
-			return errors.New("authored-script manifest session environment variables require a name, value, and kind")
-		}
-		switch environmentVariable.Kind {
-		case environmentKindValue, environmentKindFile, environmentKindDirectory:
-		default:
-			return fmt.Errorf("authored-script manifest session environment variable %q has unsupported kind %q", environmentVariable.Name, environmentVariable.Kind)
-		}
+	if err := validateManifestEnvironmentVariables("global", manifest.Config.SetGlobalEnvVars); err != nil {
+		return err
+	}
+	if err := validateManifestEnvironmentVariables("session", manifest.Config.SetSessionEnvVars); err != nil {
+		return err
 	}
 	for _, dependency := range manifest.Dependencies {
 		if dependency.Name == "" || dependency.Version == "" {
 			return errors.New("authored-script manifest dependencies require a name and version")
+		}
+	}
+	return nil
+}
+
+func validateManifestEnvironmentVariables(scope string, variables []EnvironmentVariable) error {
+	for _, environmentVariable := range variables {
+		if environmentVariable.Name == "" || environmentVariable.Value == "" || environmentVariable.Kind == "" {
+			return fmt.Errorf("authored-script manifest %s environment variables require a name, value, and kind", scope)
+		}
+		switch environmentVariable.Kind {
+		case environmentKindValue, environmentKindFile, environmentKindDirectory:
+		default:
+			return fmt.Errorf("authored-script manifest %s environment variable %q has unsupported kind %q", scope, environmentVariable.Name, environmentVariable.Kind)
 		}
 	}
 	return nil

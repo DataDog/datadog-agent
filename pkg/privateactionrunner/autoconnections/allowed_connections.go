@@ -38,6 +38,14 @@ var supportedConnections = map[string]ConnectionDefinition{
 			AdditionalFields: nil,
 		},
 	},
+	"authoredscripts": {
+		FQNPrefix:       "com.datadoghq.authoredscripts",
+		IntegrationType: "AuthoredScript",
+		Credentials: CredentialConfig{
+			Type:             "AuthoredScript",
+			AdditionalFields: nil,
+		},
+	},
 }
 
 func actionsAllowlistContainsBundle(actionsAllowlist []string, fqnPrefix string) bool {

@@ -56,6 +56,16 @@ func TestDetermineConnectionsToCreate_SingleBundle(t *testing.T) {
 			actionsAllowlist: []string{"com.datadoghq.script.runPredefinedScipt"},
 			expectedBundle:   "com.datadoghq.script",
 		},
+		{
+			name:             "remoteaction",
+			actionsAllowlist: []string{"com.datadoghq.remoteaction.rshell.run"},
+			expectedBundle:   "com.datadoghq.remoteaction",
+		},
+		{
+			name:             "authoredscripts",
+			actionsAllowlist: []string{"com.datadoghq.authoredscripts.runAuthoredScript"},
+			expectedBundle:   "com.datadoghq.authoredscripts",
+		},
 	}
 
 	for _, tt := range tests {

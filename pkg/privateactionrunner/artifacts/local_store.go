@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
-	digest "github.com/opencontainers/go-digest"
 )
 
 const (
@@ -59,11 +58,10 @@ func (s *LocalStore) Open(descriptor Descriptor) (LocalArtifact, error) {
 		return LocalArtifact{}, err
 	}
 
-	parsedDigest, err := digest.Parse(descriptor.Digest)
+	digestDirectory, err := DigestPathComponent(descriptor.Digest)
 	if err != nil {
-		return LocalArtifact{}, fmt.Errorf("invalid artifact digest %q: %w", descriptor.Digest, err)
+		return LocalArtifact{}, err
 	}
-	digestDirectory := parsedDigest.Algorithm().String() + "-" + parsedDigest.Encoded()
 	directory, err := securejoin.SecureJoin(
 		s.rootDirectory,
 		filepath.Join(

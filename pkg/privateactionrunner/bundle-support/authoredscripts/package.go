@@ -22,6 +22,7 @@ const toolsDirectory = "tools"
 type Package struct {
 	Manifest        *Manifest
 	Directory       string
+	ArtifactDigest  string
 	Command         []string
 	ToolDirectories []string
 }
@@ -57,6 +58,7 @@ func LoadPackage(fqn string, descriptor artifacts.Descriptor, artifact artifacts
 	return &Package{
 		Manifest:        manifest,
 		Directory:       artifact.Directory,
+		ArtifactDigest:  descriptor.Digest,
 		Command:         command,
 		ToolDirectories: toolDirectories,
 	}, nil
@@ -82,9 +84,6 @@ func validateArtifactDirectory(directory string) error {
 func validatePackageIdentity(fqn string, descriptor artifacts.Descriptor, manifest *Manifest) error {
 	if manifest.FQN != fqn {
 		return fmt.Errorf("authored-script manifest FQN %q does not match catalog key %q", manifest.FQN, fqn)
-	}
-	if manifest.Package != descriptor.Name {
-		return fmt.Errorf("authored-script manifest package %q does not match artifact %q", manifest.Package, descriptor.Name)
 	}
 	if manifest.Version != descriptor.Version {
 		return fmt.Errorf("authored-script manifest version %q does not match artifact version %q", manifest.Version, descriptor.Version)

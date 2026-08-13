@@ -7,6 +7,7 @@ go_library(
         "command.go",
         "environment.go",
         "execution.go",
+        "global_environment.go",
         "manifest.go",
         "package.go",
         "process_linux.go",

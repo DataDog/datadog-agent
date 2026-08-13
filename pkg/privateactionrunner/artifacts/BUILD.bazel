@@ -4,6 +4,7 @@ go_library(
     name = "artifacts",
     srcs = [
         "catalog.go",
+        "digest.go",
         "local_store.go",
         "static_catalog.go",
     ],

@@ -47,12 +47,16 @@ func BuildEnvironment(pkg *Package, session *Session) ([]string, error) {
 		"PATH":   strings.Join(executablePaths, string(os.PathListSeparator)),
 		"TMPDIR": session.TempDirectory,
 	}
-	allowedVariableNames := make(map[string]struct{}, len(pkg.Manifest.Config.AllowedEnvVars))
+	declaredVariables := make(map[string]string,
+		len(pkg.Manifest.Config.AllowedEnvVars)+len(pkg.Manifest.Config.SetGlobalEnvVars)+len(pkg.Manifest.Config.SetSessionEnvVars))
 	for _, name := range pkg.Manifest.Config.AllowedEnvVars {
 		if err := validateEnvironmentName(name); err != nil {
 			return nil, err
 		}
-		allowedVariableNames[name] = struct{}{}
+		if previousScope, found := declaredVariables[name]; found {
+			return nil, fmt.Errorf("authored-script environment variable %q is declared more than once as %s", name, previousScope)
+		}
+		declaredVariables[name] = "allowed"
 		if _, managed := managedEnvironmentVariables[name]; managed {
 			continue
 		}
@@ -61,25 +65,28 @@ func BuildEnvironment(pkg *Package, session *Session) ([]string, error) {
 		}
 	}
 
-	sessionVariableNames := make(map[string]struct{}, len(pkg.Manifest.Config.SetSessionEnvVars))
-	for _, variable := range pkg.Manifest.Config.SetSessionEnvVars {
-		if err := validateEnvironmentName(variable.Name); err != nil {
-			return nil, err
-		}
-		if _, found := sessionVariableNames[variable.Name]; found {
-			return nil, fmt.Errorf("authored-script session environment variable %q is declared more than once", variable.Name)
-		}
-		sessionVariableNames[variable.Name] = struct{}{}
-		if _, found := allowedVariableNames[variable.Name]; found {
-			return nil, fmt.Errorf("authored-script environment variable %q cannot be both allowed and set for the session", variable.Name)
-		}
-		if _, managed := managedEnvironmentVariables[variable.Name]; managed {
-			return nil, fmt.Errorf("authored-script session environment variable %q is managed by PAR", variable.Name)
-		}
+	if err := registerEnvironmentVariables("global", pkg.Manifest.Config.SetGlobalEnvVars, declaredVariables); err != nil {
+		return nil, err
+	}
+	if err := registerEnvironmentVariables("session", pkg.Manifest.Config.SetSessionEnvVars, declaredVariables); err != nil {
+		return nil, err
 	}
 
+	if len(pkg.Manifest.Config.SetGlobalEnvVars) > 0 {
+		globalDirectory, err := globalEnvironmentDirectory(pkg.ArtifactDigest)
+		if err != nil {
+			return nil, err
+		}
+		for _, variable := range pkg.Manifest.Config.SetGlobalEnvVars {
+			value, err := materializeEnvironmentVariable(globalDirectory, "global", variable)
+			if err != nil {
+				return nil, err
+			}
+			environment[variable.Name] = value
+		}
+	}
 	for _, variable := range pkg.Manifest.Config.SetSessionEnvVars {
-		value, err := materializeSessionEnvironmentVariable(session.RootDirectory, variable)
+		value, err := materializeEnvironmentVariable(session.RootDirectory, "session", variable)
 		if err != nil {
 			return nil, err
 		}
@@ -102,41 +109,60 @@ func BuildEnvironment(pkg *Package, session *Session) ([]string, error) {
 	return result, nil
 }
 
-func materializeSessionEnvironmentVariable(root string, variable EnvironmentVariable) (string, error) {
+func registerEnvironmentVariables(scope string, variables []EnvironmentVariable, declaredVariables map[string]string) error {
+	for _, variable := range variables {
+		if err := validateEnvironmentName(variable.Name); err != nil {
+			return err
+		}
+		if previousScope, found := declaredVariables[variable.Name]; found {
+			if previousScope == scope {
+				return fmt.Errorf("authored-script %s environment variable %q is declared more than once", scope, variable.Name)
+			}
+			return fmt.Errorf("authored-script environment variable %q cannot be declared as both %s and %s", variable.Name, previousScope, scope)
+		}
+		if _, managed := managedEnvironmentVariables[variable.Name]; managed {
+			return fmt.Errorf("authored-script %s environment variable %q is managed by PAR", scope, variable.Name)
+		}
+		declaredVariables[variable.Name] = scope
+	}
+	return nil
+}
+
+func materializeEnvironmentVariable(root, scope string, variable EnvironmentVariable) (string, error) {
 	if variable.Kind == environmentKindValue {
 		return variable.Value, nil
 	}
 	if !filepath.IsLocal(variable.Value) {
-		return "", fmt.Errorf("authored-script session environment variable %q path %q is not relative to the session", variable.Name, variable.Value)
+		return "", fmt.Errorf("authored-script %s environment variable %q path %q is not relative to its state directory", scope, variable.Name, variable.Value)
 	}
 
 	resolvedPath, err := securejoin.SecureJoin(root, variable.Value)
 	if err != nil {
-		return "", fmt.Errorf("could not resolve authored-script session environment variable %q: %w", variable.Name, err)
+		return "", fmt.Errorf("could not resolve authored-script %s environment variable %q: %w", scope, variable.Name, err)
 	}
 	if resolvedPath == root {
-		return "", fmt.Errorf("authored-script session environment variable %q cannot use the session root", variable.Name)
+		return "", fmt.Errorf("authored-script %s environment variable %q cannot use its state root", scope, variable.Name)
 	}
 	if err := os.MkdirAll(filepath.Dir(resolvedPath), sessionDirectoryMode); err != nil {
-		return "", fmt.Errorf("could not create parent directory for authored-script session environment variable %q: %w", variable.Name, err)
+		return "", fmt.Errorf("could not create parent directory for authored-script %s environment variable %q: %w", scope, variable.Name, err)
 	}
 
 	switch variable.Kind {
 	case environmentKindFile:
-		if err := ensureSessionFile(resolvedPath); err != nil {
-			return "", fmt.Errorf("could not prepare file for authored-script session environment variable %q: %w", variable.Name, err)
+		if err := ensureEnvironmentFile(resolvedPath); err != nil {
+			return "", fmt.Errorf("could not prepare file for authored-script %s environment variable %q: %w", scope, variable.Name, err)
 		}
 	case environmentKindDirectory:
-		if err := os.MkdirAll(resolvedPath, sessionDirectoryMode); err != nil {
-			return "", fmt.Errorf("could not prepare directory for authored-script session environment variable %q: %w", variable.Name, err)
+		if err := ensureEnvironmentDirectory(resolvedPath); err != nil {
+			return "", fmt.Errorf("could not prepare directory for authored-script %s environment variable %q: %w", scope, variable.Name, err)
 		}
 	default:
-		return "", fmt.Errorf("authored-script session environment variable %q has unsupported kind %q", variable.Name, variable.Kind)
+		return "", fmt.Errorf("authored-script %s environment variable %q has unsupported kind %q", scope, variable.Name, variable.Kind)
 	}
 	return resolvedPath, nil
 }
 
-func ensureSessionFile(path string) error {
+func ensureEnvironmentFile(path string) error {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err == nil {
 		return file.Close()
@@ -145,12 +171,26 @@ func ensureSessionFile(path string) error {
 		return err
 	}
 
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return err
 	}
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("path %q is not a regular file", path)
+	}
+	return nil
+}
+
+func ensureEnvironmentDirectory(path string) error {
+	if err := os.MkdirAll(path, sessionDirectoryMode); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("path %q is not a directory", path)
 	}
 	return nil
 }
