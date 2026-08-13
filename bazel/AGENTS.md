@@ -881,6 +881,13 @@ local and remote execution to be configured.
 All Windows developers are expected to have **Developer Mode enabled**, which grants the necessary privileges for
 symlink creation without administrator elevation. The `.bazelrc` sets `--enable_runfiles` accordingly.
 
+**Runfiles file junctions.** `--enable_runfiles` builds the runfiles tree with directory junctions. Windows junctions
+cannot point at files, so a file runfile shows up as a directory (`d----l`) and `open()` fails with `Permission
+denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path.
+Workaround: `copy_to_directory` so the runfiles entry is one directory junction to a real directory of real files
+(see `@cpython//:python_win_dir`, `//rtloader/test:dir_with_python_home`). Prefer the runfiles library over
+constructing paths under `*.runfiles`.
+
 **No sandbox.** Windows uses `--strategy=standalone`. Builds are less hermetic by default — undeclared dependencies that
 happen to be present locally will succeed locally and fail in CI or RBE.
 
