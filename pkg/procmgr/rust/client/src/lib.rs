@@ -60,6 +60,7 @@ pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
     let endpoint = path.to_path_buf();
     let display_path = endpoint.clone();
     tonic::transport::Endpoint::from_static(TONIC_PLACEHOLDER_URI)
+        .connect_timeout(CONNECT_TIMEOUT)
         .connect_with_connector(tower::service_fn(move |_| {
             let endpoint = endpoint.clone();
             async move {
