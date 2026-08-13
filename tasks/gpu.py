@@ -55,9 +55,10 @@ def download_gpu_burner(ctx, output_path: str):
     destination = Path(output_path).resolve()
     destination.mkdir(parents=True, exist_ok=True)
     artifact_url = f"{MASS_READ_URL}/{GPU_BURNER_ARTIFACT_PATH}"
+    print("== Fetching mASS authorization token ==", flush=True)
     token = datadog_infra_token(ctx, audience=MASS_AUDIENCE)
 
-    print(f"== Downloading gpu-burner to {destination} ==")
+    print(f"== Downloading gpu-burner to {destination} ==", flush=True)
     with tempfile.NamedTemporaryFile(prefix="gpu-burner-", suffix=".tar.gz") as archive:
         ctx.run(
             " ".join(
@@ -70,6 +71,7 @@ def download_gpu_burner(ctx, output_path: str):
             ),
             hide=True,
         )
+        print(f"== Extracting gpu-burner to {destination} ==", flush=True)
         ctx.run(f"tar -xzf {shlex.quote(archive.name)} -C {shlex.quote(str(destination))}")
 
 
