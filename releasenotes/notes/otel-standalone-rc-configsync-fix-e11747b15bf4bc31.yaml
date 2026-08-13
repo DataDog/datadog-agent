@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a crash loop in standalone ``otel-agent`` (``DD_OTEL_STANDALONE=true``) when deployed
+    alongside a core Datadog Agent that injects ``DD_REMOTE_CONFIGURATION_ENABLED=true`` or
+    ``DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL`` into its environment, such as when using the
+    Datadog Operator. Standalone mode now reliably disables Remote Configuration and config
+    sync regardless of these environment variables, since it has no core agent IPC endpoint
+    to use them with.

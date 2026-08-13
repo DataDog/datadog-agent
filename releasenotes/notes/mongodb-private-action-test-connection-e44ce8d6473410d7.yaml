@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Private Action Runner can now validate MongoDB connections

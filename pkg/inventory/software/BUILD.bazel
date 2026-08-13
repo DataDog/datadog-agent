@@ -53,6 +53,7 @@ dd_agent_go_test(
         "collector_windows_test.go",
         "config_test.go",
         "integration_windows_test.go",
+        "main_windows_test.go",
         "wire_test.go",
     ],
     data = select({
@@ -65,10 +66,12 @@ dd_agent_go_test(
     env = select({
         "@rules_go//go/platform:windows": {
             "INTEROP_DLL_PATH": "$(rlocationpath //tools/windows/DatadogInterop:libdatadog_interop)",
+            # Override .bazelrc's RunAsInvoker so admin users get an elevated token
+            # (needed for Get-AppxPackage -AllUsers / FindPackagesWithPackageTypes).
+            "__COMPAT_LAYER": "RunAsHighest",
         },
         "//conditions:default": {},
     }),
-    tags = ["manual"],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
