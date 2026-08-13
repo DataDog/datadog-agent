@@ -148,6 +148,7 @@ go_library(
 dd_agent_go_test(
     name = "darwin_test",
     srcs = [
+        "bench_test.go",
         "dedupe_test.go",
         "ruleset_test.go",
         "serialize_test.go",

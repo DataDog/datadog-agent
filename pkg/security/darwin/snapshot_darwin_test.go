@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // TestParseProcArgs covers the fiddliest part of the snapshot: KERN_PROCARGS2 is
@@ -91,6 +92,42 @@ func TestSnapshotFindsCurrentProcess(t *testing.T) {
 
 	parent := pr.Resolve(process.CacheResolverKey{Pid: uint32(os.Getppid())})
 	assert.NotNil(t, parent, "the parent process must also be in the snapshot")
+}
+
+// BenchmarkSnapshot measures collector startup cost: the snapshot runs once before
+// subscribing, and it walks every process on the machine (roughly 870 on this
+// laptop), reading KERN_PROCARGS2 for each. If it were slow it would widen the
+// window in which events are missed between snapshot and subscription.
+func BenchmarkSnapshot(b *testing.B) {
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	ug, err := usergroup.NewResolver()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var inserted int
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		pr, err := process.NewEBPFLessResolver(nil, nil, scrubber, process.NewResolverOpts())
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.StartTimer()
+
+		inserted, err = Snapshot(pr, ug)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.StopTimer()
+	b.ReportMetric(float64(inserted), "processes")
 }
 
 // TestSnapshotLinksParents is what the snapshot is for: without it every process
