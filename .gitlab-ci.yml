@@ -121,6 +121,9 @@
 
   # E2E framework
   - test/e2e-framework/components/activedirectory/**/*
+  - test/e2e-framework/components/os/scripts/setup-ssh.ps1
+  - test/e2e-framework/components/os/windows*
+  - test/e2e-framework/scenarios/aws/ec2/os_win.go
 
 # Process manager
 .windows_path_4: &windows_path_4
@@ -170,6 +173,11 @@ default:
   retry:
     max: 1 # Retry everything once on failure
     when: always
+
+# Full git history. Override the default shallow clone.
+.needs_full_git_history:
+  variables:
+    GIT_DEPTH: 0
 
 stages:
   - .pre
@@ -307,9 +315,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v126430166-27084be1
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v126430166-27084be1
+  CI_IMAGE_WIN_LTSC2022_X64: v127592905-6a747366
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v126430166-27084be1
+  CI_IMAGE_WIN_LTSC2025_X64: v127592905-6a747366
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -372,8 +380,9 @@ variables:
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
-  # Job cloning strategy
+  # Shallow clone by default.
   GIT_STRATEGY: "fetch"
+  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
@@ -1140,6 +1149,20 @@ workflow:
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/discovery/**/*
         - pkg/discovery/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+.on_adp_preflight_mode_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/dataplane/preflightmode/**/*
+        - test/new-e2e/tests/agent-data-plane/**/*
+        # Preflight mode's eligibility gate lives in the config layer, not in the component:
+        # sanitizeDataPlaneConfig decides whether data_plane.enabled stays at its default
+        # source, which is what makes the pre-flight run at all.
+        - pkg/config/setup/config.go
+        # The pre-flight has nothing to run if ADP stops being packaged.
+        - deps/agent_data_plane/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_amp_or_e2e_changes:

@@ -707,6 +707,7 @@ func TestApplicableTagSets(t *testing.T) {
 	tagCombined := write("combo_test.go", "//go:build kubeapiserver && linux")
 	twoTags := write("two_tags_test.go", "//go:build trivy && containerd")
 	relatedTags := write("related_tags_test.go", "//go:build trivy && docker")
+	crioTags := write("crio_tags_test.go", "//go:build trivy && crio")
 	oneTag := write("one_tag_test.go", "//go:build trivy")
 	negativeTag := write("negative_tag_test.go", "//go:build zlib && !zstd")
 	compression := write("compression_test.go", "//go:build zlib && zstd")
@@ -717,6 +718,8 @@ func TestApplicableTagSets(t *testing.T) {
 	orchestrator := write("orchestrator_test.go", "//go:build orchestrator")
 	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
 	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet", "orchestrator")
+	containerdTagSet := tagsList("cel", "containerd")
+	dockerTagSet := tagsList("cel", "docker", "kubelet")
 	var manyTagNames []string
 	for tag := range AutoTestTags {
 		manyTagNames = append(manyTagNames, tag)
@@ -860,6 +863,24 @@ func TestApplicableTagSets(t *testing.T) {
 			srcs:              []string{linuxBpf},
 			configuredTagSets: [][]string{kubernetesTagSet},
 			wantTagSets:       [][]string{tagsList("linux_bpf")},
+		},
+		{
+			name:              "configured set grows to cover tags it does not name",
+			srcs:              []string{twoTags},
+			configuredTagSets: [][]string{containerdTagSet},
+			wantTagSets:       [][]string{tagsList("cel", "containerd", "trivy")},
+		},
+		{
+			name:              "only the configured sets a constraint touches are added",
+			srcs:              []string{relatedTags},
+			configuredTagSets: [][]string{containerdTagSet, dockerTagSet},
+			wantTagSets:       [][]string{tagsList("cel", "docker", "kubelet", "trivy")},
+		},
+		{
+			name:              "unconfigured alternative coalesces with the grown set",
+			srcs:              []string{twoTags, crioTags},
+			configuredTagSets: [][]string{containerdTagSet},
+			wantTagSets:       [][]string{tagsList("cel", "containerd", "crio", "trivy")},
 		},
 		{
 			name:              "embedded library selects configured set",
