@@ -60,7 +60,7 @@ const plutilConvertTimeout = 10 * time.Second
 // - System extensions
 // - Homebrew packages
 // - MacPorts packages
-// - OS updates (the running system version plus update install history)
+// - The running operating system
 func defaultCollectors() []Collector {
 	return []Collector{
 		&applicationsCollector{},
@@ -69,7 +69,7 @@ func defaultCollectors() []Collector {
 		&systemExtensionsCollector{},
 		&homebrewCollector{},
 		&macPortsCollector{},
-		&osUpdateCollector{},
+		&osCollector{},
 	}
 }
 
@@ -139,70 +139,6 @@ func parsePlistToMap(data []byte) (map[string]string, error) {
 	return result, nil
 }
 
-// parsePlistArrayToMaps parses plist XML data whose root is an array of dicts,
-// returning one map per dict. Unlike parsePlistToMap, which expects a single
-// top-level dict, this handles receipt files such as InstallHistory.plist.
-func parsePlistArrayToMaps(data []byte) ([]map[string]string, error) {
-	var result []map[string]string
-
-	decoder := xml.NewDecoder(bytes.NewReader(data))
-	var current map[string]string
-	var currentKey string
-	var dictLevel int // Track nesting level to handle nested dicts in arrays
-
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			break
-		}
-
-		switch t := token.(type) {
-		case xml.StartElement:
-			switch t.Name.Local {
-			case "dict":
-				dictLevel++
-				// The root <array> does not nest, so each element dict is at level 1
-				if dictLevel == 1 {
-					current = make(map[string]string)
-				}
-			case "key":
-				// Only capture keys of the element dict
-				if dictLevel == 1 {
-					var key string
-					if err := decoder.DecodeElement(&key, &t); err == nil {
-						currentKey = key
-					}
-				}
-			case "string", "date":
-				// Only capture values of the element dict
-				if dictLevel == 1 && currentKey != "" {
-					var value string
-					if err := decoder.DecodeElement(&value, &t); err == nil {
-						current[currentKey] = value
-					}
-					currentKey = ""
-				}
-			default:
-				// Skip other value types (e.g. the packageIdentifiers array) and
-				// reset the key so their contents are not mistaken for its value
-				if dictLevel == 1 && currentKey != "" {
-					currentKey = ""
-				}
-			}
-		case xml.EndElement:
-			if t.Name.Local == "dict" {
-				dictLevel--
-				if dictLevel == 0 && current != nil {
-					result = append(result, current)
-					current = nil
-				}
-			}
-		}
-	}
-
-	return result, nil
-}
-
 // readPlistXML reads a plist file, converting it from the binary format when needed
 func readPlistXML(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
@@ -235,17 +171,6 @@ func readPlistFile(path string) (map[string]string, error) {
 	}
 
 	return parsePlistToMap(data)
-}
-
-// readPlistArrayFile reads a plist file whose root is an array of dicts
-// It handles both XML and binary plist formats
-func readPlistArrayFile(path string) ([]map[string]string, error) {
-	data, err := readPlistXML(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return parsePlistArrayToMaps(data)
 }
 
 // Status constants for broken state detection

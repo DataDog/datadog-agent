@@ -261,14 +261,13 @@ func TestCollectorDeadline(t *testing.T) {
 }
 
 func TestEntryIDsAreUniqueAcrossSources(t *testing.T) {
-	// os_update and driver entries share the snapshot with application entries;
+	// os and driver entries share the snapshot with application entries;
 	// GetID must keep them distinct so the backend does not collapse them.
 	collector := &MockCollector{
 		entries: map[string]*Entry{
-			"driver":   {DisplayName: "Wi-Fi Adapter", ProductCode: "intel|net|wi-fi adapter", Source: softwareTypeDriver},
-			"update":   {DisplayName: "Update KB5061234", ProductCode: "KB5061234", Source: softwareTypeOSUpdate},
-			"macos":    {DisplayName: "macOS 15.6", ProductCode: "com.apple.macos", Source: softwareTypeOSUpdate},
-			"desktop":  {DisplayName: "Wi-Fi Adapter", ProductCode: "intel|net|wi-fi adapter", Source: "desktop"},
+			"driver":   {DisplayName: "Wi-Fi Adapter", ProductCode: "wdfilter", Source: softwareTypeDriver},
+			"os":       {DisplayName: osDisplayName, ProductCode: osProductCode, Source: softwareTypeOS},
+			"desktop":  {DisplayName: "Wi-Fi Adapter", ProductCode: "wdfilter", Source: "desktop"},
 			"homebrew": {DisplayName: "git", ProductCode: "git", Source: "homebrew"},
 		},
 	}

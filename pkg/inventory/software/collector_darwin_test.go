@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -346,7 +345,7 @@ func TestSoftwareTypeConstants(t *testing.T) {
 		softwareTypeSysExt,
 		softwareTypeHomebrew,
 		softwareTypeMacPorts,
-		softwareTypeOSUpdate,
+		softwareTypeOS,
 	}
 
 	// Check uniqueness
@@ -366,51 +365,37 @@ func TestSoftwareTypeConstants(t *testing.T) {
 	assert.Equal(t, "sysext", softwareTypeSysExt)
 	assert.Equal(t, "homebrew", softwareTypeHomebrew)
 	assert.Equal(t, "macports", softwareTypeMacPorts)
-	assert.Equal(t, "os_update", softwareTypeOSUpdate)
+	assert.Equal(t, "os", softwareTypeOS)
 }
 
-// TestOSUpdateCollectorIntegration verifies against the real host that the running
-// system entry reports the same version as sw_vers.
-func TestOSUpdateCollectorIntegration(t *testing.T) {
+// TestOSCollectorIntegration verifies against the real host that the operating system
+// entry reports the same version and build as sw_vers.
+func TestOSCollectorIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	out, err := exec.Command("sw_vers", "-productVersion").Output()
+	productVersion, err := exec.Command("sw_vers", "-productVersion").Output()
 	require.NoError(t, err)
-	expectedVersion := strings.TrimSpace(string(out))
-
-	entries, warnings, err := (&osUpdateCollector{}).Collect()
+	buildVersion, err := exec.Command("sw_vers", "-buildVersion").Output()
 	require.NoError(t, err)
 
-	for _, w := range warnings {
-		t.Logf("Warning: %s", w.Message)
-	}
+	expected := osVersionString(strings.TrimSpace(string(productVersion)), string(buildVersion))
 
-	var system *Entry
-	seenIDs := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		assert.Equal(t, softwareTypeOSUpdate, entry.Source)
-		assert.NotEmpty(t, entry.DisplayName)
-		assert.Equal(t, applePublisher, entry.Publisher)
+	entries, warnings, err := (&osCollector{}).Collect()
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+	require.Len(t, entries, 1, "the operating system is exactly one entry")
 
-		if entry.InstallDate != "" {
-			_, err := time.Parse(time.RFC3339, entry.InstallDate)
-			assert.NoError(t, err, "install date for %s should be RFC3339", entry.ProductCode)
-		}
+	entry := entries[0]
+	assert.Equal(t, softwareTypeOS, entry.Source)
+	assert.Equal(t, osDisplayName, entry.DisplayName)
+	assert.Equal(t, osProductCode, entry.ProductCode)
+	assert.Equal(t, applePublisher, entry.Publisher)
+	assert.Equal(t, expected, entry.Version)
+	assert.Empty(t, entry.InstallDate)
 
-		_, duplicate := seenIDs[entry.GetID()]
-		assert.False(t, duplicate, "entry %q reported more than once", entry.GetID())
-		seenIDs[entry.GetID()] = struct{}{}
-
-		if entry.ProductCode == macOSProductCode {
-			system = entry
-		}
-	}
-
-	require.NotNil(t, system, "the running system entry must always be present")
-	assert.Equal(t, expectedVersion, system.Version)
-	t.Logf("Found %d OS update entries, running %s", len(entries), system.DisplayName)
+	t.Logf("Running %s", entry.Version)
 }
 
 // TestInstallSourceConstants verifies that install source constants (pkg, mas,

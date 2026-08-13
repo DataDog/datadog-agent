@@ -16,11 +16,12 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func TestIntegrationCompareWithPowerShell(t *testing.T) {
@@ -485,104 +486,50 @@ func TestIntegrationDriversAgainstServices(t *testing.T) {
 	}
 }
 
-// cbsPackageStates enumerates the servicing store and reports how many "Package_for_*"
-// packages are installed, along with the distribution of CurrentState values it saw.
+// TestIntegrationOSVersion verifies against the real host that the reported OS version is
+// the one the registry records, including the revision that the cumulative update advances.
 //
-// It reimplements the enumeration rather than reusing the collector on purpose: it is the
-// ground truth the collector is checked against, and the state histogram is what tells a
-// human whether an empty result means "this host has no updates" or "the collector is
-// filtering them all out".
-func cbsPackageStates(t *testing.T) (installed int, states map[uint64]int) {
-	t.Helper()
-
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, cbsPackagesKey,
-		registry.ENUMERATE_SUB_KEYS|registry.QUERY_VALUE|registry.WOW64_64KEY)
-	require.NoError(t, err)
-	defer func() { _ = key.Close() }()
-
-	names, err := key.ReadSubKeyNames(wantAll)
-	require.NoError(t, err)
-
-	states = make(map[uint64]int)
-	for _, name := range names {
-		if !strings.HasPrefix(strings.ToLower(name), "package_for_") {
-			continue
-		}
-
-		subkey, err := registry.OpenKey(key, name, registry.QUERY_VALUE|registry.WOW64_64KEY)
-		if err != nil {
-			continue
-		}
-		state, _, err := subkey.GetIntegerValue(cbsCurrentState)
-		_ = subkey.Close()
-		if err != nil {
-			continue
-		}
-
-		states[state]++
-		if state == cbsStateInstalled {
-			installed++
-		}
-	}
-
-	return installed, states
-}
-
-// TestIntegrationOSUpdates verifies against the real host that installed updates are
-// reported with a well-formed identity and install time.
-func TestIntegrationOSUpdates(t *testing.T) {
+// It reads the registry independently of winutil rather than reusing it, so that the
+// assertion is anchored to what the host records rather than to the code under test.
+func TestIntegrationOSVersion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Read the servicing store directly, independently of the collector, so the
-	// assertions below are anchored to what the host actually records rather than to an
-	// assumption about how it was patched.
-	installed, states := cbsPackageStates(t)
-	t.Logf("CBS servicing packages by CurrentState: %v (%d installed)", states, installed)
-
-	entries, warnings, err := (&osUpdateCollector{}).Collect()
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
 	require.NoError(t, err)
-	for _, w := range warnings {
-		t.Logf("Warning: %s", w.Message)
+	defer func() { _ = key.Close() }()
+
+	major, _, err := key.GetIntegerValue("CurrentMajorVersionNumber")
+	require.NoError(t, err)
+	minor, _, err := key.GetIntegerValue("CurrentMinorVersionNumber")
+	require.NoError(t, err)
+	build, _, err := key.GetStringValue("CurrentBuildNumber")
+	require.NoError(t, err)
+	// A host that has had no cumulative update applied carries no UBR.
+	revision, _, ubrErr := key.GetIntegerValue("UBR")
+	if ubrErr != nil {
+		revision = 0
 	}
+	expected := fmt.Sprintf("%d.%d.%s.%d", major, minor, build, revision)
 
-	if installed == 0 {
-		// A host serviced purely by image replacement can legitimately have none.
-		t.Log("host records no installed servicing packages, nothing to verify")
-	} else {
-		require.NotEmpty(t, entries,
-			"CBS lists %d installed servicing packages but the collector reported none", installed)
-	}
+	entries, warnings, err := (&osCollector{}).Collect()
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+	require.Len(t, entries, 1, "the operating system is exactly one entry")
 
-	kbCount := 0
-	seenIDs := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		assert.Equal(t, softwareTypeOSUpdate, entry.Source)
-		assert.NotEmpty(t, entry.ProductCode)
-		assert.Equal(t, "Update "+entry.ProductCode, entry.DisplayName)
-		assert.NotEmpty(t, entry.Version)
+	entry := entries[0]
+	assert.Equal(t, softwareTypeOS, entry.Source)
+	assert.Equal(t, osDisplayName, entry.DisplayName)
+	assert.Equal(t, osProductCode, entry.ProductCode)
+	assert.Equal(t, microsoftPublisher, entry.Publisher)
+	assert.Equal(t, expected, entry.Version)
 
-		if cbsKBPattern.MatchString(entry.ProductCode) {
-			kbCount++
-		}
-
-		if entry.InstallDate != "" {
-			_, err := time.Parse(time.RFC3339Nano, entry.InstallDate)
-			assert.NoError(t, err, "install date for %s should be RFC3339", entry.ProductCode)
-		}
-
-		_, duplicate := seenIDs[entry.GetID()]
-		assert.False(t, duplicate, "update %q reported more than once", entry.ProductCode)
-		seenIDs[entry.GetID()] = struct{}{}
-	}
-
-	// Logged rather than asserted: the mix of KB-identified and rolling-family updates
-	// depends on how the host was serviced, and this is the number to eyeball when
-	// checking that cumulative updates are not being missed.
-	t.Logf("Found %d installed OS updates (%d KB-identified, %d by package family)",
-		len(entries), kbCount, len(entries)-kbCount)
-	for _, entry := range entries {
-		t.Logf("  %s %s (%s)", entry.ProductCode, entry.Version, entry.InstallDate)
-	}
+	// Logged rather than asserted: kernel32.dll's revision tracks the cumulative update
+	// but is that file's revision, so it can lag the registry. This is the number to
+	// eyeball when deciding whether the two sources can be collapsed into one.
+	buildString, err := winutil.GetWindowsBuildString()
+	assert.NoError(t, err)
+	t.Logf("registry reports %q, GetWindowsBuildString reports %q", entry.Version, buildString)
 }

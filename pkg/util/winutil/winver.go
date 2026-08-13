@@ -16,6 +16,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 var (
@@ -53,6 +54,51 @@ func GetWindowsBuildString() (verstring string, err error) {
 		return
 	}
 	return getVersionInfo(data)
+}
+
+// windowsCurrentVersionKey records the version of the running Windows installation.
+const windowsCurrentVersionKey = `SOFTWARE\Microsoft\Windows NT\CurrentVersion`
+
+// GetWindowsVersion returns the full version of the running Windows installation,
+// formatted as "major.minor.build.revision" — for example "10.0.26100.4652".
+//
+// This is the version winver.exe reports ("OS Build 26100.4652"). The revision, which
+// the cumulative update advances, is recorded only here: RtlGetVersion's OSVERSIONINFOEX
+// has no field for it, and GetWindowsBuildString reads kernel32.dll's version resource,
+// which carries that file's revision rather than the system's.
+func GetWindowsVersion() (string, error) {
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsCurrentVersionKey, registry.QUERY_VALUE)
+	if err != nil {
+		return "", fmt.Errorf("failed to open %s: %w", windowsCurrentVersionKey, err)
+	}
+	defer func() { _ = key.Close() }()
+
+	major, _, err := key.GetIntegerValue("CurrentMajorVersionNumber")
+	if err != nil {
+		return "", fmt.Errorf("failed to read CurrentMajorVersionNumber: %w", err)
+	}
+
+	minor, _, err := key.GetIntegerValue("CurrentMinorVersionNumber")
+	if err != nil {
+		return "", fmt.Errorf("failed to read CurrentMinorVersionNumber: %w", err)
+	}
+
+	// CurrentBuildNumber is a string value, and is used as-is: it is the build number
+	// users recognise, and reformatting it could only lose information.
+	build, _, err := key.GetStringValue("CurrentBuildNumber")
+	if err != nil {
+		return "", fmt.Errorf("failed to read CurrentBuildNumber: %w", err)
+	}
+
+	// A missing UBR is reported as revision zero rather than as an error: the rest of the
+	// version is still correct, and an installation that has had no cumulative update
+	// applied does not necessarily carry the value.
+	revision, _, err := key.GetIntegerValue("UBR")
+	if err != nil {
+		revision = 0
+	}
+
+	return fmt.Sprintf("%d.%d.%s.%d", major, minor, build, revision), nil
 }
 
 func getModuleHandle(fname string) (handle uintptr, err error) {

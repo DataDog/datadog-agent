@@ -208,30 +208,3 @@ func TestTrimVersion(t *testing.T) {
 		})
 	}
 }
-
-func TestCompareVersions(t *testing.T) {
-	tests := []struct {
-		a, b string
-		want int // sign of the expected result
-	}{
-		{"1.0.0.0", "1.0.0.0", 0},
-		// String comparison would order these wrongly: "100" sorts before "10".
-		{"22.100.0.2", "22.10.0.5", 1},
-		{"22.9.0.1", "22.10.0.5", -1},
-		{"2.0", "1.9.9.9", 1},
-		{"1.0", "1.0.0.1", -1},
-		{"1.0.0.1", "1.0", 1},
-	}
-
-	for _, tt := range tests {
-		got := compareVersions(tt.a, tt.b)
-		switch tt.want {
-		case 0:
-			assert.Zero(t, got, "compareVersions(%q, %q)", tt.a, tt.b)
-		case 1:
-			assert.Positive(t, got, "compareVersions(%q, %q)", tt.a, tt.b)
-		default:
-			assert.Negative(t, got, "compareVersions(%q, %q)", tt.a, tt.b)
-		}
-	}
-}
