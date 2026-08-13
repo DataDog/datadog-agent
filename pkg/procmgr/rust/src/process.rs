@@ -360,6 +360,9 @@ impl ManagedProcess {
     /// generation's job/profile if the process was respawned in the meantime.
     #[cfg(windows)]
     pub(crate) fn complete_late_exit_cleanup(&mut self, pid: u32) -> bool {
+        if self.pid == Some(pid) && self.state.is_alive() {
+            return false;
+        }
         let Some(idx) = self
             .deferred_exit_cleanups
             .iter()
