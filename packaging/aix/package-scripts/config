@@ -9,6 +9,7 @@ PYTHON=/opt/datadog-agent/embedded/bin/python3
 # https://github.com/DataDog/agent-linux-install-script). Only runs on a
 # fresh install: an existing datadog.yaml is left untouched.
 if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ] && [ -f "$EXAMPLE_FILE" ] && [ -x "$PYTHON" ]; then
+    echo "Populating $CONFIG_FILE from environment variables..."
     # Rendered on a root-only (umask 077) staging file, only chowned/chmoded
     # and moved into place once done, so the real datadog.yaml never exists
     # readable by anyone but root.
@@ -103,6 +104,7 @@ chown -R dd-agent:dd-agent /etc/datadog-agent \
 
 if [ -f "$CONFIG_FILE" ]; then
     if [ -z "$DD_INSTALL_ONLY" ]; then
+        echo "Starting Datadog Agent services..."
         startsrc -s datadog-agent
         startsrc -s datadog-trace-agent
         startsrc -s datadog-agent-data-plane
