@@ -190,13 +190,12 @@ func instanceTags(t *testing.T, instance integration.Data) []string {
 }
 
 // TestConfigMgr_DiscoveryTemplate_TagsAllInstances verifies that the
-// configuration-discovery marker tag (DSCVR-651) is added exactly once to
-// every instance of a discovered config, is merged alongside any tags the
-// discovered instance already carries rather than replacing them, and is
-// still added even when the discovered config opts out of ordinary
-// autodiscovery service tags via ignore_autodiscovery_tags (which must still
-// suppress the service's own tags, proving the marker tag is applied
-// independently of that mechanism).
+// configuration-discovery marker tag is added exactly once to every instance of
+// a discovered config, is merged alongside any tags the discovered instance
+// already carries rather than replacing them, and is still added even when the
+// discovered config opts out of ordinary autodiscovery service tags via
+// ignore_autodiscovery_tags (which must still suppress the service's own tags,
+// proving the marker tag is applied independently of that mechanism).
 func TestConfigMgr_DiscoveryTemplate_TagsAllInstances(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	disco := newStubDiscoverer(func(_, _ string) (string, error) {

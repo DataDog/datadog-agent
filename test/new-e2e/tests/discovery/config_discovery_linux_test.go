@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
-	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
+	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -113,8 +114,8 @@ func (s *configDiscoverySuite) verifyKrakendConfigDiscovery(c *assert.CollectT) 
 	s.verifyKrakendCheckProvider(c)
 
 	// Verify the metric actually submitted by the discovered krakend check
-	// carries the configuration-discovery marker tag (DSCVR-651), not just
-	// the resolved config (checked above via configcheck).
+	// carries the configuration-discovery marker tag, not just the resolved
+	// config (checked above via configcheck).
 	s.verifyKrakendMetricHasConfigDiscoveryTag(c)
 }
 
