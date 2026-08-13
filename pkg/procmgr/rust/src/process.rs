@@ -773,26 +773,36 @@ impl ManagedProcess {
                 }
             }
         }
-        self.mark_stopped();
-        None
+        self.mark_stopped()
     }
 
-    fn mark_stopped(&mut self) {
+    /// Transition to Stopped without an exit status. On Windows, returns the PID
+    /// when profile/job cleanup was deferred and a background job drain is needed.
+    fn mark_stopped(&mut self) -> Option<u32> {
         self.stop_requested = false;
         self.transition_to(ProcessState::Stopped);
         #[cfg(windows)]
-        if let Some(pid) = self.pid {
+        let drain_pid = if let Some(pid) = self.pid {
             if let Some(profile) = self.user_profile.take() {
+                let job = self.job_object.take();
+                let needs_drain = job.is_some();
                 self.deferred_exit_cleanups.push(DeferredExitCleanup {
                     pid,
                     user_profile: profile,
-                    job_object: self.job_object.take(),
+                    job_object: job,
                 });
+                needs_drain.then_some(pid)
             } else {
                 self.clear_windows_job_object();
+                None
             }
-        }
+        } else {
+            None
+        };
+        #[cfg(not(windows))]
+        let drain_pid = None;
         self.pid = None;
+        drain_pid
     }
 
     #[cfg(test)]
