@@ -6,6 +6,8 @@
 pub mod server;
 pub mod service;
 
+mod caller_auth;
+
 #[cfg(not(bazel))]
 pub mod proto {
     tonic::include_proto!("datadog.procmgr");
@@ -86,8 +88,10 @@ mod tests {
         });
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<crate::manager::ExitEvent>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
         let mgr_loop = mgr.clone();
         let exit_tx_loop = exit_tx.clone();
+        let restart_tx_loop = restart_tx.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -108,14 +112,16 @@ mod tests {
                             }
                             Command::ReloadConfig { reply } => {
                                 let _ = reply.send(
-                                    mgr_loop.handle_reload_config(&exit_tx_loop).await,
+                                    mgr_loop.handle_reload_config(&exit_tx_loop, &restart_tx_loop).await,
                                 );
                             }
                         }
                     }
                     Some(event) = exit_rx.recv() => {
-                        let restart_tx = mpsc::channel::<String>(256).0;
-                        mgr_loop.handle_exit(event, &restart_tx).await;
+                        mgr_loop.handle_exit(event, &restart_tx_loop).await;
+                    }
+                    Some(name) = restart_rx.recv() => {
+                        mgr_loop.complete_restart(&name, &exit_tx_loop, &restart_tx_loop).await;
                     }
                     else => break,
                 }
