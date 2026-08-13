@@ -1971,6 +1971,15 @@ func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
 
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
+
+	// dual_ship sends data to OPW in addition to (not instead of) the primary endpoint.
+	// Only registered for metrics; logs use logs_config.additional_endpoints for this purpose.
+	if datatype == Metrics {
+		config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.dual_ship", datatype), false)
+		config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.dual_ship_url", datatype), "")
+		config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.dual_ship", datatype), false)
+		config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.dual_ship_url", datatype), "")
+	}
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {

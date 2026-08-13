@@ -159,6 +159,41 @@ func getObsPipelineURLForPrefix(log log.Component, datatype string, prefix strin
 	return "", nil
 }
 
+// getObsPipelineDualShipURL returns the dual-ship URL for the given datatype if dual_ship is enabled.
+// Unlike getObsPipelineURL (which routes data exclusively to OPW), dual_ship keeps the primary
+// endpoint active and adds OPW as an additional destination.
+func getObsPipelineDualShipURL(log log.Component, datatype string, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.dual_ship", datatype)) {
+		return getObsPipelineDualShipURLForPrefix(log, datatype, "observability_pipelines_worker", config)
+	} else if config.GetBool(fmt.Sprintf("vector.%s.dual_ship", datatype)) {
+		return getObsPipelineDualShipURLForPrefix(log, datatype, "vector", config)
+	}
+	return "", nil
+}
+
+func getObsPipelineDualShipURLForPrefix(log log.Component, datatype string, prefix string, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("%s.%s.dual_ship", prefix, datatype)) {
+		pipelineURL := config.GetString(fmt.Sprintf("%s.%s.dual_ship_url", prefix, datatype))
+		if pipelineURL == "" {
+			log.Errorf("%s.%s.dual_ship is set to true, but %s.%s.dual_ship_url is empty", prefix, datatype, prefix, datatype)
+			return "", nil
+		}
+		_, err := url.Parse(pipelineURL)
+		if err != nil {
+			return "", fmt.Errorf("could not parse %s %s dual_ship endpoint: %s", prefix, datatype, err)
+		}
+		return pipelineURL, nil
+	}
+	return "", nil
+}
+
+// isMetricsEndpoint reports whether the given endpoint carries time-series or sketch metrics.
+func isMetricsEndpoint(e transaction.Endpoint) bool {
+	return e == endpoints.V1SeriesEndpoint ||
+		e == endpoints.SeriesEndpoint ||
+		e == endpoints.SketchSeriesEndpoint
+}
+
 // NewOptions creates a configuration for the forwarder with OPW enabled.
 //
 // Deprecated, use NewOptionsWithOPW instead.
@@ -190,6 +225,21 @@ func NewOptionsWithOPW(config config.Component, log log.Component, eds utils.End
 			return nil, err
 		}
 		resolvers[utils.GetInfraEndpoint(config)] = resolver
+	}
+
+	dualShipMetricsURL, err := getObsPipelineDualShipURL(log, pkgconfigsetup.Metrics, config)
+	if err != nil {
+		log.Error("Misconfiguration of agent observability_pipelines_worker dual_ship endpoint for metrics: ", err)
+	}
+	if dualShipMetricsURL != "" {
+		log.Debugf("Configuring forwarder to dual-ship metrics to observability_pipelines_worker: %s", dualShipMetricsURL)
+		primaryResolver := resolvers[utils.GetInfraEndpoint(config)]
+		apiKeys, _ := primaryResolver.GetAPIKeysInfo()
+		dualResolver, err := pkgresolver.NewDomainResolverMetricsDualShip(dualShipMetricsURL, apiKeys)
+		if err != nil {
+			return nil, err
+		}
+		resolvers[dualShipMetricsURL] = dualResolver
 	}
 
 	return NewOptionsWithResolvers(config, log, resolvers), nil
@@ -539,6 +589,10 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 			}
 			// Autoscaling failover endpoint can only receive series payloads.
 			if dr.IsLocal() && endpoint != endpoints.SeriesEndpoint {
+				continue
+			}
+			// Dual-ship resolvers only forward metrics endpoints; skip everything else.
+			if dr.IsMetricsOnly() && !isMetricsEndpoint(endpoint) {
 				continue
 			}
 

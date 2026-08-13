@@ -62,7 +62,8 @@ type domainResolver struct {
 	overrides           map[string]destination
 	alternateDomainList []string
 
-	isMRF bool
+	isMRF       bool
+	metricsOnly bool
 }
 
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
@@ -379,6 +380,18 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 	return r, nil
 }
 
+// NewDomainResolverMetricsDualShip creates a resolver that sends metrics (series v1/v2
+// and sketches) to an additional Vector/OPW endpoint without replacing the primary resolver.
+// The forwarder skips non-metrics endpoints for resolvers where IsMetricsOnly() is true.
+func NewDomainResolverMetricsDualShip(opwURL string, apiKeys []utils.APIKeys) (DomainResolver, error) {
+	r, err := NewMultiDomainResolver(opwURL, apiKeys)
+	if err != nil {
+		return nil, err
+	}
+	r.metricsOnly = true
+	return r, nil
+}
+
 // NewLocalDomainResolver creates a LocalDomainResolver with domain in local cluster and authToken for internal communication
 // For example, the internal cluster-agent endpoint
 func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
@@ -403,6 +416,12 @@ func (r *domainResolver) IsLocal() bool {
 // IsMRF returns true when the domain is used as the target for multi region failover.
 func (r *domainResolver) IsMRF() bool {
 	return r.isMRF
+}
+
+// IsMetricsOnly returns true when the resolver should only handle metrics endpoints
+// (series v1/v2 and sketches) and skip all other endpoint types.
+func (r *domainResolver) IsMetricsOnly() bool {
+	return r.metricsOnly
 }
 
 type authHeader struct {
