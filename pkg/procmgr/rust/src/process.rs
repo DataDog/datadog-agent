@@ -474,7 +474,7 @@ impl ManagedProcess {
     }
 
     #[must_use]
-    pub fn should_start(&self) -> bool {
+    pub fn should_auto_start(&self) -> bool {
         if !self.config.auto_start {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
@@ -500,7 +500,7 @@ impl ManagedProcess {
     #[must_use]
     pub(crate) fn should_respawn(&self) -> bool {
         if self.config.auto_start {
-            self.should_start()
+            self.should_auto_start()
         } else {
             self.start_conditions_met()
         }
@@ -986,45 +986,45 @@ pub mod tests {
         );
     }
 
-    // -- should_start tests --
+    // -- should_auto_start tests --
 
     #[test]
-    fn test_should_start_auto_start_true_no_condition() {
+    fn test_should_auto_start_auto_start_true_no_condition() {
         let (cmd, args) = test_helpers::true_cmd();
         let proc = ManagedProcess::new_config(
             "test".into(),
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        assert!(proc.should_start());
+        assert!(proc.should_auto_start());
     }
 
     #[test]
-    fn test_should_start_auto_start_false() {
+    fn test_should_auto_start_auto_start_false() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.auto_start = false;
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(!proc.should_start());
+        assert!(!proc.should_auto_start());
     }
 
     #[test]
-    fn test_should_start_condition_path_exists_met() {
+    fn test_should_auto_start_condition_path_exists_met() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         let exe = std::env::current_exe().unwrap();
         cfg.condition_path_exists = Some(exe.to_str().unwrap().to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(proc.should_start());
+        assert!(proc.should_auto_start());
     }
 
     #[test]
-    fn test_should_start_condition_path_exists_not_met() {
+    fn test_should_auto_start_condition_path_exists_not_met() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(!proc.should_start());
+        assert!(!proc.should_auto_start());
     }
 
     // -- spawn tests --
