@@ -1371,6 +1371,51 @@ type celReadersView struct {
 	// the layout only changes when the field set does.
 	ReaderPaths   []string
 	IteratorPaths []string
+	// GlobPaths are the fields a pattern is compiled as a glob for — see
+	// celGlobOverrides.
+	GlobPaths []string
+}
+
+// celGlobOverrides names the operator overrides that make a `~"…"` pattern compared
+// against the field a *glob* instead — `*` stopping at a path separator, `**` allowed.
+//
+// SECL spells that as a value type the override rewrites in place
+// (eval.GlobCmp, oo_glob_cmp.go), so the field is what decides which matcher a
+// pattern literal compiles to. Every override here reaches GlobCmp; the others in the
+// model — CaseInsensitiveCmp, which only lowercases, ExtensionCmp,
+// ProcessSymlinkBasename, PacketFilterMatching, OnDemandNameOverrides — compare with
+// the ordinary string operators and leave a pattern a pattern.
+//
+// A field's overrides are all applied and their results OR'd
+// (StringEqualsWrapper, eval.go), so one of them glob-ifying is enough.
+//
+// This list is the one thing here that has to be maintained by hand when an override
+// is added. TestGlobFieldsAgreeWithSECL in //pkg/security/seclcel is what catches it:
+// it asks SECL itself, field by field, and names any that disagree.
+var celGlobOverrides = map[string]bool{
+	"eval.GlobCmp":           true,
+	"eval.WindowsPathCmp":    true,
+	"OverlayFSPathname":      true,
+	"ProcessSymlinkPathname": true,
+}
+
+// celGlobPaths returns the fields whose patterns are globs, in the same order as the
+// layout.
+func celGlobPaths(module *common.Module) []string {
+	var paths []string
+	for _, name := range celReaderPaths(module) {
+		field := module.Fields[name]
+		if field.ReturnType != "string" {
+			continue
+		}
+		for _, override := range field.OpOverrides {
+			if celGlobOverrides[override] {
+				paths = append(paths, name)
+				break
+			}
+		}
+	}
+	return paths
 }
 
 // celReaderPaths returns the fields that get a reader, in layout order.
@@ -1415,6 +1460,7 @@ func GenerateCELReaders(output string, module *common.Module) error {
 		ModelPkg:      path.Base(module.SourcePkg) + ".",
 		ReaderPaths:   celReaderPaths(module),
 		IteratorPaths: iterators,
+		GlobPaths:     celGlobPaths(module),
 	}, celReadersTemplate)
 }
 

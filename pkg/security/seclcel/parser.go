@@ -99,6 +99,13 @@ type operand struct {
 	// anything computed, and for a field reached through an iterator variable.
 	field string
 
+	// matcherField is the SECL field whose matching semantics apply to the operand,
+	// which is what decides whether a pattern compared against it is a glob. It is
+	// the field name with any subscript removed, and unlike field it survives being
+	// quantified: the element of process.ancestors bound by an exists() still holds
+	// process.ancestors.file.path, and SECL globs a pattern compared against it.
+	matcherField string
+
 	// listExpr marks an operand whose expression is already a list needing to be
 	// quantified, which happens when a list valued leaf sits inside an iterated
 	// node: process.ancestors.args_flags is a list of flags per ancestor.
@@ -731,10 +738,16 @@ func (p *parser) identOperand(tok token) (operand, *ParseError) {
 	field := tok.val
 	if strings.ContainsAny(field, "[]") {
 		// A subscripted name is either indexed or bound to an iterator variable;
-		// either way it no longer denotes the whole field.
+		// either way it no longer denotes the whole field. Which field it *reaches*
+		// is still known, and is what the matching semantics come from.
 		field = ""
 	}
-	return operand{expr: expr, field: field, start: tok.start, end: tok.end}, nil
+	return operand{
+		expr:         expr,
+		field:        field,
+		matcherField: reSubscript.ReplaceAllString(tok.val, ""),
+		start:        tok.start, end: tok.end,
+	}, nil
 }
 
 // canonical brings a name up to date, for a rule still written with one a field used
@@ -855,7 +868,7 @@ func (p *parser) fieldRefOperand(tok token) (operand, *ParseError) {
 	if wrap != "" {
 		expr = p.call(wrap, tok.start, tok.end, expr)
 	}
-	return operand{expr: expr, start: tok.start, end: tok.end}, nil
+	return operand{expr: expr, matcherField: name, start: tok.start, end: tok.end}, nil
 }
 
 // cidrOperand translates an IP or CIDR literal into the corresponding
@@ -1054,8 +1067,10 @@ func (p *parser) scalarComparisonOf(op string, lhs, rhs operand) (operand, *Pars
 func (p *parser) applyMatcher(subject, matcher operand, start, end int) (celast.Expr, *ParseError) {
 	switch matcher.kind {
 	case kindPattern:
-		// CEL has no glob matching of its own.
-		return p.call(GlobFunc, start, end, subject.expr, p.strLit(matcher.text, matcher.start, matcher.end)), nil
+		// CEL has no matching of its own for either of the two kinds SECL compiles a
+		// pattern into, and which one it is depends on the field — see globFunc.
+		return p.call(p.globFunc(subject), start, end, subject.expr,
+			p.strLit(matcher.text, matcher.start, matcher.end)), nil
 	case kindRegexp:
 		// SECL and CEL agree here: both are unanchored RE2 matches.
 		return p.memberCall(matchesFunc, subject.expr, start, end,
@@ -1063,6 +1078,20 @@ func (p *parser) applyMatcher(subject, matcher operand, start, end int) (celast.
 	default:
 		return p.call(operators.Equals, start, end, subject.expr, matcher.expr), nil
 	}
+}
+
+// globFunc picks the matcher a pattern compared against the subject compiles to.
+//
+// SECL settles this per field rather than per literal: a path field carries an
+// operator override that rewrites the pattern's value type to a glob, so `*` stops at
+// a separator and `**` is allowed, and every other string field keeps the pattern
+// semantics where `*` crosses everything. Without field types nothing is known about
+// the subject, and the pattern form is the one that does not reject `**`-free rules.
+func (p *parser) globFunc(subject operand) string {
+	if p.types != nil && p.types.GlobPattern(subject.matcherField) {
+		return PathGlobFunc
+	}
+	return GlobFunc
 }
 
 // durationComparison translates a comparison against a duration literal. SECL
@@ -1152,6 +1181,9 @@ type listRange struct {
 	elemIsList bool
 	// wrap is applied to the value reached in each element.
 	wrap string
+	// matcherField is the field the elements come from, which keeps the matching
+	// semantics of a pattern compared against one — see operand.matcherField.
+	matcherField string
 }
 
 // listRange reports whether an operand holds several values, which is what turns
@@ -1159,7 +1191,7 @@ type listRange struct {
 // leaving the comparison to be translated literally.
 func (p *parser) listRange(o operand) (listRange, bool) {
 	if o.listExpr {
-		return listRange{expr: o.expr}, true
+		return listRange{expr: o.expr, matcherField: o.matcherField}, true
 	}
 	if p.types == nil || o.field == "" {
 		return listRange{}, false
@@ -1180,8 +1212,9 @@ func (p *parser) listRange(o operand) (listRange, bool) {
 			return listRange{}, false
 		}
 		return listRange{
-			expr:      expr,
-			remainder: remainder,
+			expr:         expr,
+			remainder:    remainder,
+			matcherField: o.matcherField,
 			// A pseudo field consumes the list it derives from, so what is left
 			// per element is a single value.
 			elemIsList: o.wrap == "" && p.types.IsListLeaf(o.field),
@@ -1192,7 +1225,7 @@ func (p *parser) listRange(o operand) (listRange, bool) {
 	// size() applies to the list itself, so process.argv.length is the number of
 	// arguments rather than one length per argument.
 	if o.wrap == "" && p.types.IsListLeaf(o.field) {
-		return listRange{expr: o.expr}, true
+		return listRange{expr: o.expr, matcherField: o.matcherField}, true
 	}
 
 	return listRange{}, false
@@ -1213,7 +1246,12 @@ func (p *parser) quantifyExpr(macro string, r listRange, start, end int, build f
 
 	// The element is no longer a named field, so only its own list-ness can make
 	// it quantifiable again.
-	pred, err := build(operand{expr: elemExpr, listExpr: r.elemIsList, start: start, end: end})
+	pred, err := build(operand{
+		expr:         elemExpr,
+		matcherField: r.matcherField,
+		listExpr:     r.elemIsList,
+		start:        start, end: end,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1249,10 +1287,11 @@ func (p *parser) pseudoFieldOperand(tok token) (operand, *ParseError) {
 	// that a comparison against an iterated field can quantify first and apply
 	// the function to each element.
 	return operand{
-		expr:  p.call(wrap, tok.start, tok.end, expr),
-		field: name,
-		wrap:  wrap,
-		start: tok.start, end: tok.end,
+		expr:         p.call(wrap, tok.start, tok.end, expr),
+		field:        name,
+		matcherField: name,
+		wrap:         wrap,
+		start:        tok.start, end: tok.end,
 	}, nil
 }
 
@@ -1271,8 +1310,17 @@ func dotted(remainder string) string {
 // holding a pattern, because CEL membership compares for equality, and a list named
 // rather than written out, because what a macro holds is not visible here.
 func (p *parser) membership(subject operand, arr arrayOperand, start, end int) (celast.Expr, *ParseError) {
+	matchAny := MatchAnyFunc
+	if p.globFunc(subject) == PathGlobFunc {
+		// The set is searched with the subject's semantics rather than the ones its
+		// members were written with, because that is what SECL does: a macro is
+		// inlined and its pattern values are rewritten at the comparison. So one
+		// prepared set serves both kinds of field, and the call says which.
+		matchAny = MatchAnyPathFunc
+	}
+
 	if arr.expr != nil {
-		return p.call(MatchAnyFunc, start, end, subject.expr, arr.expr), nil
+		return p.call(matchAny, start, end, subject.expr, arr.expr), nil
 	}
 	if !arr.hasMatcher() {
 		return p.call(operators.In, start, end, subject.expr, p.arrayExpr(arr)), nil
@@ -1282,7 +1330,7 @@ func (p *parser) membership(subject operand, arr arrayOperand, start, end int) (
 	if len(arr.members) == 1 {
 		return p.applyMatcher(subject, arr.members[0], start, end)
 	}
-	return p.call(MatchAnyFunc, start, end, subject.expr, p.patternsExpr(arr, start, end)), nil
+	return p.call(matchAny, start, end, subject.expr, p.patternsExpr(arr, start, end)), nil
 }
 
 // patternsExpr builds the list a prepared set is made from, with each pattern member

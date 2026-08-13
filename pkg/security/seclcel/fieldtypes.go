@@ -33,6 +33,14 @@ type FieldTypes interface {
 	// process.argv does, without anything along its path being iterated.
 	IsListLeaf(field string) bool
 
+	// GlobPattern reports whether a `~"…"` pattern compared against the field is
+	// compiled as a glob rather than as a pattern: `*` stopping at a path separator,
+	// `**` allowed. SECL decides that per field, through an operator override that
+	// rewrites the value type of whatever the field is compared against, so the
+	// translation has to ask the same question wherever it turns a pattern into a
+	// call.
+	GlobPattern(field string) bool
+
 	// IsPseudoField reports whether the field is one of the `length` and
 	// `root_domain` pseudo fields, which SECL derives from another field rather
 	// than storing. They are translated to size() and a helper call.

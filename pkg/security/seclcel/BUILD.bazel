@@ -97,6 +97,7 @@ dd_agent_go_test(
         "constants_test.go",
         "corpus_test.go",
         "describe_test.go",
+        "globfields_test.go",
         "optimize_test.go",
         "patterns_test.go",
         "rule_test.go",

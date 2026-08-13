@@ -40,10 +40,12 @@
 //	a & b, a | b, a ^ b, ^a     math.bitAnd(a, b), … , math.bitNot(a)
 //	a == r"re", a =~ r"re"      a.matches("re")
 //	a == ~"gl", a =~ "gl"       secl.glob(a, "gl")
+//	                            secl.pathGlob(a, "gl") for a path field
 //	a in [1, 2]                 a in [1, 2]
 //	a in [~"/y/*"]              secl.glob(a, "/y/*")
 //	a in ["x", ~"/y/*"]         secl.matchAny(a, secl.patterns(["x", secl.glob("/y/*")]))
 //	a in b                      secl.matchAny(a, b)
+//	                            secl.matchAnyPath(a, b) for a path field
 //	a not in b                  !(a in b)
 //	a allin b                   a in b
 //	1.2.3.4, 10.0.0.0/8         ip("1.2.3.4"), cidr("10.0.0.0/8")
@@ -132,6 +134,23 @@
 // tree with the environment, so CompileWithTypes type-checks against the real
 // field types instead of treating every event as dynamic.
 //
+// # Pattern semantics
+//
+// The field types settle a second thing SECL leaves implicit: what a `~"…"` literal
+// means. SECL compiles one into a *glob* when the field it is compared against carries
+// an operator override that asks for it — `*` stops at a path separator, `**` crosses
+// one — and into a *pattern* otherwise, where `*` crosses everything and `**` is
+// refused. Which fields those are is generated into celGlobFields, from the overrides
+// the model declares, and checked against SECL itself by TestGlobFieldsAgreeWithSECL.
+//
+// So `open.file.path =~ "/etc/*"` is a glob call and `process.comm =~ "sh*"` a pattern
+// call, and it is the field rather than the literal that decides. A list carries both:
+// a member compiles both forms, and the membership call — MatchAnyFunc against
+// MatchAnyPathFunc — says which the set is searched with. That is what lets one macro
+// be a single prepared value while still meaning what SECL means at each of its use
+// sites, where SECL resolves the difference by inlining the macro and rewriting the
+// value type per comparison.
+//
 // # Divergences
 //
 // Some SECL behaviour cannot be reproduced by a translation that does not know
@@ -176,13 +195,18 @@
 //     itself against is the engine in production — and TestAllInIsMembershipLikeSECL
 //     is what reports it if SECL ever makes the operator universal.
 //
-//   - A `~"…"` pattern is always compiled as a pattern, where SECL compiles one as a
-//     *glob* when the field it is compared against carries the operator override that
-//     asks for it — every `*.file.path` on unix, more on windows. So `*` crosses a
-//     path separator here and stops at one there, making a path rule more permissive
-//     through CEL than through SECL, and `**`, which the real policies do use, is
-//     refused here outright. This is the one divergence that changes verdicts on rules
-//     as they are written today — see TestPathGlobsDivergeFromSECL.
+//   - A path comparison reaches one value, where SECL reaches several. The operator
+//     overrides those fields carry OR in a comparison against the overlayfs-relative
+//     path, and for `exec.file.path` and `process.file.path` two more against the
+//     symlink pathnames (oo_overlayfs_unix.go, oo_symlink_unix.go). So SECL matches a
+//     file reached through a symlink or an overlay mount where the translation does
+//     not, which makes CEL the *narrower* engine on those fields — and is most of why
+//     a path rule costs SECL four times what it costs here (BenchmarkPatternMembership).
+//
+//   - The case insensitive and separator normalising comparisons SECL uses for a few
+//     unix fields and for most windows ones are not reproduced: `secl.glob` and
+//     `secl.pathGlob` always match case sensitively, and a windows rule written with
+//     the other separator does not match.
 //
 //   - A list mixing constant types, which SECL rejects outright, is accepted here:
 //     CEL widens a heterogeneous list literal to list(dyn) and then matches nothing.

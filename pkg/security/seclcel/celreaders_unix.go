@@ -19219,3 +19219,60 @@ var celIteratorIndex = map[string]int{
 	"setrlimit.target.ancestors": 3,
 	"signal.target.ancestors":    4,
 }
+
+// celGlobFields names the fields whose `~"…"` and `=~` patterns SECL compiles as a
+// glob rather than as a pattern: `*` stops at a path separator and `**` is allowed.
+//
+// It is a property of the *field*, not of the literal — SECL reads it off the operator
+// override the field carries and rewrites the value type of whatever it is compared
+// against (eval.GlobCmp) — so the translation has to consult it wherever it turns a
+// pattern into a call. TestGlobFieldsAgreeWithSECL checks this table against SECL
+// field by field.
+var celGlobFields = map[string]struct{}{
+	"cgroup_write.file.path":                           {},
+	"chdir.file.path":                                  {},
+	"chmod.file.path":                                  {},
+	"chown.file.path":                                  {},
+	"exec.file.path":                                   {},
+	"exec.interpreter.file.path":                       {},
+	"exit.file.path":                                   {},
+	"exit.interpreter.file.path":                       {},
+	"link.file.destination.path":                       {},
+	"link.file.path":                                   {},
+	"load_module.file.path":                            {},
+	"mkdir.file.path":                                  {},
+	"mmap.file.path":                                   {},
+	"open.file.path":                                   {},
+	"process.ancestors.file.path":                      {},
+	"process.ancestors.interpreter.file.path":          {},
+	"process.file.path":                                {},
+	"process.interpreter.file.path":                    {},
+	"process.parent.file.path":                         {},
+	"process.parent.interpreter.file.path":             {},
+	"ptrace.tracee.ancestors.file.path":                {},
+	"ptrace.tracee.ancestors.interpreter.file.path":    {},
+	"ptrace.tracee.file.path":                          {},
+	"ptrace.tracee.interpreter.file.path":              {},
+	"ptrace.tracee.parent.file.path":                   {},
+	"ptrace.tracee.parent.interpreter.file.path":       {},
+	"removexattr.file.path":                            {},
+	"rename.file.destination.path":                     {},
+	"rename.file.path":                                 {},
+	"rmdir.file.path":                                  {},
+	"setrlimit.target.ancestors.file.path":             {},
+	"setrlimit.target.ancestors.interpreter.file.path": {},
+	"setrlimit.target.file.path":                       {},
+	"setrlimit.target.interpreter.file.path":           {},
+	"setrlimit.target.parent.file.path":                {},
+	"setrlimit.target.parent.interpreter.file.path":    {},
+	"setxattr.file.path":                               {},
+	"signal.target.ancestors.file.path":                {},
+	"signal.target.ancestors.interpreter.file.path":    {},
+	"signal.target.file.path":                          {},
+	"signal.target.interpreter.file.path":              {},
+	"signal.target.parent.file.path":                   {},
+	"signal.target.parent.interpreter.file.path":       {},
+	"splice.file.path":                                 {},
+	"unlink.file.path":                                 {},
+	"utimes.file.path":                                 {},
+}

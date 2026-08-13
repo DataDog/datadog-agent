@@ -183,31 +183,53 @@ func (a *Activation) ResolveName(name string) (any, bool) {
 	return nil, false
 }
 
-// globOptimization compiles the pattern of a glob against a literal, which is
-// the form every translated `=~` and `~"…"` takes.
+// globOptimization compiles the pattern of a glob against a literal, which is the form
+// every translated `=~` and `~"…"` takes, and pathGlobOptimization does the same for the
+// fields whose patterns are globs — see celGlobFields.
 //
-// eval.PatternMatches splits its pattern into segments on each call; the
-// matcher SECL compiles a rule into holds the split form instead. This is the
-// same trick cel-go applies to matches(), through the hook it exposes for it.
-var globOptimization = &interpreter.RegexOptimization{
-	Function:   GlobFunc,
-	RegexIndex: globPatternArg,
-	Factory: func(call interpreter.InterpretableCall, pattern string) (interpreter.InterpretableCall, error) {
+// eval.PatternMatches splits its pattern into segments on each call; the matcher SECL
+// compiles a rule into holds the split form instead. This is the same trick cel-go
+// applies to matches(), through the hook it exposes for it.
+var (
+	globOptimization = matcherOptimization(GlobFunc, func(pattern string) (stringMatcher, error) {
 		var matcher eval.PatternStringMatcher
-		if err := matcher.Compile(pattern, false); err != nil {
-			return nil, err
-		}
+		return &matcher, matcher.Compile(pattern, false)
+	})
 
-		return interpreter.NewCall(call.ID(), call.Function(), call.OverloadID(), call.Args(),
-			func(values ...ref.Val) ref.Val {
-				if len(values) != 2 {
-					return types.NoSuchOverloadErr()
-				}
-				subject, ok := values[0].(types.String)
-				if !ok {
-					return types.MaybeNoSuchOverloadErr(values[0])
-				}
-				return types.Bool(matcher.Matches(string(subject)))
-			}), nil
-	},
+	pathGlobOptimization = matcherOptimization(PathGlobFunc, func(pattern string) (stringMatcher, error) {
+		var matcher eval.GlobStringMatcher
+		// The case insensitive and separator normalising forms SECL uses for some
+		// fields and platforms are not reproduced yet — see the package doc.
+		return &matcher, matcher.Compile(pattern, false, false)
+	})
+)
+
+// stringMatcher is what both of SECL's compiled pattern forms offer.
+type stringMatcher interface {
+	Matches(value string) bool
+}
+
+func matcherOptimization(function string, compile func(pattern string) (stringMatcher, error)) *interpreter.RegexOptimization {
+	return &interpreter.RegexOptimization{
+		Function:   function,
+		RegexIndex: globPatternArg,
+		Factory: func(call interpreter.InterpretableCall, pattern string) (interpreter.InterpretableCall, error) {
+			matcher, err := compile(pattern)
+			if err != nil {
+				return nil, err
+			}
+
+			return interpreter.NewCall(call.ID(), call.Function(), call.OverloadID(), call.Args(),
+				func(values ...ref.Val) ref.Val {
+					if len(values) != 2 {
+						return types.NoSuchOverloadErr()
+					}
+					subject, ok := values[0].(types.String)
+					if !ok {
+						return types.MaybeNoSuchOverloadErr(values[0])
+					}
+					return types.Bool(matcher.Matches(string(subject)))
+				}), nil
+		},
+	}
 }

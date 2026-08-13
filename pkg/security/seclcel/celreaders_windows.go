@@ -1003,3 +1003,29 @@ var celIterators = []celIterator{
 var celIteratorIndex = map[string]int{
 	"process.ancestors": 0,
 }
+
+// celGlobFields names the fields whose `~"…"` and `=~` patterns SECL compiles as a
+// glob rather than as a pattern: `*` stops at a path separator and `**` is allowed.
+//
+// It is a property of the *field*, not of the literal — SECL reads it off the operator
+// override the field carries and rewrites the value type of whatever it is compared
+// against (eval.GlobCmp) — so the translation has to consult it wherever it turns a
+// pattern into a call. TestGlobFieldsAgreeWithSECL checks this table against SECL
+// field by field.
+var celGlobFields = map[string]struct{}{
+	"create.file.device_path":             {},
+	"create.file.path":                    {},
+	"delete.file.device_path":             {},
+	"delete.file.path":                    {},
+	"exec.file.path":                      {},
+	"exit.file.path":                      {},
+	"process.ancestors.file.path":         {},
+	"process.file.path":                   {},
+	"process.parent.file.path":            {},
+	"rename.file.destination.device_path": {},
+	"rename.file.destination.path":        {},
+	"rename.file.device_path":             {},
+	"rename.file.path":                    {},
+	"write.file.device_path":              {},
+	"write.file.path":                     {},
+}

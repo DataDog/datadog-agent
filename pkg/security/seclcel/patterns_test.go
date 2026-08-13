@@ -328,35 +328,71 @@ func TestAllInIsMembershipLikeSECL(t *testing.T) {
 	}
 }
 
-// TestPathGlobsDivergeFromSECL records a divergence the differential above is
-// deliberately written around, and which the pattern values inherit rather than
-// introduce.
+// TestPathGlobsFollowSECL covers the other matcher a pattern literal compiles to.
 //
-// SECL compiles `~"…"` into one of two matchers depending on the *field*: a path field
-// carries an operator override that turns a pattern into a glob (eval.GlobCmp, reached
-// from OverlayFSPathname and ProcessSymlinkPathname on unix, from CaseInsensitiveCmp and
-// WindowsPathCmp on windows), where `*` stops at a path separator and `**` is allowed.
-// Every other string field keeps pattern semantics, where `*` crosses everything and
-// `**` is refused.
+// SECL settles that per *field*: a path field carries an operator override that rewrites
+// a pattern into a glob (eval.GlobCmp, reached from OverlayFSPathname and
+// ProcessSymlinkPathname on unix, from WindowsPathCmp on windows), where `*` stops at a
+// separator and `**` crosses one. Every other string field keeps pattern semantics,
+// where `*` crosses everything and `**` is refused.
 //
-// The translation always compiles a pattern, so a path glob is more permissive here than
-// in SECL — CEL matches events SECL would not — and a rule written with `**`, which the
-// real policies do use, fails to plan at all. Both directions are visible below.
-func TestPathGlobsDivergeFromSECL(t *testing.T) {
+// Which fields those are is generated into celGlobFields and checked against SECL by
+// TestGlobFieldsAgreeWithSECL; this is the other half, that the translation then uses
+// the right one. The cases are the ones where the two matchers disagree, so each would
+// fail if the semantics were picked wrongly.
+func TestPathGlobsFollowSECL(t *testing.T) {
 	env, err := NewModelEnv()
 	require.NoError(t, err)
 
-	event := patternEvent() // process.file.path is /usr/bin/bash
+	event := patternEvent() // process.file.path is /usr/bin/bash, comm is sh
 
-	// A single star does not cross a separator in SECL, but does here.
-	const permissive = `process.file.path =~ "/usr/*"`
-	assert.False(t, evalSECLEngine(t, event, permissive), "SECL globs a path field")
-	assert.True(t, evalSECL(t, env, event, permissive), "the translation patterns it")
+	for _, expr := range []string{
+		// a single star does not cross a separator on a path field
+		`process.file.path =~ "/usr/*"`,
+		`process.file.path == ~"/usr/*"`,
+		`process.file.path =~ "/usr/*/bash"`,
+		// but does on every other string field
+		`process.comm =~ "s*"`,
+		`process.file.name =~ "b*h"`,
+		// `**` is a glob and only a glob, and the real policies use it
+		`process.file.path =~ "/usr/**"`,
+		`process.file.path == ~"/**/bash"`,
+		`process.file.path =~ "/etc/**"`,
+		// through a list, where the members are prepared into a set
+		`process.file.path in [ "/bin/sh", ~"/usr/*", ~"/opt/**" ]`,
+		`process.file.path in [ "/bin/sh", ~"/usr/**", ~"/opt/*" ]`,
+		`process.file.path not in [ ~"/usr/*", ~"/etc/**" ]`,
+		// and through an iterated field, where the quantifier hides the field name
+		`process.ancestors.file.path =~ "/usr/*"`,
+		`process.ancestors[A].file.path =~ "/usr/**"`,
+	} {
+		t.Run(expr, func(t *testing.T) {
+			assert.Equal(t, evalSECLEngine(t, event, expr), evalSECL(t, env, event, expr),
+				"the two engines disagree")
+		})
+	}
+}
 
-	// And what SECL allows only for a path field is refused for every field here.
-	_, err = NewRule(env, `process.file.path =~ "/usr/**"`, ModelFieldTypes{})
+// TestPatternSemanticsAreSettledWhenTheRuleIsPlanned is the consequence of a pattern
+// value carrying both compiled forms: which one a set is searched with belongs to the
+// membership call, so a member that cannot take those semantics is a rule that does not
+// load rather than one that errors per event.
+func TestPatternSemanticsAreSettledWhenTheRuleIsPlanned(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	// `**` has no pattern form, and process.comm is not a path field.
+	_, err = NewRule(env, `process.comm in [ ~"/a/**", ~"/b/*" ]`, ModelFieldTypes{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "is not a valid pattern")
+
+	// The same list against a path field is fine, which is the point of keeping both
+	// forms rather than choosing when the value is built.
+	_, err = NewRule(env, `process.file.path in [ ~"/a/**", ~"/b/*" ]`, ModelFieldTypes{})
+	require.NoError(t, err)
+
+	// And a comparison says so at once, through the pattern compiled at plan time.
+	_, err = NewRule(env, `process.comm =~ "/a/**"`, ModelFieldTypes{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "`**` is not allowed in patterns")
-	assert.True(t, evalSECLEngine(t, event, `process.file.path =~ "/usr/**"`),
-		"SECL accepts it and matches")
 }

@@ -63,6 +63,13 @@ func (ModelFieldTypes) Canonical(field string) string {
 	return field
 }
 
+// GlobPattern implements FieldTypes, from the generated table — see celGlobFields and
+// TestGlobFieldsAgreeWithSECL.
+func (ModelFieldTypes) GlobPattern(field string) bool {
+	_, ok := celGlobFields[field]
+	return ok
+}
+
 // IsPseudoField implements FieldTypes.
 func (ModelFieldTypes) IsPseudoField(field string) bool {
 	// A pseudo field is absent from the type tree, because `x.length` would

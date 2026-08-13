@@ -18,11 +18,20 @@ import (
 // operators that have no CEL equivalent. Everything else maps onto standard CEL
 // or onto the math and network extension libraries.
 const (
-	// GlobFunc reports whether a string matches a SECL glob pattern, in which
-	// `*` matches any sequence of characters and the pattern must match the
-	// whole string. CEL only offers RE2 matching, which SECL exposes separately
-	// through `r"…"` literals.
+	// GlobFunc reports whether a string matches a SECL pattern, in which `*` matches
+	// any sequence of characters — path separators included — and the pattern must
+	// match the whole string. CEL only offers RE2 matching, which SECL exposes
+	// separately through `r"…"` literals.
+	//
+	// With one argument it builds the value a list member becomes instead, carrying
+	// both compiled forms — see patterns.go.
 	GlobFunc = "secl.glob"
+
+	// PathGlobFunc is GlobFunc for a field whose patterns SECL compiles as globs:
+	// `*` stops at a path separator and `**` crosses one. Which fields those are is
+	// generated into celGlobFields, since SECL settles it per field rather than per
+	// literal.
+	PathGlobFunc = "secl.pathGlob"
 
 	// CIDRMatchFunc implements SECL's `in`, `==` and `!=` between IP and CIDR
 	// operands, which match when either range contains the base address of the
@@ -60,6 +69,10 @@ const (
 	// not what a list holding a pattern means; it is also a reserved word, so this
 	// cannot be called `secl.in`.
 	MatchAnyFunc = "secl.matchAny"
+
+	// MatchAnyPathFunc is MatchAnyFunc with the semantics a path field gives a
+	// pattern, which is the same choice PathGlobFunc makes for a comparison.
+	MatchAnyPathFunc = "secl.matchAnyPath"
 
 	// RootDomainFunc extracts the effective root domain of a host name. It backs
 	// SECL's `%{field.root_domain}` suffix.

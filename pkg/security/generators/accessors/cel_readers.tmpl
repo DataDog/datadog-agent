@@ -183,3 +183,17 @@ var celIteratorIndex = map[string]int{
 	"{{$Name}}": {{$Index}},
 {{- end}}
 }
+
+// celGlobFields names the fields whose `~"…"` and `=~` patterns SECL compiles as a
+// glob rather than as a pattern: `*` stops at a path separator and `**` is allowed.
+//
+// It is a property of the *field*, not of the literal — SECL reads it off the operator
+// override the field carries and rewrites the value type of whatever it is compared
+// against (eval.GlobCmp) — so the translation has to consult it wherever it turns a
+// pattern into a call. TestGlobFieldsAgreeWithSECL checks this table against SECL
+// field by field.
+var celGlobFields = map[string]struct{}{
+{{- range .GlobPaths}}
+	"{{.}}": {},
+{{- end}}
+}

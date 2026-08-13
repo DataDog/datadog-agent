@@ -159,7 +159,8 @@ func plannerOptions() []interpreter.PlannerOption {
 		interpreter.Optimize(),
 		// Compile the pattern of a glob or a matches() against a literal. Without
 		// it a `r"…"` rule recompiles its regexp on every event.
-		interpreter.CompileRegexConstants(globOptimization, interpreter.MatchesRegexOptimization),
+		interpreter.CompileRegexConstants(globOptimization, pathGlobOptimization,
+			interpreter.MatchesRegexOptimization),
 		// Bind each field read to its reader, which is the same trick for the index
 		// the optimization pass emitted. readDecorator is readOptimization in the
 		// form a caller that plans the interpretable itself has to pass it.

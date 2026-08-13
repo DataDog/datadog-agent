@@ -60,21 +60,46 @@ func helperBindings() []cel.EnvOption {
 	}...)
 }
 
-// celGlob matches a string against a SECL glob pattern.
+// celGlob matches a string against a SECL pattern, and celPathGlob against the glob a
+// pattern means when it is compared against a path field — see celGlobFields.
 //
-// The case insensitive form SECL uses for some fields and platforms is not
-// reproduced yet: this always matches case sensitively.
+// Both are the form a rule takes only until it is planned: a pattern that is a literal,
+// which is every one the translation emits, is compiled by globOptimization and
+// pathGlobOptimization instead.
+//
+// The case insensitive form SECL uses for some fields and platforms is not reproduced
+// yet: these always match case sensitively.
 func celGlob(subject, pattern ref.Val) ref.Val {
-	s, ok := subject.(types.String)
-	if !ok {
-		return types.MaybeNoSuchOverloadErr(subject)
+	s, p, err := twoStrings(subject, pattern)
+	if err != nil {
+		return err
 	}
-	p, ok := pattern.(types.String)
-	if !ok {
-		return types.MaybeNoSuchOverloadErr(pattern)
+	return types.Bool(eval.PatternMatches(p, s, false))
+}
+
+func celPathGlob(subject, pattern ref.Val) ref.Val {
+	s, p, err := twoStrings(subject, pattern)
+	if err != nil {
+		return err
 	}
 
-	return types.Bool(eval.PatternMatches(string(p), string(s), false))
+	var matcher eval.GlobStringMatcher
+	if compileErr := matcher.Compile(p, false, false); compileErr != nil {
+		return types.WrapErr(compileErr)
+	}
+	return types.Bool(matcher.Matches(s))
+}
+
+func twoStrings(a, b ref.Val) (string, string, ref.Val) {
+	first, ok := a.(types.String)
+	if !ok {
+		return "", "", types.MaybeNoSuchOverloadErr(a)
+	}
+	second, ok := b.(types.String)
+	if !ok {
+		return "", "", types.MaybeNoSuchOverloadErr(b)
+	}
+	return string(first), string(second), nil
 }
 
 // celCIDRMatchAny implements SECL's `in`, `==` and `!=` between IP and CIDR

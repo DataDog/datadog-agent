@@ -34,7 +34,15 @@ var typedTranslations = []struct {
 }{
 	// a scalar field is unaffected
 	{`process.file.name == "sh"`, `evt.process.file.name == "sh"`},
-	{`exec.file.path =~ "/usr/*"`, `secl.glob(evt.exec.file.path, "/usr/*")`},
+	// a path field's pattern is a glob, which is a different matcher — see
+	// celGlobFields
+	{`exec.file.path =~ "/usr/*"`, `secl.pathGlob(evt.exec.file.path, "/usr/*")`},
+	{`exec.file.name =~ "sh*"`, `secl.glob(evt.exec.file.name, "sh*")`},
+	// and it survives being quantified, where the field name no longer appears
+	{`process.ancestors.file.path =~ "/usr/*"`,
+		`evt.process.ancestors.exists(elem, secl.pathGlob(elem.file.path, "/usr/*"))`},
+	{`process.ancestors[A].file.path =~ "/usr/*"`,
+		`evt.process.ancestors.exists(A, secl.pathGlob(A.file.path, "/usr/*"))`},
 
 	// comparing an iterated field against a scalar means "some element matches"
 	{`process.ancestors.file.name == "sh"`, `evt.process.ancestors.exists(elem, elem.file.name == "sh")`},

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/functions"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
@@ -32,6 +33,13 @@ import (
 // a prepared set, and membership is one call over that set. What that replaces is a
 // disjunction with one term per member, each re-reading the subject.
 //
+// A pattern value carries *both* of the matchers SECL compiles a pattern literal into,
+// because which one applies is a property of the field it is compared against and not
+// of the literal — see celGlobFields. The same macro is used against a path field and
+// against a plain string field, and SECL resolves the difference per comparison, after
+// inlining; here one prepared set serves both and the membership call says which
+// semantics to search it with.
+//
 // The types are opaque: nothing in CEL can be done with them except hand them to
 // MatchAnyFunc, which is what keeps `process.uid in SHELL_NAMES` a type error rather than a
 // rule that never fires.
@@ -44,21 +52,57 @@ var (
 	PatternsType = types.NewOpaqueType("secl.Patterns")
 )
 
-// globValue is a compiled SECL glob.
+// globValue is a compiled SECL pattern literal, in both of the forms one can take.
+//
+// Neither is guaranteed to compile: `**` is refused as a pattern and accepted as a
+// glob, and a malformed glob is refused as a glob and accepted as a pattern. So each
+// form keeps the error that stopped it, to be reported if a rule turns out to need it —
+// which is a rule that does not load, since a membership test resolves its semantics
+// when it is planned.
 type globValue struct {
 	pattern string
-	matcher eval.PatternStringMatcher
+
+	asPattern    eval.PatternStringMatcher
+	patternError error
+	asGlob       eval.GlobStringMatcher
+	globError    error
 }
 
 func newGlobValue(pattern string) (ref.Val, error) {
 	value := &globValue{pattern: pattern}
-	if err := value.matcher.Compile(pattern, false); err != nil {
-		return nil, fmt.Errorf("%w: %q is not a valid pattern: %w", errUnsupportedValue, pattern, err)
+
+	value.patternError = value.asPattern.Compile(pattern, false)
+	// The case insensitive and separator normalising forms SECL uses for some fields
+	// and platforms are not reproduced yet — see the divergences in the package doc.
+	value.globError = value.asGlob.Compile(pattern, false, false)
+
+	if value.patternError != nil && value.globError != nil {
+		return nil, fmt.Errorf("%w: %q is not a valid pattern: %w", errUnsupportedValue, pattern, value.patternError)
 	}
 	return value, nil
 }
 
-func (g *globValue) matches(s string) bool { return g.matcher.Matches(s) }
+func (g *globValue) matches(s string, glob bool) bool {
+	if glob {
+		return g.asGlob.Matches(s)
+	}
+	return g.asPattern.Matches(s)
+}
+
+// supports reports the reason the value cannot be matched with the given semantics, or
+// nil when it can.
+func (g *globValue) supports(glob bool) error {
+	if glob {
+		if g.globError != nil {
+			return fmt.Errorf("%w: %q is not a valid glob: %w", errUnsupportedValue, g.pattern, g.globError)
+		}
+		return nil
+	}
+	if g.patternError != nil {
+		return fmt.Errorf("%w: %q is not a valid pattern: %w", errUnsupportedValue, g.pattern, g.patternError)
+	}
+	return nil
+}
 
 // Type implements ref.Val.
 func (g *globValue) Type() ref.Type { return GlobType }
@@ -66,16 +110,15 @@ func (g *globValue) Type() ref.Type { return GlobType }
 // Value implements ref.Val, returning the pattern as it was written.
 func (g *globValue) Value() any { return g.pattern }
 
-// Equal implements ref.Val as a match rather than as an equality, which is what a
-// pattern means wherever one is compared. It is only reachable with the pattern on the
-// left: cel-go's own equality would answer false for the other order, which is why the
-// translation never emits one — see MatchAnyFunc.
+// Equal implements ref.Val by refusing.
+//
+// A pattern is matched, never compared, and how it matches depends on the field on the
+// other side — which an equality does not carry. Nothing translates to one: a
+// comparison becomes a glob call and a membership becomes MatchAnyFunc, both of which
+// know the field. An error here is what keeps a future translation from quietly
+// answering false, which is what cel-go's own equality would do.
 func (g *globValue) Equal(other ref.Val) ref.Val {
-	s, ok := other.(types.String)
-	if !ok {
-		return types.MaybeNoSuchOverloadErr(other)
-	}
-	return types.Bool(g.matches(string(s)))
+	return types.MaybeNoSuchOverloadErr(other)
 }
 
 // ConvertToNative implements ref.Val.
@@ -113,7 +156,12 @@ func newRegexpValue(pattern string) (ref.Val, error) {
 	return &regexpValue{pattern: pattern, re: re}, nil
 }
 
-func (r *regexpValue) matches(s string) bool { return r.re.MatchString(s) }
+// matches implements matcher. A regexp is the one member kind whose meaning does not
+// depend on the field: SECL compiles a `r"…"` literal the same way everywhere.
+func (r *regexpValue) matches(s string, _ bool) bool { return r.re.MatchString(s) }
+
+// supports implements matcher.
+func (r *regexpValue) supports(bool) error { return nil }
 
 // Type implements ref.Val.
 func (r *regexpValue) Type() ref.Type { return RegexpType }
@@ -121,13 +169,9 @@ func (r *regexpValue) Type() ref.Type { return RegexpType }
 // Value implements ref.Val.
 func (r *regexpValue) Value() any { return r.pattern }
 
-// Equal implements ref.Val, matching rather than comparing — see globValue.Equal.
+// Equal implements ref.Val by refusing — see globValue.Equal.
 func (r *regexpValue) Equal(other ref.Val) ref.Val {
-	s, ok := other.(types.String)
-	if !ok {
-		return types.MaybeNoSuchOverloadErr(other)
-	}
-	return types.Bool(r.matches(string(s)))
+	return types.MaybeNoSuchOverloadErr(other)
 }
 
 // ConvertToNative implements ref.Val.
@@ -151,7 +195,12 @@ func (r *regexpValue) ConvertToType(t ref.Type) ref.Val {
 
 // matcher is what a prepared set holds for a member that is not a plain string.
 type matcher interface {
-	matches(s string) bool
+	// matches reports whether the subject matches, under glob semantics or pattern
+	// semantics — see the note at the top of this file.
+	matches(s string, glob bool) bool
+	// supports reports why the member cannot be matched under those semantics, if it
+	// cannot. It is asked once, when a rule is planned.
+	supports(glob bool) error
 	Value() any
 }
 
@@ -188,16 +237,28 @@ func newPatternSet(members ref.Val) (ref.Val, error) {
 
 // contains reports whether the subject equals one of the plain strings or matches one
 // of the patterns, which is SECL's `in` over a list holding either.
-func (p *patternSet) contains(s string) bool {
+func (p *patternSet) contains(s string, glob bool) bool {
 	if _, ok := p.strings[s]; ok {
 		return true
 	}
 	for _, m := range p.matchers {
-		if m.matches(s) {
+		if m.matches(s, glob) {
 			return true
 		}
 	}
 	return false
+}
+
+// supports reports why the set cannot be searched under the given semantics, if it
+// cannot: a member written with `**` can only be a glob, and a malformed glob can only
+// be a pattern.
+func (p *patternSet) supports(glob bool) error {
+	for _, m := range p.matchers {
+		if err := m.supports(glob); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Type implements ref.Val.
@@ -260,18 +321,39 @@ func patternBindings() []cel.EnvOption {
 			cel.Overload("secl_patterns", []*cel.Type{cel.ListType(cel.DynType)}, PatternsType,
 				cel.UnaryBinding(celPatterns))),
 
+		// The pattern form of a comparison against a path field, which is the same
+		// function with the other matcher — see celGlobFields. There is no value
+		// constructor for it: a pattern value carries both forms, and the membership
+		// call below is what picks.
+		cel.Function(PathGlobFunc,
+			cel.Overload("secl_path_glob_string_string", []*cel.Type{cel.StringType, cel.StringType}, cel.BoolType,
+				cel.BinaryBinding(celPathGlob))),
+
 		// The overloads are what keeps membership type-checked: a set of patterns and
 		// a list of strings can both be searched for a string, and nothing can be
 		// searched for anything else.
-		cel.Function(MatchAnyFunc,
-			cel.Overload("secl_match_any_patterns", []*cel.Type{cel.StringType, PatternsType}, cel.BoolType,
-				cel.BinaryBinding(celMatchAny)),
-			cel.Overload("secl_match_any_strings", []*cel.Type{cel.StringType, cel.ListType(cel.StringType)}, cel.BoolType,
-				cel.BinaryBinding(celMatchAny)),
-			cel.Overload("secl_match_any_ints", []*cel.Type{cel.IntType, cel.ListType(cel.IntType)}, cel.BoolType,
-				cel.BinaryBinding(celMatchAny)),
-			cel.Overload("secl_match_any_bools", []*cel.Type{cel.BoolType, cel.ListType(cel.BoolType)}, cel.BoolType,
-				cel.BinaryBinding(celMatchAny))),
+		cel.Function(MatchAnyFunc, matchAnyOverloads("secl_match_any", celMatchAny)...),
+		cel.Function(MatchAnyPathFunc, matchAnyOverloads("secl_match_any_path", celMatchAnyPath)...),
+	}
+}
+
+// matchAnyOverloads declares one membership function, which is a function per semantics
+// rather than a third argument so that a rule keeps to two arguments and the planner can
+// recognise the call by name — see matchAnyDecorator.
+//
+// An overload id is unique across the whole environment rather than per function, which
+// is what the prefix is for: the dispatcher refuses a second function declaring one it
+// already knows.
+func matchAnyOverloads(prefix string, binding functions.BinaryOp) []cel.FunctionOpt {
+	return []cel.FunctionOpt{
+		cel.Overload(prefix+"_patterns", []*cel.Type{cel.StringType, PatternsType}, cel.BoolType,
+			cel.BinaryBinding(binding)),
+		cel.Overload(prefix+"_strings", []*cel.Type{cel.StringType, cel.ListType(cel.StringType)}, cel.BoolType,
+			cel.BinaryBinding(binding)),
+		cel.Overload(prefix+"_ints", []*cel.Type{cel.IntType, cel.ListType(cel.IntType)}, cel.BoolType,
+			cel.BinaryBinding(binding)),
+		cel.Overload(prefix+"_bools", []*cel.Type{cel.BoolType, cel.ListType(cel.BoolType)}, cel.BoolType,
+			cel.BinaryBinding(binding)),
 	}
 }
 
@@ -290,7 +372,16 @@ func patternBindings() []cel.EnvOption {
 func matchAnyDecorator() interpreter.InterpretableDecoratorV2 {
 	return func(i interpreter.InterpretableV2) (interpreter.InterpretableV2, error) {
 		call, ok := i.(interpreter.InterpretableCall)
-		if !ok || call.Function() != MatchAnyFunc || len(call.Args()) != 2 {
+		if !ok || len(call.Args()) != 2 {
+			return i, nil
+		}
+
+		var glob bool
+		switch call.Function() {
+		case MatchAnyFunc:
+		case MatchAnyPathFunc:
+			glob = true
+		default:
 			return i, nil
 		}
 
@@ -306,8 +397,14 @@ func matchAnyDecorator() interpreter.InterpretableDecoratorV2 {
 			// through the list's own Contains.
 			return i, nil
 		}
+		// Which semantics the set is searched with is settled here, so a member that
+		// cannot be matched with them is a rule that does not load rather than one
+		// that errors per event.
+		if err := set.supports(glob); err != nil {
+			return nil, err
+		}
 
-		return &matchAnyIn{id: call.ID(), subject: call.Args()[0], set: set, generic: i}, nil
+		return &matchAnyIn{id: call.ID(), subject: call.Args()[0], set: set, glob: glob, generic: i}, nil
 	}
 }
 
@@ -329,6 +426,8 @@ type matchAnyIn struct {
 	id      int64
 	subject interpreter.InterpretableV2
 	set     *patternSet
+	// glob is the semantics the subject's field gives a pattern — see celGlobFields.
+	glob bool
 
 	// generic is the call as cel-go planned it, for a subject that turns out not to
 	// be a string — an error or an unknown, which has to be propagated rather than
@@ -350,7 +449,7 @@ func (m *matchAnyIn) Exec(frame *interpreter.ExecutionFrame) ref.Val {
 	if !ok {
 		return m.generic.Exec(frame)
 	}
-	return types.Bool(m.set.contains(string(subject)))
+	return types.Bool(m.set.contains(string(subject), m.glob))
 }
 
 func celGlobValue(pattern ref.Val) ref.Val {
@@ -385,15 +484,31 @@ func celPatterns(members ref.Val) ref.Val {
 	return set
 }
 
-// celMatchAny is SECL's `in` over anything a rule can name on the right of it: a prepared set
-// of patterns, or an ordinary list.
+// celMatchAny is SECL's `in` over anything a rule can name on the right of it: a prepared
+// set of patterns, or an ordinary list.
+//
+// It is the fallback rather than the usual path: when the members are a value, the call
+// is replaced at planning time — see matchAnyDecorator. What reaches it is a list read
+// from the event, through a `%{…}` field reference.
 func celMatchAny(subject, members ref.Val) ref.Val {
+	return matchAny(subject, members, false)
+}
+
+// celMatchAnyPath is celMatchAny with the semantics a path field gives a pattern.
+func celMatchAnyPath(subject, members ref.Val) ref.Val {
+	return matchAny(subject, members, true)
+}
+
+func matchAny(subject, members ref.Val, glob bool) ref.Val {
 	if set, ok := members.(*patternSet); ok {
 		s, ok := subject.(types.String)
 		if !ok {
 			return types.MaybeNoSuchOverloadErr(subject)
 		}
-		return types.Bool(set.contains(string(s)))
+		if err := set.supports(glob); err != nil {
+			return types.WrapErr(err)
+		}
+		return types.Bool(set.contains(string(s), glob))
 	}
 
 	list, ok := members.(traits.Container)
