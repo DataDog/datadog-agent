@@ -76,7 +76,7 @@ distinguishable from the repo's other labels; the prefix is configurable via `va
 
 The `codeowners` bucket only marks experiments as involvement-gated. *Which* team owns an experiment
 is still computed from **changed-files ∩ CODEOWNERS on PR HEAD** for the experiment's path — CODEOWNERS
-stays the single ownership source. Involved-teams and the folder→owner map are **inputs** to `resolve`
+stays the single ownership source. Involved-teams and the experiment→owner map are **inputs** to `resolve`
 (the CLI never parses CODEOWNERS or touches GitHub).
 
 ### D6 — `runner` and `kind` are intrinsic; the manifest never mentions them.
@@ -121,10 +121,41 @@ Authors get "add it and it runs" locally/in-PR, plus enforced bucketing at the m
 ### D10 — SMP↔CI boundary.
 
 - **CI wrapper (repo-specific):** resolve the PR, mint a read token, diff changed files → involved
-  teams, build the folder→owner map (CODEOWNERS), read applied labels, and submit the resolved set.
+  teams, build the experiment→owner map (CODEOWNERS), read applied labels, and submit the resolved set.
 - **`smp` CLI (reusable, offline):** read the manifest, discover experiments, resolve the union run
   set (filtered by `--runner`), validate. Involved-teams, ownership, labels, and the manifest are
   inputs; CODEOWNERS/GitHub never enter the CLI.
+
+### D11 — CI contract: the `--ownership` map.
+
+`resolve` consumes ownership as an input (D5, D10); this pins its shape so the CLI and the CI wrapper
+**provably** agree — a mismatch here silently under-selects `codeowners` experiments.
+
+- **Shape.** `--ownership` is a JSON object mapping an **experiment path** (relative to
+  `--target-config-dir`, exactly as emitted by `smp experiments list`) to its owning team slugs:
+
+  ```json
+  { "logs/general/cases/logs_general": ["agent-log-pipelines"],
+    "quality_gates/cases/quality_gate_security_idle": ["agent-security", "single-machine-performance"] }
+  ```
+
+  Keying by **experiment path** (not by the group folder) means **per-experiment CODEOWNERS overrides
+  are honored** — a co-owned experiment inside an otherwise SMP-owned folder gets its real owners —
+  while folder-level delegation still works via normal CODEOWNERS precedence (a folder rule matches
+  every experiment path under it). It also needs **no path-derivation on either side** (both hold the
+  verbatim path), which removes an entire class of key-mismatch drift.
+
+- **Values.** Team slugs normalized from CODEOWNERS (`@DataDog/x` → `x`), **lowercased**, teams only
+  (individual owners dropped, so a value may be `[]`). The map is an **already-resolved lookup table** —
+  CODEOWNERS globs were evaluated by the wrapper — so the CLI does **exact-key lookup** by experiment
+  path, never glob/prefix matching, and compares team slugs case-sensitively on the lowercased forms.
+
+- **Selection semantics.** A `codeowners`-bucketed experiment is selected iff
+  `ownership[experiment_path] ∩ involved_teams ≠ ∅` (a co-owned experiment fires on *any* co-owner's
+  involvement). If the path is absent from the map or maps to `[]`, the experiment has **no known
+  owner** → never selected by involvement. Because the repo's catch-all `/test/regression/ → SMP` rule
+  gives every path at least one team, an *absent* path signals **contract drift** and SHOULD produce a
+  resolve-time warning (non-fatal — resolve stays robust; see D10's fallback).
 
 ## Consequences
 

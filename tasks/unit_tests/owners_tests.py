@@ -7,19 +7,21 @@ from unittest import mock
 from invoke.exceptions import Exit
 
 from tasks.owners import (
-    _discover_folders,
-    _folder_ownership,
+    _discover_experiments,
+    _experiment_ownership,
     _team_slugs,
     resolve_run_set_impl,
     smp_inputs_impl,
     smp_pr_context_impl,
 )
 
-# CODEOWNERS with repo-relative patterns; SMP owns the tree, log-pipelines owns logs/ exclusively.
+# CODEOWNERS with repo-relative patterns: SMP owns the tree, log-pipelines owns logs/ exclusively, and
+# a per-experiment override co-owns the security quality gate (to exercise experiment-level ownership).
 CODEOWNERS = """\
 /test/regression/ @DataDog/single-machine-performance
 /test/regression/ebpf @DataDog/single-machine-performance @DataDog/ebpf-platform
 /test/regression/logs/ @DataDog/agent-log-pipelines
+/test/regression/quality_gates/cases/quality_gate_security_* @DataDog/single-machine-performance @DataDog/agent-security
 """
 
 
@@ -34,12 +36,11 @@ class TestTeamSlugs(unittest.TestCase):
         self.assertEqual(_team_slugs(["@someuser", "@DataDog/team-a"]), ["team-a"])
 
 
-class TestDiscoverFolders(unittest.TestCase):
-    """Folders come from `smp experiments list` (single discovery source), derived from each
-    experiment path's segment above `cases/`."""
+class TestDiscoverExperiments(unittest.TestCase):
+    """Experiment paths come straight from `smp experiments list` (single discovery source)."""
 
     @mock.patch("subprocess.run")
-    def test_derives_folders_from_experiment_paths(self, mock_run):
+    def test_returns_experiment_paths(self, mock_run):
         listing = [
             {"path": "quality_gates/cases/quality_gate_idle"},
             {"path": "quality_gates/cases/quality_gate_logs"},
@@ -47,8 +48,16 @@ class TestDiscoverFolders(unittest.TestCase):
             {"path": "logs/syslog/cases/logs_syslog_1"},
         ]
         mock_run.return_value = mock.Mock(returncode=0, stdout=json.dumps(listing), stderr="")
-        folders = _discover_folders("test/regression", "selection.yaml", "/bin/smp", ["ebpf"])
-        self.assertEqual(folders, ["logs/general", "logs/syslog", "quality_gates"])
+        experiments = _discover_experiments("test/regression", "selection.yaml", "/bin/smp", ["ebpf"])
+        self.assertEqual(
+            experiments,
+            [
+                "logs/general/cases/logs_general",
+                "logs/syslog/cases/logs_syslog_1",
+                "quality_gates/cases/quality_gate_idle",
+                "quality_gates/cases/quality_gate_logs",
+            ],
+        )
         cmd = mock_run.call_args[0][0]
         self.assertEqual(cmd[:3], ["/bin/smp", "experiments", "list"])
         for flag in ("--target-config-dir", "--manifest", "--format", "--exclude-path"):
@@ -60,10 +69,10 @@ class TestDiscoverFolders(unittest.TestCase):
     def test_raises_on_list_failure(self, mock_run):
         mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="boom")
         with self.assertRaises(Exit):
-            _discover_folders("test/regression", "selection.yaml", "/bin/smp", [])
+            _discover_experiments("test/regression", "selection.yaml", "/bin/smp", [])
 
 
-class TestFolderOwnershipAndInvolved(unittest.TestCase):
+class TestExperimentOwnershipAndInvolved(unittest.TestCase):
     def setUp(self):
         fd, self.owners_file = tempfile.mkstemp()
         with os.fdopen(fd, "w") as f:
@@ -72,21 +81,33 @@ class TestFolderOwnershipAndInvolved(unittest.TestCase):
     def tearDown(self):
         os.remove(self.owners_file)
 
-    def test_folder_ownership(self):
-        ownership = _folder_ownership(
-            ["quality_gates", "logs/general", "logs/syslog"], "test/regression", self.owners_file
+    def test_experiment_ownership_honors_per_experiment_overrides(self):
+        ownership = _experiment_ownership(
+            [
+                "quality_gates/cases/quality_gate_idle",
+                "quality_gates/cases/quality_gate_security_idle",
+                "logs/general/cases/logs_general",
+            ],
+            "test/regression",
+            self.owners_file,
         )
         self.assertEqual(
             ownership,
             {
-                "quality_gates": ["single-machine-performance"],
-                "logs/general": ["agent-log-pipelines"],
-                "logs/syslog": ["agent-log-pipelines"],
+                # No override -> inherits the tree-level SMP owner.
+                "quality_gates/cases/quality_gate_idle": ["single-machine-performance"],
+                # Per-experiment override -> co-owned (slugs sorted).
+                "quality_gates/cases/quality_gate_security_idle": [
+                    "agent-security",
+                    "single-machine-performance",
+                ],
+                # Folder-level delegation still resolves per experiment.
+                "logs/general/cases/logs_general": ["agent-log-pipelines"],
             },
         )
 
-    @mock.patch("tasks.owners._discover_folders", return_value=[])
-    def test_involved_teams_from_changed_files(self, _folders):
+    @mock.patch("tasks.owners._discover_experiments", return_value=[])
+    def test_involved_teams_from_changed_files(self, _experiments):
         involved, _ = smp_inputs_impl(
             "test/regression",
             "selection.yaml",
@@ -97,8 +118,8 @@ class TestFolderOwnershipAndInvolved(unittest.TestCase):
         )
         self.assertEqual(involved, ["agent-log-pipelines"])
 
-    @mock.patch("tasks.owners._discover_folders", return_value=[])
-    def test_no_changed_files_means_no_involved_teams(self, _folders):
+    @mock.patch("tasks.owners._discover_experiments", return_value=[])
+    def test_no_changed_files_means_no_involved_teams(self, _experiments):
         involved, _ = smp_inputs_impl("test/regression", "selection.yaml", "/bin/smp", [], ["ebpf"], self.owners_file)
         self.assertEqual(involved, [])
 
@@ -108,7 +129,10 @@ class TestResolveRunSet(unittest.TestCase):
 
     @mock.patch(
         "tasks.owners.smp_inputs_impl",
-        return_value=(["agent-log-pipelines"], {"logs/general": ["agent-log-pipelines"]}),
+        return_value=(
+            ["agent-log-pipelines"],
+            {"logs/general/cases/logs_general": ["agent-log-pipelines"]},
+        ),
     )
     @mock.patch("subprocess.run")
     def test_builds_resolve_command_and_returns_stdout(self, mock_run, _inputs):

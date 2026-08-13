@@ -24,8 +24,12 @@ given PR is governed by a single central manifest, `selection.yaml`, which maps
 The buckets are **unioned**: an experiment runs if any of its triggers fire, and
 an experiment may appear in several buckets. **To run a labelled suite on a PR,
 apply its `smp/<label>` label.** `selection.yaml` is also the label registry —
-see it for the available labels, and `adr-experiment-selection.md` for the full
-model.
+see it for the available labels.
+
+For step-by-step recipes (adding a label suite, an ownership-driven suite, and
+the CODEOWNERS delegation that ownership-driven suites require), see
+[`experiment-selection-guide.md`](experiment-selection-guide.md). For the design
+rationale, see [`adr-experiment-selection.md`](adr-experiment-selection.md).
 
 ## Adding an Experiment
 

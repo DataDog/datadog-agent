@@ -94,11 +94,11 @@ def _team_slugs(owners) -> list[str]:
     return sorted(slugs)
 
 
-def _discover_folders(config_dir: str, manifest: str, smp_bin: str, exclude: list[str]) -> list[str]:
-    """Discover the experiment folders (the dir above each `cases/`) via `smp experiments list`.
+def _discover_experiments(config_dir: str, manifest: str, smp_bin: str, exclude: list[str]) -> list[str]:
+    """Discover experiment paths (relative to `config_dir`) via `smp experiments list`.
 
     Sourcing discovery from the CLI keeps SMP the single discovery authority — no duplicated os.walk
-    that could drift from SMP's rules. Returns sorted unique folder paths relative to `config_dir`.
+    that could drift from SMP's rules. Returns sorted unique experiment paths.
     """
     cmd = [
         smp_bin,
@@ -117,18 +117,20 @@ def _discover_folders(config_dir: str, manifest: str, smp_bin: str, exclude: lis
     if result.returncode != 0:
         raise Exit(f"`smp experiments list` failed (exit {result.returncode}):\n{result.stderr}", code=1)
 
-    folders = set()
-    for exp in json.loads(result.stdout or '[]'):
-        folder = exp.get('path', '').split('/cases/', 1)[0]  # the dir above `cases/`
-        if folder:
-            folders.add(folder)
-    return sorted(folders)
+    experiments = {exp['path'] for exp in json.loads(result.stdout or '[]') if exp.get('path')}
+    return sorted(experiments)
 
 
-def _folder_ownership(folders: list[str], config_dir: str, owners_file: str) -> dict[str, list[str]]:
-    """Map each experiment folder to its owning team slugs, resolved from CODEOWNERS."""
+def _experiment_ownership(experiments: list[str], config_dir: str, owners_file: str) -> dict[str, list[str]]:
+    """Map each experiment path to its owning team slugs, resolved from CODEOWNERS.
+
+    Ownership is resolved at each experiment's own path (not the group folder above `cases/`), so
+    per-experiment CODEOWNERS overrides are honored — a co-owned experiment inside an otherwise
+    SMP-owned folder gets its real owners. Folder-level delegation still applies via normal CODEOWNERS
+    precedence (a folder rule matches every experiment path under it).
+    """
     base = config_dir.rstrip('/')
-    return {folder: _team_slugs(search_owners(f"{base}/{folder}/", owners_file)) for folder in folders}
+    return {exp: _team_slugs(search_owners(f"{base}/{exp}/", owners_file)) for exp in experiments}
 
 
 def smp_inputs_impl(
@@ -138,11 +140,14 @@ def smp_inputs_impl(
 
     Returns `(involved_teams, ownership)`:
     - `involved_teams`: sorted team slugs owning any of `changed_files` (pure CODEOWNERS).
-    - `ownership`: `{folder: [team_slug, ...]}` for every experiment folder SMP discovers (minus
-      `exclude`). Folders come from `smp experiments list`, so discovery has a single source of truth.
+    - `ownership`: `{experiment_path: [team_slug, ...]}` for every experiment SMP discovers (minus
+      `exclude`). Experiment paths come from `smp experiments list`, so discovery has a single source
+      of truth, and ownership is keyed per experiment so per-experiment CODEOWNERS overrides are kept.
     """
     involved = _team_slugs(make_partition(changed_files, owners_file).keys()) if changed_files else []
-    ownership = _folder_ownership(_discover_folders(config_dir, manifest, smp_bin, exclude), config_dir, owners_file)
+    ownership = _experiment_ownership(
+        _discover_experiments(config_dir, manifest, smp_bin, exclude), config_dir, owners_file
+    )
     return involved, ownership
 
 
@@ -160,8 +165,8 @@ def smp_inputs(
     """
     Emit the CODEOWNERS-derived inputs for `smp experiments resolve`.
 
-    Writes the folder -> owning-teams map to `--ownership-out` (JSON) and prints the comma-separated
-    involved teams (owners of the changed files) to stdout. Folders are discovered via
+    Writes the experiment -> owning-teams map to `--ownership-out` (JSON) and prints the comma-separated
+    involved teams (owners of the changed files) to stdout. Experiments are discovered via
     `<smp-bin> experiments list` (single discovery source).
 
     - config-dir: the SMP target config dir (e.g. test/regression).
