@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "common",
-    srcs = ["models.go"],
+    srcs = [
+        "endpoints.go",
+        "models.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/common",
     visibility = ["//visibility:public"],
     deps = ["//pkg/config/model"],
