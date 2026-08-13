@@ -690,3 +690,23 @@ func TestOnSemanticCoreUpdate_EmptyUpdatesRevertToEmbedded(t *testing.T) {
 	assert.Equal(t, embedded.Version(), semantics.DefaultRegistry().Version(), "live registry must be the embedded version after revert")
 	assert.Equal(t, 0, called, "no applyStateCallback invocations on empty updates (no cfgPaths to ack)")
 }
+
+// TestBuildLogLevelRequestEscapesQueryValue locks in that a per-package log
+// level specification (see pkglog.ParseLogLevels), which can contain spaces,
+// commas, and "=" characters, is percent-encoded before being interpolated
+// into the request URL: unescaped, a space would land directly in the HTTP
+// request line and corrupt it.
+func TestBuildLogLevelRequestEscapesQueryValue(t *testing.T) {
+	h := &RemoteConfigHandler{
+		agentConfig:                   &config.AgentConfig{AuthToken: "test-token"},
+		configSetEndpointFormatString: "https://127.0.0.1:1234/config/set?log_level=%s",
+	}
+
+	spec := "info, github.com/DataDog/datadog-agent/comp/forwarder/...=debug"
+	req, err := h.buildLogLevelRequest(spec)
+	require.NoError(t, err)
+
+	assert.Equal(t, spec, req.URL.Query().Get("log_level"),
+		"the raw query must round-trip to the exact original spec once decoded")
+	assert.NotContains(t, req.URL.RawQuery, " ", "the raw, on-the-wire query must not contain an unescaped space")
+}

@@ -33,6 +33,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	slogHandlers "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -68,12 +69,25 @@ func setupStdoutLogger(_ *env.Env) {
 	if envLevel, found := os.LookupEnv("DD_LOG_LEVEL"); found && envLevel != "" {
 		level = envLevel
 	}
+	// Parsed here (rather than via pkglog.SetupLogger) so the resulting
+	// *types.Levels can be shared with a handlers.NewLevel wrapper below: it's
+	// that wrapper, not pkglog's own coarse pre-filter, that applies any
+	// per-Go-package overrides level may carry (see pkglog.ParseLogLevels) —
+	// without it, such overrides would incorrectly widen the coarse
+	// pre-filter to the most permissive level found anywhere in the spec and
+	// apply it globally, unfiltered.
+	cfg, err := pkglog.ParseLogLevels(level)
+	if err != nil {
+		cfg = types.NewLevelsConfig(types.ToSlogLevel(pkglog.InfoLvl))
+	}
+	levels := types.NewLevels(cfg)
+
 	formatter := func(_ context.Context, r slog.Record) string {
 		return r.Message + "\n"
 	}
-	handler := slogHandlers.NewFormat(formatter, os.Stdout)
+	handler := slogHandlers.NewLevel(levels, slogHandlers.NewFormat(formatter, os.Stdout))
 	loggerInterface := pkglogslog.NewWrapper(handler)
-	pkglog.SetupLogger(loggerInterface, level)
+	pkglog.SetupLoggerWithLevels(loggerInterface, levels)
 }
 
 // newCmd creates a new command

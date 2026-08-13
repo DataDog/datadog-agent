@@ -111,7 +111,15 @@ func (c *APMCheck) run() error {
 	env = append(env, "DD_API_KEY="+utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key")))
 	env = append(env, "DD_HOSTNAME="+hname)
 	env = append(env, "DD_DOGSTATSD_PORT="+pkgconfigsetup.Datadog().GetString("dogstatsd_port"))
-	env = append(env, "DD_LOG_LEVEL="+pkgconfigsetup.Datadog().GetString("log_level"))
+	// "log_level" may carry per-Go-package overrides (see log.ParseLogLevels);
+	// the APM subprocess only understands a single level, so only its
+	// default level applies here. On a parse error, fall back to the raw
+	// config value, preserving prior behavior.
+	logLevel := pkgconfigsetup.Datadog().GetString("log_level")
+	if defaultLevel, err := log.DefaultLevelString(logLevel); err == nil {
+		logLevel = defaultLevel
+	}
+	env = append(env, "DD_LOG_LEVEL="+logLevel)
 	cmd.Env = env
 
 	// forward the standard output to the Agent logger

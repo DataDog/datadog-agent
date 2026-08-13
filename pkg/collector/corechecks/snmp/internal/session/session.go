@@ -171,14 +171,20 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 	s.gosnmpInst.Retries = config.Retries
 	s.gosnmpInst.UseUnconnectedUDPSocket = config.UseUnconnectedUDPSocket
 
-	lvl, err := log.GetLogLevel()
-	if err != nil {
-		log.Warnf("failed to get logger: %s", err)
-	} else {
-		if lvl == log.TraceLvl {
-			TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
-			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
-		}
+	// log.EnabledForPackage (rather than the coarse log.ShouldLog, or
+	// comparing log.GetLogLevel() — the default level only — against
+	// log.TraceLvl directly) is used here so a per-Go-package override (see
+	// log.ParseLogLevels) is reflected precisely for the package that
+	// actually emits these trace logs (gosnmplib.TraceLevelLogWriter.Write).
+	// The coarse bound would install this writer whenever ANY package is
+	// configured for trace, even one unrelated to SNMP, permanently paying
+	// the cost of formatting every GoSNMP-internal debug line for the
+	// lifetime of the session only to have it dropped by the precise
+	// per-package filter downstream — unlike a single skippable log call,
+	// this is a persistent, ongoing cost worth getting exactly right.
+	if log.EnabledForPackage("github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib", log.TraceLvl) {
+		TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
+		s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
 	}
 	return s, nil
 }

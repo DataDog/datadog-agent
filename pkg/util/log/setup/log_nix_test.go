@@ -14,6 +14,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func TestGetSyslogURI(t *testing.T) {
@@ -39,9 +40,9 @@ func TestGetSyslogURI(t *testing.T) {
 func TestSetupLoggingNowhere(t *testing.T) {
 	// setup logger so that it logs nowhere: i.e.  not to file, not to syslog, not to console
 	mockConfig := configmock.New(t)
-	loggerInterface, levelVar, err := buildLogger("agent", log.InfoLvl, "", "", false, false, false, mockConfig)
+	loggerInterface, levels, err := buildLogger("agent", types.NewLevelsConfig(types.ToSlogLevel(log.InfoLvl)), "", "", false, false, false, mockConfig)
 
 	assert.Nil(t, loggerInterface)
-	assert.Nil(t, levelVar)
+	assert.Nil(t, levels)
 	assert.NotNil(t, err)
 }

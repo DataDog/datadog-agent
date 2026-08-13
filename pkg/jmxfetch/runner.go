@@ -25,6 +25,10 @@ type runner struct {
 
 func (r *runner) initRunner(server dogstatsdServer.Component, logger jmxlogger.Component, ipc ipc.Component) {
 	r.jmxfetch = NewJMXFetch(logger, ipc)
+	// "log_level" may carry per-Go-package overrides (see log.ParseLogLevels);
+	// JMXFetch.run() extracts the default level from this before mapping it
+	// to a JMXFetch-native level, so the raw config value can be passed
+	// through as-is here.
 	r.jmxfetch.LogLevel = pkgconfigsetup.Datadog().GetString("log_level")
 	r.jmxfetch.DSD = server
 }

@@ -29,6 +29,7 @@ dd_agent_go_test(
     ],
     embed = [":handlers"],
     deps = [
+        "//pkg/util/log/types",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

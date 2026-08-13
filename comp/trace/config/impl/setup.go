@@ -908,15 +908,16 @@ func SetHandler() http.Handler {
 			case "log_level":
 				// Note: This endpoint is used by remote-config to set the log level dynamically
 				// Please make sure to reach out to this team before removing it.
-				lvl := strings.ToLower(value)
-				if lvl == "warning" {
-					lvl = "warn"
-				}
-				if err := utils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
+				//
+				// Do not lowercase or otherwise canonicalize value here: it may carry
+				// case-sensitive per-package overrides (see pkglog.ParseLogLevels), and
+				// SetLogLevel/ParseLogLevels already handle level-token case-insensitivity
+				// (and the "warning"->"warn" compat mapping) on their own.
+				if err := utils.SetLogLevel(value, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				log.Infof("Switched log level to %s", lvl)
+				log.Infof("Switched log level to %s", value)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)
 			}

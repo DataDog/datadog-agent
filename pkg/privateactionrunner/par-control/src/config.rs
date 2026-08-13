@@ -65,7 +65,19 @@ fn env_bool(env: EnvLookup<'_>, name: &str, yaml_value: Option<bool>) -> Result<
 }
 
 fn parse_log_level(raw: &str) -> log::LevelFilter {
-    match raw.trim().to_ascii_lowercase().as_str() {
+    // `raw` may be a per-Go-package log level specification (a comma-separated
+    // list where each instruction is either a bare level or
+    // "<package>=<level>"; see pkg/util/log.ParseLogLevels in the Go agent).
+    // This binary has no notion of per-package levels, so only the bare,
+    // package-agnostic default instruction, if any, is used.
+    let default_instruction = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|instruction| !instruction.is_empty())
+        .find(|instruction| !instruction.contains('='))
+        .unwrap_or(raw);
+
+    match default_instruction.to_ascii_lowercase().as_str() {
         "trace" => log::LevelFilter::Trace,
         "debug" => log::LevelFilter::Debug,
         "warn" | "warning" => log::LevelFilter::Warn,
@@ -132,6 +144,34 @@ mod tests {
             ("off", log::LevelFilter::Off),
         ] {
             let config = parse(&format!("log_level: {raw}\n"), &[]).unwrap();
+            assert_eq!(config.log_level, expected, "log level {raw}");
+        }
+    }
+
+    #[test]
+    fn extracts_default_level_from_per_package_spec() {
+        for (raw, expected) in [
+            (
+                "warn,github.com/DataDog/datadog-agent/comp/forwarder/...=debug",
+                log::LevelFilter::Warn,
+            ),
+            (
+                " trace , some/pkg=debug ",
+                log::LevelFilter::Trace,
+            ),
+            (
+                "github.com/DataDog/datadog-agent/comp/forwarder/...=debug",
+                log::LevelFilter::Info,
+            ),
+            (
+                // A leading empty instruction (e.g. a stray leading comma)
+                // must be skipped rather than treated as the bare default,
+                // matching pkg/util/log.ParseLogLevels' own handling.
+                ", warn, some/pkg=debug",
+                log::LevelFilter::Warn,
+            ),
+        ] {
+            let config = parse(&format!("log_level: \"{raw}\"\n"), &[]).unwrap();
             assert_eq!(config.log_level, expected, "log level {raw}");
         }
     }

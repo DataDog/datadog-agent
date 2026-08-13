@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 )
@@ -336,6 +337,51 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	assert.Contains(t, logs, "log line 1")
 	assert.Contains(t, logs, "log line 2")
 
+}
+
+// Test_snmpSession_traceLog_enabledViaPerPackageOverride locks in that the
+// trace writer installation check respects a per-Go-package override (see
+// log.ParseLogLevels) enabling trace specifically for the package that
+// emits these trace logs (gosnmplib), even though the global default level
+// is less verbose.
+func Test_snmpSession_traceLog_enabledViaPerPackageOverride(t *testing.T) {
+	config := checkconfig.CheckConfig{
+		IPAddress:       "1.2.3.4",
+		CommunityString: "abc",
+	}
+
+	cfg, err := log.ParseLogLevels("info,github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib=trace")
+	require.NoError(t, err)
+	log.SetupLoggerWithLevels(log.Default(), types.NewLevels(cfg))
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
+
+	s, err := NewGosnmpSession(&config)
+	gosnmpSess := s.(*GosnmpSession)
+	require.NoError(t, err)
+	assert.NotNil(t, gosnmpSess.gosnmpInst.Logger, "the global default is info, but the gosnmplib package is overridden to trace")
+}
+
+// Test_snmpSession_traceLog_disabledForUnrelatedPackageOverride locks in
+// that an UNRELATED package's trace override does not install the writer:
+// a coarse "is trace enabled anywhere" check would incorrectly install it,
+// paying the cost of formatting every GoSNMP-internal debug line for the
+// life of the session only to have it dropped downstream.
+func Test_snmpSession_traceLog_disabledForUnrelatedPackageOverride(t *testing.T) {
+	config := checkconfig.CheckConfig{
+		IPAddress:       "1.2.3.4",
+		CommunityString: "abc",
+	}
+
+	cfg, err := log.ParseLogLevels("info,github.com/DataDog/datadog-agent/comp/forwarder/...=trace")
+	require.NoError(t, err)
+	log.SetupLoggerWithLevels(log.Default(), types.NewLevels(cfg))
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
+
+	s, err := NewGosnmpSession(&config)
+	gosnmpSess := s.(*GosnmpSession)
+	require.NoError(t, err)
+	assert.Equal(t, gosnmp.Logger{}, gosnmpSess.gosnmpInst.Logger,
+		"an unrelated package's trace override must not install the writer for gosnmplib")
 }
 
 func Test_snmpSession_Connect_Logger(t *testing.T) {

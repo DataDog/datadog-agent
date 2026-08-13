@@ -8,6 +8,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,11 +16,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -264,4 +267,35 @@ func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	cmd := setupCommand()
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
+}
+
+// TestSetupStdoutLoggerPerPackageOverride locks in that setupStdoutLogger
+// wires a handlers.NewLevel wrapper around its handler (rather than relying
+// solely on pkglog's own coarse pre-filter), so a per-Go-package DD_LOG_LEVEL
+// override (see pkglog.ParseLogLevels) is enforced precisely instead of
+// widening the coarse pre-filter to the most permissive level found anywhere
+// in the spec and applying it globally, unfiltered. The override below
+// targets an unrelated package, so a debug message from this package (whose
+// own default stays "warn") must NOT be let through by it.
+func TestSetupStdoutLoggerPerPackageOverride(t *testing.T) {
+	t.Setenv("DD_LOG_LEVEL", "warn,github.com/DataDog/datadog-agent/comp/forwarder/...=debug")
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	oldStdout := os.Stdout
+	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = oldStdout })
+
+	setupStdoutLogger(env.FromEnv())
+
+	pkglog.Debugf("this debug message must not be shown")
+	pkglog.Warnf("this warn message must be shown")
+	pkglog.Flush()
+
+	require.NoError(t, w.Close())
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(out), "this debug message must not be shown")
+	assert.Contains(t, string(out), "this warn message must be shown")
 }

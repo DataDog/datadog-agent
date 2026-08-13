@@ -20,11 +20,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func changeLogLevel(level LogLevel) error {
-	return logger.changeLogLevel(level)
+	return logger.changeLogLevel(types.NewLevelsConfig(types.ToSlogLevel(level)))
 }
 
 func TestBasicLogging(t *testing.T) {
@@ -108,6 +109,61 @@ func TestLogBuffer(t *testing.T) {
 	// Trace will not be logged, Error and Critical will directly be logged to Stderr
 	assert.Equal(t, 5, strings.Count(b.String(), "foo"), b.String())
 }
+
+// TestPreLogGateBuffersBeforeSetup locks in that the *Func/*StackDepth
+// early-return guards (which use preLogGate) still let Info-and-above calls
+// made before SetupLogger land in the pre-init buffer, matching their
+// pre-existing behavior — a plain ShouldLog(lvl) would incorrectly return
+// false with no logger set up yet, silently dropping these instead.
+func TestPreLogGateBuffersBeforeSetup(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+	logger.Store(nil)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
+	assert.NoError(t, err)
+
+	TracefStackDepth(1, "%s", "trace-foo")
+	DebugfStackDepth(1, "%s", "debug-foo")
+	InfofStackDepth(1, "%s", "info-foo")
+	WarnFunc(func() string { return "warn-foo" })
+	ErrorFunc(func() string { return "error-foo" })
+	CriticalFunc(func() string { return "critical-foo" })
+
+	SetupLogger(l, "debug")
+	assert.NotNil(t, logger.Load())
+
+	w.Flush()
+
+	// Trace and Debug assumed disabled pre-init (matching preLogGate's
+	// InfoLvl fallback); Info/Warn/Error/Critical must have been buffered.
+	assert.NotContains(t, b.String(), "trace-foo")
+	assert.NotContains(t, b.String(), "debug-foo")
+	assert.Contains(t, b.String(), "info-foo")
+	assert.Contains(t, b.String(), "warn-foo")
+	assert.Contains(t, b.String(), "error-foo")
+	assert.Contains(t, b.String(), "critical-foo")
+}
+
+// TestFuncGuardsRespectPerPackageOverride locks in the actual fix behind
+// preLogGate/ShouldLog: a *Func early-return guard must not stay closed for
+// a package whose per-Go-package override (see ParseLogLevels) permits a
+// more verbose level than the global default, even though the guard itself
+// has no way to resolve which package it's being called from.
+func TestFuncGuardsRespectPerPackageOverride(t *testing.T) {
+	cfg, err := ParseLogLevels("info,github.com/DataDog/datadog-agent/pkg/util/log/...=debug")
+	require.NoError(t, err)
+	SetupLoggerWithLevels(Default(), types.NewLevels(cfg))
+	t.Cleanup(func() { SetupLogger(Default(), "info") })
+
+	called := false
+	DebugFunc(func() string { called = true; return "debug-foo" })
+	assert.True(t, called, "the global default is info, but this package is overridden to debug")
+}
+
 func TestLogBufferWithContext(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
@@ -612,10 +668,9 @@ func TestChangeLogLevel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.String(), func(t *testing.T) {
-			levelVar := new(slog.LevelVar)
-			levelVar.Set(slog.LevelDebug)
+			levels := types.NewLevels(types.NewLevelsConfig(slog.LevelDebug))
 
-			SetupLoggerWithLevelVar(Default(), levelVar)
+			SetupLoggerWithLevels(Default(), levels)
 
 			err := ChangeLogLevel(tc)
 			assert.NoError(t, err)
@@ -631,7 +686,7 @@ func TestChangeLogLevel(t *testing.T) {
 func TestChangeLogLevelNilLogger(t *testing.T) {
 	logger.Store(nil)
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevel(types.NewLevelsConfig(types.ToSlogLevel(InfoLvl)))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger not initialized", err.Error())
 }
@@ -640,7 +695,7 @@ func TestChangeLogLevelNilInnerLogger(t *testing.T) {
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevel(types.NewLevelsConfig(types.ToSlogLevel(InfoLvl)))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger is initialized however logger.inner is nil", err.Error())
 }
@@ -728,6 +783,32 @@ func TestShouldLogNilLogger(t *testing.T) {
 	logger.Store(nil)
 
 	assert.False(t, ShouldLog(InfoLvl))
+}
+
+func TestEnabledForPackage(t *testing.T) {
+	cfg, err := ParseLogLevels("info,some/pkg=debug,some/pkg/child/...=trace")
+	require.NoError(t, err)
+	SetupLoggerWithLevels(Default(), types.NewLevels(cfg))
+	t.Cleanup(func() { SetupLogger(Default(), "info") })
+
+	assert.False(t, EnabledForPackage("unrelated/pkg", DebugLvl), "unrelated packages use the default level")
+	assert.True(t, EnabledForPackage("unrelated/pkg", InfoLvl))
+
+	assert.True(t, EnabledForPackage("some/pkg", DebugLvl), "exact match uses its own rule's level")
+	assert.False(t, EnabledForPackage("some/pkg", TraceLvl))
+
+	assert.True(t, EnabledForPackage("some/pkg/child", TraceLvl), "the more specific recursive rule wins for the subpackage")
+
+	// A coarse ShouldLog(TraceLvl) would say true here (some/pkg/child is
+	// configured for trace), but EnabledForPackage must give the precise,
+	// per-package answer instead.
+	assert.False(t, EnabledForPackage("unrelated/pkg", TraceLvl))
+}
+
+func TestEnabledForPackageNilLogger(t *testing.T) {
+	logger.Store(nil)
+
+	assert.False(t, EnabledForPackage("some/pkg", InfoLvl))
 }
 
 func TestValidateLogLevel(t *testing.T) {

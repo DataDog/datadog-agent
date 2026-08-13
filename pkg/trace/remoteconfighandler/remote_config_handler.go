@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 
@@ -168,11 +169,15 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 	// todo refactor shared code
 
 	if len(mergedConfig.LogLevel) > 0 {
-		// Get the current log level
-		var newFallback pkglog.LogLevel
-		newFallback, err = pkglog.GetLogLevel()
+		// Get the current log level. GetLogLevelSpec (rather than GetLogLevel)
+		// is used so that a fallback correctly restores any per-package
+		// overrides (see pkglog.ParseLogLevels) that were configured locally
+		// before this remote-config override was applied, instead of
+		// collapsing them down to just their default level.
+		var newFallback string
+		newFallback, err = pkglog.GetLogLevelSpec()
 		if err == nil {
-			h.configState.FallbackLogLevel = newFallback.String()
+			h.configState.FallbackLogLevel = newFallback
 			var resp *http.Response
 			var req *http.Request
 			req, err = h.buildLogLevelRequest(mergedConfig.LogLevel)
@@ -187,9 +192,9 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			}
 		}
 	} else {
-		var currentLogLevel pkglog.LogLevel
-		currentLogLevel, err = pkglog.GetLogLevel()
-		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
+		var currentLogLevelSpec string
+		currentLogLevelSpec, err = pkglog.GetLogLevelSpec()
+		if err == nil && currentLogLevelSpec == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
 			var resp *http.Response
 			var req *http.Request
@@ -222,7 +227,12 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 }
 
 func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, newLevel), nil)
+	// newLevel may be a full per-package specification (see
+	// pkglog.ParseLogLevels), which can contain characters like spaces,
+	// commas, and "=" that must be percent-encoded to form a valid query
+	// string, e.g. a space would otherwise land unescaped in the request
+	// line since configSetEndpointFormatString interpolates it directly.
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, url.QueryEscape(newLevel)), nil)
 	if err != nil {
 		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
 		return nil, err

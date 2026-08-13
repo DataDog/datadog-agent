@@ -8,11 +8,14 @@ package handlers
 import (
 	"context"
 	"log/slog"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func TestNewLevel(t *testing.T) {
@@ -173,6 +176,64 @@ func TestLevelHandlerWithCustomLeveler(t *testing.T) {
 	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelWarn))
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
+}
+
+// callerPC returns a PC identifying this function's own call site, the way
+// runtime.Callers would capture it for an actual log call.
+func callerPC(t *testing.T) uintptr {
+	t.Helper()
+	var pcs [1]uintptr
+	n := runtime.Callers(2, pcs[:])
+	require.Equal(t, 1, n)
+	return pcs[0]
+}
+
+func TestLevelHandlerPackageLevelsOverride(t *testing.T) {
+	inner := newMockInnerHandler()
+	pc := callerPC(t)
+
+	// The package containing this test is disabled by default, but has a
+	// debug-level override, so a debug record from here must go through.
+	cfg := types.NewLevelsConfig(slog.LevelError,
+		types.LevelRule{Prefix: "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers", Recursive: true, Level: slog.LevelDebug},
+	)
+	handler := NewLevel(types.NewLevels(cfg), inner)
+
+	record := slog.NewRecord(time.Now(), slog.LevelDebug, "debug message", pc)
+	err := handler.Handle(context.Background(), record)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, inner.recordCount())
+}
+
+func TestLevelHandlerPackageLevelsDefaultApplies(t *testing.T) {
+	inner := newMockInnerHandler()
+	pc := callerPC(t)
+
+	// No rule matches this test's package, so the (more restrictive) default
+	// level applies and the debug record must be dropped.
+	cfg := types.NewLevelsConfig(slog.LevelError,
+		types.LevelRule{Prefix: "some/other/package", Recursive: true, Level: slog.LevelDebug},
+	)
+	handler := NewLevel(types.NewLevels(cfg), inner)
+
+	record := slog.NewRecord(time.Now(), slog.LevelDebug, "debug message", pc)
+	err := handler.Handle(context.Background(), record)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, inner.recordCount())
+}
+
+func TestLevelHandlerPackageLevelsCoarseEnabledIgnoresPackage(t *testing.T) {
+	// Enabled must stay PC-free: it should report true for any level enabled
+	// by ANY rule, even though it cannot know which package will actually be
+	// logging, since Handle is what applies the precise, per-package check.
+	cfg := types.NewLevelsConfig(slog.LevelError,
+		types.LevelRule{Prefix: "some/other/package", Recursive: true, Level: slog.LevelDebug},
+	)
+	handler := NewLevel(types.NewLevels(cfg), newMockInnerHandler())
+
+	assert.True(t, handler.Enabled(context.Background(), slog.LevelDebug))
 }
 
 func TestLevelHandlerChaining(t *testing.T) {

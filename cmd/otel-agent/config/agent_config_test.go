@@ -307,6 +307,43 @@ func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
 	assert.Equal(t, "info", c.Get("log_level"))
 }
 
+func (suite *ConfigTestSuite) TestPerPackageLogLevelIsPreserved() {
+	t := suite.T()
+	// DD_LOG_LEVEL is deliberately not used here: it's bound via
+	// BindEnvAndSetDefault, which makes an active env var win over any value
+	// this function later writes back with Set(..., SourceFile) regardless of
+	// collapsing logic — a pre-existing characteristic of this bridging code,
+	// unrelated to per-package overrides. Sourcing log_level from the ddCfg
+	// YAML file instead exercises the Set() write path this test is about.
+	fileName := "testdata/config_default.yaml"
+	// Telemetry defaults to info, which is less verbose than the "debug"
+	// default level in the file, so it must not force a collapse to a bare level.
+	ddFileName := "testdata/datadog_per_package_log_level.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err)
+
+	// The full per-package specification must survive unchanged so that
+	// downstream loggers built from "log_level" (e.g. the agent-internal
+	// Datadog logger) still see the "comp/otelcol/..." override, not just
+	// its collapsed default level.
+	assert.Equal(t, "debug,github.com/DataDog/datadog-agent/comp/otelcol/...=trace", c.Get("log_level"))
+}
+
+func (suite *ConfigTestSuite) TestPerPackageLogLevelDefaultAdjustsWhenTelemetryIsMoreVerbose() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_low_per_package_log_level.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err)
+
+	// config_default.yaml's telemetry defaults to "info", more verbose than
+	// the "warn" default level in the file. telemetry.logs.level has no
+	// concept of packages, so it can only affect the default level: the
+	// "comp/otelcol/...=trace" override must survive, with only the default
+	// level swapped from "warn" to "info".
+	assert.Equal(t, "info,github.com/DataDog/datadog-agent/comp/otelcol/...=trace", c.Get("log_level"))
+}
+
 func (suite *ConfigTestSuite) TestBadDDConfigFile() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
@@ -977,4 +1014,56 @@ service:
 // TestSuite runs the CalculatorTestSuite
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
+}
+
+func TestWithDefaultLevel(t *testing.T) {
+	testCases := []struct {
+		name       string
+		spec       string
+		newDefault string
+		want       string
+	}{
+		{
+			name:       "replaces the bare default, keeps rules",
+			spec:       "warn,github.com/DataDog/datadog-agent/comp/otelcol/...=trace",
+			newDefault: "info",
+			want:       "info,github.com/DataDog/datadog-agent/comp/otelcol/...=trace",
+		},
+		{
+			name:       "multiple rules all kept",
+			spec:       "warn,a/b=debug,c/d/...=trace",
+			newDefault: "info",
+			want:       "info,a/b=debug,c/d/...=trace",
+		},
+		{
+			name:       "no bare default: newDefault is just prepended",
+			spec:       "github.com/DataDog/datadog-agent/comp/otelcol/...=trace",
+			newDefault: "info",
+			want:       "info,github.com/DataDog/datadog-agent/comp/otelcol/...=trace",
+		},
+		{
+			name: "a rule less verbose than newDefault is clamped up to it",
+			// "a/b=warn" is less verbose than the "debug" newDefault: nothing,
+			// including a per-package override, should end up quieter than
+			// the level telemetry.logs.level forces globally.
+			spec:       "warn,a/b=warn,c/d=trace",
+			newDefault: "debug",
+			want:       "debug,a/b=debug,c/d=trace",
+		},
+		{
+			name: "a rule using the 'warning' compat alias is still clamped",
+			// "warning" isn't a key in this file's own logLevelMap (only
+			// "warn" is), so comparison must go through pkglog.ValidateLogLevel's
+			// canonicalization rather than a direct lookup.
+			spec:       "warn,a/b=warning",
+			newDefault: "debug",
+			want:       "debug,a/b=debug",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, withDefaultLevel(tc.spec, tc.newDefault))
+		})
+	}
 }

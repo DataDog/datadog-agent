@@ -14,6 +14,13 @@ import (
 // LogObserver is an optional hook that receives agent-internal logs (already formatted and scrubbed)
 // after level filtering but before they are written to the underlying logger.
 //
+// When per-package log level overrides are configured (see ParseLogLevels), the pre-filter
+// gating this hook uses the most permissive level enabled by any package, since the precise,
+// per-package decision is only made later by the slog handler chain. This means an observer may
+// see some records that are ultimately not written anywhere, for a package whose effective level
+// is stricter than another package's override. Without per-package overrides, this hook only ever
+// sees records that are also written to the underlying logger, as before.
+//
 // Observers MUST be fast and MUST NOT block. Implementations should treat this callback as best-effort.
 type LogObserver func(level LogLevel, message string)
 

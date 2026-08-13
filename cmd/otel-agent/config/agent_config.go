@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type logLevel int
@@ -150,14 +151,34 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	activeLogLevel := critical
+	rawLogLevel := ""
 	if pkgconfig.IsConfigured("log_level") {
+		rawLogLevel = pkgconfig.GetString("log_level")
+		// "disabled" is an OTel-native spelling of "off" that this bridging
+		// code has long accepted from DD_LOG_LEVEL/log_level, even though it
+		// isn't part of the Datadog Agent's own log level grammar; special-case
+		// it so it keeps working before parsing everything else as an Agent
+		// log level specification.
+		lookupLevel := strings.ToLower(rawLogLevel)
+		if lookupLevel != "disabled" {
+			// "log_level" may carry per-Go-package overrides (see
+			// pkglog.ParseLogLevels); the OTel collector only has a single,
+			// package-agnostic log level, so only its default level applies here.
+			defaultLogLevel, err := pkglog.DefaultLevelString(rawLogLevel)
+			if err != nil {
+				return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", rawLogLevel)
+			}
+			lookupLevel = strings.ToLower(defaultLogLevel)
+		}
+
 		var ok bool
-		logLevel := strings.ToLower(pkgconfig.GetString("log_level"))
-		activeLogLevel, ok = logLevelMap[logLevel]
+		activeLogLevel, ok = logLevelMap[lookupLevel]
 		if !ok {
-			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
+			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", rawLogLevel)
 		}
 	}
+	datadogLogLevel := activeLogLevel
+
 	// Set the right log level. The most verbose setting takes precedence.
 	telemetryLogLevel := "info"
 	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
@@ -177,7 +198,29 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		activeLogLevel = telemetryLogMapping
 	}
 	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
-	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
+	switch {
+	case !strings.Contains(rawLogLevel, "="):
+		// A bare level keeps going through logLevelReverseMap, preserving its
+		// existing case/spelling canonicalization (e.g. "INFO" -> "info").
+		pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
+	case activeLogLevel == datadogLogLevel:
+		// rawLogLevel carries per-Go-package overrides (see
+		// pkglog.ParseLogLevels), and the OTel telemetry.logs.level setting
+		// didn't force a more verbose level than the Datadog Agent's own
+		// "log_level", so the original specification is written back as-is.
+		// This preserves those overrides for loggers built from "log_level"
+		// downstream (e.g. the agent-internal Datadog logger), which
+		// logLevelReverseMap[activeLogLevel] alone, being a single bare
+		// level, cannot represent.
+		pkgconfig.Set("log_level", rawLogLevel, pkgconfigmodel.SourceFile)
+	default:
+		// OTel's telemetry.logs.level forced a more verbose default level
+		// than log_level's own default. telemetry.logs.level has no concept
+		// of packages, so it can only ever affect the default level, not the
+		// per-package overrides rawLogLevel carries; those are kept as-is,
+		// with only the default level instruction swapped out.
+		pkgconfig.Set("log_level", withDefaultLevel(rawLogLevel, logLevelReverseMap[activeLogLevel]), pkgconfigmodel.SourceFile)
+	}
 
 	ddc, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {
@@ -363,6 +406,44 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	return pkgconfig, nil
+}
+
+// withDefaultLevel returns a copy of spec (a log level specification, see
+// pkglog.ParseLogLevels) with its bare default-level instruction, if any,
+// replaced by newDefault, and every "<pattern>=<level>" rule less verbose
+// than newDefault clamped up to it (a rule already at least as verbose as
+// newDefault is left untouched). If spec has no bare instruction, newDefault
+// is simply prepended.
+//
+// The clamping preserves, pointwise, the "most verbose setting wins" rule
+// this bridging code has always applied between the Datadog Agent's log
+// level and OTel's own telemetry.logs.level: neither has any concept of
+// packages, so nothing — including an individual per-package override —
+// should end up quieter than the level either of them forces globally.
+func withDefaultLevel(spec, newDefault string) string {
+	newDefaultMapping := logLevelMap[strings.ToLower(newDefault)]
+
+	instructions := []string{newDefault}
+	for _, instruction := range strings.Split(spec, ",") {
+		pattern, level, hasPattern := strings.Cut(strings.TrimSpace(instruction), "=")
+		if !hasPattern {
+			continue
+		}
+		level = strings.TrimSpace(level)
+		// Compare via the canonical spelling: pkglog.ParseLogLevels accepts
+		// the Agent's "warning" compatibility alias for "warn", which isn't a
+		// key in this OTel-local logLevelMap and would otherwise silently
+		// skip clamping.
+		compareLevel := level
+		if canonical, err := pkglog.ValidateLogLevel(level); err == nil {
+			compareLevel = canonical.String()
+		}
+		if mapping, ok := logLevelMap[strings.ToLower(compareLevel)]; ok && mapping > newDefaultMapping {
+			level = newDefault
+		}
+		instructions = append(instructions, pattern+"="+level)
+	}
+	return strings.Join(instructions, ",")
 }
 
 func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {

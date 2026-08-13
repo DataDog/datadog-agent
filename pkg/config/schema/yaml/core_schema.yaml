@@ -2890,6 +2890,13 @@ properties:
       Minimum log level of the Datadog Agent.
       Valid log levels are: trace, debug, info, warn, error, critical, and off.
       Note: When using the 'off' log level, quotes are mandatory.
+      To set a different level for specific Go packages, use a comma-separated list of instructions
+      instead of a single level, e.g. "info,github.com/DataDog/datadog-agent/comp/forwarder/...=debug".
+      Each instruction is either a bare level (the default, applied to any package matched by no other
+      instruction), "<package>=<level>" (that package only), or "<package>/...=<level>" (that package
+      and its subpackages). "./<path>" and "./<path>/..." are shorthand for the same forms relative to
+      the datadog-agent module root, with "." alone meaning the module root itself. When several
+      instructions match the same package, the most specific one wins.
     tags:
     - template_section:Logging
   log_file:

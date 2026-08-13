@@ -283,7 +283,15 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	subprocessArgs = append(subprocessArgs, strings.Fields(javaOptions)...)
 
-	jmxLogLevel, ok := jmxLogLevelMap[strings.ToLower(j.LogLevel)]
+	// j.LogLevel may carry per-Go-package overrides (see log.ParseLogLevels);
+	// JMXFetch only understands a single level, so only its default level
+	// applies here. On a parse error, fall back to the raw value: the map
+	// lookup below already defaults to INFO on an unrecognized value.
+	logLevel := j.LogLevel
+	if defaultLevel, err := log.DefaultLevelString(logLevel); err == nil {
+		logLevel = defaultLevel
+	}
+	jmxLogLevel, ok := jmxLogLevelMap[strings.ToLower(logLevel)]
 	if !ok {
 		jmxLogLevel = "INFO"
 	}

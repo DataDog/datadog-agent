@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -54,7 +53,7 @@ var (
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner LoggerInterface
-	level *slog.LevelVar
+	level *types.Levels
 	l     sync.RWMutex
 }
 
@@ -64,20 +63,17 @@ type DatadogLogger struct {
 
 // SetupLogger setup agent wide logger
 func SetupLogger(i LoggerInterface, level string) {
-	logLevel, err := ValidateLogLevel(level)
+	cfg, err := ParseLogLevels(level)
 	if err != nil {
-		logLevel = InfoLvl
+		cfg = types.NewLevelsConfig(types.ToSlogLevel(InfoLvl))
 	}
 
-	levelVar := &slog.LevelVar{}
-	levelVar.Set(types.ToSlogLevel(logLevel))
-
-	SetupLoggerWithLevelVar(i, levelVar)
+	SetupLoggerWithLevels(i, types.NewLevels(cfg))
 }
 
-// SetupLoggerWithLevelVar setup agent wide logger with support for dynamic log level changes
-func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
-	setupCommonLogger(i, level)
+// SetupLoggerWithLevels setup agent wide logger with support for dynamic log level changes
+func SetupLoggerWithLevels(i LoggerInterface, levels *types.Levels) {
+	setupCommonLogger(i, levels)
 
 	// Flush the log entries logged before initialization now that the logger is initialized
 	bufferMutex.Lock()
@@ -88,10 +84,10 @@ func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
 	logsBuffer = []func(){}
 }
 
-func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) {
+func setupCommonLogger(i LoggerInterface, levels *types.Levels) {
 	l := &DatadogLogger{
 		inner: i,
-		level: level,
+		level: levels,
 	}
 
 	// We're not going to call DatadogLogger directly, but using the
@@ -134,12 +130,19 @@ func (sw *DatadogLogger) scrub(s string) string {
  */
 
 // ChangeLogLevel changes the current log level, valid levels are trace, debug,
-// info, warn, error, critical and off.
+// info, warn, error, critical and off. Any previously configured per-package
+// overrides are cleared; use ChangeLogLevels to change the whole configuration.
 func ChangeLogLevel(level LogLevel) error {
-	return logger.changeLogLevel(level)
+	return logger.changeLogLevel(types.NewLevelsConfig(types.ToSlogLevel(level)))
 }
 
-func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
+// ChangeLogLevels changes the current log level configuration (default level
+// and per-package overrides), as returned by ParseLogLevels.
+func ChangeLogLevels(cfg *types.LevelsConfig) error {
+	return logger.changeLogLevel(cfg)
+}
+
+func (sw *loggerPointer) changeLogLevel(cfg *types.LevelsConfig) error {
 	l := sw.Load()
 	if l == nil {
 		return errors.New("cannot change loglevel: logger not initialized")
@@ -152,12 +155,15 @@ func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	l.level.Set(types.ToSlogLevel(level))
+	l.level.Store(cfg)
 
 	return nil
 }
 
-// GetLogLevel returns a seelog native representation of the current log level
+// GetLogLevel returns a seelog native representation of the current default
+// log level. When per-package overrides are configured, this returns the
+// default level applied to packages not selected by a more specific
+// override; it does not reflect those overrides.
 func GetLogLevel() (LogLevel, error) {
 	return logger.getLogLevel()
 }
@@ -174,7 +180,39 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 		return InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	return types.FromSlogLevel(l.level.Level()), nil
+	return types.FromSlogLevel(l.level.Config().DefaultLevel()), nil
+}
+
+// GetLogLevelSpec returns the exact specification string (see ParseLogLevels)
+// currently configuring the logger, including any per-package overrides.
+// Unlike GetLogLevel, this round-trips a specification set via
+// ChangeLogLevels/SetupLogger without losing information. Callers that need
+// to later restore the exact current configuration (e.g. remote-config
+// handlers applying a temporary override) should use this rather than
+// GetLogLevel. Falls back to the canonical default-level string (as
+// GetLogLevel would return, stringified) when the current configuration
+// wasn't set from a specification string (e.g. via ChangeLogLevel).
+func GetLogLevelSpec() (string, error) {
+	return logger.getLogLevelSpec()
+}
+func (sw *loggerPointer) getLogLevelSpec() (string, error) {
+	l := sw.Load()
+	if l == nil {
+		return "", errors.New("cannot get loglevel: logger not initialized")
+	}
+
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	if l.inner == nil {
+		return "", errors.New("cannot get loglevel: logger not initialized")
+	}
+
+	cfg := l.level.Config()
+	if spec := cfg.Spec(); spec != "" {
+		return spec, nil
+	}
+	return types.FromSlogLevel(cfg.DefaultLevel()).String(), nil
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger
@@ -189,9 +227,49 @@ func ShouldLog(lvl LogLevel) bool {
 	return false
 }
 
+// preLogGate reports whether a call at level lvl should proceed to log (or
+// buffer, if the logger isn't set up yet). It backs the *Func/*StackDepth
+// early-return guards below: unlike a plain ShouldLog(lvl), it assumes
+// InfoLvl before SetupLogger has run, matching those guards' historic
+// behavior of letting Info-and-above calls made before setup land in the
+// pre-init buffer (see addLogToBuffer) instead of being silently dropped.
+func preLogGate(lvl LogLevel) bool {
+	l := logger.Load()
+	if l == nil {
+		return lvl >= InfoLvl
+	}
+	l.l.RLock()
+	defer l.l.RUnlock()
+	return l.shouldLog(lvl)
+}
+
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
 	return level >= types.FromSlogLevel(sw.level.Level())
+}
+
+// EnabledForPackage reports whether lvl is enabled for the Go package
+// identified by pkg (its full import path, e.g.
+// "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"), taking into
+// account any per-package override (see ParseLogLevels) configured for it.
+//
+// Unlike ShouldLog, which only ever answers "is lvl enabled by any package or
+// the default" (a coarse, deliberately permissive bound needed for the
+// per-record hot path, where the actual calling package isn't cheaply known
+// without a stack walk), this gives the precise, package-specific answer.
+// It's meant for one-time decisions where pkg is already known statically
+// (e.g. deciding whether to install an always-on logger/writer for a
+// specific package for the lifetime of some long-lived object), where an
+// imprecise coarse answer would risk persistent, avoidable overhead rather
+// than a one-off missed optimization.
+func EnabledForPackage(pkg string, lvl LogLevel) bool {
+	l := logger.Load()
+	if l == nil {
+		return false
+	}
+	l.l.RLock()
+	defer l.l.RUnlock()
+	return l.level.Config().EnabledForPackage(pkg, types.ToSlogLevel(lvl))
 }
 
 // ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
@@ -661,8 +739,7 @@ func Tracef(format string, params ...interface{}) {
 
 // TracefStackDepth logs with format at the trace level and the current stack depth plus the given depth
 func TracefStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > TraceLvl {
+	if !preLogGate(TraceLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
@@ -683,8 +760,7 @@ func Tracec(message string, context ...interface{}) {
 
 // TraceFunc calls and logs the result of 'logFunc' if and only if Trace (or more verbose) logs are enabled
 func TraceFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= TraceLvl {
+	if preLogGate(TraceLvl) {
 		TraceStackDepth(2, logFunc())
 	}
 }
@@ -701,8 +777,7 @@ func Debugf(format string, params ...interface{}) {
 
 // DebugfStackDepth logs with format at the debug level and the current stack depth plus the given depth
 func DebugfStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > DebugLvl {
+	if !preLogGate(DebugLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
@@ -723,8 +798,7 @@ func Debugc(message string, context ...interface{}) {
 
 // DebugFunc calls and logs the result of 'logFunc' if and only if Debug (or more verbose) logs are enabled
 func DebugFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= DebugLvl {
+	if preLogGate(DebugLvl) {
 		DebugStackDepth(2, logFunc())
 	}
 }
@@ -741,8 +815,7 @@ func Infof(format string, params ...interface{}) {
 
 // InfofStackDepth logs with format at the info level and the current stack depth plus the given depth
 func InfofStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > InfoLvl {
+	if !preLogGate(InfoLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
@@ -763,8 +836,7 @@ func Infoc(message string, context ...interface{}) {
 
 // InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
 func InfoFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= InfoLvl {
+	if preLogGate(InfoLvl) {
 		InfoStackDepth(2, logFunc())
 	}
 }
@@ -799,8 +871,7 @@ func Warnc(message string, context ...interface{}) error {
 
 // WarnFunc calls and logs the result of 'logFunc' if and only if Warn (or more verbose) logs are enabled
 func WarnFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= WarnLvl {
+	if preLogGate(WarnLvl) {
 		_ = WarnStackDepth(2, logFunc())
 	}
 }
@@ -835,8 +906,7 @@ func Errorc(message string, context ...interface{}) error {
 
 // ErrorFunc calls and logs the result of 'logFunc' if and only if Error (or more verbose) logs are enabled
 func ErrorFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= ErrorLvl {
+	if preLogGate(ErrorLvl) {
 		_ = ErrorStackDepth(2, logFunc())
 	}
 }
@@ -871,8 +941,7 @@ func Criticalc(message string, context ...interface{}) error {
 
 // CriticalFunc calls and logs the result of 'logFunc' if and only if Critical (or more verbose) logs are enabled
 func CriticalFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= CriticalLvl {
+	if preLogGate(CriticalLvl) {
 		_ = CriticalStackDepth(2, logFunc())
 	}
 }

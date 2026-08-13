@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // shouldExecSPLite returns true if system-probe should exec into system-probe-lite.
@@ -61,10 +62,18 @@ func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, lo
 		return nil
 	}
 
+	// "log_level" may carry per-Go-package overrides (see pkglog.ParseLogLevels);
+	// system-probe-lite only understands a single level, so only its default
+	// level applies here. On a parse error, fall back to the raw config value.
+	spLiteLogLevel := sysprobeConfig.GetString("log_level")
+	if defaultLevel, err := pkglog.DefaultLevelString(spLiteLogLevel); err == nil {
+		spLiteLogLevel = defaultLevel
+	}
+
 	// Build args via splite package (source of truth for CLI format)
 	args := (&splite.Config{
 		Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		LogLevel: sysprobeConfig.GetString("log_level"),
+		LogLevel: spLiteLogLevel,
 		LogFile:  sysprobeConfig.GetString("log_file"),
 		PIDFile:  pidFilePath,
 	}).Args()

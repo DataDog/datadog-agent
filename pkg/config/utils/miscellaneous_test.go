@@ -12,7 +12,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestSetLogLevelSimple(t *testing.T) {
+	cfg := configmock.New(t)
+
+	err := SetLogLevel("debug", cfg, model.SourceAgentRuntime)
+	require.NoError(t, err)
+	assert.Equal(t, "debug", cfg.GetString("log_level"))
+}
+
+func TestSetLogLevelPerPackageSyntax(t *testing.T) {
+	cfg := configmock.New(t)
+
+	spec := "info,github.com/DataDog/datadog-agent/comp/forwarder/...=debug"
+	err := SetLogLevel(spec, cfg, model.SourceAgentRuntime)
+	require.NoError(t, err)
+
+	// The full specification, not just a canonicalized bare level, must be
+	// stored: pkg/util/log's OnUpdate callback re-parses this raw string with
+	// ParseLogLevels, which understands the per-package syntax.
+	assert.Equal(t, spec, cfg.GetString("log_level"))
+}
+
+func TestSetLogLevelInvalid(t *testing.T) {
+	cfg := configmock.New(t)
+
+	err := SetLogLevel("bogus", cfg, model.SourceAgentRuntime)
+	assert.Error(t, err)
+
+	err = SetLogLevel("some/pkg=bogus", cfg, model.SourceAgentRuntime)
+	assert.Error(t, err)
+}
 
 func TestIsCoreAgentEnabled(t *testing.T) {
 

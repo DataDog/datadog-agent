@@ -135,18 +135,24 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 
 // IsTracing is used to check if TraceF would actually log
 func (l *PatternLogger) IsTracing() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.TraceLvl {
-		return false
-	}
-	return true
+	// log.ShouldLog is used rather than comparing log.GetLogLevel() (the
+	// default level only) against log.TraceLvl directly, so that a
+	// per-Go-package override (see log.ParseLogLevels) enabling trace logs
+	// for this package is correctly reflected here even when the global
+	// default level is less verbose.
+	return log.ShouldLog(log.TraceLvl)
 }
 
 // IsDebugging returns true if the debug level is enabled
 func (l *PatternLogger) IsDebugging() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.DebugLvl {
-		return false
-	}
-	return true
+	// See IsTracing: log.ShouldLog is used so a per-Go-package override is
+	// correctly reflected. This also means IsDebugging now returns true at
+	// trace level too (debug-level output is a fortiori enabled whenever
+	// trace is), matching the codebase's own callers, e.g.
+	// pkg/security/resolvers/process/resolver_ebpf.go used to explicitly
+	// OR IsDebugging() with IsTracing() to work around IsDebugging()'s
+	// previous exact-level-match restriction.
+	return log.ShouldLog(log.DebugLvl)
 }
 
 // Debugf is used to print a trace level log

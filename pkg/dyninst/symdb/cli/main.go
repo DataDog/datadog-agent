@@ -39,6 +39,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	logslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -135,7 +139,22 @@ To upload the SymDB data rather than printing it, use:
 	if logLevel == "" {
 		logLevel = "info"
 	}
-	log.SetupLogger(log.Default(), logLevel)
+	// Built directly here, rather than via log.Default() (a locking-format
+	// handler chain with no level filter of its own, meant for tests where
+	// SetupLogger is always given a single bare level): logLevel comes
+	// straight from the environment and may carry per-Go-package overrides
+	// (see log.ParseLogLevels). Without a handlers.NewLevel wrapper sharing
+	// the same *types.Levels, such an override would incorrectly widen the
+	// coarse pre-filter to the most permissive level found anywhere in the
+	// spec and apply it globally, unfiltered.
+	logLevelsCfg, err := log.ParseLogLevels(logLevel)
+	if err != nil {
+		logLevelsCfg = types.NewLevelsConfig(types.ToSlogLevel(log.InfoLvl))
+	}
+	logLevels := types.NewLevels(logLevelsCfg)
+	logFormatter := formatters.Template("{{Ns}} [{{Level}}] {{.msg}}\n")
+	logHandler := handlers.NewLevel(logLevels, handlers.NewLocking(handlers.NewFormat(logFormatter, os.Stdout)))
+	log.SetupLoggerWithLevels(logslog.NewWrapper(logHandler), logLevels)
 	defer log.Flush()
 
 	// Start the pprof server.

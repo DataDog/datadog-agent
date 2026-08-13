@@ -26,7 +26,9 @@ func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
 
 // Description returns the runtime setting's description
 func (l *LogLevelRuntimeSetting) Description() string {
-	return "Set/get the log level, valid values are: trace, debug, info, warn, error, critical and off"
+	return "Set/get the log level, valid values are: trace, debug, info, warn, error, critical and off. " +
+		"A comma-separated list of per-package overrides is also accepted, e.g. " +
+		"\"info,github.com/DataDog/datadog-agent/comp/forwarder/...=debug\" (see the log_level config option for the full syntax)"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
@@ -41,11 +43,14 @@ func (l *LogLevelRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (l *LogLevelRuntimeSetting) Get(_ config.Component) (interface{}, error) {
-	level, err := log.GetLogLevel()
+	// GetLogLevelSpec (rather than GetLogLevel) is used so that this round-trips
+	// the exact value passed to Set, including any per-package overrides (see
+	// log.ParseLogLevels) that GetLogLevel's canonical default level would drop.
+	spec, err := log.GetLogLevelSpec()
 	if err != nil {
 		return "", err
 	}
-	return level.String(), nil
+	return spec, nil
 }
 
 // Set changes the value of the runtime setting
