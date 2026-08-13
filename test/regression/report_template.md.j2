@@ -126,6 +126,7 @@
   That guarantees a blank line between every pair of rendered blocks.
 -#}
 ## Regression Detector
+_this report is locally rendered from the `report.json` file_
 
 **Run ID:** `{{ job_id }}`
 **Baseline:** `{{ baseline_sha[:8] or "(unknown)" }}` &middot; **Comparison:** `{{ comparison_sha[:8] or "(unknown)" }}`{% if shas_are_shas %} &middot; [diff]({{ REPO }}/compare/{{ baseline_sha }}...{{ comparison_sha }}){% endif %}
