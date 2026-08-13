@@ -310,19 +310,6 @@ filters:
 			expectedCustomFilterCount: 0,
 		},
 		{
-			name:   "default datadog intake ELB CNAME excluded",
-			config: ``,
-			expectedMatches: []expectedMatch{
-				// Datadog intake ELBs CNAME'd from *.datadoghq.com, any region.
-				{domain: "l4-metrics-agent-s0-7c551d28c9ca34fc.elb.us-east-1.amazonaws.com", shouldMatch: false},
-				{domain: "l4-metrics-agent-s1-56401ca284db905a.elb.eu-west-1.amazonaws.com", shouldMatch: false},
-				// Customer-owned ELBs must still be tested.
-				{domain: "my-app-lb-1234567890.elb.us-east-1.amazonaws.com", shouldMatch: true},
-				{domain: "l4-metrics-agent.example.com", shouldMatch: true},
-			},
-			expectedCustomFilterCount: 0,
-		},
-		{
 			name: "include all domain",
 			config: `
 filters:
@@ -499,9 +486,10 @@ func TestEvaluateDomains(t *testing.T) {
 			wantIncluded: false,
 		},
 		{
-			name:         "ELB name alone is excluded by default intake filter",
-			domains:      []string{elbName},
-			wantIncluded: false,
+			name:          "ELB name alone is included (no datadoghq name to match)",
+			domains:       []string{elbName},
+			wantIncluded:  true,
+			wantHostnames: []string{elbName},
 		},
 		{
 			name:          "unrelated names are included",

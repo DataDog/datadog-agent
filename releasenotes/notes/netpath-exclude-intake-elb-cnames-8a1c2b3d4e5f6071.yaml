@@ -7,6 +7,8 @@ fixes:
     of only the first), so a connection whose IP also resolves to a Datadog
     domain is excluded regardless of DNS cache ordering. Customer ``include``
     filters continue to override the defaults, so Datadog domains can still be
-    re-enabled if desired. The default excludes also now match the
-    ``l4-metrics-agent-*`` intake load balancer hostnames for the case where
-    only the ELB name is cached.
+    re-enabled if desired. The reverse-DNS cache also now tracks CNAME
+    owner-to-target relationships, so when only the shorter-lived ELB A record
+    is re-resolved the destination IP is still re-associated with the original
+    ``*.datadoghq.com`` name rather than being left mapped to the ELB hostname
+    alone.

@@ -211,6 +211,7 @@ func (p *dnsParser) parseAnswerInto(
 	pktInfo.queryType = QueryType(question.Type)
 	alias := p.extractCNAME(question.Name, dns.Answers)
 	p.extractIPsInto(alias, dns.Answers, t)
+	p.extractCNAMEsInto(dns.Answers, t)
 	inplaceASCIILower(question.Name)
 	t.dns = HostnameFromBytes(question.Name)
 
@@ -229,6 +230,27 @@ func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourc
 		}
 	}
 	return alias
+}
+
+// extractCNAMEsInto records the CNAME owner->target edges from a response so the
+// cache can later map a terminal name's A record back to the originally queried
+// names. Datadog intake endpoints (e.g. *.datadoghq.com) are CNAME'd to AWS ELB
+// hostnames whose A records carry a much shorter TTL; resolvers re-query the ELB
+// name directly, so at steady state a destination IP would otherwise only be
+// mapped to the ELB name. Must be called after extractCNAME/extractIPsInto,
+// which compare the raw (case-sensitive) record bytes.
+func (*dnsParser) extractCNAMEsInto(records []layers.DNSResourceRecord, t *translation) {
+	for _, record := range records {
+		if record.Class != layers.DNSClassIN || record.Type != layers.DNSTypeCNAME {
+			continue
+		}
+		if len(record.Name) == 0 || len(record.CNAME) == 0 {
+			continue
+		}
+		inplaceASCIILower(record.Name)
+		inplaceASCIILower(record.CNAME)
+		t.addCNAME(HostnameFromBytes(record.Name), HostnameFromBytes(record.CNAME), time.Duration(record.TTL)*time.Second)
+	}
 }
 
 func (*dnsParser) extractIPsInto(alias []byte, records []layers.DNSResourceRecord, t *translation) {
