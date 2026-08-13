@@ -5041,6 +5041,7 @@ func TestHandleProcess(t *testing.T) {
 				LowCardTags: []string{
 					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
 					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_nvlink_capable:false",
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
@@ -5082,6 +5083,7 @@ func TestHandleProcess(t *testing.T) {
 					"env:" + envFromDD,
 					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
 					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_nvlink_capable:false",
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
