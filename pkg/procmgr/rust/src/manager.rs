@@ -82,7 +82,7 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
             let proc = &mut procs[idx];
-            if proc.should_auto_start() {
+            if proc.may_auto_start() {
                 match proc.spawn() {
                     Ok(()) => spawn_watcher(proc, exit_tx.clone()),
                     Err(e) => {
@@ -325,7 +325,7 @@ impl ProcessManager {
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
             let proc = procs.last_mut().unwrap();
-            if proc.should_auto_start() {
+            if proc.may_auto_start() {
                 match proc.spawn() {
                     Ok(()) => spawn_watcher(proc, exit_tx.clone()),
                     Err(e) => warn!("[{name}] auto-start failed: {e:#}"),
@@ -465,7 +465,7 @@ impl ProcessManager {
                         self.uuid_gen.generate(),
                         np.config,
                     );
-                    if proc.should_auto_start() {
+                    if proc.may_auto_start() {
                         if let Err(e) = proc.spawn() {
                             warn!("[{}] failed to start: {e:#}", np.name);
                             queue_restart(&mut proc, restart_tx);
@@ -755,7 +755,7 @@ async fn reconcile_process_after_reload(
         return None;
     }
 
-    let want_start = proc.should_auto_start();
+    let want_start = proc.may_auto_start();
     let start_conditions_was = proc.last_start_conditions_met();
     let mut pending_drain = None;
 
@@ -764,7 +764,7 @@ async fn reconcile_process_after_reload(
             .wait_for_stop()
             .await
             .map(|pid| (proc.name().to_owned(), pid));
-        if proc.should_respawn() {
+        if proc.may_respawn() {
             info!("[{}] restarting with updated config", proc.name());
             if let Err(e) = proc.spawn() {
                 warn!("[{}] failed to restart: {e:#}", proc.name());
@@ -1186,7 +1186,7 @@ mod tests {
         {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
-            assert!(!procs[0].should_auto_start());
+            assert!(!procs[0].may_auto_start());
             assert!(procs[0].start_conditions_met());
         }
 
