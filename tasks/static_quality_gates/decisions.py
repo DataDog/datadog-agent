@@ -21,7 +21,24 @@ PER_PR_THRESHOLD_EXCLUDED_GATES = {
     "static_quality_gate_docker_host_profiler_amd64",
     "static_quality_gate_docker_host_profiler_arm64",
 }
-EXCEPTION_APPROVERS = {"cmourot", "aiuto", "quentinus95"}
+EXCEPTION_APPROVERS = {
+    "cmourot",
+    "aiuto",
+    "quentinus95",
+    "alopezz",
+    "cmetz100",
+    "goxberry",
+    "georgehahn",
+    "Arpafaucon",
+    "chouquette",
+    "JSGette",
+    "kevinfairise2",
+    "chouetz",
+    "preinlein",
+    "Ishirui",
+    "rdesgroppes",
+    "ofek",
+}
 
 
 class GateFailureKind(Enum):
