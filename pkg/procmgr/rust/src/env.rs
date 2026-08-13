@@ -6,21 +6,10 @@
 use anyhow::{Context, Result};
 use log::warn;
 
-/// Expand `${VAR}` references in `input` using dd-procmgr's own environment.
-///
-/// This lets a single process definition be pointed at the stable or experiment configuration
-/// directory by the supervising dd-procmgr, which exports the target directory in its own
-/// environment (the stable and experiment procmgr units export different values). It mirrors how
-/// the datadog-agent stable/experiment units each select their own config directory, so the
-/// experiment collector reads the experiment config while the process definition stays identical.
-/// Unknown variables are left as the literal `${VAR}` and logged, so a misconfiguration surfaces
-/// as a startup failure rather than silently resolving to an empty path.
 pub(crate) fn expand_env_vars(input: &str) -> String {
     expand_vars_with(input, |name| std::env::var(name).ok())
 }
 
-/// Core of [`expand_env_vars`] with the variable lookup injected, so it can be unit-tested without
-/// mutating the process environment.
 pub(crate) fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
     let mut out = String::with_capacity(input.len());
     let mut rest = input;
@@ -42,7 +31,7 @@ pub(crate) fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<Stri
                 rest = &after[end + 1..];
             }
             None => {
-                // No closing brace: emit the remainder verbatim.
+                // No closing brace: emit verbatim.
                 out.push_str(&rest[start..]);
                 return out;
             }

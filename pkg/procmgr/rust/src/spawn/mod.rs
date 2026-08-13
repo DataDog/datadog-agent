@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Managed-process spawn: config → [`SpawnRequest`] → platform backend.
 
 mod profile;
 mod request;
