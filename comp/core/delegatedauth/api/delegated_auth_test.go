@@ -160,6 +160,11 @@ func TestGetAPIDomain(t *testing.T) {
 			want:     "https://api.datadoghq.com",
 		},
 		{
+			name:     "production intake domain with uppercase hostname",
+			endpoint: "https://agent.DATADOGHQ.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
 			name:     "production EU domain",
 			endpoint: "https://agent.datadoghq.eu",
 			want:     "https://api.datadoghq.eu",

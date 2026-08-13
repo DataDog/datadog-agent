@@ -62,7 +62,7 @@ func hostOnly(endpoint string) string {
 	}
 	// Hostname() strips a port if present (e.g. "agent.datadoghq.com:443" -> "agent.datadoghq.com")
 	// - domainURLRegexp expects a bare hostname and doesn't account for a trailing port.
-	return u.Hostname()
+	return strings.ToLower(u.Hostname())
 }
 
 // getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., api.datad0g.com)

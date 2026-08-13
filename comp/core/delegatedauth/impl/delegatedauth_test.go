@@ -817,6 +817,26 @@ func TestMergeIntoAdditionalEndpointsListReplacesDirectiveOnFirstWrite(t *testin
 	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
 }
 
+func TestMergeIntoAdditionalEndpointsListHandlesJSONString(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("logs_config.additional_endpoints", `[{"API_KEY":"DELA(logs-org-uuid, aws)","Host":"agent-http-intake.logs.datadoghq.com"}]`)
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
+
+	got, ok := common.NormalizeListShapeEntries(mockConfig.Get("logs_config.additional_endpoints"))
+	require.True(t, ok)
+	require.Len(t, got, 1)
+	assert.Equal(t, "real-api-key-1", got[0]["API_KEY"])
+	assert.NotContains(t, got[0], "api_key")
+	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
+}
+
 func TestMergeIntoAdditionalEndpointsListHandlesYAMLDecodedEntries(t *testing.T) {
 	// Regression test: a real YAML-sourced additional_endpoints value decodes each entry as
 	// map[any]any, not map[string]any - config.Get's shape for a raw config-file value differs

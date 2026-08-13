@@ -6,15 +6,22 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
 
 // NormalizeListShapeEntries normalizes a list-shape additional_endpoints config value into
-// []map[string]any, handling both []any of map[any]any (YAML-sourced) and []map[string]any
-// (registered defaults). Returns ok=false for any other shape.
+// []map[string]any, handling JSON strings, []any of map[any]any (YAML-sourced), and
+// []map[string]any (registered defaults). Returns ok=false for any other shape.
 func NormalizeListShapeEntries(raw any) ([]map[string]any, bool) {
 	switch typed := raw.(type) {
+	case string:
+		var entries []map[string]any
+		if err := json.Unmarshal([]byte(typed), &entries); err != nil {
+			return nil, false
+		}
+		return entries, true
 	case []any:
 		entries := make([]map[string]any, 0, len(typed))
 		for _, item := range typed {
@@ -39,12 +46,19 @@ func NormalizeListShapeEntries(raw any) ([]map[string]any, bool) {
 
 // CaseInsensitiveStringField looks up a string field case-insensitively.
 func CaseInsensitiveStringField(entry map[string]any, field string) (string, bool) {
+	_, value, ok := CaseInsensitiveStringFieldWithKey(entry, field)
+	return value, ok
+}
+
+// CaseInsensitiveStringFieldWithKey looks up a string field case-insensitively
+// and returns its original key casing.
+func CaseInsensitiveStringFieldWithKey(entry map[string]any, field string) (string, string, bool) {
 	for k, v := range entry {
 		if !strings.EqualFold(k, field) {
 			continue
 		}
 		s, ok := v.(string)
-		return s, ok
+		return k, s, ok
 	}
-	return "", false
+	return "", "", false
 }

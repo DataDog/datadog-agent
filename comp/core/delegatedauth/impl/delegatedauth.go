@@ -672,16 +672,19 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 
 		// Prefer the recorded index; fall back to a value-only scan if the list was reordered.
 		matchIndex := -1
+		apiKeyField := ""
 		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
-			if valStr, ok := common.CaseInsensitiveStringField(entries[instance.listEntryIndex], "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
+			if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entries[instance.listEntryIndex], "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
 				matchIndex = instance.listEntryIndex
+				apiKeyField = field
 			}
 		}
 		if matchIndex == -1 {
 			for i, entry := range entries {
 				// Also match originalDirective in case a racing write reverted the entry.
-				if valStr, ok := common.CaseInsensitiveStringField(entry, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
+				if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entry, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
 					matchIndex = i
+					apiKeyField = field
 					break
 				}
 			}
@@ -691,7 +694,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		if replaced {
 			newEntry := make(map[string]any, len(entries[matchIndex]))
 			maps.Copy(newEntry, entries[matchIndex])
-			newEntry["api_key"] = apiKey
+			newEntry[apiKeyField] = apiKey
 			merged[matchIndex] = newEntry
 		}
 
