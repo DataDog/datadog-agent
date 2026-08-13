@@ -55,7 +55,30 @@ pub async fn build_ipc_client_connector(
 
 #[cfg(test)]
 pub(crate) mod test_support {
+    use super::*;
+    use rustls::{
+        ServerConfig,
+        pki_types::{CertificateDer, PrivateKeyDer},
+    };
+    use rustls_pki_types::pem::PemObject as _;
+
+    pub const CERT_PEM: &[u8] = include_bytes!("../testdata/https-cert.txt");
+    pub const KEY_PEM: &[u8] = include_bytes!("../testdata/https-key.txt");
     pub const IPC_IDENTITY_PEM: &[u8] = include_bytes!("../testdata/ipc-identity.txt");
+
+    pub fn server_config() -> ServerConfig {
+        initialize_crypto_provider().unwrap();
+        let cert = CertificateDer::from_pem_slice(CERT_PEM)
+            .unwrap()
+            .into_owned();
+        let key = PrivateKeyDer::from_pem_slice(KEY_PEM).unwrap().clone_key();
+        let mut config = ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)
+            .unwrap();
+        config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        config
+    }
 }
 
 #[cfg(test)]
