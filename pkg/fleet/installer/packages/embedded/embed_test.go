@@ -7,7 +7,7 @@ package embedded
 
 import (
 	"fmt"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -15,24 +15,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// embeddedUnits lists the .service files embedded under tmpl/gen/<dir>. It reads the embed.FS
+// rather than the filesystem, so a missing //go:embed directive or embedsrcs entry shows up here.
+// path.Join, not filepath.Join: embed.FS names are always slash-separated, so the backslashes
+// filepath.Join emits on Windows would never resolve.
+func embeddedUnits(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := systemdUnits.ReadDir(path.Join("tmpl/gen", dir))
+	require.NoError(t, err)
+
+	units := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".service") {
+			units = append(units, entry.Name())
+		}
+	}
+	require.NotEmpty(t, units, "no .service files embedded for %s", dir)
+	return units
+}
+
 // TestGetSystemdUnitEmbedsAllVariants ensures every unit in every directory GetSystemdUnit can
 // construct at runtime is actually compiled into systemdUnits. The "-nocap" variants are only
 // selected on hosts whose kernel predates ambient capabilities, so a missing //go:embed directive
 // for them is invisible to every test that reads the template tree from disk instead of from the
 // embed.FS. Enumerating the units rather than spot-checking one also catches codegen dropping a
 // single file from a "-nocap" directory, which the glob-based embed cannot detect on its own.
+//
+// The base and "-nocap" sets are compared against each other because the two are embedded from
+// different sources under Bazel: BUILD.bazel lists the base units explicitly in service_srcs but
+// globs the "-nocap" ones. Enumerating only one side would leave codegen additions missing from
+// the other side invisible.
 func TestGetSystemdUnitEmbedsAllVariants(t *testing.T) {
 	for _, unitType := range []SystemdUnitType{SystemdUnitTypeOCI, SystemdUnitTypeDebRpm} {
-		entries, err := systemdUnits.ReadDir(filepath.Join("tmpl/gen", string(unitType)))
-		require.NoError(t, err)
-
-		units := make([]string, 0, len(entries))
-		for _, entry := range entries {
-			if strings.HasSuffix(entry.Name(), ".service") {
-				units = append(units, entry.Name())
-			}
-		}
-		require.NotEmpty(t, units, "no .service files embedded for %s", unitType)
+		units := embeddedUnits(t, string(unitType))
+		assert.ElementsMatch(t, units, embeddedUnits(t, string(unitType)+"-nocap"),
+			"embedded unit sets differ between %s and %s-nocap", unitType, unitType)
 
 		for _, unit := range units {
 			for _, ambiantCapabilitiesSupported := range []bool{true, false} {
