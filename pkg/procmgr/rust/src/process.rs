@@ -9,7 +9,7 @@ use crate::handle::ProcessHandle;
 use crate::platform;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::collections::VecDeque;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
@@ -734,8 +734,13 @@ impl ManagedProcess {
         if !should_restart {
             if self.config.restart != RestartPolicy::Never {
                 info!(
-                    "[{}] exit does not match restart policy, not restarting",
-                    self.name
+                    "[{}] exit does not match restart policy (state={}, restart={}), not restarting",
+                    self.name, self.state, self.config.restart,
+                );
+            } else {
+                debug!(
+                    "[{}] not restarting (state={}, restart={})",
+                    self.name, self.state, self.config.restart,
                 );
             }
             return None;
