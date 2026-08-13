@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Local-vs-domain account detection for installer-configured agent users.
-//!
-//! Mirrors `pkg/fleet/installer/packages/user/windows.IsLocalAccount`.
 
 use anyhow::{Context, Result, bail};
 use std::ptr;
@@ -19,7 +16,6 @@ use super::wide;
 const ERROR_NON_ACCOUNT_SID: WIN32_ERROR = 1257;
 const ERROR_NON_DOMAIN_SID: WIN32_ERROR = 1260;
 
-/// Returns true when `sid` belongs to the local machine account database.
 pub(crate) fn is_local_account(sid: &[u8]) -> Result<bool> {
     let account_domain_sid = match account_domain_sid(sid) {
         Ok(sid) => sid,

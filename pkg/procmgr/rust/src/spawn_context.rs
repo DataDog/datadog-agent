@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Shared spawn error messages for platform backends.
 
 #[cfg(unix)]
 pub(crate) fn failed_message(process_name: &str, command: &str) -> String {

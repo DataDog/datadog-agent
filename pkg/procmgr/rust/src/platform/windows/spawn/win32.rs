@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Shared Win32 helpers for `CreateProcessAsUserW` spawns.
 
 use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
