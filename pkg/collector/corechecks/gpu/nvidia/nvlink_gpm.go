@@ -43,8 +43,9 @@ func newNVLinkGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (C
 	return collector, nil
 }
 
-func (c *nvlinkGpmCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *nvlinkGpmCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *nvlinkGpmCollector) Name() CollectorName {

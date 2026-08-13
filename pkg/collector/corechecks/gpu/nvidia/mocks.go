@@ -6,6 +6,8 @@ package nvidia
 
 import (
 	mock "github.com/stretchr/testify/mock"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
 // newMockCollector creates a new instance of mockCollector. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -86,6 +88,52 @@ func (_c *mockCollector_Collect_Call) Return(metrics []*Metric, err error) *mock
 }
 
 func (_c *mockCollector_Collect_Call) RunAndReturn(run func() ([]*Metric, error)) *mockCollector_Collect_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Device provides a mock function for the type mockCollector
+func (_mock *mockCollector) Device() ddnvml.Device {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Device")
+	}
+
+	var r0 ddnvml.Device
+	if returnFunc, ok := ret.Get(0).(func() ddnvml.Device); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ddnvml.Device)
+		}
+	}
+	return r0
+}
+
+// mockCollector_Device_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Device'
+type mockCollector_Device_Call struct {
+	*mock.Call
+}
+
+// Device is a helper method to define mock.On call
+func (_e *mockCollector_Expecter) Device() *mockCollector_Device_Call {
+	return &mockCollector_Device_Call{Call: _e.mock.On("Device")}
+}
+
+func (_c *mockCollector_Device_Call) Run(run func()) *mockCollector_Device_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *mockCollector_Device_Call) Return(device ddnvml.Device) *mockCollector_Device_Call {
+	_c.Call.Return(device)
+	return _c
+}
+
+func (_c *mockCollector_Device_Call) RunAndReturn(run func() ddnvml.Device) *mockCollector_Device_Call {
 	_c.Call.Return(run)
 	return _c
 }

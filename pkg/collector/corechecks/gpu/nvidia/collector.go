@@ -15,12 +15,14 @@ package nvidia
 import (
 	"errors"
 	"slices"
+	"strconv"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -156,6 +158,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 
 // CollectorTelemetry holds telemetry metrics for the collector data
 type CollectorTelemetry struct {
+	CollectionRuns   telemetry.Counter
 	Created          telemetry.Counter
 	CollectionErrors telemetry.Counter
 	Time             telemetry.Histogram
@@ -166,9 +169,23 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	subsystem := consts.GpuTelemetryModule + "__collectors"
 
 	return &CollectorTelemetry{
+		CollectionRuns:   tm.NewCounter(subsystem, "collection_runs", collectorTelemetryTagNames, "Number of collector runs"),
 		Created:          tm.NewCounter(subsystem, "created", []string{"collector", "status"}, "Number of collectors and their creation result"),
-		CollectionErrors: tm.NewCounter(subsystem, "collection_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		Time:             tm.NewHistogram(subsystem, "time_ms", []string{"collector"}, "Time taken to collect metrics from NVML collectors, in milliseconds", []float64{10, 100, 500, 1000, 5000}),
+		CollectionErrors: tm.NewCounter(subsystem, "collection_errors", collectorTelemetryTagNames, "Number of errors from NVML collectors"),
+		Time:             tm.NewHistogram(subsystem, "time_ms", collectorTelemetryTagNames, "Time taken to collect metrics from NVML collectors, in milliseconds", []float64{10, 100, 500, 1000, 5000}),
+	}
+}
+
+var collectorTelemetryTagNames = []string{"collector", "gpu_device", "gpu_architecture", "gpu_nvlink_capable"}
+
+// CollectorTelemetryTags returns the telemetry tag values for a collector and its device.
+func CollectorTelemetryTags(collector Collector) []string {
+	deviceInfo := collector.Device().GetDeviceInfo()
+	return []string{
+		string(collector.Name()),
+		deviceInfo.Name,
+		gpuutil.ArchToString(deviceInfo.Architecture),
+		strconv.FormatBool(deviceInfo.NVLinkLinkCount > 0),
 	}
 }
 

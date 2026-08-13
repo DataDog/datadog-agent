@@ -52,9 +52,9 @@ func newBaseCollector(name CollectorName, device ddnvml.Device, apiCalls []apiCa
 	return c, nil
 }
 
-// DeviceUUID returns the UUID of the device this collector monitors.
-func (c *baseCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *baseCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 // Name returns the name of the collector.

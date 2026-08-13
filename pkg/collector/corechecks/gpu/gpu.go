@@ -217,9 +217,10 @@ func (c *Check) ensureInitCollectors() error {
 	collectors := []nvidia.Collector{}
 	collectorUUIDs := map[string]struct{}{}
 	for _, c := range c.collectors {
-		if _, ok := curDevices[c.DeviceUUID()]; ok {
+		deviceUUID := c.Device().GetDeviceInfo().UUID
+		if _, ok := curDevices[deviceUUID]; ok {
 			collectors = append(collectors, c)
-			collectorUUIDs[c.DeviceUUID()] = struct{}{}
+			collectorUUIDs[deviceUUID] = struct{}{}
 		}
 	}
 
@@ -434,11 +435,12 @@ type deviceMetricsCollection struct {
 }
 
 type collectorMetricsCollection struct {
-	name       nvidia.CollectorName
-	deviceUUID string
-	metrics    []*nvidia.Metric
-	err        error
-	duration   time.Duration
+	name          nvidia.CollectorName
+	deviceUUID    string
+	telemetryTags []string
+	metrics       []*nvidia.Metric
+	err           error
+	duration      time.Duration
 }
 
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
@@ -458,10 +460,11 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 	var multiErr []error
 	for _, collectorResult := range collectorResults {
-		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), string(collectorResult.name))
+		c.telemetry.collectorTelemetry.CollectionRuns.Inc(collectorResult.telemetryTags...)
+		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), collectorResult.telemetryTags...)
 
 		if collectorResult.err != nil {
-			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collectorResult.name))
+			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, collectorResult.telemetryTags...)
 			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.name, collectorResult.err))
 		}
 
@@ -534,10 +537,11 @@ func collectMetric(collector nvidia.Collector) (result collectorMetricsCollectio
 		}
 	}()
 	result.name = collector.Name()
+	result.deviceUUID = collector.Device().GetDeviceInfo().UUID
+	result.telemetryTags = nvidia.CollectorTelemetryTags(collector)
 	log.Debugf("Collecting metrics from NVML collector: %s", result.name)
 	startTime := time.Now()
 	result.metrics, result.err = collector.Collect()
-	result.deviceUUID = collector.DeviceUUID()
 	result.duration = time.Since(startTime)
 	return
 }
