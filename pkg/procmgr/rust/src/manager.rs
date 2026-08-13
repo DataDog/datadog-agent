@@ -526,7 +526,7 @@ impl ProcessManager {
             self.adopt_deferred_exit_cleanups(&mut procs, &mut pending_job_drains)
                 .await;
             drop(procs);
-            for (name, pid) in pending_job_drains {
+            for (name, pid) in self.collect_orphaned_job_drains().await {
                 self.await_deferred_job_drain(name, pid).await;
             }
             let mut orphaned = self.orphaned_deferred_exit_cleanups.write().await;
@@ -534,6 +534,16 @@ impl ProcessManager {
                 finish_orphaned_deferred_exit_cleanup(entry);
             }
         }
+    }
+
+    #[cfg(windows)]
+    async fn collect_orphaned_job_drains(&self) -> Vec<(String, u32)> {
+        let orphaned = self.orphaned_deferred_exit_cleanups.read().await;
+        orphaned
+            .iter()
+            .filter(|entry| entry.job_object.is_some())
+            .map(|entry| (entry.name.clone(), entry.pid))
+            .collect()
     }
 
     #[cfg(windows)]
