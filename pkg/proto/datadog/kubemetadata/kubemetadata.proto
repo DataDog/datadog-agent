@@ -69,7 +69,7 @@ message KueueWorkload {
   KubeMetadataEventType type = 9;
 }
 
-message ResolvedOwner {
+message MatchedOwner {
   string group = 1;
   string version = 2;
   string kind = 3;
@@ -77,10 +77,10 @@ message ResolvedOwner {
   string name = 5;
 }
 
-message PodResolvedOwners {
+message PodMatchedOwners {
   string namespace = 1;
   string pod_name = 2;
-  repeated ResolvedOwner owners = 3;
+  repeated MatchedOwner owners = 3;
   KubeMetadataEventType type = 4;
 }
 
@@ -91,5 +91,5 @@ message KubeMetadataStreamResponse {
   repeated KueueQueue kueue_queues = 4;
   repeated KueueResourceFlavor kueue_resource_flavors = 5;
   repeated KueueWorkload kueue_workloads = 6;
-  repeated PodResolvedOwners resolved_owners = 7;
+  repeated PodMatchedOwners matched_owners = 7;
 }

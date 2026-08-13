@@ -29,8 +29,9 @@ const (
 	streamSendTimeout = 10 * time.Second
 	// keepAliveInterval must be shorter than the client's timeout (10 min) to
 	// prevent the client from treating an idle stream as dead.
-	keepAliveInterval   = 9 * time.Minute
-	wmetaSubscriberName = "kube-metadata-stream"
+	keepAliveInterval       = 9 * time.Minute
+	wmetaSubscriberName     = "kube-metadata-stream"
+	podOwnersSubscriberName = "kube-metadata-stream-pod-owners"
 )
 
 type podServiceEntry struct {
@@ -80,23 +81,23 @@ type kueueWorkloadEntry struct {
 
 // PodOwnerResolver resolves the configured owners for a Pod.
 type PodOwnerResolver interface {
-	Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesResolvedTarget, error)
+	Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesMatchedOwner, error)
 }
 
-type podResolvedOwnersEntry struct {
+type podMatchedOwnersEntry struct {
 	namespace string
 	podName   string
-	owners    []workloadmeta.KubernetesResolvedTarget
+	owners    []workloadmeta.KubernetesMatchedOwner
 }
 
-type resolvedOwnersSnapshot map[string]podResolvedOwnersEntry
+type matchedOwnersSnapshot map[string]podMatchedOwnersEntry
 
 type metadataSnapshot struct {
 	namespaces           map[string]namespaceEntry
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
 	kueueWorkloads       map[string]kueueWorkloadEntry
-	resolvedOwners       resolvedOwnersSnapshot
+	matchedOwners        matchedOwnersSnapshot
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
@@ -106,9 +107,9 @@ type KubeMetadataStreamServer struct {
 	wmeta    workloadmeta.Component
 	resolver PodOwnerResolver
 
-	metadataMutex  sync.RWMutex
-	metadata       metadataSnapshot
-	resolvedOwners map[string]resolvedOwnersSnapshot
+	metadataMutex sync.RWMutex
+	metadata      metadataSnapshot
+	matchedOwners map[string]matchedOwnersSnapshot
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
@@ -117,18 +118,15 @@ type KubeMetadataStreamServer struct {
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
-func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component, resolvers ...PodOwnerResolver) *KubeMetadataStreamServer {
-	srv := &KubeMetadataStreamServer{
+func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component, resolver PodOwnerResolver) *KubeMetadataStreamServer {
+	return &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
+		resolver:             resolver,
 		metadata:             newMetadataSnapshot(),
-		resolvedOwners:       make(map[string]resolvedOwnersSnapshot),
+		matchedOwners:        make(map[string]matchedOwnersSnapshot),
 		namespaceSubscribers: make(map[string][]chan struct{}),
 	}
-	if len(resolvers) > 0 {
-		srv.resolver = resolvers[0]
-	}
-	return srv
 }
 
 func newMetadataSnapshot() metadataSnapshot {
@@ -137,31 +135,102 @@ func newMetadataSnapshot() metadataSnapshot {
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
 		kueueWorkloads:       make(map[string]kueueWorkloadEntry),
-		resolvedOwners:       make(resolvedOwnersSnapshot),
+		matchedOwners:        make(matchedOwnersSnapshot),
 	}
 }
 
 // Start subscribes to workloadmeta for metadata changes and maintains state.
 // It must be called before serving streams.
 func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
-	ch := srv.wmeta.Subscribe(
+	metadataCh := srv.wmeta.Subscribe(
 		wmetaSubscriberName,
 		workloadmeta.NormalPriority,
 		kubeMetadataStreamFilter(),
 	)
 
 	go func() {
-		defer srv.wmeta.Unsubscribe(ch)
+		defer srv.wmeta.Unsubscribe(metadataCh)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case bundle, ok := <-ch:
+			case bundle, ok := <-metadataCh:
 				if !ok {
 					return
 				}
 				bundle.Acknowledge()
-				srv.processWmetaEvents(bundle.Events)
+				srv.processMetadataEvents(bundle.Events)
+			}
+		}
+	}()
+
+	if srv.resolver == nil {
+		return
+	}
+	srv.startPodOwnerResolution(ctx)
+}
+
+func (srv *KubeMetadataStreamServer) startPodOwnerResolution(ctx context.Context) {
+	podCh := srv.wmeta.Subscribe(
+		podOwnersSubscriberName,
+		workloadmeta.NormalPriority,
+		workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesPod).Build(),
+	)
+	pendingEvents := make(map[string]workloadmeta.Event)
+	var pendingEventsMutex sync.Mutex
+	pendingEventsNotify := make(chan struct{}, 1)
+
+	// Keep draining and acknowledging workloadmeta bundles independently from
+	// owner resolution. Resolution may make slow API server calls, so it must
+	// not prevent workloadmeta from notifying other subscribers.
+	go func() {
+		defer srv.wmeta.Unsubscribe(podCh)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case bundle, ok := <-podCh:
+				if !ok {
+					return
+				}
+				bundle.Acknowledge()
+
+				pendingEventsMutex.Lock()
+				for _, event := range bundle.Events {
+					pod := event.Entity.(*workloadmeta.KubernetesPod)
+					pendingEvents[pod.Namespace+"/"+pod.Name] = event
+				}
+				pendingEventsMutex.Unlock()
+
+				select {
+				case pendingEventsNotify <- struct{}{}:
+				default:
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-pendingEventsNotify:
+				for {
+					pendingEventsMutex.Lock()
+					if len(pendingEvents) == 0 {
+						pendingEventsMutex.Unlock()
+						break
+					}
+					events := make([]workloadmeta.Event, 0, len(pendingEvents))
+					for key, event := range pendingEvents {
+						events = append(events, event)
+						delete(pendingEvents, key)
+					}
+					pendingEventsMutex.Unlock()
+
+					srv.processPodEventBatch(ctx, events)
+				}
 			}
 		}
 	}()
@@ -271,16 +340,10 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	}
 }
 
-func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Event) {
+func (srv *KubeMetadataStreamServer) processMetadataEvents(events []workloadmeta.Event) {
 	changedMetadata := false
-	changedNodes := sets.New[string]()
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
-		case *workloadmeta.KubernetesPod:
-			nodeName := srv.processPodEvent(event.Type, entity)
-			if nodeName != "" {
-				changedNodes.Insert(nodeName)
-			}
 		case *workloadmeta.KubernetesMetadata:
 			srv.metadataMutex.Lock()
 			if srv.metadata.processNamespaceEvent(event.Type, entity) {
@@ -314,52 +377,58 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	defer srv.metadataMutex.Unlock()
 	if changedMetadata {
 		srv.notifyNamespaceSubscribers()
-	} else if len(changedNodes) > 0 {
-		for nodeName := range changedNodes {
-			srv.notifyNodeSubscribers(nodeName)
-		}
 	}
 }
 
-func (srv *KubeMetadataStreamServer) processPodEvent(eventType workloadmeta.EventType, pod *workloadmeta.KubernetesPod) string {
-	if srv.resolver == nil {
-		return ""
+func (srv *KubeMetadataStreamServer) processPodEventBatch(ctx context.Context, events []workloadmeta.Event) {
+	changedNodes := sets.New[string]()
+	for _, event := range events {
+		pod := event.Entity.(*workloadmeta.KubernetesPod)
+		if nodeName := srv.processPodEvent(ctx, event.Type, pod); nodeName != "" {
+			changedNodes.Insert(nodeName)
+		}
 	}
 
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
+	for nodeName := range changedNodes {
+		srv.notifyNodeSubscribers(nodeName)
+	}
+}
+
+func (srv *KubeMetadataStreamServer) processPodEvent(ctx context.Context, eventType workloadmeta.EventType, pod *workloadmeta.KubernetesPod) string {
 	key := pod.Namespace + "/" + pod.Name
 	switch eventType {
 	case workloadmeta.EventTypeUnset:
-		nodeName := pod.NodeName
-		if nodeName == "" {
+		if pod.NodeName == "" {
 			return ""
 		}
 		srv.metadataMutex.Lock()
-		if snapshot := srv.resolvedOwners[nodeName]; snapshot != nil {
+		if snapshot := srv.matchedOwners[pod.NodeName]; snapshot != nil {
 			delete(snapshot, key)
 		}
 		srv.metadataMutex.Unlock()
-		return nodeName
+		return pod.NodeName
 	case workloadmeta.EventTypeSet:
 		if pod.NodeName == "" {
 			return ""
 		}
 
-		resolved, err := srv.resolver.Resolve(context.Background(), pod)
+		resolved, err := srv.resolver.Resolve(ctx, pod)
 		if err != nil {
 			log.Debugf("Unable to resolve workload target for pod %s: %v", key, err)
 		}
 
 		srv.metadataMutex.Lock()
-		if srv.resolvedOwners[pod.NodeName] == nil {
-			srv.resolvedOwners[pod.NodeName] = make(resolvedOwnersSnapshot)
+		if srv.matchedOwners[pod.NodeName] == nil {
+			srv.matchedOwners[pod.NodeName] = make(matchedOwnersSnapshot)
 		}
-		srv.resolvedOwners[pod.NodeName][key] = podResolvedOwnersEntry{
+		srv.matchedOwners[pod.NodeName][key] = podMatchedOwnersEntry{
 			namespace: pod.Namespace,
 			podName:   pod.Name,
 			owners:    resolved,
 		}
 		srv.metadataMutex.Unlock()
-
 		return pod.NodeName
 	default:
 		log.Errorf("Unknown event type %d for pod %s", eventType, key)
@@ -557,9 +626,9 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshot(nodeName string) meta
 	maps.Copy(snapshot.kueueQueues, srv.metadata.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, srv.metadata.kueueResourceFlavors)
 	maps.Copy(snapshot.kueueWorkloads, srv.metadata.kueueWorkloads)
-	for key, entry := range srv.resolvedOwners[nodeName] {
+	for key, entry := range srv.matchedOwners[nodeName] {
 		entry.owners = slices.Clone(entry.owners)
-		snapshot.resolvedOwners[key] = entry
+		snapshot.matchedOwners[key] = entry
 	}
 	return snapshot
 }
@@ -581,7 +650,7 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).AddKind(workloadmeta.KindKubernetesPod).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
+	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -622,7 +691,7 @@ type metadataDiff struct {
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
 	kueueWorkloads       []*pb.KueueWorkload
-	resolvedOwners       []*pb.PodResolvedOwners
+	matchedOwners        []*pb.PodMatchedOwners
 }
 
 func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
@@ -631,12 +700,12 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
 		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
-		resolvedOwners:       computeResolvedOwnersDiff(old.resolvedOwners, current.resolvedOwners),
+		matchedOwners:        computeMatchedOwnersDiff(old.matchedOwners, current.matchedOwners),
 	}
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.resolvedOwners) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.matchedOwners) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
@@ -646,31 +715,31 @@ func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse 
 		KueueQueues:          d.kueueQueues,
 		KueueResourceFlavors: d.kueueResourceFlavors,
 		KueueWorkloads:       d.kueueWorkloads,
-		ResolvedOwners:       d.resolvedOwners,
+		MatchedOwners:        d.matchedOwners,
 	}
 }
 
-func computeResolvedOwnersDiff(old, current resolvedOwnersSnapshot) []*pb.PodResolvedOwners {
-	var diff []*pb.PodResolvedOwners
+func computeMatchedOwnersDiff(old, current matchedOwnersSnapshot) []*pb.PodMatchedOwners {
+	var diff []*pb.PodMatchedOwners
 	for key, entry := range current {
 		previous, found := old[key]
 		if found && slices.Equal(previous.owners, entry.owners) {
 			continue
 		}
-		diff = append(diff, protoPodResolvedOwners(entry, pb.KubeMetadataEventType_SET))
+		diff = append(diff, protoPodMatchedOwners(entry, pb.KubeMetadataEventType_SET))
 	}
 	for key, entry := range old {
 		if _, found := current[key]; !found {
-			diff = append(diff, protoPodResolvedOwners(entry, pb.KubeMetadataEventType_UNSET))
+			diff = append(diff, protoPodMatchedOwners(entry, pb.KubeMetadataEventType_UNSET))
 		}
 	}
 	return diff
 }
 
-func protoPodResolvedOwners(entry podResolvedOwnersEntry, eventType pb.KubeMetadataEventType) *pb.PodResolvedOwners {
-	owners := make([]*pb.ResolvedOwner, 0, len(entry.owners))
+func protoPodMatchedOwners(entry podMatchedOwnersEntry, eventType pb.KubeMetadataEventType) *pb.PodMatchedOwners {
+	owners := make([]*pb.MatchedOwner, 0, len(entry.owners))
 	for _, target := range entry.owners {
-		owners = append(owners, &pb.ResolvedOwner{
+		owners = append(owners, &pb.MatchedOwner{
 			Group:     target.Group,
 			Version:   target.Version,
 			Kind:      target.Kind,
@@ -678,7 +747,7 @@ func protoPodResolvedOwners(entry podResolvedOwnersEntry, eventType pb.KubeMetad
 			Name:      target.Name,
 		})
 	}
-	return &pb.PodResolvedOwners{
+	return &pb.PodMatchedOwners{
 		Namespace: entry.namespace,
 		PodName:   entry.podName,
 		Owners:    owners,

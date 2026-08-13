@@ -282,7 +282,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 	}
 
 	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
-	resolvedOwners, _ := p.dcaStream.getResolvedOwners(pod.Namespace, pod.Name)
+	matchedOwners, _ := p.dcaStream.getMatchedOwners(pod.Namespace, pod.Name)
 
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
@@ -296,7 +296,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 				// the kubelet collector
 			},
 			KubeServices:         services,
-			ResolvedTargets:      resolvedOwners,
+			MatchedOwners:        matchedOwners,
 			NamespaceLabels:      nsLabels,
 			NamespaceAnnotations: nsAnnotations,
 		},
@@ -469,7 +469,7 @@ type dcaStreamClient struct {
 
 	mu                   sync.RWMutex
 	podServices          map[string][]string // "namespace/podName" -> services
-	resolvedOwners       map[string][]workloadmeta.KubernetesResolvedTarget
+	matchedOwners        map[string][]workloadmeta.KubernetesMatchedOwner
 	namespaces           map[string]namespaceMetadata // namespace name -> labels/annotations
 	kueueQueues          map[string]*workloadmeta.KubernetesKueueQueue
 	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
@@ -491,7 +491,7 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		nodeName:             nodeName,
 		cfg:                  cfg,
 		podServices:          make(map[string][]string),
-		resolvedOwners:       make(map[string][]workloadmeta.KubernetesResolvedTarget),
+		matchedOwners:        make(map[string][]workloadmeta.KubernetesMatchedOwner),
 		namespaces:           make(map[string]namespaceMetadata),
 		kueueQueues:          make(map[string]*workloadmeta.KubernetesKueueQueue),
 		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
@@ -550,11 +550,11 @@ func (sc *dcaStreamClient) getServices(namespace, podName string) ([]string, boo
 	return svcs, ok
 }
 
-func (sc *dcaStreamClient) getResolvedOwners(namespace, podName string) ([]workloadmeta.KubernetesResolvedTarget, bool) {
+func (sc *dcaStreamClient) getMatchedOwners(namespace, podName string) ([]workloadmeta.KubernetesMatchedOwner, bool) {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	owners, ok := sc.resolvedOwners[namespace+"/"+podName]
+	owners, ok := sc.matchedOwners[namespace+"/"+podName]
 	return owners, ok
 }
 
@@ -731,12 +731,12 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.podServices = newPodServices
 
-		newResolvedOwners := make(map[string][]workloadmeta.KubernetesResolvedTarget, len(resp.ResolvedOwners))
-		for _, podOwners := range resp.ResolvedOwners {
+		newMatchedOwners := make(map[string][]workloadmeta.KubernetesMatchedOwner, len(resp.MatchedOwners))
+		for _, podOwners := range resp.MatchedOwners {
 			key := podOwners.Namespace + "/" + podOwners.PodName
-			newResolvedOwners[key] = workloadmetaResolvedOwners(podOwners.Owners)
+			newMatchedOwners[key] = workloadmetaMatchedOwners(podOwners.Owners)
 		}
-		sc.resolvedOwners = newResolvedOwners
+		sc.matchedOwners = newMatchedOwners
 
 		newNamespaces := make(map[string]namespaceMetadata, len(resp.NamespaceMetadata))
 		for _, ns := range resp.NamespaceMetadata {
@@ -802,7 +802,7 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.ResolvedOwners) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.MatchedOwners) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -824,15 +824,15 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedPods[key] = struct{}{}
 	}
 
-	for _, podOwners := range resp.ResolvedOwners {
+	for _, podOwners := range resp.MatchedOwners {
 		key := podOwners.Namespace + "/" + podOwners.PodName
 		switch podOwners.Type {
 		case pb.KubeMetadataEventType_SET:
-			sc.resolvedOwners[key] = workloadmetaResolvedOwners(podOwners.Owners)
+			sc.matchedOwners[key] = workloadmetaMatchedOwners(podOwners.Owners)
 		case pb.KubeMetadataEventType_UNSET:
-			delete(sc.resolvedOwners, key)
+			delete(sc.matchedOwners, key)
 		default:
-			log.Errorf("Unknown event type %d for resolved owners %s", podOwners.Type, key)
+			log.Errorf("Unknown event type %d for matched owners %s", podOwners.Type, key)
 			continue
 		}
 		if sc.pendingUpdate.updatedPods == nil {
@@ -926,15 +926,15 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedKueueWorkloads[workloadID] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.ResolvedOwners) > 0 {
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.MatchedOwners) > 0 {
 		sc.notifyUpdate()
 	}
 }
 
-func workloadmetaResolvedOwners(owners []*pb.ResolvedOwner) []workloadmeta.KubernetesResolvedTarget {
-	resolved := make([]workloadmeta.KubernetesResolvedTarget, 0, len(owners))
+func workloadmetaMatchedOwners(owners []*pb.MatchedOwner) []workloadmeta.KubernetesMatchedOwner {
+	matched := make([]workloadmeta.KubernetesMatchedOwner, 0, len(owners))
 	for _, owner := range owners {
-		resolved = append(resolved, workloadmeta.KubernetesResolvedTarget{
+		matched = append(matched, workloadmeta.KubernetesMatchedOwner{
 			Group:     owner.Group,
 			Version:   owner.Version,
 			Kind:      owner.Kind,
@@ -942,7 +942,7 @@ func workloadmetaResolvedOwners(owners []*pb.ResolvedOwner) []workloadmeta.Kuber
 			Name:      owner.Name,
 		})
 	}
-	return resolved
+	return matched
 }
 
 func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQueue {
