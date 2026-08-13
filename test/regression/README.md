@@ -7,22 +7,46 @@ contains the experiments for Agent. A similar one exists in [Vector]. Please do
 add your own experiments, instructions below. If you have any questions do
 contact #single-machine-performance; we'll be glad to help.
 
-## Quality Gate Experiments
-Experiments prefixed with `quality_gate_` represent the strongest claims made
-about the Agent and its performance. These are discussed in more detail on
-[this
-page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)
+## Experiment groups and selection
+
+Experiments are organized into **groups**. A group is either:
+
+* a **leaf** — a directory that directly contains a `cases/` directory of
+  experiments, plus a `README.md` declaring how the group runs; or
+* a **dir** — an organizational directory that only contains other groups (no
+  `cases/` of its own, e.g. `logs/`).
+
+Each leaf's `README.md` front-matter declares a `mode` that controls when the
+group runs:
+
+* `quality_gates` — always runs, on every PR and in scheduled SMP runs; not
+  user-selectable. These are the strongest claims made about the Agent's
+  performance (see [Performance Quality Gates](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)).
+* `codeowners` — runs automatically on a PR when the group's owning team (per
+  `.github/CODEOWNERS`) has changed a file. It can also be run on any PR by
+  applying the group's label (below).
+* `optional` — runs only when the group's label is applied to the PR.
+
+**To run a `codeowners` or `optional` group on a PR, add its label.** A group's
+label is declared in its `README.md` front-matter and always mirrors the group
+path: `smp/<group-path>` (e.g. `smp/logs/syslog`). Quality-gate groups have no
+label — they always run.
 
 ## Adding an Experiment
 
-In order for SMP's tooling to properly read a experiment directory please
-adhere to the following structure. Starting at the root:
+In order for SMP's tooling to properly read the suite please adhere to the
+following structure. Starting at the root:
 
 * `config.yaml` -- __Required__ Configuration that applies to all experiments.
-* `cases/` -- __Required__ The directory that contains each experiment.
-  Each sub-directory is a separate experiment and the name of the
-  directory is the name of the experiment, for instance
-  `tcp_syslog_to_blackhole`. We call these sub-directories 'cases'.
+* One or more **groups**, each a directory containing:
+  * `README.md` -- __Required for leaves__ Front-matter with `mode`
+    (`quality_gates` | `codeowners` | `optional`), a `label` of
+    `smp/<group-path>` (required for `codeowners`/`optional`; omit for
+    `quality_gates`), and a one-line `description`.
+  * `cases/` -- __Required for leaves__ The directory that contains each
+    experiment. Each sub-directory is a separate experiment and the name of the
+    directory is the name of the experiment. Experiment names must be unique
+    across the whole suite. We call these sub-directories 'cases'.
 
 The structure of each case is as follows:
 
@@ -57,5 +81,5 @@ See full docs [here](https://github.com/DataDog/single-machine-performance/blob/
 
 An example command may look like this:
 ```
-smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_dogstatsd_to_api --target-image datadog/agent-dev:nightly-main-fe13dead-py3
+smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case quality_gate_logs --target-image datadog/agent-dev:nightly-main-fe13dead-py3
 ```

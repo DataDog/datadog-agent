@@ -1,0 +1,54 @@
+name: "SMP label sync check"
+
+# Keeps the SMP selection manifest (test/regression/selection.yaml) and the repo's `smp/*` labels
+# in sync: the manifest's `labels:` keys are the registry, so every manifest label must exist as a
+# repo label (so it can be applied), and every repo `smp/*` label must be declared in the manifest
+# (no orphans). Runs when the manifest changes. (Out-of-band repo-label drift when the manifest is
+# untouched would need a scheduled run — a follow-up.)
+
+on:
+  pull_request:
+    paths:
+      - test/regression/selection.yaml
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+permissions: {}
+
+jobs:
+  smp-label-sync:
+    if: github.event.pull_request.head.repo.full_name == github.repository # non-fork PRs only
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout selection manifest
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          sparse-checkout: test/regression/selection.yaml
+          persist-credentials: false
+      - name: Manifest labels must match repo smp/* labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Labels declared in the manifest (the registry). yq is preinstalled on ubuntu-latest.
+          yq -r '.labels // {} | keys | .[]' test/regression/selection.yaml | sort > manifest_labels.txt
+          # Existing smp/* labels in the repo.
+          gh label list --repo "$GITHUB_REPOSITORY" --limit 500 --json name -q '.[].name' \
+            | grep '^smp/' | sort > repo_labels.txt || true
+          echo "== manifest labels =="; cat manifest_labels.txt
+          echo "== repo smp/* labels =="; cat repo_labels.txt
+          orphans=$(comm -13 manifest_labels.txt repo_labels.txt || true)   # in repo, not in manifest
+          missing=$(comm -23 manifest_labels.txt repo_labels.txt || true)   # in manifest, not in repo
+          rc=0
+          if [ -n "$orphans" ]; then
+            echo "::error::Repo smp/* labels not declared in the manifest (delete them or add to selection.yaml):"; echo "$orphans"; rc=1
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::Manifest labels not created in the repo (create them with 'gh label create'):"; echo "$missing"; rc=1
+          fi
+          [ "$rc" -eq 0 ] && echo "Manifest labels and repo smp/* labels are in sync."
+          exit "$rc"

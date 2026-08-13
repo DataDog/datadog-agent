@@ -1,3 +1,7 @@
+---
+description: Workload Protection with a default.policy in effect but zero generated filesystem load — isolates policy/approver overhead.
+---
+
 # Quality Gate CWS - No FS Load
 
 ## Overview
