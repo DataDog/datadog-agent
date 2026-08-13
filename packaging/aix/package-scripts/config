@@ -2,7 +2,7 @@
 CONFIG_DIR=/etc/datadog-agent
 CONFIG_FILE="$CONFIG_DIR/datadog.yaml"
 EXAMPLE_FILE="$CONFIG_DIR/datadog.yaml.example"
-PYTHON=/opt/datadog-agent/embedded/bin/python3.13
+PYTHON=/opt/datadog-agent/embedded/bin/python3
 
 # installp has no mechanism to pass parameters/env vars at install time, so
 # this is the only way to configure the agent unattended on AIX (mirrors
