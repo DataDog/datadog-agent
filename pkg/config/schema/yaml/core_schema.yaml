@@ -5939,6 +5939,8 @@ properties:
             description: |-
               Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
               Valid values are basic, normal, detailed, none.
+              The debugexporter is off unless this is explicitly set; when unset,
+              no per-batch debug logs are emitted.
             comment: Debug settings (default from OTel debugexporter)
       grpc_port:
         node_type: setting
