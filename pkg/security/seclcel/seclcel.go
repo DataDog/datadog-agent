@@ -10,14 +10,15 @@
 // the participle grammar in pkg/security/secl/compiler/ast. Rules keep their
 // current syntax while the evaluation moves to CEL.
 //
-// A rule goes through four stages, and Program is all four:
+// A rule goes through four stages, and NewRule is all four:
 //
 //   - Parse, which translates the SECL text into a CEL AST — Translate prints it;
 //   - Check, against the generated field types, which is what rejects a misspelt
 //     field or a comparison against the wrong type;
 //   - Optimize, which rewrites every field read into a read by index and is where
 //     a field name is resolved for the last time — see Optimize and optimize.go;
-//   - Plan, which is cel-go's, with the options planningOptions asks for.
+//   - Plan, which is cel-go's, with the options plannerOptions asks for. It stops
+//     at the interpretable rather than a cel.Program — see planRule.
 //
 // The first two are what a rule author reads, the last two are what runs.
 //
