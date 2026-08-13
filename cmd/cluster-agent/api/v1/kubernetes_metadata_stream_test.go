@@ -108,7 +108,7 @@ func TestSubscribeToNamespaceEvents(t *testing.T) {
 }
 
 func TestProcessPodEventNotifiesAffectedNodeAfterProcessing(t *testing.T) {
-	srv := NewKubeMetadataStreamServer(nil, nil, staticPodTargetResolver{})
+	srv := NewKubeMetadataStreamServer(nil, nil, staticPodOwnerResolver{})
 	node1Ch := srv.subscribeToNamespaceEvents("node1")
 	defer srv.unsubscribeFromNamespaceEvents("node1", node1Ch)
 	node2Ch := srv.subscribeToNamespaceEvents("node2")
@@ -138,7 +138,7 @@ func TestProcessPodEventNotifiesAffectedNodeAfterProcessing(t *testing.T) {
 	})
 
 	assertNotified(t, "affected node after unset", node1Ch)
-	assert.NotContains(t, srv.buildMetadataSnapshot("node1").resolvedTargets, "ns1/pod1")
+	assert.NotContains(t, srv.buildMetadataSnapshot("node1").resolvedOwners, "ns1/pod1")
 }
 
 func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
@@ -841,10 +841,10 @@ func TestFullStateResponse(t *testing.T) {
 			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 		},
 	}
-	metadata.resolvedTargets["ns1/pod1"] = podResolvedTargetsEntry{
+	metadata.resolvedOwners["ns1/pod1"] = podResolvedOwnersEntry{
 		namespace: "ns1",
 		podName:   "pod1",
-		targets: []workloadmeta.KubernetesResolvedTarget{
+		owners: []workloadmeta.KubernetesResolvedTarget{
 			{
 				Group:     "apps.kruise.io",
 				Version:   "v1alpha1",
@@ -895,11 +895,11 @@ func TestFullStateResponse(t *testing.T) {
 				Type: pb.KubeMetadataEventType_SET,
 			},
 		},
-		ResolvedTargets: []*pb.PodResolvedTargets{
+		ResolvedOwners: []*pb.PodResolvedOwners{
 			{
 				Namespace: "ns1",
 				PodName:   "pod1",
-				Targets: []*pb.ResolvedTarget{
+				Owners: []*pb.ResolvedOwner{
 					{
 						Group:     "apps.kruise.io",
 						Version:   "v1alpha1",
@@ -916,19 +916,19 @@ func TestFullStateResponse(t *testing.T) {
 	assert.True(t, proto.Equal(expected, resp))
 }
 
-func TestBuildMetadataSnapshotResolvedTargetsAreNodeScoped(t *testing.T) {
+func TestBuildMetadataSnapshotResolvedOwnersAreNodeScoped(t *testing.T) {
 	srv := NewKubeMetadataStreamServer(nil, nil)
-	srv.resolvedTargets["node-a"] = resolvedTargetsSnapshot{
+	srv.resolvedOwners["node-a"] = resolvedOwnersSnapshot{
 		"ns1/pod1": {namespace: "ns1", podName: "pod1"},
 	}
-	srv.resolvedTargets["node-b"] = resolvedTargetsSnapshot{
+	srv.resolvedOwners["node-b"] = resolvedOwnersSnapshot{
 		"ns1/pod2": {namespace: "ns1", podName: "pod2"},
 	}
 
 	snapshot := srv.buildMetadataSnapshot("node-a")
 
-	assert.Contains(t, snapshot.resolvedTargets, "ns1/pod1")
-	assert.NotContains(t, snapshot.resolvedTargets, "ns1/pod2")
+	assert.Contains(t, snapshot.resolvedOwners, "ns1/pod1")
+	assert.NotContains(t, snapshot.resolvedOwners, "ns1/pod2")
 }
 
 func testNamespaceSetEvents() []workloadmeta.Event {
@@ -963,8 +963,8 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 	}
 }
 
-type staticPodTargetResolver struct{}
+type staticPodOwnerResolver struct{}
 
-func (staticPodTargetResolver) Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesResolvedTarget, error) {
+func (staticPodOwnerResolver) Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesResolvedTarget, error) {
 	return nil, nil
 }

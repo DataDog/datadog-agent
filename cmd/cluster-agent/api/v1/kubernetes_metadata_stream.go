@@ -78,25 +78,25 @@ type kueueWorkloadEntry struct {
 	podSetAssignments []kueuePodSetAssignmentEntry
 }
 
-// PodTargetResolver resolves the configured workload targets for a Pod.
-type PodTargetResolver interface {
+// PodOwnerResolver resolves the configured owners for a Pod.
+type PodOwnerResolver interface {
 	Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesResolvedTarget, error)
 }
 
-type podResolvedTargetsEntry struct {
+type podResolvedOwnersEntry struct {
 	namespace string
 	podName   string
-	targets   []workloadmeta.KubernetesResolvedTarget
+	owners    []workloadmeta.KubernetesResolvedTarget
 }
 
-type resolvedTargetsSnapshot map[string]podResolvedTargetsEntry
+type resolvedOwnersSnapshot map[string]podResolvedOwnersEntry
 
 type metadataSnapshot struct {
 	namespaces           map[string]namespaceEntry
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
 	kueueWorkloads       map[string]kueueWorkloadEntry
-	resolvedTargets      resolvedTargetsSnapshot
+	resolvedOwners       resolvedOwnersSnapshot
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
@@ -104,11 +104,11 @@ type metadataSnapshot struct {
 type KubeMetadataStreamServer struct {
 	store    *controllers.MetaBundleStore
 	wmeta    workloadmeta.Component
-	resolver PodTargetResolver
+	resolver PodOwnerResolver
 
-	metadataMutex   sync.RWMutex
-	metadata        metadataSnapshot
-	resolvedTargets map[string]resolvedTargetsSnapshot
+	metadataMutex  sync.RWMutex
+	metadata       metadataSnapshot
+	resolvedOwners map[string]resolvedOwnersSnapshot
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
@@ -117,12 +117,12 @@ type KubeMetadataStreamServer struct {
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
-func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component, resolvers ...PodTargetResolver) *KubeMetadataStreamServer {
+func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workloadmeta.Component, resolvers ...PodOwnerResolver) *KubeMetadataStreamServer {
 	srv := &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
 		metadata:             newMetadataSnapshot(),
-		resolvedTargets:      make(map[string]resolvedTargetsSnapshot),
+		resolvedOwners:       make(map[string]resolvedOwnersSnapshot),
 		namespaceSubscribers: make(map[string][]chan struct{}),
 	}
 	if len(resolvers) > 0 {
@@ -137,7 +137,7 @@ func newMetadataSnapshot() metadataSnapshot {
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
 		kueueWorkloads:       make(map[string]kueueWorkloadEntry),
-		resolvedTargets:      make(resolvedTargetsSnapshot),
+		resolvedOwners:       make(resolvedOwnersSnapshot),
 	}
 }
 
@@ -334,7 +334,7 @@ func (srv *KubeMetadataStreamServer) processPodEvent(eventType workloadmeta.Even
 			return ""
 		}
 		srv.metadataMutex.Lock()
-		if snapshot := srv.resolvedTargets[nodeName]; snapshot != nil {
+		if snapshot := srv.resolvedOwners[nodeName]; snapshot != nil {
 			delete(snapshot, key)
 		}
 		srv.metadataMutex.Unlock()
@@ -350,13 +350,13 @@ func (srv *KubeMetadataStreamServer) processPodEvent(eventType workloadmeta.Even
 		}
 
 		srv.metadataMutex.Lock()
-		if srv.resolvedTargets[pod.NodeName] == nil {
-			srv.resolvedTargets[pod.NodeName] = make(resolvedTargetsSnapshot)
+		if srv.resolvedOwners[pod.NodeName] == nil {
+			srv.resolvedOwners[pod.NodeName] = make(resolvedOwnersSnapshot)
 		}
-		srv.resolvedTargets[pod.NodeName][key] = podResolvedTargetsEntry{
+		srv.resolvedOwners[pod.NodeName][key] = podResolvedOwnersEntry{
 			namespace: pod.Namespace,
 			podName:   pod.Name,
-			targets:   resolved,
+			owners:    resolved,
 		}
 		srv.metadataMutex.Unlock()
 
@@ -557,9 +557,9 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshot(nodeName string) meta
 	maps.Copy(snapshot.kueueQueues, srv.metadata.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, srv.metadata.kueueResourceFlavors)
 	maps.Copy(snapshot.kueueWorkloads, srv.metadata.kueueWorkloads)
-	for key, entry := range srv.resolvedTargets[nodeName] {
-		entry.targets = slices.Clone(entry.targets)
-		snapshot.resolvedTargets[key] = entry
+	for key, entry := range srv.resolvedOwners[nodeName] {
+		entry.owners = slices.Clone(entry.owners)
+		snapshot.resolvedOwners[key] = entry
 	}
 	return snapshot
 }
@@ -622,7 +622,7 @@ type metadataDiff struct {
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
 	kueueWorkloads       []*pb.KueueWorkload
-	resolvedTargets      []*pb.PodResolvedTargets
+	resolvedOwners       []*pb.PodResolvedOwners
 }
 
 func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
@@ -631,12 +631,12 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
 		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
-		resolvedTargets:      computeResolvedTargetsDiff(old.resolvedTargets, current.resolvedTargets),
+		resolvedOwners:       computeResolvedOwnersDiff(old.resolvedOwners, current.resolvedOwners),
 	}
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.resolvedTargets) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.resolvedOwners) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
@@ -646,31 +646,31 @@ func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse 
 		KueueQueues:          d.kueueQueues,
 		KueueResourceFlavors: d.kueueResourceFlavors,
 		KueueWorkloads:       d.kueueWorkloads,
-		ResolvedTargets:      d.resolvedTargets,
+		ResolvedOwners:       d.resolvedOwners,
 	}
 }
 
-func computeResolvedTargetsDiff(old, current resolvedTargetsSnapshot) []*pb.PodResolvedTargets {
-	var diff []*pb.PodResolvedTargets
+func computeResolvedOwnersDiff(old, current resolvedOwnersSnapshot) []*pb.PodResolvedOwners {
+	var diff []*pb.PodResolvedOwners
 	for key, entry := range current {
 		previous, found := old[key]
-		if found && slices.Equal(previous.targets, entry.targets) {
+		if found && slices.Equal(previous.owners, entry.owners) {
 			continue
 		}
-		diff = append(diff, protoPodResolvedTargets(entry, pb.KubeMetadataEventType_SET))
+		diff = append(diff, protoPodResolvedOwners(entry, pb.KubeMetadataEventType_SET))
 	}
 	for key, entry := range old {
 		if _, found := current[key]; !found {
-			diff = append(diff, protoPodResolvedTargets(entry, pb.KubeMetadataEventType_UNSET))
+			diff = append(diff, protoPodResolvedOwners(entry, pb.KubeMetadataEventType_UNSET))
 		}
 	}
 	return diff
 }
 
-func protoPodResolvedTargets(entry podResolvedTargetsEntry, eventType pb.KubeMetadataEventType) *pb.PodResolvedTargets {
-	targets := make([]*pb.ResolvedTarget, 0, len(entry.targets))
-	for _, target := range entry.targets {
-		targets = append(targets, &pb.ResolvedTarget{
+func protoPodResolvedOwners(entry podResolvedOwnersEntry, eventType pb.KubeMetadataEventType) *pb.PodResolvedOwners {
+	owners := make([]*pb.ResolvedOwner, 0, len(entry.owners))
+	for _, target := range entry.owners {
+		owners = append(owners, &pb.ResolvedOwner{
 			Group:     target.Group,
 			Version:   target.Version,
 			Kind:      target.Kind,
@@ -678,10 +678,10 @@ func protoPodResolvedTargets(entry podResolvedTargetsEntry, eventType pb.KubeMet
 			Name:      target.Name,
 		})
 	}
-	return &pb.PodResolvedTargets{
+	return &pb.PodResolvedOwners{
 		Namespace: entry.namespace,
 		PodName:   entry.podName,
-		Targets:   targets,
+		Owners:    owners,
 		Type:      eventType,
 	}
 }

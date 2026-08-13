@@ -637,7 +637,7 @@ func (x *KueueWorkload) GetType() KubeMetadataEventType {
 	return KubeMetadataEventType_SET
 }
 
-type ResolvedTarget struct {
+type ResolvedOwner struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Group         string                 `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
 	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
@@ -648,20 +648,20 @@ type ResolvedTarget struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ResolvedTarget) Reset() {
-	*x = ResolvedTarget{}
+func (x *ResolvedOwner) Reset() {
+	*x = ResolvedOwner{}
 	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ResolvedTarget) String() string {
+func (x *ResolvedOwner) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ResolvedTarget) ProtoMessage() {}
+func (*ResolvedOwner) ProtoMessage() {}
 
-func (x *ResolvedTarget) ProtoReflect() protoreflect.Message {
+func (x *ResolvedOwner) ProtoReflect() protoreflect.Message {
 	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -673,70 +673,70 @@ func (x *ResolvedTarget) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResolvedTarget.ProtoReflect.Descriptor instead.
-func (*ResolvedTarget) Descriptor() ([]byte, []int) {
+// Deprecated: Use ResolvedOwner.ProtoReflect.Descriptor instead.
+func (*ResolvedOwner) Descriptor() ([]byte, []int) {
 	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ResolvedTarget) GetGroup() string {
+func (x *ResolvedOwner) GetGroup() string {
 	if x != nil {
 		return x.Group
 	}
 	return ""
 }
 
-func (x *ResolvedTarget) GetVersion() string {
+func (x *ResolvedOwner) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *ResolvedTarget) GetKind() string {
+func (x *ResolvedOwner) GetKind() string {
 	if x != nil {
 		return x.Kind
 	}
 	return ""
 }
 
-func (x *ResolvedTarget) GetNamespace() string {
+func (x *ResolvedOwner) GetNamespace() string {
 	if x != nil {
 		return x.Namespace
 	}
 	return ""
 }
 
-func (x *ResolvedTarget) GetName() string {
+func (x *ResolvedOwner) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-type PodResolvedTargets struct {
+type PodResolvedOwners struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	PodName       string                 `protobuf:"bytes,2,opt,name=pod_name,json=podName,proto3" json:"pod_name,omitempty"`
-	Targets       []*ResolvedTarget      `protobuf:"bytes,3,rep,name=targets,proto3" json:"targets,omitempty"`
+	Owners        []*ResolvedOwner       `protobuf:"bytes,3,rep,name=owners,proto3" json:"owners,omitempty"`
 	Type          KubeMetadataEventType  `protobuf:"varint,4,opt,name=type,proto3,enum=datadog.kubemetadata.KubeMetadataEventType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PodResolvedTargets) Reset() {
-	*x = PodResolvedTargets{}
+func (x *PodResolvedOwners) Reset() {
+	*x = PodResolvedOwners{}
 	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PodResolvedTargets) String() string {
+func (x *PodResolvedOwners) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PodResolvedTargets) ProtoMessage() {}
+func (*PodResolvedOwners) ProtoMessage() {}
 
-func (x *PodResolvedTargets) ProtoReflect() protoreflect.Message {
+func (x *PodResolvedOwners) ProtoReflect() protoreflect.Message {
 	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -748,33 +748,33 @@ func (x *PodResolvedTargets) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PodResolvedTargets.ProtoReflect.Descriptor instead.
-func (*PodResolvedTargets) Descriptor() ([]byte, []int) {
+// Deprecated: Use PodResolvedOwners.ProtoReflect.Descriptor instead.
+func (*PodResolvedOwners) Descriptor() ([]byte, []int) {
 	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *PodResolvedTargets) GetNamespace() string {
+func (x *PodResolvedOwners) GetNamespace() string {
 	if x != nil {
 		return x.Namespace
 	}
 	return ""
 }
 
-func (x *PodResolvedTargets) GetPodName() string {
+func (x *PodResolvedOwners) GetPodName() string {
 	if x != nil {
 		return x.PodName
 	}
 	return ""
 }
 
-func (x *PodResolvedTargets) GetTargets() []*ResolvedTarget {
+func (x *PodResolvedOwners) GetOwners() []*ResolvedOwner {
 	if x != nil {
-		return x.Targets
+		return x.Owners
 	}
 	return nil
 }
 
-func (x *PodResolvedTargets) GetType() KubeMetadataEventType {
+func (x *PodResolvedOwners) GetType() KubeMetadataEventType {
 	if x != nil {
 		return x.Type
 	}
@@ -789,7 +789,7 @@ type KubeMetadataStreamResponse struct {
 	KueueQueues          []*KueueQueue          `protobuf:"bytes,4,rep,name=kueue_queues,json=kueueQueues,proto3" json:"kueue_queues,omitempty"`
 	KueueResourceFlavors []*KueueResourceFlavor `protobuf:"bytes,5,rep,name=kueue_resource_flavors,json=kueueResourceFlavors,proto3" json:"kueue_resource_flavors,omitempty"`
 	KueueWorkloads       []*KueueWorkload       `protobuf:"bytes,6,rep,name=kueue_workloads,json=kueueWorkloads,proto3" json:"kueue_workloads,omitempty"`
-	ResolvedTargets      []*PodResolvedTargets  `protobuf:"bytes,7,rep,name=resolved_targets,json=resolvedTargets,proto3" json:"resolved_targets,omitempty"`
+	ResolvedOwners       []*PodResolvedOwners   `protobuf:"bytes,7,rep,name=resolved_owners,json=resolvedOwners,proto3" json:"resolved_owners,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -866,9 +866,9 @@ func (x *KubeMetadataStreamResponse) GetKueueWorkloads() []*KueueWorkload {
 	return nil
 }
 
-func (x *KubeMetadataStreamResponse) GetResolvedTargets() []*PodResolvedTargets {
+func (x *KubeMetadataStreamResponse) GetResolvedOwners() []*PodResolvedOwners {
 	if x != nil {
-		return x.ResolvedTargets
+		return x.ResolvedOwners
 	}
 	return nil
 }
@@ -950,26 +950,26 @@ const file_datadog_kubemetadata_kubemetadata_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x01\n" +
-	"\x0eResolvedTarget\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x85\x01\n" +
+	"\rResolvedOwner\x12\x14\n" +
 	"\x05group\x18\x01 \x01(\tR\x05group\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
 	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1c\n" +
 	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12\x12\n" +
-	"\x04name\x18\x05 \x01(\tR\x04name\"\xce\x01\n" +
-	"\x12PodResolvedTargets\x12\x1c\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\"\xca\x01\n" +
+	"\x11PodResolvedOwners\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x19\n" +
-	"\bpod_name\x18\x02 \x01(\tR\apodName\x12>\n" +
-	"\atargets\x18\x03 \x03(\v2$.datadog.kubemetadata.ResolvedTargetR\atargets\x12?\n" +
-	"\x04type\x18\x04 \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\"\xa6\x04\n" +
+	"\bpod_name\x18\x02 \x01(\tR\apodName\x12;\n" +
+	"\x06owners\x18\x03 \x03(\v2#.datadog.kubemetadata.ResolvedOwnerR\x06owners\x12?\n" +
+	"\x04type\x18\x04 \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\"\xa3\x04\n" +
 	"\x1aKubeMetadataStreamResponse\x12\"\n" +
 	"\ris_full_state\x18\x01 \x01(\bR\visFullState\x12C\n" +
 	"\bmappings\x18\x02 \x03(\v2'.datadog.kubemetadata.PodServiceMappingR\bmappings\x12V\n" +
 	"\x12namespace_metadata\x18\x03 \x03(\v2'.datadog.kubemetadata.NamespaceMetadataR\x11namespaceMetadata\x12C\n" +
 	"\fkueue_queues\x18\x04 \x03(\v2 .datadog.kubemetadata.KueueQueueR\vkueueQueues\x12_\n" +
 	"\x16kueue_resource_flavors\x18\x05 \x03(\v2).datadog.kubemetadata.KueueResourceFlavorR\x14kueueResourceFlavors\x12L\n" +
-	"\x0fkueue_workloads\x18\x06 \x03(\v2#.datadog.kubemetadata.KueueWorkloadR\x0ekueueWorkloads\x12S\n" +
-	"\x10resolved_targets\x18\a \x03(\v2(.datadog.kubemetadata.PodResolvedTargetsR\x0fresolvedTargets*+\n" +
+	"\x0fkueue_workloads\x18\x06 \x03(\v2#.datadog.kubemetadata.KueueWorkloadR\x0ekueueWorkloads\x12P\n" +
+	"\x0fresolved_owners\x18\a \x03(\v2'.datadog.kubemetadata.PodResolvedOwnersR\x0eresolvedOwners*+\n" +
 	"\x15KubeMetadataEventType\x12\a\n" +
 	"\x03SET\x10\x00\x12\t\n" +
 	"\x05UNSET\x10\x01*4\n" +
@@ -1001,8 +1001,8 @@ var file_datadog_kubemetadata_kubemetadata_proto_goTypes = []any{
 	(*KueueResourceFlavor)(nil),        // 6: datadog.kubemetadata.KueueResourceFlavor
 	(*KueuePodSetAssignment)(nil),      // 7: datadog.kubemetadata.KueuePodSetAssignment
 	(*KueueWorkload)(nil),              // 8: datadog.kubemetadata.KueueWorkload
-	(*ResolvedTarget)(nil),             // 9: datadog.kubemetadata.ResolvedTarget
-	(*PodResolvedTargets)(nil),         // 10: datadog.kubemetadata.PodResolvedTargets
+	(*ResolvedOwner)(nil),              // 9: datadog.kubemetadata.ResolvedOwner
+	(*PodResolvedOwners)(nil),          // 10: datadog.kubemetadata.PodResolvedOwners
 	(*KubeMetadataStreamResponse)(nil), // 11: datadog.kubemetadata.KubeMetadataStreamResponse
 	nil,                                // 12: datadog.kubemetadata.NamespaceMetadata.LabelsEntry
 	nil,                                // 13: datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
@@ -1033,14 +1033,14 @@ var file_datadog_kubemetadata_kubemetadata_proto_depIdxs = []int32{
 	21, // 14: datadog.kubemetadata.KueueWorkload.annotations:type_name -> datadog.kubemetadata.KueueWorkload.AnnotationsEntry
 	7,  // 15: datadog.kubemetadata.KueueWorkload.pod_set_assignments:type_name -> datadog.kubemetadata.KueuePodSetAssignment
 	0,  // 16: datadog.kubemetadata.KueueWorkload.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	9,  // 17: datadog.kubemetadata.PodResolvedTargets.targets:type_name -> datadog.kubemetadata.ResolvedTarget
-	0,  // 18: datadog.kubemetadata.PodResolvedTargets.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
+	9,  // 17: datadog.kubemetadata.PodResolvedOwners.owners:type_name -> datadog.kubemetadata.ResolvedOwner
+	0,  // 18: datadog.kubemetadata.PodResolvedOwners.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
 	3,  // 19: datadog.kubemetadata.KubeMetadataStreamResponse.mappings:type_name -> datadog.kubemetadata.PodServiceMapping
 	4,  // 20: datadog.kubemetadata.KubeMetadataStreamResponse.namespace_metadata:type_name -> datadog.kubemetadata.NamespaceMetadata
 	5,  // 21: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_queues:type_name -> datadog.kubemetadata.KueueQueue
 	6,  // 22: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_resource_flavors:type_name -> datadog.kubemetadata.KueueResourceFlavor
 	8,  // 23: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_workloads:type_name -> datadog.kubemetadata.KueueWorkload
-	10, // 24: datadog.kubemetadata.KubeMetadataStreamResponse.resolved_targets:type_name -> datadog.kubemetadata.PodResolvedTargets
+	10, // 24: datadog.kubemetadata.KubeMetadataStreamResponse.resolved_owners:type_name -> datadog.kubemetadata.PodResolvedOwners
 	25, // [25:25] is the sub-list for method output_type
 	25, // [25:25] is the sub-list for method input_type
 	25, // [25:25] is the sub-list for extension type_name
