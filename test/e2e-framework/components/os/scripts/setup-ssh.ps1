@@ -1,3 +1,12 @@
+# This script is embedded as EC2 user data with <persist>true</persist>, so it reruns on every
+# boot, not just the first -- see https://github.com/DataDog/test-infra-definitions/pull/1178,
+# which relies on that to let authorized_keys be reset on every boot for reused/custom AMIs. Every
+# step below must therefore either be safe to repeat unconditionally, or be guarded to only do real
+# work once. In particular, replacing OpenSSH via MSI stops sshd and takes a while; doing that on
+# every boot -- including the one triggered by domain controller promotion -- creates an extended
+# sshd outage that can overlap with whatever is trying to SSH in right after reboot. See WINA-2095.
+$sshInstallMarkerPath = "$env:ProgramData\ssh\.dd-openssh-installed"
+
 # function to test if the OS is Windows Server 2025
 function Is-WindowsServer2025 {
   $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
@@ -7,13 +16,19 @@ function Is-WindowsServer2025 {
 
 # function to test if the sshd service is running and if it needs to be replaced
 function Test-SshInstallationNeeded {
+  if (Test-Path $sshInstallMarkerPath) {
+    # Already installed/replaced on a previous boot -- nothing to do.
+    return $false
+  }
+
   $service = Get-Service -Name sshd -ErrorAction SilentlyContinue
 
   if ($service -ne $null) {
     Write-Host "Stop sshd service"
     Stop-Service sshd
     if (Is-WindowsServer2025) {
-      # for Windows Server 2025, replace the service
+      # Windows Server 2025 ships a preinstalled OpenSSH that's a different, inconsistent version;
+      # replace it with our pinned MSI version below (only happens once, per $sshInstallMarkerPath).
       return $true
     }
   } else {
@@ -134,6 +149,22 @@ if (Test-SshInstallationNeeded) {
     Set-Service -Name sshd -StartupType Automatic
     $retries++
   }
+
+  # Write sshd_config so LogLevel DEBUG3 is set so OpenSSH/Operational captures more detail if
+  # sshd fails to stay up after a later reboot (e.g. domain controller promotion, see WINA-2095).
+  Write-Host "Writing sshd_config"
+  $sshdConfigLines = @(
+    "LogLevel DEBUG3",
+    "AuthorizedKeysFile`t.ssh/authorized_keys",
+    "Subsystem`tsftp`tsftp-server.exe",
+    "",
+    "Match Group administrators",
+    "       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys"
+  )
+  Set-Content -Path "$env:ProgramData\ssh\sshd_config" -Value $sshdConfigLines
+  Restart-Service sshd -ErrorAction SilentlyContinue
+
+  New-Item -Path $sshInstallMarkerPath -ItemType File -Force | Out-Null
 }
 
 Restore-AutoInheritedFlag
@@ -176,6 +207,7 @@ while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) {
 }
 Add-Content -Path $env:ProgramData\ssh\administrators_authorized_keys -Value $authorizedKey
 icacls.exe ""$env:ProgramData\ssh\administrators_authorized_keys"" /inheritance:r /grant ""Administrators:F"" /grant ""SYSTEM:F""
+
 # Start sshd service
 $retries = 0
 while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Running") {

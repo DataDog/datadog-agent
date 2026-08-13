@@ -68,6 +68,7 @@ const (
 	MetricSourceGPU
 	MetricSourceWlan
 	MetricSourceWindowsCertificateStore
+	MetricSourceThermal
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -1141,6 +1142,8 @@ func (ms MetricSource) String() string {
 		return "wlan"
 	case MetricSourceWindowsCertificateStore:
 		return "windows_certificate"
+	case MetricSourceThermal:
+		return "thermal"
 	case MetricSourceBattery:
 		return "battery"
 	case MetricSourcePinot:
@@ -1841,6 +1844,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceWlan
 	case "windows_certificate":
 		return MetricSourceWindowsCertificateStore
+	case "thermal":
+		return MetricSourceThermal
 	case "battery":
 		return MetricSourceBattery
 	case "pinot":
