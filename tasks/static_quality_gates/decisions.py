@@ -21,6 +21,7 @@ PER_PR_THRESHOLD_EXCLUDED_GATES = {
     "static_quality_gate_docker_host_profiler_amd64",
     "static_quality_gate_docker_host_profiler_arm64",
 }
+# Should be members of @Datadog/agent-supply-chain.
 EXCEPTION_APPROVERS = {
     "cmourot",
     "aiuto",
