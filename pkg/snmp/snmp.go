@@ -29,22 +29,25 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers                 int                        `mapstructure:"workers"`
-	DiscoveryInterval       int                        `mapstructure:"discovery_interval"`
-	AllowedFailures         int                        `mapstructure:"discovery_allowed_failures"`
-	Loader                  string                     `mapstructure:"loader"`
-	CollectDeviceMetadata   bool                       `mapstructure:"collect_device_metadata"`
-	CollectTopology         bool                       `mapstructure:"collect_topology"`
-	CollectVPN              bool                       `mapstructure:"collect_vpn"`
-	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
-	Namespace               string                     `mapstructure:"namespace"`
-	UseDeviceISAsHostname   bool                       `mapstructure:"use_device_id_as_hostname"`
-	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
-	Deduplicate             bool                       `mapstructure:"use_deduplication"`
-	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
-	OidBatchSize            int                        `mapstructure:"oid_batch_size"`
-	Timeout                 int                        `mapstructure:"timeout"`
-	Retries                 int                        `mapstructure:"retries"`
+	Workers               int    `mapstructure:"workers"`
+	DiscoveryInterval     int    `mapstructure:"discovery_interval"`
+	AllowedFailures       int    `mapstructure:"discovery_allowed_failures"`
+	Loader                string `mapstructure:"loader"`
+	CollectDeviceMetadata bool   `mapstructure:"collect_device_metadata"`
+	CollectTopology       bool   `mapstructure:"collect_topology"`
+	CollectVPN            bool   `mapstructure:"collect_vpn"`
+	// IgnoreNetworkAndBroadcastAddresses, when true, skips the network and broadcast
+	// address of each scanned subnet during autodiscovery (IPv4, prefix <= /30).
+	IgnoreNetworkAndBroadcastAddresses bool                       `mapstructure:"ignore_network_and_broadcast_addresses"`
+	MinCollectionInterval              uint                       `mapstructure:"min_collection_interval"`
+	Namespace                          string                     `mapstructure:"namespace"`
+	UseDeviceISAsHostname              bool                       `mapstructure:"use_device_id_as_hostname"`
+	PingConfig                         snmpintegration.PingConfig `mapstructure:"ping"`
+	Deduplicate                        bool                       `mapstructure:"use_deduplication"`
+	UseRemoteConfigProfiles            bool                       `mapstructure:"use_remote_config_profiles"`
+	OidBatchSize                       int                        `mapstructure:"oid_batch_size"`
+	Timeout                            int                        `mapstructure:"timeout"`
+	Retries                            int                        `mapstructure:"retries"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -57,33 +60,34 @@ type ListenerConfig struct {
 
 // UnmarshalledConfig is used to read each item of the array in datadog.yaml
 type UnmarshalledConfig struct {
-	ADIdentifier          string                                       `mapstructure:"ad_identifier"`
-	AuthKey               string                                       `mapstructure:"authKey"`
-	AuthProtocol          string                                       `mapstructure:"authProtocol"`
-	Authentications       []Authentication                             `mapstructure:"authentications"`
-	CollectDeviceMetadata *bool                                        `mapstructure:"collect_device_metadata"`
-	CollectTopology       *bool                                        `mapstructure:"collect_topology"`
-	CollectVPN            *bool                                        `mapstructure:"collect_vpn"`
-	Community             string                                       `mapstructure:"community_string"`
-	ContextEngineID       string                                       `mapstructure:"context_engine_id"`
-	ContextName           string                                       `mapstructure:"context_name"`
-	IgnoredIPAddresses    []string                                     `mapstructure:"ignored_ip_addresses"`
-	InterfaceConfigs      map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
-	Loader                string                                       `mapstructure:"loader"`
-	MinCollectionInterval uint                                         `mapstructure:"min_collection_interval"`
-	Namespace             string                                       `mapstructure:"namespace"`
-	Network               string                                       `mapstructure:"network_address"`
-	OidBatchSize          int                                          `mapstructure:"oid_batch_size"`
-	PingConfig            snmpintegration.PingConfig                   `mapstructure:"ping"`
-	Port                  uint16                                       `mapstructure:"port"`
-	PrivKey               string                                       `mapstructure:"privKey"`
-	PrivProtocol          string                                       `mapstructure:"privProtocol"`
-	Retries               int                                          `mapstructure:"retries"`
-	Tags                  []string                                     `mapstructure:"tags"`
-	Timeout               int                                          `mapstructure:"timeout"`
-	UseDeviceIDAsHostname *bool                                        `mapstructure:"use_device_id_as_hostname"`
-	User                  string                                       `mapstructure:"user"`
-	Version               string                                       `mapstructure:"snmp_version"`
+	ADIdentifier                       string                                       `mapstructure:"ad_identifier"`
+	AuthKey                            string                                       `mapstructure:"authKey"`
+	AuthProtocol                       string                                       `mapstructure:"authProtocol"`
+	Authentications                    []Authentication                             `mapstructure:"authentications"`
+	CollectDeviceMetadata              *bool                                        `mapstructure:"collect_device_metadata"`
+	CollectTopology                    *bool                                        `mapstructure:"collect_topology"`
+	CollectVPN                         *bool                                        `mapstructure:"collect_vpn"`
+	Community                          string                                       `mapstructure:"community_string"`
+	ContextEngineID                    string                                       `mapstructure:"context_engine_id"`
+	ContextName                        string                                       `mapstructure:"context_name"`
+	IgnoredIPAddresses                 []string                                     `mapstructure:"ignored_ip_addresses"`
+	IgnoreNetworkAndBroadcastAddresses *bool                                        `mapstructure:"ignore_network_and_broadcast_addresses"`
+	InterfaceConfigs                   map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
+	Loader                             string                                       `mapstructure:"loader"`
+	MinCollectionInterval              uint                                         `mapstructure:"min_collection_interval"`
+	Namespace                          string                                       `mapstructure:"namespace"`
+	Network                            string                                       `mapstructure:"network_address"`
+	OidBatchSize                       int                                          `mapstructure:"oid_batch_size"`
+	PingConfig                         snmpintegration.PingConfig                   `mapstructure:"ping"`
+	Port                               uint16                                       `mapstructure:"port"`
+	PrivKey                            string                                       `mapstructure:"privKey"`
+	PrivProtocol                       string                                       `mapstructure:"privProtocol"`
+	Retries                            int                                          `mapstructure:"retries"`
+	Tags                               []string                                     `mapstructure:"tags"`
+	Timeout                            int                                          `mapstructure:"timeout"`
+	UseDeviceIDAsHostname              *bool                                        `mapstructure:"use_device_id_as_hostname"`
+	User                               string                                       `mapstructure:"user"`
+	Version                            string                                       `mapstructure:"snmp_version"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -97,33 +101,34 @@ type UnmarshalledConfig struct {
 
 // Config holds configuration for a particular subnet
 type Config struct {
-	ADIdentifier            string
-	AuthKey                 string
-	AuthProtocol            string
-	Authentications         []Authentication
-	Community               string
-	ContextEngineID         string
-	ContextName             string
-	Loader                  string
-	MinCollectionInterval   uint
-	Namespace               string
-	Network                 string
-	OidBatchSize            int
-	Port                    uint16
-	PrivKey                 string
-	PrivProtocol            string
-	Retries                 int
-	Tags                    []string
-	Timeout                 int
-	User                    string
-	Version                 string
-	CollectDeviceMetadata   bool
-	CollectTopology         bool
-	CollectVPN              bool
-	IgnoredIPAddresses      map[string]bool
-	UseDeviceIDAsHostname   bool
-	UseRemoteConfigProfiles bool
-	PingConfig              snmpintegration.PingConfig
+	ADIdentifier                       string
+	AuthKey                            string
+	AuthProtocol                       string
+	Authentications                    []Authentication
+	Community                          string
+	ContextEngineID                    string
+	ContextName                        string
+	Loader                             string
+	MinCollectionInterval              uint
+	Namespace                          string
+	Network                            string
+	OidBatchSize                       int
+	Port                               uint16
+	PrivKey                            string
+	PrivProtocol                       string
+	Retries                            int
+	Tags                               []string
+	Timeout                            int
+	User                               string
+	Version                            string
+	CollectDeviceMetadata              bool
+	CollectTopology                    bool
+	CollectVPN                         bool
+	IgnoredIPAddresses                 map[string]bool
+	IgnoreNetworkAndBroadcastAddresses bool
+	UseDeviceIDAsHostname              bool
+	UseRemoteConfigProfiles            bool
+	PingConfig                         snmpintegration.PingConfig
 
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig
@@ -254,6 +259,12 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.UseDeviceIDAsHostname = snmpConfig.UseDeviceISAsHostname
 		}
 
+		if unmarshalledConfig.IgnoreNetworkAndBroadcastAddresses != nil {
+			config.IgnoreNetworkAndBroadcastAddresses = *unmarshalledConfig.IgnoreNetworkAndBroadcastAddresses
+		} else {
+			config.IgnoreNetworkAndBroadcastAddresses = snmpConfig.IgnoreNetworkAndBroadcastAddresses
+		}
+
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
 		}
@@ -313,6 +324,16 @@ func NewListenerConfig() (ListenerConfig, error) {
 		config.IgnoredIPAddresses = make(map[string]bool, len(unmarshalledConfig.IgnoredIPAddresses))
 		for _, ip := range unmarshalledConfig.IgnoredIPAddresses {
 			config.IgnoredIPAddresses[ip] = true
+		}
+
+		// When enabled, skip the network and broadcast address of the subnet. These
+		// are commonly assigned to floating/virtual IPs (e.g. HSRP/VRRP gateways) that
+		// several devices can answer on, which corrupts per-device rate calculations.
+		if config.IgnoreNetworkAndBroadcastAddresses {
+			if network, broadcast, ok := networkAndBroadcastAddresses(config.Network); ok {
+				config.IgnoredIPAddresses[network.String()] = true
+				config.IgnoredIPAddresses[broadcast.String()] = true
+			}
 		}
 	}
 
@@ -388,6 +409,32 @@ func (c *Config) Digest(address string) string {
 	}
 
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// networkAndBroadcastAddresses returns the network and broadcast addresses for the
+// given IPv4 CIDR. The second return value is false when the addresses should not be
+// skipped: a parse error, a non-IPv4 network, or a prefix of /31 or /32 where every
+// address is a usable host (RFC 3021 point-to-point and single-host cases).
+func networkAndBroadcastAddresses(cidr string) (net.IP, net.IP, bool) {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, nil, false
+	}
+	network := ipNet.IP.To4()
+	if network == nil {
+		// Only IPv4 has a broadcast address; skip IPv6.
+		return nil, nil, false
+	}
+	ones, bits := ipNet.Mask.Size()
+	if bits-ones < 2 {
+		// /31 and /32 have no distinct network/broadcast host addresses to skip.
+		return nil, nil, false
+	}
+	broadcast := make(net.IP, len(network))
+	for i := range network {
+		broadcast[i] = network[i] | ^ipNet.Mask[i]
+	}
+	return network, broadcast, true
 }
 
 // IsIPIgnored checks the given IP against IgnoredIPAddresses
