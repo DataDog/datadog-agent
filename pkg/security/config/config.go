@@ -28,6 +28,12 @@ import (
 const (
 	// ADMinMaxDumSize represents the minimum value for runtime_security_config.activity_dump.max_dump_size
 	ADMinMaxDumSize = 100
+
+	// samplingPressureCritical mirrors SAMPLING_PRESSURE_CRITICAL in
+	// pkg/security/ebpf/c/include/constants/custom.h and must be kept in sync with it.
+	// It is the exclusive upper bound for the per-event sampling thresholds: at or above
+	// it the critical check fires first, so the rate limiter band would never be reached.
+	samplingPressureCritical = 90
 )
 
 var (
@@ -740,7 +746,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingConnectEnabled = true
 		rsConfig.EventSamplingBindEnabled = true
 		rsConfig.EventSamplingDNSEnabled = true
-		rsConfig.EventSamplingDynamicEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -830,6 +835,20 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
+	}
+
+	for _, threshold := range []struct {
+		eventType string
+		value     int
+	}{
+		{"open", c.EventSamplingOpenThreshold},
+		{"connect", c.EventSamplingConnectThreshold},
+		{"bind", c.EventSamplingBindThreshold},
+		{"dns", c.EventSamplingDNSThreshold},
+	} {
+		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
+			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)
+		}
 	}
 
 	c.sanitizePlatform()
