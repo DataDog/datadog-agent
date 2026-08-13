@@ -27,11 +27,7 @@ import (
 // discarded there long after the send returned nil. A worst-case-size test derives one
 // byte budget from all four.
 const (
-	// maxCSEInvocationsPerScope bounds the invocations one pass reports: one per
-	// extension, and a stock Windows 11 registers 57 of them under Winlogon\GPExtensions,
-	// which third-party extensions add to. So this is a backstop with little headroom
-	// rather than an unreachable ceiling, and what it drops is reported per scope in
-	// ComputerCSEsOmitted / UserCSEsOmitted.
+	// maxCSEInvocationsPerScope is a backstop: one invocation per extension per pass.
 	maxCSEInvocationsPerScope = 64
 
 	// maxGPOsPerCSE bounds the GPO references carried by one invocation. GPOs are
@@ -40,14 +36,9 @@ const (
 	// GPOsOmitted.
 	maxGPOsPerCSE = 32
 
-	// maxCSENameBytes bounds a name the provider registers rather than one anybody
-	// chose: the longest of those 57 is 38 characters.
+	// The name caps differ because their sources do: a CSE name is provider-registered
+	// and fixed, a GPO display name is chosen in AD, 256 characters at two bytes each.
 	maxCSENameBytes = 128
-
-	// maxGPONameBytes bounds a display name chosen in AD, where 256 characters is the
-	// ceiling, so this carries one whole at two bytes per character - the boundary
-	// TestGPONamesSurviveNonLatinScripts pins. A name in a three-byte script is cut on
-	// a UTF-8 boundary instead, which is why the character figure need not be exact.
 	maxGPONameBytes = 512
 )
 
@@ -285,8 +276,7 @@ func (a *gpAccumulator) finalize(tl BootTimeline) *GroupPolicyDetails {
 	}
 }
 
-// buildScope converts the invocations belonging to one boot pass, reporting how many
-// the invocation cap cut.
+// buildScope converts the invocations belonging to one boot pass, with the count the cap cut.
 func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64) ([]CSEInvocation, int) {
 	if !a.passPinned[scope] {
 		return nil, 0
