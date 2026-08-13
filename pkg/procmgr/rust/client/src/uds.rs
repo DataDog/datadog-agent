@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-fn main() {
-    println!("cargo::rustc-check-cfg=cfg(bazel)");
+use std::path::Path;
+
+pub type IpcStream = tokio::net::UnixStream;
+
+pub async fn connect(path: &Path) -> std::io::Result<IpcStream> {
+    IpcStream::connect(path).await
 }
