@@ -13,6 +13,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 )
@@ -30,6 +31,18 @@ func PreemptCountConstants(cache *btf.Cache) (map[string]uint64, error) {
 		return nil, ErrThisCPUPtrNotPresent
 	}
 
+	arch := kernel.Arch()
+	switch arch {
+	case "x86":
+		return preemptCountAMD64(cache)
+	case "arm64":
+		return preemptCountARM64()
+	default:
+		return nil, fmt.Errorf("unsupported runtime architecture :%s", arch)
+	}
+}
+
+func preemptCountAMD64(cache *btf.Cache) (map[string]uint64, error) {
 	preemptCountMissing, err := ddebpf.VerifyKernelFuncs("__preempt_count")
 	if err != nil {
 		return nil, fmt.Errorf("error verifying kernel symbol: %w", err)
@@ -56,6 +69,14 @@ func PreemptCountConstants(cache *btf.Cache) (map[string]uint64, error) {
 	pcpuHotExistsInBTF := kSpec.TypeByName("pcpu_hot", &typ) == nil
 	if !pcpuHotExistsInBTF {
 		return nil, ErrRequiredVarsMissingInBTF
+	}
+
+	return map[string]uint64{}, nil
+}
+
+func preemptCountARM64() (map[string]uint64, error) {
+	if err := features.HaveHelperInRawTracepoint(asm.FnGetCurrentTaskBtf); err != nil {
+		return nil, errors.New("required helper bpf_get_current_task_btf not present")
 	}
 
 	return map[string]uint64{}, nil
