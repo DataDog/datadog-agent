@@ -50,14 +50,15 @@ var typedTranslations = []struct {
 		`!evt.process.ancestors.exists(elem, elem.file.name in ["sh"])`},
 	{`process.ancestors.file.name in [ ~"/usr/*" ]`,
 		`evt.process.ancestors.exists(elem, secl.glob(elem.file.name, "/usr/*"))`},
-	// `allin` asks for every element
+	// `allin` asks the same question as `in`, because SECL's compiler does — see
+	// TestAllInIsMembershipLikeSECL
 	{`process.ancestors.file.name allin [ "sh" ]`,
-		`evt.process.ancestors.all(elem, elem.file.name in ["sh"])`},
+		`evt.process.ancestors.exists(elem, elem.file.name in ["sh"])`},
 
 	// a list valued leaf is quantified in its own right
 	{`process.argv == "-l"`, `evt.process.argv.exists(elem, elem == "-l")`},
 	{`process.argv in [ "-l", "-a" ]`, `evt.process.argv.exists(elem, elem in ["-l", "-a"])`},
-	{`process.argv allin [ "-l" ]`, `evt.process.argv.all(elem, elem in ["-l"])`},
+	{`process.argv allin [ "-l" ]`, `evt.process.argv.exists(elem, elem in ["-l"])`},
 
 	// a list valued leaf inside an iterated node needs one quantifier per level
 	{`process.ancestors.args_flags == "c"`,
@@ -120,7 +121,7 @@ func TestOnlyAFieldIsRooted(t *testing.T) {
 
 	translated, err := TranslateWithTypes(expr, ModelFieldTypes{})
 	require.NoError(t, err)
-	assert.Equal(t, `evt.process.file.name in my_macro && evt.process.file.mode == S_IFREG`, translated)
+	assert.Equal(t, `secl.matchAny(evt.process.file.name, my_macro) && evt.process.file.mode == S_IFREG`, translated)
 
 	env, err := NewModelEnv(
 		cel.Variable("my_macro", cel.ListType(cel.StringType)),

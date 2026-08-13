@@ -112,8 +112,9 @@ func TestProgramAncestors(t *testing.T) {
 		{`process.ancestors.comm in [ "init" ]`, true},
 		{`process.ancestors.comm not in [ "bash", "sshd", "init" ]`, false},
 
-		// allin asks whether every element matches
-		{`process.ancestors.uid allin [ 0 ]`, false},
+		// allin asks the same question as in, which is what SECL does with it
+		// outside a CIDR array — see TestAllInIsMembershipLikeSECL
+		{`process.ancestors.uid allin [ 0 ]`, true},
 		{`process.ancestors.comm allin [ "bash", "sshd", "init" ]`, true},
 
 		// an iterator variable correlates the two comparisons at one index

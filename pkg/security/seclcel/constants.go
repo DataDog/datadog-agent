@@ -53,20 +53,27 @@ func constantDeclarations() []cel.EnvOption {
 	return opts
 }
 
-// arithmeticFolding folds a constant arithmetic call when the rule is planned.
+// constantFolding evaluates a call over literals when the rule is planned.
 //
 // A constant is free, but an expression over constants is not: `O_CREAT|O_TRUNC`
 // translates to nested math.bitOr calls, which cel-go's own optimizer leaves alone —
 // it folds constant *type conversions* and nothing else. So the flags idiom that a
-// third of the real rules are written with would pay two calls on every event.
+// third of the real rules are written with would pay two calls on every event, and a
+// list of patterns would be compiled on every one.
 //
-// Decorators run from the bottom up, so a nested expression collapses from the inside
-// out and `open.flags & (O_CREAT|O_TRUNC|O_APPEND) > 0` reaches the interpreter as one
-// comparison against one integer.
-func arithmeticFolding() interpreter.InterpretableDecoratorV2 {
+// Decorators run from the bottom up, and cel-go's own list folding runs before this
+// one — see plannerOptions — so a nested expression collapses from the inside out:
+// `open.flags & (O_CREAT|O_TRUNC) > 0` reaches the interpreter as one comparison
+// against one integer, and `secl.patterns([secl.glob("/etc/*"), …])` as one prepared
+// set.
+func constantFolding() interpreter.InterpretableDecoratorV2 {
 	return func(i interpreter.InterpretableV2) (interpreter.InterpretableV2, error) {
 		call, ok := i.(interpreter.InterpretableCall)
-		if !ok || !foldableArithmetic[call.Function()] {
+		if !ok {
+			return i, nil
+		}
+		constructor, foldable := foldableCall(call.Function())
+		if !foldable {
 			return i, nil
 		}
 
@@ -79,21 +86,41 @@ func arithmeticFolding() interpreter.InterpretableDecoratorV2 {
 		// Every argument is a literal, so the call has nothing to read from an event
 		// and its result is the same for every one of them.
 		out := i.Eval(interpreter.EmptyActivation())
+		if failure, failed := out.(*types.Err); failed {
+			if !constructor {
+				// An arithmetic error belongs to evaluation: leaving the call alone
+				// keeps it where a rule author would look for it.
+				return i, nil
+			}
+			// A pattern that does not compile is something else — a rule that cannot
+			// work rather than one that answers an error per event — and reporting it
+			// here is what makes it a rule that does not load, which is where SECL
+			// reports it too.
+			return nil, failure.Unwrap()
+		}
 		if types.IsUnknownOrError(out) {
-			// Constant or not, an error belongs to evaluation: leaving the call alone
-			// keeps the error where a rule author would look for it.
 			return i, nil
 		}
 		return interpreter.NewConstValue(i.ID(), out), nil
 	}
 }
 
-// foldableArithmetic is what arithmeticFolding folds: the operators SECL spells with
-// a symbol and the math extension implements as a function. The others — comparisons,
-// the helpers, anything reading a field — are either free already or not constant.
-var foldableArithmetic = map[string]bool{
-	bitAndFunc: true,
-	bitOrFunc:  true,
-	bitXorFunc: true,
-	bitNotFunc: true,
+// foldableCall reports whether a call over literals is worth collapsing, and whether
+// it builds a value — which is what decides where an error belongs.
+//
+// The two groups are the operators SECL spells with a symbol and the math extension
+// implements as a function, and the constructors that turn a literal into a compiled
+// matcher. Everything else is either free already, or reads an event.
+//
+// GlobFunc is here for its unary overload, the one that builds a value; the binary one
+// takes a field as its first argument and so is never constant. Its pattern is compiled
+// at planning time either way — see globOptimization.
+func foldableCall(function string) (constructor bool, foldable bool) {
+	switch function {
+	case bitAndFunc, bitOrFunc, bitXorFunc, bitNotFunc:
+		return false, true
+	case GlobFunc, RegexpFunc, PatternsFunc:
+		return true, true
+	}
+	return false, false
 }

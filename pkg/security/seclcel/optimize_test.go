@@ -213,8 +213,8 @@ func TestOptimizeLeavesVariablesAlone(t *testing.T) {
 
 	source, err := cel.AstToString(optimized)
 	require.NoError(t, err)
-	assert.Equal(t, `secl.readString(evt, `+strconv.Itoa(celReaderIndex["process.comm"])+
-		`) in my_macro && vars.my.var == "x"`, source)
+	assert.Equal(t, `secl.matchAny(secl.readString(evt, `+strconv.Itoa(celReaderIndex["process.comm"])+
+		`), my_macro) && vars.my.var == "x"`, source)
 }
 
 // assertSameRead compares two field reads through CEL equality rather than as Go

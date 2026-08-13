@@ -48,6 +48,19 @@ const (
 	// joined with commas.
 	StrFunc = "secl.str"
 
+	// RegexpFunc builds the compiled regexp a list member becomes. The comparison
+	// form needs no value, since CEL matches with matches() — see patterns.go.
+	RegexpFunc = "secl.regexp"
+
+	// PatternsFunc prepares a list of strings, globs and regexps for membership.
+	PatternsFunc = "secl.patterns"
+
+	// MatchAnyFunc is SECL's `in` over a prepared list of patterns, and over an
+	// ordinary list reached by name. CEL's own `in` compares for equality, which is
+	// not what a list holding a pattern means; it is also a reserved word, so this
+	// cannot be called `secl.in`.
+	MatchAnyFunc = "secl.matchAny"
+
 	// RootDomainFunc extracts the effective root domain of a host name. It backs
 	// SECL's `%{field.root_domain}` suffix.
 	RootDomainFunc = "secl.rootDomain"

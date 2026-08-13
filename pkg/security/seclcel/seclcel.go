@@ -41,9 +41,11 @@
 //	a == r"re", a =~ r"re"      a.matches("re")
 //	a == ~"gl", a =~ "gl"       secl.glob(a, "gl")
 //	a in [1, 2]                 a in [1, 2]
-//	a in ["x", ~"/y/*"]         a == "x" || secl.glob(a, "/y/*")
+//	a in [~"/y/*"]              secl.glob(a, "/y/*")
+//	a in ["x", ~"/y/*"]         secl.matchAny(a, secl.patterns(["x", secl.glob("/y/*")]))
+//	a in b                      secl.matchAny(a, b)
 //	a not in b                  !(a in b)
-//	a allin b                   a.all(elem, elem in b)
+//	a allin b                   a in b
 //	1.2.3.4, 10.0.0.0/8         ip("1.2.3.4"), cidr("10.0.0.0/8")
 //	a == 10.0.0.0/8, a in …     secl.cidrMatch(a, cidr("10.0.0.0/8"))
 //	a allin 10.0.0.0/8          secl.cidrMatchAll(a, cidr("10.0.0.0/8"))
@@ -120,7 +122,6 @@
 //	process.ancestors.file.name == "x"    evt.process.ancestors.exists(e, e.file.name == "x")
 //	process.ancestors.uid in [0, 1]       evt.process.ancestors.exists(e, e.uid in [0, 1])
 //	process.ancestors.file.name not in b  !evt.process.ancestors.exists(e, e.file.name in b)
-//	process.ancestors.file.name allin b   evt.process.ancestors.all(e, e.file.name in b)
 //	process.argv == "-l"                  evt.process.argv.exists(e, e == "-l")
 //	process.ancestors.args_flags == "c"   evt.process.ancestors.exists(e, e.args_flags.exists(e2, e2 == "c"))
 //	process.argv.length > 2               size(evt.process.argv) > 2
@@ -166,6 +167,22 @@
 //
 //   - Expressions that SECL parses but its compiler then rejects, such as one
 //     binding two iterator variables, are rejected here at parse time instead.
+//
+//   - `allin` is translated as a second spelling of `in`, which is what SECL makes of
+//     it: outside a CIDR array its compiler special cases `notin` and lets `allin`
+//     fall through to the evaluator `in` uses, so `process.argv allin [ "-l" ]` holds
+//     of a process whose arguments merely contain `-l`. Reproducing that rather than
+//     the meaning the operator's name carries is deliberate — what the shadow measures
+//     itself against is the engine in production — and TestAllInIsMembershipLikeSECL
+//     is what reports it if SECL ever makes the operator universal.
+//
+//   - A `~"…"` pattern is always compiled as a pattern, where SECL compiles one as a
+//     *glob* when the field it is compared against carries the operator override that
+//     asks for it — every `*.file.path` on unix, more on windows. So `*` crosses a
+//     path separator here and stops at one there, making a path rule more permissive
+//     through CEL than through SECL, and `**`, which the real policies do use, is
+//     refused here outright. This is the one divergence that changes verdicts on rules
+//     as they are written today — see TestPathGlobsDivergeFromSECL.
 //
 //   - A list mixing constant types, which SECL rejects outright, is accepted here:
 //     CEL widens a heterogeneous list literal to list(dyn) and then matches nothing.

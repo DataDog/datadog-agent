@@ -1108,41 +1108,32 @@ func (p *parser) arrayComparison(op string, lhs operand, arr arrayOperand) (oper
 		return operand{expr: e, start: start, end: end}, nil
 	}
 
-	// `in` and `not in` over an array left hand side ask whether *some* element
-	// is a member; `allin` asks whether *every* element is. `not in` negates the
-	// whole quantifier rather than the membership test inside it.
-	macro, negate := "exists", false
-	switch op {
-	case "notin":
-		negate = true
-	case "allin":
-		macro = "all"
-	}
-
+	// Membership over an array left hand side asks whether *some* element is a
+	// member, and `not in` negates the whole quantifier rather than the membership
+	// test inside it.
+	//
+	// `allin` asks the same question as `in` here, because that is what SECL does:
+	// outside the CIDR case above, its compiler special cases `notin` and lets
+	// `allin` fall through to the evaluator `in` uses (eval.go, *StringEvaluator and
+	// *StringArrayEvaluator cases). So `process.argv allin [ "-l" ]` is true of a
+	// process whose arguments merely *contain* `-l`, and translating it to a
+	// universal quantifier — which is what the operator's name and the docs say —
+	// would make CEL the stricter of the two engines. Recorded as a divergence from
+	// the documented meaning in the package doc, and pinned by
+	// TestAllInIsMembershipLikeSECL.
 	var member func(o operand) (celast.Expr, *ParseError)
 	member = func(o operand) (celast.Expr, *ParseError) {
 		if r, ok := p.listRange(o); ok {
-			return p.quantifyExpr(macro, r, start, end, member)
+			return p.quantifyExpr("exists", r, start, end, member)
 		}
-		// A single value: `allin` degenerates to membership.
 		return p.membership(o, arr, start, end)
-	}
-
-	if p.types == nil && op == "allin" {
-		// Without field types the left hand side of `allin` is assumed to be an
-		// array, since that is the only shape the operator is meaningful for.
-		e, err := p.quantifyExpr(macro, listRange{expr: lhs.expr}, start, end, member)
-		if err != nil {
-			return operand{}, err
-		}
-		return operand{expr: e, start: start, end: end}, nil
 	}
 
 	e, err := member(lhs)
 	if err != nil {
 		return operand{}, err
 	}
-	if negate {
+	if op == "notin" {
 		e = p.not(e, start, end)
 	}
 	return operand{expr: e, start: start, end: end}, nil
@@ -1273,28 +1264,49 @@ func dotted(remainder string) string {
 	return "." + remainder
 }
 
-// membership builds the test for `subject in arr`. A list of plain values maps
-// onto CEL's `in`; a list holding patterns or regexps has to become a
-// disjunction of matches, because CEL list membership only compares for
-// equality.
+// membership builds the test for `subject in arr`.
+//
+// A bracketed list of plain values maps onto CEL's own `in`, which the planner turns
+// into a hash lookup and the checker checks. Anything else goes through MatchAnyFunc: a list
+// holding a pattern, because CEL membership compares for equality, and a list named
+// rather than written out, because what a macro holds is not visible here.
 func (p *parser) membership(subject operand, arr arrayOperand, start, end int) (celast.Expr, *ParseError) {
-	if arr.expr != nil || !arr.hasMatcher() {
+	if arr.expr != nil {
+		return p.call(MatchAnyFunc, start, end, subject.expr, arr.expr), nil
+	}
+	if !arr.hasMatcher() {
 		return p.call(operators.In, start, end, subject.expr, p.arrayExpr(arr)), nil
 	}
+	// A single pattern is the comparison SECL would have written as `x =~ "p"`, and
+	// searching a set of one for it would only cost a call more.
+	if len(arr.members) == 1 {
+		return p.applyMatcher(subject, arr.members[0], start, end)
+	}
+	return p.call(MatchAnyFunc, start, end, subject.expr, p.patternsExpr(arr, start, end)), nil
+}
 
-	var e celast.Expr
+// patternsExpr builds the list a prepared set is made from, with each pattern member
+// becoming the value that carries its compiled matcher.
+//
+// Everything in it is a literal, so the whole call collapses to one prepared set when
+// the rule is planned — see constantFolding.
+func (p *parser) patternsExpr(arr arrayOperand, start, end int) celast.Expr {
+	members := make([]celast.Expr, 0, len(arr.members))
 	for _, member := range arr.members {
-		test, err := p.applyMatcher(subject, member, start, end)
-		if err != nil {
-			return nil, err
-		}
-		if e == nil {
-			e = test
-		} else {
-			e = p.call(operators.LogicalOr, start, end, e, test)
+		switch member.kind {
+		case kindPattern:
+			members = append(members, p.call(GlobFunc, member.start, member.end,
+				p.strLit(member.text, member.start, member.end)))
+		case kindRegexp:
+			members = append(members, p.call(RegexpFunc, member.start, member.end,
+				p.strLit(member.text, member.start, member.end)))
+		default:
+			members = append(members, member.expr)
 		}
 	}
-	return e, nil
+
+	list := p.fac.NewList(p.id(arr.start, arr.end), members, nil)
+	return p.call(PatternsFunc, start, end, list)
 }
 
 // arrayExpr renders an array operand as a single CEL expression.

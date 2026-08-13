@@ -863,3 +863,143 @@ func BenchmarkConstantFolding(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkPatternMembership prices what a rule pays to search a long list of
+// patterns, which is the shape the real policies reach for most: 30 of the 50 macros
+// in the agent rule set are lists of globs, and the longest hold forty entries.
+//
+// The list length is the interesting variable because the alternatives scale
+// differently. A disjunction — what the translation emitted before the pattern values,
+// and what inlining a macro in the front end would produce — repeats the subject in
+// every term, so it reads the field and boxes the string once per entry. A prepared set
+// reads once and then loops over compiled matchers, and hits a map first for the
+// entries that are plain strings.
+//
+// Both fields are measured on both engines because they are not doing the same work on
+// a path: SECL compiles `~"…"` into a glob matcher there and into a pattern matcher
+// everywhere else, where the translation always compiles a pattern — see
+// TestPathGlobsDivergeFromSECL. The comm rows are the honest engine comparison; the path
+// rows are what each engine does with the rules as they are written today.
+//
+// Measured (ns/op, median of two, including the ~30 ns context reset):
+//
+//	                   CEL                 SECL
+//	Scalar             119 ns, 1 alloc     —
+//	Globs40Miss path   715 ns, 1           7.83 µs, 0
+//	Globs40Miss comm   585 ns, 1            536 ns, 0
+//	Globs40Hit  path   131 ns, 1           —
+//	Strings40   comm   152 ns, 1           —
+//	Macro40     path   715 ns, 1           —
+//
+// A miss is the worst case on both sides: every matcher is tried. Three things to read
+// out of it.
+//
+// Macro40 is Globs40Miss path to within the noise, so a macro declared as a constant
+// costs exactly what the same list written into the rule costs. That is the whole of the
+// macro story: compile it once at load, declare the value, and there is nothing left to
+// do per event.
+//
+// On comm, where both engines compile the same kind of matcher, they are within 10% of
+// each other — 585 against 536 — and forty patterns cost about 14 ns each on either
+// side. The set is not where either engine spends its time; matching is.
+//
+// The order of magnitude on the path row is therefore not the set either. It is SECL's
+// glob matcher, which the field's operator override selects there and which costs it
+// ~180 ns per pattern against ~13 ns for its own pattern matcher. Closing the semantics
+// gap means inheriting some of that, which is worth knowing before it is measured as a
+// regression.
+func BenchmarkPatternMembership(b *testing.B) {
+	const entries = 40
+
+	// The globs are all of the same shape, so a miss costs one full pass over the
+	// matchers rather than being cut short by their lengths.
+	globs := make([]string, entries)
+	names := make([]string, entries)
+	for i := range globs {
+		globs[i] = fmt.Sprintf(`~"/opt/pkg%d/*"`, i)
+		names[i] = fmt.Sprintf(`"comm%d"`, i)
+	}
+
+	missing := "[ " + strings.Join(globs, ", ") + " ]"
+	hitting := "[ " + strings.Join(append([]string{`~"/usr/bin/*"`}, globs...), ", ") + " ]"
+	plain := "[ " + strings.Join(append([]string{`"sh"`}, names...), ", ") + " ]"
+
+	env, err := NewModelEnv(cel.Constant("PKG_PATHS", PatternsType, benchPatterns(b, globs)))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	event := benchEvent()
+	ctx := eval.NewContext(event)
+	activation := NewActivation(ctx)
+
+	for _, row := range []struct{ name, expr string }{
+		{"Scalar", `process.comm == "sh"`},
+		{"Globs40MissPath", `process.file.path in ` + missing},
+		{"Globs40MissComm", `process.comm in ` + missing},
+		{"Globs40HitPath", `process.file.path in ` + hitting},
+		{"Strings40", `process.comm in ` + plain},
+		{"Macro40", `process.file.path in PKG_PATHS`},
+	} {
+		b.Run(row.name, func(b *testing.B) {
+			rule, err := NewRule(env, row.expr, ModelFieldTypes{})
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			b.ReportAllocs()
+			for b.Loop() {
+				resetContext(ctx, event)
+				if _, err := rule.Eval(activation); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+
+	// The other engine over the same two lists, which is what the figures above are
+	// worth comparing against: SECL compiles the forty patterns into its own
+	// StringValues and walks them.
+	for _, row := range []struct{ name, expr string }{
+		{"SECLGlobs40MissPath", `process.file.path in ` + missing},
+		{"SECLGlobs40MissComm", `process.comm in ` + missing},
+	} {
+		b.Run(row.name, func(b *testing.B) {
+			var m model.Model
+			rule, err := eval.NewRule("bench", row.expr, ast.NewParsingContext(false), &eval.Opts{})
+			if err != nil {
+				b.Fatal(err)
+			}
+			if err := rule.GenEvaluator(&m); err != nil {
+				b.Fatal(err)
+			}
+
+			b.ReportAllocs()
+			for b.Loop() {
+				resetContext(ctx, event)
+				rule.Eval(ctx)
+			}
+		})
+	}
+}
+
+// benchPatterns prepares a set the way a macro's value will reach its declaration
+// once policies are compiled: evaluated once, at load.
+func benchPatterns(b *testing.B, patterns []string) ref.Val {
+	b.Helper()
+
+	members := make([]ref.Val, 0, len(patterns))
+	for _, pattern := range patterns {
+		value, err := newGlobValue(strings.Trim(pattern, `~"`))
+		if err != nil {
+			b.Fatal(err)
+		}
+		members = append(members, value)
+	}
+
+	set, err := newPatternSet(types.NewDynamicList(types.DefaultTypeAdapter, members))
+	if err != nil {
+		b.Fatal(err)
+	}
+	return set
+}

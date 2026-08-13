@@ -1,0 +1,404 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package seclcel
+
+import (
+	"fmt"
+	"reflect"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/common/types/traits"
+	"github.com/google/cel-go/interpreter"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
+
+// A SECL pattern is a value here, not only an operator.
+//
+// `x == ~"/etc/*"` needs no value: the translation knows both sides and emits a glob
+// call. A *list* of patterns does — `x in [ ~"/etc/*", "/etc/passwd" ]` — because what
+// a member means is decided per member, and because a macro is a list a rule refers to
+// by name, so the pattern-ness has to survive being handed around.
+//
+// So a glob and a regexp are values carrying their compiled matcher, a list of them is
+// a prepared set, and membership is one call over that set. What that replaces is a
+// disjunction with one term per member, each re-reading the subject.
+//
+// The types are opaque: nothing in CEL can be done with them except hand them to
+// MatchAnyFunc, which is what keeps `process.uid in SHELL_NAMES` a type error rather than a
+// rule that never fires.
+var (
+	// GlobType is a SECL glob pattern, compiled.
+	GlobType = types.NewOpaqueType("secl.Glob")
+	// RegexpType is a SECL regexp, compiled.
+	RegexpType = types.NewOpaqueType("secl.Regexp")
+	// PatternsType is what a list of strings, globs and regexps is prepared into.
+	PatternsType = types.NewOpaqueType("secl.Patterns")
+)
+
+// globValue is a compiled SECL glob.
+type globValue struct {
+	pattern string
+	matcher eval.PatternStringMatcher
+}
+
+func newGlobValue(pattern string) (ref.Val, error) {
+	value := &globValue{pattern: pattern}
+	if err := value.matcher.Compile(pattern, false); err != nil {
+		return nil, fmt.Errorf("%w: %q is not a valid pattern: %w", errUnsupportedValue, pattern, err)
+	}
+	return value, nil
+}
+
+func (g *globValue) matches(s string) bool { return g.matcher.Matches(s) }
+
+// Type implements ref.Val.
+func (g *globValue) Type() ref.Type { return GlobType }
+
+// Value implements ref.Val, returning the pattern as it was written.
+func (g *globValue) Value() any { return g.pattern }
+
+// Equal implements ref.Val as a match rather than as an equality, which is what a
+// pattern means wherever one is compared. It is only reachable with the pattern on the
+// left: cel-go's own equality would answer false for the other order, which is why the
+// translation never emits one — see MatchAnyFunc.
+func (g *globValue) Equal(other ref.Val) ref.Val {
+	s, ok := other.(types.String)
+	if !ok {
+		return types.MaybeNoSuchOverloadErr(other)
+	}
+	return types.Bool(g.matches(string(s)))
+}
+
+// ConvertToNative implements ref.Val.
+func (g *globValue) ConvertToNative(typeDesc reflect.Type) (any, error) {
+	if typeDesc.Kind() == reflect.String {
+		return g.pattern, nil
+	}
+	return nil, fmt.Errorf("%w: a pattern cannot be converted to %s", errUnsupportedValue, typeDesc)
+}
+
+// ConvertToType implements ref.Val.
+func (g *globValue) ConvertToType(t ref.Type) ref.Val {
+	switch t {
+	case types.StringType:
+		return types.String(g.pattern)
+	case types.TypeType:
+		return GlobType
+	}
+	return types.NewErr("type conversion error from '%s' to '%s'", GlobType, t)
+}
+
+// regexpValue is a compiled SECL regexp. SECL and CEL agree on the semantics —
+// unanchored RE2 — so this exists for the same reason globValue does, to be a member of
+// a list rather than an operator.
+type regexpValue struct {
+	pattern string
+	re      *regexp.Regexp
+}
+
+func newRegexpValue(pattern string) (ref.Val, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %q is not a valid regexp: %w", errUnsupportedValue, pattern, err)
+	}
+	return &regexpValue{pattern: pattern, re: re}, nil
+}
+
+func (r *regexpValue) matches(s string) bool { return r.re.MatchString(s) }
+
+// Type implements ref.Val.
+func (r *regexpValue) Type() ref.Type { return RegexpType }
+
+// Value implements ref.Val.
+func (r *regexpValue) Value() any { return r.pattern }
+
+// Equal implements ref.Val, matching rather than comparing — see globValue.Equal.
+func (r *regexpValue) Equal(other ref.Val) ref.Val {
+	s, ok := other.(types.String)
+	if !ok {
+		return types.MaybeNoSuchOverloadErr(other)
+	}
+	return types.Bool(r.matches(string(s)))
+}
+
+// ConvertToNative implements ref.Val.
+func (r *regexpValue) ConvertToNative(typeDesc reflect.Type) (any, error) {
+	if typeDesc.Kind() == reflect.String {
+		return r.pattern, nil
+	}
+	return nil, fmt.Errorf("%w: a regexp cannot be converted to %s", errUnsupportedValue, typeDesc)
+}
+
+// ConvertToType implements ref.Val.
+func (r *regexpValue) ConvertToType(t ref.Type) ref.Val {
+	switch t {
+	case types.StringType:
+		return types.String(r.pattern)
+	case types.TypeType:
+		return RegexpType
+	}
+	return types.NewErr("type conversion error from '%s' to '%s'", RegexpType, t)
+}
+
+// matcher is what a prepared set holds for a member that is not a plain string.
+type matcher interface {
+	matches(s string) bool
+	Value() any
+}
+
+// patternSet is a list of members prepared for membership: the plain strings in a map,
+// everything else as a compiled matcher.
+//
+// It is built when the rule is planned, so the map is hashed once and each pattern is
+// compiled once, however many rules refer to the same macro.
+type patternSet struct {
+	strings  map[string]struct{}
+	matchers []matcher
+}
+
+func newPatternSet(members ref.Val) (ref.Val, error) {
+	list, ok := members.(traits.Lister)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s is not a list of patterns", errUnsupportedValue, members.Type())
+	}
+
+	set := &patternSet{strings: map[string]struct{}{}}
+	for it := list.Iterator(); it.HasNext() == types.True; {
+		switch member := it.Next().(type) {
+		case types.String:
+			set.strings[string(member)] = struct{}{}
+		case matcher:
+			set.matchers = append(set.matchers, member)
+		default:
+			return nil, fmt.Errorf("%w: %s cannot be a member of a pattern list",
+				errUnsupportedValue, member.Type())
+		}
+	}
+	return set, nil
+}
+
+// contains reports whether the subject equals one of the plain strings or matches one
+// of the patterns, which is SECL's `in` over a list holding either.
+func (p *patternSet) contains(s string) bool {
+	if _, ok := p.strings[s]; ok {
+		return true
+	}
+	for _, m := range p.matchers {
+		if m.matches(s) {
+			return true
+		}
+	}
+	return false
+}
+
+// Type implements ref.Val.
+func (p *patternSet) Type() ref.Type { return PatternsType }
+
+// Value implements ref.Val.
+func (p *patternSet) Value() any { return p }
+
+// Equal implements ref.Val. A set is not comparable: it exists to be searched.
+func (p *patternSet) Equal(other ref.Val) ref.Val {
+	return types.MaybeNoSuchOverloadErr(other)
+}
+
+// ConvertToNative implements ref.Val.
+func (p *patternSet) ConvertToNative(typeDesc reflect.Type) (any, error) {
+	return nil, fmt.Errorf("%w: a pattern list cannot be converted to %s", errUnsupportedValue, typeDesc)
+}
+
+// ConvertToType implements ref.Val.
+func (p *patternSet) ConvertToType(t ref.Type) ref.Val {
+	switch t {
+	case types.StringType:
+		return types.String(p.String())
+	case types.TypeType:
+		return PatternsType
+	}
+	return types.NewErr("type conversion error from '%s' to '%s'", PatternsType, t)
+}
+
+// String renders the set the way the rule wrote it, for an error message and for the
+// coverage tool.
+func (p *patternSet) String() string {
+	members := make([]string, 0, len(p.strings)+len(p.matchers))
+	for s := range p.strings {
+		members = append(members, fmt.Sprintf("%q", s))
+	}
+	for _, m := range p.matchers {
+		members = append(members, fmt.Sprintf("%v", m.Value()))
+	}
+	sort.Strings(members)
+	return "[" + strings.Join(members, ", ") + "]"
+}
+
+// patternBindings declares the pattern values and the membership test over them.
+//
+// GlobFunc carries a second, unary overload: with two arguments it matches, with one it
+// builds the value. They are the same function to a rule author, and the translation
+// picks by position — a comparison takes the first, a list member the second.
+func patternBindings() []cel.EnvOption {
+	return []cel.EnvOption{
+		cel.Function(GlobFunc,
+			cel.Overload("secl_glob_value", []*cel.Type{cel.StringType}, GlobType,
+				cel.UnaryBinding(celGlobValue))),
+
+		cel.Function(RegexpFunc,
+			cel.Overload("secl_regexp_value", []*cel.Type{cel.StringType}, RegexpType,
+				cel.UnaryBinding(celRegexpValue))),
+
+		cel.Function(PatternsFunc,
+			cel.Overload("secl_patterns", []*cel.Type{cel.ListType(cel.DynType)}, PatternsType,
+				cel.UnaryBinding(celPatterns))),
+
+		// The overloads are what keeps membership type-checked: a set of patterns and
+		// a list of strings can both be searched for a string, and nothing can be
+		// searched for anything else.
+		cel.Function(MatchAnyFunc,
+			cel.Overload("secl_match_any_patterns", []*cel.Type{cel.StringType, PatternsType}, cel.BoolType,
+				cel.BinaryBinding(celMatchAny)),
+			cel.Overload("secl_match_any_strings", []*cel.Type{cel.StringType, cel.ListType(cel.StringType)}, cel.BoolType,
+				cel.BinaryBinding(celMatchAny)),
+			cel.Overload("secl_match_any_ints", []*cel.Type{cel.IntType, cel.ListType(cel.IntType)}, cel.BoolType,
+				cel.BinaryBinding(celMatchAny)),
+			cel.Overload("secl_match_any_bools", []*cel.Type{cel.BoolType, cel.ListType(cel.BoolType)}, cel.BoolType,
+				cel.BinaryBinding(celMatchAny))),
+	}
+}
+
+// matchAnyDecorator prepares the right hand side of a membership test when the rule
+// is planned, whenever it is a value rather than something read from the event.
+//
+// It is what keeps a macro as cheap as a list written out. The translation cannot know
+// what a name holds, so `x in SHELL_NAMES` becomes a MatchAnyFunc call over a declared
+// constant — and left alone that would walk the list and compare boxed values per event,
+// where cel-go's own `in` over a literal list folds into a hash lookup. Preparing the
+// constant here gives the same lookup for a plain list and compiles each pattern once
+// for a list holding some.
+//
+// It also removes the call: what is left is the subject, resolved through whatever the
+// planner made of it, and one set lookup.
+func matchAnyDecorator() interpreter.InterpretableDecoratorV2 {
+	return func(i interpreter.InterpretableV2) (interpreter.InterpretableV2, error) {
+		call, ok := i.(interpreter.InterpretableCall)
+		if !ok || call.Function() != MatchAnyFunc || len(call.Args()) != 2 {
+			return i, nil
+		}
+
+		members, ok := call.Args()[1].(interpreter.InterpretableConst)
+		if !ok {
+			// The members are read from the event — a field reference — so there is
+			// nothing to prepare and the call stands.
+			return i, nil
+		}
+		set, ok := preparedSet(members.Value())
+		if !ok {
+			// A list of something other than strings, which the generic call handles
+			// through the list's own Contains.
+			return i, nil
+		}
+
+		return &matchAnyIn{id: call.ID(), subject: call.Args()[0], set: set, generic: i}, nil
+	}
+}
+
+// preparedSet is the set a constant right hand side is searched through, if it can be
+// one: a set prepared by PatternsFunc already, or a list of plain strings.
+func preparedSet(members ref.Val) (*patternSet, bool) {
+	if set, ok := members.(*patternSet); ok {
+		return set, true
+	}
+	prepared, err := newPatternSet(members)
+	if err != nil {
+		return nil, false
+	}
+	return prepared.(*patternSet), true
+}
+
+// matchAnyIn is a membership test against a set prepared at planning time.
+type matchAnyIn struct {
+	id      int64
+	subject interpreter.InterpretableV2
+	set     *patternSet
+
+	// generic is the call as cel-go planned it, for a subject that turns out not to
+	// be a string — an error or an unknown, which has to be propagated rather than
+	// answered.
+	generic interpreter.InterpretableV2
+}
+
+// ID implements interpreter.Interpretable.
+func (m *matchAnyIn) ID() int64 { return m.id }
+
+// Eval implements interpreter.Interpretable.
+func (m *matchAnyIn) Eval(activation interpreter.Activation) ref.Val {
+	return m.Exec(interpreter.AsFrame(activation))
+}
+
+// Exec implements interpreter.InterpretableV2.
+func (m *matchAnyIn) Exec(frame *interpreter.ExecutionFrame) ref.Val {
+	subject, ok := m.subject.Exec(frame).(types.String)
+	if !ok {
+		return m.generic.Exec(frame)
+	}
+	return types.Bool(m.set.contains(string(subject)))
+}
+
+func celGlobValue(pattern ref.Val) ref.Val {
+	s, ok := pattern.(types.String)
+	if !ok {
+		return types.MaybeNoSuchOverloadErr(pattern)
+	}
+	value, err := newGlobValue(string(s))
+	if err != nil {
+		return types.WrapErr(err)
+	}
+	return value
+}
+
+func celRegexpValue(pattern ref.Val) ref.Val {
+	s, ok := pattern.(types.String)
+	if !ok {
+		return types.MaybeNoSuchOverloadErr(pattern)
+	}
+	value, err := newRegexpValue(string(s))
+	if err != nil {
+		return types.WrapErr(err)
+	}
+	return value
+}
+
+func celPatterns(members ref.Val) ref.Val {
+	set, err := newPatternSet(members)
+	if err != nil {
+		return types.WrapErr(err)
+	}
+	return set
+}
+
+// celMatchAny is SECL's `in` over anything a rule can name on the right of it: a prepared set
+// of patterns, or an ordinary list.
+func celMatchAny(subject, members ref.Val) ref.Val {
+	if set, ok := members.(*patternSet); ok {
+		s, ok := subject.(types.String)
+		if !ok {
+			return types.MaybeNoSuchOverloadErr(subject)
+		}
+		return types.Bool(set.contains(string(s)))
+	}
+
+	list, ok := members.(traits.Container)
+	if !ok {
+		return types.MaybeNoSuchOverloadErr(members)
+	}
+	return list.Contains(subject)
+}

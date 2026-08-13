@@ -33,7 +33,7 @@ var errUnsupportedValue = errors.New("seclcel")
 
 // helperBindings implements the functions NewEnv declares.
 func helperBindings() []cel.EnvOption {
-	return []cel.EnvOption{
+	return append(patternBindings(), []cel.EnvOption{
 		cel.Function(GlobFunc,
 			cel.Overload("secl_glob_string_string", []*cel.Type{cel.StringType, cel.StringType}, cel.BoolType,
 				cel.BinaryBinding(celGlob))),
@@ -57,7 +57,7 @@ func helperBindings() []cel.EnvOption {
 		cel.Function(RootDomainFunc,
 			cel.Overload("secl_root_domain_string", []*cel.Type{cel.StringType}, cel.StringType,
 				cel.UnaryBinding(celRootDomain))),
-	}
+	}...)
 }
 
 // celGlob matches a string against a SECL glob pattern.

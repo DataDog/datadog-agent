@@ -53,15 +53,22 @@ var translations = []struct {
 	{`process.file.name in [ "sh", "bash" ]`, `process.file.name in ["sh", "bash"]`},
 	{`process.file.name not in [ "sh", "bash" ]`, `!(process.file.name in ["sh", "bash"])`},
 	{`process.uid in [ 0, 1 ]`, `process.uid in [0, 1]`},
-	{`process.file.name in MY_MACRO`, `process.file.name in MY_MACRO`},
-	{`process.file.name in ${my.var}`, `process.file.name in vars.my.var`},
-	// a list holding a matcher cannot use CEL's equality based `in`
+	// a list reached by name may hold patterns, which is not visible here, so the
+	// membership goes through the helper that searches either
+	{`process.file.name in MY_MACRO`, `secl.matchAny(process.file.name, MY_MACRO)`},
+	{`process.file.name in ${my.var}`, `secl.matchAny(process.file.name, vars.my.var)`},
+	// a list holding a matcher cannot use CEL's equality based `in`, so it is
+	// prepared into a set of compiled matchers instead
 	{`process.file.name in [ "sh", ~"/usr/*", r"z.*" ]`,
-		`process.file.name == "sh" || secl.glob(process.file.name, "/usr/*") || process.file.name.matches("z.*")`},
+		`secl.matchAny(process.file.name, secl.patterns(["sh", secl.glob("/usr/*"), secl.regexp("z.*")]))`},
 	{`process.file.name not in [ "sh", ~"/usr/*" ]`,
-		`!(process.file.name == "sh" || secl.glob(process.file.name, "/usr/*"))`},
-	{`process.args allin [ "a", "b" ]`, `process.args.all(elem, elem in ["a", "b"])`},
-	{`process.args allin [ ~"/a/*" ]`, `process.args.all(elem, secl.glob(elem, "/a/*"))`},
+		`!(secl.matchAny(process.file.name, secl.patterns(["sh", secl.glob("/usr/*")])))`},
+	// a list of one pattern is the comparison it would have been written as
+	{`process.file.name in [ ~"/usr/*" ]`, `secl.glob(process.file.name, "/usr/*")`},
+	// `allin` is a second spelling of `in` outside the CIDR case — see
+	// TestAllInIsMembershipLikeSECL
+	{`process.args allin [ "a", "b" ]`, `process.args in ["a", "b"]`},
+	{`process.args allin [ ~"/a/*" ]`, `secl.glob(process.args, "/a/*")`},
 
 	// arithmetic and bitwise operators
 	{`process.uid + 1 > 2`, `process.uid + 1 > 2`},

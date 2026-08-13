@@ -164,8 +164,11 @@ func plannerOptions() []interpreter.PlannerOption {
 		// the optimization pass emitted. readDecorator is readOptimization in the
 		// form a caller that plans the interpretable itself has to pass it.
 		interpreter.CustomDecoratorV2(readDecorator()),
-		// Collapse an expression over SECL constants, which the flags idiom is made
-		// of, into the one value it always evaluates to.
-		interpreter.CustomDecoratorV2(arithmeticFolding()),
+		// Collapse an expression over literals — the flags idiom, a list of patterns —
+		// into the one value it always evaluates to.
+		interpreter.CustomDecoratorV2(constantFolding()),
+		// Prepare the right hand side of a membership test, which the folding above has
+		// just turned into a value wherever the rule named one.
+		interpreter.CustomDecoratorV2(matchAnyDecorator()),
 	}
 }
