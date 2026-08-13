@@ -31,23 +31,26 @@ impl SuspendedChild {
     }
 
     /// Assign the child to `job`, resume the initial thread, then store the job on `process`.
+    /// Fails the spawn if job assignment fails so the child is never resumed unsupervised.
     pub(super) fn supervise(
         self,
         process: &mut ManagedProcess,
         job: JobObject,
     ) -> Result<ProcessHandle> {
         let process_name = process.name();
-        let job_assigned = match job.assign_process(self.pid) {
-            Ok(()) => true,
-            Err(e) => {
-                warn!("[{process_name}] failed to assign to job object: {e:#}");
-                false
-            }
-        };
+        if let Err(e) = job.assign_process(self.pid) {
+            warn!("[{process_name}] failed to assign to job object: {e:#}");
+            terminate_unassigned_suspended_child(process_name, self.pid);
+            process.clear_windows_spawn_resources();
+            bail!(
+                "[{process_name}] failed to assign pid {} to supervision job: {e:#}",
+                self.pid
+            );
+        }
 
         let previous_count = unsafe { ResumeThread(self.thread.as_handle()) };
         if previous_count == u32::MAX {
-            terminate_suspended_child(process_name, self.pid, job_assigned, &job);
+            terminate_suspended_child(process_name, self.pid, &job);
             process.clear_windows_spawn_resources();
             bail!(
                 "ResumeThread({}) failed: {}",
@@ -56,20 +59,21 @@ impl SuspendedChild {
             );
         }
 
-        if job_assigned {
-            process.set_job_object(job);
-        }
+        process.set_job_object(job);
         Ok(ProcessHandle::from_raw(self.pid, self.process.raw()))
     }
 }
 
-fn terminate_suspended_child(process_name: &str, pid: u32, job_assigned: bool, job: &JobObject) {
-    let result = if job_assigned {
-        job.terminate()
-    } else {
-        super::super::send_force_kill(pid)
-    };
-    if let Err(e) = result {
+fn terminate_unassigned_suspended_child(process_name: &str, pid: u32) {
+    if let Err(e) = super::super::send_force_kill(pid) {
+        warn!(
+            "[{process_name}] failed to terminate unsupervised suspended child (pid={pid}) after job assignment failure: {e:#}"
+        );
+    }
+}
+
+fn terminate_suspended_child(process_name: &str, pid: u32, job: &JobObject) {
+    if let Err(e) = job.terminate() {
         warn!(
             "[{process_name}] failed to terminate suspended child (pid={pid}) after ResumeThread failure: {e:#}"
         );
