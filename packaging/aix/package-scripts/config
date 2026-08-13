@@ -15,9 +15,6 @@ if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ] && [ -f "$EXAMPLE_FILE" ] && 
     STAGING_FILE="$CONFIG_FILE.tmp.$$"
 
     if (umask 077 && cp "$EXAMPLE_FILE" "$STAGING_FILE"); then
-        # Heredoc is quoted ('PYEOF'): reads DD_* from os.environ instead of
-        # shell-interpolating them into the Python source, which a value
-        # containing a stray '"' could turn into code execution.
         "$PYTHON" - "$STAGING_FILE" <<'PYEOF'
 import os
 import sys
@@ -49,34 +46,33 @@ for i, line in enumerate(lines):
         break
 
 extra = {}
-if env("DD_SITE"):
-    extra["site"] = env("DD_SITE")
-if env("DD_HOSTNAME"):
-    extra["hostname"] = env("DD_HOSTNAME")
-if env("DD_ENV"):
-    extra["env"] = env("DD_ENV")
-if env("DD_INFRASTRUCTURE_MODE"):
-    extra["infrastructure_mode"] = env("DD_INFRASTRUCTURE_MODE")
-if env("DD_TAGS"):
-    extra["tags"] = [t for t in env("DD_TAGS").split(",") if t]
+if site := env("DD_SITE"):
+    extra["site"] = site
+if hostname := env("DD_HOSTNAME"):
+    extra["hostname"] = hostname
+if environment := env("DD_ENV"):
+    extra["env"] = environment
+if infrastructure_mode := env("DD_INFRASTRUCTURE_MODE"):
+    extra["infrastructure_mode"] = infrastructure_mode
+if tags := env("DD_TAGS"):
+    extra["tags"] = [t for t in tags.split(",") if t]
 
 # DD_PROXY_* takes precedence over the generic HTTP_PROXY/HTTPS_PROXY/NO_PROXY
 # vars, matching the Agent's own env var resolution (LoadProxyFromEnv).
 proxy = {}
-if env("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy"):
-    proxy["http"] = env("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy")
-if env("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy"):
-    proxy["https"] = env("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy")
-if env("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy"):
-    no_proxy = env("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy")
-    proxy["no_proxy"] = no_proxy.replace(",", " ").split()
+if http_proxy := env("DD_PROXY_HTTP", "HTTP_PROXY", "http_proxy"):
+    proxy["http"] = http_proxy
+if https_proxy := env("DD_PROXY_HTTPS", "HTTPS_PROXY", "https_proxy"):
+    proxy["https"] = https_proxy
+if no_proxy := env("DD_PROXY_NO_PROXY", "NO_PROXY", "no_proxy"):
+    proxy["no_proxy"] = [p for p in no_proxy.split(",") if p]
 if proxy:
     extra["proxy"] = proxy
 
 with open(path, "w") as f:
-    f.writelines(lines)
     if extra:
-        f.write("\n" + yaml.safe_dump(extra, default_flow_style=False))
+        f.write(yaml.safe_dump(extra, default_flow_style=False) + "\n")
+    f.writelines(lines)
 PYEOF
 
         if chown dd-agent:dd-agent "$STAGING_FILE" 2>/dev/null && chmod 640 "$STAGING_FILE" 2>/dev/null; then
