@@ -310,7 +310,7 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
-		migChildDevice.NVLinkLinkCount = d.NVLinkLinkCount
+		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
 		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
 
@@ -418,15 +418,21 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 		return
 	}
 
-	linkCount := binary.LittleEndian.Uint64(fields[0].Value[:])
-	if linkCount > uint64(^uint(0)>>1) {
+	linkCount, err := nvmlFieldValueToInt(fields[0])
+	if err != nil {
 		if logLimiter.ShouldLog() {
-			log.Warnf("NVLink link count %d exceeds maximum integer value", linkCount)
+			log.Warnf("cannot parse NVLink link count: %v", err)
+		}
+		return
+	}
+	if linkCount < 0 {
+		if logLimiter.ShouldLog() {
+			log.Warnf("NVLink link count %d is negative", linkCount)
 		}
 		return
 	}
 
-	d.NVLinkLinkCount = int(linkCount)
+	d.NVLinkLinkCount = linkCount
 	for link := range d.NVLinkLinkCount {
 		version, err := dev.GetNvLinkVersion(link)
 		if err != nil {
@@ -441,6 +447,25 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 		} else if d.NVLinkVersion != nvlinkVersionString(version) && logLimiter.ShouldLog() {
 			log.Warnf("NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
 		}
+	}
+}
+
+func nvmlFieldValueToInt(fv nvml.FieldValue) (int, error) {
+	switch nvml.ValueType(fv.ValueType) {
+	case nvml.VALUE_TYPE_UNSIGNED_INT:
+		return int(binary.LittleEndian.Uint32(fv.Value[:4])), nil
+	case nvml.VALUE_TYPE_UNSIGNED_LONG, nvml.VALUE_TYPE_UNSIGNED_LONG_LONG:
+		value := binary.LittleEndian.Uint64(fv.Value[:])
+		if value > uint64(^uint(0)>>1) {
+			return 0, fmt.Errorf("NVLink field value %d exceeds maximum integer value", value)
+		}
+		return int(value), nil
+	case nvml.VALUE_TYPE_SIGNED_INT:
+		return int(int32(binary.LittleEndian.Uint32(fv.Value[:4]))), nil
+	case nvml.VALUE_TYPE_SIGNED_LONG_LONG:
+		return int(int64(binary.LittleEndian.Uint64(fv.Value[:]))), nil
+	default:
+		return 0, fmt.Errorf("unsupported NVML value type %d", fv.ValueType)
 	}
 }
 

@@ -94,9 +94,10 @@ func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCall
 	for _, apiCall := range apiCalls {
 		// Test API support by calling the handler with timestamp=0 and ignoring results
 		_, _, err := apiCall.Handler(device, 0)
-		if err == nil || !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-			supportedAPIs = append(supportedAPIs, apiCall)
+		if err != nil && (ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice)) {
+			continue
 		}
+		supportedAPIs = append(supportedAPIs, apiCall)
 	}
 
 	return supportedAPIs

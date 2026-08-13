@@ -115,6 +115,7 @@ func (c *nvlinkFieldsCollector) Name() CollectorName {
 func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 	var metrics []*Metric
 	var errs []error
+	skippedUnsupported := 0
 
 	// Prepare the totals map with the field value IDs of the metrics that require a total calculation.
 	// We need to do this with the field value IDs to avoid issues with duplicates (different fields providing the same metric)
@@ -123,6 +124,12 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 	for _, port := range c.ports {
 		portMetrics, err := c.getPortMetrics(port)
 		if err != nil {
+			if errors.Is(err, errUnsupportedDevice) {
+				// Unused NVLink ports report every field as NOT_SUPPORTED. Skip
+				// them rather than failing the whole collector.
+				skippedUnsupported++
+				continue
+			}
 			errs = append(errs, fmt.Errorf("failed to get port %d metrics: %w", port, err))
 			continue
 		}
@@ -154,6 +161,10 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 		})
 	}
 
+	if len(metrics) == 0 && skippedUnsupported > 0 && len(errs) == 0 {
+		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
+	}
+
 	return metrics, errors.Join(errs...)
 }
 
@@ -181,6 +192,8 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 	portTag := nvlinkPortTag(port)
 	var metrics []*Metric
 	var errs []error
+	unsupportedIdx := make(map[int]nvml.Return)
+	portScopedSuccess := 0
 	for _, val := range fields {
 		metricIdx := slices.IndexFunc(c.metrics, func(m nvlinkFieldValueMetric) bool {
 			return m.fieldValueID == val.FieldId
@@ -191,18 +204,16 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		}
 
 		fieldValueMetric := c.metrics[metricIdx]
+		ret := nvml.Return(val.NvmlReturn)
 
-		// Check first if the field returned unsupported. If it's not supported, we remove
-		// this metric from the collector, even if it's after a later run. The assumption here
-		// is that unsupported fields are returned from the start, and their status does not change.
-		// This way, we avoid having different functions to collect metrics and to check for support.
-		// We also assume that if a field is not supported for a port, it's not supported for any other port.
-		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
-			c.metrics = slices.Delete(c.metrics, metricIdx, metricIdx+1)
-			log.Warnf("nvlink: fields collector removing metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
+		// Unused NVLink ports report every field as NOT_SUPPORTED. Only drop a
+		// field after this port produced at least one successful value, which
+		// means the port is active and the field is actually unsupported.
+		if ret == nvml.ERROR_NOT_SUPPORTED || (ret == nvml.ERROR_INVALID_ARGUMENT && fieldValueMetric.markUnsupportedOnInvalidArgument) {
+			unsupportedIdx[metricIdx] = ret
 			continue
-		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
-			errs = append(errs, fmt.Errorf("failed to get field value %s for port %d: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
+		} else if ret != nvml.SUCCESS {
+			errs = append(errs, fmt.Errorf("failed to get field value %s for port %d: %s", fieldValueMetric.name, port, nvml.ErrorString(ret)))
 			continue
 		}
 
@@ -224,11 +235,26 @@ func (c *nvlinkFieldsCollector) getPortMetrics(port int) ([]*Metric, error) {
 		if fieldValueMetric.addTotalMetric {
 			c.totals[fieldValueMetric.fieldValueID] += value
 		}
+
+		if fieldValueMetric.forceScopeIDValue == nil {
+			portScopedSuccess++
+		}
 	}
 
-	if len(c.metrics) == 0 {
-		// All metrics were removed, so we return an error to indicate that the device is unsupported.
+	if portScopedSuccess == 0 {
+		// Unused or fully unsupported port: keep metrics so other ports can still collect them.
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
+	}
+
+	idxs := make([]int, 0, len(unsupportedIdx))
+	for idx := range unsupportedIdx {
+		idxs = append(idxs, idx)
+	}
+	slices.Sort(idxs)
+	for i := len(idxs) - 1; i >= 0; i-- {
+		idx := idxs[i]
+		log.Warnf("nvlink: fields collector removing metric %s for port %d because it's not supported, error: %s", c.metrics[idx].name, port, nvml.ErrorString(unsupportedIdx[idx]))
+		c.metrics = slices.Delete(c.metrics, idx, idx+1)
 	}
 
 	return metrics, errors.Join(errs...)
