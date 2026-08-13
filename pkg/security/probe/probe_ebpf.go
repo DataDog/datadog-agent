@@ -2352,7 +2352,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	// network filter actions as these are used to track resources that are needed if we later
 	// dynamically load network rules or network filter actions.
 	if p.config.Probe.NetworkEnabled {
-		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket())...)
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(), p.kernelVersion.HaveIOURing())...)
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled {

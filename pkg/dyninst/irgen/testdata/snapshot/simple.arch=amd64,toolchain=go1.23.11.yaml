@@ -26114,7 +26114,7 @@ Issues:
         captureSnapshot: true
       issue:
         Kind: 3
-        Message: 'unsupported condition expression type: *exprlang.UnsupportedExpr'
+        Message: 'unsupported condition operation: not_a_valid_op'
     - probe_definition:
         id: condErr_bare_ref
         version: 0
@@ -26131,6 +26131,57 @@ Issues:
         Kind: 3
         Message: 'unsupported condition expression type: *exprlang.RefExpr'
     - probe_definition:
+        id: condErr_count_operand
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: count(tag) == 3
+            json: {eq: [{count: {ref: tag}}, 3]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: count'
+    - probe_definition:
+        id: condErr_endsWith
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: endsWith(tag, "post")
+            json: {endsWith: [{ref: tag}, post]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: endsWith'
+    - probe_definition:
+        id: condErr_instanceof
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: tag instanceof "string"
+            json: {instanceof: [{ref: tag}, string]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: instanceof'
+    - probe_definition:
         id: condErr_int8_overflow
         version: 0
         type: LOG_PROBE
@@ -26146,6 +26197,23 @@ Issues:
         Kind: 8
         Message: 'failed to resolve condition: condition: literal 128 out of range for int8 (8-bit)'
     - probe_definition:
+        id: condErr_isDefined
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: isDefined(tag)
+            json: {isDefined: {ref: tag}}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: isDefined'
+    - probe_definition:
         id: condErr_map
         version: 0
         type: LOG_PROBE
@@ -26160,6 +26228,40 @@ Issues:
       issue:
         Kind: 8
         Message: 'failed to resolve condition: Eq: type map[string]int can only be compared to null'
+    - probe_definition:
+        id: condErr_matches
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: matches(tag, "[0-9]+")
+            json: {matches: [{ref: tag}, '[0-9]+']}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: matches'
+    - probe_definition:
+        id: condErr_not_startsWith
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: '!startsWith(tag, "pre")'
+            json: {not: {startsWith: [{ref: tag}, pre]}}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: startsWith'
     - probe_definition:
         id: condErr_rhs_ref
         version: 0
@@ -26191,6 +26293,23 @@ Issues:
         Kind: 8
         Message: 'failed to resolve condition: Eq: type []int can only be compared to null'
     - probe_definition:
+        id: condErr_startsWith
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: startsWith(tag, "pre")
+            json: {startsWith: [{ref: tag}, pre]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: startsWith'
+    - probe_definition:
         id: condErr_string_vs_int
         version: 0
         type: LOG_PROBE
@@ -26220,6 +26339,23 @@ Issues:
       issue:
         Kind: 8
         Message: 'failed to resolve condition: Eq: unsupported LHS type *ir.StructureType for comparison'
+    - probe_definition:
+        id: condErr_substring_operand
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condString}
+        tags: ['issue:UnsupportedFeature']
+        when:
+            dsl: substring(tag, 0, 3) == "abc"
+            json: {eq: [{substring: [{ref: tag}, 0, 3]}, abc]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 3
+        Message: 'unsupported condition operation: substring'
     - probe_definition:
         id: condErr_uint32_negative
         version: 0

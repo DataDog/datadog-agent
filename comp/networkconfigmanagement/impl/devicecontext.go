@@ -87,13 +87,18 @@ func (dc *DeviceContext) UnlockOrLog(log log.Component) {
 	}
 }
 
-// GetTags returns standard tags for this device.
+// GetTags returns standard tags for this device. The profile tag is omitted
+// if no profile has been resolved yet (e.g. a connection failure happened
+// before profile matching could occur).
 func (dc *DeviceContext) GetTags() []string {
-	return []string{
+	tags := []string{
 		"device_namespace:" + dc.device.Namespace,
 		"device_ip:" + dc.device.IPAddress,
 		"device_id:" + dc.device.DeviceID(),
 		"config_source:cli",
-		"profile:" + string(dc.profile.Name),
 	}
+	if dc.profile != nil {
+		tags = append(tags, "profile:"+string(dc.profile.Name))
+	}
+	return tags
 }
