@@ -23,8 +23,6 @@ struct RestartTracker {
     timestamps: VecDeque<Instant>,
     current_delay: f64,
     last_spawn_time: Option<Instant>,
-    /// Set when a run exceeded `runtime_success_sec`; survives `last_spawn_time` clears.
-    had_successful_run: bool,
 }
 
 impl RestartTracker {
@@ -37,7 +35,6 @@ impl RestartTracker {
             timestamps: VecDeque::new(),
             current_delay: initial_delay,
             last_spawn_time: None,
-            had_successful_run: false,
         }
     }
 
@@ -52,20 +49,23 @@ impl RestartTracker {
     }
 
     /// Record a restart. Resets backoff if the process ran long enough.
-    fn record(&mut self, base_delay: f64, runtime_success: Duration) {
+    /// Returns `true` when the prior run met `runtime_success_sec`.
+    fn record(&mut self, base_delay: f64, runtime_success: Duration) -> bool {
+        let mut met_runtime_success = false;
         if let Some(spawn_time) = self.last_spawn_time
             && spawn_time.elapsed() >= runtime_success
         {
             self.current_delay = base_delay;
             self.count = 0;
             self.last_spawn_time = None;
-            self.had_successful_run = true;
+            met_runtime_success = true;
         }
         self.count += 1;
         self.timestamps.push_back(Instant::now());
         if self.timestamps.len() > Self::MAX_TIMESTAMPS {
             self.timestamps.pop_front();
         }
+        met_runtime_success
     }
 
     fn advance_backoff(&mut self, max_delay: f64) {
@@ -82,12 +82,12 @@ impl RestartTracker {
         &mut self,
         config: &ProcessConfig,
         process_name: &str,
-    ) -> Option<Duration> {
+    ) -> Option<(Duration, bool)> {
         if self.is_burst_limited(config.burst_limit(), config.burst_interval()) {
             warn!("[{process_name}] start limit reached, not restarting");
             return None;
         }
-        self.record(config.restart_delay(), config.runtime_success());
+        let met_runtime_success = self.record(config.restart_delay(), config.runtime_success());
         let delay = self.delay();
         info!(
             "[{process_name}] restart #{} in {:.1}s",
@@ -95,7 +95,7 @@ impl RestartTracker {
             delay.as_secs_f64()
         );
         self.advance_backoff(config.max_restart_delay());
-        Some(delay)
+        Some((delay, met_runtime_success))
     }
 }
 
@@ -196,6 +196,8 @@ pub struct ManagedProcess {
     last_start_conditions_met: Option<bool>,
     /// Incremented on config reload so queued restarts from before the change can be discarded.
     config_generation: u64,
+    /// Set when a run exceeded `runtime_success_sec`; survives config reload and backoff resets.
+    had_successful_run: bool,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
@@ -234,6 +236,7 @@ impl ManagedProcess {
             last_config_gate_met: None,
             last_start_conditions_met: None,
             config_generation: 0,
+            had_successful_run: false,
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
@@ -473,7 +476,7 @@ impl ManagedProcess {
     }
 
     pub(crate) fn has_ever_run_successfully(&self) -> bool {
-        self.restarts.had_successful_run || self.restarts.last_spawn_time.is_some()
+        self.had_successful_run || self.restarts.last_spawn_time.is_some()
     }
 
     #[cfg(test)]
@@ -836,7 +839,18 @@ impl ManagedProcess {
                 self.log_restart_policy_skip();
                 None
             }
-            RestartDecision::Allowed => self.restarts.next_restart_delay(&self.config, &self.name),
+            RestartDecision::Allowed => {
+                if let Some((delay, met_runtime_success)) =
+                    self.restarts.next_restart_delay(&self.config, &self.name)
+                {
+                    if met_runtime_success {
+                        self.had_successful_run = true;
+                    }
+                    Some(delay)
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -1396,8 +1410,11 @@ pub mod tests {
         proc.restarts.current_delay = 16.0;
         proc.restarts.count = 5;
 
-        proc.restarts
-            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!(
+            proc.restarts
+                .record(proc.config.restart_delay(), proc.config.runtime_success()),
+            "record should report runtime success"
+        );
         assert!(
             (proc.restarts.current_delay - 1.0).abs() < 0.001,
             "delay should reset after long runtime"
@@ -1406,10 +1423,6 @@ pub mod tests {
         assert!(
             proc.restarts.last_spawn_time.is_none(),
             "successful-run timestamp should be consumed after one reset"
-        );
-        assert!(
-            proc.restarts.had_successful_run,
-            "successful-run state should persist after timestamp reset"
         );
     }
 
@@ -1438,6 +1451,33 @@ pub mod tests {
             proc.has_ever_run_successfully(),
             "successful-run state should survive subsequent restart_delay calls"
         );
+    }
+
+    #[test]
+    fn test_set_config_preserves_successful_run_state() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args.clone());
+        cfg.restart = RestartPolicy::Always;
+        cfg.restart_sec = Some(1.0);
+        let mut proc =
+            ManagedProcess::new_config("config-swap".into(), test_helpers::test_uuid(), cfg);
+
+        proc.had_successful_run = true;
+        let mut next_cfg = test_helpers::make_config(cmd, args);
+        next_cfg.restart_sec = Some(2.0);
+
+        proc.set_config(next_cfg);
+
+        assert!(
+            proc.had_successful_run,
+            "set_config should preserve successful-run state when resetting backoff"
+        );
+        assert!(
+            proc.has_ever_run_successfully(),
+            "has_ever_run_successfully should stay true after config replacement"
+        );
+        assert_eq!(proc.config_generation(), 1);
+        assert!((proc.restarts.current_delay - 2.0).abs() < 0.001);
     }
 
     #[test]
