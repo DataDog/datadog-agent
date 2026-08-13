@@ -33,6 +33,10 @@ const (
 	ErrSetStartupFailed ErrorType = "set_startup_failed" // we couldn't set the startup config
 	// Trailing errors (rollback succeeds but something else goes wrong)
 	ErrReportConfigFailed ErrorType = "report_config_failed" // rollback succeeded but something went wrong trying to fetch the configuration afterwards
+	// Errors reporting the NCM check's results
+	ErrConfigRetrievalFailed ErrorType = "config_retrieval_failed" // failed to retrieve/process the running or startup config
+	ErrMetadataSendFailed    ErrorType = "metadata_send_failed"    // failed to send device metadata to the backend
+	ErrPayloadSendFailed     ErrorType = "payload_send_failed"     // failed to send the NCM payload to the backend
 )
 
 // RollbackError is an error that exposes an ErrorType

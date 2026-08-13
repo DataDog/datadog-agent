@@ -2199,6 +2199,38 @@ conntrack_path: "/usr/bin/conntrack"
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
 }
 
+func TestConntrackPathAllowlist(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{"empty path is allowed", "", ""},
+		{"default usr bin path is allowed", "/usr/sbin/conntrack", "/usr/sbin/conntrack"},
+		{"default usr sbin path is allowed", "/usr/sbin/conntrack", "/usr/sbin/conntrack"},
+		{"default sbin path is allowed", "/sbin/conntrack", "/sbin/conntrack"},
+		{"nix store path is allowed", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack", "/nix/store/abcd1234-conntrack-tools-1.4.7/conntrack"},
+		{"arbitrary path is rejected", "/tmp/usr/bin/conntrack", ""},
+		{"path traversal is rejected", "/nix/store/../../etc/conntrack", ""},
+		{"command injection attempt is rejected", "/usr/sbin/conntrack; cat /etc/passwd", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+			networkCheck := createTestNetworkCheck(net)
+
+			rawInstanceConfig := []byte(`conntrack_path: "` + tt.path + `"`)
+			mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+
+			err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+			assert.Nil(t, err)
+
+			assert.Equal(t, tt.expected, networkCheck.config.instance.ConntrackPath)
+		})
+	}
+}
+
 func TestConntrackGaugeBlacklist(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
 	networkCheck := createTestNetworkCheck(net)
