@@ -9,6 +9,9 @@
   extends:
     - .windows_docker_default
     - .bazel:defs:cache:windows
+  variables:
+    # Full history needed for the `--only-impacted-packages`/coverage-cache git merge-base lookups
+    GIT_DEPTH: 0
   script:
     - $ErrorActionPreference = "Stop"
     - !reference [.sanitize_goproxy_windows]

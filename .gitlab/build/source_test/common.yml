@@ -16,3 +16,5 @@
   extends: .bazel:defs:cache:progressive
   variables:
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
+    # Full history needed for the `--only-impacted-packages`/coverage-cache git merge-base lookups
+    GIT_DEPTH: 0
