@@ -67,7 +67,12 @@ type Listener interface {
 	//   - Called only when there are actual configuration changes to process
 	//   - May be skipped if signature verification fails and ShouldIgnoreSignatureExpiration() returns false
 	//   - Listeners should process all provided configurations and report their apply status
-	//   - The applyStateCallback must be called for proper state tracking and error reporting
+	//   - The applyStateCallback must be called for proper state tracking and error reporting,
+	//     for every config path this listener owns
+	//   - A product can have more than one independent listener (e.g. HA_AGENT, shared by
+	//     comp/haagent and comp/workloadbalancing): each config path still has exactly one
+	//     owner, and a listener must not call applyStateCallback for a path it doesn't own,
+	//     since apply status is tracked per (product, config_path) with no listener identity
 	OnUpdate(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
 
 	// OnStateChange is called when the remote config client's connectivity state changes.
