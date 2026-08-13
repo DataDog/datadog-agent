@@ -2229,6 +2229,41 @@ process_config:
 	assert.Empty(t, process.FallbackAPIKey)
 }
 
+// TestListShapeAdditionalEndpointsConfigKeysCoversAllRegisteredSettings verifies every bound
+// list-shaped additional_endpoints setting is scanned for DELA(...) directives. Missing a setting
+// here turns its directive into an empty API key with no delegated-auth instance to resolve it.
+func TestListShapeAdditionalEndpointsConfigKeysCoversAllRegisteredSettings(t *testing.T) {
+	expected := []string{
+		"logs_config.additional_endpoints",
+		"agent_telemetry.additional_endpoints",
+		"database_monitoring.samples.additional_endpoints",
+		"database_monitoring.activity.additional_endpoints",
+		"database_monitoring.metrics.additional_endpoints",
+		"network_devices.metadata.additional_endpoints",
+		"network_devices.snmp_traps.forwarder.additional_endpoints",
+		"network_devices.netflow.forwarder.additional_endpoints",
+		"network_devices.config_management.forwarder.additional_endpoints",
+		"network_path.forwarder.additional_endpoints",
+		"synthetics.forwarder.additional_endpoints",
+		"config_files_discovery.forwarder.additional_endpoints",
+		"data_observability.forwarder.additional_endpoints",
+		"data_streams.forwarder.additional_endpoints",
+		"event_management.forwarder.additional_endpoints",
+		"genresources.additional_endpoints",
+		"kubeactions.forwarder.additional_endpoints",
+		"sds_result.forwarder.additional_endpoints",
+		"software_inventory.forwarder.additional_endpoints",
+		"compliance_config.endpoints.additional_endpoints",
+		"runtime_security_config.endpoints.additional_endpoints",
+		"runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints",
+		"container_lifecycle.additional_endpoints",
+		"container_image.additional_endpoints",
+		"sbom.additional_endpoints",
+		"service_discovery.forwarder.additional_endpoints",
+	}
+	assert.ElementsMatch(t, expected, listShapeAdditionalEndpointsConfigKeys)
+}
+
 func TestConfigureListShapeAdditionalEndpointsDelegatedAuth(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey
