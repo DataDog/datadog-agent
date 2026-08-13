@@ -32,4 +32,5 @@ const (
 	PARIdleTimeoutSeconds     = "private_action_runner.idle_timeout_seconds"
 
 	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
+	PARSplitEnabled       = "private_action_runner.split_enabled"
 )
