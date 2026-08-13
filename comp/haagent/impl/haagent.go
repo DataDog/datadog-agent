@@ -98,6 +98,7 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 		return
 	}
 
+	sawHaAgentDoc := false
 	for configPath, rawConfig := range updates {
 		h.log.Debugf("Received config %s: %s", configPath, string(rawConfig.Config))
 
@@ -107,6 +108,7 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			h.log.Debugf("Skipping config %s: belongs to comp/workloadbalancing (group_id=%s)", configPath, discriminator.GroupID)
 			continue
 		}
+		sawHaAgentDoc = true
 
 		haAgentMsg := haAgentConfig{}
 		err := json.Unmarshal(rawConfig.Config, &haAgentMsg)
@@ -135,5 +137,13 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 		applyStateCallback(configPath, state.ApplyStatus{
 			State: state.ApplyStateAcknowledged,
 		})
+	}
+
+	// The batch wasn't empty, but every document in it belonged to comp/workloadbalancing.
+	// From HA Agent's perspective that's the same as no update at all: reset rather than
+	// leave a stale Active/Standby state behind.
+	if !sawHaAgentDoc {
+		h.log.Warn("No HA_AGENT document in this update. Resetting Agent State to Unknown.")
+		h.resetAgentState()
 	}
 }
