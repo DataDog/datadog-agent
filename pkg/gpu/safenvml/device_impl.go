@@ -106,12 +106,13 @@ func (d *safeDeviceImpl) GetFanSpeed_v2(fanIndex int) (uint32, error) {
 }
 
 func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
-	d.lib.fieldValuesLock()
-	defer d.lib.fieldValuesUnlock()
-
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
 	}
+
+	d.lib.fieldValuesLock()
+	defer d.lib.fieldValuesUnlock()
+
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
 }
