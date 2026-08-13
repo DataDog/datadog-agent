@@ -497,7 +497,6 @@ impl ManagedProcess {
         true
     }
 
-    /// Whether config gates allow respawning after a definition change or manual start.
     #[must_use]
     pub(crate) fn should_respawn(&self) -> bool {
         if self.config.auto_start {
@@ -507,7 +506,6 @@ impl ManagedProcess {
         }
     }
 
-    /// Whether a queued crash restart should still run after config reload.
     #[must_use]
     pub(crate) fn should_complete_pending_restart(&self) -> bool {
         self.restart_eligibility() == Some(true) && self.should_respawn()
