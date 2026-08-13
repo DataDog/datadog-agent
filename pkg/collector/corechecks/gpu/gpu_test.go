@@ -672,10 +672,6 @@ func (m *mockCollector) Name() nvidia.CollectorName {
 	return m.name
 }
 
-func (m *mockCollector) DeviceUUID() string {
-	return m.deviceUUID
-}
-
 func (m *mockCollector) Device() ddnvml.Device {
 	return &ddnvml.PhysicalDevice{
 		DeviceInfo: ddnvml.DeviceInfo{UUID: m.deviceUUID},

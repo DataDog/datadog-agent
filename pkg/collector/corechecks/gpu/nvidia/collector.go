@@ -111,22 +111,22 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 			// Skip disabled collectors
 			if slices.Contains(disabledCollectors, string(name)) {
 				log.Debugf("Skipping disabled collector %s for device %s", name, dev.GetDeviceInfo().UUID)
-				deps.Telemetry.addCollectorCreation(name, "disabled")
+				deps.Telemetry.addCollectorCreation(name, "disabled", dev)
 				continue
 			}
 
 			c, err := builder(dev, deps)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
-				deps.Telemetry.addCollectorCreation(name, "unsupported")
+				deps.Telemetry.addCollectorCreation(name, "unsupported", dev)
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s for device %s: %s", name, dev.GetDeviceInfo().UUID, err)
-				deps.Telemetry.addCollectorCreation(name, "error")
+				deps.Telemetry.addCollectorCreation(name, "error", dev)
 				continue
 			}
 
-			deps.Telemetry.addCollectorCreation(name, "success")
+			deps.Telemetry.addCollectorCreation(name, "success", dev)
 			collectors = append(collectors, c)
 		}
 	}
@@ -136,18 +136,20 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 		// Check if ebpf collector is disabled
 		if slices.Contains(disabledCollectors, string(ebpf)) {
 			log.Debug("Skipping disabled ebpf collector")
-			deps.Telemetry.addCollectorCreation(ebpf, "disabled")
+			for _, dev := range devices {
+				deps.Telemetry.addCollectorCreation(ebpf, "disabled", dev)
+			}
 		} else {
 			log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 			for _, dev := range devices {
 				spCollector, err := newEbpfCollector(dev, deps.SystemProbeCache)
 				if err != nil {
 					log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
-					deps.Telemetry.addCollectorCreation(ebpf, "error")
+					deps.Telemetry.addCollectorCreation(ebpf, "error", dev)
 					continue
 				}
 
-				deps.Telemetry.addCollectorCreation(ebpf, "success")
+				deps.Telemetry.addCollectorCreation(ebpf, "success", dev)
 				collectors = append(collectors, spCollector)
 			}
 		}
@@ -156,7 +158,9 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 	return collectors, nil
 }
 
-// CollectorTelemetry holds telemetry metrics for the collector data
+// CollectorTelemetry holds telemetry metrics for NVIDIA collector creation and execution.
+// It belongs in this package because BuildCollectors records creation outcomes, including
+// failures that occur before a collector instance exists.
 type CollectorTelemetry struct {
 	CollectionRuns   telemetry.Counter
 	Created          telemetry.Counter
@@ -170,7 +174,7 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 
 	return &CollectorTelemetry{
 		CollectionRuns:   tm.NewCounter(subsystem, "collection_runs", collectorTelemetryTagNames, "Number of collector runs"),
-		Created:          tm.NewCounter(subsystem, "created", []string{"collector", "status"}, "Number of collectors and their creation result"),
+		Created:          tm.NewCounter(subsystem, "created", collectorCreationTelemetryTagNames, "Number of collectors and their creation result"),
 		CollectionErrors: tm.NewCounter(subsystem, "collection_errors", collectorTelemetryTagNames, "Number of errors from NVML collectors"),
 		Time:             tm.NewHistogram(subsystem, "time_ms", collectorTelemetryTagNames, "Time taken to collect metrics from NVML collectors, in milliseconds", []float64{10, 100, 500, 1000, 5000}),
 	}
@@ -178,11 +182,17 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 
 var collectorTelemetryTagNames = []string{"collector", "gpu_device", "gpu_architecture", "gpu_nvlink_capable", "gpu_nvlink_version"}
 
+var collectorCreationTelemetryTagNames = append([]string{"status"}, collectorTelemetryTagNames...)
+
 // CollectorTelemetryTags returns the telemetry tag values for a collector and its device.
 func CollectorTelemetryTags(collector Collector) []string {
-	deviceInfo := collector.Device().GetDeviceInfo()
+	return collectorTelemetryTags(collector.Name(), collector.Device())
+}
+
+func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
+	deviceInfo := device.GetDeviceInfo()
 	return []string{
-		string(collector.Name()),
+		string(name),
 		deviceInfo.Name,
 		gpuutil.ArchToString(deviceInfo.Architecture),
 		strconv.FormatBool(deviceInfo.NVLinkLinkCount > 0),
@@ -191,9 +201,12 @@ func CollectorTelemetryTags(collector Collector) []string {
 }
 
 // addCollector adds a collector to the telemetry, checking that the telemetry is not nil
-func (t *CollectorTelemetry) addCollectorCreation(name CollectorName, status string) {
+func (t *CollectorTelemetry) addCollectorCreation(name CollectorName, status string, device ddnvml.Device) {
 	if t == nil {
 		return
 	}
-	t.Created.Add(1, string(name), status)
+	tags := []string{status}
+	collectorTags := collectorTelemetryTags(name, device)
+	tags = append(tags, collectorTags...)
+	t.Created.Add(1, tags...)
 }
