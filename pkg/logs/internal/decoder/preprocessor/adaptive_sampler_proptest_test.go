@@ -86,7 +86,7 @@ func newSamplerForProptest(burst, rateLimit float64, protect bool) *AdaptiveSamp
 		BurstSize:            burst,
 		MatchThreshold:       0.9,
 		ProtectImportantLogs: protect,
-	}, "proptest", 0)
+	}, staticSourceTag("proptest"), 0)
 	t0 := time.Now()
 	s.now = func() time.Time { return t0 }
 	return s

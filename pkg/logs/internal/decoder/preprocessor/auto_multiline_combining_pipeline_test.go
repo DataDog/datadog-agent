@@ -59,7 +59,7 @@ func newPathCPipeline(t *testing.T, maxContent int, samplerCfg AdaptiveSamplerCo
 	}
 	labeler := NewLabeler(heuristics, nil)
 	combining := NewCombiningAggregator(maxContent, false, false, tailerInfo)
-	sampler := NewAdaptiveSampler(samplerCfg, "pathc-test", 0)
+	sampler := NewAdaptiveSampler(samplerCfg, staticSourceTag("pathc-test"), 0)
 	jsonAgg := NewJSONAggregator(false, maxContent)
 	outputChan := make(chan *message.Message, 1024)
 	pipeline := NewPreprocessor(combining, tok, labeler, sampler, outputChan, jsonAgg, NewNoopStackTraceAggregator(), 10*time.Second, 0)

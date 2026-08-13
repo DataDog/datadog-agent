@@ -109,7 +109,7 @@ func pipelineRun(maxContent int, samplerCfg AdaptiveSamplerConfig, inputs []pipe
 	heuristics := []Heuristic{NewJSONDetector(), NewTimestampDetector(0.75)}
 	labeler := NewLabeler(heuristics, nil)
 	combining := NewCombiningAggregator(maxContent, false, false, tailerInfo)
-	sampler := NewAdaptiveSampler(samplerCfg, "proptest", 0)
+	sampler := NewAdaptiveSampler(samplerCfg, staticSourceTag("proptest"), 0)
 	jsonAgg := NewJSONAggregator(false, maxContent)
 	outputChan := make(chan *message.Message, len(inputs)*4+16)
 	pipeline := NewPreprocessor(combining, tok, labeler, sampler, outputChan, jsonAgg, NewNoopStackTraceAggregator(), 10*time.Second, 0)
@@ -295,7 +295,7 @@ func TestPathCPipeline_FlushDrainsAllBuffers_Property(t *testing.T) {
 		heuristics := []Heuristic{NewJSONDetector(), NewTimestampDetector(0.75)}
 		labeler := NewLabeler(heuristics, nil)
 		combining := NewCombiningAggregator(100_000, false, false, tailerInfo)
-		sampler := NewAdaptiveSampler(generousSamplerCfg(), "proptest", 0)
+		sampler := NewAdaptiveSampler(generousSamplerCfg(), staticSourceTag("proptest"), 0)
 		jsonAgg := NewJSONAggregator(false, 100_000)
 		outputChan := make(chan *message.Message, len(inputs)*4+16)
 		pipeline := NewPreprocessor(combining, tok, labeler, sampler, outputChan, jsonAgg, NewNoopStackTraceAggregator(), 10*time.Second, 0)
