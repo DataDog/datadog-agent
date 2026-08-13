@@ -15,6 +15,7 @@ import (
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func TestCreateMatchingPrograms_EmptyRules(t *testing.T) {
@@ -117,6 +118,29 @@ func TestCreateMatchingPrograms_SingleType(t *testing.T) {
 			assert.Equal(t, tt.expectedADID, celADIDs[0])
 		})
 	}
+}
+
+func TestCreateMatchingPrograms_ResolvedTarget(t *testing.T) {
+	rules := workloadfilter.Rules{
+		Containers: []string{`container.pod.resolved_targets.exists(target, target.group == "apps.kruise.io" && target.kind == "CloneSet" && target.namespace == "default" && target.name == "nginx") && container.image.reference != ""`},
+	}
+
+	programs, _, err := CreateMatchingPrograms(rules, true)
+	require.NoError(t, err)
+	program := programs[workloadfilter.ContainerType]
+	require.NotNil(t, program)
+
+	container := workloadfilter.CreateContainer("container-id", "nginx", "nginx:latest", &workloadfilter.Pod{
+		FilterPod: &core.FilterPod{
+			ResolvedTargets: []*core.FilterResolvedTarget{
+				{Group: "apps.kruise.io", Kind: "CloneSet", Namespace: "default", Name: "nginx"},
+			},
+		},
+	})
+	assert.True(t, program.IsMatched(container))
+
+	container.FilterContainer.GetPod().ResolvedTargets[0].Name = "other"
+	assert.False(t, program.IsMatched(container))
 }
 
 func TestCreateMatchingPrograms_MultipleTypes(t *testing.T) {

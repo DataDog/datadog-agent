@@ -1034,18 +1034,12 @@ type KubernetesResolvedTarget struct {
 	Kind      string
 	Namespace string
 	Name      string
-	ID        string
 }
 
 // String returns a string representation of KubernetesResolvedTarget.
-func (t KubernetesResolvedTarget) String(verbose bool) string {
+func (t KubernetesResolvedTarget) String(_ bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "Group:", t.Group, "Version:", t.Version, "Kind:", t.Kind, "Namespace:", t.Namespace, "Name:", t.Name)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "ID:", t.ID)
-	}
-
 	return sb.String()
 }
 

@@ -45,7 +45,6 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 			Kind:      target.Kind,
 			Namespace: target.Namespace,
 			Name:      target.Name,
-			Uid:       target.ID,
 		})
 	}
 

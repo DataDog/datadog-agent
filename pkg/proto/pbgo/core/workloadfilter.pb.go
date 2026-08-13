@@ -509,7 +509,6 @@ type FilterResolvedTarget struct {
 	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
 	Namespace     string                 `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Name          string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
-	Uid           string                 `protobuf:"bytes,6,opt,name=uid,proto3" json:"uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -575,13 +574,6 @@ func (x *FilterResolvedTarget) GetNamespace() string {
 func (x *FilterResolvedTarget) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *FilterResolvedTarget) GetUid() string {
-	if x != nil {
-		return x.Uid
 	}
 	return ""
 }
@@ -907,14 +899,13 @@ const file_datadog_workloadfilter_workloadfilter_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"9\n" +
 	"\x0fFilterRootOwner\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\x9e\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\x8c\x01\n" +
 	"\x14FilterResolvedTarget\x12\x14\n" +
 	"\x05group\x18\x01 \x01(\tR\x05group\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
 	"\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1c\n" +
 	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12\x12\n" +
-	"\x04name\x18\x05 \x01(\tR\x04name\x12\x10\n" +
-	"\x03uid\x18\x06 \x01(\tR\x03uid\"l\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\"l\n" +
 	"\rFilterProcess\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\acmdline\x18\x02 \x01(\tR\acmdline\x12\x12\n" +
