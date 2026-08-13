@@ -876,14 +876,30 @@ func (p *parser) variableOperand(tok token) (operand, *ParseError) {
 		name, length = base, true
 	}
 
-	expr, err := p.selectChain(VariablesRoot+"."+name, tok.start, tok.end)
+	rooted := VariablesRoot + "." + name
+	expr, err := p.selectChain(rooted, tok.start, tok.end)
 	if err != nil {
 		return operand{}, err
 	}
 	if length {
-		expr = p.call(sizeFunc, tok.start, tok.end, expr)
+		// size() consumes the list, so what is left is a single value and nothing
+		// below should quantify it.
+		return operand{
+			expr:  p.call(sizeFunc, tok.start, tok.end, expr),
+			start: tok.start, end: tok.end,
+		}, nil
 	}
-	return operand{expr: expr, start: tok.start, end: tok.end}, nil
+
+	// The rooted name is the field name as far as the array semantics are concerned: a
+	// variable holding a list is compared the way a list valued field is, and a
+	// FieldTypes that knows the policy's variables answers for it — see
+	// PolicyEnv.FieldTypes.
+	return operand{
+		expr:         expr,
+		field:        rooted,
+		matcherField: rooted,
+		start:        tok.start, end: tok.end,
+	}, nil
 }
 
 // fieldRefOperand translates `%{name}`, which in SECL resolves against the

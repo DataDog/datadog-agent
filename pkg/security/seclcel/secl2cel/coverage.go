@@ -9,12 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
-	"github.com/google/cel-go/cel"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
@@ -45,6 +46,9 @@ import (
 type policySet struct {
 	macros []seclcel.Macro
 	rules  []policyRule
+	// variables are the `${…}` variables the rules' own `set:` actions declare, which
+	// is where the rule engine gets them from too.
+	variables *eval.VariableStore
 }
 
 type policyRule struct {
@@ -70,7 +74,10 @@ type ruleFile struct {
 	Name       string `yaml:"name"`
 	Expression string `yaml:"expression"`
 	OSFilter   string `yaml:"osFilter"`
-	Tests      []struct {
+	Actions    []struct {
+		Set *setDefinition `yaml:"set"`
+	} `yaml:"actions"`
+	Tests []struct {
 		Description string `yaml:"description"`
 		Data        struct {
 			Type   string         `yaml:"type"`
@@ -78,6 +85,20 @@ type ruleFile struct {
 		} `yaml:"data"`
 		Expected bool `yaml:"expected"`
 	} `yaml:"tests"`
+}
+
+// setDefinition is the part of a `set:` action that decides what the variable it
+// maintains *is* — its name, its scope and its type. What the action stores is a
+// runtime concern, and the shadow does not run actions either.
+type setDefinition struct {
+	Name         string `yaml:"name"`
+	Value        any    `yaml:"value"`
+	DefaultValue any    `yaml:"default_value"`
+	Field        string `yaml:"field"`
+	Expression   string `yaml:"expression"`
+	Append       bool   `yaml:"append"`
+	Scope        string `yaml:"scope"`
+	Size         int    `yaml:"size"`
 }
 
 type macroFile struct {
@@ -133,6 +154,11 @@ func readPolicies(dir string) (policySet, error) {
 					expected:    test.Expected,
 				})
 			}
+			for _, action := range rule.Actions {
+				if action.Set != nil {
+					declareVariable(&set, action.Set)
+				}
+			}
 			set.rules = append(set.rules, parsed)
 		}
 		return nil
@@ -150,6 +176,98 @@ func readPolicies(dir string) (policySet, error) {
 // A yaml.TypeError is reported *after* the document has been decoded — one of the real
 // rule files declares `tags` twice — so the fields that did decode are still there, and
 // refusing the file would drop a rule that production loads.
+// declareVariable adds the variable a `set:` action maintains to the store, typed the
+// way the rule engine types it (ruleset.go, the Set case): from the value the action
+// stores, or from the field it copies.
+//
+// It is unset, which is what production has before any action has fired, and both engines
+// then read the same empty value. What this makes comparable is the *rest* of a rule that
+// mentions a variable — 24 of the declared cases — rather than the variable's own value.
+func declareVariable(set *policySet, definition *setDefinition) {
+	name := definition.Name
+	if definition.Scope != "" {
+		name = definition.Scope + "." + name
+	}
+	if set.variables != nil && set.variables.Get(name) != nil {
+		return
+	}
+
+	value, ok := variableZero(definition)
+	if !ok {
+		return
+	}
+
+	variable, err := (&eval.Variables{}).NewSECLVariable(name, value, definition.Scope, eval.VariableOpts{})
+	if err != nil {
+		return
+	}
+
+	if set.variables == nil {
+		set.variables = &eval.VariableStore{}
+	}
+	set.variables.Add(name, variable)
+}
+
+// variableZero is the zero value of the type a set action gives its variable, which is
+// what NewSECLVariable derives the variable's shape from.
+func variableZero(definition *setDefinition) (any, bool) {
+	if definition.Value != nil {
+		return zeroOf(fieldValue(definition.Value), definition.Append), true
+	}
+	if definition.DefaultValue != nil {
+		return zeroOf(fieldValue(definition.DefaultValue), definition.Append), true
+	}
+
+	if definition.Field != "" {
+		// The field's own type, as the rule engine reads it.
+		field := strings.TrimSuffix(strings.SplitN(definition.Field, "[", 2)[0], ".")
+		_, kind, goType, _, err := model.NewFakeEvent().GetFieldMetadata(field)
+		if err != nil {
+			return nil, false
+		}
+		switch {
+		case kind == reflect.String:
+			return zeroOf("", definition.Append), true
+		case kind == reflect.Int:
+			return zeroOf(0, definition.Append), true
+		case kind == reflect.Bool:
+			return false, true
+		case goType == "net.IPNet":
+			return []net.IPNet{}, true
+		}
+		return nil, false
+	}
+
+	// An `expression:` is evaluated when the action fires, and the rules that use one
+	// all give a default_value, which the case above took.
+	return nil, false
+}
+
+// zeroOf is the value NewSECLVariable reads a type off, as a scalar or as the array an
+// appending action accumulates.
+func zeroOf(value any, appending bool) any {
+	switch value := value.(type) {
+	case string:
+		if appending {
+			return []string{}
+		}
+		return ""
+	case int:
+		if appending {
+			return []int{}
+		}
+		return 0
+	case bool:
+		return false
+	case []string:
+		return []string{}
+	case []int:
+		return []int{}
+	default:
+		return value
+	}
+}
+
 func readYAML(path string, into any) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -203,38 +321,41 @@ type ruleResult struct {
 
 // measure runs the whole set through both engines.
 func measure(set policySet) ([]ruleResult, []seclcel.MacroFailure, error) {
-	env, macroFailures, err := seclcel.NewPolicyEnv(seclcel.Policy{Macros: set.macros})
+	policy, err := seclcel.NewPolicyEnv(seclcel.Policy{Macros: set.macros, Variables: set.variables})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	seclOpts, err := seclMacros(set.macros)
+	seclOpts, err := seclOptions(set)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	results := make([]ruleResult, 0, len(set.rules))
 	for _, rule := range set.rules {
-		results = append(results, measureRule(env, seclOpts, rule))
+		results = append(results, measureRule(policy, seclOpts, rule))
 	}
-	return results, macroFailures, nil
+	return results, policy.MacroFailures, nil
 }
 
-// seclMacros builds the other engine's macro store, so that both sides see the same
-// definitions. A macro SECL itself cannot compile is skipped: the rules using it
-// then fail on both sides, which is what the report should show.
-func seclMacros(macros []seclcel.Macro) (*eval.Opts, error) {
+// seclOptions builds what the other engine needs to compile the same rules: the macro
+// store, and the same variable store the CEL environment was given.
+//
+// A macro SECL itself cannot compile is skipped; the rules using it then fail on both
+// sides, which is what the report should show.
+func seclOptions(set policySet) (*eval.Opts, error) {
 	var m model.Model
 
 	store := &eval.MacroStore{}
 	opts := (&eval.Opts{}).
 		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields).
+		WithVariableStore(set.variables).
 		WithMacroStore(store)
 
 	parsingContext := ast.NewParsingContext(false)
 	// One pass is enough for the agent's own macros, none of which refers to another.
-	for _, macro := range macros {
+	for _, macro := range set.macros {
 		compiled, err := eval.NewMacro(macro.ID, macro.Expression, &m, parsingContext, opts)
 		if err != nil {
 			continue
@@ -244,22 +365,24 @@ func seclMacros(macros []seclcel.Macro) (*eval.Opts, error) {
 	return opts, nil
 }
 
-func measureRule(env *cel.Env, seclOpts *eval.Opts, rule policyRule) ruleResult {
+func measureRule(policy *seclcel.PolicyEnv, seclOpts *eval.Opts, rule policyRule) ruleResult {
 	result := ruleResult{rule: rule, stopped: stageDone}
 
-	if _, err := seclcel.TranslateWithTypes(rule.expression, seclcel.ModelFieldTypes{}); err != nil {
+	// The policy's field types rather than the model's alone, so that a variable holding
+	// a list is quantified the way a field holding one is.
+	if _, err := seclcel.TranslateWithTypes(rule.expression, policy.FieldTypes); err != nil {
 		result.stopped, result.err = stageTranslate, err
 		return result
 	}
 
-	if _, err := seclcel.CompileWithTypes(env, rule.expression, seclcel.ModelFieldTypes{}); err != nil {
+	if _, err := seclcel.CompileWithTypes(policy.Env, rule.expression, policy.FieldTypes); err != nil {
 		result.stopped, result.err = stageCheck, err
 		return result
 	}
 
 	// NewRule is the whole front end in one call: it checks, resolves the field reads
 	// and plans, which is the point where a pattern is compiled.
-	planned, err := seclcel.NewRule(env, rule.expression, seclcel.ModelFieldTypes{})
+	planned, err := seclcel.NewRule(policy.Env, rule.expression, policy.FieldTypes)
 	if err != nil {
 		result.stopped, result.err = stagePlan, err
 		return result
@@ -287,7 +410,7 @@ func measureRule(env *cel.Env, seclOpts *eval.Opts, rule policyRule) ruleResult 
 			continue
 		}
 
-		celVerdict, celErr := evalCEL(planned, event)
+		celVerdict, celErr := evalCEL(policy, planned, event)
 		seclVerdict, seclErr := evalSECL(seclRule, event)
 
 		if seclErr != nil {
@@ -327,13 +450,14 @@ func measureRule(env *cel.Env, seclOpts *eval.Opts, rule policyRule) ruleResult 
 // A generated reader dereferences the model the way the accessors do, so a case that
 // leaves part of the event unset can take either engine down. Containing it is what lets
 // one bad case be reported rather than end the measurement.
-func evalCEL(rule *seclcel.Rule, event *model.Event) (verdict bool, err error) {
+func evalCEL(policy *seclcel.PolicyEnv, rule *seclcel.Rule, event *model.Event) (verdict bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("panicked: %v", recovered)
 		}
 	}()
-	return rule.Eval(seclcel.NewActivation(eval.NewContext(event)))
+	// Through the policy's own activation, which is what reads its variables.
+	return rule.Eval(policy.Activation(eval.NewContext(event)))
 }
 
 func evalSECL(rule *eval.Rule, event *model.Event) (verdict bool, err error) {

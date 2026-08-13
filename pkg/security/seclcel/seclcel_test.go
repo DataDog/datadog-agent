@@ -138,6 +138,12 @@ func testEnv(t *testing.T) *cel.Env {
 		cel.Variable("b", cel.BoolType),
 		cel.Variable("c", cel.BoolType),
 		cel.Variable("MY_MACRO", cel.ListType(cel.StringType)),
+		// A variable is declared under its own dotted name, with the type the policy's
+		// store gives it — see NewPolicyEnv. Nothing is declared under `vars` itself, so
+		// this is what the table's `${my.var}` resolves to. Dynamic, like the roots
+		// above, because the table compares the same name against a string and an
+		// integer to exercise both translations.
+		cel.Variable(VariablesRoot+".my.var", cel.DynType),
 	)
 	require.NoError(t, err)
 	return env

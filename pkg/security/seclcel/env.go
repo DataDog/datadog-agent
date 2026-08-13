@@ -102,6 +102,11 @@ const EventRoot = "evt"
 // VariablesRoot is the CEL identifier that SECL variables are rooted at:
 // `${foo.bar}` translates to `vars.foo.bar`, which is what keeps a variable from
 // colliding with anything else.
+//
+// Nothing is declared under it here. A policy's variables are declared one by one, under
+// their own dotted names and with the type SECL compiled them as — see NewPolicyEnv — so
+// a rule naming a variable no policy declares does not compile, which is what SECL does
+// with one too.
 const VariablesRoot = "vars"
 
 // seclAdapter converts a Go value into a CEL one, ahead of the adapter the
@@ -146,7 +151,6 @@ func NewEnv(opts ...cel.EnvOption) (*cel.Env, error) {
 		// only be printed back as all() and exists() calls when the macro call
 		// metadata is kept.
 		cel.EnableMacroCallTracking(),
-		cel.Variable(VariablesRoot, cel.DynType),
 		cel.Variable(NowVar, cel.IntType),
 		// Declared after ext.Network, whose adapter it replaces — which is why it
 		// carries that adapter's two cases itself.

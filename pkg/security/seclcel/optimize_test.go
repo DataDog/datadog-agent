@@ -201,7 +201,10 @@ func TestOptimizeRejectsWhatItCannotRead(t *testing.T) {
 // resolve. It is what keeps the pass out of the way of the macros and the SECL
 // variables.
 func TestOptimizeLeavesVariablesAlone(t *testing.T) {
-	env, err := NewModelEnv(cel.Variable("my_macro", cel.ListType(cel.StringType)))
+	env, err := NewModelEnv(
+		cel.Variable("my_macro", cel.ListType(cel.StringType)),
+		cel.Variable(VariablesRoot+".my.var", cel.StringType),
+	)
 	require.NoError(t, err)
 
 	checked, err := CompileWithTypes(env, `process.comm in my_macro && ${my.var} == "x"`, ModelFieldTypes{})

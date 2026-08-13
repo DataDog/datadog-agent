@@ -119,6 +119,22 @@ func cidrToVal(ipnet net.IPNet) ref.Val {
 	return ext.CIDR{Prefix: prefix}
 }
 
+// Variables resolves the `${…}` variables a policy declares, which are the state its
+// `set:` actions maintain.
+//
+// A variable is read through the closure SECL compiled for it, so the scoping,
+// inheritance and TTL are the ones production applies — this only converts what that
+// closure returns into a CEL value. The table is built once, when the policy environment
+// is, and shared by every activation: what varies per event is the context handed to the
+// closure, not the closure.
+//
+// Writes stay with SECL. A `set:` action mutates a variable while the rule engine runs its
+// actions, which a shadow evaluation does not do, so both engines read one store that only
+// one of them fills.
+type Variables struct {
+	readers map[string]func(*eval.Context) ref.Val
+}
+
 // Activation binds a SECL evaluation context to CEL: it resolves the names a
 // translated expression refers to against the event the context holds, and
 // carries the execution frame a Rule is evaluated on.
@@ -134,6 +150,11 @@ func cidrToVal(ipnet net.IPNet) ref.Val {
 type Activation struct {
 	ctx  *eval.Context
 	root ref.Val
+
+	// variables is the policy's variable table, nil when there is none. It belongs to
+	// the environment the rules were compiled against rather than to the context —
+	// see PolicyEnv.Activation.
+	variables *Variables
 
 	// frame is what Rule.Eval hands the planned interpretable, held for as long
 	// as this activation rather than taken from cel-go's pool on every
@@ -156,8 +177,19 @@ type Activation struct {
 
 // NewActivation returns the CEL activation for a SECL evaluation context, so that
 // a rule built by NewRule can be evaluated against the event it holds.
+//
+// It resolves no `${…}` variables: a rule that reads one has to be evaluated with the
+// activation its policy environment hands out — see PolicyEnv.Activation.
 func NewActivation(ctx *eval.Context) *Activation {
-	a := &Activation{ctx: ctx, root: &seclPosition{ctx: ctx, typ: modelRootType}}
+	return newActivation(ctx, nil)
+}
+
+func newActivation(ctx *eval.Context, variables *Variables) *Activation {
+	a := &Activation{
+		ctx:       ctx,
+		root:      &seclPosition{ctx: ctx, typ: modelRootType},
+		variables: variables,
+	}
 
 	// NewExecutionFrame only rejects an input that is neither an Activation nor a
 	// map[string]any, and a is an Activation.
@@ -178,8 +210,16 @@ func (a *Activation) ResolveName(name string) (any, bool) {
 		return a.ctx.Now().UnixNano(), true
 	}
 
-	// vars is declared for SECL's ${…} variables but not populated yet, so an
-	// expression using one fails rather than silently reading nothing.
+	// A variable is declared under its own dotted name — `vars.foo` is one ident, not a
+	// select on `vars` — so this is the name the table is keyed on.
+	if a.variables != nil {
+		if read, ok := a.variables.readers[name]; ok {
+			return read(a.ctx), true
+		}
+	}
+
+	// Anything else is a name nothing declared, which cel-go reports as a missing
+	// attribute rather than reading nothing.
 	return nil, false
 }
 

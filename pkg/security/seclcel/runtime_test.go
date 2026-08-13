@@ -539,17 +539,17 @@ func TestABoundVariableCannotShadowAField(t *testing.T) {
 	assert.True(t, evalSECL(t, env, event, expr))
 }
 
-// TestProgramVariablesAreNotWired pins the phase 3 gap: SECL's ${…} variables are
-// declared but not populated, so an expression using one fails rather than
-// silently reading nothing.
-func TestProgramVariablesAreNotWired(t *testing.T) {
+// TestUndeclaredVariableDoesNotCompile is the other side of wiring the variables: an
+// environment that declares none rejects a rule naming one, rather than accepting it and
+// failing on every event.
+//
+// SECL does the same — its compiler reports `variable 'my.var' doesn't exist` — so a rule
+// referring to a variable no policy maintains fails to load in both engines.
+func TestUndeclaredVariableDoesNotCompile(t *testing.T) {
 	env, err := NewModelEnv()
 	require.NoError(t, err)
 
-	rule, err := NewRule(env, `"proc-${my.var}" == "proc-sh"`, ModelFieldTypes{})
-	require.NoError(t, err, "it translates and type-checks")
-
-	_, err = rule.Eval(NewActivation(eval.NewContext(model.NewFakeEvent())))
-	require.Error(t, err, "but cannot be evaluated yet")
-	assert.Contains(t, err.Error(), VariablesRoot)
+	_, err = NewRule(env, `"proc-${my.var}" == "proc-sh"`, ModelFieldTypes{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), VariablesRoot+".my.var")
 }

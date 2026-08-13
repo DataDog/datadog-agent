@@ -151,6 +151,21 @@
 // sites, where SECL resolves the difference by inlining the macro and rewriting the
 // value type per comparison.
 //
+// # Macros and variables
+//
+// What a policy declares is declared in the environment rather than handled by the front
+// end — NewPolicyEnv does both. A macro is a value, so it is translated, evaluated once at
+// load and declared as a constant: the rule that names it then reads a value out of its
+// own expression, at the price the same list written into it would cost. A `${…}` variable
+// is declared under its dotted name with the type SECL compiled it as, and read through
+// SECL's own closure, so the scoping, inheritance and TTL are production's.
+//
+// Nothing is declared under `vars` itself, which means a rule naming a variable no policy
+// maintains does not compile — as it does not in SECL.
+//
+// Writes stay with SECL: a `set:` action mutates a variable while the rule engine runs its
+// actions, so a shadow evaluation reads a store only the other engine fills.
+//
 // # Divergences
 //
 // Some SECL behaviour cannot be reproduced by a translation that does not know
@@ -207,6 +222,16 @@
 //     unix fields and for most windows ones are not reproduced: `secl.glob` and
 //     `secl.pathGlob` always match case sensitively, and a windows rule written with
 //     the other separator does not match.
+//
+//   - A comparison against a variable is type-checked, where SECL compares loosely:
+//     `${some_string} == 1` is a compile error here and answers false there. This is the
+//     stricter direction, so no rule that fires in production is lost — see
+//     TestVariablesAreTypeChecked.
+//
+//   - `builtins.uuid4` yields a fresh value per read (model/variables.go), so a rule
+//     reading it twice disagrees with itself — in either engine, and between them. A
+//     shadow's disagreement counter should not be read as a translation bug when it fires
+//     on one of those.
 //
 //   - A list mixing constant types, which SECL rejects outright, is accepted here:
 //     CEL widens a heterogeneous list literal to list(dyn) and then matches nothing.
