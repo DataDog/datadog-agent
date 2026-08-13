@@ -9,3 +9,11 @@ type haAgentConfig struct {
 	ConfigID    string `json:"config_id"`
 	ActiveAgent string `json:"active_agent"`
 }
+
+// workloadBalancingDiscriminator is a minimal envelope used only to tell whether an HA_AGENT
+// Remote Config document belongs to comp/workloadbalancing, a second, independent listener that
+// shares this product, rather than to HA Agent itself. comp/workloadbalancing's documents set
+// group_id; HA Agent's own documents never do.
+type workloadBalancingDiscriminator struct {
+	GroupID string `json:"group_id"`
+}

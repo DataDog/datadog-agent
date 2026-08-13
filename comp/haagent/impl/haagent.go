@@ -100,6 +100,14 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 
 	for configPath, rawConfig := range updates {
 		h.log.Debugf("Received config %s: %s", configPath, string(rawConfig.Config))
+
+		var discriminator workloadBalancingDiscriminator
+		if err := json.Unmarshal(rawConfig.Config, &discriminator); err == nil && discriminator.GroupID != "" {
+			// This document belongs to comp/workloadbalancing, not to HA Agent. Leave it alone:
+			// comp/workloadbalancing owns parsing and apply-status reporting for it.
+			continue
+		}
+
 		haAgentMsg := haAgentConfig{}
 		err := json.Unmarshal(rawConfig.Config, &haAgentMsg)
 		if err != nil {
