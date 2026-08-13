@@ -70,7 +70,6 @@ pub(super) fn map_stdio_handle_nul() -> Result<MappedStdioHandle> {
     MappedStdioHandle::nul()
 }
 
-/// Owned stdio handle for CreateProcessAsUserW (never the process-wide GetStdHandle value).
 pub(super) struct MappedStdioHandle(HANDLE);
 
 impl MappedStdioHandle {

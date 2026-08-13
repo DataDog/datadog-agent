@@ -11,10 +11,6 @@ use crate::spawn::SpawnRequest;
 
 use super::super::{install_root, program_data_root};
 
-/// Windows-only catalog for [`SpawnProfile::Privileged`] processes.
-///
-/// Only process-agent uses the privileged profile today; PAR and DDOT use
-/// [`SpawnProfile::Agent`] and are validated through the normal spawn path.
 pub(super) fn validate_process_request(process_name: &str, request: &SpawnRequest) -> Result<()> {
     let install_root = install_root();
     let etc_root = program_data_root();
@@ -71,10 +67,6 @@ fn validate_privileged_command_args(
     Ok(())
 }
 
-/// Privileged managed children on Windows do not take fleet policy paths from processes.d.
-///
-/// Fleet policy location is machine state in the registry (`fleet_policies_dir`); children load
-/// it via `FleetConfigOverride` like the main agent service. Reject any config-supplied env vars.
 fn validate_privileged_env(process_name: &str, request: &SpawnRequest) -> Result<()> {
     if request.env.is_empty() {
         return Ok(());
