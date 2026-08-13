@@ -65,7 +65,7 @@ func (e *RollbackExecutor) Run(ctx context.Context, opts helmactions.RollbackInp
 	job := buildRollbackJob(opts)
 	created, err := e.clientset.BatchV1().Jobs(opts.JobNamespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("create helm rollback job in %s: %w", opts.JobNamespace, err)
+		return nil, fmt.Errorf("executor jobs create [ns:%s]: %w", opts.JobNamespace, err)
 	}
 	log.Infof("[HelmActions] Created rollback job %s/%s for release %s/%s (revision=%d)",
 		created.Namespace, created.Name, opts.ReleaseNamespace, opts.Release, opts.Revision)
