@@ -8931,6 +8931,17 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      custom_workload_targets:
+        node_type: setting
+        type: array
+        default: [ ]
+        env_parser: json
+        items:
+          type: object
+        comment: |-
+          Custom namespaced workload resources that DatadogInstrumentation can target.
+          Each entry defines a target resource and optional intermediate owner resources
+          under `via` that the Cluster Agent follows from Pods to the target.
     tags:
     - full-agent-only:true
   integration:

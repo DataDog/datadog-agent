@@ -55,8 +55,10 @@ func shouldHavePodStore(cfg config.Reader) bool {
 // start via the autoscaling gate.
 func podsRequiredAtStartup(cfg config.Reader) bool {
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+	customWorkloadTargets, _ := cfg.Get("instrumentation_crd_controller.custom_workload_targets").([]map[string]interface{})
 	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
 		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
+		len(customWorkloadTargets) > 0 ||
 		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
 		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }
