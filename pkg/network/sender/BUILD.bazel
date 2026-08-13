@@ -178,6 +178,7 @@ dd_agent_go_test(
         "service_resolver_test.go",
     ],
     embed = [":sender"],
+    gotags_sets = [["npm"]],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
