@@ -18,10 +18,59 @@ import (
 	"time"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
+
+func TestPARStatsTrackRunnerRequestsAndFlush(t *testing.T) {
+	fi := NewServer()
+
+	for range 2 {
+		fi.handlePARDequeue(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodPost, "/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil),
+		)
+	}
+	for range 3 {
+		fi.handlePARHealthCheck(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodGet, "/api/v2/on-prem-management-service/runner/health-check", nil),
+		)
+	}
+
+	enrollment := httptest.NewRecorder()
+	fi.handlePAREnroll(enrollment, httptest.NewRequest(
+		http.MethodPost,
+		"/api/unstable/on_prem_runners",
+		bytes.NewBufferString(`{"data":{"attributes":{"agent_hostname":"par-host","agent_flavor":"private_action_runner"}}}`),
+	))
+	require.Equal(t, http.StatusOK, enrollment.Code)
+	assert.Contains(t, enrollment.Body.String(), `"runner_id":"fake-runner-1"`)
+	assert.Contains(t, enrollment.Body.String(), `"agent_hostname":"par-host"`)
+
+	assertPARStats(t, fi, 2, 3, 1)
+	fi.handlePARFlush(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/fakeintake/par/flush", nil))
+	assertPARStats(t, fi, 0, 0, 0)
+}
+
+func assertPARStats(t *testing.T, fi *Server, wantDequeues, wantHealthChecks, wantEnrollments int) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	fi.handlePARStats(recorder, httptest.NewRequest(http.MethodGet, "/fakeintake/par/stats", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var stats struct {
+		DequeueCalls     int `json:"dequeue_calls"`
+		HealthCheckCalls int `json:"health_check_calls"`
+		EnrollmentCalls  int `json:"enrollment_calls"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &stats))
+	assert.Equal(t, wantDequeues, stats.DequeueCalls)
+	assert.Equal(t, wantHealthChecks, stats.HealthCheckCalls)
+	assert.Equal(t, wantEnrollments, stats.EnrollmentCalls)
+}
 
 func TestPARDequeueSurfacesRshellPolicyInSignedEnvelope(t *testing.T) {
 	fi := NewServer()
@@ -221,4 +270,48 @@ func TestPARSetSigningKeyRejectsInvalidPrivateKeySize(t *testing.T) {
 	fi.handlePARSetSigningKey(rec, req)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestPARDequeueSignsTaskEnvelope(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	fi := NewServer()
+	fi.par.queue = []parQueuedTask{{
+		TaskID:    "signed-task",
+		ActionFQN: "com.datadoghq.remoteaction.rshell.runCommand",
+		Inputs:    map[string]interface{}{"command": "echo signed"},
+		Signing: &api.PARTaskSigning{
+			KeyID:      "runner-key",
+			PrivateKey: privateKey,
+			OrgID:      123456,
+			RunnerID:   "test-runner-e2e",
+		},
+	}}
+
+	recorder := httptest.NewRecorder()
+	fi.handlePARDequeue(recorder, httptest.NewRequest(http.MethodPost, "/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var response struct {
+		Data struct {
+			Attributes struct {
+				SignedEnvelope *privateactionspb.RemoteConfigSignatureEnvelope `json:"signed_envelope"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	envelope := response.Data.Attributes.SignedEnvelope
+	require.NotNil(t, envelope)
+	require.Equal(t, privateactionspb.HashType_SHA256, envelope.HashType)
+	require.Len(t, envelope.Signatures, 1)
+
+	digest := sha256.Sum256(envelope.Data)
+	assert.True(t, ed25519.Verify(publicKey, digest[:], envelope.Signatures[0].Signature))
+
+	var task privateactionspb.PrivateActionTask
+	require.NoError(t, proto.Unmarshal(envelope.Data, &task))
+	assert.Equal(t, int64(123456), task.OrgId)
+	assert.Equal(t, "test-runner-e2e", task.GetConnectionInfo().GetRunnerId())
+	assert.True(t, task.GetExpirationTime().IsValid())
 }

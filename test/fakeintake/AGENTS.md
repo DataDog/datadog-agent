@@ -47,6 +47,8 @@ test/fakeintake/
 | `/api/v0.1/configurations` | (TUF-signed RC) | `RCStats()` (poll counter) |
 | `/api/v0.1/org` | (Remote Config) | — |
 | `/api/v0.1/status` | (Remote Config) | — |
+| `/api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR task queue | `EnqueuePARTask()` / `EnqueueSignedPARTask()` |
+| `/api/v2/on-prem-management-service/workflow-tasks/publish-task-update` | PAR task results | `GetPARTaskResult()` |
 
 ## Client usage
 
@@ -129,6 +131,7 @@ Routes added when enabled:
 | `GET  /api/v0.1/org` | Returns org UUID |
 | `GET  /api/v0.1/status` | Reports RC enabled/authorized |
 | `POST /fakeintake/rc/config` | Push/replace a config (control) |
+| `POST /fakeintake/rc/expiration` | Change non-root TUF expiry for expiration tests |
 | `GET  /fakeintake/rc/configs` | List stored configs (control) |
 | `DELETE /fakeintake/rc/config/<key>` | Delete a config (control) |
 | `GET  /fakeintake/rc/stats` | Poll counter, version, signing key info |
@@ -141,6 +144,11 @@ Push configs from a test:
 ```go
 err := fakeintake.RCAddConfig("42", "METRIC_CONTROL", "abc", "filterlist",
     []byte(`{"blocked_metrics":{"by_name":{"values":[{"metric_name":"foo"}]}}}`))
+
+// Publish a short-lived authoritative snapshot, then restore a fresh horizon
+// after the Agent has accepted it and observed its expiration.
+err = fakeintake.RCSetExpiration(time.Now().Add(30 * time.Second))
+err = fakeintake.RCSetExpiration(time.Now().Add(24 * time.Hour))
 ```
 
 Or via CLI:

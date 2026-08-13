@@ -180,6 +180,7 @@
 /.gitlab/deploy/deploy_packages/e2e.yml                                   @DataDog/agent-devx  @DataDog/fleet
 /.gitlab/.pre/deps_build/                                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 /.gitlab/windows/test/e2e_install_packages/windows.yml                    @DataDog/windows-products
+/.gitlab/windows/test/e2e/windows.yml                                     @DataDog/windows-products @DataDog/agent-devx
 /.gitlab/.pre/common/                                                     @DataDog/agent-devx
 /.gitlab/test/e2e/e2e.yml                                                 @DataDog/container-integrations @DataDog/agent-devx @DataDog/fleet
 /.gitlab/deploy/container_build/fakeintake.yml                            @DataDog/agent-devx

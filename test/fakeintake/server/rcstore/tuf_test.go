@@ -119,6 +119,40 @@ func TestGenerateTUFMetas_Verifies(t *testing.T) {
 	}
 }
 
+func TestGenerateTUFMetasWithExpiration(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyID, err := ComputeKeyID(PublicKeyHex(privateKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := BuildRootJSON(privateKey, keyID, PublicKeyHex(privateKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const expires = "2000-01-01T00:00:00Z"
+	metas, err := GenerateTUFMetasWithExpiration(nil, privateKey, keyID, root, 2, expires)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, raw := range map[string][]byte{"targets": metas.Targets, "snapshot": metas.Snapshot, "timestamp": metas.Timestamp} {
+		var envelope struct {
+			Signed struct {
+				Expires string `json:"expires"`
+			} `json:"signed"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			t.Fatalf("decode %s: %v", name, err)
+		}
+		if envelope.Signed.Expires != expires {
+			t.Fatalf("%s expires = %q, want %q", name, envelope.Signed.Expires, expires)
+		}
+	}
+}
+
 func TestConfigPath(t *testing.T) {
 	c := Config{OrgID: "42", Product: "METRIC_CONTROL", ConfigID: "abc", ConfigName: "filterlist"}
 	if got, want := c.Path(), "datadog/42/METRIC_CONTROL/abc/filterlist"; got != want {

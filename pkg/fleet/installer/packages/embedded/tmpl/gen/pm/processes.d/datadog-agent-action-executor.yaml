@@ -8,5 +8,8 @@ auto_start: false
 condition_path_exists: ${DD_INSTALL_DIR}/embedded/bin/privateactionrunner
 restart: never
 environment_file: -${DD_CONF_DIR}/environment
+env:
+  # dd-procmgr expands this, so an experiment unit reads the experiment tree.
+  DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable
 stdout: inherit
 stderr: inherit
