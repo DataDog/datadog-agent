@@ -875,22 +875,24 @@ func BenchmarkConstantFolding(b *testing.B) {
 // reads once and then loops over compiled matchers, and hits a map first for the
 // entries that are plain strings.
 //
-// Both fields are measured because a pattern is not the same matcher on both: SECL
-// compiles `~"…"` into a glob on a path field and into a pattern everywhere else, and
-// the translation now follows it — see TestPathGlobsFollowSECL. A glob costs more.
+// Both fields are measured because a pattern is not the same matcher on both, and neither
+// is a subject: SECL compiles `~"…"` into a glob on a path field and into a pattern
+// everywhere else, and it compares a path field against every path the file is reachable
+// by. The translation follows on both counts — see TestPathGlobsFollowSECL and
+// TestPathVariantsAgreeWithSECL — so a path costs more than a comm on either engine.
 //
 // Measured (ns/op, median of two, including the ~30 ns context reset):
 //
 //	                   CEL                 SECL
-//	Scalar             120 ns, 1 alloc     —
-//	Globs40Miss path  1.55 µs, 1           7.81 µs, 0
-//	Globs40Miss comm   588 ns, 1            535 ns, 0
-//	Globs40Hit  path   206 ns, 1           —
-//	Strings40   comm   150 ns, 1           —
-//	Macro40     path  1.55 µs, 1           —
+//	Scalar             122 ns, 1 alloc     —
+//	Globs40Miss path  1.81 µs, 2           7.83 µs, 0
+//	Globs40Miss comm   583 ns, 1            536 ns, 0
+//	Globs40Hit  path   444 ns, 2           —
+//	Strings40   comm   151 ns, 1           —
+//	Macro40     path  1.81 µs, 2           —
 //
-// A miss is the worst case on both sides: every matcher is tried. Three things to read
-// out of it.
+// A miss is the worst case on both sides: every matcher is tried, against every path.
+// Three things to read out of it.
 //
 // Macro40 is Globs40Miss path to within the noise, so a macro declared as a constant
 // costs exactly what the same list written into the rule costs. That is the whole of the
@@ -898,17 +900,15 @@ func BenchmarkConstantFolding(b *testing.B) {
 // do per event.
 //
 // On comm, where both engines compile the same matcher over the same list, they are
-// within 10% of each other — 588 against 535 — and forty patterns cost about 13 ns each
+// within 10% of each other — 583 against 536 — and forty patterns cost about 13 ns each
 // either way. Neither engine spends its time on the set; matching is the cost.
 //
-// The path rows are where they differ, and the reason is not the matcher. SECL evaluates
-// a path comparison several times over: the field's operator overrides OR in a
-// comparison against the overlayfs-relative path, and for exec.file.path and
-// process.file.path two more against the symlink pathnames (oo_overlayfs_unix.go,
-// oo_symlink_unix.go — whose own comment notes that a non-matching path is therefore
-// evaluated twice). Four passes over forty globs is the 7.8 µs. The translation makes one
-// pass, and so answers a narrower question — a divergence recorded in the package doc,
-// not a saving.
+// The path rows are four times cheaper here, and it is not because less is compared: both
+// engines try forty globs against every path. It is that SECL compares them once per
+// path — its overrides OR in a whole comparison per alternate, and its own comment notes
+// a non-matching path is therefore evaluated twice — where the translation reads the
+// paths once and loops. BenchmarkCEL's Path row prices the common case, one path and one
+// literal, at 181 ns against SECL's 180.
 func BenchmarkPatternMembership(b *testing.B) {
 	const entries = 40
 

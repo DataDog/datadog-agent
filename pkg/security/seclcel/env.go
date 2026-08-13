@@ -74,6 +74,18 @@ const (
 	// pattern, which is the same choice PathGlobFunc makes for a comparison.
 	MatchAnyPathFunc = "secl.matchAnyPath"
 
+	// PathMatchAnyFunc tests a matcher against every path a file field can be compared
+	// against: the field itself, and the overlay and symlink paths SECL's operator
+	// overrides reach for. It takes the event and the field's *name*, since it is emitted
+	// before the field reads are resolved — see pathvariants_unix.go.
+	//
+	// The matcher is whatever the other side of the comparison is — a string, a compiled
+	// glob or regexp, a prepared set — which is what lets one function serve `==`, `=~`
+	// and `in` alike. It is a function rather than a quantifier over the paths because a
+	// comprehension and the list it folds measured at several hundred nanoseconds, where
+	// this is a Go loop over at most four strings.
+	PathMatchAnyFunc = "secl.pathMatchAny"
+
 	// RootDomainFunc extracts the effective root domain of a host name. It backs
 	// SECL's `%{field.root_domain}` suffix.
 	RootDomainFunc = "secl.rootDomain"

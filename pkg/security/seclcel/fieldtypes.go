@@ -41,6 +41,11 @@ type FieldTypes interface {
 	// call.
 	GlobPattern(field string) bool
 
+	// PathVariants reports whether a comparison against the field reaches more than one
+	// value: the overlay and symlink paths SECL's operator overrides OR in. A rule
+	// comparing against such a field is quantified over them — see pathvariants_unix.go.
+	PathVariants(field string) bool
+
 	// IsPseudoField reports whether the field is one of the `length` and
 	// `root_domain` pseudo fields, which SECL derives from another field rather
 	// than storing. They are translated to size() and a helper call.

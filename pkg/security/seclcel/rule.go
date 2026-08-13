@@ -165,6 +165,10 @@ func plannerOptions() []interpreter.PlannerOption {
 		// the optimization pass emitted. readDecorator is readOptimization in the
 		// form a caller that plans the interpretable itself has to pass it.
 		interpreter.CustomDecoratorV2(readDecorator()),
+		// The same for a comparison against a path field's variants, whose reader is
+		// named rather than indexed because the translation emits it before the reads
+		// are resolved.
+		interpreter.CustomDecoratorV2(pathMatchDecorator()),
 		// Collapse an expression over literals — the flags idiom, a list of patterns —
 		// into the one value it always evaluates to.
 		interpreter.CustomDecoratorV2(constantFolding()),

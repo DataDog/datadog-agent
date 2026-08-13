@@ -194,8 +194,9 @@ func (r *regexpValue) ConvertToType(t ref.Type) ref.Val {
 	return types.NewErr("type conversion error from '%s' to '%s'", RegexpType, t)
 }
 
-// matcher is what a prepared set holds for a member that is not a plain string.
-type matcher interface {
+// patternMatcher is what a prepared set holds for a member that is not a plain string,
+// and what a comparison against a single pattern is applied through.
+type patternMatcher interface {
 	// matches reports whether the subject matches, under glob semantics or pattern
 	// semantics — see the note at the top of this file.
 	matches(s string, glob bool) bool
@@ -212,7 +213,7 @@ type matcher interface {
 // compiled once, however many rules refer to the same macro.
 type patternSet struct {
 	strings  map[string]struct{}
-	matchers []matcher
+	matchers []patternMatcher
 }
 
 func newPatternSet(members ref.Val) (ref.Val, error) {
@@ -226,7 +227,7 @@ func newPatternSet(members ref.Val) (ref.Val, error) {
 		switch member := it.Next().(type) {
 		case types.String:
 			set.strings[string(member)] = struct{}{}
-		case matcher:
+		case patternMatcher:
 			set.matchers = append(set.matchers, member)
 		default:
 			return nil, fmt.Errorf("%w: %s cannot be a member of a pattern list",

@@ -41,11 +41,13 @@
 //	a == r"re", a =~ r"re"      a.matches("re")
 //	a == ~"gl", a =~ "gl"       secl.glob(a, "gl")
 //	                            secl.pathGlob(a, "gl") for a path field
+//	                            secl.pathMatchAny(evt, "a", secl.glob("gl")) for a file field
 //	a in [1, 2]                 a in [1, 2]
 //	a in [~"/y/*"]              secl.glob(a, "/y/*")
 //	a in ["x", ~"/y/*"]         secl.matchAny(a, secl.patterns(["x", secl.glob("/y/*")]))
 //	a in b                      secl.matchAny(a, b)
 //	                            secl.matchAnyPath(a, b) for a path field
+//	                            secl.pathMatchAny(evt, "a", b) for a file field
 //	a not in b                  !(a in b)
 //	a allin b                   a in b
 //	1.2.3.4, 10.0.0.0/8         ip("1.2.3.4"), cidr("10.0.0.0/8")
@@ -143,13 +145,20 @@
 // refused. Which fields those are is generated into celGlobFields, from the overrides
 // the model declares, and checked against SECL itself by TestGlobFieldsAgreeWithSECL.
 //
-// So `open.file.path =~ "/etc/*"` is a glob call and `process.comm =~ "sh*"` a pattern
-// call, and it is the field rather than the literal that decides. A list carries both:
-// a member compiles both forms, and the membership call — MatchAnyFunc against
-// MatchAnyPathFunc — says which the set is searched with. That is what lets one macro
-// be a single prepared value while still meaning what SECL means at each of its use
-// sites, where SECL resolves the difference by inlining the macro and rewriting the
-// value type per comparison.
+// So `process.comm =~ "sh*"` is a pattern call, and it is the field rather than the
+// literal that decides. A list carries both forms: a member compiles both, and the
+// membership call — MatchAnyFunc against MatchAnyPathFunc — says which the set is searched
+// with. That is what lets one macro be a single prepared value while still meaning what
+// SECL means at each of its use sites, where SECL resolves the difference by inlining the
+// macro and rewriting the value type per comparison.
+//
+// A file field carries a second thing the same overrides decide: which *paths* it is
+// compared against. SECL ORs in the overlay-relative path, and for `exec.file.path` and
+// `process.file.path` the two symlink pathnames, so a file reached through a symlink or an
+// overlay mount matches a rule written with either name. A comparison against such a field
+// becomes one PathMatchAnyFunc call over those paths, with the other side travelling as the
+// matcher — a string, a compiled glob or regexp, a prepared set — which is why that one
+// function serves `==`, `=~` and `in`. See pathvariants_unix.go.
 //
 // # Macros and variables
 //
@@ -209,14 +218,6 @@
 //     the meaning the operator's name carries is deliberate — what the shadow measures
 //     itself against is the engine in production — and TestAllInIsMembershipLikeSECL
 //     is what reports it if SECL ever makes the operator universal.
-//
-//   - A path comparison reaches one value, where SECL reaches several. The operator
-//     overrides those fields carry OR in a comparison against the overlayfs-relative
-//     path, and for `exec.file.path` and `process.file.path` two more against the
-//     symlink pathnames (oo_overlayfs_unix.go, oo_symlink_unix.go). So SECL matches a
-//     file reached through a symlink or an overlay mount where the translation does
-//     not, which makes CEL the *narrower* engine on those fields — and is most of why
-//     a path rule costs SECL four times what it costs here (BenchmarkPatternMembership).
 //
 //   - The case insensitive and separator normalising comparisons SECL uses for a few
 //     unix fields and for most windows ones are not reproduced: `secl.glob` and

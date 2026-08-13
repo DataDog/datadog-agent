@@ -91,6 +91,7 @@ func ModelTypes() ([]cel.EnvOption, error) {
 		cel.Variable(EventRoot, modelRootType),
 	}
 	opts = append(opts, readBindings()...)
+	opts = append(opts, pathVariantBindings()...)
 	opts = append(opts, constantDeclarations()...)
 	return opts, nil
 }

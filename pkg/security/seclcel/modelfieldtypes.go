@@ -70,6 +70,12 @@ func (ModelFieldTypes) GlobPattern(field string) bool {
 	return ok
 }
 
+// PathVariants implements FieldTypes.
+func (ModelFieldTypes) PathVariants(field string) bool {
+	_, ok := pathVariantReaders[field]
+	return ok
+}
+
 // IsPseudoField implements FieldTypes.
 func (ModelFieldTypes) IsPseudoField(field string) bool {
 	// A pseudo field is absent from the type tree, because `x.length` would

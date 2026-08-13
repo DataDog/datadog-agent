@@ -33,11 +33,23 @@ var typedTranslations = []struct {
 	cel  string
 }{
 	// a scalar field is unaffected
-	{`process.file.name == "sh"`, `evt.process.file.name == "sh"`},
+	{`process.comm == "sh"`, `evt.process.comm == "sh"`},
+	// a process's file name and every file path reach the other paths the file is
+	// reachable by, so a comparison against one is quantified — see pathvariants_unix.go
+	{`process.file.name == "sh"`, `secl.pathMatchAny(evt, "process.file.name", "sh")`},
 	// a path field's pattern is a glob, which is a different matcher — see
 	// celGlobFields
-	{`exec.file.path =~ "/usr/*"`, `secl.pathGlob(evt.exec.file.path, "/usr/*")`},
-	{`exec.file.name =~ "sh*"`, `secl.glob(evt.exec.file.name, "sh*")`},
+	// the pattern travels as a value, and which of its two compiled forms is applied is
+	// decided by the field the helper is given
+	{`exec.file.path =~ "/usr/*"`,
+		`secl.pathMatchAny(evt, "exec.file.path", secl.glob("/usr/*"))`},
+	{`exec.file.name =~ "sh*"`,
+		`secl.pathMatchAny(evt, "exec.file.name", secl.glob("sh*"))`},
+	// and a negated comparison negates the whole disjunction SECL builds
+	{`exec.file.path != "/usr/bin/sh"`,
+		`!(secl.pathMatchAny(evt, "exec.file.path", "/usr/bin/sh"))`},
+	// a field without variants is compared directly
+	{`open.file.name == "passwd"`, `evt.open.file.name == "passwd"`},
 	// and it survives being quantified, where the field name no longer appears
 	{`process.ancestors.file.path =~ "/usr/*"`,
 		`evt.process.ancestors.exists(elem, secl.pathGlob(elem.file.path, "/usr/*"))`},
@@ -86,8 +98,8 @@ var typedTranslations = []struct {
 		`secl.rootDomain(evt.dns.question.name) == "example.com"`},
 
 	// only the iterated side is quantified
-	{`process.file.name == "sh" && process.ancestors.file.name == "bash"`,
-		`evt.process.file.name == "sh" && evt.process.ancestors.exists(elem, elem.file.name == "bash")`},
+	{`process.comm == "sh" && process.ancestors.file.name == "bash"`,
+		`evt.process.comm == "sh" && evt.process.ancestors.exists(elem, elem.file.name == "bash")`},
 
 	{`network.destination.ip in 10.0.0.0/8`,
 		`secl.cidrMatch(evt.network.destination.ip, cidr("10.0.0.0/8"))`},
@@ -125,11 +137,11 @@ func TestCompileWithTypes(t *testing.T) {
 // resolve, which is how a macro or a constant reaches its declaration — and why
 // declaring one can no longer collide with a top level segment.
 func TestOnlyAFieldIsRooted(t *testing.T) {
-	const expr = `process.file.name in my_macro && process.file.mode == S_IFREG`
+	const expr = `process.comm in my_macro && process.file.mode == S_IFREG`
 
 	translated, err := TranslateWithTypes(expr, ModelFieldTypes{})
 	require.NoError(t, err)
-	assert.Equal(t, `secl.matchAny(evt.process.file.name, my_macro) && evt.process.file.mode == S_IFREG`, translated)
+	assert.Equal(t, `secl.matchAny(evt.process.comm, my_macro) && evt.process.file.mode == S_IFREG`, translated)
 
 	env, err := NewModelEnv(
 		cel.Variable("my_macro", cel.ListType(cel.StringType)),
@@ -184,7 +196,10 @@ func TestLegacyFieldNames(t *testing.T) {
 
 	tests := []struct{ secl, cel string }{
 		{`open.basename == "passwd"`, `evt.open.file.name == "passwd"`},
-		{`open.filename == "/etc/passwd"`, `evt.open.file.path == "/etc/passwd"`},
+		// a legacy name that resolves to a path field is quantified over its variants
+		// like the current name is
+		{`open.filename == "/etc/passwd"`,
+			`secl.pathMatchAny(evt, "open.file.path", "/etc/passwd")`},
 		{`container.id == "abc"`, `evt.process.container.id == "abc"`},
 		// a bare name, which is a field rather than a macro only because the table
 		// says so

@@ -73,7 +73,32 @@ func (p *fieldReads) Optimize(ctx *cel.OptimizerContext, a *celast.AST) *celast.
 		}
 	}
 
+	// A comparison against a path field's variants names the field rather than reading
+	// it through a chain of selects, and there is nothing to rewrite about it — the
+	// reader is bound when the rule is planned. It is still a field the rule reads, which
+	// is what decides the bucket the rule belongs to, so it is recorded here.
+	for _, expr := range celast.MatchDescendants(root, celast.KindMatcher(celast.CallKind)) {
+		if field, ok := pathMatchField(expr); ok {
+			p.fields[field] = true
+		}
+	}
+
 	return a
+}
+
+// pathMatchField names the field a PathMatchAnyFunc call compares against.
+func pathMatchField(expr celast.NavigableExpr) (string, bool) {
+	call := expr.AsCall()
+	if call.FunctionName() != PathMatchAnyFunc || len(call.Args()) != 3 {
+		return "", false
+	}
+
+	name := call.Args()[1]
+	if name.Kind() != celast.LiteralKind {
+		return "", false
+	}
+	field, ok := name.AsLiteral().(types.String)
+	return string(field), ok
 }
 
 // consumedByAnotherSelect reports whether this select is in the middle of a chain,

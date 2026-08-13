@@ -1117,6 +1117,19 @@ func (p *parser) scalarComparisonOf(op string, lhs, rhs operand) (operand, *Pars
 			return result(p.durationComparison(op, lhs, rhs, start, end))
 		}
 
+		// A path field is compared against every path the file is reachable by, which
+		// SECL does by ORing the equalities — so a negated comparison negates the whole
+		// disjunction rather than each term: `path != x` holds when *no* path equals x.
+		// Only one side can carry variants, and only equality does: SECL's overrides
+		// leave the ordering operators alone.
+		if subject, other, ok := p.pathVariantSides(lhs, rhs); ok {
+			e := p.pathMatch(subject, other.expr, start, end)
+			if op == "!=" {
+				e = p.not(e, start, end)
+			}
+			return result(e)
+		}
+
 		fn := operators.Equals
 		if op == "!=" {
 			fn = operators.NotEquals
@@ -1134,6 +1147,22 @@ func (p *parser) scalarComparisonOf(op string, lhs, rhs operand) (operand, *Pars
 // applyMatcher builds the CEL test that decides whether subject matches the
 // literal on the other side of the operator.
 func (p *parser) applyMatcher(subject, matcher operand, start, end int) (celast.Expr, *ParseError) {
+	// A path field is compared against every path the file is reachable by, and the
+	// matcher travels as a value so that one helper serves every operator — see
+	// PathMatchAnyFunc.
+	if p.hasPathVariants(subject) {
+		switch matcher.kind {
+		case kindPattern:
+			return p.pathMatch(subject, p.call(GlobFunc, matcher.start, matcher.end,
+				p.strLit(matcher.text, matcher.start, matcher.end)), start, end), nil
+		case kindRegexp:
+			return p.pathMatch(subject, p.call(RegexpFunc, matcher.start, matcher.end,
+				p.strLit(matcher.text, matcher.start, matcher.end)), start, end), nil
+		default:
+			return p.pathMatch(subject, matcher.expr, start, end), nil
+		}
+	}
+
 	switch matcher.kind {
 	case kindPattern:
 		// CEL has no matching of its own for either of the two kinds SECL compiles a
@@ -1147,6 +1176,37 @@ func (p *parser) applyMatcher(subject, matcher operand, start, end int) (celast.
 	default:
 		return p.call(operators.Equals, start, end, subject.expr, matcher.expr), nil
 	}
+}
+
+// hasPathVariants reports whether a comparison against the operand reaches more than the
+// value the field itself holds. A pseudo field is excluded: `exec.file.path.length` is the
+// length of the path, and SECL puts no override on the field it derives from.
+func (p *parser) hasPathVariants(o operand) bool {
+	return p.types != nil && o.wrap == "" && o.field != "" && p.types.PathVariants(o.field)
+}
+
+// pathVariantSides picks which side of a comparison carries the path variants. When both
+// do — one path field compared against another — the left is chosen and the right is read
+// as the single value it holds, which is what SECL does too: its override tests `a.Field`
+// first.
+func (p *parser) pathVariantSides(lhs, rhs operand) (subject, other operand, ok bool) {
+	if p.hasPathVariants(lhs) {
+		return lhs, rhs, true
+	}
+	if p.hasPathVariants(rhs) {
+		return rhs, lhs, true
+	}
+	return operand{}, operand{}, false
+}
+
+// pathMatch applies a matcher to every path the subject field can be compared against. The
+// field travels as its name rather than as a read, since the reads are resolved after the
+// translation — see PathMatchAnyFunc.
+func (p *parser) pathMatch(subject operand, matcher celast.Expr, start, end int) celast.Expr {
+	return p.call(PathMatchAnyFunc, start, end,
+		p.fac.NewIdent(p.id(start, end), EventRoot),
+		p.strLit(subject.field, subject.start, subject.end),
+		matcher)
 }
 
 // globFunc picks the matcher a pattern compared against the subject compiles to.
@@ -1379,6 +1439,24 @@ func dotted(remainder string) string {
 // holding a pattern, because CEL membership compares for equality, and a list named
 // rather than written out, because what a macro holds is not visible here.
 func (p *parser) membership(subject operand, arr arrayOperand, start, end int) (celast.Expr, *ParseError) {
+	// A single pattern is the comparison SECL would have written as `x =~ "p"`, and
+	// searching a set of one for it would only cost a call more.
+	if len(arr.members) == 1 && arr.hasMatcher() {
+		return p.applyMatcher(subject, arr.members[0], start, end)
+	}
+
+	// A path field is searched for every path the file is reachable by, through the same
+	// helper a comparison against one uses.
+	if p.hasPathVariants(subject) {
+		if arr.expr != nil {
+			return p.pathMatch(subject, arr.expr, start, end), nil
+		}
+		if !arr.hasMatcher() {
+			return p.pathMatch(subject, p.arrayExpr(arr), start, end), nil
+		}
+		return p.pathMatch(subject, p.patternsExpr(arr, start, end), start, end), nil
+	}
+
 	matchAny := MatchAnyFunc
 	if p.globFunc(subject) == PathGlobFunc {
 		// The set is searched with the subject's semantics rather than the ones its
@@ -1393,11 +1471,6 @@ func (p *parser) membership(subject operand, arr arrayOperand, start, end int) (
 	}
 	if !arr.hasMatcher() {
 		return p.call(operators.In, start, end, subject.expr, p.arrayExpr(arr)), nil
-	}
-	// A single pattern is the comparison SECL would have written as `x =~ "p"`, and
-	// searching a set of one for it would only cost a call more.
-	if len(arr.members) == 1 {
-		return p.applyMatcher(subject, arr.members[0], start, end)
 	}
 	return p.call(matchAny, start, end, subject.expr, p.patternsExpr(arr, start, end)), nil
 }
