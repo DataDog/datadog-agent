@@ -6,6 +6,8 @@ go_library(
         "gate_linux.go",
         "gate_unsupported.go",
         "main.go",
+        "probe_linux.go",
+        "probe_unsupported.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent-rollout-gate",
     visibility = ["//visibility:private"],
