@@ -309,7 +309,7 @@ impl ProcessManager {
         let uuid;
         {
             let mut procs = self.processes.write().await;
-            if procs.iter().any(|p| p.name() == name) {
+            if find_index_by_name(&procs, &name).is_some() {
                 return Err(Status::already_exists(format!(
                     "process '{name}' already exists"
                 )));
@@ -707,15 +707,17 @@ fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Resu
     }
 }
 
+fn find_index_by_name(procs: &[ManagedProcess], name: &str) -> Option<usize> {
+    procs.iter().position(|p| p.name() == name)
+}
+
 fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
     if looks_like_uuid_prefix(name_or_uuid)
         && let Some(result) = resolve_by_uuid_prefix(procs, name_or_uuid)
     {
         return result;
     }
-    procs
-        .iter()
-        .position(|p| p.name() == name_or_uuid)
+    find_index_by_name(procs, name_or_uuid)
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
