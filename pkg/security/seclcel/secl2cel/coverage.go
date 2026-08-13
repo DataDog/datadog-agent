@@ -63,7 +63,10 @@ type ruleTest struct {
 	description string
 	eventType   string
 	values      map[string]any
-	expected    bool
+	// variables are the `${…}` variables the case seeds before evaluating, which is what
+	// production's `set:` actions would have done on an earlier event.
+	variables map[string]any
+	expected  bool
 }
 
 // ruleFile is the part of a rule's YAML this reads. The rest — tags, rate limits,
@@ -80,8 +83,11 @@ type ruleFile struct {
 	Tests []struct {
 		Description string `yaml:"description"`
 		Data        struct {
-			Type   string         `yaml:"type"`
-			Values map[string]any `yaml:"values"`
+			Type      string         `yaml:"type"`
+			Values    map[string]any `yaml:"values"`
+			Variables map[string]struct {
+				Value any `yaml:"value"`
+			} `yaml:"variables"`
 		} `yaml:"data"`
 		Expected bool `yaml:"expected"`
 	} `yaml:"tests"`
@@ -151,6 +157,7 @@ func readPolicies(dir string) (policySet, error) {
 					description: test.Description,
 					eventType:   test.Data.Type,
 					values:      test.Data.Values,
+					variables:   variablesOf(test.Data.Variables),
 					expected:    test.Expected,
 				})
 			}
@@ -176,6 +183,21 @@ func readPolicies(dir string) (policySet, error) {
 // A yaml.TypeError is reported *after* the document has been decoded — one of the real
 // rule files declares `tags` twice — so the fields that did decode are still there, and
 // refusing the file would drop a rule that production loads.
+// variablesOf flattens the values a case seeds its variables with.
+func variablesOf(declared map[string]struct {
+	Value any `yaml:"value"`
+}) map[string]any {
+	if len(declared) == 0 {
+		return nil
+	}
+
+	values := make(map[string]any, len(declared))
+	for name, variable := range declared {
+		values[name] = fieldValue(variable.Value)
+	}
+	return values
+}
+
 // declareVariable adds the variable a `set:` action maintains to the store, typed the
 // way the rule engine types it (ruleset.go, the Set case): from the value the action
 // stores, or from the field it copies.
@@ -338,7 +360,7 @@ func measure(set policySet) ([]ruleResult, []seclcel.MacroFailure, error) {
 
 	results := make([]ruleResult, 0, len(set.rules))
 	for _, rule := range set.rules {
-		results = append(results, measureRule(policy, seclOpts, rule))
+		results = append(results, measureRule(policy, seclOpts, set.variables, rule))
 	}
 	return results, policy.MacroFailures, nil
 }
@@ -370,7 +392,7 @@ func seclOptions(set policySet) (*eval.Opts, error) {
 	return opts, nil
 }
 
-func measureRule(policy *seclcel.PolicyEnv, seclOpts *eval.Opts, rule policyRule) ruleResult {
+func measureRule(policy *seclcel.PolicyEnv, seclOpts *eval.Opts, variables *eval.VariableStore, rule policyRule) ruleResult {
 	result := ruleResult{rule: rule, stopped: stageDone}
 
 	// A `fim.write.file.*` rule is rewritten into one rule per underlying event type
@@ -417,14 +439,28 @@ func measureRule(policy *seclcel.PolicyEnv, seclOpts *eval.Opts, rule policyRule
 	for _, test := range rule.tests {
 		result.cases++
 
+		if len(test.values) == 0 {
+			// A case that sets no field describes no event. There is one in the rule
+			// set, its values indented one level too far, and evaluating the empty event
+			// panics in both engines — the readers dereference the model the way the
+			// accessors do.
+			result.unevaluable = append(result.unevaluable, test.description+": the case sets no field")
+			continue
+		}
+
 		event, err := buildEvent(test)
 		if err != nil {
 			result.unevaluable = append(result.unevaluable, test.description+": "+firstLine(err))
 			continue
 		}
 
+		// The case may seed the variables its rule reads, which is what an earlier
+		// event's `set:` action would have done.
+		restore := seedVariables(variables, test.variables)
+
 		celVerdict, celErr := evalCEL(policy, planned, event)
 		seclVerdict, seclErr := evalSECL(seclRule, event)
+		restore()
 
 		if seclErr != nil {
 			// The other engine cannot answer either, so the case says nothing about the
@@ -456,6 +492,37 @@ func measureRule(policy *seclcel.PolicyEnv, seclOpts *eval.Opts, rule policyRule
 	}
 
 	return result
+}
+
+// seedVariables gives the variables a case declares the values it declares, and returns
+// what puts them back — so that one case cannot decide another's verdict.
+//
+// A variable a case names but no action declares is skipped: the rules are compiled against
+// the store, so one that is not in it is not one either engine can read.
+func seedVariables(store *eval.VariableStore, values map[string]any) func() {
+	if store == nil || len(values) == 0 {
+		return func() {}
+	}
+
+	var restore []func()
+	for name, value := range values {
+		variable, mutable := store.Get(name).(eval.MutableSECLVariable)
+		if !mutable {
+			continue
+		}
+
+		previous, _ := variable.GetValue()
+		if err := variable.Set(nil, value); err != nil {
+			continue
+		}
+		restore = append(restore, func() { _ = variable.Set(nil, previous) })
+	}
+
+	return func() {
+		for _, undo := range restore {
+			undo()
+		}
+	}
 }
 
 // evalCEL and evalSECL evaluate one rule against one event, containing a panic.
