@@ -39,7 +39,7 @@ agent_deb-x64-a7:
   extends: [.package_deb_common, .package_deb_x86]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-x64"]
+  needs: ["setup_agent_version", "datadog-agent-7-x64"]
   variables:
     DD_PROJECT: "agent"
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_deb_amd64"
@@ -49,7 +49,7 @@ agent_deb-arm64-a7:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-agent-7-arm64"]
+  needs: ["setup_agent_version", "datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: "agent"
 
@@ -57,7 +57,7 @@ agent_deb-x64-a7-fips:
   extends: [.package_deb_common, .package_deb_x86]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-x64-fips"]
+  needs: ["setup_agent_version", "datadog-agent-7-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
@@ -68,7 +68,7 @@ agent_deb-arm64-a7-fips:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-agent-7-arm64-fips"]
+  needs: ["setup_agent_version", "datadog-agent-7-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
@@ -86,21 +86,21 @@ agent_deb-arm64-a7-fips:
 
 ddot_deb-x64:
   extends: [.ddot_deb_common, .package_deb_x86]
-  needs: ["datadog-otel-agent-x64"]
+  needs: ["setup_agent_version", "datadog-otel-agent-x64"]
 
 ddot_deb-arm64:
   extends: [.ddot_deb_common, .package_deb_arm64]
-  needs: ["datadog-otel-agent-arm64"]
+  needs: ["setup_agent_version", "datadog-otel-agent-arm64"]
 
 ddot_deb-x64-fips:
   extends: [.ddot_deb_common, .package_deb_x86]
-  needs: ["datadog-otel-agent-x64-fips"]
+  needs: ["setup_agent_version", "datadog-otel-agent-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
 
 ddot_deb-arm64-fips:
   extends: [.ddot_deb_common, .package_deb_arm64]
-  needs: ["datadog-otel-agent-arm64-fips"]
+  needs: ["setup_agent_version", "datadog-otel-agent-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
 
@@ -109,7 +109,7 @@ installer_deb-amd64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["installer-amd64"]
+  needs: ["setup_agent_version", "installer-amd64"]
   variables:
     DD_PROJECT: "installer"
     # There are currently no files to check for in the installer so we
@@ -121,7 +121,7 @@ installer_deb-arm64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["installer-arm64"]
+  needs: ["setup_agent_version", "installer-arm64"]
   variables:
     DD_PROJECT: "installer"
     PACKAGE_REQUIRED_FILES_LIST: ""
@@ -152,13 +152,13 @@ installer_deb-arm64:
 
 iot_agent_deb-x64:
   extends: [.package_iot_deb_common, .package_deb_x86]
-  needs: ["iot-agent-x64"]
+  needs: ["setup_agent_version", "iot-agent-x64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_amd64"
 
 iot_agent_deb-arm64:
   extends: [.package_iot_deb_common, .package_deb_arm64]
-  needs: ["iot-agent-arm64"]
+  needs: ["setup_agent_version", "iot-agent-arm64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_arm64"
 
@@ -166,7 +166,7 @@ iot_agent_deb-armhf:
   extends: .package_iot_deb_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
-  needs: ["iot-agent-armhf"]
+  needs: ["setup_agent_version", "iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
@@ -181,7 +181,7 @@ dogstatsd_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]
   rules:
     - when: on_success
-  needs: ["dogstatsd-x64"]
+  needs: ["setup_agent_version", "dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
@@ -193,7 +193,7 @@ dogstatsd_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - when: on_success
-  needs: ["dogstatsd-arm64"]
+  needs: ["setup_agent_version", "dogstatsd-arm64"]
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"

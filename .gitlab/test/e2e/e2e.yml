@@ -150,6 +150,7 @@
     optional: true
 
 .needs_new_e2e_template:
+  - setup_agent_version
   - go_e2e_deps
   - job: go_e2e_test_binaries
     artifacts: false

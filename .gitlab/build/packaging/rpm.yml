@@ -61,7 +61,7 @@ agent_rpm-x64-a7:
   tags: ["arch:amd64", "specific:true"]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-x64"]
+  needs: ["setup_agent_version", "datadog-agent-7-x64"]
   variables:
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_rpm_amd64"
@@ -70,7 +70,7 @@ agent_rpm-arm64-a7:
   extends: [.package_rpm_common, .package_rpm_arm64]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-arm64"]
+  needs: ["setup_agent_version", "datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_rpm_arm64"
@@ -79,7 +79,7 @@ agent_suse-x64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-x64"]
+  needs: ["setup_agent_version", "datadog-agent-7-x64"]
   variables:
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_suse_amd64"
@@ -88,14 +88,14 @@ agent_suse-arm64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-arm64"]
+  needs: ["setup_agent_version", "datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_suse_arm64"
 
 installer_rpm-amd64:
   extends: [.package_rpm_common, .package_rpm_x86]
-  needs: ["installer-amd64"]
+  needs: ["setup_agent_version", "installer-amd64"]
   variables:
     DD_PROJECT: installer
     # There are currently no files to check for in the installer so we
@@ -109,7 +109,7 @@ agent_rpm-x64-a7-fips:
   tags: ["arch:amd64", "specific:true"]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-x64-fips"]
+  needs: ["setup_agent_version", "datadog-agent-7-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
     DD_PROJECT: agent
@@ -119,7 +119,7 @@ agent_rpm-arm64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_arm64]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-arm64-fips"]
+  needs: ["setup_agent_version", "datadog-agent-7-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
     DD_PROJECT: agent
@@ -129,7 +129,7 @@ agent_suse-x64-a7-fips:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-x64-fips"]
+  needs: ["setup_agent_version", "datadog-agent-7-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
@@ -139,7 +139,7 @@ agent_suse-arm64-a7-fips:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
   rules:
     - when: on_success
-  needs: ["datadog-agent-7-arm64-fips"]
+  needs: ["setup_agent_version", "datadog-agent-7-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
@@ -154,27 +154,27 @@ agent_suse-arm64-a7-fips:
 
 ddot_rpm-x64:
   extends: [.ddot_rpm_common, .package_rpm_x86]
-  needs: ["datadog-otel-agent-x64"]
+  needs: ["setup_agent_version", "datadog-otel-agent-x64"]
 
 ddot_rpm-arm64:
   extends: [.ddot_rpm_common, .package_rpm_arm64]
-  needs: ["datadog-otel-agent-arm64"]
+  needs: ["setup_agent_version", "datadog-otel-agent-arm64"]
 
 ddot_rpm-x64-fips:
   extends: [.ddot_rpm_common, .package_rpm_x86]
-  needs: ["datadog-otel-agent-x64-fips"]
+  needs: ["setup_agent_version", "datadog-otel-agent-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
 
 ddot_rpm-arm64-fips:
   extends: [.ddot_rpm_common, .package_rpm_arm64]
-  needs: ["datadog-otel-agent-arm64-fips"]
+  needs: ["setup_agent_version", "datadog-otel-agent-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
 
 ddot_suse_rpm-x64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
-  needs: ["datadog-otel-agent-x64"]
+  needs: ["setup_agent_version", "datadog-otel-agent-x64"]
   variables:
     DD_PROJECT: ddot
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
@@ -183,7 +183,7 @@ ddot_suse_rpm-x64:
 
 ddot_suse_rpm-arm64:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
-  needs: ["datadog-otel-agent-arm64"]
+  needs: ["setup_agent_version", "datadog-otel-agent-arm64"]
   variables:
     DD_PROJECT: ddot
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
@@ -192,7 +192,7 @@ ddot_suse_rpm-arm64:
 
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_arm64]
-  needs: ["installer-arm64"]
+  needs: ["setup_agent_version", "installer-arm64"]
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
@@ -201,7 +201,7 @@ installer_rpm-arm64:
 
 installer_suse_rpm-amd64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
-  needs: ["installer-amd64"]
+  needs: ["setup_agent_version", "installer-amd64"]
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
@@ -210,7 +210,7 @@ installer_suse_rpm-amd64:
 
 installer_suse_rpm-arm64:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
-  needs: ["installer-arm64"]
+  needs: ["setup_agent_version", "installer-arm64"]
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
@@ -246,14 +246,14 @@ installer_suse_rpm-arm64:
 
 iot_agent_rpm-x64:
   extends: [.package_iot_rpm_common, .package_rpm_x86]
-  needs: ["iot-agent-x64"]
+  needs: ["setup_agent_version", "iot-agent-x64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_rpm_amd64"
     STATIC_QUALITY_GATE_ARCH: x86_64
 
 iot_agent_rpm-arm64:
   extends: [.package_iot_rpm_common, .package_rpm_arm64]
-  needs: ["iot-agent-arm64"]
+  needs: ["setup_agent_version", "iot-agent-arm64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_rpm_arm64"
     STATIC_QUALITY_GATE_ARCH: aarch64
@@ -263,7 +263,7 @@ iot_agent_rpm-armhf:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["arch:arm64", "specific:true"]
-  needs: ["iot-agent-armhf"]
+  needs: ["setup_agent_version", "iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
@@ -274,7 +274,7 @@ iot_agent_rpm-armhf:
 
 iot_agent_suse-x64:
   extends: [.package_iot_rpm_common, .package_rpm_x86]
-  needs: ["iot-agent-x64"]
+  needs: ["setup_agent_version", "iot-agent-x64"]
   script:
     # Don't simply redefine OMNIBUS_PACKAGE_DIR since it also defines where the input
     # artifact is expected to be found. Since the build job is distribution agnostic
@@ -294,7 +294,7 @@ dogstatsd_rpm-x64:
   extends: [.package_rpm_common, .package_rpm_x86]
   rules:
     - when: on_success
-  needs: ["dogstatsd-x64"]
+  needs: ["setup_agent_version", "dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_dogstatsd_rpm_amd64"
@@ -306,7 +306,7 @@ dogstatsd_suse-x64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
   rules:
     - when: on_success
-  needs: ["dogstatsd-x64"]
+  needs: ["setup_agent_version", "dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_dogstatsd_suse_amd64"

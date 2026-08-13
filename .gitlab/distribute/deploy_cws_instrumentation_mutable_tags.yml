@@ -4,7 +4,9 @@
 .deploy_mutable_cws_instrumentation_tags-base:
   extends: .docker_publish_job_definition
   stage: deploy_cws_instrumentation_mutable_tags
-  dependencies: []
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}
@@ -13,6 +15,8 @@ deploy_mutable_cws_instrumentation_tags-rc:
   extends: .deploy_mutable_cws_instrumentation_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-cws-instrumentation
       artifacts: false
   variables:
@@ -22,6 +26,8 @@ deploy_mutable_cws_instrumentation_tags-latest:
   extends: .deploy_mutable_cws_instrumentation_tags-base
   rules: !reference [.on_deploy_manual_final]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-cws-instrumentation
       artifacts: false
   variables:

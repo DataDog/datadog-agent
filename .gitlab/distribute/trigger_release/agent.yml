@@ -57,7 +57,10 @@ trigger_manual_prod_release:
 generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  needs: ["trigger_auto_staging_release"]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
+    - trigger_auto_staging_release
   tags: ["arch:arm64", "specific:true"]
   extends: .dd_octo_sts
   rules:
@@ -77,7 +80,10 @@ generate_windows_gitlab_runner_bump_pr:
 generate_windows_gitlab_runner_bump_pr_manual:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  needs: ["trigger_auto_staging_release"]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
+    - trigger_auto_staging_release
   tags: ["arch:arm64", "specific:true"]
   extends: .dd_octo_sts
   rules:

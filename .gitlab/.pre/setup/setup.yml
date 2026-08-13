@@ -19,8 +19,11 @@ setup_agent_version:
     - cat agent-version.cache
   needs: []
   artifacts:
+    expire_in: 2 weeks
+    paths:
+      - agent-version.cache
     reports:
       dotenv: build.env
   variables:
     DISABLE_GIT_CACHE: true
-    GIT_DEPTH: 0  # git describe --tags needs reachable tags
+    GIT_DEPTH: 0  # Writes agent-version.cache via git describe --tags

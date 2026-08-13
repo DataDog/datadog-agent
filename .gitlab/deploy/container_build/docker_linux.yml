@@ -163,6 +163,7 @@ docker_build_agent7:
   rules:
     - when: on_success
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-x64
   variables:
     TAG_SUFFIX: -7
@@ -191,6 +192,7 @@ single_machine_performance-full-amd64-a7:
     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
     - !reference [.on_dev_branches_with_artifact_changes]
   needs:
+    - setup_agent_version
     - docker_build_agent7_full
   variables:
     IMG_REGISTRIES: smp
@@ -202,6 +204,7 @@ docker_build_agent7_arm64:
   rules:
     - when: on_success
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-arm64
   variables:
     TAG_SUFFIX: -7
@@ -212,6 +215,7 @@ docker_build_agent7_arm64:
 docker_build_fips_agent7:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-x64-fips
   variables:
     TAG_SUFFIX: -7-fips
@@ -220,6 +224,7 @@ docker_build_fips_agent7:
 docker_build_fips_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-arm64-fips
   variables:
     TAG_SUFFIX: -7-fips
@@ -231,6 +236,7 @@ docker_build_agent7_jmx:
   rules:
     - when: on_success
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-x64
   variables:
     TAG_SUFFIX: -7-jmx
@@ -242,6 +248,7 @@ docker_build_agent7_jmx_arm64:
   rules:
     - when: on_success
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-arm64
   variables:
     TAG_SUFFIX: -7-jmx
@@ -251,6 +258,7 @@ docker_build_agent7_jmx_arm64:
 docker_build_fips_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-x64-fips
   variables:
     TAG_SUFFIX: -7-fips-jmx
@@ -259,6 +267,7 @@ docker_build_fips_agent7_jmx:
 docker_build_fips_agent7_arm64_jmx:
   extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-arm64-fips
   variables:
     TAG_SUFFIX: -7-fips-jmx
@@ -269,7 +278,7 @@ docker_build_fips_agent7_arm64_jmx:
   extends: .docker_build_job_definition
   rules:
     - when: on_success
-  needs: []
+  needs: ["setup_agent_version"]
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent-base-image
     BUILD_CONTEXT: Dockerfiles/base-image
@@ -303,6 +312,7 @@ docker_build_host_profiler_standalone_amd64:
   extends:
     [.docker_build_host_profiler_standalone, .docker_build_amd64]
   needs:
+    - setup_agent_version
     - job: docker_build_base_image_amd64
     - job: build_host_profiler_binary_x64
   variables:
@@ -312,6 +322,7 @@ docker_build_host_profiler_standalone_arm64:
   extends:
     [.docker_build_host_profiler_standalone, .docker_build_arm64]
   needs:
+    - setup_agent_version
     - job: docker_build_base_image_arm64
     - job: build_host_profiler_binary_arm64
   variables:
@@ -349,6 +360,7 @@ docker_build_ot_agent_standalone_amd64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_amd64]
   needs:
+    - setup_agent_version
     - job: docker_build_base_image_amd64
     - job: datadog-otel-agent-x64
 
@@ -356,6 +368,7 @@ docker_build_ot_agent_standalone_arm64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_arm64]
   needs:
+    - setup_agent_version
     - job: docker_build_base_image_arm64
     - job: datadog-otel-agent-arm64
 
@@ -363,6 +376,7 @@ docker_build_ot_agent_standalone_fips_amd64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_amd64]
   needs:
+    - setup_agent_version
     - job: docker_build_fips_agent7
     - job: datadog-otel-agent-x64-fips
   variables:
@@ -374,6 +388,7 @@ docker_build_ot_agent_standalone_fips_arm64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_arm64]
   needs:
+    - setup_agent_version
     - job: docker_build_fips_agent7_arm64
     - job: datadog-otel-agent-arm64-fips
   variables:
@@ -384,6 +399,7 @@ docker_build_ot_agent_standalone_fips_arm64:
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-x64
     - job: datadog-otel-agent-x64
   variables:
@@ -393,6 +409,7 @@ docker_build_agent7_full:
 docker_build_agent7_full_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-arm64
     - job: datadog-otel-agent-arm64
   variables:
@@ -402,6 +419,7 @@ docker_build_agent7_full_arm64:
 docker_build_agent7_fips_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-x64-fips
     - job: datadog-otel-agent-x64-fips
   variables:
@@ -411,6 +429,7 @@ docker_build_agent7_fips_full:
 docker_build_agent7_fips_full_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
+    - setup_agent_version
     - job: datadog-agent-7-arm64-fips
     - job: datadog-otel-agent-arm64-fips
   variables:
@@ -442,6 +461,7 @@ docker_build_cluster_agent_amd64:
   rules:
     - when: on_success
   needs:
+    - setup_agent_version
     - job: cluster_agent-build_amd64
       artifacts: true
     - job: cws_instrumentation-build_injector_amd64
@@ -456,6 +476,7 @@ docker_build_cluster_agent_arm64:
   rules:
     - when: on_success
   needs:
+    - setup_agent_version
     - job: cluster_agent-build_arm64
       artifacts: true
     - job: cws_instrumentation-build_injector_amd64
@@ -476,6 +497,7 @@ docker_build_cluster_agent_arm64:
 docker_build_cluster_agent_fips_amd64:
   extends: [.docker_build_amd64, .docker_build_cluster_agent_fips]
   needs:
+    - setup_agent_version
     - job: cluster_agent_fips-build_amd64
       artifacts: true
     - job: cws_instrumentation-build_injector_amd64
@@ -486,6 +508,7 @@ docker_build_cluster_agent_fips_amd64:
 docker_build_cluster_agent_fips_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent_fips]
   needs:
+    - setup_agent_version
     - job: cluster_agent_fips-build_arm64
       artifacts: true
     - job: cws_instrumentation-build_injector_amd64
@@ -507,6 +530,7 @@ docker_build_cluster_agent_fips_arm64:
 docker_build_cws_instrumentation_amd64:
   extends: [.docker_build_cws_instrumentation, .docker_build_amd64]
   needs:
+    - setup_agent_version
     - job: cws_instrumentation-build_amd64
       artifacts: true
   variables:
@@ -515,6 +539,7 @@ docker_build_cws_instrumentation_amd64:
 docker_build_cws_instrumentation_arm64:
   extends: [.docker_build_cws_instrumentation, .docker_build_arm64]
   needs:
+    - setup_agent_version
     - job: cws_instrumentation-build_arm64
       artifacts: true
   variables:
@@ -534,6 +559,7 @@ docker_build_cws_instrumentation_arm64:
 docker_build_secret_generic_connector_amd64:
   extends: [.docker_build_secret_generic_connector, .docker_build_amd64]
   needs:
+    - setup_agent_version
     - job: secret_generic_connector-build_amd64
       artifacts: true
   variables:
@@ -542,6 +568,7 @@ docker_build_secret_generic_connector_amd64:
 docker_build_secret_generic_connector_arm64:
   extends: [.docker_build_secret_generic_connector, .docker_build_arm64]
   needs:
+    - setup_agent_version
     - job: secret_generic_connector-build_arm64
       artifacts: true
   variables:
@@ -560,6 +587,7 @@ docker_build_secret_generic_connector_arm64:
 docker_build_dogstatsd_amd64:
   extends: [.docker_build_dogstatsd, .docker_build_amd64, .docker_build_s3]
   needs:
+    - setup_agent_version
     - job: build_dogstatsd_static-binary_x64
       artifacts: false
   timeout: 20m
@@ -569,6 +597,7 @@ docker_build_dogstatsd_amd64:
 docker_build_dogstatsd_arm64:
   extends: [.docker_build_dogstatsd, .docker_build_arm64, .docker_build_s3]
   needs:
+    - setup_agent_version
     - job: build_dogstatsd_static-binary_arm64
       artifacts: false
   timeout: 20m

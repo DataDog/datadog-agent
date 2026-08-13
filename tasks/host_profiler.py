@@ -9,7 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
+from tasks.libs.common.constants import AGENT_VERSION_CACHE_NAME, ALLOWED_REPO_NIGHTLY_BRANCHES
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.libs.releasing.json import get_current_milestone
@@ -51,7 +51,7 @@ def _get_profiler_agent_version(ctx):
         return None
 
     major_version = get_current_milestone().split('.')[0]
-    version, pre, commits, git_sha, _ = query_version(ctx, major_version=major_version)
+    version, pre, commits, git_sha = _profiler_version_components(ctx, major_version)
 
     if is_nightly:
         return f"{version}-nightly_git.{commits}.{git_sha}"
@@ -59,6 +59,17 @@ def _get_profiler_agent_version(ctx):
     branch = os.environ.get("CI_COMMIT_REF_SLUG")
     pre_label = pre if pre else "devel"
     return f"{version}-{pre_label}_git.{commits}.{git_sha}.{branch}"
+
+
+def _profiler_version_components(ctx, major_version):
+    """Return (version, pre, commits, git_sha), preferring agent-version.cache."""
+    if os.path.exists(AGENT_VERSION_CACHE_NAME):
+        with open(AGENT_VERSION_CACHE_NAME) as file:
+            cache_data = json.load(file)
+        version, pre, commits, git_sha, _ = cache_data[major_version]
+        return version, pre, commits, git_sha
+    version, pre, commits, git_sha, _ = query_version(ctx, major_version=major_version)
+    return version, pre, commits, git_sha
 
 
 @task

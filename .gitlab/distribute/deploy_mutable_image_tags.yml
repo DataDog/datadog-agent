@@ -14,7 +14,9 @@
 .deploy_mutable_image_tags_base:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
-  dependencies: []
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${SUFFIX}
@@ -39,6 +41,8 @@ deploy_mutable_image_tags-a7-rc:
   rules:
     !reference [.on_deploy_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-a7
       artifacts: false
 # https://github.com/DataDog/datadog-agent/pull/43846
@@ -59,6 +63,8 @@ deploy_mutable_image_tags-a7-win-only-rc:
   rules:
     !reference [.on_deploy_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-a7-win-only
       artifacts: false
 # https://github.com/DataDog/datadog-agent/pull/43846
@@ -85,6 +91,8 @@ deploy_mutable_image_tags-a7-full-rc:
   rules:
     !reference [.on_deploy_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-a7-full
       artifacts: false
 # https://github.com/DataDog/datadog-agent/pull/43846
@@ -99,6 +107,8 @@ deploy_mutable_image_tags-a7-fips-rc:
   rules:
     !reference [.on_deploy_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-a7-fips
       artifacts: false
 # https://github.com/DataDog/datadog-agent/pull/43846
@@ -117,6 +127,8 @@ deploy_mutable_image_tags-a7_internal-rc:
   rules:
     !reference [.on_deploy_internal_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-a7_internal-rc
       artifacts: false
   parallel:
@@ -128,6 +140,8 @@ deploy_mutable_image_tags-a7-fips_internal-rc:
   rules:
     !reference [.on_deploy_internal_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-a7-fips_internal-rc
       artifacts: false
   parallel:
@@ -191,6 +205,9 @@ deploy_mutable_image_tags-dogstatsd:
   stage: deploy_mutable_image_tags
   rules:
     !reference [.on_deploy_manual_final]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}

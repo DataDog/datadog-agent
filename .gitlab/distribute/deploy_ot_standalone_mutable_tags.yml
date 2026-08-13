@@ -3,7 +3,9 @@
 .deploy_mutable_ot_standalone_tags-base:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
-  dependencies: []
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - if [[ "$OTEL_AGENT_REPOSITORY" == "" ]]; then export OTEL_AGENT_REPOSITORY="otel-agent"; fi
@@ -13,6 +15,8 @@ deploy_mutable_ot_standalone_tags-rc:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-ot-standalone
       artifacts: false
   variables:
@@ -22,6 +26,8 @@ deploy_mutable_ot_standalone_tags-latest:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_manual_final]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-ot-standalone
       artifacts: false
   variables:
@@ -31,6 +37,8 @@ deploy_mutable_ot_standalone_tags_internal-rc:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-ot-standalone_internal-rc
       artifacts: false
   variables:
@@ -40,6 +48,8 @@ deploy_mutable_ot_standalone_tags_internal-latest:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_internal_manual_final]
   needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: setup_agent_version
     - job: deploy_containers-ot-standalone_internal
       artifacts: false
   variables:
