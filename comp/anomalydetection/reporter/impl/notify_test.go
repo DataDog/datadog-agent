@@ -76,11 +76,22 @@ func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 		{Handle: observerdef.QueryHandle{Ref: 43, Aggregate: observerdef.AggregateSum}, Share: 0.25},
 	}, storage)
 
-	t.Log(message)
 	assert.Contains(t, message, "1. 75% — log: ERROR: connection refused to db.prod:5432 — {service:api}")
 	assert.Contains(t, message, "2. 25% — log: GET /checkout <*> returned 500 — {env:prod}")
 	assert.NotContains(t, message, "log.pattern.abc.count")
 	assert.NotContains(t, message, "log.pattern.def.rate")
+}
+
+func TestFormatScorerEpisodeMessageFallsBackWithoutContributors(t *testing.T) {
+	event := observerdef.CorrelatorEvent{
+		CorrelatorName: "anomaly_scorer",
+		Timestamp:      1234,
+		Correlation:    observerdef.ActiveCorrelation{Pattern: "anomaly_scorer_high:1234"},
+	}
+
+	message := formatScorerEpisodeMessage(event, nil, "ended")
+
+	assert.Equal(t, "Anomaly scorer \"anomaly_scorer\" episode ended at t=1234\nPattern: anomaly_scorer_high:1234", message)
 }
 
 func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing.T) {

@@ -127,8 +127,7 @@ Usage pattern in `MODULE.bazel`:
 
 ```python
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
-# TODO: simplify to //:go.work once all Go modules are migrated (see deps/go.MODULE.bazel)
-go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.from_file(go_work = "//:go.work")
 use_repo(go_deps, "com_github_some_dep", ...)
 ```
 
@@ -207,6 +206,31 @@ become part of the same automated workflow — you do not need to know which ext
 
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
+
+#### `test/new-e2e/tests/` is not migrated — exclude new suite directories
+
+Most of `test/new-e2e/tests/` is listed in the root `BUILD.bazel` `# gazelle:exclude` block. Those suites provision real
+cloud infrastructure via Pulumi; CI runs `bazel test --config=no-dd-agent-go-tests //...`, so a `go_test` target for a
+suite would be *executed* by that job and fail in the sandbox (no credentials, no network). Only the helper
+`go_library` packages under `test/new-e2e/` are migrated — no e2e suite has a `go_test` target.
+
+When adding a suite directory, add a matching `# gazelle:exclude test/new-e2e/tests/<area>` to the root `BUILD.bazel`
+in the same change. Without it Gazelle generates a `go_test` on the next `bazel run //:gazelle` and keeps re-adding it
+after every deletion.
+
+Do not reach for `select()` on `deps` to keep a platform-specific suite file out of the build. E2E test binaries are
+cross-platform by design: the binary runs on the CI host while the *target VM* is Windows/Linux. Files like
+`foo_win_test.go` carry no Go build constraint (`_win` is not a `GOOS` — only `_windows` is), and constraining them
+would stop Windows suites from ever running from Linux CI.
+
+#### `@//` in a generated dep means Gazelle found no target
+
+A label like `"@//test/new-e2e/tests/windows/common"` (rather than `"//test/..."`) is Gazelle's module-path fallback: the
+import matched a local `go.work` module, but no `go_library` was indexed at that path, so no rule was found to point at.
+It always fails at analysis with `no such target '//...:<dir>'`. The usual cause is a `# gazelle:ignore` in the target
+package — e.g. `test/new-e2e/tests/windows/common`, which cannot be migrated while its
+`//go:embed fixtures/get-acl-helpers.ps1` refers to a `gazelle:exclude`d directory (no `embedsrcs` is generated, so the
+package does not compile). Fix the dependency's package or exclude the consumer; never hand-edit the `@//` label.
 
 ### Always name files `BUILD.bazel`, never `BUILD`
 
@@ -301,6 +325,26 @@ package-local tag combinations from `//go:build` constraints. Dependency-only op
 `# gazelle:go_canonical_test_tag_set tag tag ...` directive (one line per combination) defines canonical combinations for the
 tags it names. Gazelle uses those combinations instead of unsafe partial modes and only considers
 embedded library constraints when a configured combination satisfies them.
+
+Some `//go:build` constraints name a tag that a canonical set covers *and* a tag that no canonical
+set mentions. `//go:build trivy && containerd` is one: `containerd` belongs to the canonical set
+`containerd cel`, but no canonical set mentions `trivy`, so that set on its own cannot compile the
+file. Gazelle does not give up there — it derives the minimal combination the constraint needs
+(`containerd trivy`) and adds every canonical set that shares a tag with it, producing
+`cel containerd trivy`. The canonical grouping is still honoured, and the sources still get a test
+target.
+
+This only applies when the canonical set and the constraint can coexist. A constraint that
+contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
+test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
+`kubeapiserver` and `kubelet` share the canonical set
+`cel clusterchecks kubeapiserver kubelet orchestrator` — and the result then fails the constraint's
+own `!kubelet`.
+
+Combinations built this way can be long, and target names are budgeted against the Windows runfiles
+path length (see the Windows section). When `dd_agent_go_test` fails with a path-length error, add a
+short suffix for the combination to `_TAG_SET_SUFFIX_ALIASES` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
 
 ## Starlark language
 

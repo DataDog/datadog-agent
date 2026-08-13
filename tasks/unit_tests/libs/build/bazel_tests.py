@@ -29,22 +29,11 @@ class TestBazel(unittest.TestCase):
         self.assertEqual(bazel(self._ctx(), "info", capture_output=True), "out\n")
 
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_capture_stderr(self, _):
-        self.assertEqual(bazel(self._ctx(), "info", capture_stderr=True), "err\n")
-
-    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_capture_both(self, _):
-        self.assertEqual(bazel(self._ctx(), "info", capture_output=True, capture_stderr=True), "out\nerr\n")
-
-    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_ignore_errors_captures_output_on_success(self, _):
-        self.assertEqual(bazel(self._ctx(), "info", ignore_errors=True, capture_output=True), "out\n")
-
-    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_ignore_errors_only_captures_stderr_on_failure(self, _):
-        self.assertEqual(
-            bazel(self._ctx(exit=1), "info", ignore_errors=True, capture_output=True, capture_stderr=True), "err\n"
-        )
+    def test_ignore_errors_returns_raw_result(self, _):
+        res = bazel(self._ctx(exit=1), "info", ignore_errors=True, capture_output=True)
+        self.assertFalse(res.ok)
+        self.assertEqual(res.stdout, "out\n")
+        self.assertEqual(res.stderr, "err\n")
 
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
     def test_input_stream_disabled_by_default(self, _):
