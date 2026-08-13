@@ -1,0 +1,28 @@
+type: agent_rule
+name: test_shell_exec
+expression: |-
+  exec.file.name in TEST_SHELL_NAMES && exec.file.path =~ "/usr/bin/*"
+description: a macro, and a path glob
+osFilter: linux
+tests:
+  - description: a shell under /usr/bin
+    data:
+      type: exec
+      values:
+        "exec.file.name": "bash"
+        "exec.file.path": "/usr/bin/bash"
+    expected: true
+  - description: the same shell one directory deeper, which a path glob does not cross
+    data:
+      type: exec
+      values:
+        "exec.file.name": "bash"
+        "exec.file.path": "/usr/bin/extra/bash"
+    expected: false
+  - description: not a shell
+    data:
+      type: exec
+      values:
+        "exec.file.name": "curl"
+        "exec.file.path": "/usr/bin/curl"
+    expected: false

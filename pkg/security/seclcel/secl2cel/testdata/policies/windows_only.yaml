@@ -1,0 +1,6 @@
+type: agent_rule
+name: test_windows_only
+expression: |-
+  exec.file.name == "cmd.bat"
+description: skipped, because the environment measured against carries the unix model
+osFilter: windows

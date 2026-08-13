@@ -200,7 +200,50 @@ func ParseSource(src common.Source) (*celast.AST, error) {
 	return parseSource(src, nil)
 }
 
+// ParseMacro translates the body of a SECL macro, which is either an expression or the
+// list a membership test would compare against — SECL's own grammar has the same two
+// cases (ast.Macro).
+//
+// A list is translated as the *value* it would be if it were written into the rule, so a
+// list holding patterns becomes the prepared set rather than a list of strings. That is
+// what lets a macro be evaluated once, at load, and declared as a constant: the
+// pattern-ness that SECL recovers by inlining the macro into each rule is carried by the
+// value instead.
+func ParseMacro(expr string, fieldTypes FieldTypes) (*celast.AST, error) {
+	return parseMacroSource(common.NewTextSource(expr), fieldTypes)
+}
+
 func parseSource(src common.Source, fieldTypes FieldTypes) (*celast.AST, error) {
+	return parseRoot(src, fieldTypes, (*parser).ruleBody)
+}
+
+func parseMacroSource(src common.Source, fieldTypes FieldTypes) (*celast.AST, error) {
+	return parseRoot(src, fieldTypes, (*parser).macroBody)
+}
+
+// ruleBody parses what a rule is: one expression.
+func (p *parser) ruleBody() (operand, *ParseError) {
+	return p.expression()
+}
+
+// macroBody parses what a macro is: an expression, or a list.
+func (p *parser) macroBody() (operand, *ParseError) {
+	if tok := p.peek(); tok.kind == tokPunct && tok.val == "[" {
+		arr, err := p.arrayLiteral()
+		if err != nil {
+			return operand{}, err
+		}
+
+		expr := p.arrayExpr(arr)
+		if arr.hasMatcher() {
+			expr = p.patternsExpr(arr, arr.start, arr.end)
+		}
+		return operand{expr: expr, start: arr.start, end: arr.end}, nil
+	}
+	return p.expression()
+}
+
+func parseRoot(src common.Source, fieldTypes FieldTypes, body func(*parser) (operand, *ParseError)) (*celast.AST, error) {
 	toks, lexErr := lex(src.Content())
 	if lexErr != nil {
 		return nil, lexErr.withSource(src)
@@ -214,7 +257,7 @@ func parseSource(src common.Source, fieldTypes FieldTypes) (*celast.AST, error) 
 		types:  fieldTypes,
 	}
 
-	root, err := p.expression()
+	root, err := body(p)
 	if err != nil {
 		return nil, err.withSource(src)
 	}

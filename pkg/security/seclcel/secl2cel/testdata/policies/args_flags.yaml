@@ -1,0 +1,23 @@
+type: agent_rule
+name: test_args_flags
+expression: |-
+  exec.args_flags allin [ "l" ] && exec.argv in [ ~"--col*" ]
+description: allin, which SECL reads as in, and a list-valued leaf
+osFilter: linux
+tests:
+  - description: a flag and a matching argument
+    data:
+      type: exec
+      values:
+        "exec.file.name": "ls"
+        "exec.args_flags": ["l", "a"]
+        "exec.argv": ["-l", "--color"]
+    expected: true
+  - description: the flag alone
+    data:
+      type: exec
+      values:
+        "exec.file.name": "ls"
+        "exec.args_flags": ["l"]
+        "exec.argv": ["-l"]
+    expected: false

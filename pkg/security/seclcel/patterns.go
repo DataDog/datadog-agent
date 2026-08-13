@@ -110,15 +110,16 @@ func (g *globValue) Type() ref.Type { return GlobType }
 // Value implements ref.Val, returning the pattern as it was written.
 func (g *globValue) Value() any { return g.pattern }
 
-// Equal implements ref.Val by refusing.
+// Equal implements ref.Val as identity.
 //
-// A pattern is matched, never compared, and how it matches depends on the field on the
-// other side — which an equality does not carry. Nothing translates to one: a
-// comparison becomes a glob call and a membership becomes MatchAnyFunc, both of which
-// know the field. An error here is what keeps a future translation from quietly
-// answering false, which is what cel-go's own equality would do.
+// A pattern is matched, never compared — how it matches depends on the field on the other
+// side, which an equality does not carry — and nothing translates to an equality over one:
+// a comparison becomes a glob call and a membership becomes MatchAnyFunc, both of which
+// know the field. So what this answers only has to be reflexive, which is what cel-go
+// requires of a value it has declared: Env.Extend refuses a constant that does not equal
+// itself, reporting it as a conflicting definition.
 func (g *globValue) Equal(other ref.Val) ref.Val {
-	return types.MaybeNoSuchOverloadErr(other)
+	return types.Bool(g == other)
 }
 
 // ConvertToNative implements ref.Val.
@@ -169,9 +170,9 @@ func (r *regexpValue) Type() ref.Type { return RegexpType }
 // Value implements ref.Val.
 func (r *regexpValue) Value() any { return r.pattern }
 
-// Equal implements ref.Val by refusing — see globValue.Equal.
+// Equal implements ref.Val as identity — see globValue.Equal.
 func (r *regexpValue) Equal(other ref.Val) ref.Val {
-	return types.MaybeNoSuchOverloadErr(other)
+	return types.Bool(r == other)
 }
 
 // ConvertToNative implements ref.Val.
@@ -267,9 +268,10 @@ func (p *patternSet) Type() ref.Type { return PatternsType }
 // Value implements ref.Val.
 func (p *patternSet) Value() any { return p }
 
-// Equal implements ref.Val. A set is not comparable: it exists to be searched.
+// Equal implements ref.Val as identity. A set exists to be searched rather than compared,
+// and identity is what a declared value has to answer — see globValue.Equal.
 func (p *patternSet) Equal(other ref.Val) ref.Val {
-	return types.MaybeNoSuchOverloadErr(other)
+	return types.Bool(p == other)
 }
 
 // ConvertToNative implements ref.Val.

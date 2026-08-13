@@ -26,6 +26,9 @@ import (
 func main() {
 	untyped := flag.Bool("untyped", false,
 		"translate without consulting the field types, leaving comparisons against array fields literal")
+	policies := flag.String("policies", "",
+		"measure coverage over a directory of agent rules and macros instead, evaluating each rule's own test cases through both engines")
+	verbose := flag.Bool("verbose", false, "list every case that could not be compared, not only the disagreements")
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), `usage: secl2cel [flags] [expression...]
@@ -35,12 +38,21 @@ With expressions, print the CEL each one translates to and type-check it.
 
   secl2cel
   secl2cel 'process.ancestors.file.name == "sh"'
+  secl2cel -policies ~/dd/security-monitoring/workload-security/agent-rules/linux
 
 flags:
 `)
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+
+	if *policies != "" {
+		if err := runCoverage(*policies, *verbose); err != nil {
+			fmt.Fprintln(os.Stderr, "secl2cel:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	env, err := seclcel.NewModelEnv()
 	if err != nil {
@@ -98,4 +110,25 @@ flags:
 	if failed {
 		os.Exit(1)
 	}
+}
+
+// runCoverage measures a rule set and prints the report — see coverage.go.
+func runCoverage(dir string, verbose bool) error {
+	set, err := readPolicies(dir)
+	if err != nil {
+		return err
+	}
+	if len(set.rules) == 0 {
+		return fmt.Errorf("no agent rules under %s", dir)
+	}
+
+	results, macroFailures, err := measure(set)
+	if err != nil {
+		return err
+	}
+
+	if !reportCoverage(set, results, macroFailures, verbose) {
+		os.Exit(1)
+	}
+	return nil
 }

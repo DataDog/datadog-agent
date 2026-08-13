@@ -1,0 +1,3 @@
+id: TEST_SHELL_NAMES
+description: shells, as a plain list
+expression: '[ "sh", "bash", "zsh" ]'

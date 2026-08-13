@@ -1,0 +1,3 @@
+id: TEST_WRITE_FLAGS
+description: an integer flag expression over SECL constants
+expression: O_WRONLY|O_RDWR|O_APPEND
