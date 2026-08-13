@@ -63,6 +63,13 @@ var PARWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-action-executor.yaml
 var PARExecutorWindowsProcmgrConfig string
 
+// PARControlWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
+// control plane on Windows (see embedded/tmpl/main.go). Installer replaces __PAR_*__
+// placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
+var PARControlWindowsProcmgrConfig string
+
 // UnitType is the type of systemd unit.
 type UnitType string
 
