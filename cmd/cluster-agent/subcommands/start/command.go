@@ -78,6 +78,7 @@ import (
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	instrumentationtargets "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/targets"
 
 	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -406,7 +407,7 @@ func start(log log.Component,
 
 	var instrHandlers []instrumentation.Handler
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore)
+		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore, config)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -776,12 +777,17 @@ func start(log log.Component,
 	return nil
 }
 
-func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore, cfg config.Component) []instrumentation.Handler {
 	checkStore := instrumentationhandlers.NewCheckStore()
+	targetRegistry, err := instrumentationtargets.NewRegistry(cfg)
+	if err != nil {
+		pkglog.Warnf("Invalid custom DatadogInstrumentation workload target configuration: %v", err)
+	}
 	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
 		IsLeader:                  le.IsLeader,
 		CheckStore:                checkStore,
 		ServiceCheckTemplateStore: serviceTemplateStore,
+		TargetRegistry:            targetRegistry,
 	})
 
 	api.ModifyAPIRouter(func(r *http.ServeMux) {

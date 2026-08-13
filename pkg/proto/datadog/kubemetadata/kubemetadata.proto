@@ -69,6 +69,22 @@ message KueueWorkload {
   KubeMetadataEventType type = 9;
 }
 
+message ResolvedTarget {
+  string group = 1;
+  string version = 2;
+  string kind = 3;
+  string namespace = 4;
+  string name = 5;
+  string uid = 6;
+}
+
+message PodResolvedTargets {
+  string namespace = 1;
+  string pod_name = 2;
+  repeated ResolvedTarget targets = 3;
+  KubeMetadataEventType type = 4;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
@@ -76,4 +92,5 @@ message KubeMetadataStreamResponse {
   repeated KueueQueue kueue_queues = 4;
   repeated KueueResourceFlavor kueue_resource_flavors = 5;
   repeated KueueWorkload kueue_workloads = 6;
+  repeated PodResolvedTargets resolved_targets = 7;
 }

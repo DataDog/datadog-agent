@@ -186,6 +186,7 @@ func (w *Webhook) checkDuplicateTargetRef(request *admission.Request, incoming *
 			continue
 		}
 		if existing.Spec.TargetRef.Kind == incoming.Spec.TargetRef.Kind &&
+			existing.Spec.TargetRef.APIVersion == incoming.Spec.TargetRef.APIVersion &&
 			existing.Spec.TargetRef.Name == incoming.Spec.TargetRef.Name {
 			return fmt.Sprintf(
 				"DatadogInstrumentation %q in namespace %q already targets %s/%s",

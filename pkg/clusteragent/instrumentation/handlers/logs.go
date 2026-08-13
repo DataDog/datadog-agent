@@ -21,6 +21,7 @@ import (
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/targets"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
@@ -32,13 +33,15 @@ const (
 // LogsHandler translates DatadogInstrumentation log sections into logs-only
 // integration.Config entries stored in the shared check store.
 type LogsHandler struct {
-	checkStore *CheckStore
+	checkStore     *CheckStore
+	targetRegistry *targets.Registry
 }
 
 // NewLogsHandler returns the logs DatadogInstrumentation handler.
 func NewLogsHandler(dep *Deps) *LogsHandler {
 	return &LogsHandler{
-		checkStore: dep.CheckStore,
+		checkStore:     dep.CheckStore,
+		targetRegistry: dep.TargetRegistry,
 	}
 }
 
@@ -54,9 +57,12 @@ func (h *LogsHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 
 // SupportsTarget returns whether log delivery supports the target kind.
 func (h *LogsHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
+	if h.targetRegistry != nil && h.targetRegistry.Supports(ref.APIVersion, ref.Kind) {
+		return true
+	}
 	switch ref.Kind {
 	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind:
-		return true
+		return ref.APIVersion == ""
 	default:
 		return false
 	}
@@ -153,7 +159,7 @@ func translateWorkloadLog(cr *datadoghq.DatadogInstrumentation, logConfig datado
 		Name:          logsCheckName,
 		ADIdentifiers: []string{adtypes.KubeContainerNameIdentifier(containerName)},
 		LogsConfig:    config,
-		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
+		CELSelector:   workloadTargetCELFilter(cr.Spec.TargetRef, cr.Namespace),
 		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }

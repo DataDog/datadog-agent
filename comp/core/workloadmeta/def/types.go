@@ -831,6 +831,7 @@ type KubernetesPod struct {
 	GPUVendorList              []string `proto:"ignore"`
 	RuntimeClass               string
 	KubeServices               []string
+	ResolvedTargets            []KubernetesResolvedTarget `proto:"ignore"`
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string   `proto:"ignore"`
 	FinishedAt                 time.Time           `proto:"ignore"`
@@ -998,6 +999,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
 	}
 
+	if len(p.ResolvedTargets) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Resolved Targets -----------")
+		for _, t := range p.ResolvedTargets {
+			_, _ = fmt.Fprint(&sb, t.String(verbose))
+		}
+	}
+
 	return sb.String()
 }
 
@@ -1010,11 +1018,35 @@ var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
+	APIVersion string `proto:"ignore"`
 	Kind       string
 	Name       string
 	ID         string
 	Group      string
 	Controller *bool `proto:"ignore"`
+}
+
+// KubernetesResolvedTarget identifies a configured workload target found in a
+// Pod's Kubernetes owner-reference chain by the Cluster Agent.
+type KubernetesResolvedTarget struct {
+	Group     string
+	Version   string
+	Kind      string
+	Namespace string
+	Name      string
+	ID        string
+}
+
+// String returns a string representation of KubernetesResolvedTarget.
+func (t KubernetesResolvedTarget) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Group:", t.Group, "Version:", t.Version, "Kind:", t.Kind, "Namespace:", t.Namespace, "Name:", t.Name)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "ID:", t.ID)
+	}
+
+	return sb.String()
 }
 
 // String returns a string representation of KubernetesPodOwner.

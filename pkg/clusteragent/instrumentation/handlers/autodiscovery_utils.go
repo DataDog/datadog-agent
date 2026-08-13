@@ -211,5 +211,6 @@ func entryHash(key, state string) uint64 {
 }
 
 func isService(cr *datadoghq.DatadogInstrumentation) bool {
-	return cr != nil && cr.Spec.TargetRef.Kind == "Service"
+	return cr != nil && cr.Spec.TargetRef.Kind == "Service" &&
+		(cr.Spec.TargetRef.APIVersion == "" || cr.Spec.TargetRef.APIVersion == "v1")
 }
