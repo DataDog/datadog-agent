@@ -1,6 +1,6 @@
 # E2E Tests
 
-This folder contains tests and utilities to write and run agent end to end tests based on [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework).
+This folder contains tests and utilities to write and run agent end to end tests, built on the Pulumi-based [E2E framework](https://github.com/DataDog/datadog-agent/tree/main/test/e2e-framework).
 
 ## Documentation
 
@@ -8,4 +8,4 @@ For comprehensive information about running E2E tests, see the [Running E2E test
 
 ## API Reference
 
-Go package documentation is available at https://pkg.go.dev/github.com/DataDog/datadog-agent/test/new-e2e@main/pkg/utils/e2e
+Go package documentation is available at https://pkg.go.dev/github.com/DataDog/datadog-agent/test/e2e-framework@main/testing/e2e
