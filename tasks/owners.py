@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import tempfile
 from collections import defaultdict
 
 from invoke import task
@@ -98,8 +100,6 @@ def _discover_folders(config_dir: str, manifest: str, smp_bin: str, exclude: lis
     Sourcing discovery from the CLI keeps SMP the single discovery authority — no duplicated os.walk
     that could drift from SMP's rules. Returns sorted unique folder paths relative to `config_dir`.
     """
-    import subprocess
-
     cmd = [
         smp_bin,
         'experiments',
@@ -199,12 +199,9 @@ def resolve_run_set_impl(
     Combines the CODEOWNERS-derived inputs (`smp_inputs_impl`) with
     `<smp_bin> experiments resolve --manifest <manifest> ... --format path-filter`. The manifest holds
     the selection policy (always/codeowners/labels buckets); involvement + ownership still come from
-    CODEOWNERS. Returns the comma-separated leaf paths (empty string if nothing resolves). Raises Exit
-    if `smp experiments resolve` fails.
+    CODEOWNERS. Returns the comma-separated experiment paths (empty string if nothing resolves). Raises
+    Exit if `smp experiments resolve` fails.
     """
-    import subprocess
-    import tempfile
-
     involved, ownership = smp_inputs_impl(config_dir, manifest, smp_bin, changed_files, exclude, owners_file)
 
     tf = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
@@ -260,7 +257,7 @@ def smp_resolve(
     Combines `owners.smp-inputs` (CODEOWNERS -> involved teams + ownership) with
     `<smp-bin> experiments resolve --manifest <manifest> ... --format path-filter`, so the whole
     "changed files + labels -> what runs" decision is one command runnable locally against a
-    locally-built smp binary. Writes the comma-separated leaf paths to `--out` (empty if nothing
+    locally-built smp binary. Writes the comma-separated experiment paths to `--out` (empty if nothing
     resolves) and prints them.
 
     - smp-bin: path to the smp binary (e.g. `./smp` in CI, or a local debug build).

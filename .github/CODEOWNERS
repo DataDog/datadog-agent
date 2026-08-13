@@ -1029,6 +1029,7 @@
 /test/regression/logs/                        @DataDog/agent-log-pipelines
 /test/regression/quality_gates/cases/quality_gate_security_* @DataDog/single-machine-performance @DataDog/agent-security
 /test/regression/quality_gates/cases/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
+/test/regression/selection.yaml               @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-devx
 /tools/host-profiler/                   @DataDog/profiling-full-host

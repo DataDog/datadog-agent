@@ -7,30 +7,25 @@ contains the experiments for Agent. A similar one exists in [Vector]. Please do
 add your own experiments, instructions below. If you have any questions do
 contact #single-machine-performance; we'll be glad to help.
 
-## Experiment groups and selection
+## Experiment selection
 
-Experiments are organized into **groups**. A group is either:
+An experiment is a directory under any `cases/` directory, at any depth (e.g.
+`quality_gates/cases/…`, `logs/general/cases/…`). Which experiments run on a
+given PR is governed by a single central manifest, `selection.yaml`, which maps
+**trigger buckets → experiments** (by glob, exact path, or experiment name):
 
-* a **leaf** — a directory that directly contains a `cases/` directory of
-  experiments, plus a `README.md` declaring how the group runs; or
-* a **dir** — an organizational directory that only contains other groups (no
-  `cases/` of its own, e.g. `logs/`).
+* `always` — runs unconditionally, on every PR and in scheduled SMP runs. These
+  are the strongest claims made about the Agent's performance (see
+  [Performance Quality Gates](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)).
+* `codeowners` — runs automatically on a PR when the experiment's owning team
+  (per `.github/CODEOWNERS`) has changed a file.
+* `labels` — runs when the named `smp/<label>` is applied to the PR.
 
-Each leaf's `README.md` front-matter declares a `mode` that controls when the
-group runs:
-
-* `quality_gates` — always runs, on every PR and in scheduled SMP runs; not
-  user-selectable. These are the strongest claims made about the Agent's
-  performance (see [Performance Quality Gates](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)).
-* `codeowners` — runs automatically on a PR when the group's owning team (per
-  `.github/CODEOWNERS`) has changed a file. It can also be run on any PR by
-  applying the group's label (below).
-* `optional` — runs only when the group's label is applied to the PR.
-
-**To run a `codeowners` or `optional` group on a PR, add its label.** A group's
-label is declared in its `README.md` front-matter and always mirrors the group
-path: `smp/<group-path>` (e.g. `smp/logs/syslog`). Quality-gate groups have no
-label — they always run.
+The buckets are **unioned**: an experiment runs if any of its triggers fire, and
+an experiment may appear in several buckets. **To run a labelled suite on a PR,
+apply its `smp/<label>` label.** `selection.yaml` is also the label registry —
+see it for the available labels, and `adr-experiment-selection.md` for the full
+model.
 
 ## Adding an Experiment
 
@@ -38,15 +33,18 @@ In order for SMP's tooling to properly read the suite please adhere to the
 following structure. Starting at the root:
 
 * `config.yaml` -- __Required__ Configuration that applies to all experiments.
-* One or more **groups**, each a directory containing:
-  * `README.md` -- __Required for leaves__ Front-matter with `mode`
-    (`quality_gates` | `codeowners` | `optional`), a `label` of
-    `smp/<group-path>` (required for `codeowners`/`optional`; omit for
-    `quality_gates`), and a one-line `description`.
-  * `cases/` -- __Required for leaves__ The directory that contains each
-    experiment. Each sub-directory is a separate experiment and the name of the
-    directory is the name of the experiment. Experiment names must be unique
-    across the whole suite. We call these sub-directories 'cases'.
+* One or more directories that (at any depth) contain a `cases/` directory:
+  * `cases/` -- The directory that contains each experiment. Each sub-directory
+    is a separate experiment and the name of the directory is the name of the
+    experiment. Experiment names must be unique across the whole suite. We call
+    these sub-directories 'cases'.
+  * `README.md` -- __Optional__ Prose docs for the folder (a one-line
+    `description` plus any notes). No selection front-matter — selection lives
+    in `selection.yaml`.
+* Assign the new experiment to a bucket in `selection.yaml` (or ensure it falls
+  under an existing glob such as `logs/**`). The validation gate
+  (`smp experiments validate --in-ci`) blocks merge until every experiment is
+  bucketed.
 
 The structure of each case is as follows:
 

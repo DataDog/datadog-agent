@@ -32,6 +32,12 @@ per-folder scheme fundamentally cannot express. The file is **global and SMP-own
 — accepted as the governance point that keeps the policy coherent and labels bounded, at the cost of
 SMP reviewing selection changes.
 
+Experiment *content* ownership (distinct from the manifest) follows CODEOWNERS by folder:
+`quality_gates/` experiments are **co-owned by SMP** (they are the core, always-run performance
+claims), while every other experiment folder is owned **solely by its team** (e.g. `logs/` →
+`agent-log-pipelines`). This is what makes the `codeowners` bucket's involvement resolve to the
+right team (D5).
+
 ### D2 — Three trigger buckets, unioned.
 
 ```yaml
@@ -81,12 +87,14 @@ experiments; `runner`/`kind` determine *how/where* each selected experiment is s
 filters the run set by the job's `--runner`, and each submit command self-filters its `kind`. One
 manifest serves all runner-jobs (each takes its `--runner` slice) — the seam for cross-runner suites.
 
-### D7 — Folders are pure organization (Leaf-XOR-Dir dissolved).
+### D7 — Folders are pure organization; any depth is allowed.
 
-With selection out of the folders, there is no "leaf" selection unit and no homogeneity requirement.
-Discovery just finds experiments under any `cases/` dir at any depth. Teams organize folders however
-they want; folders still feed CODEOWNERS ownership (for the `codeowners` bucket) and are the natural
-home for optional docs (READMEs).
+With selection out of the folders, there is no per-folder selection unit and no homogeneity
+requirement. Discovery finds experiments under any `cases/` directory at any depth, so
+`logs/cases/…`, `logs/general/cases/…`, and `logs/syslog/cases/…` can coexist and each be addressed
+independently by a path-prefix glob (`logs/**` = all of them; `logs/general/**` = just that group).
+Teams organize experiment folders however they want; folders still feed CODEOWNERS ownership (for the
+`codeowners` bucket) and are the natural home for optional docs (READMEs).
 
 ### D8 — Defaults: runs by default, but must be bucketed to merge.
 
@@ -133,7 +141,7 @@ Authors get "add it and it runs" locally/in-PR, plus enforced bucketing at the m
   handled by `validate` + the label-sync job (D9), not free.
 - **Locality** — an experiment's selection isn't visible at the experiment; you consult the manifest
   (`smp experiments list` can render resolved triggers per experiment).
-- Labels are now free-form registry keys (the tidy `label == smp/<leaf-path>` rule is gone), so the
+- Labels are now free-form registry keys (the tidy `label == smp/<folder-path>` rule is gone), so the
   registry check is load-bearing.
 
 ## Design axes: granularity × storage (why central manifest)
@@ -142,8 +150,8 @@ Two *independent* questions drove this design. Separating them shows why a centr
 only obvious choice — and why it won.
 
 **Axis 1 — granularity: at what level are mode/labels defined?**
-- *Per folder* (the prior model, still live as the v2 reference): one mode/label per leaf, experiments
-  inherit. Simple, and **labels are derivable from the folder path** — but folders must be homogeneous
+- *Per folder* (the prior model, still live as the v2 reference): one mode/label per experiment folder,
+  experiments inherit. Simple, and **labels are derivable from the folder path** — but folders must be homogeneous
   (mode becomes a folder-organizing dimension), an experiment can carry only **one** label, and you
   **cannot** express a suite that spans folders.
 - *Per experiment*: each experiment carries its own mode/labels. Unlocks **mixed-mode folders**,
@@ -208,3 +216,8 @@ set of triggers.
   live in the GHA (an online, write-scoped op), keeping the offline CLI unchanged.
 - **Scheduled label-sync.** The GHA runs on manifest changes; out-of-band repo-label drift would need
   a scheduled run.
+- **Selective review automation.** `selection.yaml` is SMP-owned (CODEOWNERS), so every manifest change
+  currently needs SMP review. SMP's real concern is the `always` block (the unconditional suite). If
+  the review burden grows, we could automate approval of manifest diffs that **don't touch `always`**
+  (i.e. changes confined to `codeowners`/`labels` entries), reserving human SMP review for `always`
+  changes.

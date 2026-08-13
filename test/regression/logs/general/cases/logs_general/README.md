@@ -5,4 +5,5 @@ description: Example log-pipelines experiment (copy of quality_gate_logs) for th
 # Logs - General (example)
 
 Placeholder experiment — currently a copy of `quality_gate_logs` — used to demonstrate the
-`codeowners`-mode log-pipelines suite. Replace with a real workload when the suite is fleshed out.
+ownership-driven (`codeowners` bucket) log-pipelines suite. Replace with a real workload when the
+suite is fleshed out.
