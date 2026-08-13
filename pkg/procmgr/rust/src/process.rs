@@ -171,6 +171,7 @@ pub struct ManagedProcess {
     last_start_conditions_met: Option<bool>,
     config_generation: u64,
     had_successful_run: bool,
+    queued_restart_generation: Option<u64>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
@@ -208,6 +209,7 @@ impl ManagedProcess {
             last_start_conditions_met: None,
             config_generation: 0,
             had_successful_run: false,
+            queued_restart_generation: None,
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
@@ -439,6 +441,18 @@ impl ManagedProcess {
         self.config_generation
     }
 
+    pub(crate) fn queued_restart_generation(&self) -> Option<u64> {
+        self.queued_restart_generation
+    }
+
+    pub(crate) fn record_queued_restart(&mut self) {
+        self.queued_restart_generation = Some(self.config_generation);
+    }
+
+    fn clear_queued_restart(&mut self) {
+        self.queued_restart_generation = None;
+    }
+
     pub(crate) fn has_ever_run_successfully(&self) -> bool {
         self.had_successful_run || self.restarts.last_spawn_time.is_some()
     }
@@ -532,6 +546,7 @@ impl ManagedProcess {
 
         self.handle = Some(handle);
         self.transition_to(ProcessState::Running);
+        self.clear_queued_restart();
         self.restarts.mark_spawned();
         Ok(())
     }
