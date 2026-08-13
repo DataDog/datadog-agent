@@ -264,11 +264,14 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		return err
 	}
 
-	// Initialize on first call - this detects cloud provider without holding locks
+	// Initialize on first call - this detects cloud provider without holding locks.
+	// An explicit provider configuration belongs to this instance, so it can override
+	// the process-wide detected/default configuration.
 	providerConfig, err := d.initializeIfNeeded(ctx, params)
 	if err != nil {
 		return err
 	}
+	providerConfig = providerConfigForInstance(providerConfig, params.ProviderConfig)
 
 	// No provider: skip this instance and keep the statically configured key. Write the fallback
 	// now if set, so dual-shipping still works. No retry — detection only runs once.
@@ -380,6 +383,15 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	d.startBackgroundRefresh(instance)
 
 	return nil
+}
+
+// providerConfigForInstance applies a directive-specific provider configuration after shared
+// initialization. This lets multiple delegated-auth instances use distinct provider settings.
+func providerConfigForInstance(initialized, instance common.ProviderConfig) common.ProviderConfig {
+	if instance != nil {
+		return instance
+	}
+	return initialized
 }
 
 // refreshAndGetAPIKey is the internal implementation that can optionally force a refresh

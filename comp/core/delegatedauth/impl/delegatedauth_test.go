@@ -189,6 +189,14 @@ func TestBackoffExponentialGrowth(t *testing.T) {
 
 // Status Provider Tests
 
+func TestProviderConfigForInstance(t *testing.T) {
+	initialized := &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"}
+	instance := &cloudauthconfig.AWSProviderConfig{Region: "eu-west-1"}
+
+	assert.Equal(t, initialized, providerConfigForInstance(initialized, nil))
+	assert.Equal(t, instance, providerConfigForInstance(initialized, instance))
+}
+
 func TestStatusProviderName(t *testing.T) {
 	comp := &delegatedAuthComponent{}
 	assert.Equal(t, "Delegated Auth", comp.Name())

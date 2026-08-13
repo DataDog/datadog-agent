@@ -34,6 +34,17 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
 }
 
+func TestEndpointDescriptorSetFromKeysPerDomainPreservesPendingDelegatedAuth(t *testing.T) {
+	descriptors := EndpointDescriptorSetFromKeysPerDomain(map[string][]APIKeys{
+		"https://pending.example": {{
+			ConfigSettingPath:       "process_config.additional_endpoints",
+			HasPendingDelegatedAuth: true,
+		}},
+	})
+
+	assert.True(t, descriptors["https://pending.example"].HasPendingDelegatedAuth)
+}
+
 func TestGetMultipleEndpointsDefault(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey

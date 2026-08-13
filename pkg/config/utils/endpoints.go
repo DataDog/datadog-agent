@@ -48,6 +48,10 @@ type APIKeys struct {
 
 	// the apiKey to use for this endpoint
 	Keys []string
+
+	// HasPendingDelegatedAuth keeps a legacy endpoint usable while a DELA(...) directive
+	// is waiting for the delegatedauth component to write its resolved API key.
+	HasPendingDelegatedAuth bool
 }
 
 // NewAPIKeys creates an endpoint
@@ -174,10 +178,17 @@ type EndpointDescriptor struct {
 }
 
 func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
-	return EndpointDescriptor{
+	descriptor := EndpointDescriptor{
 		BaseURL:   baseURL,
 		APIKeySet: apiKeySet,
 	}
+	for _, apiKeys := range apiKeySet {
+		if apiKeys.HasPendingDelegatedAuth {
+			descriptor.HasPendingDelegatedAuth = true
+			break
+		}
+	}
+	return descriptor
 }
 
 // EndpointDescriptorSet is a collection of all endpoints for infra pipelines keyed by base URL.
