@@ -74,6 +74,10 @@ WINDOWS_EXCLUDED_TAGS = _data.WINDOWS_EXCLUDED_TAGS
 DARWIN_EXCLUDED_TAGS = _data.DARWIN_EXCLUDED_TAGS
 UNIT_TEST_TAGS = _data.UNIT_TEST_TAGS
 UNIT_TEST_EXCLUDED_TAGS = _data.UNIT_TEST_EXCLUDED_TAGS
+DEP_ONLY_TAGS = _data.DEP_ONLY_TAGS
+BASE_TEST_TAGS = _data.BASE_TEST_TAGS
+TEST_FEATURE_TAGS = _data.TEST_FEATURE_TAGS
+AUTO_TEST_TAGS = _data.AUTO_TEST_TAGS
 
 # Build type: maps flavor to build tags map
 build_tags = {
@@ -286,7 +290,8 @@ def get_build_tags(include, exclude):
     for tag in unknown_exclude:
         print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.", file=sys.stderr)
 
-    return list(known_include - known_exclude)
+    # sort build tags to have the same order and ensure caching hits properly
+    return sorted(known_include - known_exclude)
 
 
 def compute_config_build_tags(

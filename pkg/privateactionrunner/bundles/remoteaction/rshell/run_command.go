@@ -16,6 +16,7 @@ import (
 	"maps"
 	"os"
 	"path"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -33,8 +34,15 @@ import (
 )
 
 const (
-	defaultProcPath         = "/proc"
-	containerizedPathPrefix = "/host"
+	defaultProcPath              = "/proc"
+	defaultRunPath               = "/run"
+	defaultVarRunPath            = "/var/run"
+	defaultPersistentJournalPath = "/var/log/journal"
+	defaultMachineIDPath         = "/etc/machine-id"
+	runtimeJournalPath           = "log/journal"
+	journalControlSocketPath     = "systemd/journal/io.systemd.journal"
+	systemdManagerBusSocketPath  = "dbus/system_bus_socket"
+	containerizedPathPrefix      = "/host"
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
@@ -64,8 +72,9 @@ type RunCommandHandlerConfig struct {
 //     form to match.
 //   - paths compare by containment with the narrower side winning; the
 //     sentinel "/" admits every POSIX or Windows drive-rooted absolute path.
-//   - system services compare exact service and action strings. An unset local
-//     map admits all backend grants, while a configured map intersects them.
+//   - system services compare exact service names and intersect action lists.
+//     The "*" action admits every action granted by the other side for that
+//     service. An unset local map admits all backend grants.
 //
 // An explicitly configured empty operator list or service map is the
 // kill-switch for that axis.
@@ -169,7 +178,8 @@ func backendSystemServiceGrants(backend map[string]*structpb.ListValue) []interp
 
 // filterSystemServiceGrants narrows normalized backend grants with the local
 // operator policy. A nil operator policy leaves the backend grants unchanged,
-// while a configured empty policy denies every service.
+// while a configured empty policy denies every service. Within an exact
+// service, "*" stands for every action granted by the other policy.
 func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemServiceControlGrant) []interp.SystemServiceControlGrant {
 	if h.operatorAllowedSystemServices == nil {
 		return backend
@@ -182,12 +192,7 @@ func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemSer
 			continue
 		}
 
-		actions := make([]interp.SystemServiceAction, 0, len(grant.Actions))
-		for _, action := range grant.Actions {
-			if _, ok := slices.BinarySearch(allowed, string(action)); ok {
-				actions = append(actions, action)
-			}
-		}
+		actions := intersectSystemServiceActions(grant.Actions, allowed)
 		if len(actions) == 0 {
 			continue
 		}
@@ -198,6 +203,28 @@ func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemSer
 		})
 	}
 	return grants
+}
+
+func intersectSystemServiceActions(backend []interp.SystemServiceAction, operator []string) []interp.SystemServiceAction {
+	if slices.Contains(operator, string(interp.SystemServiceAllActions)) {
+		return slices.Clone(backend)
+	}
+
+	if slices.Contains(backend, interp.SystemServiceAllActions) {
+		actions := make([]interp.SystemServiceAction, 0, len(operator))
+		for _, action := range operator {
+			actions = append(actions, interp.SystemServiceAction(action))
+		}
+		return actions
+	}
+
+	actions := make([]interp.SystemServiceAction, 0, len(backend))
+	for _, action := range backend {
+		if _, ok := slices.BinarySearch(operator, string(action)); ok {
+			actions = append(actions, action)
+		}
+	}
+	return actions
 }
 
 func cloneSystemServiceAllowlist(services map[string][]string) map[string][]string {
@@ -277,7 +304,7 @@ func (h *RunCommandHandler) Run(
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
 	// read the messages back via runner.Warnings() into SandboxWarnings.
-	runner, err := interp.New(
+	runnerOptions := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
 		interp.AllowedPaths(effectiveAllowedPaths),
@@ -285,7 +312,11 @@ func (h *RunCommandHandler) Run(
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
-	)
+	}
+	if runtime.GOOS == "linux" {
+		runnerOptions = append(runnerOptions, interp.WithSystemdTarget(resolveSystemdTarget()))
+	}
+	runner, err := interp.New(runnerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
@@ -326,10 +357,64 @@ func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (comma
 // /host/proc; otherwise it falls back to /proc.
 func resolveProcPath() string {
 	if env.IsContainerized() {
-		hostProc := path.Join(containerizedPathPrefix, defaultProcPath)
-		if _, err := statFn(hostProc); err == nil {
+		if hostProc := resolveMountedHostPath(defaultProcPath); hostProc != "" {
 			return hostProc
 		}
 	}
 	return defaultProcPath
+}
+
+// Bare metal uses rshell's local defaults. Containers always receive an
+// explicit host machine-ID path so missing mounts cannot fall back to
+// container-local systemd endpoints.
+func resolveSystemdTarget() interp.SystemdTargetConfig {
+	if !env.IsContainerized() {
+		return interp.SystemdTargetConfig{}
+	}
+
+	target := interp.SystemdTargetConfig{MachineIDPath: containerizedHostPath(defaultMachineIDPath)}
+	if hostPath := resolveMountedHostPath(defaultPersistentJournalPath); hostPath != "" {
+		target.JournalDirs = append(target.JournalDirs, hostPath)
+	}
+	resolveSystemdRuntimePaths(&target)
+	return target
+}
+
+func resolveMountedHostPath(defaultPath string) string {
+	return resolveMountedPath(containerizedHostPath(defaultPath))
+}
+
+func resolveMountedPath(candidatePath string) string {
+	if _, err := statFn(candidatePath); err != nil {
+		return ""
+	}
+	return candidatePath
+}
+
+// resolveSystemdRuntimePaths selects one container-visible runtime root for all
+// systemd endpoints. /host/run supports direct /run and full-host-root mounts;
+// /host/var/run matches the standard Agent container manifests.
+func resolveSystemdRuntimePaths(target *interp.SystemdTargetConfig) {
+	for _, runtimePath := range []string{
+		containerizedHostPath(defaultRunPath),
+		containerizedHostPath(defaultVarRunPath),
+	} {
+		runtimeJournal := resolveMountedPath(path.Join(runtimePath, runtimeJournalPath))
+		journalControlSocket := resolveMountedPath(path.Join(runtimePath, journalControlSocketPath))
+		managerBusSocket := resolveMountedPath(path.Join(runtimePath, systemdManagerBusSocketPath))
+		if runtimeJournal == "" && journalControlSocket == "" && managerBusSocket == "" {
+			continue
+		}
+
+		if runtimeJournal != "" {
+			target.JournalDirs = append(target.JournalDirs, runtimeJournal)
+		}
+		target.JournalControlSocket = journalControlSocket
+		target.ManagerBusSocket = managerBusSocket
+		return
+	}
+}
+
+func containerizedHostPath(defaultPath string) string {
+	return path.Join(containerizedPathPrefix, defaultPath)
 }

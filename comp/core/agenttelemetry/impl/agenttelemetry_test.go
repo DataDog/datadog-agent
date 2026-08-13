@@ -28,7 +28,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -188,6 +188,26 @@ func testCounterMetric(value float64, labels ...*dto.LabelPair) *dto.Metric {
 func testMetricFamily(metricType dto.MetricType, metrics ...*dto.Metric) *dto.MetricFamily {
 	name := "foo_metric"
 	return &dto.MetricFamily{Name: &name, Type: &metricType, Metric: metrics}
+}
+
+func TestConvertPromCountersTreatsDecreaseAsReset(t *testing.T) {
+	previousValues := make(map[string]float64)
+
+	for _, testCase := range []struct {
+		current float64
+		want    float64
+	}{
+		{current: 100, want: 100},
+		{current: 175, want: 75},
+		{current: 20, want: 20},
+		{current: 35, want: 15},
+	} {
+		metric := testCounterMetric(testCase.current)
+		convertPromCountersToDatadogCountersValues([]*dto.Metric{metric}, previousValues, []string{"test-counter"})
+
+		require.Equal(t, testCase.want, metric.GetCounter().GetValue())
+		require.Equal(t, testCase.current, previousValues["test-counter"])
+	}
 }
 
 func metricLabels(metric *dto.Metric) map[string]string {
@@ -658,9 +678,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 6 jobs with different schedules:
+	// Default configuration has 7 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 6, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -668,8 +688,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 20 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe)
-	assert.Equal(t, 20, totalProfiles)
+	// Default config has 21 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, trace-agent, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode)
+	assert.Equal(t, 21, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -2795,6 +2815,81 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	assert.Equal(t, 20.0, m2.Value)
 }
 
+func TestDefaultProfilesExportRARClientByteCounters(t *testing.T) {
+	config := getCommonYAMLConfig(true, "")
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("dogstatsd_client", "bytes_sent", []string{"emitter"}, "")
+	counter.Add(100, "agent-data-plane")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, config, sender, nil, runner)
+	require.True(t, a.enabled)
+
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "dogstatsd_client.bytes_sent", sender.sentMetrics[0].name)
+	require.Len(t, sender.sentMetrics[0].metrics, 1)
+	metric := sender.sentMetrics[0].metrics[0]
+	assert.Equal(t, 100.0, metric.GetCounter().GetValue())
+	assert.Equal(t, map[string]string{"emitter": "agent-data-plane"}, metricLabels(metric))
+}
+
+func TestDefaultProfilesExportRARTransactionSuccessCounters(t *testing.T) {
+	config := getCommonYAMLConfig(true, "")
+	tel := makeTelMock(t)
+	success := tel.NewCounter("transactions", "success", []string{"domain", "endpoint", "proto_version", "emitter"}, "")
+	success.Add(42, "remote-config", "/v1/transactions", "v1", "agent-data-plane")
+	successBytes := tel.NewCounter("transactions", "success_bytes", []string{"domain", "endpoint", "emitter"}, "")
+	successBytes.Add(1024, "remote-config", "/v1/transactions", "agent-data-plane")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, config, sender, nil, runner)
+	require.True(t, a.enabled)
+
+	a.start()
+	runner.(*runnerMock).run()
+
+	expectedMetrics := map[string]struct {
+		value  float64
+		labels map[string]string
+	}{
+		"transactions.success": {
+			value: 42,
+			labels: map[string]string{
+				"domain":        "remote-config",
+				"endpoint":      "/v1/transactions",
+				"proto_version": "v1",
+				"emitter":       "agent-data-plane",
+			},
+		},
+		"transactions.success_bytes": {
+			value: 1024,
+			labels: map[string]string{
+				"domain":   "remote-config",
+				"endpoint": "/v1/transactions",
+				"emitter":  "agent-data-plane",
+			},
+		},
+	}
+
+	require.Len(t, sender.sentMetrics, len(expectedMetrics))
+	for _, payload := range sender.sentMetrics {
+		expected, ok := expectedMetrics[payload.name]
+		require.True(t, ok, payload.name)
+		require.Len(t, payload.metrics, 1, payload.name)
+		metric := payload.metrics[0]
+		require.NotNil(t, metric.GetCounter(), payload.name)
+		assert.Equal(t, expected.value, metric.GetCounter().GetValue(), payload.name)
+		assert.Equal(t, expected.labels, metricLabels(metric), payload.name)
+		delete(expectedMetrics, payload.name)
+	}
+	require.Empty(t, expectedMetrics)
+}
+
 func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)
@@ -2818,12 +2913,18 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}{
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
+		{name: "dogstatsd_client.bytes_sent"},
+		{name: "dogstatsd_client.bytes_dropped"},
+		{name: "dogstatsd_client.bytes_dropped_queue"},
+		{name: "dogstatsd_client.bytes_dropped_writer"},
 		{name: "logs.bytes_sent", aggregateTotal: true},
 		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
 		{name: "point.sent", preserveTags: []string{"domain"}},
 		{name: "point.dropped", preserveTags: []string{"domain"}},
 		{name: "transactions.input_count", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.input_bytes", preserveTags: []string{"domain", "endpoint"}},
+		{name: "transactions.success", preserveTags: []string{"domain", "endpoint", "proto_version"}, aggregateTotal: false},
+		{name: "transactions.success_bytes", preserveTags: []string{"domain", "endpoint"}, aggregateTotal: false},
 		{name: "transactions.http_errors", preserveTags: []string{"code", "endpoint"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -2833,6 +2934,67 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 			require.Equal(t, testCase.aggregateTotal, metric.AggregateTotal)
 		})
 	}
+}
+
+// TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
+//
+// The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these
+// three metrics, and a metric missing from this allowlist is dropped rather than shipped.
+// The label allowlists matter just as much: an unlisted label is stripped and its
+// timeseries summed into the others, which would collapse every distinct finding into one
+// meaningless number. The matching tripwire on the producing side is
+// TestFindingsAreAllowlisted in comp/dataplane/preflightmode/impl.
+func TestDataPlanePreflightModeProfile(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, defaultProfiles)
+	atCfg, err := parseConfig(cfg)
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, p := range atCfg.Profiles {
+		if p.Name == "data-plane-preflight-mode" {
+			profile = p
+			break
+		}
+	}
+	require.NotNil(t, profile, "the data-plane-preflight-mode profile is missing")
+	require.NotNil(t, profile.Metric)
+
+	wantTags := map[string][]string{
+		"data_plane.preflight_mode_result":           {"result"},
+		"data_plane.preflight_mode_finding":          {"finding"},
+		"data_plane.preflight_mode_duration_seconds": nil,
+	}
+
+	got := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, m := range profile.Metric.Metrics {
+		got[m.Name] = m.PreserveTags
+	}
+
+	for name, tags := range wantTags {
+		preserved, ok := got[name]
+		require.Truef(t, ok, "%s is not allowlisted, so it would never be sent", name)
+		assert.ElementsMatchf(t, tags, preserved, "preserve_tags for %s", name)
+	}
+
+	require.NotNil(t, profile.Schedule)
+
+	// The first flush must land after the run finishes, or it would report an empty run. The
+	// window is preflightModeDuration in comp/dataplane/preflightmode/impl (90s, deliberately not
+	// configurable); this asserts the schedule keeps clear of it with margin. Raising that
+	// constant past this bound should fail here.
+	const preflightModeWindowSeconds = 90
+	assert.Greater(t, int(profile.Schedule.StartAfter), preflightModeWindowSeconds,
+		"the first flush must land after the preflight mode window closes")
+
+	// The schedule also stays recurring, so a future change to the window cannot silently
+	// strand the outcome. Safe because counters are delta-converted: the increment ships on
+	// whichever flush first observes it, and later flushes send zero, which zero_metric drops.
+	assert.Zero(t, int(profile.Schedule.Iterations),
+		"the schedule must be recurring so a longer preflight mode window still reports")
+	require.NotNil(t, profile.Metric.Exclude)
+	require.NotNil(t, profile.Metric.Exclude.ZeroMetric)
+	assert.True(t, *profile.Metric.Exclude.ZeroMetric,
+		"zero_metric exclusion is what keeps the recurring schedule from re-shipping the same run")
 }
 
 func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {

@@ -259,6 +259,43 @@ func TestFilterAllowedSystemServices(t *testing.T) {
 			},
 		},
 		{
+			name: "operator wildcard preserves backend actions for the exact service",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions("restart", "read"),
+				"nginx.service": systemServiceActions("read"),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "backend wildcard is narrowed by explicit operator actions",
+			operator: map[string][]string{
+				"mysql.service": {"read", "restart"},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{"read", "restart"}},
+			},
+		},
+		{
+			name: "wildcards on both sides remain a wildcard",
+			operator: map[string][]string{
+				"mysql.service": {string(interp.SystemServiceAllActions)},
+			},
+			backend: map[string]*structpb.ListValue{
+				"mysql.service": systemServiceActions(string(interp.SystemServiceAllActions)),
+			},
+			want: []interp.SystemServiceControlGrant{
+				{Service: "mysql.service", Actions: []interp.SystemServiceAction{interp.SystemServiceAllActions}},
+			},
+		},
+		{
 			name: "nil and empty backend action lists grant nothing",
 			backend: map[string]*structpb.ListValue{
 				"mysql.service": nil,
@@ -929,6 +966,82 @@ func TestResolveProcPathContainerizedWithoutHostMount(t *testing.T) {
 	result := resolveProcPath()
 
 	assert.Equal(t, "/proc", result)
+}
+
+func TestResolveSystemdTarget(t *testing.T) {
+	t.Run("bare metal uses rshell local defaults", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "")
+		assert.Equal(t, interp.SystemdTargetConfig{}, resolveSystemdTarget())
+	})
+
+	t.Setenv("DOCKER_DD_AGENT", "true")
+	cases := []struct {
+		name     string
+		existing map[string]bool
+		want     interp.SystemdTargetConfig
+	}{
+		{
+			name: "container with direct run mount uses host target",
+			existing: map[string]bool{
+				"/host/var/log/journal":                        true,
+				"/host/run/log/journal":                        true,
+				"/host/run/systemd/journal/io.systemd.journal": true,
+				"/host/run/dbus/system_bus_socket":             true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs: []string{
+					"/host/var/log/journal",
+					"/host/run/log/journal",
+				},
+				MachineIDPath:        "/host/etc/machine-id",
+				JournalControlSocket: "/host/run/systemd/journal/io.systemd.journal",
+				ManagerBusSocket:     "/host/run/dbus/system_bus_socket",
+			},
+		},
+		{
+			name: "standard Agent container uses var run mount",
+			existing: map[string]bool{
+				"/host/var/run/log/journal":                        true,
+				"/host/var/run/systemd/journal/io.systemd.journal": true,
+				"/host/var/run/dbus/system_bus_socket":             true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:          []string{"/host/var/run/log/journal"},
+				MachineIDPath:        "/host/etc/machine-id",
+				JournalControlSocket: "/host/var/run/systemd/journal/io.systemd.journal",
+				ManagerBusSocket:     "/host/var/run/dbus/system_bus_socket",
+			},
+		},
+		{
+			name: "runtime endpoints do not mix across mounts",
+			existing: map[string]bool{
+				"/host/run/log/journal":                true,
+				"/host/var/run/dbus/system_bus_socket": true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:   []string{"/host/run/log/journal"},
+				MachineIDPath: "/host/etc/machine-id",
+			},
+		},
+		{
+			name: "container without runtime mount keeps explicit host target",
+			existing: map[string]bool{
+				"/host/var/log/journal": true,
+			},
+			want: interp.SystemdTargetConfig{
+				JournalDirs:   []string{"/host/var/log/journal"},
+				MachineIDPath: "/host/etc/machine-id",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			overrideStatFn(t, mockStatFn(tc.existing))
+
+			assert.Equal(t, tc.want, resolveSystemdTarget())
+		})
+	}
 }
 
 // --- runRemediationCommand ---

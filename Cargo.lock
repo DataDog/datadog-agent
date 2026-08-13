@@ -423,9 +423,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.4"
+version = "4.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d91e0c145792ef73a6ad36d27c75ac09f1832222a3c209689d90f534685ee5b7"
+checksum = "301b56658598e48f3648647ac6fc887be7e7108eddfa4e9b63fcf3ec58c0cadf"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -433,9 +433,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.2"
+version = "4.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f09628afdcc538b57f3c6341e9c8e9970f18e4a481690a64974d7023bd33548b"
+checksum = "94a65403d1a1bd28f7dc68eb8506e8874808ee5eecb59298de588e2e1407a078"
 dependencies = [
  "anstream",
  "anstyle",
@@ -506,16 +506,6 @@ dependencies = [
  "serde_json",
  "time",
  "url",
-]
-
-[[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "libc",
- "serde",
- "serde_yaml",
 ]
 
 [[package]]
@@ -696,7 +686,6 @@ name = "datasecurity"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "core",
  "dd-sensitive-data-scanner",
  "libc",
  "postgres",
@@ -705,6 +694,7 @@ dependencies = [
  "prost-types",
  "serde",
  "serde_json",
+ "shlib_core",
 ]
 
 [[package]]
@@ -750,9 +740,9 @@ dependencies = [
 
 [[package]]
 name = "dd-sensitive-data-scanner"
-version = "0.1.0-20260715-fcd8f9716b61"
+version = "0.1.0-20260803-1e4349aada52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db7bbc0458b273d3ae490e1018794b9ccf41d30d0175c4a9f17826f22b776ce6"
+checksum = "0cb5811edd2fd17d4a662306825da39474640ed298ba201f29cae5e2915cd239"
 dependencies = [
  "ahash",
  "base62",
@@ -885,7 +875,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -902,8 +892,8 @@ name = "example"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "core",
  "libc",
+ "shlib_core",
 ]
 
 [[package]]
@@ -1683,9 +1673,9 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lru"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b6180140927ee907000b0aa540091f6ea512ead4447c92b8fc35bc72788a5a6"
+checksum = "5d2f2f9b4ba7e6b24d95e7e899329d35be83bcded72c8540cdd5368932d1d90a"
 
 [[package]]
 name = "matchit"
@@ -1935,6 +1925,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "par-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dd-agent-log",
+ "log",
+ "serde",
+ "serde_yaml",
+ "tokio",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2170,7 +2173,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools",
  "log",
  "multimap",
@@ -2510,7 +2513,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2725,6 +2728,16 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "shlib_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "serde",
+ "serde_yaml",
+]
 
 [[package]]
 name = "signal-hook-registry"
@@ -2944,10 +2957,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2992,9 +3005,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.54"
+version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e1d5e639ff6bab73cb6885cc7e7b1de96c3f32c68ec55f3952614bec1092244"
+checksum = "cdb87b95ec50ddfa440816d227a17b2ccbdda963a316a727fda0fc4334f7d134"
 dependencies = [
  "deranged",
  "num-conv",
@@ -3609,7 +3622,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

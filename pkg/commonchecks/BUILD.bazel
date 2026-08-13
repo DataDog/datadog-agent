@@ -89,6 +89,13 @@ dd_agent_go_test(
     name = "commonchecks_test",
     srcs = ["corechecks_test.go"],
     embed = [":commonchecks"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "//comp/core/telemetry/impl",
         "//pkg/collector/check",

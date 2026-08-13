@@ -944,6 +944,12 @@ properties:
         env_parser: json
         additionalProperties:
           type: string
+      on_demand:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_INSTRUMENTATION_ON_DEMAND
       targets:
         node_type: setting
         type: array

@@ -92,9 +92,9 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 			label:      aggregate,
 		}
 
-		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
+		context.tokens = newBorrowedTokens(tokenizer.Tokenize(context.rawMessage))
 		assert.True(t, timestampDetector.ProcessAndContinue(context))
-		match := timestampDetector.tokenGraph.MatchProbability(context.tokens)
+		match := timestampDetector.tokenGraph.MatchProbability(context.tokens.Borrow())
 		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, match.probability))
 
 		// To assist with debugging and tuning - this prints the probability and an underline of where the input was matched
@@ -117,8 +117,8 @@ func printMatchUnderline(t *testing.T, context *messageContext, input string, ma
 	}
 	var dbgBuilder strings.Builder
 	printChar := " "
-	last := context.tokenIndicies[0]
-	for i, idx := range context.tokenIndicies {
+	last := context.tokens.Indices()[0]
+	for i, idx := range context.tokens.Indices() {
 		dbgBuilder.WriteString(strings.Repeat(printChar, idx-last))
 		if i == match.start {
 			printChar = "^"

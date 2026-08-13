@@ -64,6 +64,12 @@ func MkRedaction(regex string, opts ...RedactionOption) RedactionRule {
 	return r
 }
 
+func WithSetup(cmds ...string) CmdOption {
+	return func(pc *PlainCommand) {
+		pc.SetupCommands = append(pc.SetupCommands, cmds...)
+	}
+}
+
 // Names of the built-in NCM device profiles in DefaultProfiles.
 const (
 	ProfileAOSCX    ProfileName = "aoscx"
@@ -139,8 +145,12 @@ var DefaultProfiles = Map{
 	ProfileCiscoASA: {
 		Name: ProfileCiscoASA,
 		Commands: CommandSet{
-			Verify:     MkCommand("show version", Expect("Cisco Adaptive Security Appliance Software Version")),
-			GetRunning: MkCommand("more system:running-config", Expect(`ASA Version \d+\.\d+\(\d+\)`)),
+			Verify: MkCommand("show version", Expect("Cisco Adaptive Security Appliance Software Version")),
+			GetRunning: MkCommand("more system:running-config",
+				Expect(`ASA Version \d+\.\d+\(\d+\)`),
+				ExpectNot(`(?i)(<---\s*More\s*--->|--More--)`),
+				WithSetup("terminal pager 0"),
+			),
 			GetVersion: MkCommand("show version"),
 		},
 		Redactions: []RedactionRule{

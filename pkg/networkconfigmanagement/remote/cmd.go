@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -39,9 +40,16 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 		return nil, err
 	}
 	defer session.Close()
+
+	command := cmd.Command
+	if len(cmd.SetupCommands) > 0 {
+		lines := append(append([]string{}, cmd.SetupCommands...), cmd.Command)
+		command = strings.Join(lines, "\n")
+	}
+
 	ch := make(chan *types.CommandResult, 1)
 	go func() {
-		output, err := session.CombinedOutput(cmd.Command)
+		output, err := session.CombinedOutput(command)
 		ch <- &types.CommandResult{
 			CommandStr: cmd.Command,
 			Output:     string(output),

@@ -28,6 +28,14 @@ dd_agent_go_test(
         "tags_test.go",
     ],
     embed = [":kubernetes"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@io_k8s_apimachinery//pkg/api/resource",
