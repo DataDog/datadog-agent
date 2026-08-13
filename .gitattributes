@@ -15,7 +15,7 @@ pkg/collector/corechecks/containers/kubelet/testdata/summary.json -text
 releasenotes/notes/*.yaml -text
 tasks/unit_tests/testdata/secret.tar.gz/*.xml -text
 # The test that uses this file needs adjustment to not rely on autocrlf
-tools/tar_checksums/testdata/expected_checksums.txt text=auto
+bazel/tools/tar_checksums/testdata/expected_checksums.txt -eol
 
 # Set batch file line endings to CRLF so that they can be executed on Windows
 *.bat text eol=crlf
