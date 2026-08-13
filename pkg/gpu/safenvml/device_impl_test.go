@@ -52,8 +52,7 @@ func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 		{
 			name: "links present",
 			options: []testutil.NvmlMockOption{
-				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
-				testutil.WithNVLinkVersions([]uint32{1, 1}),
+				testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1, NvLinkLinkCount: 2}),
 			},
 			expectedCount:   2,
 			expectedVersion: "1.0",
@@ -86,7 +85,10 @@ func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 			)
 			WithMockNVML(t, mockNvml)
 
-			device, err := NewPhysicalDevice(testutil.GetDeviceMock(0))
+			nvmlDev, ret := mockNvml.DeviceGetHandleByIndex(0)
+			require.Equal(t, nvml.SUCCESS, ret)
+
+			device, err := NewPhysicalDevice(nvmlDev)
 
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedCount, device.NVLinkLinkCount)

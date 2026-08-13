@@ -102,8 +102,7 @@ func TestPull(t *testing.T) {
 func TestPullNVLinkVersion(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1}),
-		testutil.WithNVLinkVersions([]uint32{1}),
+		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1, NvLinkLinkCount: 1}),
 	)
 	c := newTestCollector(t, wmetaMock)
 	ddnvml.WithMockNVML(t, nvmlMock)
