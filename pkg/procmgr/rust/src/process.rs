@@ -99,16 +99,30 @@ impl RestartTracker {
 // Restart policy
 // ---------------------------------------------------------------------------
 
+/// Restart-policy evaluation for a process state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RestartDecision {
+    Allowed,
+    Denied,
+    NotApplicable,
+}
+
+impl RestartDecision {
+    fn is_allowed(self) -> bool {
+        matches!(self, RestartDecision::Allowed)
+    }
+}
+
 /// Whether a terminal exit state matches the configured restart policy.
-/// Returns `None` when the process state is not eligible for automatic restart
-/// (for example stopped or still starting).
-fn restart_allowed_for_state(state: ProcessState, policy: &RestartPolicy) -> Option<bool> {
+fn restart_allowed_for_state(state: ProcessState, policy: &RestartPolicy) -> RestartDecision {
     match (state, policy) {
-        (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => Some(true),
-        (ProcessState::Failed, RestartPolicy::OnFailure) => Some(true),
-        (ProcessState::Exited, RestartPolicy::OnSuccess) => Some(true),
-        (ProcessState::Exited | ProcessState::Failed, _) => Some(false),
-        _ => None,
+        (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => {
+            RestartDecision::Allowed
+        }
+        (ProcessState::Failed, RestartPolicy::OnFailure) => RestartDecision::Allowed,
+        (ProcessState::Exited, RestartPolicy::OnSuccess) => RestartDecision::Allowed,
+        (ProcessState::Exited | ProcessState::Failed, _) => RestartDecision::Denied,
+        _ => RestartDecision::NotApplicable,
     }
 }
 
@@ -508,7 +522,7 @@ impl ManagedProcess {
 
     #[must_use]
     pub(crate) fn should_complete_pending_restart(&self) -> bool {
-        self.restart_eligibility() == Some(true) && self.may_respawn()
+        self.restart_eligibility().is_allowed() && self.may_respawn()
     }
 
     pub fn spawn(&mut self) -> Result<()> {
@@ -776,7 +790,7 @@ impl ManagedProcess {
         } else {
             ProcessState::Failed
         };
-        restart_allowed_for_state(state, &self.config.restart) == Some(true)
+        restart_allowed_for_state(state, &self.config.restart).is_allowed()
     }
 
     #[cfg(test)]
@@ -784,7 +798,7 @@ impl ManagedProcess {
         &self.config.restart
     }
 
-    pub(crate) fn restart_eligibility(&self) -> Option<bool> {
+    fn restart_eligibility(&self) -> RestartDecision {
         restart_allowed_for_state(self.state, &self.config.restart)
     }
 
@@ -808,12 +822,12 @@ impl ManagedProcess {
     #[must_use]
     pub fn restart_delay(&mut self) -> Option<Duration> {
         match self.restart_eligibility() {
-            None => None,
-            Some(false) => {
+            RestartDecision::NotApplicable => None,
+            RestartDecision::Denied => {
                 self.log_restart_policy_skip();
                 None
             }
-            Some(true) => self.restarts.next_restart_delay(&self.config, &self.name),
+            RestartDecision::Allowed => self.restarts.next_restart_delay(&self.config, &self.name),
         }
     }
 }
