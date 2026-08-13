@@ -264,6 +264,13 @@ impl ProcessManager {
                 info!("[{name}] discarding stale bootstrap retry after config reload");
                 return;
             }
+            if proc.config().auto_start
+                && pending.config_generation < proc.config_generation()
+                && proc.queued_restart_generation() == Some(proc.config_generation())
+            {
+                info!("[{name}] discarding superseded retry after config reload");
+                return;
+            }
             if !proc.should_complete_pending_restart() {
                 info!("[{name}] not restarting after config reload: start conditions not met");
                 proc.record_config_gate_met();
@@ -802,6 +809,7 @@ fn should_retry_failed_after_config_change(proc: &ManagedProcess) -> bool {
 fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
     let had_successful_spawn = proc.has_ever_run_successfully();
     if let Some(delay) = proc.schedule_restart() {
+        proc.record_queued_restart();
         let pending = PendingRestart {
             uuid: proc.uuid().to_owned(),
             config_generation: proc.config_generation(),
@@ -1020,6 +1028,97 @@ mod tests {
         assert!(
             mgr.processes().await[0].is_running(),
             "queued crash restart should survive config reload after a successful run"
+        );
+
+        test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_complete_restart_discards_superseded_retry_after_reload() -> anyhow::Result<()> {
+        let (cmd, _args) = test_helpers::sleep_cmd(60);
+        let make_def = |secs: u32| ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                command: cmd.to_string(),
+                args: test_helpers::sleep_cmd(secs).1,
+                auto_start: true,
+                restart: RestartPolicy::Always,
+                restart_sec: Some(0.0),
+                runtime_success_sec: Some(0),
+                ..Default::default()
+            },
+        };
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![make_def(60)]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+
+        mgr.handle_start("svc", &exit_tx).await?;
+        let (pid, name) = {
+            let procs = mgr.processes().await;
+            (procs[0].pid().unwrap(), procs[0].name().to_owned())
+        };
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        test_helpers::cleanup_process(pid);
+        mgr.handle_exit(
+            ExitEvent {
+                name,
+                pid,
+                status: test_helpers::exit_status(1),
+            },
+            &restart_tx,
+        )
+        .await;
+
+        let stale_pending =
+            tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
+                .await
+                .expect("timed out waiting for crash restart")
+                .expect("expected crash restart event");
+        assert!(stale_pending.had_successful_spawn);
+
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                command: "/nonexistent/dd-procmgr-reload-retry".to_string(),
+                args: test_helpers::sleep_cmd(90).1,
+                auto_start: true,
+                restart: RestartPolicy::Always,
+                restart_sec: Some(0.0),
+                runtime_success_sec: Some(0),
+                ..Default::default()
+            },
+        }]);
+        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+
+        let reload_pending =
+            tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
+                .await
+                .expect("timed out waiting for reload retry")
+                .expect("expected reload to queue a replacement restart");
+        assert!(
+            reload_pending.config_generation > stale_pending.config_generation,
+            "reload should queue a restart at the new config generation"
+        );
+
+        mgr.complete_restart(stale_pending, &exit_tx, &restart_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "superseded pre-reload timer must not respawn the process"
+        );
+
+        {
+            let mut procs = mgr.processes.write().await;
+            procs[0].set_command_for_test(cmd.to_string());
+        }
+
+        mgr.complete_restart(reload_pending, &exit_tx, &restart_tx)
+            .await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "current-generation reload retry should still respawn"
         );
 
         test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
