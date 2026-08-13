@@ -30,10 +30,14 @@ dd_agent_go_test(
         "store_test.go",
     ],
     embed = [":loadstore"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/config/setup",
         "@com_github_datadog_agent_payload_v5//gogen",

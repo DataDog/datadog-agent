@@ -15,11 +15,15 @@ import (
 const (
 	// TemplateIssueName is the human-readable issue name for AD template resolution failure issues.
 	TemplateIssueName = "Autodiscovery Template Resolution Error"
+	// TemplateIssueType is the snake_case type key for AD template resolution failure
+	// issues: TemplateIssueName lowercased with spaces replaced by underscores.
+	TemplateIssueType = "autodiscovery_template_resolution_error"
 	// TemplateIssueID is the IssueID prefix for AD template resolution failure issues.
 	// External reporters append name, service-id, and digest: TemplateIssueID + ":" + name + ":" + serviceID + ":" + digest
 	TemplateIssueID = "ad-template"
 
 	templateIssueName = TemplateIssueName
+	templateIssueType = TemplateIssueType
 )
 
 // ADTemplateIssue provides the issue template for AD template resolution failure issues.
@@ -52,7 +56,8 @@ func (t *ADTemplateIssue) BuildIssue(context map[string]string) (*healthplatform
 
 	return &healthplatform.Issue{
 		IssueName:   templateIssueName,
-		Title:       templateIssueName + " on '" + entityName + "'",
+		IssueType:   templateIssueType,
+		Title:       fmt.Sprintf("%s on %q", templateIssueName, entityName),
 		Description: "Autodiscovery template resolution error: " + errorMessage,
 		Category:    category,
 		Location:    location,

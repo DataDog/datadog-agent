@@ -25,7 +25,7 @@ type Output struct {
 }
 
 // ErrKeyNotFound is returned when the secret key is not found
-var ErrKeyNotFound = errors.New("backend does not provide secret key")
+var ErrKeyNotFound = errors.New("backend does not provide requested secret")
 
 const (
 	// DefaultMaxFileReadSize is the maximum file size (10 MB) that can be read as a secret

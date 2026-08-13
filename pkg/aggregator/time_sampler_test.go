@@ -41,6 +41,50 @@ func testTimeSampler(store *tags.Store) *TimeSampler {
 	return sampler
 }
 
+type recordingFinalDogStatsDSerieObserver struct {
+	series []*metrics.Serie
+}
+
+func (r *recordingFinalDogStatsDSerieObserver) ObserveFinalDogStatsDSerie(serie *metrics.Serie) {
+	r.series = append(r.series, serie)
+}
+
+type recordingDogStatsDLookback struct {
+	wanted       map[string]struct{}
+	observations []recordedDogStatsDLookbackObservation
+	flushes      []recordedDogStatsDLookbackFlush
+}
+
+type recordedDogStatsDLookbackObservation struct {
+	sample    metrics.MetricSample
+	timestamp float64
+	ctx       DogStatsDLookbackContext
+}
+
+type recordedDogStatsDLookbackFlush struct {
+	timestamp     float64
+	forceFlushAll bool
+}
+
+func (r *recordingDogStatsDLookback) WantsDogStatsDMetric(name string) bool {
+	_, found := r.wanted[name]
+	return found
+}
+
+func (r *recordingDogStatsDLookback) ObserveDogStatsDSample(sample *metrics.MetricSample, timestamp float64, ctx DogStatsDLookbackContext) {
+	r.observations = append(r.observations, recordedDogStatsDLookbackObservation{
+		sample:    *sample,
+		timestamp: timestamp,
+		ctx:       ctx,
+	})
+}
+
+func (r *recordingDogStatsDLookback) FlushDogStatsDBuckets(timestamp float64, forceFlushAll bool) {
+	r.flushes = append(r.flushes, recordedDogStatsDLookbackFlush{timestamp: timestamp, forceFlushAll: forceFlushAll})
+}
+
+func (r *recordingDogStatsDLookback) AppendDogStatsDNoAggSerie(*metrics.Serie) {}
+
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
 	sampler := testTimeSampler(tags.NewStore(true, "test"))
@@ -82,6 +126,161 @@ func testBucketSampling(t *testing.T, store *tags.Store) {
 }
 func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
+}
+
+func TestTimeSamplerDogStatsDLookbackReceivesSelectedResolvedContext(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewNoopTagMatcher()
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "other.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test"},
+		SampleRate: 1,
+	}, 10, matcher)
+	samper.sample(&metrics.MetricSample{
+		Name:       "target.metric",
+		Value:      2,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:test", "role:web"},
+		Host:       "sample-host",
+		SampleRate: 1,
+		NoIndex:    true,
+		Source:     metrics.MetricSource(9),
+	}, 11, matcher)
+
+	require.Len(t, lookback.observations, 1)
+	observation := lookback.observations[0]
+	require.Equal(t, "target.metric", observation.sample.Name)
+	require.Equal(t, float64(11), observation.timestamp)
+	require.Equal(t, "target.metric", observation.ctx.Name)
+	require.Equal(t, "sample-host", observation.ctx.Host)
+	require.ElementsMatch(t, []string{"env:test", "role:web"}, observation.ctx.Tags)
+	require.True(t, observation.ctx.NoIndex)
+	require.Equal(t, metrics.MetricSource(9), observation.ctx.Source)
+	require.False(t, observation.ctx.ContextKey.IsZero())
+}
+
+func TestTimeSamplerDogStatsDLookbackFlushesBuckets(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+
+	series, sketches := flushSerie(samper, 123, false)
+	require.Empty(t, series)
+	require.Empty(t, sketches)
+	require.Equal(t, []recordedDogStatsDLookbackFlush{{timestamp: 123}}, lookback.flushes)
+}
+
+func TestTimeSamplerDogStatsDLookbackForceFlushesAllBuckets(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+
+	series, sketches := flushSerie(samper, 123, true)
+	require.Empty(t, series)
+	require.Empty(t, sketches)
+	require.Equal(t, []recordedDogStatsDLookbackFlush{{timestamp: 123, forceFlushAll: true}}, lookback.flushes)
+}
+
+func TestTimeSamplerDogStatsDLookbackUsesFilteredCounterContext(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"counter.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"counter.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      5,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "instance:a"},
+		SampleRate: 1,
+	}, 1001, matcher)
+	samper.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      7,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:dev", "instance:a"},
+		SampleRate: 1,
+	}, 1005, matcher)
+
+	require.Len(t, lookback.observations, 2)
+	require.Equal(t, lookback.observations[0].ctx.ContextKey, lookback.observations[1].ctx.ContextKey)
+	for _, observation := range lookback.observations {
+		require.Equal(t, []string{"instance:a"}, observation.ctx.Tags)
+	}
+}
+
+func TestTimeSamplerFinalDogStatsDSerieObserversReceiveOnlyUnfilteredFinalSeries(t *testing.T) {
+	sampler := testTimeSampler(tags.NewStore(true, "test"))
+	observer := &recordingFinalDogStatsDSerieObserver{}
+	sampler.finalDogStatsDSerieObservers = []FinalDogStatsDSerieObserver{observer}
+
+	tagMatcher := filterlist.NewNoopTagMatcher()
+	sampler.sample(&metrics.MetricSample{
+		Name:       "filtered.metric",
+		Value:      7,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"client:go"},
+		SampleRate: 1,
+	}, 1001, tagMatcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "accepted.metric",
+		Value:      5,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"client:java"},
+		SampleRate: 1,
+	}, 1001, tagMatcher)
+
+	filter := strings.NewMatcher([]string{"filtered.metric"}, false)
+	series, _ := flushSerieWithFilterList(sampler, 1020, &filter, true)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, "accepted.metric", series[0].Name)
+	require.Len(t, observer.series, 1)
+	assert.Same(t, series[0], observer.series[0])
+	assert.Equal(t, "accepted.metric", observer.series[0].Name)
+}
+
+func TestTimeSamplerDogStatsDLookbackIgnoresRejectedSamples(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewNoopTagMatcher()
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "target.metric",
+		Value:      math.NaN(),
+		Mtype:      metrics.GaugeType,
+		SampleRate: 1,
+	}, 10, matcher)
+
+	require.Empty(t, lookback.observations)
+}
+
+func TestTimeSamplerDogStatsDLookbackIgnoresRejectedDistributionSamples(t *testing.T) {
+	samper := testTimeSampler(tags.NewStore(true, "test"))
+	lookback := &recordingDogStatsDLookback{wanted: map[string]struct{}{"target.metric": {}}}
+	samper.dogStatsDLookback = lookback
+	matcher := filterlist.NewNoopTagMatcher()
+
+	samper.sample(&metrics.MetricSample{
+		Name:       "target.metric",
+		Value:      math.NaN(),
+		Mtype:      metrics.DistributionType,
+		SampleRate: 1,
+	}, 10, matcher)
+
+	require.Empty(t, lookback.observations)
 }
 
 func testContextSampling(t *testing.T, store *tags.Store) {

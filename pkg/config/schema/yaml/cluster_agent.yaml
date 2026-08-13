@@ -17,7 +17,6 @@ properties:
     default: false
     visibility: public
     description: Set to true to enable the Cluster Agent.
-    comment: Datadog cluster agent
   auth_token:
     node_type: setting
     type: string

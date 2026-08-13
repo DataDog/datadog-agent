@@ -7,6 +7,7 @@ package networkconfigmanagementimpl
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,6 +16,12 @@ import (
 
 	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 )
+
+func assertErrorAsType[T error](t testing.TB, err error) bool {
+	_, ok := errors.AsType[T](err)
+	var someT T
+	return assert.True(t, ok, "expected %v to have type %T", err, someT)
+}
 
 func TestDeviceMap(t *testing.T) {
 	dm := NewDeviceMap(time.Millisecond)
@@ -27,28 +34,28 @@ func TestDeviceMap(t *testing.T) {
 
 	dc, err := dm.Get(device.DeviceID())
 	require.NoError(t, err)
-	assert.Equal(t, "p1", dc.profile.Name)
+	assert.Equal(t, ncmprofile.ProfileName("p1"), dc.profile.Name)
 
 	err = dm.RegisterDevice(t.Context(), device, p2)
 	require.NoError(t, err)
 
 	dc, err = dm.Get(device.DeviceID())
 	require.NoError(t, err)
-	assert.Equal(t, "p2", dc.profile.Name)
+	assert.Equal(t, ncmprofile.ProfileName("p2"), dc.profile.Name)
 }
 
 func TestDeviceMap_Get_Unknown(t *testing.T) {
 	dm := NewDeviceMap(time.Millisecond)
 
 	_, err := dm.Get("nonexistent")
-	assert.ErrorContains(t, err, "unknown device")
+	assertErrorAsType[*UnknownDeviceError](t, err)
 }
 
 func TestDeviceMap_GetAndLock_Unknown(t *testing.T) {
 	dm := NewDeviceMap(time.Millisecond)
 
 	_, err := dm.GetAndLock(t.Context(), "nonexistent")
-	assert.ErrorContains(t, err, "unknown device")
+	assertErrorAsType[*UnknownDeviceError](t, err)
 }
 
 func TestDeviceMap_GetAndLock_LocksDevice(t *testing.T) {

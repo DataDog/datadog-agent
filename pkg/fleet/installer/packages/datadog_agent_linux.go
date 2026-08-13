@@ -104,6 +104,7 @@ var (
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
+		"processes.d/datadog-agent-action-executor.yaml",
 		"run",
 		".pre_python_installed_packages.txt",
 		".post_python_installed_packages.txt",
@@ -218,7 +219,7 @@ func installFilesystem(ctx HookContext) (err error) {
 
 	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
 	if err = retireLegacyProcmgrUnits(ctx); err != nil {
-		return fmt.Errorf("failed to retire legacy procmgr units: %w", err)
+		log.Warnf("failed to retire legacy procmgr units: %v", err)
 	}
 	return nil
 }
@@ -227,29 +228,60 @@ func installFilesystem(ctx HookContext) (err error) {
 // A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
 // instances (socket and processes.d conflicts).
 func retireLegacyProcmgrUnits(ctx HookContext) error {
-	switch service.GetServiceManagerType() {
+	serviceManager := service.GetServiceManagerType()
+	log.Debugf("retire legacy procmgr units: service manager %q", serviceManager)
+	switch serviceManager {
 	case service.SystemdType:
 	default:
+		log.Debugf("retire legacy procmgr units: skipping, systemd not in use")
 		return nil
 	}
 	running, err := systemd.IsRunning()
 	if err != nil {
-		return err
+		log.Debugf("retire legacy procmgr units: check systemd running failed: %v", err)
+		return fmt.Errorf("check systemd running: %w", err)
 	}
+	log.Debugf("retire legacy procmgr units: systemd running=%t", running)
 	if running {
+		log.Debugf("retire legacy procmgr units: stopping units %v", legacyProcmgrUnitNames)
 		if err := systemd.StopUnits(ctx, legacyProcmgrUnitNames...); err != nil {
-			return err
+			log.Debugf("retire legacy procmgr units: stop failed: %v", err)
+			return fmt.Errorf("stop legacy procmgr units: %w", err)
 		}
+		log.Debugf("retire legacy procmgr units: disabling units %v", legacyProcmgrUnitNames)
 		if err := systemd.DisableUnits(ctx, legacyProcmgrUnitNames...); err != nil {
-			return err
+			log.Debugf("retire legacy procmgr units: disable failed: %v", err)
+			return fmt.Errorf("disable legacy procmgr units: %w", err)
 		}
+	} else {
+		log.Debugf("retire legacy procmgr units: skipping stop/disable, systemd not running")
 	}
 	for _, unitsPath := range systemdUnitInstallPaths {
+		log.Debugf("retire legacy procmgr units: removing unit files from %q", unitsPath)
 		if err := legacyProcmgrUnitPaths.EnsureAbsent(ctx, unitsPath); err != nil {
-			return err
+			log.Debugf("retire legacy procmgr units: remove unit files from %q failed: %v", unitsPath, err)
+			return fmt.Errorf("remove legacy procmgr unit files from %s: %w", unitsPath, err)
 		}
 	}
-	return systemd.Reload(ctx)
+	log.Debugf("retire legacy procmgr units: reloading systemd")
+	if err := systemd.Reload(ctx); err != nil {
+		log.Debugf("retire legacy procmgr units: reload failed: %v", err)
+		return fmt.Errorf("reload systemd after retiring legacy procmgr units: %w", err)
+	}
+	log.Debugf("retire legacy procmgr units: done")
+	return nil
+}
+
+const parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
+
+func writePARExecutorProcmgrConfig(installRoot string) error {
+	processesDir := filepath.Join(installRoot, "processes.d")
+	config := strings.ReplaceAll(embedded.PARExecutorProcessConfig, "/opt/datadog-agent", installRoot)
+	if err := os.MkdirAll(processesDir, 0755); err != nil {
+		return fmt.Errorf("failed to write PAR executor procmgr config: %w", err)
+	}
+	path := filepath.Join(processesDir, parExecutorProcmgrConfigName)
+	return os.WriteFile(path, []byte(config), 0644)
 }
 
 // uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
@@ -335,6 +367,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to write DDOT process manager config: %v", err)
+	}
+	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR executor process manager config: %v", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -449,6 +484,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
+	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR executor process manager config: %v", err)
+	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
 	}
@@ -495,6 +533,9 @@ func prePromoteExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx); err != nil {
 		return err
+	}
+	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to write PAR executor process manager config: %v", err)
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx

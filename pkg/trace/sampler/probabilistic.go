@@ -96,7 +96,11 @@ func (ps *ProbabilisticSampler) SampleV1(traceID []byte, root *idx.InternalSpan)
 
 	tid := make([]byte, 16)
 	if !ps.fullTraceIDMode {
-		copy(tid, traceID[:8])
+		// The trace ID is a big-endian 128-bit value, so the low-order 64 bits (the
+		// legacy trace ID) live in traceID[8:]. Copy those into the first 8 bytes so
+		// the hash input matches the non-V1 Sample path ([low64 || zeros]) and rides
+		// on the bits that survive when legacy apps drop the top 64 bits.
+		copy(tid, traceID[8:])
 	} else {
 		copy(tid, traceID)
 	}

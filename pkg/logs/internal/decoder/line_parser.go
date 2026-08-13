@@ -160,16 +160,17 @@ func (p *MultiLineParser) sendLine() {
 		p.isBufferTruncated = false
 	}()
 
-	if p.bufferedMsg == nil || p.buffer.Len() == 0 {
+	// Skip only when there is nothing to send. Complete but empty lines (empty
+	// content, non-zero rawDataLen) are still forwarded so downstream
+	// aggregators can observe blank lines.
+	if p.bufferedMsg == nil || p.rawDataLen == 0 {
 		return
 	}
 
 	content := make([]byte, p.buffer.Len())
 	copy(content, p.buffer.Bytes())
-	if len(content) > 0 || p.rawDataLen > 0 {
-		p.bufferedMsg.RawDataLen = p.rawDataLen
-		p.bufferedMsg.SetContent(content)
-		p.bufferedMsg.ParsingExtra.IsTruncated = p.bufferedMsg.ParsingExtra.IsTruncated || p.isBufferTruncated
-		p.lineHandler.process(p.bufferedMsg)
-	}
+	p.bufferedMsg.RawDataLen = p.rawDataLen
+	p.bufferedMsg.SetContent(content)
+	p.bufferedMsg.ParsingExtra.IsTruncated = p.bufferedMsg.ParsingExtra.IsTruncated || p.isBufferTruncated
+	p.lineHandler.process(p.bufferedMsg)
 }

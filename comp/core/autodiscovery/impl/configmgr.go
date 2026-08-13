@@ -376,6 +376,44 @@ func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Ser
 	return res
 }
 
+// expectedFilteredTemplatesLocked returns the templates currently expected to
+// be resolved for svcID: every active template digest indexed under one of
+// the service's AD identifiers, after running the service's FilterTemplates
+// over them. Returns an empty map if the service is not currently active.
+//
+// This is the exact computation reconcileService uses to decide what should
+// be scheduled. It's also used to re-validate a configuration-discovery
+// template against live filtering state immediately before applying an
+// asynchronous probe result (see applyDiscoveredConfigsLocked in
+// configmgr_discovery.go): a probe can take multiple retry cycles to
+// complete, and its result is applied directly from the worker callback,
+// bypassing reconcileService entirely — so without this re-check, a
+// conflicting sibling/static/generic-integration config that appears after
+// the probe was enqueued would have no effect on an already in-flight probe.
+//
+// This method must be called with cm.m locked.
+func (cm *reconcilingConfigManager) expectedFilteredTemplatesLocked(svcID string) map[string]integration.Config {
+	// note that this method can be called in a case where svcID is not in the
+	// activeServices: this occurs when the service is removed.
+	svcAndADIDs := cm.activeServices[svcID]
+
+	templates := map[string]integration.Config{}
+	for _, adID := range svcAndADIDs.adIDs {
+		for _, digest := range cm.templatesByADID.get(adID) {
+			templates[digest] = cm.activeConfigs[digest]
+		}
+	}
+
+	// allow the service to filter those templates, unless we are removing
+	// the service, in which case no resolutions are expected.
+	if svcAndADIDs.svc != nil {
+		// Warning: this must be called with the configs stored in cm.activeConfigs
+		// which contain the compiled matchingPrograms for the config template.
+		svcAndADIDs.svc.FilterTemplates(templates)
+	}
+	return templates
+}
+
 // reconcileService calculates the current set of resolved templates for the
 // given service and calculates the difference from what is currently recorded
 // in cm.serviceResolutions.  It updates cm.serviceResolutions and returns the
@@ -387,9 +425,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 
 	// note that this method can be called in a case where svcID is not in the
 	// activeServices: this occurs when the service is removed.
-	serviceAndADIDs := cm.activeServices[svcID]
-	adIDs := serviceAndADIDs.adIDs // nil slice if service is not defined
-	svc := serviceAndADIDs.svc     // nil if the service is not defined
+	svc := cm.activeServices[svcID].svc // nil if the service is not defined
 
 	// get the existing resolutions for this service
 	existingResolutions, found := cm.serviceResolutions[svcID]
@@ -397,24 +433,9 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 		existingResolutions = map[string]string{}
 	}
 
-	// determine the matching templates by template digest.  If the service
-	// has been removed, then this slice is empty.
-	expectedResolutions := map[string]integration.Config{}
-	for _, adID := range adIDs {
-		digests := cm.templatesByADID.get(adID)
-		for _, digest := range digests {
-			tpl := cm.activeConfigs[digest]
-			expectedResolutions[digest] = tpl
-		}
-	}
-
-	// allow the service to filter those templates, unless we are removing
-	// the service, in which case no resolutions are expected.
-	if svc != nil {
-		// Warning: this must be called with the configs stored in cm.activeConfigs
-		// which contain the compiled matchingPrograms for the config template.
-		svc.FilterTemplates(expectedResolutions)
-	}
+	// determine the matching, filtered templates.  If the service has been
+	// removed, this is empty.
+	expectedResolutions := cm.expectedFilteredTemplatesLocked(svcID)
 
 	// compare existing to expected, generating changes and modifying
 	// existingResolutions in-place
@@ -503,6 +524,7 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 		issue = &healthplatformpayload.Issue{
 			Id:        issueID,
 			IssueName: admisconfig.TemplateIssueName,
+			IssueType: admisconfig.TemplateIssueType,
 			Title:     "Autodiscovery Misconfiguration on '" + tpl.Name + " (" + svc.GetServiceID() + ")'",
 			Source:    admisconfig.Source,
 		}

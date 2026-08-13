@@ -37,7 +37,7 @@ func newEventPlatformCollectedConfigSender(eventPlatform eventplatform.Component
 	return &eventPlatformCollectedConfigSender{forwarder: forwarder, hostID: hostID}
 }
 
-func (r *eventPlatformCollectedConfigSender) SendCollectedConfigs(configs []collectedConfig) error {
+func (r *eventPlatformCollectedConfigSender) SendCollectedConfigs(configs []CollectedConfig) error {
 	payloads := make([]*agentdiscovery.AgentDiscoveryPayload, 0, len(configs))
 	for _, config := range configs {
 		payload := agentDiscoveryPayloadFromCollectedConfig(config, time.Now())
@@ -65,7 +65,7 @@ func (r *eventPlatformCollectedConfigSender) SendCollectedConfigs(configs []coll
 	return nil
 }
 
-func agentDiscoveryPayloadFromCollectedConfig(config collectedConfig, ingestionTimestamp time.Time) *agentdiscovery.AgentDiscoveryPayload {
+func agentDiscoveryPayloadFromCollectedConfig(config CollectedConfig, ingestionTimestamp time.Time) *agentdiscovery.AgentDiscoveryPayload {
 	if len(config.ConfigFiles) == 0 && len(config.EnvVars) == 0 {
 		return nil
 	}

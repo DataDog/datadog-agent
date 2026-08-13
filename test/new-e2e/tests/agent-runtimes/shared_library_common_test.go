@@ -54,7 +54,7 @@ func (v *sharedLibrarySuite) newProvisionerWithAgentOptions(agentOptions ...agen
 
 	return awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor), ec2.WithInternetAccess()),
 			ec2.WithAgentOptions(allAgentOptions...),
 		),
 	)

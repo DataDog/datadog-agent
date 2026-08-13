@@ -1,6 +1,6 @@
 # C/C++ tracking and troubleshooting
 
-Allocations in the Datadog cgo and [RTLoader](https://github.com/DataDog/datadog-agent/blob/main/rtloader/common/rtloader_mem.h) code have been wrapped by a set of helper
+Allocations in the Datadog cgo and <<<repo("rtloader/common/rtloader_mem.h", "RTLoader")>>> code have been wrapped by a set of helper
 functions that help keep accounting with regard to the number of allocations
 made and freed, as well as their respective addresses and bytes reserved.
 The RTLoader is not particularly intensive, and thus the overhead for the

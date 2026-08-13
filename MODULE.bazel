@@ -36,7 +36,12 @@ release_json(name = "dd_release_json")
 # migration between the two styles. The rules_license overlay will never be
 # available in the BCR, for obvious name confusion reasons, so we have to
 # use an archive_override to pull the alternate reality from supply-chain.
+
+# Do not update any of these individually. They are essentially a hand matched set as of Q3 2026.
+# That will improve over the next year.
+bazel_dep(name = "package_metadata", version = "0.0.13")
 bazel_dep(name = "rules_license", version = "1.0.0")
+bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 # We are temporarily using a development fork which is ahead of the release.
 archive_override(
@@ -46,13 +51,20 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.5.0")
-bazel_dep(name = "bazel_skylib", version = "1.9.0")
+# We are temporarily ahead of the release. The upstream team is using us as a test bed.
+archive_override(
+    module_name = "supply_chain_tools",
+    sha256 = "9dd3a9b10b5bbf070ef177f71196c22800c28c01db019e21d3b95feff2ce38b4",
+    strip_prefix = "supply-chain-d88044594228c41619f4e31eda5ca88adf3c6026/tools",
+    urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
+)
+
+bazel_dep(name = "bazel_lib", version = "3.7.1")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
-bazel_dep(name = "gazelle", version = "0.51.3")
+bazel_dep(name = "gazelle", version = "0.52.2")
 bazel_dep(name = "gcc_toolchain", version = "0.9.2")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
-bazel_dep(name = "package_metadata", version = "0.0.13")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.3.1")
@@ -62,15 +74,14 @@ bazel_dep(name = "rules_go", version = "0.61.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_python", version = "2.2.0")
 bazel_dep(name = "rules_rs", version = "0.0.27")
-bazel_dep(name = "rules_rust", version = "0.71.3")
-bazel_dep(name = "rules_rust_prost", version = "0.71.3")
+bazel_dep(name = "rules_rust", version = "0.73.0")
+bazel_dep(name = "rules_rust_prost", version = "0.73.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
-bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
+bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
@@ -114,6 +125,30 @@ archive_override(
     sha256 = "addeebfa8fdcf9fbc1c339e451cbb285e1c0d4c078c3718e42bd1791d0d96d4e",
     strip_prefix = "toolchains_llvm-ffe407ca2423f4d171b7a0f3897c23bbb7e40310",
     urls = ["https://github.com/bazel-contrib/toolchains_llvm/archive/ffe407ca2423f4d171b7a0f3897c23bbb7e40310.tar.gz"],
+)
+
+#################################
+## Tools that ship with the OS ##
+#################################
+
+find_macos_codesign = use_repo_rule("//bazel/toolchains/codesign:configure.bzl", "find_macos_codesign")
+
+find_macos_codesign(
+    name = "macos_codesign",
+    exec_compatible_with = ["@platforms//os:macos"],
+)
+
+find_macos_pkgbuild = use_repo_rule("//bazel/toolchains/pkgbuild:configure.bzl", "find_macos_pkgbuild")
+
+find_macos_pkgbuild(
+    name = "macos_pkgbuild",
+    exec_compatible_with = ["@platforms//os:macos"],
+)
+
+register_toolchains(
+    "@macos_codesign//:all",
+    "@macos_pkgbuild//:all",
+    dev_dependency = True,
 )
 
 #########################
@@ -205,12 +240,38 @@ register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 ## Linux kernel headers for eBPF prebuilt compilation
 ## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
 ## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
-linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
+linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:hermetic_linux_headers.bzl", "linux_headers_extension")
+
+# snapshot.ubuntu.com is mirrored through the ADMS Bazel downloader.
+linux_headers_ext.configure(
+    arch_sha256s = {
+        "aarch64": "bc6d614bc03a0bdbe35b2ab71a86118194f66a7f75d10f02d65e9eb30088ff2e",
+        "x86_64": "00deb560f75ee2947f298ba687b386e3df920d8e3cca9dcd8eedc64c0755f42e",
+    },
+    arch_urls = {
+        "aarch64": "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_arm64.deb",
+        "x86_64": "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110-generic_6.8.0-110.110_amd64.deb",
+    },
+    common_sha256 = "fa7ec534c2fec2f287158073f1d9fe8f285ced726d5c1d040cb66f658fb5eba7",
+    common_url = "https://snapshot.ubuntu.com/ubuntu/20260415T000000Z/pool/main/l/linux/linux-headers-6.8.0-110_6.8.0-110.110_all.deb",
+    header_release = "6.8.0-110",
+)
 use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_headers_x86_64")
 
 ######################################
 ## Compilers and toolchains        ##
 ####################################
+
+archive_override(
+    module_name = "toolchains_msvc",
+    patch_strip = 1,
+    # Adds MSBuild + the VC project system, and whole-tree filegroups, so MSBuild-driven
+    # builds (CPython) can run against the same hermetic toolchain as rules_cc.
+    patches = ["//bazel/patches:toolchains_msvc/0001-hermetic-msbuild-and-toolchain-trees.patch"],
+    sha256 = "1ab52698bd8b1eac2e005a07e25e62538daed471e9657586213b88d7cd7cb14d",
+    strip_prefix = "toolchains_msvc-8e2aa4624bbb5a53a94f135e90995f307875d1ad",
+    urls = ["https://github.com/Dragnalith/toolchains_msvc/archive/8e2aa4624bbb5a53a94f135e90995f307875d1ad.tar.gz"],
+)
 
 archive_override(
     module_name = "gcc_toolchain",
@@ -220,6 +281,7 @@ archive_override(
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
+        "//bazel/patches:gcc-toolchain/0006-independent-exec-target-arch.patch",
     ],
     sha256 = "c7a6674abbf309d2ed5fb2cf6a03aca1e4f357a6f287de2cf21ace856a08f6c2",
     strip_prefix = "gcc-toolchain-cd3e7ee1027a3ecc8b89dc61eb485299ed833399",
@@ -229,7 +291,7 @@ archive_override(
 gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_x86_64",
-    binary_prefix = "x86_64-unknown-linux-gnu-",
+    binary_prefix = "x86_64-linux-gnu-",
     enable_fortran = False,
     extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "11.4.0",
@@ -237,14 +299,33 @@ gcc_toolchains.toolchain(
 )
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_aarch64",
-    binary_prefix = "aarch64-unknown-linux-gnu-",
+    binary_prefix = "aarch64-linux-gnu-",
     enable_fortran = False,
     extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "12.3.0",
     target_arch = "aarch64",
 )
+
+# Cross toolchain: runs on aarch64, targets armv7 (armhf). No native armv7 CI
+# runners exist, so unlike the other two entries this always cross-compiles.
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_armv7",
+    binary_prefix = "arm-linux-gnueabihf-",
+    enable_fortran = False,
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    gcc_version = "13.2.0",
+    gcc_versions = """{"13.2.0": {"armv7": {
+        "url": "https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/0cd6ae2749998d738188f10abfbdeb186d76a16d4c3f5c814d69bbc3c1757fea/aarch64/arm-linux-gnueabihf-gcc.tar.xz",
+        "sha256": "2f6171e4411c51626ecc857d85dcb25c1b886807272d5b951fac128d31e858d3"
+    }}}""",
+    target_arch = "armv7",
+)
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
+use_repo(gcc_toolchains, "gcc_toolchain_armv7")
 
 sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
 
@@ -292,19 +373,35 @@ winlibs_mingw_repository(
     url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.7-12.0.0-msvcrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r3.zip",
 )
 
+# Hermetic MSVC + Windows SDK for rules_cc (cl/link), and MSBuild for CPython
+# (see deps/cpython/build_python.bat). MinGW stays the default Windows cc_toolchain.
+msvc_toolchain = use_extension("@toolchains_msvc//:extensions.bzl", "toolchain")
+msvc_toolchain.toolchain_set(
+    name = "default",
+    # MSVC toolset version, not VS product version: VS 2022 17.14.x → 14.44
+    # (see https://learn.microsoft.com/en-us/cpp/overview/compiler-versions).
+    # toolchains_msvc only accepts 14.xx here, not 17.14.
+    msvc_versions = ["14.44"],
+    # Win11 SDK 10.0.26100; toolchains_msvc uses the trailing build number only.
+    winsdk_versions = ["26100"],
+)
+use_repo(msvc_toolchain, "msvc_toolchains")
+
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
+    "@gcc_toolchain_armv7//:cc_toolchain",
     "@winlibs_mingw64//:mingw_cc_toolchain",
+    "@msvc_toolchains//:all",
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
 
-# Visual Studio / MSBuild tooling, taken from the local installation
+# Host MSBuild for the DatadogInterop vcxproj only; CPython uses the hermetic
+# @msvc_toolchains//msbuild instead.
 visual_studio(
     name = "visual_studio",
     path_variable = "VSTUDIO_ROOT",
-    version = "17.14.36717.8",  # 18.4.11612.150
 )
 
 # =========================================
@@ -389,6 +486,9 @@ include("//deps:repos.MODULE.bazel")
 include("//deps/acl:acl.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/agent_data_plane:agent_data_plane.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/cacerts:cacerts.MODULE.bazel")
 
 # buildifier: leave-alone
@@ -442,7 +542,7 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.7.0")
+bazel_dep(name = "apple_support", version = "2.8.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 

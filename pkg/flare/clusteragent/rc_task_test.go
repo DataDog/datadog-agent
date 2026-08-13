@@ -23,7 +23,18 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
+
+// buildAgentTaskConfigJSON constructs an AgentTaskConfig from a raw JSON task payload.
+// Use this helper when args values may contain characters that would break the simple
+// string-concatenation approach in buildAgentTaskConfig (e.g. JSON arrays in "tags").
+func buildAgentTaskConfigJSON(t *testing.T, rawJSON string) rcclienttypes.AgentTaskConfig {
+	t.Helper()
+	task, err := rcclienttypes.ParseConfigAgentTask([]byte(rawJSON), state.Metadata{})
+	require.NoError(t, err)
+	return task
+}
 
 func buildAgentTaskConfig(t *testing.T, taskType, uuid string, args map[string]string) rcclienttypes.AgentTaskConfig {
 	t.Helper()
@@ -179,6 +190,120 @@ func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {
 	assert.ErrorContains(t, err, "send failed")
 	_, statErr := os.Stat(tmpPath)
 	assert.NoError(t, statErr, "flare archive should be kept when upload fails")
+}
+
+func TestHandleRCFlareTask_SourceAndTagsForwarded(t *testing.T) {
+	origCreate := createDCAArchiveFunc
+	origSend := sendFlareFunc
+	t.Cleanup(func() {
+		createDCAArchiveFunc = origCreate
+		sendFlareFunc = origSend
+	})
+
+	tmpFile, err := os.CreateTemp("", "flare-*.zip")
+	require.NoError(t, err)
+	tmpFile.Close()
+	tmpPath := tmpFile.Name()
+	t.Cleanup(func() { os.Remove(tmpPath) })
+
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+		return tmpPath, nil
+	}
+
+	var capturedSource flarehelpers.FlareSource
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, src flarehelpers.FlareSource) (string, error) {
+		capturedSource = src
+		return "ok", nil
+	}
+
+	cfg := configmock.New(t)
+	task := buildAgentTaskConfigJSON(t,
+		`{"task_type":"flare","uuid":"uuid-7","args":{"case_id":"1","user_handle":"u@d.com","source":"automation","tags":"[\"env:prod\",\"team:platform\"]"}}`,
+	)
+
+	err = HandleRCFlareTask(task, cfg, nil, nil, nil)
+	require.NoError(t, err)
+
+	expSource := flarehelpers.NewRemoteConfigFlareSource("uuid-7").WithFlareSourceTags("automation", []string{"env:prod", "team:platform"})
+	assert.Equal(t, expSource, capturedSource)
+}
+
+func TestHandleRCFlareTask_MalformedTagsIgnored(t *testing.T) {
+	origCreate := createDCAArchiveFunc
+	origSend := sendFlareFunc
+	t.Cleanup(func() {
+		createDCAArchiveFunc = origCreate
+		sendFlareFunc = origSend
+	})
+
+	tmpFile, err := os.CreateTemp("", "flare-*.zip")
+	require.NoError(t, err)
+	tmpFile.Close()
+	tmpPath := tmpFile.Name()
+	t.Cleanup(func() { os.Remove(tmpPath) })
+
+	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+		return tmpPath, nil
+	}
+
+	var capturedSource flarehelpers.FlareSource
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, src flarehelpers.FlareSource) (string, error) {
+		capturedSource = src
+		return "ok", nil
+	}
+
+	cfg := configmock.New(t)
+	task := buildAgentTaskConfigJSON(t,
+		`{"task_type":"flare","uuid":"uuid-8","args":{"case_id":"1","user_handle":"u@d.com","tags":"not-json"}}`,
+	)
+
+	err = HandleRCFlareTask(task, cfg, nil, nil, nil)
+	require.NoError(t, err, "malformed tags should not cause the flare to fail")
+
+	// tags should be nil (ignored), source empty
+	expSource := flarehelpers.NewRemoteConfigFlareSource("uuid-8").WithFlareSourceTags("", nil)
+	assert.Equal(t, expSource, capturedSource)
+}
+
+func TestHandleRCFlareTask_LogFile(t *testing.T) {
+	origCreate := createDCAArchiveFunc
+	origSend := sendFlareFunc
+	t.Cleanup(func() {
+		createDCAArchiveFunc = origCreate
+		sendFlareFunc = origSend
+	})
+
+	var capturedLogFile string
+	createDCAArchiveFunc = func(_ bool, _, logFile string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
+		capturedLogFile = logFile
+		return "/tmp/fake-flare.zip", nil
+	}
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+		return "ok", nil
+	}
+
+	task := buildAgentTaskConfig(t, "flare", "uuid-logfile", map[string]string{
+		"case_id":     "12345",
+		"user_handle": "test@example.com",
+	})
+
+	t.Run("unconfigured log_file falls back to the cluster-agent's default log file", func(t *testing.T) {
+		// Cluster-agent doesn't register its own default for "log_file", so an
+		// unconfigured value resolves to the generic agent default
+		// (defaultpaths.GetDefaultLogFile()), not "".
+		cfg := configmock.New(t)
+		err := HandleRCFlareTask(task, cfg, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, defaultpaths.GetDefaultDCALogFile(), capturedLogFile)
+	})
+
+	t.Run("explicitly configured log_file is preserved", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("log_file", "/custom/cluster-agent.log", pkgconfigmodel.SourceAgentRuntime)
+		err := HandleRCFlareTask(task, cfg, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "/custom/cluster-agent.log", capturedLogFile)
+	})
 }
 
 func TestHandleRCFlareTask_ProfilingArgs(t *testing.T) {

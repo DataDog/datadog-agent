@@ -22,6 +22,7 @@ properties:
         - health_check
         - ddflare
         - datadog
+        - cumulativetodelta
         items:
           type: string
         env_parser: comma_and_space_separated
@@ -29,7 +30,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: OTel Collector
   extension_timeout:
     node_type: setting
     type: integer

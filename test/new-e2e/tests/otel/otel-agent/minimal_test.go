@@ -151,6 +151,7 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       - datadog
       processors:
       - infraattributes/dd-autoconfigured
+      - cumulativetodelta/dd-autoconfigured
       receivers:
       - otlp
       - datadog/connector

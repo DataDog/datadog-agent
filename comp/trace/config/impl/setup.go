@@ -27,8 +27,10 @@ import (
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -99,7 +101,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		cfg.LogFilePath = DefaultLogFilePath()
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +432,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			c.ReceiverHost = host
 		}
 
-		if core.IsConfigured("apm_config.apm_non_local_traffic") && core.GetBool("apm_config.apm_non_local_traffic") {
+		// Gate on the value (not IsConfigured) so the Kubernetes binary default — applied at
+		// SourceDefault by applyKubernetesContainerDefaults — still forces 0.0.0.0 over an explicit
+		// bind_host, matching the historical datadog-kubernetes.yaml behavior. An explicit
+		// apm_non_local_traffic: false (file/env) sets the value false and releases the override.
+		if core.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
 	} else if env.IsContainerized() {
@@ -632,7 +638,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.Site = core.GetString("site")
 	if c.Site == "" {
-		c.Site = pkgconfigsetup.DefaultSite
+		c.Site = constants.DefaultSite
 	}
 	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
@@ -651,7 +657,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.ProfilingProxy.MaxRequestBytes = int64(core.GetInt("apm_config.profiling_max_request_bytes"))
 
-	c.DebuggerLogsEnabled = core.GetBool("logs_enabled") || core.GetBool("log_enabled") || core.GetBool("apm_config.debugger_logs_enabled_override")
+	logsEnabled := core.GetBool("logs_enabled") || core.GetBool("log_enabled")
+	logsConfigured := core.IsConfigured("logs_enabled") || core.IsConfigured("log_enabled")
+	c.DebuggerLogsEnabled = logsEnabled || !logsConfigured || core.GetBool("apm_config.debugger_logs_enabled_override")
 	if k := "apm_config.debugger_dd_url"; core.IsConfigured(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
 	}

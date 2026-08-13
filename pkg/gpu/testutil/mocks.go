@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux && nvml
+//go:build linux && nvml && test
 
 package testutil
 
@@ -377,6 +377,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				return deviceMigChildren[*opts.migChildIndex], nvml.SUCCESS
 			}
 			return deviceUUID, nvml.SUCCESS
+		},
+		GetGpuFabricInfoFunc: func() (nvml.GpuFabricInfo, nvml.Return) {
+			return nvml.GpuFabricInfo{}, nvml.ERROR_NOT_SUPPORTED
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {

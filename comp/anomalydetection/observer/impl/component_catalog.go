@@ -90,6 +90,36 @@ type ComponentSettings struct {
 	configs map[string]any
 }
 
+// ApplyTestbenchDetectorDefaults applies the shorter detector warmups used by
+// the offline testbench. Production builds ComponentSettings from the agent
+// config and never calls this function. An explicit testbench --config entry
+// for a detector takes precedence over this profile.
+func ApplyTestbenchDetectorDefaults(settings ComponentSettings) ComponentSettings {
+	if settings.configs == nil {
+		settings.configs = make(map[string]any)
+	}
+
+	bocpd := DefaultBOCPDConfig()
+	bocpd.WarmupPoints = 40
+	holt := DefaultHoltResidualConfig()
+	holt.WarmupPoints = 15
+	holt.ResidualWindow = 25
+	tukey := DefaultTukeyBiweightConfig()
+	tukey.WindowSize = 40
+	tukey.MinPoints = 40
+
+	for name, cfg := range map[string]any{
+		"bocpd":          bocpd,
+		"holt_residual":  holt,
+		"tukey_biweight": tukey,
+	} {
+		if _, explicitlyConfigured := settings.configs[name]; !explicitlyConfigured {
+			settings.configs[name] = cfg
+		}
+	}
+	return settings
+}
+
 // componentCatalog is the shared registry of all available pipeline components.
 // Both the live observer and the testbench use this to discover and instantiate
 // detectors, correlators, and extractors.
@@ -291,6 +321,11 @@ func defaultCatalog() *componentCatalog {
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("anomaly_scorer: failed to parse JSON config: %w", err)
 					}
+					threshold, err := normalizeCorrelationEventThreshold(cfg.CorrelationEventThreshold)
+					if err != nil {
+						return nil, fmt.Errorf("anomaly_scorer: invalid correlation_event_threshold: %w", err)
+					}
+					cfg.CorrelationEventThreshold = threshold
 					return cfg, nil
 				},
 			},

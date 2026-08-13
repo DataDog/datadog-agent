@@ -41,7 +41,7 @@ func TestPARManagedByProcmgrWindows(t *testing.T) {
 	e2e.Run(t, &parProcmgrWindowsSuite{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
 			),
 		),
