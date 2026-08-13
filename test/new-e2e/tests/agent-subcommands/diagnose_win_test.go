@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
@@ -28,6 +29,8 @@ func TestWindowsDiagnoseSuite(t *testing.T) {
 }
 
 func (v *windowsDiagnoseSuite) TestDiagnoseOtherCmdPort() {
+	flake.Mark(v.T()) // FLREM-154
+
 	params := agentparams.WithAgentConfig("cmd_port: 4567")
 	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()), ec2.WithAgentOptions(params))))
 

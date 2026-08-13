@@ -53,6 +53,7 @@ dd_agent_go_test(
         "status/fixtures/custom_check.yaml",
     ],
     deps = [
+        "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",

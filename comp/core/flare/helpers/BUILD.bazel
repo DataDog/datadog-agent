@@ -54,6 +54,7 @@ dd_agent_go_test(
         "//pkg/util/hostname",
         "//pkg/util/hostname/validate",
         "//pkg/util/scrubber",
+        "//pkg/util/testutil/flake",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

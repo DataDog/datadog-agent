@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var FromSlash = filepath.FromSlash
@@ -61,6 +62,8 @@ func getNewBuilder(t *testing.T) *builder {
 }
 
 func TestNewFlareBuilder(t *testing.T) {
+	flake.Mark(t) // FLREM-155
+
 	fb := getNewBuilder(t)
 
 	require.DirExists(t, fb.tmpDir)
@@ -82,6 +85,8 @@ func TestNewFlareBuilder(t *testing.T) {
 }
 
 func TestSave(t *testing.T) {
+	flake.Mark(t) // FLREM-148
+
 	fb := getNewBuilder(t)
 
 	root := setupDirWithData(t)

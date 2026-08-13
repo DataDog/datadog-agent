@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -24,6 +25,10 @@ type baseFlareSuite struct {
 }
 
 func (v *baseFlareSuite) TestFlareDefaultFiles() {
+	if runtime.GOOS == "linux" {
+		flake.Mark(v.T()) // FLREM-153
+	}
+
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"})
 	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v, flareArgs)
 
