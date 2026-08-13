@@ -62,7 +62,7 @@ func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn nc
 	logger := LoggerFromContext(ctx)
 	if runningConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.RUNNING); err != nil {
 		logger.Warnf("unable to retrieve running config, will not send: %v", err)
-		errors = append(errors, fmt.Errorf("failed to retrieve running config: %w", err))
+		errors = append(errors, ncmtypes.WrapErrorf(ncmtypes.ErrConfigRetrievalFailed, "failed to retrieve running config: %w", err))
 	} else {
 		storeChanged = storeChanged || stored
 		configs = append(configs, *runningConfig)
@@ -70,7 +70,7 @@ func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn nc
 
 	if startupConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.STARTUP); err != nil {
 		logger.Warnf("unable to retrieve startup config, will not send: %v", err)
-		errors = append(errors, fmt.Errorf("failed to retrieve startup config: %w", err))
+		errors = append(errors, ncmtypes.WrapErrorf(ncmtypes.ErrConfigRetrievalFailed, "failed to retrieve startup config: %w", err))
 	} else {
 		storeChanged = storeChanged || stored
 		configs = append(configs, *startupConfig)
