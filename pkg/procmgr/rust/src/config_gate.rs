@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Stub config gates for stacked PR 1. Full implementation lands in PR 2.
+//! Stub config gates (PR 2 implements real gates).
 
 use serde::{Deserialize, Serialize};
 

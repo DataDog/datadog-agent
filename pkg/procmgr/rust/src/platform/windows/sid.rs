@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Windows SID lookup helpers shared by spawn and pipe ACL code.
 
 use anyhow::{Result, bail};
 use std::ptr;

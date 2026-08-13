@@ -6,10 +6,6 @@
 use anyhow::{Result, bail};
 use std::path::PathBuf;
 
-/// Portable stdio setting from processes.d YAML (`inherit`, `null`, or a file path).
-///
-/// Platform spawn backends resolve this to `std::process::Stdio` or Win32 handles
-/// under the target process identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StdioSetting {
     Inherit,
@@ -23,7 +19,6 @@ impl StdioSetting {
     }
 }
 
-/// Parse a processes.d stdout/stderr YAML value.
 pub fn parse_stdio_setting(yaml_value: &str) -> StdioSetting {
     match yaml_value {
         "null" => StdioSetting::Null,
@@ -32,7 +27,6 @@ pub fn parse_stdio_setting(yaml_value: &str) -> StdioSetting {
     }
 }
 
-/// Reject privileged stdio settings that are not inherit/null.
 pub(super) fn require_inherit_or_null(
     process_name: &str,
     stdout: &StdioSetting,
