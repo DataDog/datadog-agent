@@ -9,6 +9,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -227,6 +228,33 @@ func TestProcessesPodEvent_FollowingEventHandled(t *testing.T) {
 	assert.True(t, srv.processNextPodEvent(context.Background()))
 	assertNotified(t, "event received during resolution", nodeCh)
 	assert.Empty(t, srv.buildMetadataSnapshot("node1").matchedOwners)
+}
+
+func TestProcessPodEvent_PreservesOwnersAfterRetriesExhausted(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil, errorPodOwnerResolver{})
+	t.Cleanup(srv.podOwnerQueue.ShutDown)
+
+	key := "ns1/pod1"
+	existingOwners := []workloadmeta.KubernetesMatchedOwner{{Kind: "CloneSet", Name: "workload1"}}
+	srv.matchedOwners["node1"] = matchedOwnersSnapshot{
+		key: {namespace: "ns1", podName: "pod1", owners: existingOwners},
+	}
+	nodeCh := srv.subscribeToNamespaceEvents("node1")
+
+	for i := 0; i < podOwnerMaxRetries; i++ {
+		srv.podOwnerQueue.AddRateLimited(key)
+	}
+	srv.enqueuePodEvents([]workloadmeta.Event{{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+			NodeName:   "node1",
+		},
+	}})
+
+	assert.True(t, srv.processNextPodEvent(context.Background()))
+	assert.Equal(t, existingOwners, srv.buildMetadataSnapshot("node1").matchedOwners[key].owners)
+	assertNotNotified(t, "failed owner resolution", nodeCh)
 }
 
 func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
@@ -1055,6 +1083,12 @@ type staticPodOwnerResolver struct{}
 
 func (staticPodOwnerResolver) Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesMatchedOwner, error) {
 	return nil, nil
+}
+
+type errorPodOwnerResolver struct{}
+
+func (errorPodOwnerResolver) Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesMatchedOwner, error) {
+	return nil, errors.New("owner resolution failed")
 }
 
 type blockingPodOwnerResolver struct {

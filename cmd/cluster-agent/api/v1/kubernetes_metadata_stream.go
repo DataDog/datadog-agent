@@ -275,6 +275,9 @@ func (srv *KubeMetadataStreamServer) processNextPodEvent(ctx context.Context) bo
 				return true
 			}
 			log.Warnf("Unable to resolve workload owners for pod %s after %d retries: %v", key, srv.podOwnerQueue.NumRequeues(key), err)
+			// Keep the last successful owners instead of replacing them with an empty result after a transient failure.
+			srv.podOwnerQueue.Forget(key)
+			return true
 		}
 	}
 
