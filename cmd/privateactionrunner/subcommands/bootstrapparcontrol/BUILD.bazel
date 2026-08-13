@@ -2,9 +2,12 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "rotateidentity",
-    srcs = ["command.go"],
-    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity",
+    name = "bootstrapparcontrol",
+    srcs = [
+        "command.go",
+        "enrollment.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/bootstrapparcontrol",
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/privateactionrunner/command",
@@ -14,25 +17,37 @@ go_library(
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
-        "//pkg/config/setup",
+        "//comp/privateactionrunner/def",
+        "//pkg/api/security/cert",
+        "//pkg/config/model",
+        "//pkg/fips",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
         "//pkg/util/fxutil",
+        "//pkg/util/http",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
     ],
 )
 
 dd_agent_go_test(
-    name = "rotateidentity_test",
-    srcs = ["command_test.go"],
-    embed = [":rotateidentity"],
+    name = "bootstrapparcontrol_test",
+    srcs = [
+        "command_test.go",
+        "enrollment_test.go",
+    ],
+    embed = [":bootstrapparcontrol"],
     deps = [
         "//cmd/privateactionrunner/command",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
