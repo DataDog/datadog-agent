@@ -23,6 +23,8 @@ struct RestartTracker {
     timestamps: VecDeque<Instant>,
     current_delay: f64,
     last_spawn_time: Option<Instant>,
+    /// Set when a run exceeded `runtime_success_sec`; survives `last_spawn_time` clears.
+    had_successful_run: bool,
 }
 
 impl RestartTracker {
@@ -35,6 +37,7 @@ impl RestartTracker {
             timestamps: VecDeque::new(),
             current_delay: initial_delay,
             last_spawn_time: None,
+            had_successful_run: false,
         }
     }
 
@@ -56,6 +59,7 @@ impl RestartTracker {
             self.current_delay = base_delay;
             self.count = 0;
             self.last_spawn_time = None;
+            self.had_successful_run = true;
         }
         self.count += 1;
         self.timestamps.push_back(Instant::now());
@@ -469,7 +473,12 @@ impl ManagedProcess {
     }
 
     pub(crate) fn has_ever_run_successfully(&self) -> bool {
-        self.restarts.last_spawn_time.is_some()
+        self.restarts.had_successful_run || self.restarts.last_spawn_time.is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_command_for_test(&mut self, command: String) {
+        self.config.command = command;
     }
 
     fn condition_path_exists_met(&self) -> bool {
@@ -1397,6 +1406,37 @@ pub mod tests {
         assert!(
             proc.restarts.last_spawn_time.is_none(),
             "successful-run timestamp should be consumed after one reset"
+        );
+        assert!(
+            proc.restarts.had_successful_run,
+            "successful-run state should persist after timestamp reset"
+        );
+    }
+
+    #[test]
+    fn test_successful_run_persists_across_restart_delays() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.restart_sec = Some(0.0);
+        cfg.runtime_success_sec = Some(0);
+        let mut proc =
+            ManagedProcess::new_config("retry-chain".into(), test_helpers::test_uuid(), cfg);
+
+        proc.restarts.last_spawn_time = Some(Instant::now() - Duration::from_secs(5));
+        proc.transition_to(ProcessState::Failed);
+        assert!(proc.has_ever_run_successfully());
+
+        assert!(proc.restart_delay().is_some());
+        assert!(
+            proc.has_ever_run_successfully(),
+            "successful-run state should survive the first restart_delay"
+        );
+
+        assert!(proc.restart_delay().is_some());
+        assert!(
+            proc.has_ever_run_successfully(),
+            "successful-run state should survive subsequent restart_delay calls"
         );
     }
 
