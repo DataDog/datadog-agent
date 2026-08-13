@@ -8,8 +8,4 @@
 ---
 fixes:
   - |
-    Fixed distribution metrics submitted by checks (via ``sender.Distribution``)
-    always being reported with an empty/unknown origin metadata (``OriginCategory``)
-    in the sketch payload, regardless of the submitting check. The check's
-    metric source is now correctly propagated to the sketch, matching the
-    behavior already in place for other metric types.
+    Add the origin product source to distribution metrics originating from checks.
