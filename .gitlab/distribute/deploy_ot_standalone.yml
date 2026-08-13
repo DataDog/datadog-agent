@@ -16,9 +16,7 @@
 deploy_containers-ot-standalone:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
-  needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
+  needs: []
   parallel:
     matrix:
       - FLAVOR_SUFFIX:
@@ -30,9 +28,7 @@ deploy_containers-ot-standalone:
 deploy_containers-ot-standalone_internal-rc:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_internal_rc]
-  needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
+  needs: []
   variables:
     FLAVOR_SUFFIX: ""
 

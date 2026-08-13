@@ -3,7 +3,7 @@
 # Contains a job which deploys the Winget Agent package.
 
 publish_winget_7_x64:
-  dependencies: ["setup_agent_version"]
+  dependencies: []
   rules: !reference [.on_deploy_stable_or_beta_repo_branch_manual]
   stage: deploy_packages
   extends: .windows_docker_default

@@ -16,7 +16,5 @@
 deploy_containers-cws-instrumentation:
   extends: .deploy_containers-cws-instrumentation-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
-  needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
+  needs: []
 

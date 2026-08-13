@@ -6,7 +6,7 @@ integration_tests_otel:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: ["setup_agent_version", "go_deps"]
+  needs: ["go_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -25,7 +25,7 @@ integration_tests_otel:
 
 docker_image_build_otel:
   stage: integration_test
-  needs: ["setup_agent_version", "integration_tests_otel"]
+  needs: ["integration_tests_otel"]
   extends: [.docker_build_amd64, .docker_build_job_definition]
   # TODO: switch back to ["arch:amd64"] runners (from `.docker_build_amd64`) once
   # the docker Python SDK in the `docker_x64` build image is upgraded to >=7.0.0.
@@ -132,7 +132,7 @@ docker_image_build_otel:
 .ddot_byoc_oci_build_test:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["setup_agent_version", "integration_tests_otel"]
+  needs: ["integration_tests_otel"]
   # TODO: Switch to standard `amd64` runners - see comment above in docker_image_build_otel
   tags: ["docker-in-docker:amd64"]
   variables:
@@ -207,7 +207,7 @@ ddot_byoc_package_build_test_windows_oci:
 ddot_byoc_binary_build_test_ubuntu2004:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["setup_agent_version", "integration_tests_otel"]
+  needs: ["integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-byoc-ubuntu2004-builder

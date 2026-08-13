@@ -7,7 +7,7 @@ cluster_agent_cloudfoundry-build_amd64:
   timeout: 25m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: ["setup_agent_version", "go_deps"]
+  needs: ["go_deps"]
   artifacts:
     expire_in: 2 weeks
     paths:

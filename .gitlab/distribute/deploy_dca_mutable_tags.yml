@@ -4,9 +4,7 @@
 .deploy_mutable_dca_tags-base:
   extends: .docker_publish_job_definition
   stage: deploy_dca_mutable_tags
-  needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
+  dependencies: []
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${CLUSTER_AGENT_REPOSITORY}:${VERSION}
@@ -16,8 +14,6 @@ deploy_mutable_dca_tags-rc:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca
       artifacts: false
   variables:
@@ -27,8 +23,6 @@ deploy_mutable_dca_tags-latest:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_manual_final]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca
       artifacts: false
   variables:
@@ -38,8 +32,6 @@ deploy_mutable_dca_tags_internal-rc:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca_internal-rc
       artifacts: false
   variables:
@@ -49,8 +41,6 @@ deploy_mutable_dca_tags_internal-latest:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_internal_manual_final]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca_internal
       artifacts: false
   variables:
@@ -60,9 +50,7 @@ deploy_mutable_dca_tags_internal-latest:
 .deploy_mutable_dca_tags-fips-base:
   extends: .docker_publish_job_definition
   stage: deploy_dca_mutable_tags
-  needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
+  dependencies: []
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips
@@ -71,8 +59,6 @@ deploy_mutable_dca_tags-fips-latest:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_manual_final]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca-fips
       artifacts: false
   variables:
@@ -82,8 +68,6 @@ deploy_mutable_dca_tags-fips-rc:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_rc]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca-fips
       artifacts: false
   variables:
@@ -93,8 +77,6 @@ deploy_mutable_dca_tags-fips_internal-rc:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca-fips_internal-rc
       artifacts: false
   variables:
@@ -104,8 +86,6 @@ deploy_mutable_dca_tags-fips_internal-latest:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_internal_manual_final]
   needs:
-    - pipeline: $PARENT_PIPELINE_ID
-      job: setup_agent_version
     - job: deploy_containers-dca-fips_internal
       artifacts: false
   variables:

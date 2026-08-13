@@ -2,7 +2,7 @@
 .windows_msi_base:
   stage: package_build
   extends: [.windows_docker_default, .bazel:defs:cache:windows]  # the latter for `bazel run @openssl//:install`
-  needs: ["setup_agent_version", "go_deps"]
+  needs: ["go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
     - !reference [.sanitize_goproxy_windows]
@@ -92,7 +92,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     - !reference [.except_mergequeue]
     - when: on_success
   extends: .windows_docker_default
-  needs: ["setup_agent_version", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: "x64"
   script:
@@ -166,7 +166,7 @@ windows_zip_ddot_x64:
     - !reference [.except_mergequeue]
     - when: on_success
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
-  needs: ["setup_agent_version", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: "x64"
   script:

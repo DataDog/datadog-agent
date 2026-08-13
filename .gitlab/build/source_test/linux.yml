@@ -12,7 +12,7 @@
 .linux_tests:
   stage: source_test
   extends: .unit_test_base
-  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
