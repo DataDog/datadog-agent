@@ -398,20 +398,10 @@ pkg_filegroup(
     visibility = ["//visibility:public"],
 )
 
-# Junctions cannot point at files; flatten so pkg_install copies real files.
-# Same pattern as //rtloader/test:dir_with_python_home.
-copy_to_directory(
-    name = "python_win_dir",
-    srcs = [":python_win"],
-    out = "python_win_install",
-    root_paths = ["build"],
-    target_compatible_with = ["@platforms//os:windows"],
-)
-
 pkg_files(
     name = "install_files_win",
-    srcs = [":python_win_dir"],
-    strip_prefix = "python_win_install",
+    srcs = [":python_win"],
+    strip_prefix = "build",
 )
 
 # On Windows, python_win is built via MSBuild (not cc_shared_library), so there are no
