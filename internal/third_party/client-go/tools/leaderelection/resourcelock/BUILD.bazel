@@ -82,7 +82,6 @@ go_library(
         "@com_github_datadog_datadog_agent_pkg_api//:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_collector_check_defaults//:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_config_basic//:__subpackages__",
-        "@com_github_datadog_datadog_agent_pkg_config_buildschema//:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_config_create//:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_config_env//:__subpackages__",
         "@com_github_datadog_datadog_agent_pkg_config_helper//:__subpackages__",
