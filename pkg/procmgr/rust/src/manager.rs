@@ -639,7 +639,7 @@ impl ProcessManager {
             .job_object
             .as_ref()
             .expect("deferred job drain entry must have a job");
-        if !matches!(job.active_process_count(), Ok(0)) {
+        if job.may_have_active_members() {
             return false;
         }
         let entry = orphaned.remove(idx);
@@ -659,7 +659,7 @@ impl ProcessManager {
         if orphaned[idx]
             .job_object
             .as_ref()
-            .is_some_and(|job| job.active_process_count().is_ok_and(|count| count > 0))
+            .is_some_and(platform::JobObject::may_have_active_members)
         {
             return true;
         }
