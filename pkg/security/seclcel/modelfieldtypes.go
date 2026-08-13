@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/google/cel-go/common/types"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // ModelFieldTypes answers from the generated SECL object types, so it describes
@@ -34,6 +36,31 @@ func (ModelFieldTypes) IsListLeaf(field string) bool {
 func (ModelFieldTypes) IsFieldRoot(name string) bool {
 	_, ok := modelShapes[modelRootType.TypeName()][name]
 	return ok
+}
+
+// Canonical implements FieldTypes.
+//
+// The model keeps the names rules were once written with — `open.basename`,
+// `container.id`, a bare `async` — and maps them to the fields that replaced them.
+// SECL resolves a field through that table (eval.go:182), so a translation that did
+// not would reject rules the agent accepts: thirteen of the real ones.
+//
+// A pseudo field suffix is carried across, since `open.basename.length` names the
+// same derived value as `open.file.name.length`.
+func (ModelFieldTypes) Canonical(field string) string {
+	if to, ok := model.SECLLegacyFields[field]; ok {
+		return to
+	}
+
+	for _, suffix := range []string{lengthSuffix, rootDomainSuffix} {
+		if base, found := strings.CutSuffix(field, suffix); found {
+			if to, ok := model.SECLLegacyFields[base]; ok {
+				return to + suffix
+			}
+		}
+	}
+
+	return field
 }
 
 // IsPseudoField implements FieldTypes.

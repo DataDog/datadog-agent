@@ -713,6 +713,10 @@ func (p *parser) identOperand(tok token) (operand, *ParseError) {
 		}, nil
 	}
 
+	// A rule may still name a field the way it was named before, so the name is
+	// brought up to date here, once, and everything below sees the current one.
+	tok.val = p.canonical(tok.val)
+
 	// `x.length` and `x.root_domain` are derived, not stored. SECL exposes them
 	// as fields; CEL has size() for the first and a helper for the second.
 	if p.types != nil && p.types.IsPseudoField(tok.val) {
@@ -733,6 +737,16 @@ func (p *parser) identOperand(tok token) (operand, *ParseError) {
 	return operand{expr: expr, field: field, start: tok.start, end: tok.end}, nil
 }
 
+// canonical brings a name up to date, for a rule still written with one a field used
+// to have. Without field types nothing is known about names at all, so nothing is
+// rewritten — see the FieldTypes doc.
+func (p *parser) canonical(name string) string {
+	if p.types == nil {
+		return name
+	}
+	return p.types.Canonical(name)
+}
+
 // nameExpr translates a field name, resolving the `[…]` subscript that SECL
 // uses for both numeric indexing and iterator variables.
 func (p *parser) nameExpr(name string, start, end int) (celast.Expr, *ParseError) {
@@ -745,7 +759,7 @@ func (p *parser) nameExpr(name string, start, end int) (celast.Expr, *ParseError
 	}
 
 	m := subs[0]
-	base, index, suffix := name[:m[0]], name[m[2]:m[3]], name[m[1]:]
+	base, index, suffix := p.canonical(name[:m[0]]), name[m[2]:m[3]], name[m[1]:]
 	if base == "" {
 		return nil, errorf(start, "missing field name before the subscript in %q", name)
 	}
@@ -834,7 +848,7 @@ func (p *parser) fieldRefOperand(tok token) (operand, *ParseError) {
 		return operand{}, errorf(tok.start, "subscripts are not supported in the field reference %q", tok.val)
 	}
 
-	expr, err := p.selectChain(name, tok.start, tok.end)
+	expr, err := p.selectChain(p.canonical(name), tok.start, tok.end)
 	if err != nil {
 		return operand{}, err
 	}

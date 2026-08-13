@@ -16,6 +16,10 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // typedTranslations pairs a SECL expression over the *real* model with the CEL
@@ -143,8 +147,9 @@ func TestModelEnvRejects(t *testing.T) {
 		{`process.uid == "root"`, "no matching overload"},
 		// a misspelt member is named in the error, rather than its root
 		{`process.file.nope == "x"`, "undefined field 'nope'"},
-		// a field of the SECL unit tests' model, absent from the real one
-		{`open.filename == "x"`, "undefined field 'filename'"},
+		// a field of the SECL unit tests' model, absent from the real one and not a
+		// name it ever had
+		{`open.pathname == "x"`, "undefined field 'pathname'"},
 		// selecting through a scalar
 		{`process.file.name.deeper == "x"`, "does not support field selection"},
 	}
@@ -156,6 +161,44 @@ func TestModelEnvRejects(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.want)
 		})
 	}
+}
+
+// TestLegacyFieldNames covers the names a rule may still be written with, which the
+// agent maps to the fields that replaced them (eval.go:182) and which thirteen of the
+// real rules need.
+//
+// The mapping is applied where the name is resolved, so what a legacy name reads is the
+// current field: the translation shows it, and the value proves it.
+func TestLegacyFieldNames(t *testing.T) {
+	env, err := NewModelEnv()
+	require.NoError(t, err)
+
+	tests := []struct{ secl, cel string }{
+		{`open.basename == "passwd"`, `evt.open.file.name == "passwd"`},
+		{`open.filename == "/etc/passwd"`, `evt.open.file.path == "/etc/passwd"`},
+		{`container.id == "abc"`, `evt.process.container.id == "abc"`},
+		// a bare name, which is a field rather than a macro only because the table
+		// says so
+		{`async == true`, `evt.event.async == true`},
+		// the pseudo field suffix is carried across
+		{`open.basename.length > 3`, `size(evt.open.file.name) > 3`},
+		// and a name that is current already is left alone
+		{`open.file.name == "passwd"`, `evt.open.file.name == "passwd"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.secl, func(t *testing.T) {
+			got, err := TranslateWithTypes(tt.secl, ModelFieldTypes{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.cel, got)
+		})
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.Open.File.BasenameStr = "passwd"
+	assert.True(t, evalSECL(t, env, event, `open.basename == "passwd"`),
+		"a legacy name reads the field that replaced it")
 }
 
 // TestCorpusWithTypes is the broad guard on the array semantics: over the whole
@@ -192,10 +235,35 @@ func TestCorpusWithTypes(t *testing.T) {
 			// `process`. SECL's parser accepts it too and its compiler rejects it.
 			strings.Contains(msg, "applied to '(secl."):
 			continue
+		case seclRefuses(expr):
+			// A type error the other engine reaches too, so it says something about
+			// the expression rather than about the translation. Asking SECL is worth
+			// more than matching on the message: a few corpus entries compare a
+			// string against an integer, and they only surfaced once the legacy field
+			// names started resolving.
+			continue
 		default:
 			t.Errorf("%s\n  translation is not well typed: %s", expr, strings.Split(msg, "\n")[0])
 		}
 	}
 
 	require.Greater(t, compiled, 250, "expected the real-model expressions to compile")
+}
+
+// seclRefuses reports whether SECL's own compiler rejects the expression, against the
+// same model and the same constants.
+//
+// It is how the corpus test tells a translation that says the wrong thing from an
+// expression that is simply wrong: only the second is something both engines refuse.
+func seclRefuses(expr string) bool {
+	var m model.Model
+
+	rule, err := eval.NewRule("corpus", expr, ast.NewParsingContext(false), &eval.Opts{
+		Constants:    model.SECLConstants(),
+		LegacyFields: model.SECLLegacyFields,
+	})
+	if err != nil {
+		return true
+	}
+	return rule.GenEvaluator(&m) != nil
 }

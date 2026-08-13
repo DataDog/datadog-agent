@@ -19,6 +19,11 @@ type FieldTypes interface {
 	// macro or a constant. Only a field is rooted at EventRoot.
 	IsFieldRoot(name string) bool
 
+	// Canonical returns the name a field is known by now, for the names a rule may
+	// still be written with. It returns its argument unchanged for everything else,
+	// including a macro or a constant.
+	Canonical(field string) string
+
 	// ListPrefix returns the longest prefix of the field that is an iterated
 	// node, e.g. "process.ancestors" for "process.ancestors.file.name". It
 	// returns an empty string when nothing along the path is iterated.
