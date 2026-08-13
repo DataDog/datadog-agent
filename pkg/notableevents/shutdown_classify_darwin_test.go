@@ -1,0 +1,506 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build darwin
+
+package notableevents
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// The measured payloads from the PMU boot-fault test run. Pattern C is the
+// load-bearing fixture: it is the only payload a real trigger produced that
+// also emits an event.
+var (
+	measuredPatternACleanShutdown = pmuBootFaultInfo{Groups: [][]string{
+		{"target_off_restart"},
+		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+	}}
+	measuredPatternBReboot = pmuBootFaultInfo{Groups: [][]string{
+		{"wdog,reset_in_1"},
+		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+	}}
+	measuredPatternCButtonForce = pmuBootFaultInfo{Groups: [][]string{
+		{"rst", "btn_rst,btn_seq_reset", "target_off_restart"},
+		{"rst", "crash,crash0_in", "wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+		{"rst", "crash,crash0_in", "wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+	}}
+)
+
+func TestClassifyShutdownTokens(t *testing.T) {
+	tests := []struct {
+		name          string
+		info          pmuBootFaultInfo
+		expectEvent   bool
+		expectClass   shutdownClass
+		expectPrimary string
+		expectFaults  []string
+	}{
+		{
+			name: "pattern A clean shutdown",
+			info: measuredPatternACleanShutdown,
+		},
+		{
+			name: "pattern B sudo reboot",
+			info: measuredPatternBReboot,
+		},
+		{
+			name:          "pattern C button force restart",
+			info:          measuredPatternCButtonForce,
+			expectEvent:   true,
+			expectClass:   shutdownClassCrash,
+			expectPrimary: "crash",
+			expectFaults:  []string{"crash,crash0_in"},
+		},
+		{
+			name:          "thermal",
+			info:          pmuBootFaultInfo{Groups: [][]string{{"ot,tdie_overtemp"}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassThermal,
+			expectPrimary: "ot",
+			expectFaults:  []string{"ot,tdie_overtemp"},
+		},
+		{
+			name:          "thermal alternate family",
+			info:          pmuBootFaultInfo{Groups: [][]string{{"sochot,reset_in_3"}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassThermal,
+			expectPrimary: "sochot",
+			expectFaults:  []string{"sochot,reset_in_3"},
+		},
+		{
+			name:          "thermal singleton",
+			info:          pmuBootFaultInfo{Groups: [][]string{{"ntc_shdn"}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassThermal,
+			expectPrimary: "ntc_shdn",
+			expectFaults:  []string{"ntc_shdn"},
+		},
+		{
+			name:          "hypervisor crash",
+			info:          pmuBootFaultInfo{Groups: [][]string{{"crash,hyp_fw_crash"}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassCrash,
+			expectPrimary: "crash",
+			expectFaults:  []string{"crash,hyp_fw_crash"},
+		},
+		{
+			name: "thermal wins over every other class",
+			info: pmuBootFaultInfo{Groups: [][]string{{
+				"ot,overtemp", "uv,vddmain_uvlo", "crash,crash_in", "timeout,watchdog_timeout",
+			}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassThermal,
+			expectPrimary: "ot",
+			expectFaults: []string{
+				"crash,crash_in", "ot,overtemp", "timeout,watchdog_timeout", "uv,vddmain_uvlo",
+			},
+		},
+		{
+			name: "power wins without thermal",
+			info: pmuBootFaultInfo{Groups: [][]string{{
+				"uv,vddmain_uvlo", "crash,crash_in", "timeout,watchdog_timeout",
+			}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassPower,
+			expectPrimary: "uv",
+			expectFaults: []string{
+				"crash,crash_in", "timeout,watchdog_timeout", "uv,vddmain_uvlo",
+			},
+		},
+		{
+			name: "crash wins over watchdog",
+			info: pmuBootFaultInfo{Groups: [][]string{{
+				"crash,crash_in", "timeout,watchdog_timeout",
+			}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassCrash,
+			expectPrimary: "crash",
+			expectFaults:  []string{"crash,crash_in", "timeout,watchdog_timeout"},
+		},
+		{
+			name:          "underscore separated power family",
+			info:          pmuBootFaultInfo{Groups: [][]string{{"buck_en_err", "pgood_error_idx0"}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassPower,
+			expectPrimary: "buck",
+			expectFaults:  []string{"buck_en_err", "pgood_error_idx0"},
+		},
+		{
+			name: "unknown family stays silent",
+			info: pmuBootFaultInfo{Groups: [][]string{{"nonsense,whatever"}}},
+		},
+		{
+			name:          "unknown thermal suffix still classifies",
+			info:          pmuBootFaultInfo{Groups: [][]string{{"ot,some_future_sensor"}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassThermal,
+			expectPrimary: "ot",
+			expectFaults:  []string{"ot,some_future_sensor"},
+		},
+		{
+			name:          "unknown crash suffix still classifies",
+			info:          pmuBootFaultInfo{Groups: [][]string{{"crash,some_future_line"}}},
+			expectEvent:   true,
+			expectClass:   shutdownClassCrash,
+			expectPrimary: "crash",
+			expectFaults:  []string{"crash,some_future_line"},
+		},
+		{
+			name: "benign payload mixed with a fault",
+			info: pmuBootFaultInfo{Groups: [][]string{
+				{"target_off_restart"},
+				{"wdog,reset_in_1", "rst_in,reset_in_1_deassert", "ot,overtemp"},
+			}},
+			expectEvent:   true,
+			expectClass:   shutdownClassThermal,
+			expectPrimary: "ot",
+			expectFaults:  []string{"ot,overtemp"},
+		},
+		{
+			name: "absent property",
+			info: pmuBootFaultInfo{},
+		},
+		{
+			name: "empty arrays",
+			info: pmuBootFaultInfo{Groups: [][]string{{}, {}}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.NoError(t, validatePMUBootFaultInfo(test.info))
+
+			result, emit := classifyShutdownTokens(test.info)
+			require.Equal(t, test.expectEvent, emit)
+			if !emit {
+				assert.Equal(t, shutdownCauseResult{}, result)
+				return
+			}
+
+			assert.Equal(t, test.expectClass, result.Class)
+			assert.Equal(t, test.expectPrimary, result.PrimaryFamily)
+			assert.Equal(t, test.expectFaults, result.FaultTokens)
+			assert.NotEmpty(t, shutdownTitles[result.Class])
+			assert.NotEmpty(t, shutdownMessages[result.Class])
+
+			// Every token stays in Tokens whether or not it is a fault.
+			for _, group := range test.info.Groups {
+				for _, token := range group {
+					assert.Contains(t, result.Tokens, token)
+					assert.Contains(t, result.Families, tokenFamily(token))
+				}
+			}
+			assert.Equal(t, len(test.info.Groups), result.PMUCount)
+			assert.True(t, sortedAscending(result.Tokens))
+			assert.True(t, sortedAscending(result.Families))
+			assert.True(t, sortedAscending(result.FaultTokens))
+		})
+	}
+}
+
+// TestClassifyShutdownTokensPatternCPayload pins the payload the crash
+// classification rests on: exactly one fault token, and every benign token
+// retained but excluded from it.
+func TestClassifyShutdownTokensPatternCPayload(t *testing.T) {
+	result, emit := classifyShutdownTokens(measuredPatternCButtonForce)
+	require.True(t, emit)
+
+	assert.Equal(t, []string{"crash,crash0_in"}, result.FaultTokens)
+	assert.Equal(t, []string{
+		"btn_rst,btn_seq_reset",
+		"crash,crash0_in",
+		"rst",
+		"rst_in,reset_in_1_deassert",
+		"target_off_restart",
+		"wdog,reset_in_1",
+	}, result.Tokens)
+	assert.Equal(t, []string{
+		"btn_rst", "crash", "rst", "rst_in", "target_off", "wdog",
+	}, result.Families)
+	assert.Equal(t, "macOS crash shutdown", shutdownTitles[result.Class])
+}
+
+// TestClassifyShutdownTokensIgnoresPMUOrdering guards the dedup identity: PMU
+// enumeration order is not stable across boots, so a permuted payload must
+// classify identically.
+func TestClassifyShutdownTokensIgnoresPMUOrdering(t *testing.T) {
+	permuted := pmuBootFaultInfo{Groups: [][]string{
+		measuredPatternCButtonForce.Groups[2],
+		measuredPatternCButtonForce.Groups[0],
+		measuredPatternCButtonForce.Groups[1],
+	}}
+
+	expected, emit := classifyShutdownTokens(measuredPatternCButtonForce)
+	require.True(t, emit)
+	actual, emit := classifyShutdownTokens(permuted)
+	require.True(t, emit)
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestValidatePMUBootFaultInfoRejectsUntrustedPayloads(t *testing.T) {
+	oversized := make([]string, maxShutdownTokens+1)
+	for index := range oversized {
+		oversized[index] = fmt.Sprintf("ot,sensor_%d", index)
+	}
+
+	tests := []struct {
+		name string
+		info pmuBootFaultInfo
+	}{
+		{
+			name: "too many tokens",
+			info: pmuBootFaultInfo{Groups: [][]string{oversized}},
+		},
+		{
+			name: "too many tokens across services",
+			info: pmuBootFaultInfo{Groups: [][]string{
+				oversized[:maxShutdownTokens], {"ot,overtemp"},
+			}},
+		},
+		{
+			name: "oversized token",
+			info: pmuBootFaultInfo{Groups: [][]string{{strings.Repeat("a", maxShutdownTokenBytes+1)}}},
+		},
+		{
+			name: "markup in a token",
+			info: pmuBootFaultInfo{Groups: [][]string{{"ot,<script>"}}},
+		},
+		{
+			name: "uppercase in a token",
+			info: pmuBootFaultInfo{Groups: [][]string{{"OT,OVERTEMP"}}},
+		},
+		{
+			name: "whitespace in a token",
+			info: pmuBootFaultInfo{Groups: [][]string{{"ot, overtemp"}}},
+		},
+		{
+			name: "empty token",
+			info: pmuBootFaultInfo{Groups: [][]string{{""}}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Error(t, validatePMUBootFaultInfo(test.info))
+		})
+	}
+}
+
+func TestValidatePMUBootFaultInfoAcceptsTheFullDictionary(t *testing.T) {
+	for _, token := range allPMUFaultTokens() {
+		require.NoError(t, validatePMUBootFaultInfo(pmuBootFaultInfo{Groups: [][]string{{token}}}), token)
+	}
+}
+
+// TestPMUFaultTokenDictionaryCoverage asserts the documented 61 fault / 19
+// benign split over all 80 tokens the measured PMU can name. It catches a typo
+// in shutdownFaultFamilies that would otherwise silently misclassify.
+func TestPMUFaultTokenDictionaryCoverage(t *testing.T) {
+	tokens := allPMUFaultTokens()
+	require.Len(t, tokens, 80)
+
+	faults, benign := 0, 0
+	byClass := make(map[shutdownClass]int)
+	for _, token := range tokens {
+		family := tokenFamily(token)
+		require.NotEmpty(t, family, token)
+
+		class, isFault := shutdownFaultFamilies[family]
+		if !isFault {
+			benign++
+			continue
+		}
+		faults++
+		byClass[class]++
+	}
+
+	assert.Equal(t, 61, faults, "fault tokens")
+	assert.Equal(t, 19, benign, "benign tokens")
+	assert.Equal(t, map[shutdownClass]int{
+		shutdownClassThermal:  14,
+		shutdownClassPower:    30,
+		shutdownClassCrash:    6,
+		shutdownClassWatchdog: 6,
+		shutdownClassHardware: 5,
+	}, byClass)
+}
+
+// TestThermalTokenSet pins the 14 thermal tokens the classifier must match.
+func TestThermalTokenSet(t *testing.T) {
+	var thermal []string
+	for _, token := range allPMUFaultTokens() {
+		if shutdownFaultFamilies[tokenFamily(token)] == shutdownClassThermal {
+			thermal = append(thermal, token)
+		}
+	}
+
+	assert.ElementsMatch(t, []string{
+		"ntc_shdn",
+		"ot,overtemp",
+		"ot,tdie0_overtemp",
+		"ot,tdie1_overtemp",
+		"ot,tdie_overtemp",
+		"ot,tdie_overtemp_idx0",
+		"ot,tdie_overtemp_idx1",
+		"ot,tdie_overtemp_idx2",
+		"ot,tdie_overtemp_idx3",
+		"ot,temp_abs_buck0",
+		"ot,temp_abs_buck1",
+		"ot,temp_abs_buck2",
+		"ot,tsns_overtemp",
+		"sochot,reset_in_3",
+	}, thermal)
+}
+
+func TestTokenFamily(t *testing.T) {
+	tests := map[string]string{
+		"ot,tdie_overtemp":      "ot",
+		"crash,crash0_in":       "crash",
+		"ntc_shdn":              "ntc_shdn",
+		"otp_crc":               "otp_crc",
+		"por":                   "por",
+		"rst":                   "rst",
+		"sgpio":                 "sgpio",
+		"buck_startup_timeout":  "buck",
+		"pgood_error_idx1":      "pgood",
+		"target_off_shutdown":   "target_off",
+		"cp_wdog_expiry":        "cp_wdog_expiry",
+		"ldo_dig_ovs":           "ldo_dig_ovs",
+		"emerg_shdn":            "emerg_shdn",
+		"btn_shdn":              "btn_shdn",
+		"unprefixed_and_lonely": "unprefixed_and_lonely",
+	}
+
+	for token, family := range tests {
+		assert.Equal(t, family, tokenFamily(token), token)
+	}
+}
+
+// TestShutdownClassPrecedenceIsComplete keeps a newly added classification from
+// being unreachable or untitled.
+func TestShutdownClassPrecedenceIsComplete(t *testing.T) {
+	ranked := make(map[shutdownClass]struct{}, len(shutdownClassPrecedence))
+	for _, class := range shutdownClassPrecedence {
+		require.NotEqual(t, shutdownClassNone, class)
+		_, duplicate := ranked[class]
+		require.False(t, duplicate, "%s ranked twice", class)
+		ranked[class] = struct{}{}
+
+		assert.NotEmpty(t, shutdownTitles[class], class)
+		assert.NotEmpty(t, shutdownMessages[class], class)
+	}
+
+	for _, class := range shutdownFaultFamilies {
+		assert.Contains(t, ranked, class)
+	}
+	assert.Len(t, shutdownTitles, len(shutdownClassPrecedence))
+	assert.Len(t, shutdownMessages, len(shutdownClassPrecedence))
+}
+
+func sortedAscending(values []string) bool {
+	for index := 1; index < len(values); index++ {
+		if values[index-1] >= values[index] {
+			return false
+		}
+	}
+	return true
+}
+
+// allPMUFaultTokens is the complete info-fault_name dictionary published by the
+// pmu,abbey and pmu,mosquito services on the measured hardware.
+func allPMUFaultTokens() []string {
+	return []string{
+		"btn_rst,btn_seq_reset",
+		"btn_rst,two_finger_rst",
+		"btn_shdn",
+		"buck_boot_charge",
+		"buck_en_err",
+		"buck_idemov",
+		"buck_low_pwr_err",
+		"buck_startup_timeout",
+		"cp_wdog_expiry",
+		"crash,crash0_in",
+		"crash,crash1_in",
+		"crash,crash2_in",
+		"crash,crash_in",
+		"crash,hyp_fw_crash",
+		"crash,hyp_hw_crash",
+		"dbg_rst,reset_in_2",
+		"emerg_shdn",
+		"fault,fault_in",
+		"ldo_dig_ovs",
+		"ntc_shdn",
+		"oc,buck_tocp",
+		"ot,overtemp",
+		"ot,tdie0_overtemp",
+		"ot,tdie1_overtemp",
+		"ot,tdie_overtemp",
+		"ot,tdie_overtemp_idx0",
+		"ot,tdie_overtemp_idx1",
+		"ot,tdie_overtemp_idx2",
+		"ot,tdie_overtemp_idx3",
+		"ot,temp_abs_buck0",
+		"ot,temp_abs_buck1",
+		"ot,temp_abs_buck2",
+		"ot,tsns_overtemp",
+		"otp_crc",
+		"ov,buck_ovp",
+		"ov,cp_ovlo",
+		"ov,ldo9_ov",
+		"ov,ldo9b_ov",
+		"ov,vddmain_ovlo",
+		"pgood_error_idx0",
+		"pgood_error_idx1",
+		"por",
+		"por,por_vddrtc",
+		"por,sw_por",
+		"por,vdddig_por",
+		"por,vddmac_por",
+		"rst",
+		"rst,rst_vddrtc",
+		"rst_in,reset_in_0",
+		"rst_in,reset_in_1_deassert",
+		"sgpio",
+		"sgpio,sgpio_error",
+		"sochot,reset_in_3",
+		"spmi,spmi_fault",
+		"sstate,button_dfu_recover",
+		"sstate,wallet_crash_seq",
+		"target_off_conflict",
+		"target_off_restart",
+		"target_off_shutdown",
+		"timeout,crash_timeout",
+		"timeout,dblclick_timeout",
+		"timeout,power_down_watchdog_timeout",
+		"timeout,target_st_wdog_timeout",
+		"timeout,watchdog_timeout",
+		"timeout,wdog_fw_timeout",
+		"uv,cp_uvlo",
+		"uv,ext_vddmain_uvlo",
+		"uv,ext_vddmain_uvlo_hold",
+		"uv,ldo9_uv",
+		"uv,ldo9b_uv",
+		"uv,pbus_uvfault",
+		"uv,pbus_uvlo",
+		"uv,por_warn",
+		"uv,vdd_boost_uvlo",
+		"uv,vddmac_uvlo",
+		"uv,vddmain_uvlo",
+		"uv,vddmain_uvlo_hold",
+		"vddio,vddio_1v2_sgpio0_ok",
+		"vddio,vddio_1v2_sgpio1_ok",
+		"wdog,reset_in_1",
+	}
+}

@@ -1634,6 +1634,310 @@ func TestDarwinCollectorPrunesExpiredUnreferencedAcknowledgements(t *testing.T) 
 	assert.Contains(t, collector.state.Acknowledged, "recent")
 }
 
+const otherTestBootUUID = "D27F2229-FD15-4D46-94A1-318553D26EF9"
+
+var (
+	thermalPMUPayload   = pmuBootFaultInfo{Groups: [][]string{{"ot,tdie_overtemp"}}}
+	testShutdownBootTme = time.Date(2026, time.August, 11, 9, 55, 21, 0, time.UTC)
+)
+
+// newShutdownTestCollector wires the shutdown-cause seams to a fixed boot and
+// payload. reportDir keeps crash scanning live so the two paths are exercised
+// together.
+func newShutdownTestCollector(
+	t *testing.T,
+	reportDir string,
+	store darwinBookmarkStore,
+	bootUUID string,
+	info pmuBootFaultInfo,
+) *Collector {
+	t.Helper()
+	collector := newTestCollector(t, reportDir, store)
+	collector.readBootUUID = func() (string, error) { return bootUUID, nil }
+	collector.readShutdownCause = func() (pmuBootFaultInfo, error) { return info, nil }
+	collector.readBootTime = func() (time.Time, error) { return testShutdownBootTme, nil }
+	return collector
+}
+
+// runShutdownCheck performs one Agent lifetime's worth of work in the order
+// run() performs it, synchronously. Start/Close would race: Close marks the
+// collector closed, which the check then honours by returning early.
+// TestDarwinCollectorChecksShutdownCauseBeforeScanning covers the wiring itself.
+func runShutdownCheck(t *testing.T, collector *Collector) {
+	t.Helper()
+	collector.checkShutdownCauseOnce()
+	collector.scanOnce(context.Background())
+}
+
+// TestDarwinCollectorChecksShutdownCauseBeforeScanning pins the call site: the
+// check runs inside run(), before the first crash scan and before any ticker
+// exists, so it can happen at most once per collector.
+func TestDarwinCollectorChecksShutdownCauseBeforeScanning(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+	scanned := make(chan struct{})
+	recordedBeforeScan := false
+	collector.scanDirectory = func(context.Context, reportDirectory, *darwinBookmarkState) (directoryScanResult, error) {
+		collector.stateMu.Lock()
+		recordedBeforeScan = collector.state.ShutdownCause != nil
+		collector.stateMu.Unlock()
+		close(scanned)
+		return directoryScanResult{}, nil
+	}
+
+	require.NoError(t, collector.Start())
+	<-scanned
+	require.NoError(t, collector.Close())
+
+	assert.True(t, recordedBeforeScan, "the shutdown-cause check must complete before the first scan")
+	require.Len(t, collector.Pending(), 1)
+}
+
+func TestDarwinCollectorEmitsShutdownCauseEvent(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+
+	runShutdownCheck(t, collector)
+
+	pending := collector.Pending()
+	require.Len(t, pending, 1)
+	assert.Equal(t, "System shutdown fault", pending[0].EventType)
+	assert.Equal(t, "macOS overheated shutdown", pending[0].Title)
+	assert.Equal(t, testShutdownBootTme, pending[0].Timestamp)
+	assert.True(t, strings.HasPrefix(pending[0].ID, "macos-shutdown-v1:"))
+
+	require.NotNil(t, collector.state.ShutdownCause)
+	assert.Equal(t, testBootUUID, collector.state.ShutdownCause.BootUUID)
+	assert.Equal(t, pending[0].ID, collector.state.ShutdownCause.EventID)
+	assert.Positive(t, collector.state.ShutdownCause.Checked)
+	require.NoError(t, validateDarwinBookmarkState(collector.state))
+
+	persisted, err := store.Load()
+	require.NoError(t, err)
+	require.Contains(t, persisted.Pending, pending[0].ID)
+	require.NotNil(t, persisted.ShutdownCause)
+	assert.Equal(t, testBootUUID, persisted.ShutdownCause.BootUUID)
+}
+
+// TestDarwinCollectorReportsOneShutdownEventPerBoot is requirement 2: restarting
+// the Agent on the same boot must not re-read the property or re-emit.
+func TestDarwinCollectorReportsOneShutdownEventPerBoot(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	reportDir := realTempDir(t)
+	first := newShutdownTestCollector(t, reportDir, store, testBootUUID, thermalPMUPayload)
+	runShutdownCheck(t, first)
+	pending := first.Pending()
+	require.Len(t, pending, 1)
+
+	reads := 0
+	restarted := newShutdownTestCollector(t, reportDir, store, testBootUUID, thermalPMUPayload)
+	restarted.readShutdownCause = func() (pmuBootFaultInfo, error) {
+		reads++
+		return thermalPMUPayload, nil
+	}
+	runShutdownCheck(t, restarted)
+
+	assert.Zero(t, reads, "a recorded boot must not be read again")
+	assert.Equal(t, pending, restarted.Pending())
+}
+
+// TestDarwinCollectorDoesNotReviveAcknowledgedShutdownEvent covers the reason the
+// boot record exists rather than relying on Acknowledged alone.
+func TestDarwinCollectorDoesNotReviveAcknowledgedShutdownEvent(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	reportDir := realTempDir(t)
+	collector := newShutdownTestCollector(t, reportDir, store, testBootUUID, thermalPMUPayload)
+	runShutdownCheck(t, collector)
+	pending := collector.Pending()
+	require.Len(t, pending, 1)
+	require.NoError(t, collector.Ack([]string{pending[0].ID}))
+
+	sameBoot := newShutdownTestCollector(t, reportDir, store, testBootUUID, thermalPMUPayload)
+	runShutdownCheck(t, sameBoot)
+	assert.Empty(t, sameBoot.Pending())
+
+	// Acknowledgement retention is finite, so the boot record is what keeps this
+	// silent once the identifier has been pruned.
+	pruned := newShutdownTestCollector(t, reportDir, store, testBootUUID, thermalPMUPayload)
+	delete(pruned.state.Acknowledged, pending[0].ID)
+	runShutdownCheck(t, pruned)
+	assert.Empty(t, pruned.Pending())
+}
+
+// TestDarwinCollectorReportsRecurringShutdownFaultOnNewBoot keeps a machine that
+// overheats repeatedly reporting every time.
+func TestDarwinCollectorReportsRecurringShutdownFaultOnNewBoot(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	reportDir := realTempDir(t)
+	collector := newShutdownTestCollector(t, reportDir, store, testBootUUID, thermalPMUPayload)
+	runShutdownCheck(t, collector)
+	first := collector.Pending()
+	require.Len(t, first, 1)
+	require.NoError(t, collector.Ack([]string{first[0].ID}))
+
+	rebooted := newShutdownTestCollector(t, reportDir, store, otherTestBootUUID, thermalPMUPayload)
+	runShutdownCheck(t, rebooted)
+
+	second := rebooted.Pending()
+	require.Len(t, second, 1)
+	assert.NotEqual(t, first[0].ID, second[0].ID)
+	require.NotNil(t, rebooted.state.ShutdownCause)
+	assert.Equal(t, otherTestBootUUID, rebooted.state.ShutdownCause.BootUUID)
+}
+
+// TestDarwinCollectorRecordsCleanShutdownWithoutEvent covers the measured
+// clean-shutdown payload: no event, but the boot is recorded so later restarts
+// do not read the property again.
+func TestDarwinCollectorRecordsCleanShutdownWithoutEvent(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, measuredPatternACleanShutdown)
+
+	runShutdownCheck(t, collector)
+
+	assert.Empty(t, collector.Pending())
+	require.NotNil(t, collector.state.ShutdownCause)
+	assert.Equal(t, testBootUUID, collector.state.ShutdownCause.BootUUID)
+	assert.Empty(t, collector.state.ShutdownCause.EventID)
+	require.NoError(t, validateDarwinBookmarkState(collector.state))
+}
+
+func TestDarwinCollectorDropsShutdownEventWhenPendingIsSaturated(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	saturated := newDarwinBookmarkState()
+	for index := 0; index < maxDarwinPendingEvents; index++ {
+		event := validPersistedDarwinEvent(fmt.Sprintf("saturating-%03d", index))
+		saturated.Pending[event.ID] = event
+	}
+	store.state = saturated
+
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+	runShutdownCheck(t, collector)
+
+	assert.Len(t, collector.state.Pending, maxDarwinPendingEvents)
+	require.NotNil(t, collector.state.ShutdownCause)
+	assert.Empty(t, collector.state.ShutdownCause.EventID)
+	require.NoError(t, validateDarwinBookmarkState(collector.state))
+}
+
+// TestDarwinCollectorLeavesNoShutdownStateWhenSaveFails keeps the read
+// retryable: nothing pending, no boot recorded.
+func TestDarwinCollectorLeavesNoShutdownStateWhenSaveFails(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{saveErr: errors.New("disk full")}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+
+	runShutdownCheck(t, collector)
+
+	assert.Empty(t, collector.Pending())
+	assert.Nil(t, collector.state.ShutdownCause)
+}
+
+// TestDarwinCollectorSurvivesShutdownCauseReadFailures asserts the check is
+// strictly additive: crash-report collection keeps working either way.
+func TestDarwinCollectorSurvivesShutdownCauseReadFailures(t *testing.T) {
+	tests := []struct {
+		name           string
+		install        func(*Collector)
+		expectRecorded bool
+	}{
+		{
+			name: "reader fails",
+			install: func(c *Collector) {
+				c.readShutdownCause = func() (pmuBootFaultInfo, error) {
+					return pmuBootFaultInfo{}, errShutdownCauseUnsupported
+				}
+			},
+		},
+		{
+			name: "property absent",
+			install: func(c *Collector) {
+				c.readShutdownCause = func() (pmuBootFaultInfo, error) { return pmuBootFaultInfo{}, nil }
+			},
+			expectRecorded: true,
+		},
+		{
+			name: "untrusted payload",
+			install: func(c *Collector) {
+				c.readShutdownCause = func() (pmuBootFaultInfo, error) {
+					return pmuBootFaultInfo{Groups: [][]string{{"ot,<script>"}}}, nil
+				}
+			},
+		},
+		{
+			name: "boot session uuid unreadable",
+			install: func(c *Collector) {
+				c.readBootUUID = func() (string, error) { return "", errors.New("sysctl failed") }
+				c.readShutdownCause = func() (pmuBootFaultInfo, error) {
+					require.FailNow(t, "the property must not be read without a boot identity")
+					return pmuBootFaultInfo{}, nil
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reportDir := realTempDir(t)
+			writeIPSFile(t, reportDir, "OldApp_1.ips", "OldApp", "/Applications/OldApp", "INCIDENT-OLD")
+			store := &fakeDarwinBookmarkStore{}
+			collector := newShutdownTestCollector(t, reportDir, store, testBootUUID, thermalPMUPayload)
+			test.install(collector)
+
+			runShutdownCheck(t, collector)
+
+			assert.Empty(t, collector.Pending())
+			if test.expectRecorded {
+				require.NotNil(t, collector.state.ShutdownCause)
+				assert.Empty(t, collector.state.ShutdownCause.EventID)
+			} else {
+				assert.Nil(t, collector.state.ShutdownCause)
+			}
+			// Crash scanning ran and baselined the pre-existing report.
+			require.Len(t, collector.state.Directories, 1)
+			for _, directory := range collector.state.Directories {
+				assert.True(t, directory.Initialized)
+				assert.Contains(t, directory.Files, "OldApp_1.ips")
+			}
+			require.NoError(t, validateDarwinBookmarkState(collector.state))
+		})
+	}
+}
+
+// TestDarwinCollectorEmitsShutdownEventWhileCrashScanningFails proves the two
+// paths are independent: a directory that cannot be scanned does not suppress
+// the shutdown event.
+func TestDarwinCollectorEmitsShutdownEventWhileCrashScanningFails(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+	collector.scanDirectory = func(context.Context, reportDirectory, *darwinBookmarkState) (directoryScanResult, error) {
+		return directoryScanResult{}, errors.New("permission denied")
+	}
+
+	runShutdownCheck(t, collector)
+
+	require.Len(t, collector.Pending(), 1)
+	require.NotNil(t, collector.state.ShutdownCause)
+	assert.Equal(t, testBootUUID, collector.state.ShutdownCause.BootUUID)
+}
+
+// TestDarwinCollectorShutdownEventUsesFallbackTimestamp covers an unreadable
+// kern.boottime: the event still reports, without a boot_time.
+func TestDarwinCollectorShutdownEventUsesFallbackTimestamp(t *testing.T) {
+	now := time.Date(2026, time.August, 13, 8, 0, 0, 0, time.UTC)
+	store := &fakeDarwinBookmarkStore{}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+	collector.now = func() time.Time { return now }
+	collector.readBootTime = func() (time.Time, error) { return time.Time{}, errors.New("sysctl failed") }
+
+	runShutdownCheck(t, collector)
+
+	pending := collector.Pending()
+	require.Len(t, pending, 1)
+	assert.Equal(t, now, pending[0].Timestamp)
+	payload, ok := pending[0].Custom["macos_shutdown_cause"].(map[string]interface{})
+	require.True(t, ok)
+	assert.NotContains(t, payload, "boot_time")
+}
+
 // newTestCollector creates a deterministic collector for one temporary report directory.
 func newTestCollector(t *testing.T, reportDir string, store darwinBookmarkStore) *Collector {
 	t.Helper()
@@ -1647,6 +1951,13 @@ func newTestCollector(t *testing.T, reportDir string, store darwinBookmarkStore)
 		nil,
 	)
 	require.NoError(t, err)
+	// Crash-path suites must not depend on the PMU state of the machine running
+	// them; the shutdown suites install their own seams.
+	collector.readBootUUID = func() (string, error) { return testBootUUID, nil }
+	collector.readBootTime = func() (time.Time, error) { return testShutdownBootTme, nil }
+	collector.readShutdownCause = func() (pmuBootFaultInfo, error) {
+		return pmuBootFaultInfo{}, errShutdownCauseUnsupported
+	}
 	return collector
 }
 
