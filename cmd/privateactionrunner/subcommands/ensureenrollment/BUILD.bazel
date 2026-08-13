@@ -2,9 +2,9 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "rotateidentity",
+    name = "ensureenrollment",
     srcs = ["command.go"],
-    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity",
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/ensureenrollment",
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/privateactionrunner/command",
@@ -14,8 +14,9 @@ go_library(
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
-        "//pkg/config/setup",
+        "//comp/privateactionrunner/def",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
@@ -23,9 +24,9 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "rotateidentity_test",
+    name = "ensureenrollment_test",
     srcs = ["command_test.go"],
-    embed = [":rotateidentity"],
+    embed = [":ensureenrollment"],
     deps = [
         "//cmd/privateactionrunner/command",
         "//comp/core/config",
@@ -33,6 +34,7 @@ dd_agent_go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/util",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
