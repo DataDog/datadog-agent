@@ -8,6 +8,7 @@
 package software
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,6 +27,29 @@ func TestMain(m *testing.M) {
 				p = filepath.Join(root, p)
 			}
 		}
+
+		// Bazel may materialize the runfiles entry as a directory junction pointing at
+		// the real DLL instead of as a file. Windows then reports the path as a
+		// directory and LoadLibrary refuses the image with ERROR_ACCESS_DENIED, which
+		// surfaces as an opaque "Access is denied" panic deep inside the collector.
+		// Resolve the reparse point first: os.Stat fails on such an entry and
+		// filepath.EvalSymlinks returns it unchanged, so os.Readlink is what works.
+		if fi, err := os.Lstat(p); err == nil && !fi.Mode().IsRegular() {
+			target, rerr := os.Readlink(p)
+			if rerr != nil {
+				fmt.Fprintf(os.Stderr, "interop DLL %q is not a regular file and could not be resolved: %v\n", p, rerr)
+				os.Exit(1)
+			}
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(filepath.Dir(p), target)
+			}
+			p = target
+		}
+		if fi, err := os.Lstat(p); err != nil || !fi.Mode().IsRegular() {
+			fmt.Fprintf(os.Stderr, "interop DLL %q is not a regular file: %v\n", p, err)
+			os.Exit(1)
+		}
+
 		os.Setenv("PATH", filepath.Dir(p)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 	os.Exit(m.Run())
