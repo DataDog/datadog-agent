@@ -78,7 +78,6 @@ for i in $(seq 1 "${MQ_NQMGRS}"); do
   MQSC="/tmp/${QM}.mqsc"
   {
     echo "DEFINE LISTENER(LISTENER.TCP) TRPTYPE(TCP) PORT(${PORT}) CONTROL(QMGR) REPLACE"
-    echo "START LISTENER(LISTENER.TCP)"
     echo "DEFINE CHANNEL(${MQ_CHANNEL}) CHLTYPE(SVRCONN) MCAUSER('mqm') REPLACE"
     # Developer-friendly auth: disable CHLAUTH + CONNAUTH so the check connects
     # anonymously. Exploration will optionally tighten this to user/password.
@@ -91,6 +90,13 @@ for i in $(seq 1 "${MQ_NQMGRS}"); do
   } >"${MQSC}"
   chown mqm:mqm "${MQSC}"
   runuser -u mqm -- runmqsc "${QM}" <"${MQSC}"
+
+  # Start the listener now. CONTROL(QMGR) only auto-starts it at queue-manager
+  # startup, and the QM was already running when the listener was defined above,
+  # so it must be started explicitly on first provision. Run it as a separate,
+  # failure-tolerant command: on a re-run the listener is already active and
+  # runmqsc returns AMQ8730W (non-zero), which would otherwise trip `set -e`.
+  runuser -u mqm -- runmqsc "${QM}" <<<"START LISTENER(LISTENER.TCP)" || true
   log "queue manager ${QM} configured with ${MQ_QUEUES_PER_QM} queues"
 done
 
