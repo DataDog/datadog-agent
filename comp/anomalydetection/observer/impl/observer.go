@@ -292,6 +292,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		telemetryComp = noopsimpl.GetCompatComponent()
 	}
 	obsTelemetry := newObserverTelemetry(telemetryComp)
+	scopes := newScopeRegistry(scorerScopeLimit(rawScorer), obsTelemetry)
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
@@ -302,6 +303,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerState, obsTelemetry.scorerEwma)
 		pkglog.Infof("[observer] anomaly_scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
+	}
+	if scorer != nil {
+		correlators = append(correlators, newScopedAnomalyScorer(scorer.config, scopes, obsTelemetry))
 	}
 
 	eng := newEngine(engineConfig{
@@ -350,7 +354,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 		metricFilter:         compiledMetricFilter,
-		scopes:               newScopeRegistry(scorerScopeLimit(rawScorer), obsTelemetry),
+		scopes:               scopes,
 	}
 
 	// When baseline muting is enabled, subscribe a sink that publishes the mute

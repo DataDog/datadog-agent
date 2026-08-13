@@ -41,6 +41,8 @@ const (
 	telemetryScopeScorers                    = "observer.scope.scorers"                       // Number of lazily-created scoped scorers.
 	telemetryScopeMetricsIngested            = "observer.scope.metrics.ingested"              // Number of accepted external metrics by service/source scope and tailer coverage.
 	telemetryScopeLogsIngested               = "observer.scope.logs.ingested"                 // Number of accepted logs by service/source scope and tailer coverage.
+	telemetryScopeAnomalies                  = "observer.scope.anomalies"                     // Number of anomalies routed to a service/source scorer.
+	telemetryScopeScorerScore                = "observer.scope.scorer.score"                  // Latest EWMA score for a service/source scorer.
 )
 
 type observerTelemetry struct {
@@ -68,6 +70,8 @@ type observerTelemetry struct {
 	scopeScorers     telemetry.Gauge
 	scopeMetrics     telemetry.Counter
 	scopeLogs        telemetry.Counter
+	scopeAnomalies   telemetry.Counter
+	scopeScorerScore telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -214,6 +218,18 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"service", "source", "tailer_match"},
 			"Number of accepted logs by service/source scope and tailer coverage",
 		),
+		scopeAnomalies: telemetryComp.NewCounter(
+			"observer",
+			telemetryScopeAnomalies,
+			[]string{"service", "source"},
+			"Number of anomalies routed to a service/source scorer",
+		),
+		scopeScorerScore: telemetryComp.NewGauge(
+			"observer",
+			telemetryScopeScorerScore,
+			[]string{"service", "source"},
+			"Latest EWMA score for a service/source scorer",
+		),
 	}
 }
 
@@ -250,6 +266,16 @@ func (t *observerTelemetry) recordScopeMetricIngested(scope scopeKey, tailerMatc
 func (t *observerTelemetry) recordScopeLogIngested(scope scopeKey, tailerMatch bool) {
 	service, source := scope.telemetryTags()
 	t.scopeLogs.Add(1, service, source, strconv.FormatBool(tailerMatch))
+}
+
+func (t *observerTelemetry) recordScopeAnomaly(scope scopeKey) {
+	service, source := scope.telemetryTags()
+	t.scopeAnomalies.Add(1, service, source)
+}
+
+func (t *observerTelemetry) setScopeScorerScore(scope scopeKey, score float64) {
+	service, source := scope.telemetryTags()
+	t.scopeScorerScore.Set(score, service, source)
 }
 
 func (t *observerTelemetry) recordDroppedLog(source string, tags []string) {
