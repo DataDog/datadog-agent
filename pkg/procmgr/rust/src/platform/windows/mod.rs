@@ -176,6 +176,12 @@ impl JobObject {
         }
     }
 
+    /// Returns true when the job may still have running members, including when the
+    /// active process count could not be queried.
+    pub(crate) fn may_have_active_members(&self) -> bool {
+        !matches!(self.active_process_count(), Ok(0))
+    }
+
     /// Block until every process in the job has exited or `timeout` elapses.
     pub fn wait_until_empty(&self, timeout: std::time::Duration) -> bool {
         const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);

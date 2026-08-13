@@ -273,46 +273,56 @@ impl ManagedProcess {
     /// Returns `true` when profile unload was deferred and a background job drain is needed.
     #[cfg(windows)]
     fn release_windows_spawn_resources_after_exit(&mut self, exited_pid: Option<u32>) -> bool {
-        if let Some(ref job) = self.job_object {
-            match job.active_process_count() {
-                Ok(0) => {
-                    self.clear_windows_spawn_resources();
-                    return false;
-                }
-                Ok(_) => {
-                    if let (Some(pid), Some(profile)) = (exited_pid, self.user_profile.take()) {
-                        if let Err(e) = job.terminate() {
-                            warn!(
-                                "[{}] failed to terminate residual job members before deferred drain (pid {}): {e:#}",
-                                self.name, pid
-                            );
-                        }
-                        let job = self.job_object.take();
-                        info!(
-                            "[{}] deferring profile unload until job members exit (pid {})",
-                            self.name, pid
-                        );
-                        self.deferred_exit_cleanups.push(DeferredExitCleanup {
-                            pid,
-                            user_profile: profile,
-                            job_object: job,
-                        });
-                        return true;
-                    }
-                    warn!(
-                        "[{}] job still has active processes but no profile to defer",
-                        self.name
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        "[{}] failed to query job active processes: {e:#}",
-                        self.name
-                    );
-                }
-            }
+        let Some(job) = self.job_object.as_ref() else {
+            self.clear_windows_spawn_resources();
+            return false;
+        };
+        let count = job.active_process_count();
+        if matches!(count, Ok(0)) {
+            self.clear_windows_spawn_resources();
+            return false;
         }
-        self.clear_windows_spawn_resources();
+        if let Err(e) = count {
+            warn!(
+                "[{}] failed to query job active processes: {e:#}",
+                self.name
+            );
+        }
+        let needs_drain = self.defer_windows_job_drain_after_exit(exited_pid);
+        if !needs_drain {
+            self.clear_windows_spawn_resources();
+        }
+        needs_drain
+    }
+
+    /// Retain profile and job handles for async drain when members may still be running.
+    #[cfg(windows)]
+    fn defer_windows_job_drain_after_exit(&mut self, exited_pid: Option<u32>) -> bool {
+        if let (Some(pid), Some(profile)) = (exited_pid, self.user_profile.take()) {
+            if let Some(ref job) = self.job_object
+                && let Err(e) = job.terminate()
+            {
+                warn!(
+                    "[{}] failed to terminate residual job members before deferred drain (pid {}): {e:#}",
+                    self.name, pid
+                );
+            }
+            let job = self.job_object.take();
+            info!(
+                "[{}] deferring profile unload until job members exit (pid {pid})",
+                self.name
+            );
+            self.deferred_exit_cleanups.push(DeferredExitCleanup {
+                pid,
+                user_profile: profile,
+                job_object: job,
+            });
+            return true;
+        }
+        warn!(
+            "[{}] job may still have active members but no profile to defer",
+            self.name
+        );
         false
     }
 
@@ -329,7 +339,7 @@ impl ManagedProcess {
             .job_object
             .as_ref()
             .expect("deferred job drain entry must have a job");
-        if !matches!(job.active_process_count(), Ok(0)) {
+        if job.may_have_active_members() {
             return false;
         }
         let entry = self.deferred_exit_cleanups.remove(idx);
@@ -359,7 +369,7 @@ impl ManagedProcess {
         if self.deferred_exit_cleanups[idx]
             .job_object
             .as_ref()
-            .is_some_and(|job| job.active_process_count().is_ok_and(|count| count > 0))
+            .is_some_and(platform::JobObject::may_have_active_members)
         {
             return true;
         }
