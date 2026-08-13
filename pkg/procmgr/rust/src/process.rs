@@ -1010,7 +1010,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_should_start_condition_config_any_not_met() {
+    fn test_may_auto_start_condition_config_any_not_met() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.condition_config_any = vec![crate::config_gate::ConditionConfigFile {
@@ -1018,7 +1018,7 @@ pub mod tests {
             keys: vec!["process_config.enabled".into()],
         }];
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(!proc.should_start());
+        assert!(!proc.may_auto_start());
     }
 
     // -- spawn tests --
