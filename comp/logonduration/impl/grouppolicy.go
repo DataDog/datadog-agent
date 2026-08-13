@@ -27,7 +27,11 @@ import (
 // discarded there long after the send returned nil. A worst-case-size test derives one
 // byte budget from all four.
 const (
-	// maxCSEInvocationsPerScope is a backstop: one invocation per extension per pass.
+	// maxCSEInvocationsPerScope bounds the invocations one pass reports: one per
+	// extension, and a stock Windows 11 registers 57 of them under Winlogon\GPExtensions,
+	// which third-party extensions add to. So this is a backstop with little headroom
+	// rather than an unreachable ceiling, and what it drops is reported per scope in
+	// ComputerCSEsOmitted / UserCSEsOmitted.
 	maxCSEInvocationsPerScope = 64
 
 	// maxGPOsPerCSE bounds the GPO references carried by one invocation. GPOs are
@@ -36,8 +40,14 @@ const (
 	// GPOsOmitted.
 	maxGPOsPerCSE = 32
 
-	// Byte limits, sized for the worst UTF-8 case: AD permits a 256-character name.
+	// maxCSENameBytes bounds a name the provider registers rather than one anybody
+	// chose: the longest of those 57 is 38 characters.
 	maxCSENameBytes = 128
+
+	// maxGPONameBytes bounds a display name chosen in AD, where 256 characters is the
+	// ceiling, so this carries one whole at two bytes per character - the boundary
+	// TestGPONamesSurviveNonLatinScripts pins. A name in a three-byte script is cut on
+	// a UTF-8 boundary instead, which is why the character figure need not be exact.
 	maxGPONameBytes = 512
 )
 
@@ -63,7 +73,12 @@ const (
 // and user_group_policy entries; a populated array implies its parent milestone.
 type GroupPolicyDetails struct {
 	Computer []CSEInvocation `json:"computer,omitempty"`
-	User     []CSEInvocation `json:"user,omitempty"`
+	// ComputerCSEsOmitted counts what maxCSEInvocationsPerScope cut from Computer.
+	ComputerCSEsOmitted int `json:"computer_cses_omitted,omitempty"`
+
+	User []CSEInvocation `json:"user,omitempty"`
+	// UserCSEsOmitted counts what maxCSEInvocationsPerScope cut from User.
+	UserCSEsOmitted int `json:"user_cses_omitted,omitempty"`
 }
 
 // CSEInvocation is one measured CSE invocation; the array it appears in sets the scope.
@@ -257,24 +272,28 @@ func (a *gpAccumulator) mergeGPONames(names map[string]string) {
 // Still-open records have no interval and are never closed against the trace end.
 func (a *gpAccumulator) finalize(tl BootTimeline) *GroupPolicyDetails {
 	offsetOf := bootOffsetFunc(tl)
-	details := &GroupPolicyDetails{
-		Computer: a.buildScope(gpScopeComputer, offsetOf),
-		User:     a.buildScope(gpScopeUser, offsetOf),
-	}
-	if len(details.Computer) == 0 && len(details.User) == 0 {
+	computer, computerOmitted := a.buildScope(gpScopeComputer, offsetOf)
+	user, userOmitted := a.buildScope(gpScopeUser, offsetOf)
+	if len(computer) == 0 && len(user) == 0 {
 		return nil
 	}
-	return details
+	return &GroupPolicyDetails{
+		Computer:            computer,
+		ComputerCSEsOmitted: computerOmitted,
+		User:                user,
+		UserCSEsOmitted:     userOmitted,
+	}
 }
 
-// buildScope converts the invocations belonging to one boot pass.
-func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64) []CSEInvocation {
+// buildScope converts the invocations belonging to one boot pass, reporting how many
+// the invocation cap cut.
+func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64) ([]CSEInvocation, int) {
 	if !a.passPinned[scope] {
-		return nil
+		return nil, 0
 	}
 	records := a.done[a.passActivity[scope]]
 	if len(records) == 0 {
-		return nil
+		return nil, 0
 	}
 
 	out := make([]CSEInvocation, 0, len(records))
@@ -291,7 +310,9 @@ func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64
 		})
 	}
 
+	omitted := 0
 	if len(out) > maxCSEInvocationsPerScope {
+		omitted = len(out) - maxCSEInvocationsPerScope
 		log.Warnf("Logon duration: %d Group Policy extension invocations in one pass exceeds the %d the payload carries, keeping the least healthy and the slowest",
 			len(out), maxCSEInvocationsPerScope)
 		out = retainMostRelevant(out)
@@ -303,7 +324,7 @@ func (a *gpAccumulator) buildScope(scope gpScope, offsetOf func(time.Time) int64
 		}
 		return out[i].CSEID < out[j].CSEID
 	})
-	return out
+	return out, omitted
 }
 
 // retainMostRelevant cuts an over-long list to maxCSEInvocationsPerScope: non-success

@@ -185,7 +185,9 @@ func TestCSEZeroDurationIsReported(t *testing.T) {
 	f.cseStart(gpTestActivity, 13*time.Second, cseRegistryGUID, "Registry", false, "")
 	f.cseStop(gpTestActivity, 13*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
-	inv := f.details().Computer[0]
+	invs := f.details().Computer
+	require.Len(t, invs, 1)
+	inv := invs[0]
 	assert.Equal(t, int64(0), inv.DurationMs)
 
 	raw, err := json.Marshal(inv)
@@ -199,7 +201,9 @@ func TestCSEAsyncIsFlagged(t *testing.T) {
 	f.cseStart(gpTestActivity, 13*time.Second, cseAuditGUID, "Audit Policy", true, "")
 	f.cseStop(gpTestActivity, 13100*time.Millisecond, evtCSEStopSuccess, cseAuditGUID, "Audit Policy")
 
-	inv := f.details().Computer[0]
+	invs := f.details().Computer
+	require.Len(t, invs, 1)
+	inv := invs[0]
 	assert.True(t, inv.Async)
 	assert.Equal(t, cseResultSuccess, inv.Result)
 	assert.Equal(t, int64(100), inv.DurationMs)
@@ -350,6 +354,14 @@ func TestInvocationBackstopKeepsTheLeastHealthyAndTheSlowest(t *testing.T) {
 
 	d := f.details()
 	require.Len(t, d.Computer, maxCSEInvocationsPerScope)
+	assert.Equal(t, extra, d.ComputerCSEsOmitted, "the count the payload carries is what the cap cut")
+	assert.Zero(t, d.UserCSEsOmitted, "the count belongs to the scope that overflowed, not to the block")
+
+	raw, err := json.Marshal(d)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), fmt.Sprintf(`"computer_cses_omitted":%d`, extra),
+		"a truncated pass says so on the wire")
+	assert.NotContains(t, string(raw), "user_cses_omitted", "the untruncated scope stays silent")
 
 	kept := make(map[string]CSEInvocation, len(d.Computer))
 	for _, inv := range d.Computer {
@@ -445,7 +457,9 @@ func TestCSEOffsetsShareTheBootTimelineAxis(t *testing.T) {
 	f.cseStop(gpUserActivity, 73*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 	f.send(gpUserActivity, evtUserGPEnd, 75*time.Second)
 
-	inv := f.details().User[0]
+	invs := f.details().User
+	require.Len(t, invs, 1)
+	inv := invs[0]
 
 	var parent Milestone
 	for _, m := range buildTimelineMilestones(f.coll.timeline) {
@@ -526,7 +540,9 @@ func TestGPONamesComeFromTheApplicableList(t *testing.T) {
 		gpoFragment(gpoRichEntry(gpoDefaultDomainGUID, "Default Domain Policy")))
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
-	gpos := f.details().Computer[0].GPOs
+	invs := f.details().Computer
+	require.Len(t, invs, 1)
+	gpos := invs[0].GPOs
 	require.Len(t, gpos, 1, "the extension GUID inside <Extensions> is not a GPO")
 	assert.Equal(t, gpoDefaultDomainGUID, gpos[0].ID)
 	assert.Equal(t, "Default Domain Policy", gpos[0].Name)
@@ -543,11 +559,13 @@ func TestGPONamesSurviveUnescapedAmpersand(t *testing.T) {
 		))
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
+	invs := f.details().Computer
+	require.Len(t, invs, 1)
 	assert.Equal(t, []GPORef{
 		{ID: gpoDefaultDomainGUID, Name: "R&D Baseline"},
 		{ID: gpoDomainCtlGUID, Name: "Sales & Marketing"},
 		{ID: gpoThirdGUID, Name: "Plain Name"},
-	}, f.details().Computer[0].GPOs)
+	}, invs[0].GPOs)
 }
 
 func TestGPONameSharedFromAnotherInvocationsList(t *testing.T) {
@@ -580,7 +598,10 @@ func TestGPOMultiplePerCSE(t *testing.T) {
 		gpoDefaultDomainGUID+";"+gpoDomainCtlGUID+";"+gpoThirdGUID)
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
-	gpos := f.details().Computer[1].GPOs
+	invs := f.details().Computer
+	require.Len(t, invs, 2)
+	require.Equal(t, cseRegistryGUID, invs[1].CSEID, "the chronological sort puts Registry second")
+	gpos := invs[1].GPOs
 	require.Len(t, gpos, 3)
 	assert.Equal(t, "Default Domain Policy", gpos[0].Name)
 	assert.Equal(t, "Default Domain Controllers Policy", gpos[1].Name)
@@ -597,7 +618,9 @@ func TestGPODuplicateDisplayNamesStayDistinct(t *testing.T) {
 	))
 	f.cseStop(gpTestActivity, 14*time.Second, evtCSEStopSuccess, cseRegistryGUID, "Registry")
 
-	gpos := f.details().Computer[0].GPOs
+	invs := f.details().Computer
+	require.Len(t, invs, 1)
+	gpos := invs[0].GPOs
 	require.Len(t, gpos, 2)
 	assert.NotEqual(t, gpos[0].ID, gpos[1].ID)
 	assert.Equal(t, "Baseline", gpos[0].Name)

@@ -422,6 +422,7 @@ func TestSubmitEvent_GroupPolicyReachesTheWire(t *testing.T) {
 	assert.Equal(t, "Default Domain Policy", gpos[0].(map[string]interface{})["name"])
 
 	assert.NotContains(t, block, "user")
+	assert.NotContains(t, block, "computer_cses_omitted", "a pass under the cap carries no truncation count")
 
 	assert.Contains(t, custom, "boot_timeline")
 }
@@ -459,8 +460,13 @@ func TestSubmitEvent_WorstCasePayloadSize(t *testing.T) {
 	}
 
 	_, size := submitAndDecodeCustom(t, &AnalysisResult{
-		Timeline:    fullBootTimeline(boot),
-		GroupPolicy: &GroupPolicyDetails{Computer: pass(), User: pass()},
+		Timeline: fullBootTimeline(boot),
+		GroupPolicy: &GroupPolicyDetails{
+			Computer:            pass(),
+			ComputerCSEsOmitted: 4096,
+			User:                pass(),
+			UserCSEsOmitted:     4096,
+		},
 	})
 
 	t.Logf("worst case %d bytes of %d (%d invocations x %d GPO refs at %d-byte names), %d bytes of margin",
