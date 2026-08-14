@@ -20,7 +20,6 @@ mod tests {
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
     use crate::manager::{PendingRestart, ProcessManager};
-    use hyper_util::rt::TokioIo;
     use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;

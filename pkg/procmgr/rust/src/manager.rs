@@ -301,93 +301,24 @@ impl ProcessManager {
     ) -> Result<ReloadResult, Status> {
         crate::config_gate::clear_secret_caches();
         let new_configs = self.config_loader.load();
-        let new_names: std::collections::HashSet<&str> =
-            new_configs.iter().map(|c| c.name.as_str()).collect();
 
-        let mut removed = Vec::new();
-        let mut procs_to_stop = Vec::new();
-        {
-            let mut procs = self.processes.write().await;
-            let mut i = 0;
-            while i < procs.len() {
-                if procs[i].origin() == ProcessOrigin::Config
-                    && !new_names.contains(procs[i].name())
-                {
-                    let proc = procs.remove(i);
-                    info!("[{}] config removed, stopping", proc.name());
-                    removed.push(proc.name().to_owned());
-                    procs_to_stop.push(proc);
-                } else {
-                    i += 1;
-                }
-            }
-        }
+        let removed = self
+            .remove_and_stop_dropped_config_processes(&new_configs)
+            .await;
 
-        for proc in &mut procs_to_stop {
-            proc.stop().await;
-        }
+        let apply = self
+            .apply_reloaded_config_processes(new_configs, exit_tx, restart_tx)
+            .await;
 
-        let mut added = Vec::new();
-        let mut modified = Vec::new();
-        let mut modified_running: Vec<String> = Vec::new();
-        let mut unchanged = Vec::new();
-        {
-            let mut procs = self.processes.write().await;
-            for np in new_configs {
-                if let Some(existing) = procs.iter_mut().find(|p| p.name() == np.name) {
-                    if *existing.config() != np.config {
-                        info!("[{}] config changed, updating", np.name);
-                        if existing.is_running() {
-                            modified_running.push(np.name.clone());
-                        }
-                        existing.set_config(np.config);
-                        modified.push(np.name);
-                    } else {
-                        unchanged.push(np.name);
-                    }
-                } else {
-                    info!("[{}] new config found, adding", np.name);
-                    let mut proc = ManagedProcess::new_config(
-                        np.name.clone(),
-                        self.uuid_gen.generate(),
-                        np.config,
-                    );
-                    if proc.may_auto_start()
-                        && let Err(e) = try_spawn_and_watch(&mut proc, exit_tx)
-                    {
-                        warn!("[{}] failed to start: {e:#}", np.name);
-                        queue_restart(&mut proc, restart_tx);
-                    }
-                    proc.record_config_gate_met();
-                    added.push(np.name);
-                    procs.push(proc);
-                }
-            }
-        }
-
-        let stopped_for_config_update: std::collections::HashSet<String> =
-            modified_running.into_iter().collect();
-        let modified_names: std::collections::HashSet<String> = modified.iter().cloned().collect();
-        {
-            let mut procs = self.processes.write().await;
-            for proc in procs.iter_mut() {
-                reconcile_process_after_reload(
-                    proc,
-                    exit_tx,
-                    restart_tx,
-                    stopped_for_config_update.contains(proc.name()),
-                    modified_names.contains(proc.name()),
-                )
-                .await;
-            }
-        }
+        self.reconcile_processes_after_reload(&apply, exit_tx, restart_tx)
+            .await;
 
         self.update_startup_order().await;
         Ok(ReloadResult {
-            added,
+            added: apply.added,
             removed,
-            modified,
-            unchanged,
+            modified: apply.modified,
+            unchanged: apply.unchanged,
         })
     }
 
@@ -408,6 +339,95 @@ impl ProcessManager {
             .collect();
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
+    }
+
+    /// Removes config-origin processes absent from `new_configs` and stops them outside the lock.
+    async fn remove_and_stop_dropped_config_processes(
+        &self,
+        new_configs: &[ProcessDefinition],
+    ) -> Vec<String> {
+        let new_names: std::collections::HashSet<&str> =
+            new_configs.iter().map(|c| c.name.as_str()).collect();
+        let (removed, mut procs_to_stop) = {
+            let mut procs = self.processes.write().await;
+            detach_removed_config_processes(&mut procs, &new_names)
+        };
+        for proc in &mut procs_to_stop {
+            proc.stop().await;
+        }
+        removed
+    }
+
+    async fn apply_reloaded_config_processes(
+        &self,
+        new_configs: Vec<ProcessDefinition>,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+        restart_tx: &mpsc::Sender<PendingRestart>,
+    ) -> ReloadConfigApplyResult {
+        let mut procs = self.processes.write().await;
+        let mut added = Vec::new();
+        let mut modified = Vec::new();
+        let mut modified_running = Vec::new();
+        let mut unchanged = Vec::new();
+        for np in new_configs {
+            if let Some(existing) = procs.iter_mut().find(|p| p.name() == np.name) {
+                if *existing.config() != np.config {
+                    info!("[{}] config changed, updating", np.name);
+                    if existing.is_running() {
+                        modified_running.push(np.name.clone());
+                    }
+                    existing.set_config(np.config);
+                    modified.push(np.name);
+                } else {
+                    unchanged.push(np.name);
+                }
+            } else {
+                info!("[{}] new config found, adding", np.name);
+                let mut proc = ManagedProcess::new_config(
+                    np.name.clone(),
+                    self.uuid_gen.generate(),
+                    np.config,
+                );
+                if proc.may_auto_start()
+                    && let Err(e) = try_spawn_and_watch(&mut proc, exit_tx)
+                {
+                    warn!("[{}] failed to start: {e:#}", np.name);
+                    queue_restart(&mut proc, restart_tx);
+                }
+                proc.record_config_gate_met();
+                added.push(np.name);
+                procs.push(proc);
+            }
+        }
+        ReloadConfigApplyResult {
+            added,
+            modified,
+            modified_running,
+            unchanged,
+        }
+    }
+
+    async fn reconcile_processes_after_reload(
+        &self,
+        apply: &ReloadConfigApplyResult,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+        restart_tx: &mpsc::Sender<PendingRestart>,
+    ) {
+        let stopped_for_config_update: std::collections::HashSet<String> =
+            apply.modified_running.iter().cloned().collect();
+        let modified_names: std::collections::HashSet<String> =
+            apply.modified.iter().cloned().collect();
+        let mut procs = self.processes.write().await;
+        for proc in procs.iter_mut() {
+            reconcile_process_after_reload(
+                proc,
+                exit_tx,
+                restart_tx,
+                stopped_for_config_update.contains(proc.name()),
+                modified_names.contains(proc.name()),
+            )
+            .await;
+        }
     }
 }
 
@@ -444,6 +464,33 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
     }
     find_index_by_name(procs, name_or_uuid)
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
+}
+
+fn detach_removed_config_processes(
+    procs: &mut Vec<ManagedProcess>,
+    new_names: &std::collections::HashSet<&str>,
+) -> (Vec<String>, Vec<ManagedProcess>) {
+    let mut removed = Vec::new();
+    let mut procs_to_stop = Vec::new();
+    let mut i = 0;
+    while i < procs.len() {
+        if procs[i].origin() == ProcessOrigin::Config && !new_names.contains(procs[i].name()) {
+            let proc = procs.remove(i);
+            info!("[{}] config removed, stopping", proc.name());
+            removed.push(proc.name().to_owned());
+            procs_to_stop.push(proc);
+        } else {
+            i += 1;
+        }
+    }
+    (removed, procs_to_stop)
+}
+
+struct ReloadConfigApplyResult {
+    added: Vec<String>,
+    modified: Vec<String>,
+    modified_running: Vec<String>,
+    unchanged: Vec<String>,
 }
 
 fn should_stop_running_after_reload(
