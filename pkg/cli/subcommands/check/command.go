@@ -90,6 +90,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	wmetautil "github.com/DataDog/datadog-agent/pkg/util/workloadmeta"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -130,6 +131,7 @@ type cliParams struct {
 	discoveryTimeout          uint
 	discoveryRetryInterval    uint
 	discoveryMinInstances     uint
+	workloadmetaTimeout       uint
 	generateIntegrationTraces bool
 }
 
@@ -241,6 +243,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
+	cmd.Flags().UintVarP(&cliParams.workloadmetaTimeout, "workloadmeta-timeout", "", uint(wmetautil.DefaultTimeout/time.Second), "max duration to wait for the workloadmeta store to report itself as initialized before running the check(s) (in seconds)")
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
@@ -262,6 +265,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 func run(
 	config config.Component,
 	cliParams *cliParams,
+	logger log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	filterStore workloadfilter.Component,
@@ -316,6 +320,17 @@ func run(
 
 	common.LoadComponents(ac, config)
 	ac.LoadAndRun(context.Background())
+
+	// Checks are run right away, without going through the autodiscovery scheduler, so nothing
+	// else guarantees that the workloadmeta store is populated by then. This also happens
+	// before config resolution below, as autodiscovery listeners are fed by that same store.
+	if !wmetautil.WaitForInitialization(context.Background(), wmeta, time.Duration(cliParams.workloadmetaTimeout)*time.Second, logger) && !cliParams.formatJSON {
+		// This command turns the log component off by default, so the warning it emits there
+		// would go unnoticed — and a check silently reporting nothing is the very failure mode
+		// this wait exists to prevent. Not in JSON mode though: consumers of `check --json`
+		// may read the two streams combined, and this is not meant for them.
+		fmt.Fprintln(os.Stderr, "Warning: workloadmeta is not ready, check results may be incomplete or empty")
+	}
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
