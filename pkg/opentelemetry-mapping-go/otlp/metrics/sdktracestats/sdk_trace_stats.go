@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package sdktracestats maps Datadog SDK OTLP trace histograms to APM stats.
 package sdktracestats
 
 import (
@@ -32,7 +33,7 @@ import (
 
 const (
 	// SDKTraceMetricName is the Datadog SDK OTLP duration histogram converted to APM stats.
-	SDKTraceMetricName = "traces.span.sdk.metrics.duration"
+	SDKTraceMetricName       = "traces.span.sdk.metrics.duration"
 	defaultSDKBucketDuration = 10 * time.Second
 )
 
@@ -202,7 +203,7 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 		Version:        version,
 		Name:           sdkOperationName(attrs),
 		Resource:       resource,
-		SpanKind:       spanKindFromAttr(attrs).String(),
+		SpanKind:       strings.ToLower(spanKindFromAttr(attrs).String()),
 		HTTPStatusCode: int32(attributes.GetStatusCode(attrs)),
 		GRPCStatusCode: sdkGRPCStatusCode(attrs),
 		IsTraceRoot:    sdkIsTraceRoot(attrs),
@@ -437,13 +438,14 @@ func sdkOperationName(attrs pcommon.Map) string {
 }
 
 var sdkSpanKinds = map[string]ptrace.SpanKind{
-	"SPAN_KIND_SERVER": ptrace.SpanKindServer, "SPAN_KIND_CLIENT": ptrace.SpanKindClient,
-	"SPAN_KIND_PRODUCER": ptrace.SpanKindProducer, "SPAN_KIND_CONSUMER": ptrace.SpanKindConsumer,
-	"SPAN_KIND_INTERNAL": ptrace.SpanKindInternal,
+	"SERVER": ptrace.SpanKindServer, "CLIENT": ptrace.SpanKindClient,
+	"PRODUCER": ptrace.SpanKindProducer, "CONSUMER": ptrace.SpanKindConsumer,
+	"INTERNAL": ptrace.SpanKindInternal,
 }
 
 func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
-	if kind, ok := sdkSpanKinds[strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind"))]; ok {
+	value := strings.TrimPrefix(strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind")), "SPAN_KIND_")
+	if kind, ok := sdkSpanKinds[value]; ok {
 		return kind
 	}
 	return ptrace.SpanKindUnspecified

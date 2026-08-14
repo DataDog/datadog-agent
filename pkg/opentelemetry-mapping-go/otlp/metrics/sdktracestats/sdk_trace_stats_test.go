@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]string) pmetric.Metric {
@@ -115,7 +116,7 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	assert.Equal(t, "staging", groupedStats.Env)
 	assert.Equal(t, "1.2.3", groupedStats.Version)
 	assert.Equal(t, "checkout", groupedStats.Resource)
-	assert.Equal(t, "Server", groupedStats.SpanKind)
+	assert.Equal(t, "server", groupedStats.SpanKind)
 	assert.True(t, groupedStats.Synthetics)
 	assert.Equal(t, uint64(5), groupedStats.Hits)
 	assert.True(t, groupedStats.HasHits)
@@ -130,6 +131,33 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	assert.Equal(t, []string{"origin:synthetics", "peer.service:users-db", "span.type:web"}, statsTags(groupedStats.OtherTags))
 	assert.Nil(t, groupedStats.OKSparseSketch)
 	assert.Equal(t, int64(5), sparseSketch(t, groupedStats.ErrorSparseSketch).Basic.Count)
+}
+
+func TestSpanKindFromAttr(t *testing.T) {
+	tests := []struct {
+		value    string
+		expected ptrace.SpanKind
+	}{
+		{value: "SPAN_KIND_SERVER", expected: ptrace.SpanKindServer},
+		{value: "server", expected: ptrace.SpanKindServer},
+		{value: "SPAN_KIND_CLIENT", expected: ptrace.SpanKindClient},
+		{value: "client", expected: ptrace.SpanKindClient},
+		{value: "SPAN_KIND_PRODUCER", expected: ptrace.SpanKindProducer},
+		{value: "producer", expected: ptrace.SpanKindProducer},
+		{value: "SPAN_KIND_CONSUMER", expected: ptrace.SpanKindConsumer},
+		{value: "consumer", expected: ptrace.SpanKindConsumer},
+		{value: "SPAN_KIND_INTERNAL", expected: ptrace.SpanKindInternal},
+		{value: "internal", expected: ptrace.SpanKindInternal},
+		{value: "unknown", expected: ptrace.SpanKindUnspecified},
+	}
+
+	for _, test := range tests {
+		t.Run(test.value, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			attrs.PutStr("span.kind", test.value)
+			assert.Equal(t, test.expected, spanKindFromAttr(attrs))
+		})
+	}
 }
 
 func TestBuildSDKTraceStatsPayloadPreservesExplicitHistogram(t *testing.T) {
