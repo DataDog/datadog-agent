@@ -3363,17 +3363,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#schematemplate-all" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        <code>schema.template-all</code>
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#schemalocate" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -3952,17 +3941,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#schematemplate-all" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        <code>schema.template-all</code>
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#schemalocate" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -4036,8 +4014,8 @@ them:</p>
 <li><code>schema.codegen</code> generates the <code>pkg/config/setup</code> Go files that register the
   settings. Bazel runs the same logic automatically via
   <code>//pkg/config/setup:codegen_settings</code>.</li>
-<li><code>schema.template</code> / <code>schema.template-all</code> render the shipped
-  <code>datadog.yaml.example</code> and <code>system-probe.yaml.example</code> files.</li>
+<li><code>schema.template</code> renders the shipped <code>datadog.yaml.example</code> and
+  <code>system-probe.yaml.example</code> files.</li>
 <li><code>schema.produce-embedded</code> / <code>schema.compress</code> build the artifact embedded into
   the Agent binary; <code>schema.produce-jsonschema</code> builds the pure JSON Schema for
   external consumers.</li>
@@ -4108,7 +4086,7 @@ non-zero on any violation.</p>
 look like in the generated example without running the whole build.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>--schema<span class="o">=</span>./pkg/config/schema/yaml/core_schema.yaml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>--build-type<span class="o">=</span>agent-py3<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>--build-type<span class="o">=</span>datadog-agent<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>--os-target<span class="o">=</span>linux<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--output<span class="o">=</span>/tmp/datadog.yaml.example
 </span></code></pre></div>
@@ -4129,7 +4107,7 @@ look like in the generated example without running the whole build.</p>
 <tr>
 <td><code>--build-type</code></td>
 <td>yes</td>
-<td>One of: <code>agent-py3</code>, <code>iot-agent</code>, <code>system-probe</code>, <code>dogstatsd</code>, <code>dca</code>, <code>dcacf</code>.</td>
+<td>One of: <code>datadog-agent</code>, <code>iot-agent</code>, <code>system-probe</code>, <code>dogstatsd</code>, <code>dca</code>, <code>dcacf</code>.</td>
 </tr>
 <tr>
 <td><code>--os-target</code></td>
@@ -4147,46 +4125,10 @@ look like in the generated example without running the whole build.</p>
 template sections are included; the OS target controls which platform-specific
 defaults and <code>platform_only</code> settings are emitted.</p>
 <hr />
-<h2 id="schematemplate-all"><code>schema.template-all</code><a class="headerlink" href="#schematemplate-all" title="Permanent link">&para;</a></h2>
-<p>Render every combination of build type × OS target from the core and
-system-probe schemas at once. This is what the build pipeline uses to keep the
-shipped <code>*.yaml.example</code> files in sync.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template-all<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--core-schema<span class="o">=</span>./pkg/config/schema/yaml/core_schema.yaml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--sysprobe-schema<span class="o">=</span>./pkg/config/schema/yaml/system-probe_schema.yaml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--output-dir<span class="o">=</span>/tmp/templates
-</span></code></pre></div>
-<table>
-<thead>
-<tr>
-<th>Argument</th>
-<th>Required</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>--core-schema</code></td>
-<td>yes</td>
-<td>Path to the enriched core Agent schema.</td>
-</tr>
-<tr>
-<td><code>--sysprobe-schema</code></td>
-<td>yes</td>
-<td>Path to the enriched system-probe schema.</td>
-</tr>
-<tr>
-<td><code>--output-dir</code></td>
-<td>yes</td>
-<td>Directory where <code>&lt;build_type&gt;_&lt;os_target&gt;.yaml</code> files are written.</td>
-</tr>
-</tbody>
-</table>
-<hr />
 <h2 id="schemalocate"><code>schema.locate</code><a class="headerlink" href="#schemalocate" title="Permanent link">&para;</a></h2>
 <p>Find where a setting or section is defined in the schema source and print its
 node plus the exact file and line.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled
 </span></code></pre></div>
 <p>| Argument | Required | Description |
 | --- | --- | --- | --- |
@@ -4201,29 +4143,29 @@ sorted list of child key names.</p>
 in the schema instead of looked up exactly. The pattern is treated as a regular expression (<code>re.search</code>); if it is not
 valid regex it falls back to shell-style glob (<code>fnmatch</code>). Pattern matches print as a compact, sorted <code>[&lt;schema&gt;] &lt;path&gt;
 -&gt; &lt;file&gt;:&lt;line&gt;</code> list (one line per match); use <code>--json</code> for the full node array.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Exact: setting inside a split section → resolves into the sub-file</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Pattern (glob): every setting whose full path ends with &quot;enabled&quot;</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;*enabled&#39;</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Pattern (regex): every path under apm_config ending in &quot;enabled&quot;, as JSON</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;apm_config\..*enabled&#39;</span><span class="w"> </span>--json
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Exact: setting inside a split section → resolves into the sub-file</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Pattern (glob): every setting whose full path ends with &quot;enabled&quot;</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;*enabled&#39;</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Pattern (regex): every path under apm_config ending in &quot;enabled&quot;, as JSON</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;apm_config\..*enabled&#39;</span><span class="w"> </span>--json
 </span></code></pre></div>
 <hr />
 <h2 id="typical-workflows">Typical workflows<a class="headerlink" href="#typical-workflows" title="Permanent link">&para;</a></h2>
 <p><strong>I edited a setting in the schema and want the Go code to reflect it:</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.lint<span class="w">            </span><span class="c1"># validate the schema</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.codegen<span class="w">        </span><span class="c1"># regenerate pkg/config/setup from it</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.lint<span class="w">            </span><span class="c1"># validate the schema</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.codegen<span class="w">        </span><span class="c1"># regenerate pkg/config/setup from it</span>
 </span></code></pre></div>
 <p><strong>I want to preview the generated example for one platform:</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--schema<span class="o">=</span>./pkg/config/schema/yaml/core_schema.yaml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--build-type<span class="o">=</span>agent-py3<span class="w"> </span>--os-target<span class="o">=</span>linux<span class="w"> </span>--output<span class="o">=</span>/tmp/datadog.yaml.example
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--schema<span class="o">=</span>./pkg/config/schema/yaml/core_schema.yaml<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--build-type<span class="o">=</span>datadog-agent<span class="w"> </span>--os-target<span class="o">=</span>linux<span class="w"> </span>--output<span class="o">=</span>/tmp/datadog.yaml.example
 </span></code></pre></div>
 <p><strong>I want to find where a setting is defined, or list every setting matching a pattern:</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled<span class="w">   </span><span class="c1"># exact: node + file:line</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;*enabled&#39;</span><span class="w">           </span><span class="c1"># pattern: all paths ending in &quot;enabled&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled<span class="w">   </span><span class="c1"># exact: node + file:line</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">&#39;*enabled&#39;</span><span class="w">           </span><span class="c1"># pattern: all paths ending in &quot;enabled&quot;</span>
 </span></code></pre></div>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
