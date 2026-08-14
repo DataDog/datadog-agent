@@ -30,6 +30,21 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// validateEndpointURLs reports an error if any endpoint's Host doesn't parse as a URL once path
+// is appended. newSenders would otherwise call os.Exit(1) on the first bad one - fine at startup
+// (nothing can run without valid endpoints), but RebuildSenders runs at runtime in response to a
+// config push, so a single malformed additional-endpoint host must not take down an otherwise
+// healthy trace-agent. Callers should validate before calling newSenders from a runtime path and
+// keep using the existing senders if validation fails.
+func validateEndpointURLs(endpoints []*config.Endpoint, path string) error {
+	for _, endpoint := range endpoints {
+		if _, err := url.Parse(endpoint.Host + path); err != nil {
+			return fmt.Errorf("invalid host endpoint %q: %w", endpoint.Host, err)
+		}
+	}
+	return nil
+}
+
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path.
 func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) []*sender {

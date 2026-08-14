@@ -121,6 +121,13 @@ func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
 
 // RebuildSenders recreates stats senders from the current endpoint configuration.
 func (w *DatadogStatsWriter) RebuildSenders() {
+	if err := validateEndpointURLs(w.conf.Endpoints, pathStats); err != nil {
+		// A malformed additional-endpoint host can reach here from a runtime config push -
+		// newSenders would os.Exit(1) on it, taking down an otherwise healthy trace-agent.
+		// Keep the existing senders instead.
+		log.Errorf("Not rebuilding stats senders: %v", err)
+		return
+	}
 	climit := w.conf.StatsWriter.ConnectionLimit
 	if climit == 0 {
 		climit = 5
@@ -291,10 +298,13 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 		log.Errorf("Stats encoding error: %v", err)
 		return
 	}
+	// Snapshot senders under the lock, then send outside it: sendPayloads can block on a network
+	// flush (sync_flushing waits for completion), and holding sendersMu.RLock() across that would
+	// stall a concurrent RebuildSenders/Stop waiting for the write lock.
 	w.sendersMu.RLock()
 	senders := w.senders
-	sendPayloads(senders, req, w.syncMode)
 	w.sendersMu.RUnlock()
+	sendPayloads(senders, req, w.syncMode)
 }
 
 func (w *DatadogStatsWriter) sendPayloads() {

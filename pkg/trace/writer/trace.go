@@ -169,6 +169,13 @@ func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
 
 // RebuildSenders recreates trace senders from the current endpoint configuration.
 func (w *TraceWriter) RebuildSenders() {
+	if err := validateEndpointURLs(w.cfg.Endpoints, pathTraces); err != nil {
+		// A malformed additional-endpoint host can reach here from a runtime config push -
+		// newSenders would os.Exit(1) on it, taking down an otherwise healthy trace-agent.
+		// Keep the existing senders instead.
+		log.Errorf("Not rebuilding trace senders: %v", err)
+		return
+	}
 	climit := w.cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
 		climit = defaultConnectionLimit
@@ -374,10 +381,13 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	if err := writer.Close(); err != nil {
 		log.Errorf("Error closing %s stream when writing trace payload: %v", w.compressor.Encoding(), err)
 	}
+	// Snapshot senders under the lock, then send outside it: sendPayloads can block on a network
+	// flush (sync_flushing waits for completion), and holding sendersMu.RLock() across that would
+	// stall a concurrent RebuildSenders/Stop waiting for the write lock.
 	w.sendersMu.RLock()
 	senders := w.senders
-	sendPayloads(senders, p, w.syncMode)
 	w.sendersMu.RUnlock()
+	sendPayloads(senders, p, w.syncMode)
 }
 
 func (w *TraceWriter) report() {

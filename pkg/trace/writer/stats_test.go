@@ -446,6 +446,35 @@ func TestStatsWriterRebuildSenders(t *testing.T) {
 	assert.Equal(t, "456", writer.senders[1].apiKeyManager.Get())
 }
 
+// TestStatsWriterRebuildSendersRejectsMalformedHost is a regression test: a malformed
+// additional-endpoint host can reach RebuildSenders from a runtime config push. newSenders would
+// os.Exit(1) on it, taking down an otherwise healthy trace-agent - RebuildSenders must instead
+// keep the existing, working senders.
+func TestStatsWriterRebuildSendersRejectsMalformedHost(t *testing.T) {
+	first := newTestServer()
+	defer first.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints:  []*config.Endpoint{{APIKey: "123", Host: first.URL}},
+		StatsWriter: &config.WriterConfig{
+			ConnectionLimit: 1,
+			QueueSize:       1,
+		},
+	}
+	writer := NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, containertagsbuffer.NewContainerTagsBuffer(cfg, &statsd.NoOpClient{}))
+	go writer.Run()
+	defer writer.Stop()
+
+	cfg.Endpoints = append(cfg.Endpoints, &config.Endpoint{APIKey: "456", Host: "\x7f"})
+	writer.RebuildSenders()
+
+	writer.sendersMu.RLock()
+	defer writer.sendersMu.RUnlock()
+	require.Len(t, writer.senders, 1, "the existing sender must survive a rejected rebuild")
+	assert.Equal(t, first.URL+pathStats, writer.senders[0].cfg.url.String())
+}
+
 func TestStatsWriterDoesNotRebuildAfterStop(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
