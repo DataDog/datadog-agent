@@ -159,9 +159,23 @@ func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 // reusable buffers. The returned slices alias those buffers (see
 // tokenizeBorrowed for the lifetime contract).
 func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+	t.emitRuns(input)
+	t.collapseHybridTokens()
+	return t.tsBuf, t.idxBuf
+}
+
+// emitRuns run-length-encodes input into tsBuf/idxBuf without hybrid collapse.
+// Tests use this to reconstruct the pre-IPv4-token tokenizer for the IIS
+// false-aggregate case.
+func (t *Tokenizer) emitRuns(input []byte) {
 	inputLen := len(input)
 	if inputLen == 0 {
-		return nil, nil
+		t.tsBuf = t.tsBuf[:0]
+		t.idxBuf = t.idxBuf[:0]
+		return
 	}
 
 	// Reuse the scratch buffers across calls; only grow when the estimate
@@ -192,11 +206,7 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 		}
 	}
 
-	// Flush the final run.
 	t.emitToken(input, lastToken, start, inputLen)
-
-	t.collapseHybridTokens()
-	return t.tsBuf, t.idxBuf
 }
 
 func isIPv4OctetToken(tok Token) bool {

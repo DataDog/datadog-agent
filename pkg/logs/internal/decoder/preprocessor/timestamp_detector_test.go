@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -136,6 +137,133 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 
 		// To assist with debugging and tuning - this prints the probability and an underline of where the input was matched
 		printMatchUnderline(t, context, testInput.input, match)
+	}
+}
+
+// IIS W3C fixtures. iisW3CFailingShape is a record whose client IP
+// 10.1.48.10 tokenizes as DD.D.DD.DD; Kadane used to treat that as a
+// timestamp fragment and pull the match average to 0.5.
+const (
+	iisW3CFailingShape = "2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET /ZenIT/Service/v13/core/Consent land=DE 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 19571 1051"
+	iisW3CPostLine     = "2026-08-11 10:34:50 W3SVC1 10.1.48.10 POST /ZenIT/Service/v13/core/Logger - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 204 0 0 504 6"
+	iisW3CControlIP    = "2026-08-11 10:34:51 W3SVC1 192.168.1.1 GET /ZenIT/Service/v13/core/Consent - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 1586 51"
+	iisW3CDateHeader   = "#Date: 2026-08-11 10:34:49"
+)
+
+func defaultTimestampDetectorSettings(t *testing.T) (threshold float64, labelerMaxBytes int) {
+	t.Helper()
+	mockConfig := configmock.New(t)
+	threshold = mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")
+	labelerMaxBytes = mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	require.Equal(t, 0.5, threshold, "this test pins the production default threshold")
+	require.Equal(t, 60, labelerMaxBytes, "the client IP must fall inside the default labeler window")
+	return threshold, labelerMaxBytes
+}
+
+func tokenizeWithoutHybridCollapse(tok *Tokenizer, input []byte) []Token {
+	maxBytes := len(input)
+	if tok.maxEvalBytes > 0 && tok.maxEvalBytes < maxBytes {
+		maxBytes = tok.maxEvalBytes
+	}
+	tok.emitRuns(input[:maxBytes])
+	out := make([]Token, len(tok.tsBuf))
+	copy(out, tok.tsBuf)
+	return out
+}
+
+// TestIISW3CDottedQuadDoesNotDiluteTimestampScore is the unit-level proof
+// that at the default threshold of 0.5, a strict `>` check rejects a 0.5
+// Kadane average. Without IPv4 collapse the IIS client IP dilutes the
+// timestamp to exactly 0.5, so the line stays aggregate. With collapse
+// the score is 1.0 and the line is startGroup.
+func TestIISW3CDottedQuadDoesNotDiluteTimestampScore(t *testing.T) {
+	threshold, labelerMaxBytes := defaultTimestampDetectorSettings(t)
+	require.Less(t, strings.Index(iisW3CFailingShape, "10.1.48.10")+len("10.1.48.10"), labelerMaxBytes,
+		"client IP must sit inside the default tokenizer_max_input_bytes window")
+
+	tok := NewTokenizer(labelerMaxBytes)
+	detector := NewTimestampDetector(threshold)
+	raw := []byte(iisW3CFailingShape)
+
+	without := tokenizeWithoutHybridCollapse(tok, raw)
+	matchWithout := staticTokenGraph.MatchProbability(without)
+	assert.Equal(t, 0.5, matchWithout.probability, "pre-fix Kadane average over timestamp+IP must be 0.5")
+	assert.False(t, matchWithout.probability > threshold, "0.5 is not strictly greater than the default threshold")
+
+	ctxWithout := &messageContext{rawMessage: raw, tokens: newBorrowedTokens(without, nil), label: aggregate}
+	require.True(t, detector.ProcessAndContinue(ctxWithout))
+	assert.Equal(t, aggregate, ctxWithout.label, "without IPv4 collapse the IIS line must stay aggregate at threshold 0.5")
+
+	with, _ := tok.Tokenize(raw)
+	matchWith := staticTokenGraph.MatchProbability(with)
+	assert.Equal(t, 1.0, matchWith.probability, "after collapse Kadane must stay on the timestamp-only run")
+	assert.True(t, matchWith.probability > threshold)
+
+	ctxWith := &messageContext{rawMessage: raw, tokens: newBorrowedTokens(with, nil), label: aggregate}
+	require.True(t, detector.ProcessAndContinue(ctxWith))
+	assert.Equal(t, startGroup, ctxWith.label)
+}
+
+// TestIISW3CClientIPv4VariantsStartGroupAtDefaultThreshold checks that
+// collapsing any dotted-quad client IP — not just 10.1.48.10 — is enough
+// for an IIS W3C record to start a group at the default 0.5 threshold.
+func TestIISW3CClientIPv4VariantsStartGroupAtDefaultThreshold(t *testing.T) {
+	threshold, labelerMaxBytes := defaultTimestampDetectorSettings(t)
+	tok := NewTokenizer(labelerMaxBytes)
+	detector := NewTimestampDetector(threshold)
+
+	ips := []string{
+		"10.1.48.10",
+		"1.2.3.4",
+		"8.8.8.8",
+		"10.10.10.10",
+		"192.168.0.1",
+		"192.168.1.1",
+		"255.255.255.255",
+	}
+	for _, ip := range ips {
+		line := fmt.Sprintf("2026-08-11 10:34:49 W3SVC1 %s GET /foo - 443 host 10.1.48.122 Mozilla/5.0 200 0 0 1 1", ip)
+		require.Less(t, strings.Index(line, ip)+len(ip), labelerMaxBytes, ip)
+
+		tokens, indices := tok.Tokenize([]byte(line))
+		ctx := &messageContext{rawMessage: []byte(line), tokens: newBorrowedTokens(tokens, indices), label: aggregate}
+		require.True(t, detector.ProcessAndContinue(ctx))
+		assert.Equal(t, startGroup, ctx.label, "IIS record with client IP %s must start a group at threshold 0.5", ip)
+		assert.Contains(t, TokensToString(tokens), "IPv4", "client IP %s must collapse to IPv4", ip)
+	}
+
+	headerTokens, headerIdx := tok.Tokenize([]byte(iisW3CDateHeader))
+	headerCtx := &messageContext{rawMessage: []byte(iisW3CDateHeader), tokens: newBorrowedTokens(headerTokens, headerIdx), label: aggregate}
+	require.True(t, detector.ProcessAndContinue(headerCtx))
+	assert.Equal(t, startGroup, headerCtx.label, "IIS #Date header must start a group so data records can flush it")
+}
+
+// TestIPv4CollapseDoesNotRelabelPreexistingCorpus walks every corpus
+// row that is not the IIS 10.1.48.10 failing shape and asserts the
+// detector label is the same with and without hybrid collapse. A
+// change here is a real AML regression, not an IIS fix.
+func TestIPv4CollapseDoesNotRelabelPreexistingCorpus(t *testing.T) {
+	threshold, labelerMaxBytes := defaultTimestampDetectorSettings(t)
+	tok := NewTokenizer(labelerMaxBytes)
+	detector := NewTimestampDetector(threshold)
+
+	for _, row := range inputs {
+		if strings.Contains(row.input, "W3SVC1 10.1.48.10") {
+			continue
+		}
+		raw := []byte(row.input)
+
+		without := tokenizeWithoutHybridCollapse(tok, raw)
+		ctxWithout := &messageContext{rawMessage: raw, tokens: newBorrowedTokens(without, nil), label: aggregate}
+		require.True(t, detector.ProcessAndContinue(ctxWithout))
+
+		with, _ := tok.Tokenize(raw)
+		ctxWith := &messageContext{rawMessage: raw, tokens: newBorrowedTokens(with, nil), label: aggregate}
+		require.True(t, detector.ProcessAndContinue(ctxWith))
+
+		assert.Equal(t, ctxWithout.label, ctxWith.label,
+			"IPv4 collapse changed the AML label for %q: without=%v with=%v", row.input, ctxWithout.label, ctxWith.label)
+		assert.Equal(t, row.label, ctxWith.label, "production label drifted for %q", row.input)
 	}
 }
 
