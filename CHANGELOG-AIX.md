@@ -9,6 +9,8 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
+
+- Populate `datadog.yaml` automatically on first install from `DD_API_KEY`, `DD_SITE`, `DD_HOSTNAME`, `DD_TAGS`, `DD_ENV`, `DD_INFRASTRUCTURE_MODE`, and proxy (`DD_PROXY_HTTP`/`DD_PROXY_HTTPS`/`DD_PROXY_NO_PROXY`, or generic `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`) environment variables, mirroring the Linux install script; set `DD_INSTALL_ONLY` to skip starting the Agent.
 - Fix uninstallation: `unconfig` now uses `rmssys` only to deregister SRC subsystems, dropping the preceding `odmdelete` calls that left stale entries in the live srcmstr daemon
 - Set `NLSPATH` in the agent wrapper so the IBM MQ client library can locate its own message catalogs. Previously, `ibm_mq` check errors and other MQ client errors rendered as unreadable generic text (e.g. `AMQ9211E: Failed to find error message id`) instead of the real message, because the agent process only had AIX's default `NLSPATH` (`/usr/lib/nls/msg/...`), which doesn't include MQ's catalog directory.
 - Bump the embedded Python from 3.13.12 to 3.13.15, matching the version used by the Linux omnibus/bazel build
