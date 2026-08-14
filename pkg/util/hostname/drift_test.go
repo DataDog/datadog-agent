@@ -11,6 +11,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -189,29 +190,52 @@ func scrapeTelemetry(t *testing.T) string {
 
 // TestCheckHostnameDriftEmitsTelemetry replaces
 // test/new-e2e/tests/agent-runtimes/hostname_drift_{common,nix,win}_test.go, which provisioned a
-// real EC2/Windows host to assert the same steady-state telemetry line via
-// `agent diagnose show-metadata agent-full-telemetry`. The config-backed provider drives
-// checkHostnameDrift deterministically with no network calls, standing in for whatever cloud
-// provider a real host would have resolved.
+// real EC2 Linux/Windows host and asserted this same steady-state telemetry line via
+// `agent diagnose show-metadata agent-full-telemetry`.
+//
+// It goes through the real production entrypoint, GetWithProvider, rather than calling
+// checkHostnameDrift directly: driftCalculator.scheduleHostnameDriftChecks is only reached from
+// getHostname's fallthrough path (providers.go:233-238), which early-stop providers such as the
+// "hostname" config value never reach (they return at providers.go:228, before that call). Only
+// the "coupled" chain (fqdn/container/os/aws) that a real, unconfigured EC2 host falls through
+// schedules drift checks at all, so the replacement has to drive that same path to catch a
+// regression in the scheduling wiring itself.
+//
+// setupHostnameTest's "hostname from EC2 with default system name" fixture (providers_test.go)
+// reproduces exactly that: a default AWS-pattern OS hostname with no config/file/fargate/GCE/azure
+// override, so resolution falls through to the EC2 provider — the same real path the deleted E2E
+// suite exercised on an actual EC2 instance.
 func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
+	setupHostnameTest(t, testCase{
+		name:             "hostname from EC2 with default system name",
+		FQDNEC2:          true,
+		OSEC2:            true,
+		EC2:              true,
+		expectedHostname: "hostname-from-ec2",
+		expectedProvider: "aws",
+	})
+
+	// configmock.New(t) is idempotent within a test (see pkg/config/mock/mock.go), so this just
+	// gets a handle to the same mock setupHostnameTest already installed.
 	cfg := configmock.New(t)
-	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
+	cfg.SetInTest("hostname_drift_initial_delay", "1ms")
 
-	// Seed the cache the way scheduleHostnameDriftChecks does at agent startup: the currently
-	// resolved hostname/provider, before any check has run.
-	cfg.SetInTest("hostname", "host-a")
-	cache.Cache.Set(cacheHostnameKey, Data{Hostname: "host-a", Provider: configProviderName}, cache.NoExpiration)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname_check")) })
 
-	ds := driftService{}
-	ds.checkHostnameDrift(context.Background(), cacheHostnameKey)
+	_, err := GetWithProvider(ctx)
+	require.NoError(t, err)
 
 	// Prometheus's text exposition format (which the diagnose CLI ultimately renders) sorts label
 	// names alphabetically, and telemetry.Options.NameWithSeparator inserts a leading "_" that
 	// becomes a second underscore once joined with the "hostname" subsystem — hence
 	// "hostname__drift_..." with labels ordered provider-then-state, not the declaration order.
-	body := scrapeTelemetry(t)
-	assert.Contains(t, body, "hostname__drift_resolution_time_ms_count{",
-		"drift_resolution_time_ms metric should be present in telemetry")
-	assert.Contains(t, body, `provider="`+configProviderName+`"`, "should have a provider tag in metrics")
-	assert.Contains(t, body, `state="`+noDrift+`"`, "should have a no_drift state tag in metrics")
+	require.Eventually(t, func() bool {
+		body := scrapeTelemetry(t)
+		return strings.Contains(body, "hostname__drift_resolution_time_ms_count{") &&
+			strings.Contains(body, `provider="aws"`) &&
+			strings.Contains(body, `state="`+noDrift+`"`)
+	}, time.Second, 5*time.Millisecond,
+		"drift telemetry with provider=aws, state=no_drift should be scheduled and emitted")
 }
