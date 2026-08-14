@@ -1,10 +1,10 @@
+use super::supervisor::RuntimeHandles;
 use super::{ProcessManager, queue_restart, try_spawn_and_watch};
 use crate::command::ReloadResult;
 use crate::config::ProcessDefinition;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
 use log::{info, warn};
-use super::supervisor::RuntimeHandles;
 use tonic::Status;
 
 pub(super) struct ReloadConfigApplyResult {
@@ -133,8 +133,7 @@ impl ProcessManager {
             .apply_reloaded_config_processes(new_configs, handles)
             .await;
 
-        self.reconcile_processes_after_reload(&apply, handles)
-            .await;
+        self.reconcile_processes_after_reload(&apply, handles).await;
 
         self.update_startup_order().await;
         Ok(ReloadResult {
