@@ -553,16 +553,16 @@ fn try_spawn_and_watch(proc: &mut ManagedProcess, exit_tx: &mpsc::Sender<ExitEve
 }
 
 fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
-    if let Some(mut handle) = proc.take_handle() {
+    if let Some(mut proc_handle) = proc.take_handle() {
         let name = proc.name().to_owned();
         let pid = proc.pid().unwrap_or(0);
-        let handle = tokio::spawn(async move {
-            let status = match handle.wait().await {
+        let watcher_handle = tokio::spawn(async move {
+            let status = match proc_handle.wait().await {
                 Ok(status) => status,
                 Err(e) => {
                     warn!("[{name}] wait error: {e}, killing process");
-                    let _ = handle.kill().await;
-                    match handle.wait().await {
+                    let _ = proc_handle.kill().await;
+                    match proc_handle.wait().await {
                         Ok(s) => s,
                         Err(e2) => {
                             warn!("[{name}] failed to reap after kill: {e2}");
@@ -578,7 +578,7 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
             });
             Some(status)
         });
-        proc.set_watcher_handle(handle);
+        proc.set_watcher_handle(watcher_handle);
     }
 }
 
