@@ -21,7 +21,7 @@ tar_md5sums = rule(
             mandatory = True,
         ),
         "_tool": attr.label(
-            default = "//tools/tar_checksums:tar_checksums",
+            default = "//bazel/tools/tar_checksums:tar_checksums",
             executable = True,
             cfg = "exec",
         ),

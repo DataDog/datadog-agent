@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -154,6 +155,8 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 					"discovered instance config should have %%host%% resolved via the configresolver path")
 				assert.Equal(t, tc.wantSource, discovered.Schedule[0].Source,
 					"discovered config's Source should be tagged with the discovery provider")
+				assert.Contains(t, string(discovered.Schedule[0].Instances[0]), configDiscoveryTag,
+					"discovered instance config should carry the configuration-discovery marker tag")
 			case <-time.After(2 * time.Second):
 				t.Fatalf("timed out waiting for discovered changes")
 			}
@@ -161,6 +164,145 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 			assert.GreaterOrEqual(t, int(disco.called.Load()), 1, "stub discoverer should have been called")
 		})
 	}
+}
+
+// countTag returns how many times tag appears in tags.
+func countTag(tags []string, tag string) int {
+	n := 0
+	for _, t := range tags {
+		if t == tag {
+			n++
+		}
+	}
+	return n
+}
+
+// instanceTags unmarshals the `tags` field of a resolved instance for
+// precise assertions (exact membership/count), rather than substring
+// matching on the raw YAML.
+func instanceTags(t *testing.T, instance integration.Data) []string {
+	t.Helper()
+	var parsed struct {
+		Tags []string `yaml:"tags"`
+	}
+	require.NoError(t, yaml.Unmarshal(instance, &parsed))
+	return parsed.Tags
+}
+
+// TestConfigMgr_DiscoveryTemplate_TagsAllInstances verifies that the
+// configuration-discovery marker tag is added exactly once to every instance of
+// a discovered config, is merged alongside any tags the discovered instance
+// already carries rather than replacing them, and is still added even when the
+// discovered config opts out of ordinary autodiscovery service tags via
+// ignore_autodiscovery_tags (which must still suppress the service's own tags,
+// proving the marker tag is applied independently of that mechanism).
+func TestConfigMgr_DiscoveryTemplate_TagsAllInstances(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
+		return `[{
+			"instances": [
+				{"openmetrics_endpoint": "http://%%host%%:8080/metrics", "tags": ["custom:tag"]},
+				{"openmetrics_endpoint": "http://%%host%%:8081/metrics"}
+			],
+			"ignore_autodiscovery_tags": true
+		}]`, nil
+	})
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+	cm.start()
+	defer cm.stop()
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+		Provider:      names.File,
+	}
+	svc := &dummyService{
+		ID:            "docker://k1",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+		Tags:          []string{"service:tag"},
+	}
+
+	_, _ = cm.processNewConfig(tpl)
+	changes := cm.processNewService(svc)
+	assertConfigsMatch(t, changes.Schedule)
+	assertConfigsMatch(t, changes.Unschedule)
+
+	ch := cm.discoveredChanges()
+	require.NotNil(t, ch)
+	select {
+	case discovered := <-ch:
+		require.Len(t, discovered.Schedule, 1)
+		require.Len(t, discovered.Schedule[0].Instances, 2)
+
+		firstTags := instanceTags(t, discovered.Schedule[0].Instances[0])
+		assert.Equal(t, 1, countTag(firstTags, configDiscoveryTag),
+			"marker tag should appear exactly once on the first instance, got %v", firstTags)
+		assert.Contains(t, firstTags, "custom:tag",
+			"first instance's own tag should be preserved alongside the marker tag")
+		assert.NotContains(t, firstTags, "service:tag",
+			"ignore_autodiscovery_tags should still suppress ordinary service tags")
+
+		secondTags := instanceTags(t, discovered.Schedule[0].Instances[1])
+		assert.Equal(t, 1, countTag(secondTags, configDiscoveryTag),
+			"marker tag should appear exactly once on the second instance, got %v", secondTags)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for discovered changes")
+	}
+}
+
+// TestConfigMgr_DiscoveryTemplate_TagPersistsAcrossRediscovery verifies that
+// a second discovery result for the same service+template (e.g. the
+// integration's discover_config returning updated instance data on a later
+// probe) still carries exactly one configDiscoveryTag on the replacement
+// config, rather than accumulating duplicates or losing the tag across
+// re-resolution.
+func TestConfigMgr_DiscoveryTemplate_TagPersistsAcrossRediscovery(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+		Provider:      names.File,
+	}
+	svc := &dummyService{
+		ID:            "docker://k1",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+
+	// The discovery worker is never started: this test drives
+	// applyDiscoveredConfigsLocked directly (as the worker's callback would),
+	// so no discoverer or running goroutine is needed.
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, nil, nil).(*reconcilingConfigManager)
+	_, _ = cm.processNewConfig(tpl)
+	_ = cm.processNewService(svc)
+
+	tplDigest := tpl.Digest()
+	firstConfigs := []integration.Config{{
+		Instances: []integration.Data{integration.Data(`openmetrics_endpoint: http://%%host%%:8080/metrics`)},
+	}}
+	cm.m.Lock()
+	changes := cm.applyDiscoveredConfigsLocked(svc.ID, tplDigest, firstConfigs)
+	cm.m.Unlock()
+	require.Len(t, changes.Schedule, 1)
+	firstTags := instanceTags(t, changes.Schedule[0].Instances[0])
+	require.Equal(t, 1, countTag(firstTags, configDiscoveryTag))
+
+	secondConfigs := []integration.Config{{
+		Instances: []integration.Data{integration.Data(`openmetrics_endpoint: http://%%host%%:9090/metrics`)},
+	}}
+	cm.m.Lock()
+	changes = cm.applyDiscoveredConfigsLocked(svc.ID, tplDigest, secondConfigs)
+	cm.m.Unlock()
+	require.Len(t, changes.Schedule, 1, "rediscovery should schedule the replacement config")
+	require.Len(t, changes.Unschedule, 1, "rediscovery should unschedule the previous config")
+	secondTags := instanceTags(t, changes.Schedule[0].Instances[0])
+	assert.Equal(t, 1, countTag(secondTags, configDiscoveryTag),
+		"marker tag should appear exactly once on the re-discovered config, got %v", secondTags)
 }
 
 // TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels confirms that

@@ -2,6 +2,7 @@ import json
 from io import StringIO
 from typing import Any
 
+import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 
@@ -86,6 +87,40 @@ def get_aws_wrapper(
     aws_account: str,
 ) -> str:
     return f"aws-vault exec sso-{aws_account}-account-admin-8h -- "
+
+
+def show_eks_connection_message(
+    ctx: Context, full_stack_name: str, config_path: str | None, interactive: bool | None = True
+):
+    """
+    Write the stack's kubeconfig as {full_stack_name}-kubeconfig.yaml in the current
+    working directory, then print (and optionally copy) the kubectl command to reach the
+    cluster. Reads the dd-Cluster-eks stack output, so it serves the scenarios built on
+    scenarios/aws/eks.
+    """
+    from pydantic import ValidationError
+
+    from tasks.e2e_framework import config, tool
+
+    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+    kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])
+    kubeconfig = f"{full_stack_name}-kubeconfig.yaml"
+    tool.write_secret_file(kubeconfig, yaml.dump(kubeconfig_output))
+
+    try:
+        local_config = config.get_local_config(config_path)
+    except ValidationError as e:
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
+
+    command = f"KUBECONFIG={kubeconfig} {get_aws_wrapper(local_config.get_aws().get_account())} kubectl get nodes"
+
+    print(f"\nYou can run the following command to connect to the EKS cluster\n\n{command}\n")
+
+    if interactive:
+        import pyperclip
+
+        input("Press a key to copy command to clipboard...")
+        pyperclip.copy(command)
 
 
 def get_image_description(ctx: Context, ami_id: str) -> Any:

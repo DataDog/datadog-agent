@@ -330,6 +330,8 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   timeout: 15m
+  variables:
+    GIT_DEPTH: 0  # Full history: ebpf.generate-complexity-summary-for-pr uses merge-base
   needs:
     # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
     # Important: the list of platforms should match the one in .define_if_collect_complexity

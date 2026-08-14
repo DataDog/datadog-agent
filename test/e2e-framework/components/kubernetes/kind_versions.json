@@ -1,6 +1,6 @@
 {
   "1.37": {
-    "kind_version": "v0.31.0",
+    "kind_version": "v0.32.0",
     "node_image_version": "v1.37.0-rc.0@sha256:a11b5b8063555e8ef8a5e1100459cad9e100543f61e37cb7fd722ec576c9be89"
   },
   "1.36": {

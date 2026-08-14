@@ -20,8 +20,8 @@ them:
 - `schema.codegen` generates the `pkg/config/setup` Go files that register the
   settings. Bazel runs the same logic automatically via
   `//pkg/config/setup:codegen_settings`.
-- `schema.template` / `schema.template-all` render the shipped
-  `datadog.yaml.example` and `system-probe.yaml.example` files.
+- `schema.template` renders the shipped `datadog.yaml.example` and
+  `system-probe.yaml.example` files.
 - `schema.produce-embedded` / `schema.compress` build the artifact embedded into
   the Agent binary; `schema.produce-jsonschema` builds the pure JSON Schema for
   external consumers.
@@ -73,7 +73,7 @@ look like in the generated example without running the whole build.
 ```bash
 dda inv schema.template \
   --schema=./pkg/config/schema/yaml/core_schema.yaml \
-  --build-type=agent-py3 \
+  --build-type=datadog-agent \
   --os-target=linux \
   --output=/tmp/datadog.yaml.example
 ```
@@ -81,34 +81,13 @@ dda inv schema.template \
 | Argument | Required | Description |
 | --- | --- | --- |
 | `--schema` | yes | Path to the enriched schema YAML file. |
-| `--build-type` | yes | One of: `agent-py3`, `iot-agent`, `system-probe`, `dogstatsd`, `dca`, `dcacf`. |
+| `--build-type` | yes | One of: `datadog-agent`, `iot-agent`, `system-probe`, `dogstatsd`, `dca`, `dcacf`. |
 | `--os-target` | yes | One of: `windows`, `linux`, `darwin`. |
 | `--output` | yes | Path to write the rendered template. |
 
 Only nodes with `visibility: public` are rendered. The build type selects which
 template sections are included; the OS target controls which platform-specific
 defaults and `platform_only` settings are emitted.
-
----
-
-## `schema.template-all`
-
-Render every combination of build type × OS target from the core and
-system-probe schemas at once. This is what the build pipeline uses to keep the
-shipped `*.yaml.example` files in sync.
-
-```bash
-dda inv schema.template-all \
-  --core-schema=./pkg/config/schema/yaml/core_schema.yaml \
-  --sysprobe-schema=./pkg/config/schema/yaml/system-probe_schema.yaml \
-  --output-dir=/tmp/templates
-```
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `--core-schema` | yes | Path to the enriched core Agent schema. |
-| `--sysprobe-schema` | yes | Path to the enriched system-probe schema. |
-| `--output-dir` | yes | Directory where `<build_type>_<os_target>.yaml` files are written. |
 
 ---
 
@@ -164,7 +143,7 @@ dda inv schema.codegen        # regenerate pkg/config/setup from it
 ```bash
 dda inv schema.template \
   --schema=./pkg/config/schema/yaml/core_schema.yaml \
-  --build-type=agent-py3 --os-target=linux --output=/tmp/datadog.yaml.example
+  --build-type=datadog-agent --os-target=linux --output=/tmp/datadog.yaml.example
 ```
 
 **I want to find where a setting is defined, or list every setting matching a pattern:**

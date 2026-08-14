@@ -1,0 +1,29 @@
+[package]
+name = "dd-procmgr-client"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Shared Rust client transport for dd-procmgrd"
+
+[dependencies]
+anyhow.workspace = true
+hyper-util = { workspace = true, features = ["tokio"] }
+prost.workspace = true
+tokio = { workspace = true, features = ["net", "time"] }
+tonic = { workspace = true, features = ["transport"] }
+tonic-prost.workspace = true
+tower.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[build-dependencies]
+# Keep the generators in Cargo.lock for the repository's Bazel prost toolchain.
+protoc-gen-prost.workspace = true
+protoc-gen-tonic.workspace = true
+tonic-build.workspace = true
+tonic-prost-build.workspace = true

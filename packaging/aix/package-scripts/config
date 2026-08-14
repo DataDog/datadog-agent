@@ -1,13 +1,48 @@
 #!/bin/sh
+CONFIG_DIR=/etc/datadog-agent
+CONFIG_FILE="$CONFIG_DIR/datadog.yaml"
+EXAMPLE_FILE="$CONFIG_DIR/datadog.yaml.example"
+PYTHON=/opt/datadog-agent/embedded/bin/python3
+RENDER_SCRIPT=/opt/datadog-agent/embedded/share/installp/render-datadog-config.py
+
+# installp has no mechanism to pass parameters/env vars at install time, so
+# this is the only way to configure the agent unattended on AIX (mirrors
+# https://github.com/DataDog/agent-linux-install-script). Only runs on a
+# fresh install: an existing datadog.yaml is left untouched.
+if [ ! -f "$CONFIG_FILE" ] && [ -n "$DD_API_KEY" ] && [ -f "$EXAMPLE_FILE" ] && [ -x "$PYTHON" ] && [ -f "$RENDER_SCRIPT" ]; then
+    echo "Populating $CONFIG_FILE from environment variables..."
+    # Rendered on a root-only (umask 077) staging file, only chowned/chmoded
+    # and moved into place once done, so the real datadog.yaml never exists
+    # readable by anyone but root.
+    STAGING_FILE="$CONFIG_FILE.tmp.$$"
+
+    if (umask 077 && cp "$EXAMPLE_FILE" "$STAGING_FILE"); then
+        "$PYTHON" "$RENDER_SCRIPT" "$STAGING_FILE"
+
+        if chown dd-agent:dd-agent "$STAGING_FILE" 2>/dev/null && chmod 640 "$STAGING_FILE" 2>/dev/null; then
+            mv "$STAGING_FILE" "$CONFIG_FILE" 2>/dev/null
+        fi
+    fi
+    rm -f "$STAGING_FILE" 2>/dev/null || true
+fi
+
 chown -R dd-agent:dd-agent /etc/datadog-agent \
                            /var/log/datadog \
                            /var/run/datadog \
                            /opt/datadog-agent 2>/dev/null || true
 
-if [ -f /etc/datadog-agent/datadog.yaml ]; then
-    startsrc -s datadog-agent
-    startsrc -s datadog-trace-agent
-    startsrc -s datadog-agent-data-plane
+if [ -f "$CONFIG_FILE" ]; then
+    if [ -z "$DD_INSTALL_ONLY" ]; then
+        echo "Starting Datadog Agent services..."
+        startsrc -s datadog-agent
+        startsrc -s datadog-trace-agent
+        startsrc -s datadog-agent-data-plane
+    else
+        echo ""
+        echo "DD_INSTALL_ONLY is set: the Datadog Agent was not started."
+        echo "Start it with:  startsrc -s datadog-agent && startsrc -s datadog-trace-agent && startsrc -s datadog-agent-data-plane"
+        echo ""
+    fi
 else
     echo ""
     echo "Datadog Agent installed."

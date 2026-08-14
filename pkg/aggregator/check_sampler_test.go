@@ -834,3 +834,33 @@ func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
 func TestNewSketchSeriesWithMissingContext(t *testing.T) {
 	testWithTagsStore(t, testNewSketchSeriesWithMissingContext)
 }
+
+func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+
+	mSample := metrics.MetricSample{
+		Name:       "my.distribution",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+		Source:     metrics.MetricSourceJmxCustom,
+	}
+
+	checkSampler.addSample(&mSample, tagmatcher)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
+	_, sketches := checkSampler.flush()
+
+	require.Len(t, sketches, 1)
+	assert.Equal(t, metrics.MetricSourceJmxCustom, sketches[0].Source,
+		"SketchSeries must carry the MetricSource set on the original sample")
+}
+
+func TestSketchSeriesSourcePreserved(t *testing.T) {
+	testWithTagsStore(t, testSketchSeriesSourcePreserved)
+}

@@ -26,6 +26,7 @@ type server struct {
 	tagger     tagger.Component
 	hostname   hostname.Component
 	filterList filterlist.Component
+	telemetry  *telemetryStore
 	out        serializer
 
 	http *http.Server
@@ -47,17 +48,20 @@ func (s *server) start(ctx context.Context) error {
 		return fmt.Errorf("error fetching hostname: %w", err)
 	}
 
-	base := handlerBase{
-		log:        s.log,
-		tagger:     s.tagger,
-		hostname:   hostname,
-		filterList: s.filterList,
-		out:        s.out,
+	newBase := func(endpoint string) handlerBase {
+		return handlerBase{
+			log:        s.log,
+			tagger:     s.tagger,
+			hostname:   hostname,
+			filterList: s.filterList,
+			out:        s.out,
+			tlm:        s.telemetry.forEndpoint(endpoint),
+		}
 	}
 
 	mux := &http.ServeMux{}
-	mux.Handle("POST /series", &seriesHandler{base})
-	mux.Handle("POST /sketches", &sketchesHandler{base})
+	mux.Handle("POST /series", &seriesHandler{newBase("series")})
+	mux.Handle("POST /sketches", &sketchesHandler{newBase("sketches")})
 
 	var p http.Protocols
 	p.SetHTTP1(true)
