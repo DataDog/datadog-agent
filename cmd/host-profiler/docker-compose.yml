@@ -22,8 +22,9 @@ services:
       context: ../..
       dockerfile: tools/host-profiler/Dockerfile
       args:
-        UID: ${UID}
-        GID: ${GID}
+        # default user/group ids in Datadog workspaces, also works for uid-squashed mounts (colima/virtiofs)
+        UID: ${UID:-2000}
+        GID: ${GID:-501}
     privileged: true
     pid: "host"
     cgroup: "host"

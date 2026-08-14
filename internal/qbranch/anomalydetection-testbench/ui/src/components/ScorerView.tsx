@@ -3,7 +3,7 @@ import { AnomalyScoreTimeline } from './AnomalyScoreTimeline';
 import { BaselineTimelineWidget } from './BaselineView';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
-import type { ScoreState, SeverityEvent, Anomaly, LogAnomaly } from '../api/client';
+import type { ScoreState, SeverityEvent, Anomaly, LogAnomaly, ScorerReport } from '../api/client';
 
 // ── ScenarioSelector (reused pattern) ───────────────────────────────────────
 
@@ -130,9 +130,10 @@ function LogAnomalyRow({ anomaly }: { anomaly: LogAnomaly }) {
 
 type AnomalyFilter = 'all' | 'metrics' | 'logs';
 
-function EventRow({ window: w, filter, onHover }: {
+function EventRow({ window: w, filter, report, onHover }: {
   window: EventWindow;
   filter: AnomalyFilter;
+  report?: ScorerReport;
   onHover?: (ev: SeverityEvent | null) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -190,6 +191,25 @@ function EventRow({ window: w, filter, onHover }: {
 
       {expanded && (
         <div className="px-4 pb-3 ml-7">
+          {report && (
+            <div className="mb-3 bg-slate-900/40 rounded p-2">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Top contributions</div>
+              {report.contributors.length === 0 ? (
+                <div className="text-xs text-slate-500">No storage-backed contributors</div>
+              ) : (
+                <ol className="space-y-1 text-xs text-slate-300 list-decimal list-inside">
+                  {report.contributors.map((contributor, index) => (
+                    <li key={`${contributor.name}-${index}`} className="flex min-w-0 items-baseline gap-1">
+                      <span className="shrink-0 text-cyan-300">{Math.round(contributor.share * 100)}% —</span>
+                      <span className="min-w-0 max-w-[36rem] truncate font-mono text-slate-200" title={contributor.name}>
+                        {contributor.name}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
           {visibleCount === 0 ? (
             <p className="text-xs text-slate-500 italic">
               {totalCount === 0 ? 'No anomalies in this window.' : 'No anomalies match the current filter.'}
@@ -251,6 +271,10 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
     (scoreState?.buckets ?? []).reduce((m, b) => Math.max(m, b.ewma), 0),
     [scoreState],
   );
+
+  const reportsByTimestamp = useMemo(() => new Map(
+    (scoreState?.reports ?? []).map((report) => [report.timestamp, report]),
+  ), [scoreState]);
 
   return (
     <div className="flex-1 flex">
@@ -362,7 +386,15 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
                 ) : (
                   <div>
                     {eventWindows.map((w, i) => (
-                      <EventRow key={i} window={w} filter={anomalyFilter} onHover={setHoveredEvent} />
+                      <EventRow
+                        key={i}
+                        window={w}
+                        filter={anomalyFilter}
+                        report={w.event.to_level === 2 && w.event.to_level > w.event.from_level
+                          ? reportsByTimestamp.get(w.event.timestamp)
+                          : undefined}
+                        onHover={setHoveredEvent}
+                      />
                     ))}
                   </div>
                 )}

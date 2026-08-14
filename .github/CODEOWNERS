@@ -454,6 +454,7 @@
 /comp/logonduration @DataDog/windows-products
 /comp/metriclookback @DataDog/q-branch
 /comp/networkconfigmanagement @DataDog/ndm-integrations
+/comp/networkdevices @DataDog/network-device-monitoring-core
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform
@@ -644,6 +645,7 @@
 /pkg/config/schema/yaml/compliance_config.yaml              @DataDog/agent-cspm @DataDog/agent-security @DataDog/fleet-automation
 /pkg/config/schema/yaml/container_image.yaml                @DataDog/container-integrations @DataDog/fleet-automation
 /pkg/config/schema/yaml/container_lifecycle.yaml            @DataDog/container-integrations @DataDog/fleet-automation
+/pkg/config/schema/yaml/network_devices.yaml                @DataDog/network-device-monitoring-core @DataDog/fleet-automation
 /pkg/config/schema/yaml/external_metrics_provider.yaml      @DataDog/container-autoscaling @DataDog/fleet-automation
 /pkg/config/schema/yaml/gpu.yaml                            @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent @DataDog/fleet-automation
 /pkg/config/schema/yaml/internal_profiling.yaml             @DataDog/agent-runtimes @DataDog/fleet-automation
@@ -688,6 +690,7 @@
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction/rshell  @DataDog/action-platform @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement  @DataDog/action-platform @DataDog/ndm-integrations
+/pkg/privateactionrunner/bundles/remoteaction/networkdevices  @DataDog/action-platform @DataDog/network-device-monitoring-core
 /pkg/privateactionrunner/bundles/remoteaction/networks  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp        @DataDog/agent-metric-pipelines
@@ -822,6 +825,7 @@
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/network-device-monitoring-core
+/pkg/networkdevices/                    @DataDog/network-device-monitoring-core
 /pkg/snmp/                              @DataDog/network-device-monitoring-core
 /pkg/ssi/                               @DataDog/injection-platform
 /pkg/tagger/                            @DataDog/container-platform
@@ -915,12 +919,12 @@
 /tasks/unit_tests/build_tags_tests.py   @DataDog/agent-build
 /tasks/unit_tests/libs/build/           @DataDog/agent-build
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
-/tasks/unit_tests/schema_*              @DataDog/agent-configuration
+/tasks/unit_tests/schema_*              @DataDog/fleet-automation
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
 /tasks/unit_tests/testdata/collector/   @DataDog/opentelemetry-agent
 /tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates/    @DataDog/agent-build
-/tasks/unit_tests/testdata/schema_codegen/ @DataDog/agent-configuration
+/tasks/unit_tests/testdata/schema_codegen/ @DataDog/fleet-automation
 /tasks/installer.py                     @DataDog/fleet
 /tasks/host_profiler.py                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /test/                                  @DataDog/agent-devx

@@ -16,10 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
-func TestIterator(t *testing.T) {
-	payload := &pb.Payload{
+// seriesTestPayload builds a payload holding the count `foo` (1 point), the
+// rate `bar` (2 points) and the gauge `baz` (2 points). Timestamps and values
+// are shared across all three in delta-encoded columns, so skipping a metric
+// must not shift what the following one decodes.
+func seriesTestPayload() *pb.Payload {
+	return &pb.Payload{
 		MetricData: &pb.MetricData{
 			DictNameStr:      []byte("\x03foo\x03bar\x03baz"),
 			DictTagStr:       []byte("\x03ook\x15dd.internal.card:none\x15dd.internal.card:high"),
@@ -41,6 +46,10 @@ func TestIterator(t *testing.T) {
 			ValsSint64:         []int64{5, 6, 7, 8, 9},
 		},
 	}
+}
+
+func seriesTestOrigin(t *testing.T) origin {
+	t.Helper()
 
 	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, "123456789")
 
@@ -55,7 +64,11 @@ func TestIterator(t *testing.T) {
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
 
-	it, err := newSeriesIterator(payload, origin, "default")
+	return origin
+}
+
+func TestIterator(t *testing.T) {
+	it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default", utilstrings.Matcher{})
 	require.NoError(t, err)
 	require.NotNil(t, it)
 
@@ -91,4 +104,54 @@ func TestIterator(t *testing.T) {
 		Source:   metrics.MetricSourceDogstatsd,
 		Points:   []metrics.Point{{Ts: 1000, Value: 8}, {Ts: 1010, Value: 9}},
 	}, it.Current())
+}
+
+func TestIteratorFilterList(t *testing.T) {
+	t.Run("exact match skips the metric", func(t *testing.T) {
+		it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default",
+			utilstrings.NewMatcher([]string{"bar"}, false))
+		require.NoError(t, err)
+
+		require.True(t, it.MoveNext())
+		require.Equal(t, "foo", it.Current().Name)
+
+		// baz must still decode the points that follow bar's in the payload.
+		require.True(t, it.MoveNext())
+		require.Equal(t, &metrics.Serie{
+			Name:     "baz",
+			Tags:     tagset.NewCompositeTags([]string{"low"}, []string{"ook"}),
+			Host:     "default",
+			MType:    metrics.APIGaugeType,
+			Interval: 10,
+			Source:   metrics.MetricSourceDogstatsd,
+			Points:   []metrics.Point{{Ts: 1000, Value: 8}, {Ts: 1010, Value: 9}},
+		}, it.Current())
+
+		require.False(t, it.MoveNext())
+		require.NoError(t, it.err)
+		require.Equal(t, payloadStats{metrics: 2, points: 3, filteredMetrics: 1, filteredPoints: 2}, it.stats)
+	})
+
+	t.Run("prefix match skips every matching metric", func(t *testing.T) {
+		it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default",
+			utilstrings.NewMatcher([]string{"ba"}, true))
+		require.NoError(t, err)
+
+		require.True(t, it.MoveNext())
+		require.Equal(t, "foo", it.Current().Name)
+
+		require.False(t, it.MoveNext())
+		require.NoError(t, it.err)
+		require.Equal(t, payloadStats{metrics: 1, points: 1, filteredMetrics: 2, filteredPoints: 4}, it.stats)
+	})
+
+	t.Run("everything filtered", func(t *testing.T) {
+		it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default",
+			utilstrings.NewMatcher([]string{"foo", "bar", "baz"}, false))
+		require.NoError(t, err)
+
+		require.False(t, it.MoveNext())
+		require.NoError(t, it.err)
+		require.Equal(t, payloadStats{filteredMetrics: 3, filteredPoints: 5}, it.stats)
+	})
 }
