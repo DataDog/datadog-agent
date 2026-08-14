@@ -1,0 +1,51 @@
+services:
+  fake-krakend-conflict:
+    container_name: fake-krakend-conflict
+    # Built and tagged as image "krakend" (rather than using the
+    # com.datadoghq.ad.check.id override label like docker-compose.fake-krakend.yaml)
+    # so that this container's own entity ID *also* remains among its AD
+    # identifiers -- needed so the manual com.datadoghq.ad.checks openmetrics
+    # config below (matched by entity ID) is a sibling of krakend's
+    # image-matched discovery template on the exact same service, reproducing
+    # the scenario where a manual openmetrics config and a later-discovered
+    # dedicated integration both target the same container.
+    image: krakend:e2e-conflict-test
+    build:
+      context: .
+      args:
+        DD_REGISTRY: ${DD_REGISTRY:-docker.io}
+        # see docker-compose.fake-process.yaml for why this needs double-escaping
+      dockerfile_inline: |
+        ARG DD_REGISTRY=docker.io
+        FROM $${DD_REGISTRY}/library/python:3.12-slim
+    command:
+      - sh
+      - -c
+      - |
+        python3 << 'EOF'
+{{.Script}}
+        EOF
+    labels:
+      # A manual openmetrics config, as a user might configure for a service
+      # that doesn't (yet) have a dedicated Datadog integration. Its namespace
+      # ("krakend.api") is rooted in krakend's own metric namespace
+      # (__NAMESPACE__ = "krakend.api" in datadog_checks/krakend/check.py), so
+      # once krakend's configuration-discovery template matches this same
+      # container, discovery must be suppressed (see
+      # comp/core/autodiscovery/listeners/common_filter.go's
+      # GenericIntegrationNamespaceRoots/NamespaceRoot).
+      com.datadoghq.ad.checks: |
+        {
+          "openmetrics": {
+            "init_config": {},
+            "instances": [
+              {
+                "openmetrics_endpoint": "http://%%host%%:9091/metrics",
+                "namespace": "krakend.api"
+              }
+            ]
+          }
+        }
+    expose:
+      - "9090"
+      - "9091"
