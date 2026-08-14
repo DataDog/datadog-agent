@@ -80,7 +80,7 @@ class TestSchemaTemplateCLI(unittest.TestCase):
         schema_path = self._write_schema(_sample_core_schema())
         out_path = os.path.join(self.dir, "out.yaml")
 
-        rc = cli_main(["template.py", schema_path, "agent-py3", "linux", out_path])
+        rc = cli_main(["template.py", schema_path, "datadog-agent", "linux", out_path])
 
         self.assertEqual(rc, 0)
         self.assertTrue(os.path.isfile(out_path))
@@ -120,7 +120,7 @@ class TestSchemaTemplateCLI(unittest.TestCase):
         schema_path = self._write_schema(_sample_core_schema())
         out_path = os.path.join(self.dir, "out.yaml")
 
-        rc = cli_main(["template.py", schema_path, "agent-py3", "bogus-os", out_path])
+        rc = cli_main(["template.py", schema_path, "datadog-agent", "bogus-os", out_path])
 
         self.assertNotEqual(rc, 0)
 
@@ -130,7 +130,7 @@ class TestSchemaTemplateCLI(unittest.TestCase):
         out_path = os.path.join(self.dir, "out.yaml")
         missing = os.path.join(self.dir, "does-not-exist.yaml")
 
-        rc = cli_main(["template.py", missing, "agent-py3", "linux", out_path])
+        rc = cli_main(["template.py", missing, "datadog-agent", "linux", out_path])
 
         self.assertNotEqual(rc, 0)
 

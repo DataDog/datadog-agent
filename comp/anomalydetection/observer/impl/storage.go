@@ -86,6 +86,10 @@ type timeSeriesStorage struct {
 	// seriesIDStats[ref] is the live *seriesStats (nil when the slot is retired).
 	seriesIDStats []*seriesStats // numeric ID → *seriesStats (index = ID)
 
+	// liveSeriesCount is the number of non-telemetry series in the catalog.
+	// It is updated under mu whenever a non-telemetry series is added or removed.
+	liveSeriesCount int
+
 	// Global generation for the series catalog; increments only when a new
 	// series key is created, not on every write to an existing series.
 	seriesGen uint64
@@ -342,6 +346,9 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 			s.series[h] = stats
 		}
 		s.seriesIDStats = append(s.seriesIDStats, stats)
+		if namespace != observer.TelemetryNamespace {
+			s.liveSeriesCount++
+		}
 		s.seriesGen++
 	}
 	res := AddResult{IsNew: !exists, Ref: stats.ref}
@@ -1059,16 +1066,32 @@ func (s *timeSeriesStorage) RemoveSeriesByRefs(refs []observer.SeriesRef) []obse
 		if stats == nil {
 			continue
 		}
-		s.releaseTagIntern(stats.tagsHash)
-		h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
-		delete(s.series, h)
-		s.seriesIDStats[ref] = nil
-		removed = append(removed, ref)
+		if s.removeSeries(stats) {
+			removed = append(removed, ref)
+		}
 	}
 	if len(removed) > 0 {
 		s.seriesGen++
 	}
 	return removed
+}
+
+// removeSeries removes a live series from every catalog index and cardinality
+// counter. The caller must hold s.mu for writing.
+func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
+	if stats == nil || stats.ref < 0 || int(stats.ref) >= len(s.seriesIDStats) || s.seriesIDStats[stats.ref] != stats {
+		return false
+	}
+	s.releaseTagIntern(stats.tagsHash)
+	h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
+	if s.series[h] == stats {
+		delete(s.series, h)
+	}
+	s.seriesIDStats[stats.ref] = nil
+	if stats.Namespace != observer.TelemetryNamespace {
+		s.liveSeriesCount--
+	}
+	return true
 }
 
 // SetContext stores a MetricContext on the series identified by ref.
@@ -1157,11 +1180,9 @@ func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []o
 		if stats == nil || stats.Namespace != namespace || stats.Name != name {
 			continue
 		}
-		s.releaseTagIntern(stats.tagsHash)
-		h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
-		delete(s.series, h)
-		s.seriesIDStats[stats.ref] = nil
-		removed = append(removed, stats.ref)
+		if s.removeSeries(stats) {
+			removed = append(removed, stats.ref)
+		}
 	}
 	if len(removed) > 0 {
 		s.seriesGen++
@@ -1180,13 +1201,8 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Count first — common case is under the limit, skip allocation entirely.
-	count := 0
-	for _, st := range s.seriesIDStats {
-		if st != nil {
-			count++
-		}
-	}
+	// Common case is under the limit, skip allocation entirely.
+	count := s.liveSeriesCount
 	if count <= seriesLimit {
 		return nil
 	}
@@ -1218,13 +1234,9 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 		if st == nil {
 			continue
 		}
-		h := seriesKeyHash(st.Namespace, st.Name, st.Tags)
-		s.releaseTagIntern(st.tagsHash)
-		if s.series[h] == st {
-			delete(s.series, h)
+		if s.removeSeries(st) {
+			freed = append(freed, candidates[i].ref)
 		}
-		s.seriesIDStats[candidates[i].ref] = nil
-		freed = append(freed, candidates[i].ref)
 	}
 	if len(freed) > 0 {
 		s.seriesGen++
@@ -1361,22 +1373,12 @@ func (s *timeSeriesStorage) TotalSampleCount(excludeNamespace string) int64 {
 	return total
 }
 
-// TotalSeriesCount returns the number of unique series (name + tag combinations),
-// excluding series in excludeNamespace (pass "" to include all namespaces).
-func (s *timeSeriesStorage) TotalSeriesCount(excludeNamespace string) int {
+// TotalSeriesCount returns the number of unique non-telemetry series (name +
+// tag combinations).
+func (s *timeSeriesStorage) TotalSeriesCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	total := 0
-	for _, stats := range s.seriesIDStats {
-		if stats == nil {
-			continue
-		}
-		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
-			continue
-		}
-		total++
-	}
-	return total
+	return s.liveSeriesCount
 }
 
 // PointCountUpTo returns the number of raw data points with timestamp <= endTime.

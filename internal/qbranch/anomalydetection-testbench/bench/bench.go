@@ -774,7 +774,7 @@ func (tb *Bench) GetStatus() StatusResponse {
 	return StatusResponse{
 		Ready:                 tb.ready,
 		Scenario:              tb.loadedScenario,
-		SeriesCount:           sv.TotalSeriesCount(observerdef.TelemetryNamespace),
+		SeriesCount:           sv.TotalSeriesCount(),
 		AnomalyCount:          sv.TotalAnomalyCount(),
 		LogAnomalyCount:       len(tb.logAnomalies),
 		ComponentCount:        componentCount,

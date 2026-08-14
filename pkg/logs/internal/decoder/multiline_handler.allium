@@ -1,0 +1,417 @@
+-- allium: 3
+-- multiline_handler.allium
+
+-- Scope: The MultiLineHandler at
+--   pkg/logs/internal/decoder/multiline_handler.go. The
+--   MultiLineHandler is the regex-driven aggregator in the
+--   legacy decoder pipeline: it combines consecutive log lines
+--   into a single
+--   multi-line message, emitting on regex pattern boundaries
+--   (lines matching newContentRe start a new group) or on
+--   buffer overflow. Carries truncation state across emissions
+--   via shouldTruncate, tracks per-emission truncation via
+--   isBufferTruncated, and uses the "multiline_regex"
+--   truncation-reason tag.
+--
+--   The MultiLineHandler does NOT declare fulfilment of the
+--   Truncatable contract. It conforms to most of Truncatable's
+--   invariants (PassThroughUnderThreshold, TailMarkerOnOverThreshold
+--   at the buffer level, HeadMarkerOnCarryover, CarryoverConsumed,
+--   TagOnTruncation with reason="multiline_regex", MarkerLiteral)
+--   but it DEVIATES from UpstreamFlagPropagation: the input
+--   message's ParsingExtra.IsTruncated flag is IGNORED by the
+--   handler. Only buffer-overflow during accumulation triggers
+--   the tail marker; upstream truncation signals do not flow
+--   through. This is a deliberate non-conformance documented
+--   below.
+-- Includes: The MultiLineHandler entity (truncation-relevant
+--   configuration and state), the MultiLineHandling surface
+--   with @guarantees covering: pattern-boundary emission,
+--   pattern-validation safety (single-line mode until pattern
+--   matches), per-emission buffer truncation, carry-over of
+--   buffer-overflow state across emissions, the deviation from
+--   the Truncatable contract on upstream-flag handling, line
+--   separator semantics within the buffer, multi-line source
+--   tagging, whitespace trimming.
+-- Excludes:
+--   - The flush_timeout / flushTimer time-based emission
+--     mechanism. Time-based emission is orthogonal to
+--     truncation; the spec treats sendBuffer as the emission
+--     primitive regardless of what triggers it.
+--   - The countInfo / linesCombinedInfo telemetry counters
+--     and the datadog.logs_agent.auto_multi_line_lines_combined
+--     telemetry metric. Observability only; no behavioural
+--     effect on emitted messages.
+--   - The LogsTruncated metric increment on tail-marker
+--     application and the TlmAutoMultilineAggregatorFlush
+--     telemetry. Observability only.
+--   - The newContentRe regex pattern itself. The handler
+--     composes a caller-supplied regex; the pattern semantics
+--     are out of scope and the only relevant behaviour is
+--     whether newContentRe.Match returns true on a given
+--     input.
+--   - The outputFn callback target. The handler emits via a
+--     constructor-supplied callback; the downstream stage is
+--     independent of this surface.
+--   - The literal byte value of the truncation marker and
+--     the EscapedLineFeed separator. Owned by the agent's
+--     message package; treated as opaque constants.
+--   - The logs_config.tag_truncated_logs and
+--     logs_config.tag_multi_line_logs configuration values,
+--     which are read from the global agent config at every
+--     emission. These configuration values are not
+--     MultiLineHandler attributes.
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity MultiLineHandler {
+    -- A configured MultiLineHandler instance. One per
+    -- legacy decoder pipeline using regex-based multi-line
+    -- aggregation.
+    --
+    -- line_limit:               byte threshold at which the
+    --                           accumulated buffer triggers a
+    --                           forced emission with the
+    --                           tail truncation marker
+    --                           appended. Set at
+    --                           construction; immutable.
+    -- should_truncate:          carry-over signal. Set true
+    --                           at the end of a process call
+    --                           that resulted in a
+    --                           buffer-overflow emission;
+    --                           consumed at the start of the
+    --                           next process call (and
+    --                           immediately reset to false
+    --                           there). When consumed as
+    --                           true, causes the next
+    --                           emission's accumulated buffer
+    --                           to begin with the head
+    --                           truncation marker.
+    -- is_buffer_truncated:      per-emission tracking. Set
+    --                           true when EITHER the head
+    --                           marker is written to the
+    --                           buffer (from a consumed
+    --                           carry) OR the tail marker is
+    --                           written (on buffer overflow).
+    --                           Read by sendBuffer to decide
+    --                           the emission's
+    --                           ParsingExtra.IsTruncated and
+    --                           whether to append the
+    --                           truncation-reason tag. Reset
+    --                           to false in the deferred
+    --                           reset after sendBuffer.
+    -- buffered_content_len:     current byte length of the
+    --                           accumulated buffer (after
+    --                           any separator and head
+    --                           marker additions but before
+    --                           sendBuffer's TrimSpace).
+    --                           Resets to zero on every
+    --                           sendBuffer.
+    -- lines_combined:           number of input lines that
+    --                           have contributed to the
+    --                           current accumulation cycle.
+    --                           Drives the multi-line tag
+    --                           decision (tag attached when
+    --                           > 1 at emission time).
+    --                           Resets to zero on sendBuffer.
+    -- multi_line_tag_value:     the source-tag value used for
+    --                           the multi-line tag when an
+    --                           emission combines more than
+    --                           one input line and the
+    --                           global tag_multi_line_logs
+    --                           config is enabled. Set at
+    --                           construction; immutable.
+    -- pattern_matched_once:     becomes true the first time
+    --                           an input line matches
+    --                           newContentRe. Once true,
+    --                           remains true for the
+    --                           handler's lifetime. Until
+    --                           true, every input triggers
+    --                           an immediate sendBuffer
+    --                           (single-line emission mode),
+    --                           preventing a misconfigured
+    --                           never-matching pattern from
+    --                           silently joining all input
+    --                           into one giant message.
+    line_limit: Integer
+    should_truncate: Boolean
+    is_buffer_truncated: Boolean
+    buffered_content_len: Integer
+    lines_combined: Integer
+    multi_line_tag_value: String
+    pattern_matched_once: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface MultiLineHandling {
+    -- The aggregation-and-truncation boundary of the
+    -- MultiLineHandler. Each process call may produce zero,
+    -- one, or two emissions to the outputFn callback
+    -- depending on pattern-boundary and buffer-overflow
+    -- conditions. Truncation marker decoration happens
+    -- inside the buffer during process (head marker on
+    -- consumed carry, tail marker on buffer overflow);
+    -- sendBuffer applies whitespace trimming and the final
+    -- IsTruncated / tag annotations on the emitted message.
+
+    context h: MultiLineHandler
+
+    @guarantee PatternMatchTriggersEmission
+        -- A process call whose input content matches
+        -- newContentRe triggers a sendBuffer at the start
+        -- of the call (flushing any prior accumulation as
+        -- a combined emission), then begins a new
+        -- accumulation with the current input as its first
+        -- line. The pattern_matched_once flag is set true
+        -- before the post-sendBuffer accumulation begins.
+
+    @guarantee PatternMatchedOnceSafety
+        -- When pattern_matched_once is false (the regex
+        -- has never matched any input), every process call
+        -- triggers a sendBuffer regardless of pattern
+        -- match status. This ensures that a
+        -- misconfigured newContentRe that never matches
+        -- does NOT silently join all input lines into one
+        -- ever-growing buffer. Once any input matches,
+        -- pattern_matched_once becomes true and subsequent
+        -- non-matching inputs are accumulated normally.
+
+    @guarantee PassThroughUnderThreshold
+        -- When the accumulated buffer at the time of
+        -- sendBuffer is under line_limit AND
+        -- is_buffer_truncated is false (no head marker
+        -- written during this cycle, no buffer overflow
+        -- occurred during this cycle), the emitted
+        -- message's content is the whitespace-trimmed
+        -- buffer (no markers), and
+        -- ParsingExtra.IsTruncated is false on the
+        -- emission. No truncation-reason tag is added.
+
+    @guarantee TailMarkerOnBufferOverflow
+        -- When a process call appends content that causes
+        -- buffered_content_len to reach or exceed
+        -- line_limit (after writing the separator, the
+        -- head-marker-from-carry if any, and the input
+        -- content), the handler writes the truncation
+        -- marker to the buffer (tail position), sets
+        -- is_buffer_truncated=true, calls sendBuffer
+        -- immediately, and sets should_truncate=true to
+        -- carry the truncation into the next emission.
+        -- The forced emission within process is the
+        -- per-buffer-overflow tail-marker emission.
+
+    @guarantee HeadMarkerOnCarryover
+        -- When should_truncate is true at the start of a
+        -- process call (the previous emission was
+        -- tail-truncated), and after the input is
+        -- accepted into the buffer (post any pattern-match
+        -- sendBuffer), the handler writes the truncation
+        -- marker to the buffer BEFORE the input's content
+        -- bytes (head position relative to the new
+        -- accumulation cycle). is_buffer_truncated is set
+        -- to true at this point. The eventual emission of
+        -- this buffer (whether via pattern match,
+        -- buffer overflow, or flush) will carry the head
+        -- marker.
+
+    @guarantee CarryoverConsumed
+        -- After any pattern-boundary sendBuffer (the
+        -- newContentRe match path or the
+        -- not-yet-pattern-matched fallback path) but
+        -- BEFORE the current line is appended to the
+        -- buffer, the should_truncate field's value is
+        -- captured locally as isTruncated and then
+        -- should_truncate is reset to false. The reset
+        -- happens BEFORE the buffer-overflow check; if
+        -- this call's accumulation causes overflow,
+        -- should_truncate is re-set to true at that
+        -- point. A process call that consumes carry=true
+        -- but does NOT itself overflow the buffer leaves
+        -- should_truncate=false at call exit — the carry
+        -- is consumed and not propagated. See the
+        -- @guidance step ordering below for the full
+        -- per-call sequence.
+
+    @guarantee UpstreamFlagIgnored
+        -- The input message's ParsingExtra.IsTruncated
+        -- flag is NOT read by process and does NOT
+        -- influence any truncation decision. An input
+        -- already marked truncated by upstream stages
+        -- (e.g. by the framer) is accumulated into the
+        -- buffer the same as any other input; its
+        -- truncation signal is dropped. This is a
+        -- DEVIATION from the Truncatable contract's
+        -- UpstreamFlagPropagation invariant.
+
+    @guarantee TagOnTruncation
+        -- When the emission carries is_buffer_truncated=
+        -- true (either via consumed head marker or via
+        -- buffer-overflow tail marker), the emitted
+        -- message's ParsingExtra.IsTruncated is set to
+        -- true AND, when the global
+        -- logs_config.tag_truncated_logs configuration
+        -- is true, a truncation-reason tag with value
+        -- "multiline_regex" is appended to
+        -- ParsingExtra.Tags. The tag check reads the
+        -- global config at every emission (not cached at
+        -- construction).
+
+    @guarantee MarkerLiteral
+        -- The marker bytes prepended (from consumed
+        -- carry) and appended (on buffer overflow) are
+        -- the literal byte sequence `...TRUNCATED...`
+        -- from the agent's message package
+        -- (message.TruncatedFlag).
+
+    @guarantee TagReasonMultilineRegex
+        -- The truncation-reason tag value applied by this
+        -- handler is always the literal string
+        -- "multiline_regex" (via
+        -- message.TruncatedReasonTag("multiline_regex")).
+        -- The reason value is not configurable and does
+        -- not depend on input content, pattern, or
+        -- pipeline state.
+
+    @guarantee MultiLineSourceTag
+        -- When lines_combined is greater than 1 at
+        -- sendBuffer time (the emission combines two or
+        -- more input lines) AND the global
+        -- logs_config.tag_multi_line_logs configuration
+        -- is true, a multi-line source tag with value
+        -- h.multi_line_tag_value is appended to
+        -- ParsingExtra.Tags. The multi-line tag is
+        -- ORTHOGONAL to the truncation tag — they may
+        -- both apply, neither apply, or one apply, on
+        -- the same emission depending on the
+        -- accumulation history and configuration.
+
+    @guarantee LineSeparator
+        -- Between consecutive input lines accumulated
+        -- into the same buffer, the handler writes the
+        -- EscapedLineFeed marker (a single
+        -- representation of `\n` in escaped form). The
+        -- separator is written ONLY when the buffer
+        -- already contains content at the start of the
+        -- append (i.e. not before the first line of a
+        -- new accumulation cycle). Separator bytes
+        -- count toward buffered_content_len and toward
+        -- the buffer-overflow threshold check.
+
+    @guarantee WhitespaceTrimmedAtEmission
+        -- sendBuffer applies bytes.TrimSpace to the
+        -- accumulated buffer bytes before copying them
+        -- to the emission's content. Leading and
+        -- trailing whitespace in the buffer (including
+        -- the EscapedLineFeed separator bytes IF they
+        -- happen to land at a boundary) is removed
+        -- from the emission. The `...TRUNCATED...`
+        -- marker bytes are NOT whitespace and are not
+        -- trimmed; head and tail markers remain at the
+        -- emission's content boundaries.
+
+    @guarantee PerEmissionMutation
+        -- sendBuffer mutates the most recently received
+        -- input message (stored as h.msg) in place
+        -- before emitting: SetContent replaces its
+        -- content bytes with the trimmed buffer,
+        -- RawDataLen is set to the accumulated lines'
+        -- raw byte total, ParsingExtra.IsTruncated is
+        -- OVERWRITTEN (unconditional assignment, not a
+        -- set-to-true) with the value of
+        -- h.is_buffer_truncated — so an input that was
+        -- marked truncated upstream but did not cause
+        -- buffer overflow has its flag dropped to false
+        -- here (see UpstreamFlagIgnored). ParsingExtra.Tags
+        -- may be appended to. Each emission's outputFn
+        -- receives this mutated pointer. The h.msg field
+        -- is overwritten on every process call, so
+        -- emissions always carry the metadata of the LAST
+        -- input that contributed to the buffer.
+
+    @guarantee NoEmissionOnEmptyBuffer
+        -- A sendBuffer call invoked when the buffer is
+        -- empty AND linesLen is zero (no inputs have
+        -- contributed to the current cycle) produces
+        -- no emission. The deferred reset still runs
+        -- but is a no-op against already-empty state.
+        -- An empty buffer can occur during a flush()
+        -- call on an idle handler or during a
+        -- pattern-match sendBuffer at the start of
+        -- accumulation.
+
+    @guarantee FlushDrainsBuffer
+        -- A flush() call invokes sendBuffer directly,
+        -- producing an emission if the buffer is
+        -- non-empty and following all standard
+        -- truncation-flag and tag semantics. Flush on
+        -- an empty buffer is a no-op
+        -- (NoEmissionOnEmptyBuffer).
+
+    @guidance
+        -- Configuration immutability: h.line_limit and
+        -- h.multi_line_tag_value are set during
+        -- NewMultiLineHandler and not modified subsequently.
+        -- This is a structural property enforced by Go-level
+        -- package privacy (the fields have no exported
+        -- setters) rather than a runtime invariant; it
+        -- appears here as a non-normative note so the
+        -- surface's reading of its own configuration is
+        -- unambiguous.
+        --
+        -- The MultiLineHandler is the regex-driven
+        -- aggregator of the legacy decoder pipeline. Its
+        -- per-call flow is:
+        --
+        -- 1. Stop the flush timer if buffer is
+        --    non-empty.
+        -- 2. Pattern boundary check:
+        --      - If newContentRe matches input: count
+        --        match, set pattern_matched_once=true,
+        --        sendBuffer (flush prior group).
+        --      - Else if !pattern_matched_once:
+        --        sendBuffer (single-line mode).
+        --      - Else: continue.
+        -- 3. Carry-over capture: isTruncated =
+        --    should_truncate; should_truncate = false.
+        -- 4. Append to buffer:
+        --      - linesLen += input.RawDataLen
+        --      - h.msg = input
+        --      - lines_combined++
+        --      - If buffer non-empty: write
+        --        EscapedLineFeed separator.
+        --      - If isTruncated (carry): write
+        --        TruncatedFlag, set
+        --        is_buffer_truncated=true.
+        --      - Write input.GetContent().
+        -- 5. Overflow check:
+        --      - If buffer.Len() >= line_limit:
+        --          - Write TruncatedFlag (tail).
+        --          - Set is_buffer_truncated=true.
+        --          - sendBuffer.
+        --          - Set should_truncate=true.
+        --          - Increment LogsTruncated metric.
+        -- 6. Restart flush timer if buffer non-empty.
+        --
+        -- sendBuffer flow (deferred reset of buffer,
+        -- linesLen, lines_combined, should_truncate,
+        -- is_buffer_truncated):
+        --   - TrimSpace the buffer.
+        --   - If content non-empty OR linesLen > 0:
+        --       - h.msg.SetContent(trimmed buffer).
+        --       - h.msg.RawDataLen = linesLen.
+        --       - h.msg.ParsingExtra.IsTruncated =
+        --         is_buffer_truncated.
+        --       - If is_buffer_truncated AND global
+        --         tag_truncated_logs: append
+        --         "truncated:multiline_regex" tag.
+        --       - If lines_combined > 1 AND global
+        --         tag_multi_line_logs: append
+        --         multi-line source tag with
+        --         h.multi_line_tag_value.
+        --       - outputFn(h.msg).
+}

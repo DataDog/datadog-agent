@@ -1,0 +1,385 @@
+-- allium: 3
+-- regex_aggregator.allium
+
+-- Scope: An Aggregator implementation that combines consecutive log
+--   lines into multi-line messages by using a configurable regular
+--   expression to identify the start of each new log entry. Lines
+--   matching the pattern flush any in-progress aggregate and start
+--   a new one; lines that do not match are appended to the current
+--   aggregate. A safety mechanism — pre-match single-pass — emits
+--   lines individually before the pattern has matched even once on
+--   this aggregator, protecting against misconfigured patterns.
+-- Includes: The RegexAggregator entity, fulfilment of the
+--   Aggregator contract at the RegexAggregation surface, the
+--   pattern-as-boundary aggregation rules, the mid-aggregate
+--   truncation flow, the multi-line and truncation tag attachment.
+-- Excludes:
+--   - Other Aggregator implementations. PassThroughAggregator,
+--     DetectingAggregator, CombiningAggregator and JSONAggregator
+--     each live in their own spec modules.
+--   - The selection logic that decides when a log source uses
+--     RegexAggregator vs another implementation. That is a
+--     preprocessor configuration concern.
+--   - The regex syntax / engine semantics. The spec treats the
+--     pattern as a String and the matching predicate as the
+--     opaque black box function regex_matches(pattern, line).
+--   - The truncation-marker byte sequence, the multi-line tag
+--     prefix and the truncation-reason tag prefix. These are
+--     fixed marker values defined by the message-format package.
+--   - The metric counters incremented during processing
+--     (LogsTruncated, TlmAutoMultilineAggregatorFlush, lines
+--     combined telemetry). Observability only, no behavioural
+--     effect.
+--   - The runtime configuration keys that gate the optional tag
+--     attachments. The aggregator's behaviour is described in
+--     terms of "tag-multi-line-logs enabled / disabled" and
+--     "tag-truncated-logs enabled / disabled" rather than the
+--     specific config keys.
+--   - The shared status.CountInfo counters and their cross-tailer
+--     synchronisation. They are observability state, not part of
+--     the aggregator's behavioural contract.
+
+use "./aggregator.allium" as aggregator
+
+-- Throughout this module, `regex_matches(pattern, line)` denotes
+-- the upstream's pattern-match predicate. It is treated as an
+-- opaque pure function of (pattern, line) and is not modelled as a
+-- typed Allium construct because its regex engine semantics are
+-- the caller's concern. The @guarantee and @guidance prose below
+-- refer to this predicate by name.
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity RegexAggregator {
+    -- A configured RegexAggregator instance. One per log source
+    -- that uses regex-pattern multi-line aggregation.
+    --
+    -- Configuration (set at construction, not modified during
+    -- the aggregator's lifetime):
+    --
+    -- pattern:              the regex used to identify the start
+    --                       of a new log entry. Lines matching
+    --                       this pattern flush any in-progress
+    --                       aggregate and become the leader of
+    --                       the next.
+    -- line_limit:           the byte threshold above which the
+    --                       buffered aggregate is flushed
+    --                       mid-stream with truncation markers.
+    -- multi_line_tag_value: the value the aggregator emits in
+    --                       the multi-line source tag when tagging
+    --                       is enabled and the emission combined
+    --                       2+ lines.
+    -- telemetry_enabled:    config flag affecting telemetry
+    --                       counter emission only; has no
+    --                       observable effect on emitted messages.
+    --
+    -- Internal state (recomputed during processing):
+    --
+    -- pattern_matched_once: false at construction; becomes true
+    --                       on the first process call whose input
+    --                       matches the pattern. Once true, it
+    --                       stays true for the lifetime of this
+    --                       aggregator (sticky bit). Governs the
+    --                       PreMatchSinglePass behaviour.
+    -- buffer_empty:         true when no buffered content is
+    --                       awaiting emission. Mirrors the
+    --                       Aggregator contract's is_empty
+    --                       observable. Initially true; becomes
+    --                       false when content is appended to
+    --                       the buffer; resets to true after any
+    --                       flush of that buffer (whether by
+    --                       pattern match, line_limit overflow,
+    --                       or explicit flush).
+    -- lines_combined:       the count of input lines currently
+    --                       contributing to the buffered
+    --                       aggregate. Resets to zero when the
+    --                       buffer flushes.
+    -- is_buffer_truncated:  true when the currently buffered
+    --                       aggregate has had truncation markers
+    --                       inserted (either at the start from a
+    --                       prior overflow carry, or at the end
+    --                       from this aggregate's own overflow).
+    --                       Drives the is_truncated flag on the
+    --                       emitted message.
+    -- should_truncate:      one-bit carry from one process call
+    --                       to the next. Set when a process call
+    --                       overflows the buffer and emits early;
+    --                       on the NEXT process call, this flag
+    --                       triggers prepending the truncation
+    --                       marker to that next line's buffered
+    --                       content (the "continuation marker"
+    --                       half of a truncation pair).
+    pattern: String
+    line_limit: Integer
+    multi_line_tag_value: String
+    telemetry_enabled: Boolean
+    pattern_matched_once: Boolean
+    buffer_empty: Boolean
+    lines_combined: Integer
+    is_buffer_truncated: Boolean
+    should_truncate: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface RegexAggregation {
+    -- The boundary between the preprocessor pipeline and one
+    -- RegexAggregator instance. The pipeline invokes process,
+    -- flush and is_empty per the Aggregator contract; this
+    -- surface supplies their regex-driven aggregation semantics.
+
+    context agg: RegexAggregator
+
+    contracts:
+        fulfils Aggregator
+
+    @guarantee Determinism
+        -- The Aggregator contract's Determinism invariant holds:
+        -- process, flush and is_empty are pure functions of the
+        -- aggregator's current state plus their inputs. The
+        -- regex_matches predicate is itself pure; the aggregator
+        -- branches only on its inputs, on internal state, and on
+        -- the predicate's verdict.
+
+    @guarantee ByteConservation
+        -- The Aggregator contract's ByteConservation invariant
+        -- holds and is refined here: each emitted message's
+        -- content is the trim-spaced concatenation of the bytes
+        -- of input messages that contributed to that aggregate,
+        -- joined by a fixed escaped-line-feed separator between
+        -- adjacent lines, with optional truncation markers
+        -- prepended and / or appended. The aggregator introduces
+        -- no other bytes. The separator and the truncation marker
+        -- are the only well-known marker byte sequences the
+        -- aggregator may add.
+
+    @guarantee FlushDrainsBuffer
+        -- The Aggregator contract's FlushDrainsBuffer invariant
+        -- holds: after flush returns, buffer_empty is true,
+        -- lines_combined is zero, and is_buffer_truncated and
+        -- should_truncate have been reset. A flush call on an
+        -- already-empty buffer returns an empty sequence and
+        -- changes no observable state.
+
+    @guarantee IsEmptyConsistency
+        -- The Aggregator contract's IsEmptyConsistency invariant
+        -- holds: is_empty reflects buffer_empty exactly.
+        -- buffer_empty is true at construction and after every
+        -- flush (whether triggered by pattern match, line_limit
+        -- overflow, or explicit flush call). It is false while
+        -- content is buffered awaiting emission.
+
+    @guarantee ResultLifetime
+        -- The Aggregator contract's ResultLifetime invariant
+        -- holds: RegexAggregator reuses a single backing slice
+        -- for the sequence returned by process and flush. The
+        -- next call to process or flush invalidates the previous
+        -- return value. Callers that retain a returned sequence
+        -- beyond the next operation observe undefined contents.
+
+    @guarantee LabelIgnored
+        -- The label argument to process is consumed but has no
+        -- observable effect on the output sequence, on the
+        -- buffered state, or on the should_truncate / is_buffer_
+        -- truncated flags. RegexAggregator's aggregation
+        -- decisions are driven entirely by the regex_matches
+        -- predicate, not by upstream labelling.
+
+    @guarantee TokensFromAggregateLeader
+        -- The tokens emitted on each
+        -- AggregatedMessageWithTokens are the tokens that were
+        -- passed to process alongside the FIRST line of that
+        -- aggregate — the line that matched the pattern (after
+        -- the first match) or the standalone single-line emission
+        -- (during pre-match single-pass). The aggregator does not
+        -- recompute tokens for combined lines and does not
+        -- forward the LAST line's tokens.
+
+    @guarantee PreMatchSinglePass
+        -- Before pattern_matched_once becomes true, each call's
+        -- input is the sole occupant of the buffer: the buffer is
+        -- flushed at the start of every pre-match call before the
+        -- new line is appended. Each pre-match emission therefore
+        -- contains exactly one input line — no multi-line
+        -- combination occurs during pre-match. This protects
+        -- against a misconfigured pattern that never matches:
+        -- rather than silently combining the entire log stream
+        -- into one message, the aggregator behaves like a
+        -- per-line passthrough until the pattern has demonstrated
+        -- at least one match.
+        --
+        -- Pre-match emission is NOT necessarily synchronous with
+        -- the call that received the line. The line is buffered
+        -- and emitted on the NEXT process call (when the next
+        -- pre-match call's opening flush drains it) or on flush.
+        -- The exception is line_limit overflow: a pre-match line
+        -- whose own bytes drive the buffer to line_limit is
+        -- flushed within the same call via the
+        -- MidAggregateTruncation flow.
+        --
+        -- pattern_matched_once is a sticky bit: it transitions
+        -- from false to true on the first pattern-matching input
+        -- and never resets. Once the bit is set, the opening
+        -- flush is no longer performed on non-matching inputs
+        -- (those lines are appended to the current aggregate
+        -- instead) — and should_truncate consequently propagates
+        -- across lines, enabling continuation-marker carry during
+        -- multi-line truncation.
+
+    @guarantee PatternBoundary
+        -- After pattern_matched_once is true, an incoming line
+        -- whose content satisfies regex_matches(pattern, line)
+        -- is a flush boundary: the currently buffered aggregate
+        -- (if any) is emitted, then the new line becomes the
+        -- leader of a fresh aggregate. Lines that do NOT satisfy
+        -- the predicate are appended to the current buffer.
+        -- The leader line that triggers the flush is part of the
+        -- NEXT aggregate, not the one being flushed.
+
+    @guarantee MidAggregateTruncation
+        -- When the buffered aggregate (including the just-
+        -- appended line and any prepended continuation marker)
+        -- reaches or exceeds line_limit bytes, the buffer is
+        -- flushed mid-stream: the truncation marker is appended
+        -- to the content, is_buffer_truncated is set, the
+        -- emission proceeds, and should_truncate is set as a
+        -- continuation-marker carry for a subsequent process
+        -- call.
+        --
+        -- The flush happens within the same process call that
+        -- caused the overflow.
+        --
+        -- The continuation-marker carry is consumed by the NEXT
+        -- post-match non-matching process call — the only call
+        -- shape that does not trigger an opening sendBuffer.
+        -- Pattern-matching calls (which begin a fresh aggregate)
+        -- and pre-match calls (which flush before buffering) both
+        -- invoke sendBuffer at the top, whose state reset clears
+        -- should_truncate before the carry is read. In other
+        -- words: the continuation marker prepends to the next
+        -- line that would have joined the truncated aggregate
+        -- under normal aggregation rules — not to a line that
+        -- starts a new aggregate or runs during pre-match.
+
+    @guarantee MultiLineTagging
+        -- When an emission combined two or more input lines
+        -- (lines_combined > 1 at emission time), the emitted
+        -- message receives the multi-line source tag with value
+        -- multi_line_tag_value — but only when the runtime's
+        -- tag-multi-line-logs configuration is enabled. The
+        -- emission's is_multi_line flag is set independently and
+        -- is not config-gated.
+
+    @guarantee TruncationTagging
+        -- When an emission's is_buffer_truncated is true, the
+        -- emitted message receives a truncation-reason tag
+        -- identifying multiline-regex as the source — but only
+        -- when the runtime's tag-truncated-logs configuration
+        -- is enabled.
+
+    @guarantee UpstreamFlagIgnored
+        -- The input message's ParsingExtra.IsTruncated flag
+        -- is NOT read by process and does NOT influence any
+        -- truncation decision. An input already marked
+        -- truncated by upstream stages (e.g. by the framer)
+        -- is accumulated into the buffer the same as any
+        -- other input; its truncation signal is dropped.
+        --
+        -- This is a DEVIATION from the Truncatable contract's
+        -- UpstreamFlagPropagation invariant. RegexAggregator
+        -- therefore does NOT declare fulfils Truncatable: only
+        -- the buffer-overflow side of TailMarkerOnOverThreshold
+        -- holds (via MidAggregateTruncation); the
+        -- upstream-truncated side does not.
+        --
+        -- The deviation is identical in shape to
+        -- MultiLineHandler's UpstreamFlagIgnored — both
+        -- aggregators operate buffer-level rather than
+        -- per-input, and both inherit this deviation from
+        -- that pattern.
+
+    @guidance
+        -- Per-call procedure when process is invoked with
+        -- arguments (msg, label, tokens) on a RegexAggregator
+        -- instance:
+        --
+        -- 1. If regex_matches(pattern, msg.content) is true:
+        --    a. Record the pattern match (incrementing the
+        --       observability counter; out of behavioural scope).
+        --    b. Set pattern_matched_once to true.
+        --    c. Flush any buffered aggregate via the internal
+        --       send_buffer procedure (see step 7).
+        --    d. Set first_line_tokens to the supplied tokens —
+        --       this line is the leader of the next aggregate.
+        --
+        --    Otherwise, if pattern_matched_once is false:
+        --    a. Flush any buffered aggregate via send_buffer.
+        --    b. Set first_line_tokens to the supplied tokens.
+        --       (Pre-match single-pass: each line is its own
+        --       aggregate.)
+        --
+        --    Otherwise (pattern matched previously, this line
+        --    does not match):
+        --    a. The line will be appended to the current buffer.
+        --       No flush at this step.
+        --
+        -- 2. Capture the current should_truncate as the
+        --    continuation-marker prepend flag for this line, then
+        --    clear should_truncate.
+        --
+        -- 3. If the buffer is non-empty, write the escaped-line-
+        --    feed separator into it. This separator joins the
+        --    new line to whatever precedes it.
+        --
+        -- 4. If the continuation-marker prepend flag is set,
+        --    write the truncation marker into the buffer and set
+        --    is_buffer_truncated to true.
+        --
+        -- 5. Write msg.content into the buffer. Increment
+        --    lines_combined.
+        --
+        -- 6. If the buffer length reaches or exceeds line_limit:
+        --    a. Write the truncation marker into the buffer and
+        --       set is_buffer_truncated to true.
+        --    b. Flush via send_buffer.
+        --    c. Set should_truncate to true (so the NEXT process
+        --       call prepends the continuation marker).
+        --    d. Increment the observability truncation counter
+        --       (out of behavioural scope).
+        --
+        -- 7. send_buffer procedure: emit one
+        --    AggregatedMessageWithTokens iff the trim-spaced
+        --    buffer is non-empty OR lines_combined > 0. The
+        --    emitted message has:
+        --      - content: the trim-spaced buffer bytes
+        --      - raw_data_len: the sum of the contributing
+        --        input messages' raw_data_len values
+        --      - is_truncated: is_buffer_truncated
+        --      - tokens: first_line_tokens
+        --      - tags: input msg tags plus, conditionally, the
+        --        truncation-reason tag (if is_buffer_truncated
+        --        and tag-truncated-logs config is enabled) and
+        --        the multi-line source tag (if lines_combined
+        --        > 1 and tag-multi-line-logs config is enabled)
+        --    After emitting (or skipping emission), reset:
+        --    buffer to empty, lines_len to 0, lines_combined to
+        --    0, should_truncate to false, is_buffer_truncated to
+        --    false, first_line_tokens to empty.
+        --
+        -- Flush externally: flush() is equivalent to invoking
+        -- send_buffer once and returning the (possibly empty)
+        -- collected sequence.
+        --
+        -- A subtle ordering point: the line that triggers a
+        -- pattern-boundary flush (step 1, regex match) is NOT
+        -- emitted as part of the aggregate it flushed. The flush
+        -- emits the prior aggregate; the matching line becomes
+        -- the leader of the next. This is why the line_limit
+        -- check (step 6) runs AFTER the line is appended — the
+        -- matching line participates in its OWN aggregate's
+        -- size accounting, not the prior one's.
+}

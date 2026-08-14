@@ -1,0 +1,4 @@
+otelcollector:
+  converter:
+    enabled: true
+    features: ["pprof", "zpages", "health_check", "ddflare"]

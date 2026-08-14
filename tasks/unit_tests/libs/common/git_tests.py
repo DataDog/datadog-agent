@@ -83,31 +83,38 @@ class TestGit(unittest.TestCase):
         self.ctx_mock.run.assert_called_once_with("git rev-parse --abbrev-ref HEAD", hide=True)
 
     def test_get_origin_default_branch(self):
-        self.ctx_mock.run.return_value.stdout = "main\n"
+        self.ctx_mock.run.return_value.stdout = "origin/main\n"
         self.ctx_mock.run.return_value.exited = 0
 
         branch = get_origin_default_branch(self.ctx_mock)
 
         self.assertEqual(branch, "origin/main")
         self.ctx_mock.run.assert_called_once_with(
-            "git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'",
+            "git rev-parse --abbrev-ref origin/HEAD",
             hide=True,
             warn=True,
         )
 
     @patch("tasks.libs.common.git.get_default_branch", return_value="main")
     def test_get_origin_default_branch_falls_back_when_origin_head_is_missing(self, _):
-        self.ctx_mock.run.return_value.stdout = "HEAD\n"
+        self.ctx_mock.run.return_value.stdout = "origin/HEAD\n"
         self.ctx_mock.run.return_value.exited = 0
 
         branch = get_origin_default_branch(self.ctx_mock)
 
         self.assertEqual(branch, "origin/main")
         self.ctx_mock.run.assert_called_once_with(
-            "git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||'",
+            "git rev-parse --abbrev-ref origin/HEAD",
             hide=True,
             warn=True,
         )
+
+    @patch("tasks.libs.common.git.get_default_branch", return_value="main")
+    def test_get_origin_default_branch_falls_back_when_git_fails(self, _):
+        self.ctx_mock.run.return_value.stdout = ""
+        self.ctx_mock.run.return_value.exited = 128
+
+        self.assertEqual(get_origin_default_branch(self.ctx_mock), "origin/main")
 
     def test_get_changed_files(self):
         self.ctx_mock.run.return_value.stdout = "tasks/a.py\ntasks/b.py\n"
@@ -117,6 +124,30 @@ class TestGit(unittest.TestCase):
         self.assertEqual(files, ["tasks/a.py", "tasks/b.py"])
         self.ctx_mock.run.assert_called_once_with(
             "git diff --name-only --diff-filter=ACDMRTUXB main...HEAD",
+            hide=True,
+        )
+
+    def test_get_changed_files_leaves_a_plain_revision_unquoted_on_windows(self):
+        self.ctx_mock.run.return_value.stdout = ""
+
+        with patch("tasks.libs.common.utils.is_windows", return_value=True):
+            get_changed_files(self.ctx_mock, "HEAD~5")
+
+        self.ctx_mock.run.assert_called_once_with(
+            "git diff --name-only --diff-filter=ACDMRTUXB HEAD~5...HEAD",
+            hide=True,
+        )
+
+    def test_get_changed_files_quotes_a_caret_revision_on_windows(self):
+        self.ctx_mock.run.return_value.stdout = ""
+
+        with patch("tasks.libs.common.utils.is_windows", return_value=True):
+            get_changed_files(self.ctx_mock, "HEAD^")
+
+        # Unquoted, cmd.exe eats the caret and git diffs HEAD against itself, so `--base HEAD^`
+        # silently reports no changed files at all.
+        self.ctx_mock.run.assert_called_once_with(
+            'git diff --name-only --diff-filter=ACDMRTUXB "HEAD^...HEAD"',
             hide=True,
         )
 

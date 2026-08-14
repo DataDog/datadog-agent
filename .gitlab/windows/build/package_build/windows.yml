@@ -3,6 +3,8 @@
   stage: package_build
   extends: [.windows_docker_default, .bazel:defs:cache:windows]  # the latter for `bazel run @openssl//:install`
   needs: ["go_deps"]
+  variables:
+    GIT_DEPTH: 0  # git describe --tags needs reachable tags
   script:
     - $ErrorActionPreference = 'Stop'
     - !reference [.sanitize_goproxy_windows]
@@ -95,6 +97,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
   needs: ["go_deps"]
   variables:
     ARCH: "x64"
+    GIT_DEPTH: 0  # git describe --tags needs reachable tags
   script:
     - $ErrorActionPreference = "Stop"
     - !reference [.sanitize_goproxy_windows]
@@ -169,6 +172,7 @@ windows_zip_ddot_x64:
   needs: ["go_deps"]
   variables:
     ARCH: "x64"
+    GIT_DEPTH: 0  # git describe --tags needs reachable tags
   script:
     - $ErrorActionPreference = "Stop"
     - !reference [.sanitize_goproxy_windows]

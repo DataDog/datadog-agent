@@ -10,6 +10,7 @@
   variables:
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     TEST_OUTPUT_FILE: test_output
+    GIT_DEPTH: 0  # Full history: --only-impacted-packages and coverage cache use merge-base
   script:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""

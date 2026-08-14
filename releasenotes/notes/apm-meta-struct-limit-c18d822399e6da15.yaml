@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM: Raise the messagepack decoder allocation limit for the span ``meta_struct``
+    field to 10MiB, so large ``meta_struct`` entries (as written by LLM Observability)
+    are no longer rejected by the package-wide 500,000 element limit. Other span
+    fields keep the lower limit.

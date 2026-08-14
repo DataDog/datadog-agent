@@ -136,6 +136,7 @@ func TestSketchIteratorFilterList(t *testing.T) {
 
 	require.False(t, it.MoveNext())
 	require.NoError(t, it.err)
+	require.Equal(t, payloadStats{metrics: 1, points: 1, filteredMetrics: 1, filteredPoints: 2}, it.stats)
 }
 
 func TestSketchIteratorTagMerging(t *testing.T) {

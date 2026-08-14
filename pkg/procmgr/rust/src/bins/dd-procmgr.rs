@@ -4,9 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 use clap::{Parser, Subcommand};
-use dd_procmgrd::grpc::proto;
-use dd_procmgrd::grpc::proto::process_manager_client::ProcessManagerClient;
-use dd_procmgrd::transport;
+use dd_procmgr_client::proto;
+use dd_procmgr_client::proto::process_manager_client::ProcessManagerClient;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -115,9 +114,9 @@ async fn main() -> ExitCode {
 async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<Channel>, String> {
     let path: PathBuf = match socket_override {
         Some(s) => PathBuf::from(s),
-        None => transport::ipc_path(),
+        None => dd_procmgr_client::ipc_path(),
     };
-    let channel = transport::connect(&path)
+    let channel = dd_procmgr_client::connect(&path)
         .await
         .map_err(|e| format!("failed to connect to {}: {e}", path.display()))?;
     Ok(ProcessManagerClient::new(channel))

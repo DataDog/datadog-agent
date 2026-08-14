@@ -7,18 +7,20 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shlex
 import shutil
 import sys
 import tempfile
 import time
 import traceback
 import uuid
+from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from subprocess import check_output
+from subprocess import check_output, list2cmdline
 from types import SimpleNamespace
 
 import requests
@@ -780,6 +782,42 @@ def is_windows():
 
 def is_installed(binary) -> bool:
     return shutil.which(binary) is not None
+
+
+# Characters cmd.exe acts on rather than passing through, per
+# https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd#remarks.
+_CMD_METACHARACTERS = frozenset("&|<>^()")
+
+
+def join_command(args: Sequence[str]) -> str:
+    """
+    Join arguments into a command line for the shell Invoke runs commands through.
+
+    That shell is cmd.exe on Windows, where the single quotes shlex produces are literal characters
+    rather than quoting.
+    """
+    if not is_windows():
+        return shlex.join(args)
+
+    return " ".join(_quote_for_cmd(arg) for arg in args)
+
+
+def _quote_for_cmd(arg: str) -> str:
+    """
+    Quote a single argument so that cmd.exe passes it to the program unaltered.
+
+    list2cmdline quotes for the C runtime's argument parsing, which leaves cmd.exe free to act on any
+    metacharacter it finds outside quotes: `HEAD^...HEAD` reaches git as `HEAD...HEAD`, and a path
+    such as `C:\\src\\R&D` is split at the ampersand. Double quotes suppress all of them, so add them
+    to any argument list2cmdline left bare. Note that cmd.exe still expands `%VAR%` inside quotes.
+    """
+    quoted = list2cmdline([arg])
+    if quoted.startswith('"') or not _CMD_METACHARACTERS.intersection(arg):
+        return quoted
+
+    # Adding quotes would turn a trailing backslash into an escape for the closing quote, so double
+    # any trailing backslashes the way list2cmdline does when it quotes an argument itself.
+    return '"{}"'.format(quoted + "\\" * (len(quoted) - len(quoted.rstrip("\\"))))
 
 
 def is_conductor_scheduled_pipeline() -> bool:

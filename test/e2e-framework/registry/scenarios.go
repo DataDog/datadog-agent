@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/openshiftvm"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/benchmarkeks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -39,6 +40,7 @@ func Scenarios() ScenarioRegistry {
 		"aws/dockervm":            ec2docker.DockerRun,
 		"aws/ecs":                 ecs.Run,
 		"aws/eks":                 eks.Run,
+		"aws/benchmarkeks":        benchmarkeks.Run,
 		"aws/gensim-eks":          awsgensimeks.Run,
 		"aws/installer":           installer.Run,
 		"aws/microvms":            microvms.Run,

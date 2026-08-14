@@ -77,6 +77,10 @@ const (
 	maxSDNameLen    = 32  // max length for SD-ID and PARAM-NAME
 )
 
+// maxCiscoTokenLen bounds the FACILITY and MNEMONIC halves of a Cisco message
+// identifier so the scan cannot run away over arbitrary CONTENT.
+const maxCiscoTokenLen = 32
+
 // SyslogMessage is a parsed syslog message (RFC 5424 or RFC 3164/BSD).
 //
 // String fields are independent copies of the input. The Msg field aliases
@@ -173,6 +177,18 @@ func Parse(line []byte) (SyslogMessage, error) {
 	var msg SyslogMessage
 	var err error
 
+	// Cisco's EMBLEM dialect terminates the PRI with a colon rather than going
+	// straight into the header: the default remote-logging format on NX-OS is
+	// "<189>:2025 Mar 27 16:22:24 switch %SYSLOG-...", and ASA emits the same
+	// shape when EMBLEM is enabled. The colon carries nothing, so step over it —
+	// but only when a timestamp follows, so that CONTENT which merely begins
+	// with a colon is still treated as MSG per RFC 3164 §4.3.2.
+	if pos+1 < len(line) && line[pos] == ':' {
+		if n, _ := timestampLen(line[pos+1:]); n > 0 {
+			pos++
+		}
+	}
+
 	b := line[pos]
 	switch {
 	case b >= '0' && b <= '9':
@@ -182,12 +198,27 @@ func Parse(line []byte) (SyslogMessage, error) {
 		// Only dispatch to the RFC 5424 parser when the bytes actually form a
 		// VERSION token (1-3 digits) followed by SP; otherwise treat the
 		// remainder as MSG CONTENT per RFC 3164 §4.3.2.
-		if isRFC5424Header(line, pos) {
+		digitTS, _ := timestampLen(line[pos:])
+		switch {
+		case digitTS > 0:
+			// Two layouts lead with a digit, and both must be tested before
+			// isRFC5424Header or their leading digits are read as a VERSION:
+			// the year-first BSD form "YYYY Mmm DD HH:MM:SS host
+			// %FAC-SEV-MNEMONIC:" that is the NX-OS default, and the bare ISO
+			// 8601 timestamp that Cisco ASA and FTD send under "logging
+			// timestamp rfc5424" (as does Picus) with no VERSION at all.
+			msg, err = parseBSD(line, pri, pos)
+		case isRFC5424Header(line, pos):
 			msg, err = parseRFC5424(line, pri, pos)
-		} else {
+		default:
 			msg = parseBSDNoTimestamp(line, pri, pos)
 		}
 	case (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z'):
+		msg, err = parseBSD(line, pri, pos)
+	case b == '*':
+		// Cisco IOS marks an unsynchronized clock with '*' before the
+		// TIMESTAMP. parseBSD steps over it; if no timestamp follows it falls
+		// back to treating the remainder as MSG.
 		msg, err = parseBSD(line, pri, pos)
 	default:
 		// RFC 3164 §4.3.2: valid PRI, but what follows is neither a digit
@@ -275,23 +306,39 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 		}
 	}
 
-	// --- Find SPs after VERSION to delimit header fields ---
+	// --- Split the 5 HEADER fields that follow VERSION ---
 	// Fields: TIMESTAMP SP HOSTNAME SP APP-NAME SP PROCID SP MSGID SP ...
 	//
-	// NOTE: This uses a simple space-counting heuristic. It works because
-	// RFC 5424 HEADER fields are single tokens (no embedded spaces), but it
-	// will mis-parse non-conformant TIMESTAMP values that contain extra spaces.
-	// This is an intentional performance trade-off vs. regex or field-by-field parsing.
-	var spPos [5]int
+	// RFC 5424 §6 mandates exactly one SP between fields, but emitters pad,
+	// most often between VERSION and TIMESTAMP ("<134>1  2025-05-13T04:57:18Z
+	// host ..."). No HEADER field may contain a space, so a run of them can be
+	// collapsed without ever merging two fields.
+	//
+	// A field only counts as found once it is terminated by a space, which is
+	// what keeps the best-effort recovery below aligned with a truncated
+	// header. nextStart tracks where the next field begins, so an incomplete
+	// header hands everything from that offset to MSG.
+	var fields [5][]byte
 	found := 0
-	for i := sp + 1; i < len(line); i++ {
-		if line[i] == ' ' {
-			spPos[found] = i
-			found++
-			if found == 5 {
-				break
-			}
+	i := sp
+	for i < len(line) && line[i] == ' ' {
+		i++
+	}
+	nextStart := i
+	for found < 5 && i < len(line) {
+		start := i
+		for i < len(line) && line[i] != ' ' {
+			i++
 		}
+		if i >= len(line) {
+			break // no terminating SP: the header is truncated here
+		}
+		fields[found] = line[start:i]
+		for i < len(line) && line[i] == ' ' {
+			i++
+		}
+		found++
+		nextStart = i
 	}
 
 	// Build message with defaults for all fields.
@@ -307,54 +354,34 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 
 	// --- Best-effort: extract available header fields in order ---
 
-	if found < 1 {
-		// Only VERSION; remainder is MSG.
-		if sp+1 < len(line) {
-			msg.Msg = line[sp+1:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	// Take whichever fields the header actually carried; the rest keep the
+	// nilvalue default. A header that ran out early is Partial, and everything
+	// from the first unparsed byte becomes MSG.
+	if found > 0 {
+		msg.Timestamp = toHeaderString(fields[0])
 	}
-	msg.Timestamp = toHeaderString(line[sp+1 : spPos[0]])
-
-	if found < 2 {
-		if spPos[0]+1 < len(line) {
-			msg.Msg = line[spPos[0]+1:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	if found > 1 {
+		msg.Hostname = toHeaderString(fields[1])
 	}
-	msg.Hostname = toHeaderString(line[spPos[0]+1 : spPos[1]])
-
-	if found < 3 {
-		if spPos[1]+1 < len(line) {
-			msg.Msg = line[spPos[1]+1:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	if found > 2 {
+		msg.AppName = toHeaderString(fields[2])
 	}
-	msg.AppName = toHeaderString(line[spPos[1]+1 : spPos[2]])
-
-	if found < 4 {
-		if spPos[2]+1 < len(line) {
-			msg.Msg = line[spPos[2]+1:]
-		}
-		msg.Partial = true
-		return msg, errHeaderTooShort
+	if found > 3 {
+		msg.ProcID = toHeaderString(fields[3])
 	}
-	msg.ProcID = toHeaderString(line[spPos[2]+1 : spPos[3]])
-
+	if found > 4 {
+		msg.MsgID = toHeaderString(fields[4])
+	}
 	if found < 5 {
-		if spPos[3]+1 < len(line) {
-			msg.Msg = line[spPos[3]+1:]
+		if nextStart < len(line) {
+			msg.Msg = line[nextStart:]
 		}
 		msg.Partial = true
 		return msg, errHeaderTooShort
 	}
-	msg.MsgID = toHeaderString(line[spPos[3]+1 : spPos[4]])
 
 	// --- Parse STRUCTURED-DATA ---
-	rest := line[spPos[4]+1:]
+	rest := line[nextStart:]
 	if len(rest) == 0 {
 		msg.Partial = true
 		return msg, errMissingSD
@@ -416,16 +443,35 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	}
 
 	// --- TIMESTAMP ---
-	// Try standard 15-byte BSD format first: "Mmm dd hh:mm:ss"
-	// Then try 20-byte variant with year: "Mmm DD YYYY HH:MM:SS"
-	// (used by some network appliances that deviate from RFC 3164).
-	tsLen := 0
-	if pos+15 <= len(line) && isValidBSDTimestamp(line[pos:pos+15]) {
-		tsLen = 15
-	} else if pos+20 <= len(line) && isValidBSDTimestampWithYear(line[pos:pos+20]) {
-		tsLen = 20
+	// Accepted layouts, in order: the RFC 3164 15-byte form "Mmm dd hh:mm:ss",
+	// the 14-byte non-padded-day and 20-byte with-year and year-first variants
+	// emitted by various appliances, and finally an ISO 8601 timestamp, which
+	// Cisco ASA/FTD and Picus send in place of the BSD form. The ISO layout also
+	// turns up in tailed files regardless of sender, because rsyslog's default
+	// file template renders the timestamp as RFC 3339 and drops the PRI.
+	// Cisco IOS writes '*' ahead of the TIMESTAMP when the system clock has
+	// never synchronized to a reliable source. It is a marker rather than part
+	// of the time, so step over it and record the timestamp itself; the '*'
+	// stays visible in the content, which is transmitted verbatim. Only skip it
+	// when a timestamp actually follows, so a body opening with '*' is left as
+	// MSG.
+	if pos < len(line) && line[pos] == '*' {
+		if n, _ := timestampLen(line[pos+1:]); n > 0 {
+			pos++
+		}
 	}
 
+	tsLen, isISOTimestamp := timestampLen(line[pos:])
+	if !isISOTimestamp && tsLen > 0 {
+		// "show-timezone" appends the zone name to the BSD layouts. It belongs
+		// to the timestamp, not to the TAG position it occupies. A zone opens
+		// with an uppercase letter and an ordinary HOSTNAME almost never does,
+		// so that byte is tested before the call rather than inside it.
+		if end := pos + tsLen; end+1 < len(line) &&
+			line[end] == ' ' && line[end+1] >= 'A' && line[end+1] <= 'Z' {
+			tsLen += bsdZoneSuffixLen(line[end:])
+		}
+	}
 	if tsLen == 0 {
 		if pos < len(line) && pri >= 0 {
 			// RFC 3164 §4.3.2: valid PRI, content present but no valid
@@ -440,6 +486,36 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	}
 	msg.Timestamp = string(line[pos : pos+tsLen])
 	pos += tsLen
+
+	// Cisco ASA/FTD terminate the timestamp with a colon and omit both HOSTNAME
+	// and TAG: "<PRI>2025-11-25T07:19:40Z: %ASA-4-733100: ...". There is no
+	// hostname to read, so the remainder after the colon is CONTENT.
+	if isISOTimestamp && pos < len(line) && line[pos] == ':' {
+		pos++
+		if pos < len(line) && line[pos] == ' ' {
+			pos++
+		}
+		if pos < len(line) {
+			msg.Msg = line[pos:]
+		}
+		return msg, nil
+	}
+
+	// Cisco devices omit the Device-ID when "logging device-id" is disabled,
+	// leaving only a separator between the TIMESTAMP and the message mnemonic.
+	// Its shape varies by platform and release:
+	//
+	//	2024-01-05T05:45:16Z   %FTD-1-430003: EventPriority: Low, ...
+	//	May 17 2023 03:04:28: %ASA-6-302013: Built outbound TCP connection ...
+	//
+	// Cisco's syslog guide tells collectors to expect an optional colon
+	// "followed by zero or more spaces" at this position, so neither the gap
+	// width nor the colon carries meaning. There is no HOSTNAME to read: the
+	// mnemonic begins the CONTENT.
+	if sep := skipCiscoSeparator(line, pos); sep > pos && startsWithCiscoMnemonic(line[sep:]) {
+		msg.Msg = line[sep:]
+		return msg, nil
+	}
 
 	// --- SP + HOSTNAME ---
 	if pos >= len(line) || line[pos] != ' ' {
@@ -456,6 +532,18 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 		msg.Partial = true
 		return msg, errBSDHostname
 	}
+
+	// Many emitters drop the HOSTNAME and put the TAG straight after the
+	// TIMESTAMP — BIND writes "2024-09-20T10:20:26.751Z network: info: ..."
+	// under print-category, and yum writes "Aug 20 12:51:21 Erased: pkg".
+	// A trailing colon tells the two apart, since a hostname or IP address
+	// never ends in one. Hand the whole remainder to the TAG parser, which
+	// applies its own plausibility checks before committing an APP-NAME.
+	if isTagShapedToken(line[pos:hostEnd]) {
+		parseBSDTag(&msg, line[pos:])
+		return msg, nil
+	}
+
 	msg.Hostname = string(line[pos:hostEnd])
 
 	if hostEnd >= len(line) {
@@ -470,10 +558,14 @@ func parseBSD(line []byte, pri int, pos int) (SyslogMessage, error) {
 	// --- TAG + CONTENT ---
 	rest := line[pos:]
 
-	// Detect "double-header" formats where an ISO 8601 timestamp appears in
-	// the TAG position (e.g. Cisco FTD: "YYYY-MM-DDThh:mm:ssZ hostname ...").
-	// No real TAG is present; treat the entire remainder as MSG.
-	if looksLikeISOTimestamp(rest) {
+	// Detect "double-header" formats where a second timestamp appears in the
+	// TAG position. A relay that prepends its own header leaves the original
+	// device header in place, so what follows the relay's HOSTNAME is another
+	// TIMESTAMP rather than a TAG — in ISO form (Cisco FTD:
+	// "YYYY-MM-DDThh:mm:ssZ hostname ...") or in BSD form (Cisco ISE:
+	// "Mmm dd hh:mm:ss hostname CISE_..."). No real TAG is present, so the
+	// entire remainder is MSG and the month abbreviation is not an APP-NAME.
+	if looksLikeISOTimestamp(rest) || bsdTimestampLen(rest) > 0 {
 		msg.Msg = rest
 		return msg, nil
 	}
@@ -520,13 +612,10 @@ func parseBSDTag(msg *SyslogMessage, rest []byte) {
 	}
 
 	if delimIdx < 0 {
-		// No delimiter — entire rest is APP-NAME with no MSG.
-		candidate := string(rest)
-		if !isPlausibleAppName(candidate) {
-			msg.Msg = rest
-			return
-		}
-		msg.AppName = candidate
+		// No delimiter, so nothing marks where a TAG would end. RFC 3164
+		// §4.3.3 only recognizes a TAG by its terminator; without one the
+		// remainder is CONTENT.
+		msg.Msg = rest
 		return
 	}
 
@@ -663,6 +752,228 @@ func isValidBSDTimestampWithYear(b []byte) bool {
 	return isValidMonthAbbrev(b)
 }
 
+// isValidBSDTimestampSingleSpaceDay checks the 14-byte variant "Mmm d hh:mm:ss",
+// where a single-digit day is written with one space instead of the space-padded
+// "Mmm  d" that RFC 3164 requires:
+//
+//	RFC 3164:      "Jan  9 03:47:40" (15 bytes, day space-padded)
+//	Non-padded:    "Jan 9 03:47:40"  (14 bytes)
+//
+// The non-padded form is common enough in the field that syslog-ng carries a
+// dedicated detector for it and grok, Fluentd, and Vector all accept one or two
+// spaces; it shows up here in Infoblox, Cisco ISE, and NX-OS samples.
+func isValidBSDTimestampSingleSpaceDay(b []byte) bool {
+	if len(b) < 14 {
+		return false
+	}
+	if b[3] != ' ' || b[5] != ' ' || b[8] != ':' || b[11] != ':' {
+		return false
+	}
+	if !isDigit(b[4]) {
+		return false
+	}
+	return isValidMonthAbbrev(b)
+}
+
+// isValidBSDTimestampYearFirst checks the 20-byte variant "YYYY Mmm DD HH:MM:SS"
+// emitted by Cisco NX-OS platforms, which place the year before the month
+// instead of after the day:
+//
+//	RFC 3164:    "Apr  4 08:05:06"      (15 bytes)
+//	With year:   "Apr 04 2024 08:05:06" (20 bytes)
+//	Year first:  "2024 Apr 04 08:05:06" (20 bytes)
+func isValidBSDTimestampYearFirst(b []byte) bool {
+	if len(b) < 20 {
+		return false
+	}
+	if b[4] != ' ' || b[8] != ' ' || b[11] != ' ' || b[14] != ':' || b[17] != ':' {
+		return false
+	}
+	for _, i := range []int{0, 1, 2, 3} {
+		if !isDigit(b[i]) {
+			return false
+		}
+	}
+	// The day may be space-padded ("Apr  4") or zero-padded ("Apr 04").
+	if !(isDigit(b[9]) || b[9] == ' ') || !isDigit(b[10]) {
+		return false
+	}
+	return isValidMonthAbbrev(b[5:])
+}
+
+// bsdTimestampLen returns the length of a BSD-style timestamp at the start of b,
+// trying every accepted layout, or 0 if b does not start with one. The 15-byte
+// RFC 3164 form is tested before the 14-byte non-padded form so a conformant
+// timestamp is never matched by the looser pattern.
+func bsdTimestampLen(b []byte) int {
+	// 14 bytes is the shortest accepted layout.
+	if len(b) < 14 {
+		return 0
+	}
+	// Year-first is the only layout that opens with a digit; every other one
+	// opens with a month abbreviation. One look at the first byte therefore
+	// picks the family, and the abbreviation is validated once rather than
+	// once per layout.
+	n := 0
+	if isDigit(b[0]) {
+		if !isValidBSDTimestampYearFirst(b) {
+			return 0
+		}
+		n = 20
+	} else {
+		if !isValidMonthAbbrev(b) {
+			return 0
+		}
+		switch {
+		case isValidBSDTimestamp(b):
+			n = 15
+		case isValidBSDTimestampSingleSpaceDay(b):
+			n = 14
+		case isValidBSDTimestampWithYear(b):
+			n = 20
+		default:
+			return 0
+		}
+	}
+	// Every layout ends in seconds, so an optional fraction attaches the same
+	// way to all of them. The '.' is tested here so the common case of a
+	// timestamp without one costs a single comparison.
+	if len(b) > n && b[n] == '.' {
+		n += bsdFractionLen(b[n:])
+	}
+	return n
+}
+
+// bsdFractionLen returns the length of a fractional-seconds suffix — '.' and at
+// least one digit — at the start of b, or 0 if there is none. Cisco IOS appends
+// one under "service timestamps log datetime msec" ("Mar 18 14:52:10.039"),
+// which its own documentation uses throughout. Every BSD layout ends in seconds,
+// so the suffix attaches the same way to all of them, and isoTimestampLen
+// already accepts the equivalent on the ISO layouts.
+func bsdFractionLen(b []byte) int {
+	if len(b) < 2 || b[0] != '.' || !isDigit(b[1]) {
+		return 0
+	}
+	i := 2
+	for i < len(b) && isDigit(b[i]) {
+		i++
+	}
+	return i
+}
+
+// maxZoneAbbrevLen bounds a timezone abbreviation. Four letters covers the
+// longest in common use ("AEDT", "CEST"); five leaves room to spare.
+const maxZoneAbbrevLen = 5
+
+// bsdZoneSuffixLen returns the length of a " ZONE" suffix following a BSD
+// TIMESTAMP, or 0 if there is none. Cisco IOS appends the zone name under
+// "service timestamps log datetime show-timezone", putting it exactly where a
+// TAG would sit:
+//
+//	Mar  1 18:46:11 UTC: %LINK-3-UPDOWN: Interface Serial0 up
+//
+// Read as a TAG it becomes the APP-NAME, which then drives service routing from
+// a timezone. A bare uppercase token is far too weak a signal to act on, so the
+// suffix only counts when a Cisco mnemonic follows the colon that ends it —
+// leaving a genuine uppercase TAG ("GW: session opened") alone. The colon itself
+// is left in place for skipCiscoSeparator.
+func bsdZoneSuffixLen(b []byte) int {
+	// A lowercase byte here is the overwhelmingly common case — an ordinary
+	// HOSTNAME — so it is rejected before anything else runs.
+	if len(b) < 2 || b[0] != ' ' || b[1] < 'A' || b[1] > 'Z' {
+		return 0
+	}
+	i := 1
+	for i < len(b) && i-1 < maxZoneAbbrevLen && b[i] >= 'A' && b[i] <= 'Z' {
+		i++
+	}
+	if i-1 < 2 || i >= len(b) || b[i] != ':' {
+		return 0
+	}
+	rest := b[i+1:]
+	for len(rest) > 0 && rest[0] == ' ' {
+		rest = rest[1:]
+	}
+	if !startsWithCiscoMnemonic(rest) {
+		return 0
+	}
+	return i
+}
+
+// timestampLen returns the length of the TIMESTAMP at the start of b and
+// whether it is the ISO 8601 form rather than one of the BSD layouts, or 0 if
+// b does not begin with a timestamp at all. Callers that only need to know
+// whether a timestamp is present should use this rather than consulting the
+// two detectors separately, so that dispatch and parsing cannot disagree about
+// where a header starts.
+func timestampLen(b []byte) (int, bool) {
+	if n := bsdTimestampLen(b); n > 0 {
+		return n, false
+	}
+	if n := isoTimestampLen(b); n > 0 {
+		return n, true
+	}
+	return 0, false
+}
+
+// isoTimestampLen returns the length of an ISO 8601 / RFC 3339 timestamp at the
+// start of b, or 0 if b does not start with one. The recognized shape is
+//
+//	YYYY-MM-DDThh:mm:ss[.frac][Z|(+|-)hh:mm|(+|-)hhmm]
+//
+// Only 'T' is accepted as the date/time separator: a space separator cannot be
+// told apart from a date followed by an unrelated field, and accepting it would
+// let the parser consume a neighbouring token.
+func isoTimestampLen(b []byte) int {
+	const base = 19 // YYYY-MM-DDThh:mm:ss
+	if len(b) < base {
+		return 0
+	}
+	if b[4] != '-' || b[7] != '-' || b[10] != 'T' || b[13] != ':' || b[16] != ':' {
+		return 0
+	}
+	for _, i := range []int{0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18} {
+		if !isDigit(b[i]) {
+			return 0
+		}
+	}
+	n := base
+
+	// Optional fractional seconds: '.' followed by at least one digit.
+	if n < len(b) && b[n] == '.' {
+		f := n + 1
+		for f < len(b) && isDigit(b[f]) {
+			f++
+		}
+		if f > n+1 {
+			n = f
+		}
+	}
+
+	// Optional zone: 'Z', "+hh:mm"/"-hh:mm", or "+hhmm"/"-hhmm".
+	if n < len(b) {
+		switch b[n] {
+		case 'Z', 'z':
+			n++
+		case '+', '-':
+			switch {
+			case n+6 <= len(b) && isDigit(b[n+1]) && isDigit(b[n+2]) &&
+				b[n+3] == ':' && isDigit(b[n+4]) && isDigit(b[n+5]):
+				n += 6
+			case n+5 <= len(b) && isDigit(b[n+1]) && isDigit(b[n+2]) &&
+				isDigit(b[n+3]) && isDigit(b[n+4]):
+				n += 5
+			}
+		}
+	}
+	return n
+}
+
+// isDigit reports whether b is an ASCII decimal digit.
+func isDigit(b byte) bool {
+	return b >= '0' && b <= '9'
+}
+
 // isValidMonthAbbrev returns true if b[0:3] is a valid three-letter English
 // month abbreviation (Jan, Feb, Mar, ..., Dec).
 func isValidMonthAbbrev(b []byte) bool {
@@ -740,6 +1051,26 @@ func isPlausibleAppName(s string) bool {
 	return !allDigit
 }
 
+// isTagShapedToken reports whether the token sitting in the HOSTNAME position
+// is really a TAG. The discriminator is a single trailing colon: RFC 3164
+// §4.1.2 defines HOSTNAME as a hostname or IP address, neither of which ends
+// in a colon, while RFC 3164 §4.1.3 terminates the TAG with one.
+//
+// Tokens holding more than one colon are deliberately left as HOSTNAME so an
+// IPv6 address that ends in "::" is not mistaken for a TAG.
+func isTagShapedToken(tok []byte) bool {
+	if len(tok) < 2 || tok[len(tok)-1] != ':' {
+		return false
+	}
+	colons := 0
+	for _, c := range tok {
+		if c == ':' {
+			colons++
+		}
+	}
+	return colons == 1
+}
+
 // looksLikeISOTimestamp returns true if b starts with an ISO 8601 date prefix
 // (YYYY-MM or YYYY-). This detects the "double-header" pattern used by devices
 // like Cisco FTD, which embed a second timestamp after the BSD hostname:
@@ -748,6 +1079,12 @@ func isPlausibleAppName(s string) bool {
 //
 // When this pattern appears in the TAG position, no real TAG is present and the
 // entire remainder should be treated as MSG.
+//
+// The four-digit-and-dash prefix is all this checks, which is deliberately
+// weaker than isoTimestampLen: the embedded timestamp is never consumed, only
+// recognized, so a relay writing a date-only or otherwise non-conformant second
+// header still keeps its remainder out of APP-NAME. Use isoTimestampLen instead
+// wherever the match decides how many bytes to advance.
 func looksLikeISOTimestamp(b []byte) bool {
 	if len(b) < 5 {
 		return false
@@ -757,6 +1094,67 @@ func looksLikeISOTimestamp(b []byte) bool {
 		b[2] >= '0' && b[2] <= '9' &&
 		b[3] >= '0' && b[3] <= '9' &&
 		b[4] == '-'
+}
+
+// skipCiscoSeparator advances past the spaces and at most one colon that Cisco
+// devices place between the TIMESTAMP (or Device-ID) and the message mnemonic.
+// Both parts are optional: FTD pads with spaces when the Device-ID is
+// disabled, while ASA under "logging timestamp" writes the colon straight
+// after the timestamp. It returns pos unchanged when neither is present, so
+// callers can tell whether a separator was consumed at all.
+func skipCiscoSeparator(line []byte, pos int) int {
+	i := pos
+	for i < len(line) && line[i] == ' ' {
+		i++
+	}
+	if i < len(line) && line[i] == ':' {
+		i++
+		for i < len(line) && line[i] == ' ' {
+			i++
+		}
+	}
+	return i
+}
+
+// startsWithCiscoMnemonic reports whether b opens with a Cisco message
+// identifier — "%FACILITY-SEVERITY-MNEMONIC" — as emitted by ASA, FTD, NGIPS
+// and NX-OS (e.g. "%FTD-1-430003:", "%ASA-6-302013:",
+// "%ETHPORT-5-IF_DOWN_CFG_CHANGE:"). SEVERITY is the single syslog severity
+// digit, which is what keeps the token unambiguous: RFC 3164 §4.1.2 defines
+// HOSTNAME as a hostname or IP address, so neither the leading '%' nor the
+// interior severity digit can occur in a well-formed value here.
+func startsWithCiscoMnemonic(b []byte) bool {
+	if len(b) < 2 || b[0] != '%' {
+		return false
+	}
+	i := 1
+
+	facility := i
+	for i < len(b) && (isAlphaNumeric(b[i]) || b[i] == '_') {
+		i++
+	}
+	if i == facility || i-facility > maxCiscoTokenLen {
+		return false
+	}
+	if i >= len(b) || b[i] != '-' {
+		return false
+	}
+	i++
+
+	if i >= len(b) || b[i] < '0' || b[i] > '7' {
+		return false
+	}
+	i++
+	if i >= len(b) || b[i] != '-' {
+		return false
+	}
+	i++
+
+	mnemonic := i
+	for i < len(b) && (isAlphaNumeric(b[i]) || b[i] == '_') {
+		i++
+	}
+	return i > mnemonic && i-mnemonic <= maxCiscoTokenLen
 }
 
 // ---------------------------------------------------------------------------

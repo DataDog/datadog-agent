@@ -620,7 +620,7 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	resA := s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
 	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
 	resC := s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
-	require.Equal(t, 3, s.TotalSeriesCount(""))
+	require.Equal(t, 3, s.TotalSeriesCount())
 	genBefore := s.SeriesGeneration()
 
 	refA, refB, refC := resA.Ref, resB.Ref, resC.Ref
@@ -629,7 +629,7 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	removed := s.RemoveSeriesByRefs([]observer.SeriesRef{refB, refC, -1})
 	require.Len(t, removed, 2, "out-of-range refs are silently ignored")
 	require.ElementsMatch(t, []observer.SeriesRef{refB, refC}, removed, "freed refs are returned for fan-out to detectors")
-	require.Equal(t, 1, s.TotalSeriesCount(""), "only series 'a' should remain")
+	require.Equal(t, 1, s.TotalSeriesCount(), "only series 'a' should remain")
 	require.Greater(t, s.SeriesGeneration(), genBefore, "seriesGen bumps on removal")
 
 	require.Nil(t, s.GetSeriesMeta(refB), "removed ref resolves to nil")
@@ -638,9 +638,50 @@ func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 
 	// A subsequent Add for the same series creates a fresh series with a new ref.
 	res2B := s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
-	require.Equal(t, 2, s.TotalSeriesCount(""), "re-add re-creates the series")
+	require.Equal(t, 2, s.TotalSeriesCount(), "re-add re-creates the series")
 	require.NotEqual(t, refB, res2B.Ref, "new ref minted; old ref is retired")
 	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
+}
+
+func TestTimeSeriesStorage_TotalSeriesCountTracksCatalogMutations(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	first := s.Add("workload", "requests", 1, 1, nil)
+	s.Add("workload", "requests", 2, 2, nil) // existing series must not change counts
+	s.Add("workload", "errors", 1, 1, nil)
+	s.Add(observer.TelemetryNamespace, "internal", 1, 1, nil)
+	require.Equal(t, 2, s.TotalSeriesCount())
+	require.Equal(t, 2, s.TotalSeriesCount())
+
+	// Rejected values do not create a series.
+	s.Add("workload", "invalid", math.NaN(), 1, nil)
+	require.Equal(t, 2, s.TotalSeriesCount())
+
+	require.Equal(t, []observer.SeriesRef{first.Ref}, s.RemoveSeriesByRefs([]observer.SeriesRef{first.Ref}))
+	require.Equal(t, 1, s.TotalSeriesCount())
+	require.Equal(t, 1, s.TotalSeriesCount())
+
+	removed := s.RemoveSeriesByMetricName("workload", "errors")
+	require.Len(t, removed, 1)
+	require.Zero(t, s.TotalSeriesCount())
+	require.Zero(t, s.TotalSeriesCount())
+
+	// Re-adding a removed key creates a fresh live series and restores its count.
+	s.Add("workload", "requests", 3, 3, nil)
+	require.Equal(t, 1, s.TotalSeriesCount())
+	require.Equal(t, 1, s.TotalSeriesCount())
+}
+
+func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("workload", "old", 1, 1, nil)
+	s.Add("workload", "middle", 1, 2, nil)
+	s.Add("workload", "new", 1, 3, nil)
+
+	freed := s.EvictToCapacity(2, 1)
+	require.Len(t, freed, 2)
+	require.Equal(t, 1, s.TotalSeriesCount())
+	require.Equal(t, 1, s.TotalSeriesCount())
 }
 
 func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {

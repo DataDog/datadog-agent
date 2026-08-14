@@ -1,0 +1,12 @@
+---
+security:
+  - |
+    The Cluster Agent no longer exposes the Go ``pprof`` profiling and
+    ``expvar`` debug endpoints on its metrics port (``metrics_port``, default
+    ``5000``) to remote callers. These ``/debug/`` endpoints were previously
+    served on all network interfaces without authentication; they are now
+    restricted to loopback callers, and requests originating from any other
+    address receive a ``404``. The ``/metrics`` endpoint is unchanged and
+    remains reachable off-host so the node Agent can continue to scrape
+    Cluster Agent telemetry. Local tooling such as the Cluster Agent flare,
+    which connects over loopback, is unaffected.

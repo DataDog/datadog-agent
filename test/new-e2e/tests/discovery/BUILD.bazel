@@ -83,5 +83,13 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//test/fakeintake/client",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//test/fakeintake/client",
+        ],
+        "//conditions:default": [],
+    }),
 )

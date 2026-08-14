@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import io
-import shlex
 import sys
+from contextlib import chdir
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TextIO
 
 from tasks.libs.code_review.prompt import CodeReviewError, ReviewPrompt
-from tasks.libs.common.utils import is_installed
+from tasks.libs.common.utils import is_installed, join_command
 
 PROVIDERS = ("codex", "claude", "gemini")
 PROVIDER_CHOICES = (*PROVIDERS, "all")
@@ -18,7 +19,7 @@ PROVIDER_CHOICES = (*PROVIDERS, "all")
 class ProviderInvocation:
     provider: str
     executable: str
-    command: str
+    args: tuple[str, ...]
     stdin: str | None
     output_path: Path
 
@@ -66,19 +67,22 @@ def run_review(
 def run_provider(ctx, invocation: ProviderInvocation, *, cwd: Path) -> None:
     _ensure_command_exists(invocation.executable)
     print(f"Running {invocation.provider} review...", file=sys.stderr)
-    kwargs = {"hide": True, "warn": True}
+    kwargs = {"hide": True, "warn": True, "encoding": "utf-8"}
     if invocation.stdin is not None:
         kwargs["in_stream"] = io.StringIO(invocation.stdin)
 
-    result = ctx.run(f"cd {shlex.quote(str(cwd))} && {invocation.command}", **kwargs)
+    # The provider inherits the working directory instead of being prefixed with a shell `cd`, which
+    # cmd.exe cannot chain across drives.
+    with chdir(cwd):
+        result = ctx.run(join_command(invocation.args), **kwargs)
 
     output = ""
     if result.stdout:
         output += result.stdout
-        print(result.stdout, end="")
+        _echo(result.stdout, sys.stdout)
     if result.stderr:
         output += result.stderr
-        print(result.stderr, end="", file=sys.stderr)
+        _echo(result.stderr, sys.stderr)
 
     invocation.output_path.write_text(output, encoding="utf-8")
 
@@ -110,7 +114,7 @@ def build_provider_invocation(
         return ProviderInvocation(
             provider=provider,
             executable="codex",
-            command="codex exec --sandbox read-only -",
+            args=("codex", "exec", "--sandbox", "read-only", "-"),
             stdin=prompt,
             output_path=output_path,
         )
@@ -121,20 +125,11 @@ def build_provider_invocation(
         "Return actionable findings with exact file and line references."
     )
 
-    if provider == "claude":
+    if provider in ("claude", "gemini"):
         return ProviderInvocation(
             provider=provider,
-            executable="claude",
-            command=f"claude -p {shlex.quote(instruction)}",
-            stdin=None,
-            output_path=output_path,
-        )
-
-    if provider == "gemini":
-        return ProviderInvocation(
-            provider=provider,
-            executable="gemini",
-            command=f"gemini -p {shlex.quote(instruction)}",
+            executable=provider,
+            args=(provider, "-p", instruction),
             stdin=None,
             output_path=output_path,
         )
@@ -143,13 +138,14 @@ def build_provider_invocation(
 
 
 def collect_review_diff(ctx, repo_root: Path, base: str) -> str:
-    diff_range = shlex.quote(f"{base}...HEAD")
+    diff_range = f"{base}...HEAD"
     sections = []
-    for title, command in (
-        ("DIFF STAT", f"git diff --find-renames --stat {diff_range}"),
-        ("PATCH", f"git diff --find-renames {diff_range}"),
+    for title, diff_args in (
+        ("DIFF STAT", ["--stat", diff_range]),
+        ("PATCH", [diff_range]),
     ):
-        result = ctx.run(f"cd {shlex.quote(str(repo_root))} && {command}", hide=True, warn=True)
+        command = join_command(["git", "-C", str(repo_root), "diff", "--find-renames", *diff_args])
+        result = ctx.run(command, hide=True, warn=True, encoding="utf-8")
         if result.exited != 0:
             raise CodeReviewError(result.stderr.strip() or f"{command} failed")
         sections.extend([f"--- {title} ---", result.stdout.strip() or "(empty)", ""])
@@ -178,3 +174,14 @@ def create_artifact_dir(repo_root: Path) -> Path:
 def _ensure_command_exists(command: str) -> None:
     if not is_installed(command):
         raise CodeReviewError(f"Cannot run review provider: `{command}` is not installed or is not on PATH")
+
+
+def _echo(text: str, stream: TextIO) -> None:
+    """
+    Print provider output, replacing whatever the destination stream cannot represent.
+
+    Providers emit UTF-8, while a redirected stream on Windows encodes as cp1252 and would otherwise
+    raise. The unaltered output is still saved to the artifact file.
+    """
+    encoding = getattr(stream, "encoding", None) or "utf-8"
+    stream.write(text.encode(encoding, errors="replace").decode(encoding, errors="replace"))

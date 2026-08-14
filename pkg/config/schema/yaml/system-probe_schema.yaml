@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/system-probe_schema.yaml
 title: System Probe configuration schema
 description: The schema to validate the system-probe.yaml configuration for the DataDog
   Agent

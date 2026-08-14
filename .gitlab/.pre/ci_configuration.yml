@@ -15,6 +15,8 @@ test_gitlab_compare_to:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   extends: .dd_octo_sts
+  variables:
+    GIT_DEPTH: 0  # Full history: gitlab_configuration_is_modified uses merge-base and HEAD^
   rules:
     - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
@@ -30,6 +32,8 @@ compute_gitlab_ci_config:
   stage: .pre
   needs: []
   tags: ["arch:arm64"]
+  variables:
+    GIT_DEPTH: 0  # Full history: computes gitlab-ci config diff against merge-base
   before_script:
     # Get main history
     - git fetch origin main
@@ -57,5 +61,7 @@ lint_github_actions_shellcheck:
         compare_to: $COMPARE_TO_BRANCH
       when: on_success
   allow_failure: true
+  variables:
+    GIT_DEPTH: 0  # Full history: linter.github-actions-shellcheck uses git merge-base
   script:
     - dda inv -- -e linter.github-actions-shellcheck
