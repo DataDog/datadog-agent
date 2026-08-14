@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
 
@@ -36,16 +38,23 @@ func (ctx *requestCtx) respond(status int, format string, args ...any) {
 }
 
 type handlerBase struct {
-	log      log.Component
-	tagger   tagger.Component
-	hostname string
-	out      serializer
+	log        log.Component
+	tagger     tagger.Component
+	hostname   string
+	filterList filterlist.Component
+	out        serializer
+	tlm        endpointTelemetry
 }
 
 func (h *handlerBase) handle(
 	w http.ResponseWriter, r *http.Request,
-	processPayload func(orig origin, payload *pb.Payload) error,
+	processPayload func(orig origin, payload *pb.Payload) (payloadStats, error),
 ) {
+	start := time.Now()
+	defer func() {
+		h.tlm.requestDuration.Add(time.Since(start).Seconds())
+	}()
+
 	ctx := requestCtx{
 		prefix: fmt.Sprintf("dogstatsdhttp %q: ", r.RemoteAddr),
 		log:    h.log,
@@ -54,29 +63,37 @@ func (h *handlerBase) handle(
 
 	origin, err := originFromHeader(r.Header, h.tagger)
 	if err != nil {
+		h.tlm.requestOriginError.Inc()
 		ctx.respond(http.StatusBadRequest, "origin detection error: %v", err)
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	r.Body.Close()
+	// A failed read still consumed whatever it returned.
+	h.tlm.requestBytes.Add(float64(len(body)))
 	if err != nil {
+		h.tlm.requestReadError.Inc()
 		ctx.respond(http.StatusBadRequest, "error reading body: %v", err)
 		return
 	}
 
 	var payload pb.Payload
 	if err = payload.UnmarshalVT(body); err != nil {
+		h.tlm.requestParseError.Inc()
 		ctx.respond(http.StatusBadRequest, "error parsing payload: %v", err)
 		return
 	}
 
-	err = processPayload(origin, &payload)
+	stats, err := processPayload(origin, &payload)
+	stats.report(&h.tlm)
 	if err != nil {
+		h.tlm.requestProcessError.Inc()
 		ctx.respond(http.StatusBadRequest, "error processing payload: %v", err)
 		return
 	}
 
+	h.tlm.requestOK.Inc()
 	ctx.respond(http.StatusOK, "OK")
 }
 
@@ -85,16 +102,16 @@ type seriesHandler struct {
 }
 
 func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.handle(w, r, func(origin origin, payload *pb.Payload) error {
-		it, err := newSeriesIterator(payload, origin, h.hostname)
+	h.handle(w, r, func(origin origin, payload *pb.Payload) (payloadStats, error) {
+		it, err := newSeriesIterator(payload, origin, h.hostname, h.filterList.GetMetricFilterList())
 		if err != nil {
-			return err
+			return payloadStats{}, err
 		}
 		err = h.out.SendIterableSeries(it)
-		if err != nil {
-			return err
+		if err == nil {
+			err = it.err
 		}
-		return it.err
+		return it.stats, err
 	})
 }
 
@@ -103,15 +120,15 @@ type sketchesHandler struct {
 }
 
 func (h *sketchesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.handle(w, r, func(origin origin, payload *pb.Payload) error {
-		it, err := newSketchIterator(payload, origin, h.hostname)
+	h.handle(w, r, func(origin origin, payload *pb.Payload) (payloadStats, error) {
+		it, err := newSketchIterator(payload, origin, h.hostname, h.filterList.GetMetricFilterList())
 		if err != nil {
-			return err
+			return payloadStats{}, err
 		}
 		err = h.out.SendSketch(it)
-		if err != nil {
-			return err
+		if err == nil {
+			err = it.err
 		}
-		return it.err
+		return it.stats, err
 	})
 }

@@ -81,7 +81,7 @@ def build_testbench(ctx):
     schema_codegen(ctx)
 
     ctx.run(
-        "go build -C internal/qbranch/anomalydetection-testbench -tags python -o ../../../bin/anomalydetection-testbench ."
+        "go build -C internal/qbranch/anomalydetection-testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench ."
     )
 
 
