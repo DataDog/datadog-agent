@@ -101,26 +101,12 @@ func (h *Host) ConfigureAptMirrors() {
 	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
-// ConfigureYumMirrors hardens yum against package-mirror outages on CentOS hosts, the
-// yum-side counterpart to ConfigureAptMirrors. CentOS 7 is EOL: mirror.centos.org and the
-// mirrorlist service are gone, and the /centos/7/ path the stock AMI repos fall back to on
-// vault.centos.org now returns HTTP 403, which fails any "yum install" that must first
-// refresh the base/updates/extras metadata.
-//
+// ConfigureYumMirrors is the yum counterpart to ConfigureAptMirrors. CentOS 7 is EOL and its
+// stock /centos/7/ path on vault.centos.org now returns HTTP 403, breaking any "yum install".
 // It repoints base/updates/extras at the versioned vault archive
-// (http://vault.centos.org/7.9.2009/{os,updates,extras}/$basearch/). This is the same path
-// the agent's own production kernel-header downloader uses (see
-// pkg/util/kernel/headers/download/rpm/centos.go), so it is the known-good location for EOL
-// CentOS 7 content — including the "extras" repo that provides the distro "docker" package.
-// http (not https) and gpgcheck against the on-box CentOS-7 key match that proven usage.
-// skip_if_unavailable and a bounded timeout let an unreachable mirror fail fast and degrade
-// gracefully instead of hanging until the CI job's 2h timeout.
-//
-// NOTE: vault.centos.org is the single canonical archive for EOL CentOS; unlike the apt
-// mirrorlist (regional EC2 mirror + global archive.ubuntu.com fallback) there is no second
-// approved host — the agent relies solely on vault elsewhere too. If cross-host redundancy
-// is ever needed, add a second, verified centos-vault mirror as a priority-2 baseurl here.
-// See incident 58780.
+// (http://vault.centos.org/7.9.2009/), the same known-good path the agent's production
+// kernel-header downloader uses (pkg/util/kernel/headers/download/rpm/centos.go), and adds
+// skip_if_unavailable + a bounded timeout to fail fast. See incident 58780.
 func (h *Host) ConfigureYumMirrors() {
 	if h.pkgManager != "yum" {
 		return
