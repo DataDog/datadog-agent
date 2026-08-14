@@ -145,9 +145,17 @@ func (c *checkImpl) Configure(senderManager sender.SenderManager, digest uint64,
 		for _, definition := range object.counters {
 			counter := registeredCounter{object: object, def: definition}
 			if object.multiple {
-				counter.multi = c.query.AddEnglishMultiInstanceCounter(object.object, definition.counter, nil)
+				if definition.optional {
+					counter.multi = c.query.AddOptionalEnglishMultiInstanceCounter(object.object, definition.counter, nil)
+				} else {
+					counter.multi = c.query.AddEnglishMultiInstanceCounter(object.object, definition.counter, nil)
+				}
 			} else {
-				counter.single = c.query.AddEnglishSingleInstanceCounter(object.object, definition.counter)
+				if definition.optional {
+					counter.single = c.query.AddOptionalEnglishSingleInstanceCounter(object.object, definition.counter)
+				} else {
+					counter.single = c.query.AddEnglishSingleInstanceCounter(object.object, definition.counter)
+				}
 			}
 			c.counters = append(c.counters, counter)
 		}
