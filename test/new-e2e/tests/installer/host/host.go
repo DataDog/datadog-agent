@@ -102,25 +102,35 @@ func (h *Host) ConfigureAptMirrors() {
 }
 
 // ConfigureYumMirrors hardens yum against package-mirror outages on CentOS hosts, the
-// yum-side counterpart to ConfigureAptMirrors. CentOS 7 is EOL: its content is served
-// from vault.centos.org, but the default /centos/7/ path the stock AMI repos point at can
-// return HTTP 403, which fails any "yum install" that must first refresh the base/updates/
-// extras metadata. It rewrites the CentOS base/updates/extras repos to list the default
-// vault path first and the versioned-archive vault path (/7.9.2009/) as a fallback
-// baseurl, with failovermethod=priority so yum tries the default first and retries the
-// alternative mirror when it fails — the same default-then-fallback behavior as the apt
-// mirrorlist. skip_if_unavailable and a bounded timeout let an unreachable mirror fail fast
-// and degrade gracefully instead of hanging until the CI job's 2h timeout. See incident 58780.
+// yum-side counterpart to ConfigureAptMirrors. CentOS 7 is EOL: mirror.centos.org and the
+// mirrorlist service are gone, and the /centos/7/ path the stock AMI repos fall back to on
+// vault.centos.org now returns HTTP 403, which fails any "yum install" that must first
+// refresh the base/updates/extras metadata.
+//
+// It repoints base/updates/extras at the versioned vault archive
+// (http://vault.centos.org/7.9.2009/{os,updates,extras}/$basearch/). This is the same path
+// the agent's own production kernel-header downloader uses (see
+// pkg/util/kernel/headers/download/rpm/centos.go), so it is the known-good location for EOL
+// CentOS 7 content — including the "extras" repo that provides the distro "docker" package.
+// http (not https) and gpgcheck against the on-box CentOS-7 key match that proven usage.
+// skip_if_unavailable and a bounded timeout let an unreachable mirror fail fast and degrade
+// gracefully instead of hanging until the CI job's 2h timeout.
+//
+// NOTE: vault.centos.org is the single canonical archive for EOL CentOS; unlike the apt
+// mirrorlist (regional EC2 mirror + global archive.ubuntu.com fallback) there is no second
+// approved host — the agent relies solely on vault elsewhere too. If cross-host redundancy
+// is ever needed, add a second, verified centos-vault mirror as a priority-2 baseurl here.
+// See incident 58780.
 func (h *Host) ConfigureYumMirrors() {
 	if h.pkgManager != "yum" {
 		return
 	}
-	// Only CentOS 7 needs the vault fallback; other yum distros (RHEL, Amazon Linux) have working repos.
+	// Only CentOS 7 needs the vault repos; other yum distros (RHEL, Amazon Linux) have working repos.
 	if h.os.Flavor != e2eos.CentOS {
 		return
 	}
-	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base\nbaseurl=https://vault.centos.org/centos/7/os/$basearch/\n https://vault.centos.org/7.9.2009/os/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates\nbaseurl=https://vault.centos.org/centos/7/updates/$basearch/\n https://vault.centos.org/7.9.2009/updates/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras\nbaseurl=https://vault.centos.org/centos/7/extras/$basearch/\n https://vault.centos.org/7.9.2009/extras/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
-	// Drop metadata cached against the previous repo config so the next yum call uses the new mirrors.
+	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base - vault\nbaseurl=http://vault.centos.org/7.9.2009/os/$basearch/\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates - vault\nbaseurl=http://vault.centos.org/7.9.2009/updates/$basearch/\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras - vault\nbaseurl=http://vault.centos.org/7.9.2009/extras/$basearch/\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
+	// Drop metadata cached against the previous (403ing) repo config so the next yum call uses the new mirror.
 	h.remote.MustExecute("sudo yum clean all")
 }
 
