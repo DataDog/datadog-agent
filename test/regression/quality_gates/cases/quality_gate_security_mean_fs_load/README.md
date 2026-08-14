@@ -1,3 +1,7 @@
+---
+description: Workload Protection under a production-representative mean filesystem load.
+---
+
 # Quality Gate CWS - Mean FS Load
 
 ## Overview
