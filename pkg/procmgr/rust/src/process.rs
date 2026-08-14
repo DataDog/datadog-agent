@@ -134,7 +134,6 @@ pub struct ManagedProcess {
     restarts: RestartTracker,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
-    last_config_gate_met: Option<bool>,
     last_start_conditions_met: Option<bool>,
     config_generation: u64,
     had_successful_run: bool,
@@ -168,7 +167,6 @@ impl ManagedProcess {
             restarts,
             origin,
             last_exit_status: None,
-            last_config_gate_met: None,
             last_start_conditions_met: None,
             config_generation: 0,
             had_successful_run: false,
@@ -325,16 +323,7 @@ impl ManagedProcess {
         self.state = next;
     }
 
-    #[must_use]
-    pub fn config_gate_met(&self) -> bool {
-        if self.config.condition_config_any.is_empty() {
-            return true;
-        }
-        crate::config_gate::condition_config_any_met(&self.config.condition_config_any)
-    }
-
     pub(crate) fn record_config_gate_met(&mut self) {
-        self.last_config_gate_met = Some(self.config_gate_met());
         self.last_start_conditions_met = Some(self.start_conditions_met());
     }
 
@@ -368,7 +357,7 @@ impl ManagedProcess {
 
     #[must_use]
     pub(crate) fn start_conditions_met(&self) -> bool {
-        self.condition_path_exists_met() && self.config_gate_met()
+        self.condition_path_exists_met()
     }
 
     #[must_use]
@@ -382,14 +371,6 @@ impl ManagedProcess {
                 let path = expand_env_vars(raw);
                 info!("[{}] condition_path_exists not met: {path}", self.name);
             }
-            return false;
-        }
-        if !self.config_gate_met() {
-            info!(
-                "[{}] condition_config_any not met: {}",
-                self.name,
-                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-            );
             return false;
         }
         true
