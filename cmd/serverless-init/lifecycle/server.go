@@ -120,6 +120,15 @@ type Flusher interface {
 	Flush()
 }
 
+// ForceFlusher is optionally satisfied by metricFlusher (ServerlessMetricAgent
+// does; the trace flusher doesn't). flushAll calls it only for /terminate,
+// never /suspend: /suspend can resume, and forcing the open bucket there would
+// let a later flush send a second, partial point for that bucket — overwriting
+// the pre-suspend data in the backend instead of merging with it.
+type ForceFlusher interface {
+	FlushAll()
+}
+
 // LogsFlusher is satisfied by logsAgent.ServerlessLogsAgent.
 type LogsFlusher interface {
 	Flush(ctx context.Context)
@@ -478,7 +487,8 @@ func mirrorResponse(w http.ResponseWriter, resp *http.Response) {
 // and by handleSuspend / handleTerminate for the env-var-unset path.
 // It first drains any pending metric samples so that lifecycle metrics
 // emitted immediately before this call are included in the flush.
-func (s *Server) flushAll(flushCtx context.Context) {
+// forceFlushAll is true only for /terminate (see ForceFlusher).
+func (s *Server) flushAll(flushCtx context.Context, forceFlushAll bool) {
 	if s.sampleDrainer != nil {
 		drained := make(chan struct{})
 		go func() {
@@ -492,7 +502,13 @@ func (s *Server) flushAll(flushCtx context.Context) {
 		}
 	}
 	var wg sync.WaitGroup
-	wg.Go(s.metricFlusher.Flush)
+	wg.Go(func() {
+		if ff, ok := s.metricFlusher.(ForceFlusher); ok && forceFlushAll {
+			ff.FlushAll()
+		} else {
+			s.metricFlusher.Flush()
+		}
+	})
 	wg.Go(s.traceFlusher.Flush)
 	wg.Go(func() {
 		if s.logsFlusher != nil {
@@ -558,7 +574,7 @@ func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, w 
 		defer close(sideDone)
 		s.emitLifecycleMetric(metricName)
 		if mode == flushParallel {
-			s.flushAll(parallelCtx)
+			s.flushAll(parallelCtx, false)
 		}
 	}()
 
@@ -586,7 +602,7 @@ func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, w 
 	if mode == flushSequential {
 		seqCtx, cancel := context.WithTimeout(context.Background(), s.flushTimeout)
 		defer cancel()
-		s.flushAll(seqCtx)
+		s.flushAll(seqCtx, true)
 	}
 
 	mirrorResponse(w, resp)
@@ -617,7 +633,7 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 // (when a forwarder is configured) mirrors the user app's response.
 // handleRun is the only hook that reads r.Body and is therefore not
 // collapsed into dispatchHook directly. The ID is captured before Start
-// so the first heartbeat emission already carries the correct microvm_id tag.
+// so the first heartbeat emission already carries the correct lambda_microvm_id tag.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// Read the body once so we can parse the instance ID AND still forward the
 	// original payload to the user app. Without this, the forwarder path would
@@ -749,7 +765,7 @@ func (s *Server) dispatchHook(metricName, path string, mode flushMode, forwardEn
 	if mode != noFlush {
 		flushCtx, cancel := context.WithTimeout(context.Background(), s.flushTimeout)
 		defer cancel()
-		s.flushAll(flushCtx)
+		s.flushAll(flushCtx, mode == flushSequential)
 	}
 	w.WriteHeader(http.StatusOK)
 }

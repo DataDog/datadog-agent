@@ -56,15 +56,43 @@ func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float6
 	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.tags.EnhancedUsageMetric, extraTags...)
 }
 
-// Flush forces an immediate flush of aggregated samples to the serializer.
+// Flush forces an immediate flush of already-closed buckets to the serializer.
 // Satisfied interface: cmd/serverless-init/lifecycle.Flusher, used by MicroVM
-// to flush telemetry on-demand before a Firecracker snapshot (/suspend,
-// /terminate), independent of the Fx-managed shutdown flush.
+// to flush telemetry on-demand before a Firecracker snapshot on /suspend,
+// independent of the Fx-managed shutdown flush. /terminate uses FlushAll instead.
 func (c *ServerlessMetricAgent) Flush() {
 	if c.Demux == nil {
 		return
 	}
-	c.Demux.ForceFlushToSerializer(time.Now(), true)
+	c.Demux.ForceFlushToSerializer(time.Now(), true, false)
+}
+
+// FlushAll additionally includes the current, not-yet-closed bucket. Satisfied
+// interface: cmd/serverless-init/lifecycle.ForceFlusher — see that doc for why
+// this must stay off /suspend's path.
+func (c *ServerlessMetricAgent) FlushAll() {
+	if c.Demux == nil {
+		return
+	}
+	c.Demux.ForceFlushToSerializer(time.Now(), true, true)
+}
+
+// pendingSampleDrainer is satisfied by *aggregator.AgentDemultiplexer, and by
+// anything embedding it — notably the Fx demultiplexer component's wrapper
+// struct, which is what c.Demux actually holds in production. Asserting
+// against this interface instead of the concrete *AgentDemultiplexer type
+// lets Go's method promotion see through that wrapper.
+type pendingSampleDrainer interface {
+	WaitForPendingSamples()
+}
+
+// WaitForPendingSamples blocks until samples enqueued before this call have
+// been consumed. Satisfied interface: cmd/serverless-init/lifecycle.SampleDrainer.
+// No-op if the demux doesn't support draining (e.g. unset in tests).
+func (c *ServerlessMetricAgent) WaitForPendingSamples() {
+	if d, ok := c.Demux.(pendingSampleDrainer); ok {
+		d.WaitForPendingSamples()
+	}
 }
 
 // sendMetricSample records a distribution metric sample using the agent's extra tags plus any
