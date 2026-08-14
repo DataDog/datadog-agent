@@ -178,6 +178,7 @@ func TestIncludeRedisEnvVar(t *testing.T) {
 		{name: "password abbreviation", envName: "REDIS_SENTINEL_PWD"},
 		{name: "requirepass directive", envName: "REDIS_REQUIREPASS"},
 		{name: "masterauth directive", envName: "REDIS_MASTERAUTH"},
+		{name: "auth directive", envName: "REDIS_AUTH"},
 		{name: "allow empty password", envName: "ALLOW_EMPTY_PASSWORD"},
 		{name: "tls key file", envName: "REDIS_TLS_KEY_FILE"},
 		{name: "redis cli auth", envName: "REDISCLI_AUTH"},
