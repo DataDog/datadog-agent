@@ -164,7 +164,9 @@ func tokenizeWithoutHybridCollapse(tok *Tokenizer, input []byte) []Token {
 	if tok.maxEvalBytes > 0 && tok.maxEvalBytes < maxBytes {
 		maxBytes = tok.maxEvalBytes
 	}
+	tok.skipHybridCollapse = true
 	tok.emitRuns(input[:maxBytes])
+	tok.skipHybridCollapse = false
 	out := make([]Token, len(tok.tsBuf))
 	copy(out, tok.tsBuf)
 	return out
