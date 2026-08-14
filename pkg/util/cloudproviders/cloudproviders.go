@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
@@ -135,34 +134,16 @@ var (
 	hostAliasLogOnce = true
 )
 
-// kubeletDependentHostAliasDetectors are the host-alias detectors that route through
-// the shared kubelet client singleton. Cluster Checks Runners are Deployment
-// replicas, not DaemonSets, so they are never colocated with a node's kubelet and can
-// never reach it.
-var kubeletDependentHostAliasDetectors = map[string]bool{
-	"kubelet":                    true,
-	kubernetes.CloudProviderName: true,
-}
-
 // GetHostAliases returns the hostname aliases and the name of the possible cloud providers
 func GetHostAliases(ctx context.Context) ([]string, string) {
 	aliases := []string{}
 	cloudprovider := ""
-	isCLCRunner := helper.IsCLCRunner(configsetup.Datadog())
 
 	// cloud providers endpoints can take a few seconds to answer. We're using a WaitGroup to call all of them
 	// concurrently since GetHostAliases is called during the agent startup and is blocking.
 	var wg sync.WaitGroup
 
 	for _, hostAliasesDetector := range hostAliasesDetectors {
-		if isCLCRunner && kubeletDependentHostAliasDetectors[hostAliasesDetector.name] {
-			// Skip probing the kubelet client singleton: it can never succeed on a
-			// CCR and would otherwise trigger its exponential-backoff retrier and
-			// its "Impossible to reach Kubelet" warning for no benefit.
-			log.Debugf("Skipping %s Host Alias: Agent is a Cluster Checks Runner and has no reachable local Kubelet", hostAliasesDetector.name)
-			continue
-		}
-
 		wg.Add(1)
 		go func(hostAliasesDetector cloudProviderAliasesDetector) {
 			defer wg.Done()
