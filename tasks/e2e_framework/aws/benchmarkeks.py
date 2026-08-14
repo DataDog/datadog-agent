@@ -1,14 +1,9 @@
-import json
-import os
-
-import yaml
 from invoke.context import Context
-from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.aws import doc as aws_doc
-from tasks.e2e_framework.aws.common import get_aws_wrapper
+from tasks.e2e_framework.aws.common import show_eks_connection_message
 from tasks.e2e_framework.aws.deploy import deploy
 from tasks.e2e_framework.destroy import destroy
 
@@ -25,14 +20,18 @@ scenario_name = "aws/benchmarkeks"
         "instance_type": aws_doc.instance_type,
         "full_image_path": doc.full_image_path,
         "cluster_agent_full_image_path": doc.cluster_agent_full_image_path,
-        "baseline_version": doc.baseline_version,
-        "baseline_full_image_path": doc.baseline_full_image_path,
-        "baseline_cluster_agent_version": doc.baseline_cluster_agent_version,
-        "baseline_cluster_agent_full_image_path": doc.baseline_cluster_agent_full_image_path,
-        "comparison_version": doc.comparison_version,
-        "comparison_full_image_path": doc.comparison_full_image_path,
-        "comparison_cluster_agent_version": doc.comparison_cluster_agent_version,
-        "comparison_cluster_agent_full_image_path": doc.comparison_cluster_agent_full_image_path,
+        "baseline_version": "The container version of the baseline Agent",
+        "baseline_full_image_path": "The full image path (registry:tag) of the baseline Agent image to deploy",
+        "baseline_cluster_agent_version": "The container version of the baseline Cluster Agent",
+        "baseline_cluster_agent_full_image_path": (
+            "The full image path (registry:tag) of the baseline Cluster Agent image to deploy"
+        ),
+        "comparison_version": "The container version of the comparison Agent",
+        "comparison_full_image_path": "The full image path (registry:tag) of the comparison Agent image to deploy",
+        "comparison_cluster_agent_version": "The container version of the comparison Cluster Agent",
+        "comparison_cluster_agent_full_image_path": (
+            "The full image path (registry:tag) of the comparison Cluster Agent image to deploy"
+        ),
         "agent_flavor": doc.agent_flavor,
         "helm_config": doc.helm_config,
         "local_chart_path": doc.local_chart_path,
@@ -69,9 +68,11 @@ def create_benchmarkeks(
     Create a new EKS environment for benchmarking. It lasts around 20 minutes.
 
     This scenario deploys two independent Datadog Agent installations (baseline and comparison)
-    in separate namespaces, pinned to dedicated node pools, to enable performance comparisons of
-    a strictly identical workload. Configure the two variants independently with the
-    variant-specific version or full image path parameters.
+    in separate namespaces, pinned to dedicated node pools. What it compares is the resource
+    footprint of the two Agent versions -- CPU, memory, goroutines, uploaded profiles -- while
+    both monitor a strictly identical workload; the workload's own performance is not measured.
+    Configure the two variants independently with the variant-specific version or full image
+    path parameters.
 
     Example usage:
     - Compare two Agent versions:
@@ -130,38 +131,7 @@ def create_benchmarkeks(
     if interactive:
         tool.notify(ctx, "Your benchmark EKS cluster is now created")
 
-    _show_connection_message(ctx, full_stack_name, config_path, interactive)
-
-
-def _show_connection_message(
-    ctx: Context, full_stack_name: str, config_path: str | None, interactive: bool | None = True
-):
-    from pydantic import ValidationError
-
-    from tasks.e2e_framework import config
-
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
-    kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])
-    kubeconfig_content = yaml.dump(kubeconfig_output)
-    kubeconfig = f"{full_stack_name}-kubeconfig.yaml"
-    f = os.open(path=kubeconfig, flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC), mode=0o600)
-    with open(f, "w") as file:
-        file.write(kubeconfig_content)
-
-    try:
-        local_config = config.get_local_config(config_path)
-    except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
-
-    command = f"KUBECONFIG={kubeconfig} {get_aws_wrapper(local_config.get_aws().get_account())} kubectl get nodes"
-
-    print(f"\nYou can run the following command to connect to the benchmark EKS cluster\n\n{command}\n")
-
-    if interactive:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+    show_eks_connection_message(ctx, full_stack_name, config_path, interactive)
 
 
 @task(help={"stack_name": doc.stack_name})

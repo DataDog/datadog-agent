@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package benchmarkeks provisions an EKS cluster partitioned into dedicated node
-// pools so a baseline and a comparison version of the Agent can monitor a strictly
-// identical workload side by side. KWOK simulates a large number of nodes/objects
-// and the churn orchestrator continuously creates and deletes workloads.
+// Package benchmarkeks provisions an EKS cluster partitioned into dedicated node pools
+// so a baseline and a comparison version of the Agent can be compared side by side. What
+// it compares is the resource footprint of the two Agents — CPU, memory, goroutines,
+// uploaded profiles — while both monitor a strictly identical workload; the workload's
+// own performance is not measured. KWOK simulates a large number of nodes/objects and the
+// churn orchestrator continuously creates and deletes workloads.
 package benchmarkeks
 
 import (
@@ -48,37 +50,37 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	for _, ng := range []struct {
-		agent   string
+		role    string
 		variant string
 		nbNode  int
 	}{
 		{
-			agent:   "node-agent",
+			role:    "node-agent",
 			variant: "baseline",
 			nbNode:  nbNode,
 		},
 		{
-			agent:   "node-agent",
+			role:    "node-agent",
 			variant: "comparison",
 			nbNode:  nbNode,
 		},
 		{
-			agent:   "cluster-agent",
+			role:    "cluster-agent",
 			variant: "baseline",
 			nbNode:  1,
 		},
 		{
-			agent:   "cluster-agent",
+			role:    "cluster-agent",
 			variant: "comparison",
 			nbNode:  1,
 		},
 		{
-			agent:   "cluster-checks",
+			role:    "cluster-checks",
 			variant: "baseline",
 			nbNode:  1,
 		},
 		{
-			agent:   "cluster-checks",
+			role:    "cluster-checks",
 			variant: "comparison",
 			nbNode:  1,
 		},
@@ -86,11 +88,11 @@ func Run(ctx *pulumi.Context) error {
 		// The dependency on the cluster component makes the node groups wait for the
 		// CNI custom-networking setup (ENIConfig + aws-node patch) before joining: a
 		// dependsOn on a component resource extends to all of its children.
-		if _, err := eks.NewManagedNodeGroup(ctx, "ng-"+ng.agent+"-"+ng.variant, &eks.ManagedNodeGroupArgs{
+		if _, err := eks.NewManagedNodeGroup(ctx, "ng-"+ng.role+"-"+ng.variant, &eks.ManagedNodeGroupArgs{
 			Cluster:             cluster.Cluster.Core,
 			InstanceTypes:       pulumi.ToStringArray([]string{awsEnv.DefaultInstanceType()}),
 			ForceUpdateVersion:  pulumi.BoolPtr(true),
-			NodeGroupNamePrefix: awsEnv.CommonNamer().DisplayName(37, pulumi.String("ng"), pulumi.String(ng.agent), pulumi.String(ng.variant)),
+			NodeGroupNamePrefix: awsEnv.CommonNamer().DisplayName(37, pulumi.String("ng"), pulumi.String(ng.role), pulumi.String(ng.variant)),
 			ScalingConfig: awsEks.NodeGroupScalingConfigArgs{
 				DesiredSize: pulumi.Int(ng.nbNode),
 				MaxSize:     pulumi.Int(ng.nbNode),
@@ -98,13 +100,13 @@ func Run(ctx *pulumi.Context) error {
 			},
 			NodeRole: cluster.Cluster.InstanceRoles.Index(pulumi.Int(0)),
 			Labels: pulumi.StringMap{
-				"benchmark.datadoghq.com/agent":   pulumi.String(ng.agent),
+				"benchmark.datadoghq.com/role":    pulumi.String(ng.role),
 				"benchmark.datadoghq.com/variant": pulumi.String(ng.variant),
 			},
 			Taints: awsEks.NodeGroupTaintArray{
 				awsEks.NodeGroupTaintArgs{
-					Key:    pulumi.String("benchmark.datadoghq.com/agent"),
-					Value:  pulumi.String(ng.agent),
+					Key:    pulumi.String("benchmark.datadoghq.com/role"),
+					Value:  pulumi.String(ng.role),
 					Effect: pulumi.String("NO_SCHEDULE"),
 				},
 				awsEks.NodeGroupTaintArgs{
@@ -135,6 +137,11 @@ func Run(ctx *pulumi.Context) error {
 
 	var agentDeps []pulumi.Resource
 
+	// The per-variant image keys live in the ddagent: config namespace and are specific
+	// to this scenario, so they are read here rather than through the shared config.Env
+	// interface — same pattern as scenarios/aws/integrations/{lustre,dell_powerflex}.
+	// The invoke task maps its --baseline-* / --comparison-* flags onto them (see
+	// tasks/e2e_framework/aws/benchmarkeks.py).
 	for _, param := range []struct {
 		variant               string
 		agentImagePath        string
@@ -145,22 +152,22 @@ func Run(ctx *pulumi.Context) error {
 	}{
 		{
 			variant:               "baseline",
-			agentImagePath:        awsEnv.AgentBaselineFullImagePath(),
-			clusterAgentImagePath: awsEnv.ClusterAgentBaselineFullImagePath(),
-			agentVersion:          awsEnv.AgentBaselineVersion(),
-			clusterAgentVersion:   awsEnv.ClusterAgentBaselineVersion(),
+			agentImagePath:        awsEnv.AgentConfig.Get("baselineFullImagePath"),
+			clusterAgentImagePath: awsEnv.AgentConfig.Get("baselineClusterAgentFullImagePath"),
+			agentVersion:          awsEnv.AgentConfig.Get("baselineVersion"),
+			clusterAgentVersion:   awsEnv.AgentConfig.Get("baselineClusterAgentVersion"),
 			deployCRDs:            true,
 		},
 		{
 			variant:               "comparison",
-			agentImagePath:        awsEnv.AgentComparisonFullImagePath(),
-			clusterAgentImagePath: awsEnv.ClusterAgentComparisonFullImagePath(),
-			agentVersion:          awsEnv.AgentComparisonVersion(),
-			clusterAgentVersion:   awsEnv.ClusterAgentComparisonVersion(),
+			agentImagePath:        awsEnv.AgentConfig.Get("comparisonFullImagePath"),
+			clusterAgentImagePath: awsEnv.AgentConfig.Get("comparisonClusterAgentFullImagePath"),
+			agentVersion:          awsEnv.AgentConfig.Get("comparisonVersion"),
+			clusterAgentVersion:   awsEnv.AgentConfig.Get("comparisonClusterAgentVersion"),
 			deployCRDs:            false,
 		},
 	} {
-		if kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent", param.variant), cluster.KubeProvider,
+		kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent", param.variant), cluster.KubeProvider,
 			kubernetesagentparams.WithBaseName("dda-"+param.variant),
 			kubernetesagentparams.WithNamespace("datadog-"+param.variant),
 			kubernetesagentparams.WithClusterName(cluster.ClusterName),
@@ -171,7 +178,7 @@ func Run(ctx *pulumi.Context) error {
 			kubernetesagentparams.WithHelmValues(utils.YAMLMustMarshal(map[string]any{
 				"datadog": map[string]any{
 					"nodeLabelsAsTags": map[string]any{
-						"benchmark.datadoghq.com/agent":   "agent",
+						"benchmark.datadoghq.com/role":    "role",
 						"benchmark.datadoghq.com/variant": "variant",
 					},
 					"podLabelsAsTags": map[string]any{
@@ -215,9 +222,9 @@ func Run(ctx *pulumi.Context) error {
 						"benchmark.datadoghq.com/variant": param.variant,
 					},
 					// The node Agent runs as a DaemonSet on every node of its variant
-					// (all agent pools), so it tolerates any agent taint.
+					// (all role pools), so it tolerates any role taint.
 					"tolerations": benchmarkTolerations(map[string]any{
-						"key":      "benchmark.datadoghq.com/agent",
+						"key":      "benchmark.datadoghq.com/role",
 						"operator": "Exists",
 						"effect":   "NoSchedule",
 					}, param.variant),
@@ -225,11 +232,11 @@ func Run(ctx *pulumi.Context) error {
 				"clusterAgent": map[string]any{
 					"replicas": 1,
 					"nodeSelector": map[string]any{
-						"benchmark.datadoghq.com/agent":   "cluster-agent",
+						"benchmark.datadoghq.com/role":    "cluster-agent",
 						"benchmark.datadoghq.com/variant": param.variant,
 					},
 					"tolerations": benchmarkTolerations(map[string]any{
-						"key":      "benchmark.datadoghq.com/agent",
+						"key":      "benchmark.datadoghq.com/role",
 						"operator": "Equal",
 						"value":    "cluster-agent",
 						"effect":   "NoSchedule",
@@ -246,11 +253,11 @@ func Run(ctx *pulumi.Context) error {
 				"clusterChecksRunner": map[string]any{
 					"replicas": 1,
 					"nodeSelector": map[string]any{
-						"benchmark.datadoghq.com/agent":   "cluster-checks",
+						"benchmark.datadoghq.com/role":    "cluster-checks",
 						"benchmark.datadoghq.com/variant": param.variant,
 					},
 					"tolerations": benchmarkTolerations(map[string]any{
-						"key":      "benchmark.datadoghq.com/agent",
+						"key":      "benchmark.datadoghq.com/role",
 						"operator": "Equal",
 						"value":    "cluster-checks",
 						"effect":   "NoSchedule",
@@ -270,11 +277,11 @@ func Run(ctx *pulumi.Context) error {
 					},
 				},
 			})),
-		); err != nil {
+		)
+		if err != nil {
 			return err
-		} else {
-			agentDeps = append(agentDeps, kubernetesAgent)
 		}
+		agentDeps = append(agentDeps, kubernetesAgent)
 	}
 
 	// The churn pods are labeled for Fargate sidecar injection, so they must wait for
@@ -288,11 +295,11 @@ func Run(ctx *pulumi.Context) error {
 }
 
 // benchmarkTolerations builds the toleration list for a benchmark workload: the
-// caller-provided toleration for the agent-pool taint, plus the shared per-variant
+// caller-provided toleration for the role-pool taint, plus the shared per-variant
 // taint toleration that keeps baseline and comparison workloads isolated.
-func benchmarkTolerations(agentToleration map[string]any, variant string) []any {
+func benchmarkTolerations(roleToleration map[string]any, variant string) []any {
 	return []any{
-		agentToleration,
+		roleToleration,
 		map[string]any{
 			"key":      "benchmark.datadoghq.com/variant",
 			"operator": "Equal",

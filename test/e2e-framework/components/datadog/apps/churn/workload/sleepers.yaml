@@ -51,12 +51,15 @@ spec:
             - sleep
             - infinity
       nodeSelector:
-        benchmark.datadoghq.com/agent: node-agent
+        benchmark.datadoghq.com/role: node-agent
       tolerations:
-        - key: benchmark.datadoghq.com/agent
+        - key: benchmark.datadoghq.com/role
           operator: Equal
           value: node-agent
           effect: NoSchedule
+        # Tolerating the variant taint with Exists (rather than a specific value) is
+        # what lets this very same DaemonSet land on both the baseline and the
+        # comparison node-agent pools — the identical-workload premise of the benchmark.
         - key: benchmark.datadoghq.com/variant
           operator: Exists
           effect: NoSchedule

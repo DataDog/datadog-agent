@@ -44,6 +44,11 @@ func DockerClusterAgentFullImagePath(e config.Env) string {
 // an explicit imageTag > the environment-level full image path > pipeline+SHA >
 // the environment-level version > latest. That is, a caller asking for a specific
 // tag outranks anything derived from the environment.
+//
+// An explicit imageTag is used verbatim: otel/fips may still swap in the dev repository,
+// but no flag ever appends a suffix to it, so the caller owns the whole tag (including
+// "-fips" and "-jmx" when it wants a variant image). Those flags only drive the default
+// tag when imageTag is empty.
 func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool, windowsImage bool) string {
 	if e.AgentFullImagePath() != "" && imageTag == "" {
 		return e.AgentFullImagePath()
@@ -133,6 +138,8 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 // dockerClusterAgentFullImagePath resolves the cluster-agent image, with the same
 // precedence as [dockerAgentFullImagePath]: an explicit imageTag > the
 // environment-level full image path > pipeline+SHA > the environment-level version.
+// An explicit imageTag is likewise used verbatim, fips only selecting the repository
+// and the default tag.
 func dockerClusterAgentFullImagePath(e config.Env, repositoryPath, imageTag string, fips bool) string {
 	if e.ClusterAgentFullImagePath() != "" && imageTag == "" {
 		return e.ClusterAgentFullImagePath()

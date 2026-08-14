@@ -55,10 +55,11 @@ type Params struct {
 	// ClusterAgentFullImagePath is the full path of the docker cluster agent image to use.
 	ClusterAgentFullImagePath string
 	// AgentImageTag is the agent image tag (e.g. a version like "7.55.0") to use when no
-	// full image path is given. Ignored when AgentFullImagePath is set.
+	// full image path is given. Ignored when AgentFullImagePath is set. See
+	// WithAgentVersion.
 	AgentImageTag string
 	// ClusterAgentImageTag is the cluster agent image tag to use when no full image path
-	// is given. Ignored when ClusterAgentFullImagePath is set.
+	// is given. Ignored when ClusterAgentFullImagePath is set. See WithClusterAgentVersion.
 	ClusterAgentImageTag string
 	// Namespace is the namespace to deploy the agent to.
 	Namespace string
@@ -167,9 +168,11 @@ func WithClusterAgentFullImagePath(fullImagePath string) func(*Params) error {
 	}
 }
 
-// WithAgentVersion sets the agent version to deploy, used as the image tag on the
-// default agent repository when no full image path is provided. A full image path
-// (WithAgentFullImagePath) takes precedence.
+// WithAgentVersion sets the agent version to deploy, used as the image tag when no full
+// image path is provided. A full image path (WithAgentFullImagePath) takes precedence.
+// The version is used verbatim as the tag: FIPS/OTel then only select the repository and
+// JMX has no effect at all, so pass a version that already carries the suffix the variant
+// needs (e.g. "7.55.0-fips", "7.55.0-jmx") when combining this with WithFIPS/WithJMX.
 func WithAgentVersion(version string) func(*Params) error {
 	return func(p *Params) error {
 		p.AgentImageTag = version
@@ -178,8 +181,8 @@ func WithAgentVersion(version string) func(*Params) error {
 }
 
 // WithClusterAgentVersion sets the cluster agent version to deploy, used as the image
-// tag on the default cluster agent repository when no full image path is provided. A
-// full image path (WithClusterAgentFullImagePath) takes precedence.
+// tag when no full image path is provided. A full image path
+// (WithClusterAgentFullImagePath) takes precedence. Used verbatim, as WithAgentVersion.
 func WithClusterAgentVersion(version string) func(*Params) error {
 	return func(p *Params) error {
 		p.ClusterAgentImageTag = version
