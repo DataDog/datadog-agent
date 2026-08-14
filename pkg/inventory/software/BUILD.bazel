@@ -66,12 +66,13 @@ dd_agent_go_test(
     env = select({
         "@rules_go//go/platform:windows": {
             "INTEROP_DLL_PATH": "$(rlocationpath //tools/windows/DatadogInterop:libdatadog_interop)",
-            # Override .bazelrc's RunAsInvoker so admin users get an elevated token
-            # (needed for Get-AppxPackage -AllUsers / FindPackagesWithPackageTypes).
-            "__COMPAT_LAYER": "RunAsHighest",
         },
         "//conditions:default": {},
     }),
+    # Windows MS Store / Appx collection needs an elevated token. Opt in:
+    #   bazel test //pkg/inventory/software:software_test
+    # from an elevated prompt.
+    tags = ["manual"],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
