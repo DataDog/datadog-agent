@@ -108,6 +108,10 @@ def _target_to_bazel_pattern(target: str, recursive=True) -> str:
         './pkg/util/' -> '//pkg/util/...'
         './pkg/...'   -> '//pkg/...'
     """
+    # .as_posix() both normalizes the path as well as ensures posix-like paths like those used
+    # to refer to Bazel targets
+    target = Path(target).as_posix()
+
     if target in ('.', './'):
         return '//...' if recursive else "//:all"
     # Strip leading './' then any trailing '/' to avoid double-slash before '/...'
@@ -882,9 +886,7 @@ def test_new(
         bazel_flags.append(f"--test_arg={test_arg}")
 
     bazel_targets = [
-        _target_to_bazel_pattern(
-            os.path.normpath(os.path.join(module.path, target)), recursive=not only_modified_packages
-        )
+        _target_to_bazel_pattern(os.path.join(module.path, target), recursive=not only_modified_packages)
         for module in modules
         if module.should_test()
         for target in module.test_targets
