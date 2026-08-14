@@ -78,6 +78,12 @@ func newConfiguredGPUCheck(
 	return check
 }
 
+func TestCheckDefaults(t *testing.T) {
+	WithGPUConfigEnabled(t)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	require.Equal(t, false, check.parallelCollectors)
+}
+
 func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 	tests := []struct {
 		name               string
