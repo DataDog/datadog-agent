@@ -97,12 +97,12 @@ func TestBuildSDKTraceStatsPayload(t *testing.T) {
 	datapoint.SetStartTimestamp(pcommon.Timestamp(10))
 	datapoint.SetTimestamp(pcommon.Timestamp(20))
 
-	payload, conversionErrors := BuildSDKTraceStatsPayload("agent-host", resourceAttributes, metric)
+	payload, conversionErrors := BuildSDKTraceStatsPayload("agent-host", "test-source", resourceAttributes, metric)
 
 	require.Empty(t, conversionErrors)
 	require.NotNil(t, payload)
 	assert.Equal(t, "agent-host", payload.HostName)
-	assert.Equal(t, SDKTraceStatsSource, payload.Source)
+	assert.Equal(t, "test-source", payload.Source)
 	assert.Equal(t, "container-123", payload.ContainerID)
 	assert.True(t, payload.Aggregate)
 	require.Len(t, payload.Stats, 1)
@@ -138,7 +138,7 @@ func TestBuildSDKTraceStatsPayloadPreservesExplicitHistogram(t *testing.T) {
 	datapoint.ExplicitBounds().FromRaw([]float64{10, 100})
 	datapoint.BucketCounts().FromRaw([]uint64{1, 2, 3})
 
-	payload, conversionErrors := BuildSDKTraceStatsPayload("", pcommon.NewMap(), metric)
+	payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
 
 	require.Empty(t, conversionErrors)
 	groupedStats := groupedByName(payload, "op")
@@ -158,7 +158,7 @@ func TestBuildSDKTraceStatsPayloadSkipsInvalidDatapoints(t *testing.T) {
 	invalid.BucketCounts().FromRaw([]uint64{1})
 	invalid.Attributes().PutStr("datadog.operation.name", "invalid")
 
-	payload, conversionErrors := BuildSDKTraceStatsPayload("", pcommon.NewMap(), metric)
+	payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
 
 	require.Len(t, conversionErrors, 1)
 	assert.Equal(t, 1, conversionErrors[0].DataPointIndex)
@@ -172,7 +172,7 @@ func TestBuildSDKTraceStatsPayloadInputContract(t *testing.T) {
 	t.Run("cumulative histogram", func(t *testing.T) {
 		metric := sdkTraceMetric("s", 1, 1, nil)
 		metric.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-		payload, conversionErrors := BuildSDKTraceStatsPayload("", pcommon.NewMap(), metric)
+		payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
 		assert.Nil(t, payload)
 		assert.Empty(t, conversionErrors)
 	})
@@ -180,7 +180,7 @@ func TestBuildSDKTraceStatsPayloadInputContract(t *testing.T) {
 	t.Run("unrelated metric", func(t *testing.T) {
 		metric := sdkTraceMetric("s", 1, 1, nil)
 		metric.SetName("custom.duration")
-		payload, conversionErrors := BuildSDKTraceStatsPayload("", pcommon.NewMap(), metric)
+		payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
 		assert.Nil(t, payload)
 		assert.Empty(t, conversionErrors)
 	})
@@ -188,7 +188,7 @@ func TestBuildSDKTraceStatsPayloadInputContract(t *testing.T) {
 	t.Run("fallback bucket window", func(t *testing.T) {
 		metric := sdkTraceMetric("s", 1, 1, map[string]string{"datadog.operation.name": "op"})
 		metric.Histogram().DataPoints().At(0).SetTimestamp(pcommon.Timestamp(42))
-		payload, conversionErrors := BuildSDKTraceStatsPayload("", pcommon.NewMap(), metric)
+		payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
 		require.Empty(t, conversionErrors)
 		require.Len(t, payload.Stats, 1)
 		assert.Equal(t, int64(42), payload.Stats[0].Start)

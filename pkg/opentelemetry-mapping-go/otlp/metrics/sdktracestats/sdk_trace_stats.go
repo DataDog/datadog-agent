@@ -33,8 +33,6 @@ import (
 const (
 	// SDKTraceMetricName is the Datadog SDK OTLP duration histogram converted to APM stats.
 	SDKTraceMetricName = "traces.span.sdk.metrics.duration"
-	// SDKTraceStatsSource identifies stats produced from Datadog SDK OTLP trace metrics.
-	SDKTraceStatsSource      = "otlp-intake-metrics-sdk"
 	defaultSDKBucketDuration = 10 * time.Second
 )
 
@@ -126,8 +124,9 @@ func IsSDKTraceMetric(name string) bool {
 }
 
 // BuildSDKTraceStatsPayload converts a Datadog SDK OTLP duration histogram into
-// the V4 APM stats payload. Invalid datapoints are skipped and returned as errors.
-func BuildSDKTraceStatsPayload(host string, rattrs pcommon.Map, metric pmetric.Metric) (*SDKTraceStatsPayload, []SDKTraceStatsError) {
+// the V4 APM stats payload with caller-provided envelope metadata. Invalid
+// datapoints are skipped and returned as errors.
+func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric pmetric.Metric) (*SDKTraceStatsPayload, []SDKTraceStatsError) {
 	if !IsSDKTraceMetric(metric.Name()) || metric.Type() != pmetric.MetricTypeHistogram {
 		return nil, nil
 	}
@@ -167,7 +166,7 @@ func BuildSDKTraceStatsPayload(host string, rattrs pcommon.Map, metric pmetric.M
 		HostName:    host,
 		Stats:       buckets,
 		HostTags:    attributes.TagsFromAttributes(rattrs),
-		Source:      SDKTraceStatsSource,
+		Source:      source,
 		Aggregate:   true,
 		ContainerID: attributes.GetContainerID(rattrs),
 	}, conversionErrors
