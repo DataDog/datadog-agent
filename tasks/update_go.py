@@ -164,6 +164,7 @@ def _get_pattern(pre_pattern: str, post_pattern: str, is_bugfix: bool) -> str:
 
 def _bump_fakeintake_version() -> None:
     from tasks.fakeintake import VERSION_FILE
+
     with open(VERSION_FILE) as f:
         current = int(f.read().strip()[1:])
     with open(VERSION_FILE, "w") as f:
