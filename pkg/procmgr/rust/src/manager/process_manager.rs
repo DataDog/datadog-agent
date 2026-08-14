@@ -1,9 +1,10 @@
 use super::{
     ExitEvent, PendingRestart, RuntimeHandles, Supervisor, find_index_by_name, queue_restart,
-    recompute_startup_order, resolve_index, try_spawn_and_watch,
+    resolve_index, try_spawn_and_watch,
 };
 use crate::command::{CreateResult, StartResult, StopResult};
-use crate::config::{self, ConfigLoader};
+use crate::config::{self, ConfigLoader, ProcessDefinition};
+use crate::ordering;
 use crate::process::ManagedProcess;
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
@@ -240,5 +241,33 @@ impl ProcessManager {
             .collect();
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
+    }
+}
+
+struct StartupOrderResult {
+    order: Vec<usize>,
+    warnings: Vec<String>,
+}
+
+fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
+    let defs: Vec<ProcessDefinition> = procs
+        .iter()
+        .map(|p| ProcessDefinition {
+            name: p.name().to_string(),
+            config: p.config().clone(),
+        })
+        .collect();
+    let result = ordering::resolve_order(&defs);
+    if !result.skipped.is_empty() {
+        warn!(
+            "dependency cycle detected, skipping processes: {}",
+            result.skipped.join(", ")
+        );
+    }
+    let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
+    debug!("startup order: {}", names.join(" -> "));
+    StartupOrderResult {
+        order: result.order,
+        warnings: result.warnings,
     }
 }
