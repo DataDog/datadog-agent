@@ -1,8 +1,9 @@
 # Global build settings
 # gazelle:dd_agent_go_test on
-# gazelle:go_canonical_test_tag_set docker kubelet
 # gazelle:go_canonical_test_tag_set cel clusterchecks kubeapiserver kubelet orchestrator
 # gazelle:go_canonical_test_tag_set linux_bpf
+# gazelle:go_canonical_test_tag_set containerd cel
+# gazelle:go_canonical_test_tag_set docker kubelet cel
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
@@ -48,7 +49,7 @@ exports_files(glob(
 
 exports_files(["go.mod"])
 
-# TODO(ABLD-519): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
+# TODO(ABLD-519): remove below `gazelle:exclude` directives
 # gazelle:exclude cmd/serverless-init/*.go
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
 # Bazel go_deps graph (progs is a separate module outside go.work). Keep this
@@ -67,7 +68,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
-# gazelle:exclude tools/retry_file_dump
 # gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======
