@@ -179,25 +179,27 @@ http_requests_total{method="POST",status="500"} 5`)
 	require.Nil(t, errResult)
 	require.NotNil(t, result)
 
-	var families []struct {
-		Name    string `json:"name"`
-		Type    string `json:"type"`
-		Samples []struct {
-			SampleName string   `json:"sample_name"`
-			Value      float64  `json:"value"`
-			Tags       []string `json:"tags"`
-			Hostname   string   `json:"hostname"`
-		} `json:"samples"`
+	var processResult struct {
+		Families []struct {
+			Name    string `json:"name"`
+			Type    string `json:"type"`
+			Samples []struct {
+				SampleName string   `json:"sample_name"`
+				Value      float64  `json:"value"`
+				Tags       []string `json:"tags"`
+				Hostname   string   `json:"hostname"`
+			} `json:"samples"`
+		} `json:"families"`
 	}
-	err := json.Unmarshal([]byte(C.GoString(result)), &families)
+	err := json.Unmarshal([]byte(C.GoString(result)), &processResult)
 	require.NoError(t, err)
-	require.Len(t, families, 1)
-	assert.Equal(t, "http_requests", families[0].Name) // _total stripped for counters
-	assert.Equal(t, "COUNTER", families[0].Type)
-	require.Len(t, families[0].Samples, 2)
-	assert.Equal(t, 1234.0, families[0].Samples[0].Value)
-	assert.Contains(t, families[0].Samples[0].Tags, "env:test")
-	assert.Contains(t, families[0].Samples[0].Tags, "http_method:GET")
+	require.Len(t, processResult.Families, 1)
+	assert.Equal(t, "http_requests", processResult.Families[0].Name) // _total stripped for counters
+	assert.Equal(t, "COUNTER", processResult.Families[0].Type)
+	require.Len(t, processResult.Families[0].Samples, 2)
+	assert.Equal(t, 1234.0, processResult.Families[0].Samples[0].Value)
+	assert.Contains(t, processResult.Families[0].Samples[0].Tags, "env:test")
+	assert.Contains(t, processResult.Families[0].Samples[0].Tags, "http_method:GET")
 }
 
 func testObfuscaterConfig(t *testing.T) {
