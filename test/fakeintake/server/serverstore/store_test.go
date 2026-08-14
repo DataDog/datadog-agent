@@ -115,7 +115,7 @@ func (suite *StoreTestSuite) TestGetRawPayloadsPagination() {
 	assert.False(suite.T(), hasMore)
 }
 
-// TestGetRawPayloadsCursorStableAcrossCleanup tests that a cursor taken before CleanUpPayloadsOlderThan 
+// TestGetRawPayloadsCursorStableAcrossCleanup tests that a cursor taken before CleanUpPayloadsOlderThan
 // trims the front of the store still returns every remaining payload with no gaps or duplicates.
 func (suite *StoreTestSuite) TestGetRawPayloadsCursorStableAcrossCleanup() {
 	store := suite.StoreConstructor()

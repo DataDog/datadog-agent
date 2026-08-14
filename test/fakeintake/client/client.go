@@ -496,7 +496,7 @@ func (c *Client) GetRawPayloads(endpoint string) ([]api.Payload, error) {
 	return c.getFakePayloads(endpoint)
 }
 
-// fakePayloadsPageSize is the number of payloads to fetch per page. 
+// fakePayloadsPageSize is the number of payloads to fetch per page.
 const fakePayloadsPageSize = 500
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {

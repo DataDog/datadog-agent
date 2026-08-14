@@ -23,7 +23,7 @@ type inMemoryStore struct {
 
 	rawPayloads map[string][]api.Payload
 	lastAPIKey  string
-	
+
 	// Strictly increasing sequence number assigned to each payload
 	nextSeq uint64
 
