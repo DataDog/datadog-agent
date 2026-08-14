@@ -10,6 +10,8 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -26,6 +28,10 @@ var (
 // GetName shouldn't be used on DCA. For DCA please refer to DCAGetName.
 func GetName(ctx context.Context) (string, error) {
 	if !env.IsFeaturePresent(env.Kubernetes) {
+		return "", nil
+	}
+
+	if helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		return "", nil
 	}
 
