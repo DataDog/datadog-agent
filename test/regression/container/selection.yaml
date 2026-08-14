@@ -15,3 +15,7 @@
 always:
   - quality_gates/**
   - metrics/**
+
+codeowners:
+  agent-log-pipelines:
+    - logs/general/**
