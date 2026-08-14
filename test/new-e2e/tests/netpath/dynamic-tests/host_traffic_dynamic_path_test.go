@@ -158,26 +158,18 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
+	// Add the config before the rest of setup. Fakeintake returns 404 when the
+	// Agent polls an empty RC repository, and those responses increase the
+	// Agent's retry backoff while the host dependencies are being prepared.
+	fakeintake := s.Env().FakeIntake.Client()
+	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
+	s.remoteConfigAdded = true
+
 	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
 
-	fakeintake := s.Env().FakeIntake.Client()
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		stats, err := fakeintake.RCStats()
-		assert.NoError(c, err)
-		assert.NotZero(c, stats.Polls, "agent did not poll fakeintake Remote Config")
-	}, 2*time.Minute, 5*time.Second)
-	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
-	s.remoteConfigAdded = true
-
-	// We deliberately don't gate setup on the agent re-polling Remote Config here.
-	// The agent's RC refresh cadence is defaultRefreshInterval (1m) plus exponential
-	// backoff on transient errors, so the next poll can legitimately land beyond a
-	// short deadline and would flake this gate. TestHostTrafficDynamicNetworkPath
-	// already waits for the RC-admitted network path to appear, which inherently
-	// proves the agent polled and applied this config.
 	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
 }
 
@@ -199,7 +191,9 @@ func (s *hostTrafficDynamicPathSuite) AfterTest(suiteName, testName string) {
 
 func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	fakeintake := s.Env().FakeIntake.Client()
-	s.startHostTrafficGenerator(4 * time.Minute)
+	// Keep producing matching connections for longer than the assertion window
+	// so a delayed RC application still has traffic to admit.
+	s.startHostTrafficGenerator(6 * time.Minute)
 
 	var remoteConfigMatch *aggregator.Netpath
 	s.EventuallyWithT(func(c *assert.CollectT) {
