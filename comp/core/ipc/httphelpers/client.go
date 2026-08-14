@@ -35,14 +35,28 @@ type ipcClient struct {
 	config      pkgconfigmodel.Reader
 }
 
+func ipcTLSHandshakeTimeout(config pkgconfigmodel.Reader, serverTimeout time.Duration) time.Duration {
+	timeout := config.GetDuration("tls_handshake_timeout")
+	if serverTimeout > 0 && (timeout <= 0 || timeout > serverTimeout) {
+		return serverTimeout
+	}
+	return timeout
+}
+
 // NewClient creates a new secure client
 func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmodel.Reader) ipc.HTTPClient {
+	serverTimeout := config.GetDuration("server_timeout") * time.Second
+	dialer := &net.Dialer{Timeout: serverTimeout}
 	tr := &http.Transport{
-		TLSClientConfig: clientTLSConfig,
+		DialContext:         dialer.DialContext,
+		TLSClientConfig:     clientTLSConfig,
+		TLSHandshakeTimeout: ipcTLSHandshakeTimeout(config, serverTimeout),
 	}
 
 	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
 		tr.DialContext = func(_ context.Context, _ string, address string) (net.Conn, error) {
+			// vsock.Dial has no context-aware or deadline-aware variant. TLSHandshakeTimeout
+			// still bounds a peer which accepts the connection but stalls during the handshake.
 			_, sPort, err := net.SplitHostPort(address)
 			if err != nil {
 				return nil, err
@@ -67,8 +81,8 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 		}
 	} else {
 		clone := tr.Clone()
-		clone.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
-			return net.Dial("unix", config.GetString("agent_ipc.socket_path"))
+		clone.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "unix", config.GetString("agent_ipc.socket_path"))
 		}
 		udsRoundTripper := roundTripAdapter(clone)
 
