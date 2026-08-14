@@ -18,7 +18,7 @@ import (
 )
 
 func TestParseSessions(t *testing.T) {
-	sessions, err := parseSessions([]byte("Session: console (owner:Administrator type:console name:'Console')\r\nSession: graphics-1 (owner:CORP\\user type:virtual name:'Graphics')\r\n"))
+	sessions, err := parseSessions([]byte("Session: 'console' (owner:Administrator type:console name:'Console')\r\nSession: graphics-1 (owner:CORP\\user type:virtual name:'Graphics')\r\n"))
 	require.NoError(t, err)
 	require.Equal(t, []listedSession{
 		{id: "console", owner: "Administrator"},
@@ -35,6 +35,9 @@ func TestParseSessionsRejectsUnexpectedOutput(t *testing.T) {
 
 	_, err = parseSessions([]byte("Session: bad\x00id (owner:user type:console)"))
 	require.ErrorContains(t, err, "control character")
+
+	_, err = parseSessions([]byte("Session: 'unterminated (owner:user type:console)"))
+	require.ErrorContains(t, err, "invalid quoted session id")
 }
 
 func TestValidateCommandArgs(t *testing.T) {
@@ -102,7 +105,7 @@ func (r *fakeRunner) Run(_ context.Context, args ...string) ([]byte, error) {
 
 func TestCollectorUsesOnlyFixedReadOnlyArguments(t *testing.T) {
 	runner := &fakeRunner{responses: map[string][]byte{
-		"list-sessions":                   []byte("Session: console (owner:Administrator type:console)\n"),
+		"list-sessions":                   []byte("Session: 'console' (owner:Administrator type:console)\n"),
 		"list-connections|console|--json": []byte(`[{"id":1,"username":"user"}]`),
 	}, errors: map[string]error{}}
 	collector := NewCollector(runner)

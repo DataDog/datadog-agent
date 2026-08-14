@@ -17,9 +17,10 @@ const (
 )
 
 type counterDefinition struct {
-	counter string
-	metric  string
-	kind    metricType
+	counter  string
+	metric   string
+	kind     metricType
+	optional bool
 }
 
 type objectDefinition struct {
@@ -37,13 +38,21 @@ func monotonic(counter, metric string) counterDefinition {
 	return counterDefinition{counter: counter, metric: metric, kind: monotonicCountMetric}
 }
 
+func optionalGauge(counter, metric string) counterDefinition {
+	return counterDefinition{counter: counter, metric: metric, kind: gaugeMetric, optional: true}
+}
+
+func optionalMonotonic(counter, metric string) counterDefinition {
+	return counterDefinition{counter: counter, metric: metric, kind: monotonicCountMetric, optional: true}
+}
+
 var serverCounters = []counterDefinition{
 	gauge("Active Sessions", "active_sessions"),
 	monotonic("Total Sessions", "total_sessions"),
 	gauge("Active Connections", "active_connections"),
 	monotonic("Total Connections", "total_connections"),
 	monotonic("Idle Disconnections", "idle_disconnections"),
-	monotonic("Ungraceful Disconnections", "ungraceful_disconnections"),
+	optionalMonotonic("Ungraceful Disconnections", "ungraceful_disconnections"),
 	gauge("Receive Rate bits/sec", "receive_rate"),
 	monotonic("Received Bytes", "received_bytes"),
 	gauge("Send Rate bits/sec", "send_rate"),
@@ -111,7 +120,7 @@ var dcvObjects = []objectDefinition{
 			monotonic("Grabbed Frames", "grabbed_frames_total"),
 			gauge("Sent Frames/sec", "sent_frames"),
 			gauge("Dropped Frames/sec", "dropped_frames"),
-			gauge("Display Latency ms", "display_latency"),
+			optionalGauge("Display Latency ms", "display_latency"),
 			gauge("Available Bandwidth bits/sec", "available_bandwidth"),
 			gauge("Encoded Frames/sec", "encoded_frames"),
 			gauge("Encoding Time ms", "encoding_time"),

@@ -155,12 +155,29 @@ func parseSessions(output []byte) ([]listedSession, error) {
 		if match == nil {
 			return nil, fmt.Errorf("unexpected line %q", truncate(line, 256))
 		}
-		if err := validateSessionID(match[1]); err != nil {
+		sessionID, err := parseListedSessionID(match[1])
+		if err != nil {
 			return nil, err
 		}
-		sessions = append(sessions, listedSession{id: match[1], owner: match[2]})
+		sessions = append(sessions, listedSession{id: sessionID, owner: match[2]})
 	}
 	return sessions, nil
+}
+
+// DCV 2026 encloses session IDs in single quotes in list-sessions output,
+// while older versions emit the ID without quotes. Quotes are presentation
+// syntax and must not be passed literally to list-connections.
+func parseListedSessionID(value string) (string, error) {
+	if strings.HasPrefix(value, "'") || strings.HasSuffix(value, "'") {
+		if len(value) < 2 || value[0] != '\'' || value[len(value)-1] != '\'' {
+			return "", fmt.Errorf("invalid quoted session id %q", value)
+		}
+		value = value[1 : len(value)-1]
+	}
+	if err := validateSessionID(value); err != nil {
+		return "", err
+	}
+	return value, nil
 }
 
 type connectionJSON struct {

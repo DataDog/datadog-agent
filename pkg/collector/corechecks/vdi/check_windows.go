@@ -191,7 +191,9 @@ func (c *checkImpl) Run() error {
 			if counter.object.multiple {
 				values, valueErr := counter.multi.GetAllValues()
 				if valueErr != nil {
-					pdhHealthy = false
+					if !counter.def.optional {
+						pdhHealthy = false
+					}
 					log.Debugf("Unable to read %s\\%s: %v", counter.object.object, counter.def.counter, valueErr)
 					continue
 				}
@@ -206,7 +208,9 @@ func (c *checkImpl) Run() error {
 			} else {
 				value, valueErr := counter.single.GetValue()
 				if valueErr != nil {
-					pdhHealthy = false
+					if !counter.def.optional {
+						pdhHealthy = false
+					}
 					log.Debugf("Unable to read %s\\%s: %v", counter.object.object, counter.def.counter, valueErr)
 					continue
 				}

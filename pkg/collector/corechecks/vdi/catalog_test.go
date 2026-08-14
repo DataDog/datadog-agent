@@ -18,4 +18,18 @@ func TestDCVCatalogContainsAllCounters(t *testing.T) {
 		total += len(object.counters)
 	}
 	require.Equal(t, 65, total)
+
+	optional := make(map[string]struct{})
+	for _, object := range dcvObjects {
+		for _, counter := range object.counters {
+			if counter.optional {
+				optional[object.object+`\`+counter.counter] = struct{}{}
+			}
+		}
+	}
+	require.Equal(t, map[string]struct{}{
+		`DCV Server\Ungraceful Disconnections`:          {},
+		`DCV Server Sessions\Ungraceful Disconnections`: {},
+		`DCV Server Imaging\Display Latency ms`:         {},
+	}, optional)
 }
