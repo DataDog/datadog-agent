@@ -65,7 +65,6 @@ dd_agent_go_test(
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
         "//pkg/util/kernel",
-        "//pkg/util/testutil/flake",
         "@com_github_cilium_ebpf//:ebpf",
         "@com_github_cilium_ebpf//link",
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
