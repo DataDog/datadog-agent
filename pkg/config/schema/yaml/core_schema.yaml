@@ -6884,6 +6884,21 @@ properties:
           \ taking\nprecedence over each check's own min_collection_interval \u2014\
           \ mirrors\ngpu.collection_interval_override, generalized to any SDC-compressed\n\
           check instead of just the gpu check."
+      sdc_compression_metric_types:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: comma_separated
+        items:
+          type: string
+        comment: |-
+          Restricts SDC compression to only these check-sender metric types
+          (valid values: gauge, count, rate, monotonic_count; "gauge" covers
+          both Gauge and GaugeWithTimestamp calls, "count" covers Count and
+          CountWithTimestamp). A call whose type isn't listed here bypasses
+          the compressor entirely, forwarded unmodified like dry-run mode
+          does. Empty (the default) applies no restriction — every
+          supported type is compressed.
       sdc_compression_warmup:
         node_type: setting
         type: integer
