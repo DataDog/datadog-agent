@@ -280,7 +280,8 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 		Select-Object Name, Version, Publisher, Architecture, PackageFamilyName |
 		Sort-Object Name;
 		if ($apps) {
-			$apps | ConvertTo-Json -AsArray  # Force array output even for single item
+			# @() keeps a single object as a JSON array; -AsArray needs PS 6+.
+			ConvertTo-Json -InputObject @($apps)
 		} else {
 			Write-Output "[]"  # Return empty array if no apps
 		}

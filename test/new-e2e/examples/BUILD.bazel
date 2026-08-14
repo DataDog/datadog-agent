@@ -29,6 +29,7 @@ dd_agent_go_test(
         "kind_rc_loglevel_test.go",
         "kind_test.go",
         "openshiftvm_test.go",
+        "static_stack_test.go",
         "suite_serial_kube_test.go",
         "vm_localpodman_test.go",
         "vm_test.go",

@@ -129,6 +129,7 @@ func TestIteratorFilterList(t *testing.T) {
 
 		require.False(t, it.MoveNext())
 		require.NoError(t, it.err)
+		require.Equal(t, payloadStats{metrics: 2, points: 3, filteredMetrics: 1, filteredPoints: 2}, it.stats)
 	})
 
 	t.Run("prefix match skips every matching metric", func(t *testing.T) {
@@ -141,6 +142,7 @@ func TestIteratorFilterList(t *testing.T) {
 
 		require.False(t, it.MoveNext())
 		require.NoError(t, it.err)
+		require.Equal(t, payloadStats{metrics: 1, points: 1, filteredMetrics: 2, filteredPoints: 4}, it.stats)
 	})
 
 	t.Run("everything filtered", func(t *testing.T) {
@@ -150,5 +152,6 @@ func TestIteratorFilterList(t *testing.T) {
 
 		require.False(t, it.MoveNext())
 		require.NoError(t, it.err)
+		require.Equal(t, payloadStats{filteredMetrics: 3, filteredPoints: 5}, it.stats)
 	})
 }

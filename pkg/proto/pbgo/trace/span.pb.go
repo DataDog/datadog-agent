@@ -555,8 +555,11 @@ type Span struct {
 	// @gotags: json:"type" msg:"type"
 	Type string `protobuf:"bytes,12,opt,name=type,proto3" json:"type" msg:"type"`
 	// meta_struct is a registry of structured "other" data used by, e.g., AppSec.
-	// @gotags: json:"meta_struct,omitempty" msg:"meta_struct,omitempty"
-	MetaStruct map[string][]byte `protobuf:"bytes,13,rep,name=meta_struct,json=metaStruct,proto3" json:"meta_struct,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value" msg:"meta_struct,omitempty"`
+	// Entries can legitimately be much larger than other span fields, so this
+	// field overrides the package-wide messagepack allocation limit with a 10MiB
+	// cap (see the //msgp:limit directives in pkg/proto/pbgo/trace).
+	// @gotags: json:"meta_struct,omitempty" msg:"meta_struct,omitempty,limit=10485760"
+	MetaStruct map[string][]byte `protobuf:"bytes,13,rep,name=meta_struct,json=metaStruct,proto3" json:"meta_struct,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value" msg:"meta_struct,omitempty,limit=10485760"`
 	// span_links represents a collection of links, where each link defines a causal relationship between two spans.
 	// @gotags: json:"span_links,omitempty" msg:"span_links,omitempty"
 	SpanLinks []*SpanLink `protobuf:"bytes,14,rep,name=spanLinks,proto3" json:"span_links,omitempty" msg:"span_links,omitempty"`

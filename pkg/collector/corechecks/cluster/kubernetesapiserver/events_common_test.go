@@ -192,6 +192,43 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"generic_tag:generic-resource",
 			},
 		},
+		{
+			name: "get tags for a cronjob-owned job",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-cronjob-1234567",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-cronjob-1234567",
+				"kubernetes_kind:Job",
+				"name:my-cronjob-1234567",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-cronjob-1234567",
+				"kube_cronjob:my-cronjob",
+			},
+		},
+		{
+			name: "get tags for a standalone job",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-standalone-job",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-standalone-job",
+				"kubernetes_kind:Job",
+				"name:my-standalone-job",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-standalone-job",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

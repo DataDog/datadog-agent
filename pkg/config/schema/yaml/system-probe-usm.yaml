@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe-usm.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/system-probe-usm.yaml
 node_type: section
 title: System Probe Universal Service monitoring Configuration
 type: object

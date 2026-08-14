@@ -729,6 +729,33 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		err       string
 	}{
 		{
+			// A fully absent debug section leaves the exporter detached: verbosity is
+			// never populated, so no per-batch debug logs are emitted by default.
+			path:      "debug/absent_debug.yaml",
+			shouldSet: false,
+			cfg: PipelineConfig{
+				OTLPReceiverConfig:           map[string]interface{}{},
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
+				Logs:                         map[string]interface{}{},
+				Debug:                        map[string]interface{}{},
+				Metrics: map[string]interface{}{
+					"enabled":                                true,
+					"tag_cardinality":                        "low",
+					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
+					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{},
+			},
+		},
+		{
+			// Explicitly declaring the debug section without a verbosity attaches the
+			// debug exporter using the default verbosity ("basic"). Only a fully absent
+			// debug section or an explicit "none" leaves the exporter detached.
 			path:      "debug/empty_but_set_debug.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
@@ -740,7 +767,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracesInfraAttributesEnabled: true,
 				TracesContainerTagPromotion:  "off",
 				Logs:                         map[string]interface{}{},
-				Debug:                        map[string]interface{}{},
+				Debug:                        map[string]interface{}{"verbosity": "basic"},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",

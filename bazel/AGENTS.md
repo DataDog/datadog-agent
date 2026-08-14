@@ -884,6 +884,14 @@ symlink creation without administrator elevation. The `.bazelrc` sets `--enable_
 **No sandbox.** Windows uses `--strategy=standalone`. Builds are less hermetic by default — undeclared dependencies that
 happen to be present locally will succeed locally and fail in CI or RBE.
 
+**Hermetic MSVC / MSBuild.** MinGW is the default Windows `cc_toolchain`. Hermetic `cl.exe`,
+Windows SDK, and MSBuild come from `@msvc_toolchains` (staged by
+`bazel/patches/toolchains_msvc/`). Drive MSVC-only sources (C++/WinRT, etc.) with
+`run_binary` + hermetic MSBuild — see `tools/windows/DatadogInterop/BUILD.bazel` and
+`deps/cpython.BUILD.bazel` (`python_win`) — so the rest of the Windows tree stays on MinGW.
+Only do this for a library the Go side loads over a C ABI: MSVC and MinGW objects must not
+be linked into the same binary.
+
 **Path separators.** Bazel stores paths with `/` internally. When constructing command lines or environment variables
 for actions, replace `/` with `\` for Windows tools that don't accept forward slashes:
 

@@ -18,11 +18,29 @@ import (
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
+// payloadStats counts what a single payload contributed. Accumulated as the
+// iterator is drained and reported to telemetry once, instead of touching the
+// counters for every point.
+type payloadStats struct {
+	metrics         uint64
+	points          uint64
+	filteredMetrics uint64
+	filteredPoints  uint64
+}
+
+func (s *payloadStats) report(tlm *endpointTelemetry) {
+	tlm.metrics.Add(float64(s.metrics))
+	tlm.points.Add(float64(s.points))
+	tlm.filteredMetrics.Add(float64(s.filteredMetrics))
+	tlm.filteredPoints.Add(float64(s.filteredPoints))
+}
+
 type iteratorCommon struct {
 	reader     *reader.MetricDataReader
 	origin     origin
 	hostname   string
 	filterList utilstrings.Matcher
+	stats      payloadStats
 	err        error
 }
 
@@ -49,6 +67,9 @@ func (it *iteratorCommon) nextUnfilteredMetric() bool {
 		if !it.filterList.Test(it.reader.Name()) {
 			return true
 		}
+
+		it.stats.filteredMetrics++
+		it.stats.filteredPoints += it.reader.NumPoints()
 	}
 }
 
@@ -150,6 +171,9 @@ func (it *seriesIterator) MoveNext() bool {
 			Value: it.reader.Value(),
 		})
 	}
+
+	it.stats.metrics++
+	it.stats.points += uint64(len(b.Points))
 
 	return true
 }

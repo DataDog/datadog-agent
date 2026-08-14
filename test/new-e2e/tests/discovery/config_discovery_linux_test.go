@@ -12,14 +12,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
-	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
+	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 //go:embed testdata/compose/docker-compose.fake-krakend.yaml
@@ -77,6 +80,10 @@ func (s *configDiscoverySuite) verifyKrakendConfigDiscovery(c *assert.CollectT) 
 		t.Logf("configcheck output: %s", configCheckOutput)
 		return
 	}
+	if !assert.True(c, strings.Contains(configCheckOutput, configDiscoveryTag), "krakend config resolved via configuration discovery should carry the %s marker tag", configDiscoveryTag) {
+		t.Logf("configcheck output: %s", configCheckOutput)
+		return
+	}
 
 	statusOutput := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "agent", "status", "collector", "--json")
 	var status collectorStatus
@@ -105,6 +112,26 @@ func (s *configDiscoverySuite) verifyKrakendConfigDiscovery(c *assert.CollectT) 
 	// config came from the configuration-discovery path (via the Docker
 	// listener), not a plain file provider.
 	s.verifyKrakendCheckProvider(c)
+
+	// Verify the metric actually submitted by the discovered krakend check
+	// carries the configuration-discovery marker tag, not just the resolved
+	// config (checked above via configcheck).
+	s.verifyKrakendMetricHasConfigDiscoveryTag(c)
+}
+
+// verifyKrakendMetricHasConfigDiscoveryTag checks, via fakeintake, that a
+// metric submitted by the discovered krakend check (krakend.api.go.goroutines,
+// from the fake container's go_goroutines gauge) carries the
+// configDiscoveryTag marker tag end to end, not just in the resolved config.
+func (s *configDiscoverySuite) verifyKrakendMetricHasConfigDiscoveryTag(c *assert.CollectT) {
+	const metricName = "krakend.api.go.goroutines"
+
+	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(metricName,
+		fakeintakeclient.WithTags[*aggregator.MetricSeries]([]string{configDiscoveryTag}))
+	if !assert.NoError(c, err, "failed to query fakeintake for %s", metricName) {
+		return
+	}
+	assert.NotEmpty(c, metrics, "expected at least one %s series tagged with %s", metricName, configDiscoveryTag)
 }
 
 // adContainerDiscoveryProvider mirrors names.ADContainerDiscovery in
@@ -114,6 +141,15 @@ func (s *configDiscoverySuite) verifyKrakendConfigDiscovery(c *assert.CollectT) 
 // configs resolved via configuration discovery against non-process services
 // (e.g. containers, discovered via the Docker listener here).
 const adContainerDiscoveryProvider = "ad-container-discovery+file"
+
+// configDiscoveryTag mirrors configDiscoveryTag in
+// comp/core/autodiscovery/impl/configmgr_discovery.go (not importable here:
+// it lives in the root module, which test/new-e2e does not depend on). It is
+// the marker tag configuration discovery adds to every instance it
+// schedules, so users can identify (and, if needed, exclude) metrics
+// submitted by an autodiscovered check that duplicates a manually-configured
+// one pointed at the same service from elsewhere.
+const configDiscoveryTag = "dd_config_discovery:true"
 
 // verifyKrakendCheckProvider checks that the krakend check has
 // config.provider = adContainerDiscoveryProvider in the inventory-checks

@@ -7,10 +7,13 @@ benchmark:
   interruptible: true
   needs: ["setup_agent_version"]
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
+  variables:
+    GIT_DEPTH: 0  # Full history: run-benchmarks.sh / analyze-results.sh check out BASE_BRANCH
   script:
     - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export BASE_BRANCH="$(cat release.json | jq ".base_branch" | tr -d '"')"
+    - git fetch origin "$BASE_BRANCH"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@${DDA_VERSION}"
     - dda self dep sync -f legacy-tasks

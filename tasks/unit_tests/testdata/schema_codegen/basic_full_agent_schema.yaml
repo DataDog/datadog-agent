@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/datadog.yaml
 title: Basic schema for unit test
 properties:
   my_setting:

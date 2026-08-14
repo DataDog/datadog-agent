@@ -1,0 +1,56 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workload-fake
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-{{i}}
+  namespace: workload-fake
+  labels:
+    app: fake-{{i}}
+  annotations:
+    churn.datadoghq.com/instances: "50"
+    churn.datadoghq.com/lifetime: 1m
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: fake-{{i}}
+  template:
+    metadata:
+      labels:
+        app: fake-{{i}}
+    spec:
+      containers:
+        - image: fake
+          name: fake
+      nodeSelector:
+        type: kwok
+      tolerations:
+        - key: kwok.x-k8s.io/node
+          operator: Equal
+          value: fake
+          effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-{{i}}
+  namespace: workload-fake
+  labels:
+    app: fake-{{i}}
+  annotations:
+    churn.datadoghq.com/instances: "50"
+    churn.datadoghq.com/lifetime: 2m
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: fake-{{i}}
+  type: ClusterIP

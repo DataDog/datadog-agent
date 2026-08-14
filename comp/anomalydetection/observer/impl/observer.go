@@ -507,11 +507,20 @@ func (o *observerImpl) run() {
 		for _, req := range requests {
 			_ = o.engine.advanceWithReason(req.upToSec, req.reason)
 		}
-		if o.telemetry != nil {
-			o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+		if len(requests) > 0 {
+			o.publishSeriesCount()
 		}
 		o.replayMu.Unlock()
 	}
+}
+
+// publishSeriesCount updates the series-count gauge after an analysis advance,
+// when any storage capacity eviction triggered by that advance has completed.
+func (o *observerImpl) publishSeriesCount() {
+	if o.telemetry == nil {
+		return
+	}
+	o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount())
 }
 
 // defaultDetectorWindowSec is the default window (in seconds) that limits how
@@ -814,6 +823,7 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	o.replayMu.Lock()
 	o.metricFilter.muted.Store(nil)
 	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
+	o.publishSeriesCount()
 	o.replayMu.Unlock()
 }
 
@@ -935,6 +945,7 @@ func (o *observerImpl) ReplayStoredData() {
 	o.replayMu.Lock()
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
+	o.publishSeriesCount()
 	o.replayMu.Unlock()
 }
 
@@ -958,7 +969,6 @@ func (o *observerImpl) IngestLogForReplay(source string, msg observerdef.LogView
 	o.engine.storage.RecordObservationTime(lo.timestampMs / 1000)
 	if o.telemetry != nil {
 		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
-		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
 	}
 	o.replayMu.Unlock()
 }
@@ -976,7 +986,9 @@ func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogVie
 	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
 	if o.telemetry != nil {
 		o.telemetry.recordLogIngested(classifyLogSource(source, lo.tags), len(lo.content))
-		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+	}
+	if len(requests) > 0 {
+		o.publishSeriesCount()
 	}
 	o.replayMu.Unlock()
 }
@@ -986,6 +998,7 @@ func (o *observerImpl) IngestLogAndAdvance(source string, msg observerdef.LogVie
 func (o *observerImpl) FinishReplayStream() {
 	o.replayMu.Lock()
 	o.engine.FinishReplayStream()
+	o.publishSeriesCount()
 	o.replayMu.Unlock()
 }
 
@@ -1054,8 +1067,8 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 		o.engine.replayAdvances.Add(1)
 	}
 	o.engine.replayAnomalies.Store(int64(o.engine.TotalAnomalyCount()))
-	if o.telemetry != nil {
-		o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount(observerdef.TelemetryNamespace))
+	if len(requests) > 0 {
+		o.publishSeriesCount()
 	}
 	o.replayMu.Unlock()
 }

@@ -1,0 +1,270 @@
+-- allium: 3
+-- line_parser.allium
+
+-- Scope: The truncation-related behaviour of the MultiLineParser
+--   at pkg/logs/internal/decoder/line_parser.go. The
+--   MultiLineParser is a stateful accumulator that combines
+--   parser-marked partial lines into a single logical message,
+--   emitting downstream when either (a) a parsed input is no
+--   longer marked partial, or (b) the accumulated buffer reaches
+--   line_limit bytes. When the latter happens, the emission
+--   carries IsTruncated=true regardless of the per-input partial
+--   status. This spec covers ONLY the truncation behaviour;
+--   parser embedding, flush-timer semantics, and the multi-line
+--   accumulation contract itself are out of scope.
+--
+--   The MultiLineParser does NOT declare fulfilment of either
+--   TruncationDetector or Truncatable. It propagates the
+--   upstream IsTruncated flag and sets its own flag on
+--   buffer-overflow, and it does cut content at the message
+--   boundary by forcing emission when the accumulated buffer
+--   crosses line_limit (splitting a logical multi-line stream
+--   into multiple emissions). What it does NOT do is byte-level
+--   trimming or marker-byte decoration within an emission — each
+--   emission carries its full buffer byte-for-byte, and
+--   downstream consumers (typically the SingleLineHandler)
+--   handle marker decoration and byte-limit enforcement on the
+--   received content.
+--
+--   The SingleLineParser sibling type in the same file is a
+--   stateless pass-through that performs no truncation
+--   handling; it inherits the input's IsTruncated flag
+--   unchanged and is intentionally NOT covered by this spec.
+-- Includes: The MultiLineParser entity (truncation-relevant
+--   configuration and state), the MultiLineParserTruncation
+--   surface and its @guarantees covering: flag-only
+--   accumulator semantics, buffer-overflow flag setting,
+--   buffer-overflow forced emission (even when the input is
+--   still marked partial), the upstream-flag-OR-internal-flag
+--   propagation on emission, the deliberate "last-input-wins"
+--   semantics for upstream IsTruncated within a partial
+--   accumulation cycle, deferred reset of state on emission.
+-- Excludes:
+--   - The multi-line aggregation contract itself (how partial
+--     inputs are combined, what IsPartial means, which parsers
+--     produce partial outputs). The MultiLineParser's
+--     accumulation logic is described in terms of inputs and
+--     emissions, but the partial-line aggregation semantics
+--     are owned by the parsers package and are out of scope.
+--   - The flush_timeout and flush_timer mechanism, which is
+--     a time-based emission trigger orthogonal to truncation.
+--   - The embedded parser (Parser interface). Each
+--     MultiLineParser instance composes a parser; the
+--     parser's behaviour is independent of truncation.
+--   - The downstream LineHandler. The MultiLineParser emits
+--     to a LineHandler (typically SingleLineHandler in path
+--     A); the downstream handler's behaviour is described
+--     in its own surface spec.
+--   - The rawDataLen tracking. Used for restart-positioning
+--     of the tailer; orthogonal to truncation.
+--   - The literal byte value of the truncation marker. The
+--     MultiLineParser does not handle marker bytes at all
+--     (see NoMarkerByteDecoration).
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity MultiLineParser {
+    -- A configured MultiLineParser instance. Combines
+    -- consecutive partial-flagged inputs into a single
+    -- logical message, with truncation tracking for
+    -- over-buffer-limit emissions.
+    --
+    -- line_limit:               byte threshold at which the
+    --                           accumulator flags emission as
+    --                           truncated and forces emission
+    --                           regardless of the input's
+    --                           partial-flag status. Set at
+    --                           construction; immutable.
+    -- buffered_content_len:     current byte length of the
+    --                           accumulated buffer awaiting
+    --                           emission. Initially zero;
+    --                           grows on each process call
+    --                           that appends parsed content;
+    --                           resets to zero on emission.
+    -- is_buffer_truncated:      truncation flag set when
+    --                           buffered_content_len has
+    --                           reached or exceeded
+    --                           line_limit during the current
+    --                           accumulation cycle. Initially
+    --                           false; set during process when
+    --                           the limit is crossed; resets
+    --                           to false on emission (via
+    --                           deferred reset in sendLine).
+    -- last_input_upstream_truncated:
+    --                           the IsTruncated flag carried
+    --                           by the MOST RECENT parsed
+    --                           input message. Overwritten on
+    --                           every process call (the
+    --                           accumulator stores only the
+    --                           last parsed message as
+    --                           bufferedMsg). Captures
+    --                           upstream-side truncation only
+    --                           for the last contributor to
+    --                           the current accumulation
+    --                           cycle.
+    line_limit: Integer
+    buffered_content_len: Integer
+    is_buffer_truncated: Boolean
+    last_input_upstream_truncated: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface MultiLineParserTruncation {
+    -- The truncation-related boundary of the MultiLineParser.
+    -- Captures: (1) propagation of the upstream IsTruncated flag
+    -- through to emission (subject to the last-input-wins
+    -- overwrite semantics), (2) the over-buffer-limit emission
+    -- trigger that adds an IsTruncated=true signal, and (3) the
+    -- resulting message-boundary cut when a partial-line
+    -- accumulation cycle is split by buffer overflow. No marker
+    -- bytes are added; no byte-level trimming is performed within
+    -- an emission.
+
+    context p: MultiLineParser
+
+    @guarantee NoMarkerByteDecoration
+        -- The MultiLineParser adds no `...TRUNCATED...`
+        -- marker bytes to any emission. Its observable
+        -- truncation effects are: (1) setting the emitted
+        -- message's ParsingExtra.IsTruncated flag, and (2)
+        -- forcing an emission boundary when the accumulated
+        -- buffer crosses line_limit (see
+        -- BufferOverflowForcesEmission). Downstream consumers
+        -- (typically the SingleLineHandler) handle marker
+        -- decoration when needed.
+
+    @guarantee BufferOverflowMarksTruncated
+        -- During a process call, after the parsed input's
+        -- content has been appended to the buffer, if
+        -- buffered_content_len has reached or exceeded
+        -- line_limit, is_buffer_truncated is set to true.
+        -- The check happens AFTER the append, so the buffer
+        -- can grow strictly beyond line_limit before the
+        -- flag is set. The flag captures the boolean
+        -- "we crossed the limit at some point during this
+        -- accumulation cycle"; the exact buffer size at
+        -- emission may exceed line_limit by an arbitrary
+        -- amount.
+
+    @guarantee BufferOverflowForcesEmission
+        -- When buffered_content_len reaches or exceeds
+        -- line_limit, the MultiLineParser emits the
+        -- accumulated buffer at the END of the current
+        -- process call, regardless of the input message's
+        -- ParsingExtra.IsPartial flag. The normal emission
+        -- trigger is IsPartial=false; the buffer-overflow
+        -- condition is the second emission trigger,
+        -- expressed as an OR with the partial check.
+
+    @guarantee EmissionPropagatesLastInputAndBufferFlag
+        -- On emission, the output message's
+        -- ParsingExtra.IsTruncated is set to the logical OR
+        -- of two sources:
+        --   - last_input_upstream_truncated (the
+        --     IsTruncated flag of the MOST RECENT parsed
+        --     input — bufferedMsg is overwritten on every
+        --     process call, so this is the truncation flag
+        --     of the LAST contributor to the buffer, not
+        --     a logical-OR across all contributors).
+        --   - is_buffer_truncated (the accumulator's
+        --     internal over-buffer-limit flag set during
+        --     accumulation).
+        -- Either source alone is sufficient to set the
+        -- emission's IsTruncated to true.
+
+    @guarantee EarlierContributorFlagsLostWithinCycle
+        -- If a partial-accumulation cycle has multiple
+        -- contributors and an EARLIER contributor (not the
+        -- final one) carried ParsingExtra.IsTruncated=true,
+        -- that flag is LOST at emission unless the
+        -- accumulator's own is_buffer_truncated is also
+        -- set. This is a consequence of bufferedMsg being
+        -- overwritten on every process call: only the
+        -- last input's upstream flag survives to emission.
+
+    @guarantee EmissionCarriesFullBuffer
+        -- The emitted message's content is the FULL
+        -- accumulated buffer, byte-for-byte, regardless of
+        -- whether buffered_content_len exceeded line_limit
+        -- during accumulation. The MultiLineParser does NOT
+        -- byte-trim emission content at line_limit; a single
+        -- emission may exceed line_limit by an arbitrary
+        -- amount. Note the parser DOES cut the logical
+        -- multi-line stream at the line_limit boundary by
+        -- forcing emission (see BufferOverflowForcesEmission)
+        -- — this is a message-boundary cut, not a byte-level
+        -- cut. Downstream consumers responsible for enforcing
+        -- a hard byte limit on emitted content (typically the
+        -- SingleLineHandler's Truncatable behaviour) must do
+        -- their own check on the received content.
+
+    @guarantee NoCarryOverBetweenEmissions
+        -- The is_buffer_truncated flag, the
+        -- buffered_content_len value, and the
+        -- last_input_upstream_truncated value are all
+        -- reset (alongside the buffer and rawDataLen
+        -- state) at the end of every sendLine emission
+        -- via a deferred reset. The state at the start of
+        -- accumulation cycle N+1 is independent of the
+        -- state from cycle N. The truncation flag on
+        -- emission N+1 therefore depends only on cycle
+        -- N+1's own inputs.
+
+    @guarantee EmptyEmissionNoop
+        -- A sendLine call invoked when bufferedMsg is nil
+        -- OR buffered_content_len is zero produces no
+        -- emission and changes no externally observable
+        -- state. The deferred reset still runs but is a
+        -- no-op against already-empty state.
+
+    @guarantee FlushDrainsBuffer
+        -- A flush() call is equivalent to a forced
+        -- sendLine: any buffered emission is produced
+        -- (with its truncation flag determined per
+        -- EmissionPropagatesLastInputAndBufferFlag), and
+        -- the accumulator state is reset. Flush on an
+        -- empty buffer is a no-op (per EmptyEmissionNoop).
+
+    @guidance
+        -- Configuration immutability: line_limit is set
+        -- during NewMultiLineParser and not modified
+        -- subsequently. The MultiLineParser holds no other
+        -- truncation-relevant configuration that changes
+        -- after construction. This is a structural property
+        -- enforced by Go-level package privacy (the field
+        -- has no exported setter) rather than a runtime
+        -- invariant; it appears here as a non-normative
+        -- note so the surface's reading of its own
+        -- configuration is unambiguous.
+        --
+        -- The MultiLineParser sits between the framer
+        -- (which produces parser-tagged frames) and the
+        -- downstream LineHandler (typically the
+        -- SingleLineHandler) in the legacy decoder pipeline.
+        -- Its
+        -- inputs are parser-tagged messages, each
+        -- carrying ParsingExtra.IsPartial set or unset
+        -- according to whether the embedded parser
+        -- considers the input a partial fragment. It
+        -- emits a combined message when the partial
+        -- sequence terminates (IsPartial=false on the
+        -- terminator input) or when the accumulated
+        -- buffer reaches line_limit.
+        --
+        -- The truncation behaviour is intentionally
+        -- minimal at the byte level: this surface
+        -- PROPAGATES the upstream IsTruncated flag,
+        -- SIGNALS overflow via the buffer-truncation flag,
+        -- and CUTS the logical multi-line stream at the
+        -- line_limit boundary by forcing emission. It
+        -- does NOT byte-trim content within an emission
+        -- or decorate with marker bytes; both byte-level
+        -- decoration and downstream byte-limit enforcement
+        -- lie with the SingleLineHandler that consumes
+        -- this surface's emissions.
+}

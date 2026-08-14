@@ -250,6 +250,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		// grpclog.SetLoggerV2 is not mutex-protected; skip it to avoid racing with other gRPC clients in-process.
+		SkipSettingGRPCLogger: true,
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
@@ -291,6 +293,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		SkipSettingGRPCLogger:  true, // see comment in NewComponent
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

@@ -1,14 +1,9 @@
-import json
-import os
-
-import yaml
 from invoke.context import Context
-from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.aws import doc as aws_doc
-from tasks.e2e_framework.aws.common import get_aws_wrapper
+from tasks.e2e_framework.aws.common import show_eks_connection_message
 from tasks.e2e_framework.aws.deploy import deploy
 from tasks.e2e_framework.destroy import destroy
 
@@ -116,38 +111,7 @@ def create_eks(
     if interactive:
         tool.notify(ctx, "Your EKS cluster is now created")
 
-    _show_connection_message(ctx, full_stack_name, config_path, interactive)
-
-
-def _show_connection_message(
-    ctx: Context, full_stack_name: str, config_path: str | None, interactive: bool | None = True
-):
-    from pydantic import ValidationError
-
-    from tasks.e2e_framework import config
-
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
-    kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])
-    kubeconfig_content = yaml.dump(kubeconfig_output)
-    kubeconfig = f"{full_stack_name}-kubeconfig.yaml"
-    f = os.open(path=kubeconfig, flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC), mode=0o600)
-    with open(f, "w") as file:
-        file.write(kubeconfig_content)
-
-    try:
-        local_config = config.get_local_config(config_path)
-    except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
-
-    command = f"KUBECONFIG={kubeconfig} {get_aws_wrapper(local_config.get_aws().get_account())} kubectl get nodes"
-
-    print(f"\nYou can run the following command to connect to the EKS cluster\n\n{command}\n")
-
-    if interactive:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+    show_eks_connection_message(ctx, full_stack_name, config_path, interactive)
 
 
 @task(help={"stack_name": doc.stack_name})

@@ -1,0 +1,129 @@
+-- allium: 3
+-- windows_event_truncation.allium
+
+-- Scope: The truncation pathway for the "message" field of a
+--   Windows Event Log record after XML-to-structured-message
+--   conversion. A single-stage size-based cut with UTF-8-aware
+--   trimming, a tail marker, and retroactive marker-scan
+--   detection. Stateless per message; does not compose with
+--   the rest of the logs pipeline. Lives in
+--   pkg/logs/util/windowsevent.
+-- Excludes:
+--   - Truncatable (truncation.allium) and TruncationDetector
+--     (truncation_detector.allium). This pathway fulfils
+--     neither: no carry-over, and cut + marker are one stage.
+--   - XML parsing, EventID normalisation, and other transforms
+--     in transform.go's NewMapXMLWithOptions.
+--   - The downstream serialisation pathway. The IsTruncated
+--     flag set here flows through like any other message flag.
+--   - Other Windows Event Log fields (Binary, Data, System,
+--     EventID, etc.). The 128 KB limit applies ONLY to the
+--     Datadog-added "message" field. Other fields may exceed
+--     it and are not capped here (best-effort; the intake side
+--     drops records that exceed its own limit).
+--   - The literal byte value of the truncation marker. Owned
+--     by the agent's message package and shared with Truncatable.
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity WindowsEventTruncator {
+    -- The truncation operation applied to the Windows event
+    -- message field. Stateless; configuration is fixed at
+    -- construction.
+    --
+    -- max_message_bytes: byte threshold above which the message
+    --                    field is truncated. Hardcoded to 131,072
+    --                    (128 KB) via transform.go's
+    --                    maxMessageBytes constant.
+    max_message_bytes: Integer
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface WindowsEventTruncation {
+    -- Boundary between the Windows event log map (after XML
+    -- parsing) and the downstream structured-message
+    -- serialisation. Two operations cross this boundary: a
+    -- write-side size-based cut when the message field is set,
+    -- and a read-side marker scan at message construction. The
+    -- write side appends only; the read side scans both
+    -- boundaries.
+
+    context op: WindowsEventTruncator
+
+    @guarantee PassThroughUnderLimit
+        -- When the input message's byte length is at or under
+        -- op.max_message_bytes, the message field is stored
+        -- byte-for-byte unchanged: the write side neither cuts
+        -- nor appends the marker. Whether the resulting
+        -- message.Message has IsTruncated=true is determined
+        -- by the read-side scan (SetsIsTruncatedFlag +
+        -- MarkerScanAtBothBoundaries): under-limit content that
+        -- already contains the marker at either boundary WILL
+        -- surface IsTruncated=true.
+
+    @guarantee UTF8AwareCutAtLimit
+        -- When input length exceeds op.max_message_bytes, the
+        -- content is cut to at most op.max_message_bytes at a
+        -- UTF-8 character boundary (via stringUtil.TruncateUTF8).
+        -- Never splits a multi-byte sequence, unlike the
+        -- framer-level cut which is purely byte-positional.
+
+    @guarantee TailMarkerOnOverflow
+        -- When the size-based cut applies, `...TRUNCATED...` is
+        -- appended to the cut content. The marker is NEVER
+        -- prepended by the write side; head-marker decoration
+        -- is a Truncatable concept and does not occur here.
+
+    @guarantee NoCarryOver
+        -- Each message is handled independently. No rolling
+        -- state across successive SetMessage calls; the
+        -- truncator holds no mutable state between operations.
+
+    @guarantee SetsIsTruncatedFlag
+        -- The IsTruncated flag on the resulting message.Message
+        -- is set by scanning the stored message field for the
+        -- marker byte sequence at construction time (in
+        -- MapToMessage's hasTruncatedFlag call), rather than by
+        -- tracking whether the write side applied truncation.
+        -- The pathway does not carry a "was truncated" bit
+        -- through; the flag is derived from the stored bytes.
+
+    @guarantee MarkerScanAtBothBoundaries
+        -- The scan checks BOTH the head and the tail of the
+        -- message string. A marker at either boundary causes
+        -- IsTruncated to be set. This is asymmetric to the
+        -- write side, which only appends (tail).
+
+    @guarantee EmptyMessageIsNoop
+        -- An empty input (zero-length string) short-circuits
+        -- SetMessage without storing, truncating, or appending
+        -- a marker. Detection on a never-set message field
+        -- yields IsTruncated=false.
+
+    @guarantee Determinism
+        -- Given identical input and max_message_bytes,
+        -- SetMessage and the subsequent hasTruncatedFlag scan
+        -- produce identical results. No state between calls.
+
+    @guidance
+        -- op.max_message_bytes is fixed at 131,072 (128 KB) via
+        -- the maxMessageBytes constant in transform.go. Not
+        -- per-source configurable, unlike other truncation
+        -- pathways (framer, preprocessor aggregators, legacy
+        -- decoder handlers) which take their limit as a
+        -- per-instance parameter.
+        --
+        -- Windows event messages are constructed via
+        -- MapToMessage and bypass the decoder pipeline (no
+        -- framer, line_parser, legacy handlers, or preprocessor
+        -- aggregators). The IsTruncated flag set here is the
+        -- message's only truncation signal downstream.
+        --
+        -- This is the only truncation site in the agent that
+        -- detects via marker scan rather than flag propagation.
+}

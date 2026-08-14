@@ -12,6 +12,8 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SafeDevice represents a safe wrapper around NVML device operations.
@@ -143,11 +145,12 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion    uint32
-	UUID         string
-	Name         string
-	CoreCount    int
-	Architecture nvml.DeviceArchitecture
+	SMVersion          uint32
+	UUID               string
+	Name               string
+	CoreCount          int
+	Architecture       nvml.DeviceArchitecture
+	VirtualizationMode nvml.GpuVirtualizationMode
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -378,6 +381,12 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		return fmt.Errorf("error getting CUDA compute capability: %w", err)
 	}
 	d.SMVersion = uint32(major*10 + minor)
+
+	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
+		d.VirtualizationMode = virtualizationMode
+	} else if logLimiter.ShouldLog() {
+		log.Warnf("cannot get virtualization mode: %v", err)
+	}
 
 	return nil
 }

@@ -59,6 +59,17 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 `components.py`, `go_deps.py`, `go.py`, `modules.py`, `renovate.py`,
 `new_e2e_tests.py`, `ebpf.py`.
 
+## Writing Commands That Work on Windows
+
+`ctx.run` goes through `/bin/bash` on Unix but `cmd.exe` on Windows, so a command string that works locally can be silently broken for Windows developers. The invoke unit tests only run on Linux in CI, so nothing catches this for you.
+
+- **Quoting** — build the command as a list of arguments and join it with `join_command` from `libs/common/utils.py`; never use `shlex.quote` or `subprocess.list2cmdline` directly.
+- **Working directory** — use `git -C <dir>` for git, or wrap the `ctx.run` in `contextlib.chdir`; never prefix with `cd <dir> &&`.
+- **POSIX-only tools** — do the text manipulation in Python instead of piping through `sed`, `grep` or `cp`.
+- **Encoding** — pass `encoding="utf-8"` to `ctx.run` for any command carrying non-ASCII text.
+
+To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`.
+
 ## Incremental Refactoring: Making Task Logic Bazel-Callable
 
 We are incrementally splitting invoke-coupled code from pure logic so that the

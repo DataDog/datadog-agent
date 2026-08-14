@@ -102,6 +102,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     KUBERNETES_CPU_REQUEST: 4
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
+    GIT_DEPTH: 0  # Full history: kmt.prepare embeds git merge-base in the testsuite binary
   artifacts:
     when: always
     paths:

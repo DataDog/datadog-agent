@@ -20,7 +20,7 @@ single_machine_performance-regression_detector-merge_base_check:
     reports:
       dotenv: regression_detector.env  # Expose BASELINE_SHA as a CI variable for the trigger job
   variables:
-    GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
+    GIT_DEPTH: 0  # Full history: merge-base, HEAD^, and ancestor walks
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
