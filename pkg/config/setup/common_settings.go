@@ -492,7 +492,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// MIG devices can only be excluded by their own UUID, not by the parent device UUID.
 	config.BindEnvAndSetDefault("gpu.excluded_devices", []string{})
 	config.BindEnvAndSetDefault("gpu.nvlink.fec_light_error_threshold", 3)
-	config.BindEnvAndSetDefault("gpu.parallel_collectors", true)
+	config.BindEnvAndSetDefault("gpu.parallel_collectors", false)
 	// gpu.collection_interval_override (seconds) overrides the gpu check scheduling
 	// cadence when > 0, taking precedence over the instance's min_collection_interval.
 	// Binds DD_GPU_COLLECTION_INTERVAL_OVERRIDE.

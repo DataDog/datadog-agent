@@ -79,6 +79,12 @@ func newConfiguredGPUCheck(
 	return check
 }
 
+func TestCheckDefaults(t *testing.T) {
+	WithGPUConfigEnabled(t)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	require.Equal(t, false, check.parallelCollectors)
+}
+
 func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -502,6 +508,8 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
+	check.parallelCollectors = true
+
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
