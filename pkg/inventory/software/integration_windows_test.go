@@ -438,11 +438,15 @@ func serviceDriverNames(t *testing.T) map[string]struct{} {
 }
 
 // TestIntegrationDriversAgainstServices verifies against the real host that every driver the
-// collector reports is a registered kernel-mode driver service, and reports which drivers were
-// dropped and why.
+// collector reports from the service source is a registered kernel-mode driver service, and
+// reports which drivers were dropped and why.
 //
-// The comparison is one-way: the registry additionally lists driver services whose binary has
-// no version resource, which the collector deliberately drops.
+// The comparison is one-way and covers one of the two sources. The registry additionally lists
+// driver services whose binary has no version resource and services published by Microsoft,
+// both of which the collector deliberately drops; and the PnP source contributes drivers that
+// by construction have no service at all. InstallPath is what tells the two sources apart: it
+// is the resolved image path for a service driver, and empty for a PnP driver, because
+// Win32_PnPSignedDriver names no binary.
 func TestIntegrationDriversAgainstServices(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -454,6 +458,7 @@ func TestIntegrationDriversAgainstServices(t *testing.T) {
 	entries, warnings, err := (&driverCollector{}).Collect()
 	require.NoError(t, err)
 
+	var fromServices, fromPnP int
 	seenIDs := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
 		assert.Equal(t, softwareTypeDriver, entry.Source)
@@ -461,28 +466,42 @@ func TestIntegrationDriversAgainstServices(t *testing.T) {
 		assert.NotContains(t, entry.DisplayName, "@",
 			"driver %q reports an unresolved resource reference as its name", entry.ProductCode)
 		assert.NotEmpty(t, entry.Version, "a driver with no version is dropped, not reported")
-		assert.NotEmpty(t, entry.InstallPath, "the resolved path feeds install_paths")
-		// Publisher is deliberately not asserted: CompanyName is absent from some drivers.
 
-		assert.Contains(t, registered, entry.ProductCode,
-			"driver %q is reported but is not a registered kernel driver service", entry.ProductCode)
+		if entry.InstallPath != "" {
+			fromServices++
+			assert.Contains(t, registered, entry.ProductCode,
+				"driver %q is reported but is not a registered kernel driver service", entry.ProductCode)
+			// The service source filters on the vendor of the binary, so nothing Microsoft
+			// published may survive it. This must not be asserted for the PnP source, where a
+			// Microsoft package published as an OEM INF is expected.
+			assert.False(t, isMicrosoftPublisher(entry.Publisher),
+				"driver %q is published by Microsoft and should have been filtered out", entry.ProductCode)
+		} else {
+			fromPnP++
+		}
+		// Publisher is otherwise not asserted: it is absent from some drivers, deliberately.
 
 		_, duplicate := seenIDs[entry.GetID()]
 		assert.False(t, duplicate, "driver %q reported more than once", entry.GetID())
 		seenIDs[entry.GetID()] = struct{}{}
 	}
 
-	// The drop count is the number that decides whether requiring a numeric file version is
-	// too strict. Warnings name the driver and the reason, so log them all rather than a
-	// count: a large "reports no file version" bucket is the signal to revisit the policy.
-	t.Logf("registry lists %d kernel driver services, collector reported %d, dropped %d",
-		len(registered), len(entries), len(warnings))
+	// These counts are what say whether the filters are right. A service count near the number
+	// of registered services means the Microsoft filter is not matching; a PnP count of zero
+	// means the OEM INF test or the no-service test is too strict. Warnings name the driver
+	// and the reason, so log them all rather than a count.
+	t.Logf("registry lists %d kernel driver services; collector reported %d (%d from services, %d from PnP), dropped %d as unusable",
+		len(registered), len(entries), fromServices, fromPnP, len(warnings))
 	for _, w := range warnings {
 		t.Logf("  dropped: %s", w.Message)
 	}
 
 	for _, entry := range entries {
-		t.Logf("  %s %s [%s] (%s)", entry.DisplayName, entry.Version, entry.Publisher, entry.ProductCode)
+		source := "pnp"
+		if entry.InstallPath != "" {
+			source = "service"
+		}
+		t.Logf("  [%s] %s %s [%s] (%s)", source, entry.DisplayName, entry.Version, entry.Publisher, entry.ProductCode)
 	}
 }
 
