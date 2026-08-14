@@ -6,13 +6,9 @@
 use crate::process::ManagedProcess;
 
 /// Shut down processes in the given index order (typically reverse startup order).
-/// Sends SIGTERM to all first, then waits for each in order.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
-        processes[idx].request_stop();
-    }
-    for &idx in order {
-        processes[idx].wait_for_stop().await;
+        processes[idx].stop().await;
     }
 }
 

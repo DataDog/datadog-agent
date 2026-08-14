@@ -123,38 +123,6 @@ pub enum ProcessOrigin {
     Runtime,
 }
 
-#[cfg(windows)]
-struct DeferredExitCleanup {
-    pid: u32,
-    user_profile: platform::UserProfileGuard,
-    job_object: Option<platform::JobObject>,
-}
-
-#[cfg(windows)]
-pub(crate) struct OrphanedDeferredExitCleanup {
-    pub name: String,
-    pub pid: u32,
-    pub user_profile: platform::UserProfileGuard,
-    pub job_object: Option<platform::JobObject>,
-}
-
-#[cfg(windows)]
-fn finish_deferred_exit_cleanup(entry: DeferredExitCleanup, _process_name: &str) {
-    drop(entry);
-}
-
-#[cfg(windows)]
-pub(crate) fn finish_orphaned_deferred_exit_cleanup(entry: OrphanedDeferredExitCleanup) {
-    finish_deferred_exit_cleanup(
-        DeferredExitCleanup {
-            pid: entry.pid,
-            user_profile: entry.user_profile,
-            job_object: entry.job_object,
-        },
-        &entry.name,
-    );
-}
-
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -164,7 +132,6 @@ pub struct ManagedProcess {
     handle: Option<ProcessHandle>,
     watcher_handle: Option<JoinHandle<Option<std::process::ExitStatus>>>,
     restarts: RestartTracker,
-    stop_requested: bool,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
     last_config_gate_met: Option<bool>,
@@ -175,8 +142,6 @@ pub struct ManagedProcess {
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
-    #[cfg(windows)]
-    deferred_exit_cleanups: Vec<DeferredExitCleanup>,
 }
 
 impl ManagedProcess {
@@ -201,7 +166,6 @@ impl ManagedProcess {
             handle: None,
             watcher_handle: None,
             restarts,
-            stop_requested: false,
             origin,
             last_exit_status: None,
             last_config_gate_met: None,
@@ -212,8 +176,6 @@ impl ManagedProcess {
             job_object: None,
             #[cfg(windows)]
             user_profile: None,
-            #[cfg(windows)]
-            deferred_exit_cleanups: Vec::new(),
         }
     }
 
@@ -263,125 +225,69 @@ impl ManagedProcess {
     }
 
     #[cfg(windows)]
-    fn release_windows_spawn_resources_after_exit(&mut self, exited_pid: Option<u32>) -> bool {
+    fn prepare_windows_spawn_resource_release(&mut self) {
         let Some(job) = self.job_object.as_ref() else {
-            self.clear_windows_spawn_resources();
-            return false;
+            self.user_profile = None;
+            return;
         };
-        let count = job.active_process_count();
-        if matches!(count, Ok(0)) {
-            self.clear_windows_spawn_resources();
-            return false;
-        }
-        if let Err(e) = count {
-            warn!(
-                "[{}] failed to query job active processes: {e:#}",
+        match job.active_process_count() {
+            Ok(0) => self.clear_windows_spawn_resources(),
+            Ok(_) => info!(
+                "[{}] job still has active members; waiting before releasing profile",
                 self.name
-            );
+            ),
+            Err(e) => {
+                warn!(
+                    "[{}] failed to query job active processes: {e:#}",
+                    self.name
+                );
+                self.clear_windows_spawn_resources();
+            }
         }
-        let needs_drain = self.defer_windows_job_drain_after_exit(exited_pid);
-        if !needs_drain {
-            self.clear_windows_spawn_resources();
-        }
-        needs_drain
     }
 
     #[cfg(windows)]
-    fn defer_windows_job_drain_after_exit(&mut self, exited_pid: Option<u32>) -> bool {
-        if let (Some(pid), Some(profile)) = (exited_pid, self.user_profile.take()) {
-            if let Some(ref job) = self.job_object
-                && let Err(e) = job.terminate()
-            {
+    pub(crate) async fn ensure_windows_spawn_resources_released(&mut self) {
+        let Some(job) = self.job_object.as_ref() else {
+            self.user_profile = None;
+            return;
+        };
+        if job.may_have_active_members() {
+            if let Err(e) = job.terminate() {
                 warn!(
-                    "[{}] failed to terminate residual job members before deferred drain (pid {}): {e:#}",
-                    self.name, pid
+                    "[{}] failed to terminate residual job members: {e:#}",
+                    self.name
                 );
             }
-            let job = self.job_object.take();
-            info!(
-                "[{}] deferring profile unload until job members exit (pid {pid})",
-                self.name
-            );
-            self.deferred_exit_cleanups.push(DeferredExitCleanup {
-                pid,
-                user_profile: profile,
-                job_object: job,
-            });
-            return true;
+            if !Self::wait_for_job_empty(job, Self::FORCE_KILL_TIMEOUT).await {
+                warn!(
+                    "[{}] timed out waiting for job members to exit before releasing profile",
+                    self.name
+                );
+            }
         }
-        warn!(
-            "[{}] job may still have active members but no profile to defer",
-            self.name
-        );
-        false
+        self.clear_windows_spawn_resources();
     }
 
     #[cfg(windows)]
-    pub(crate) fn try_finish_deferred_job_drain(&mut self, pid: u32) -> bool {
-        let Some(idx) = self
-            .deferred_exit_cleanups
-            .iter()
-            .position(|entry| entry.pid == pid && entry.job_object.is_some())
-        else {
-            return false;
-        };
-        let job = self.deferred_exit_cleanups[idx]
-            .job_object
-            .as_ref()
-            .expect("deferred job drain entry must have a job");
-        if job.may_have_active_members() {
-            return false;
+    async fn wait_for_job_empty(job: &platform::JobObject, timeout: Duration) -> bool {
+        const POLL_INTERVAL: Duration = Duration::from_millis(100);
+        let deadline = Instant::now() + timeout;
+        loop {
+            match job.active_process_count() {
+                Ok(0) => return true,
+                Ok(_) => {
+                    if Instant::now() >= deadline {
+                        return matches!(job.active_process_count(), Ok(0));
+                    }
+                    time::sleep(
+                        POLL_INTERVAL.min(deadline.saturating_duration_since(Instant::now())),
+                    )
+                    .await;
+                }
+                Err(_) => return false,
+            }
         }
-        let entry = self.deferred_exit_cleanups.remove(idx);
-        finish_deferred_exit_cleanup(entry, &self.name);
-        true
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn has_deferred_job_drain(&self, pid: u32) -> bool {
-        self.deferred_exit_cleanups
-            .iter()
-            .any(|entry| entry.pid == pid && entry.job_object.is_some())
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn complete_late_exit_cleanup(&mut self, pid: u32) -> bool {
-        if self.pid == Some(pid) && self.state.is_alive() {
-            return false;
-        }
-        let Some(idx) = self
-            .deferred_exit_cleanups
-            .iter()
-            .position(|deferred| deferred.pid == pid)
-        else {
-            return false;
-        };
-        if self.deferred_exit_cleanups[idx]
-            .job_object
-            .as_ref()
-            .is_some_and(platform::JobObject::may_have_active_members)
-        {
-            return true;
-        }
-        let entry = self.deferred_exit_cleanups.remove(idx);
-        finish_deferred_exit_cleanup(entry, &self.name);
-        true
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn drain_deferred_exit_cleanups(
-        &mut self,
-        process_name: &str,
-    ) -> Vec<OrphanedDeferredExitCleanup> {
-        self.deferred_exit_cleanups
-            .drain(..)
-            .map(|deferred| OrphanedDeferredExitCleanup {
-                name: process_name.to_owned(),
-                pid: deferred.pid,
-                user_profile: deferred.user_profile,
-                job_object: deferred.job_object,
-            })
-            .collect()
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -507,7 +413,6 @@ impl ManagedProcess {
         if !self.state.can_transition_to(ProcessState::Starting) {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
-        self.stop_requested = false;
         self.transition_to(ProcessState::Starting);
         let result = self.try_spawn();
         if result.is_err() {
@@ -561,31 +466,17 @@ impl ManagedProcess {
         self.watcher_handle.take()
     }
 
-    /// On Windows, returns the exited PID when job drain was deferred.
-    pub fn set_last_status(&mut self, status: std::process::ExitStatus) -> Option<u32> {
+    pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
         self.last_exit_status = Some(status);
-        let exited_pid = self.pid;
         self.pid = None;
         #[cfg(windows)]
-        let needs_job_drain = self.release_windows_spawn_resources_after_exit(exited_pid);
-        #[cfg(not(windows))]
-        let needs_job_drain = false;
-        if self.stop_requested {
-            self.stop_requested = false;
+        self.prepare_windows_spawn_resource_release();
+        if self.state == ProcessState::Stopping {
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
             self.transition_to(ProcessState::Exited);
         } else {
             self.transition_to(ProcessState::Failed);
-        }
-        needs_job_drain.then_some(exited_pid).flatten()
-    }
-
-    pub fn request_stop(&mut self) {
-        if self.is_running() {
-            self.stop_requested = true;
-            info!("[{}] sending graceful stop (stop requested)", self.name);
-            self.graceful_stop();
         }
     }
 
@@ -646,12 +537,19 @@ impl ManagedProcess {
         self.config.stop_timeout()
     }
 
-    /// On Windows, returns the exited PID when job drain was deferred.
-    pub async fn wait_for_stop(&mut self) -> Option<u32> {
-        if !self.is_running() {
-            return None;
+    pub async fn stop(&mut self) {
+        if self.state == ProcessState::Running {
+            self.transition_to(ProcessState::Stopping);
+            info!("[{}] stopping (graceful)", self.name);
+            self.graceful_stop();
+        } else if self.state != ProcessState::Stopping {
+            #[cfg(windows)]
+            self.ensure_windows_spawn_resources_released().await;
+            return;
         }
+
         let stop = self.stop_timeout();
+        let mut got_status = false;
         if let Some(handle) = self.take_watcher_handle() {
             tokio::pin!(handle);
             let status = match time::timeout(stop, &mut handle).await {
@@ -684,12 +582,14 @@ impl ManagedProcess {
                 }
             };
             if let Some(status) = status {
-                return self.set_last_status(status);
+                self.set_last_status(status);
+                got_status = true;
             }
         } else if self.has_child_handle() {
             match time::timeout(stop, self.wait()).await {
                 Ok(Ok(status)) => {
-                    return self.set_last_status(status);
+                    self.set_last_status(status);
+                    got_status = true;
                 }
                 Ok(Err(e)) => {
                     warn!("[{}] wait failed during stop: {e:#}", self.name);
@@ -703,7 +603,8 @@ impl ManagedProcess {
                     self.force_kill();
                     match time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait()).await {
                         Ok(Ok(status)) => {
-                            return self.set_last_status(status);
+                            self.set_last_status(status);
+                            got_status = true;
                         }
                         Ok(Err(e)) => {
                             warn!("[{}] wait failed after force-kill: {e:#}", self.name);
@@ -715,35 +616,16 @@ impl ManagedProcess {
                 }
             }
         }
-        self.mark_stopped()
+        if !got_status {
+            self.mark_stopped();
+        }
+        #[cfg(windows)]
+        self.ensure_windows_spawn_resources_released().await;
     }
 
-    /// On Windows, returns the PID when deferred job drain is needed.
-    fn mark_stopped(&mut self) -> Option<u32> {
-        self.stop_requested = false;
+    fn mark_stopped(&mut self) {
         self.transition_to(ProcessState::Stopped);
-        #[cfg(windows)]
-        let drain_pid = if let Some(pid) = self.pid {
-            if let Some(profile) = self.user_profile.take() {
-                let job = self.job_object.take();
-                let needs_drain = job.is_some();
-                self.deferred_exit_cleanups.push(DeferredExitCleanup {
-                    pid,
-                    user_profile: profile,
-                    job_object: job,
-                });
-                needs_drain.then_some(pid)
-            } else {
-                self.clear_windows_job_object();
-                None
-            }
-        } else {
-            None
-        };
-        #[cfg(not(windows))]
-        let drain_pid = None;
         self.pid = None;
-        drain_pid
     }
 
     #[cfg(test)]
@@ -1017,9 +899,7 @@ pub mod tests {
         proc.spawn().unwrap();
         assert!(proc.is_running());
 
-        proc.request_stop();
-        let status = proc.wait().await.unwrap();
-        proc.set_last_status(status);
+        proc.stop().await;
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
@@ -1041,10 +921,7 @@ pub mod tests {
             test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
-        proc.request_stop();
-        let mut handle = proc.take_handle().unwrap();
-        let status = handle.wait().await.unwrap();
-        proc.set_last_status(status);
+        proc.stop().await;
         assert_eq!(proc.state(), ProcessState::Stopped);
 
         let mut bad_cfg = proc.config().clone();
@@ -1476,7 +1353,7 @@ runtime_success_sec: 5
     }
 
     #[tokio::test]
-    async fn test_stop_requested_transitions_to_stopped() {
+    async fn test_stop_transitions_to_stopped() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
@@ -1486,10 +1363,7 @@ runtime_success_sec: 5
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
 
-        proc.request_stop();
-        let mut handle = proc.take_handle().unwrap();
-        let status = handle.wait().await.unwrap();
-        proc.set_last_status(status);
+        proc.stop().await;
 
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
@@ -1502,10 +1376,7 @@ runtime_success_sec: 5
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
-        proc.request_stop();
-        let _ = proc.take_handle();
-        // handle_stop may call mark_stopped before the watcher runs set_last_status.
-        proc.mark_stopped();
+        proc.stop().await;
 
         proc.spawn().unwrap();
         let mut handle = proc.take_handle().unwrap();
@@ -1521,17 +1392,14 @@ runtime_success_sec: 5
     }
 
     #[tokio::test]
-    async fn test_stop_requested_skips_restart() {
+    async fn test_stop_skips_restart() {
         let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
-        proc.request_stop();
-        let mut handle = proc.take_handle().unwrap();
-        let status = handle.wait().await.unwrap();
-        proc.set_last_status(status);
+        proc.stop().await;
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(
@@ -1541,7 +1409,7 @@ runtime_success_sec: 5
     }
 
     #[tokio::test]
-    async fn test_normal_exit_not_affected_by_stop_flag() {
+    async fn test_normal_exit_not_affected_by_stopping() {
         let (cmd, args) = test_helpers::exit_cmd(1);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
@@ -1557,7 +1425,7 @@ runtime_success_sec: 5
         assert_eq!(
             proc.state(),
             ProcessState::Failed,
-            "without stop_requested, non-zero exit should be Failed"
+            "non-zero exit without Stopping state should be Failed"
         );
     }
 }
