@@ -88,6 +88,7 @@ func NewComponent(req Requires) (Provides, error) {
 
 type stdoutReporter struct {
 	logger         log.Component
+	storage        observerdef.StorageReader
 	ongoingCounter telemetryComp.Counter
 	emittedCounter telemetryComp.Counter
 	// stdoutEnabled gates all [observer] stdout log lines.
@@ -99,6 +100,12 @@ type stdoutReporter struct {
 }
 
 func (r *stdoutReporter) Name() string { return "stdout_reporter" }
+
+// SetStorage lets scorer episode reports resolve their compact contributor
+// handles only when they are rendered.
+func (r *stdoutReporter) SetStorage(storage observerdef.StorageReader) {
+	r.storage = storage
+}
 
 func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	emitted := false
@@ -114,8 +121,13 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 		switch ce.Kind {
 		case observerdef.CorrelatorEventEpisodeStarted:
 			if r.stdoutEnabled {
-				r.logger.Infof("[observer] scorer episode started: scorer=%s pattern=%s t=%d",
-					ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp)
+				message := formatScorerContributorMessage(ce.Contributors, r.storage)
+				if message == "" {
+					r.logger.Infof("[observer] scorer episode started: scorer=%s pattern=%s t=%d",
+						ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp)
+				} else {
+					r.logger.Infof("[observer] scorer episode started:\n%s", message)
+				}
 			}
 		case observerdef.CorrelatorEventEpisodeEnded:
 			if r.stdoutEnabled {

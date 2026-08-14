@@ -194,11 +194,16 @@ dd_agent_go_test(
         "version_test.go",
     ],
     embed = [":python"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+        "python",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/util/cache",
         "@com_github_stretchr_testify//require",

@@ -70,7 +70,9 @@ func TestGetName(t *testing.T) {
 		{
 			name: "AutoProvider resolves to CSI when driver is available",
 			provider: libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
-				CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+				Injector:          injectorConfig(),
+				CSIAutoRegistries: defaultCSIAutoRegistries,
+				CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
 			}),
 			expected: "csi (auto)",
 		},
@@ -164,10 +166,11 @@ func TestInjectAPMLibraries_Annotations_Auto_CSI(t *testing.T) {
 	pod := newPod()
 
 	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
-		InjectionMode:    string(libraryinjection.InjectionModeAuto),
-		CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: true},
-		Injector:         injectorConfig(),
-		Libraries:        []libraryinjection.LibraryConfig{javaLib()},
+		InjectionMode:     string(libraryinjection.InjectionModeAuto),
+		CSIAutoRegistries: defaultCSIAutoRegistries,
+		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+		Injector:          injectorConfig(),
+		Libraries:         []libraryinjection.LibraryConfig{javaLib()},
 	})
 	require.NoError(t, err)
 

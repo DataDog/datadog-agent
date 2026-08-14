@@ -40,6 +40,13 @@ dd_agent_go_test(
         "k8s_secret_test.go",
     ],
     embed = [":enrollment"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",

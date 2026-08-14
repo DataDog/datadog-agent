@@ -39,6 +39,7 @@ common --repo_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/ru
 common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=REPIN=1 # Reduce MODULE.bazel.lock churn when --lockfile_mode=[update|refresh] trigger
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=BAZEL_TOOLCHAINS_MSVC_ACCEPT_MICROSOFT_VISUAL_STUDIO_BUILDTOOLS_EULA=1 # common so bazel mod tidy resolves the MSVC extension on every host
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
 # Variables to override release.json values
 common --repo_env=INTEGRATIONS_CORE_VERSION
@@ -80,7 +81,6 @@ common:windows --repo_env=PIP_CACHE_DIR # https://pip.pypa.io/en/stable/topics/c
 common:windows --repo_env=SYSTEMDRIVE # needed by vswhere to locate the VS installer instance database
 common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed by vswhere
 common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
-common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
 common:windows --run_env=__COMPAT_LAYER=RunAsInvoker # install*.exe may otherwise fail claiming unneeded admin elevation
 common:windows --test_env=__COMPAT_LAYER=RunAsInvoker # same, for bazel test
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
@@ -110,7 +110,7 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 common:ci --remote_download_regex=.*/test\.xml$ # force-download test.xml even under --remote_download_outputs=toplevel, so junit collection can read it locally
 
 # Project/Language configs --------------------------------------------------------------------------------------
-import %workspace%/bazel/configs/flavors.bazelrc
+import %workspace%/bazel/configs/go_tests.bazelrc
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------

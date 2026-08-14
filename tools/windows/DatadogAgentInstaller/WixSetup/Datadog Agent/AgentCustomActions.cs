@@ -14,10 +14,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RunAsAdmin { get; }
 
-        public ManagedAction EnsureSecureConfigRoot { get; }
-
-        public ManagedAction EnsureSecureConfigRootUI { get; }
-
         public ManagedAction ReadConfig { get; }
 
         public ManagedAction PatchInstaller { get; set; }
@@ -122,34 +118,6 @@ namespace WixSetup.Datadog_Agent
                 Step.AppSearch,
                 Condition.Always,
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence);
-
-            // See PrerequisitesCustomActions.EnsureSecureConfigRoot.
-            //
-            // After InstallValidate so REMOVE is set, and before InstallInitialize so failing here does
-            // not leave a partial installation behind. APPLICATIONDATADIRECTORY is resolved earlier, by
-            // CostFinalize.
-            EnsureSecureConfigRoot = new CustomAction<CustomActions>(
-                new Id(nameof(EnsureSecureConfigRoot)),
-                CustomActions.EnsureSecureConfigRoot,
-                Return.check,
-                When.After,
-                Step.InstallValidate,
-                // Run unless we are being uninstalled: removing the Agent must not be blocked by an
-                // untrusted directory, including when this MSI is removed by a later version.
-                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade),
-                Sequence.InstallExecuteSequence);
-
-            // Same check, run from the Welcome dialog so an interactive install reports the problem
-            // early. It reports the outcome in properties instead of failing, see
-            // PrerequisitesCustomActions.EnsureSecureConfigRoot.
-            EnsureSecureConfigRootUI = new CustomAction<CustomActions>(
-                new Id(nameof(EnsureSecureConfigRootUI)),
-                CustomActions.EnsureSecureConfigRootUI
-            )
-            {
-                // Not run in a sequence, run when Next is clicked on the Welcome dialog
-                Sequence = Sequence.NotInSequence
-            };
 
             ReadInstallState = new CustomAction<CustomActions>(
                 new Id(nameof(ReadInstallState)),

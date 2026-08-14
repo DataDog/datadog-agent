@@ -32,6 +32,7 @@ func TestVMLogsExampleSuite(t *testing.T) {
 	e2e.Run(t, &vmLogsExampleSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithoutInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 					agentparams.WithLogs(),
