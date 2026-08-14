@@ -260,15 +260,14 @@ dd_agent_go_test(
     ],
 )
 
-
 # keep
 dd_agent_go_test(
     name = "btf_test",
     srcs = ["btf_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//comp/core/telemetry/impl/noops",
         "@com_github_stretchr_testify//assert",
@@ -292,8 +291,8 @@ dd_agent_go_test(
     srcs = ["feature_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "@com_github_cilium_ebpf//:ebpf",
         "@com_github_cilium_ebpf//asm",
@@ -309,8 +308,8 @@ dd_agent_go_test(
     srcs = ["ksyms_bpf_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/util/kernel",
         "@com_github_stretchr_testify//require",
@@ -348,8 +347,8 @@ dd_agent_go_test(
     srcs = ["manager_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf/bytecode",
         "//pkg/ebpf/names",
@@ -366,8 +365,8 @@ dd_agent_go_test(
     srcs = ["map_cleaner_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf/maps",
         "//pkg/util/kernel",
@@ -395,8 +394,8 @@ dd_agent_go_test(
     srcs = ["printk_patcher_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf/bytecode",
         "//pkg/ebpf/ebpftest",
@@ -417,8 +416,8 @@ dd_agent_go_test(
     srcs = ["probes_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "@com_github_datadog_ebpf_manager//:ebpf-manager",
         "@com_github_stretchr_testify//assert",
@@ -432,8 +431,8 @@ dd_agent_go_test(
     srcs = ["rc_btf_test.go"],
     embed = [":ebpf"],
     gotags_sets = [["linux_bpf"]],
-    tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//comp/core/telemetry/impl/noops",
         "//pkg/config/remote/data",

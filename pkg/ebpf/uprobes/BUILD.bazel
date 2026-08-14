@@ -49,8 +49,8 @@ dd_agent_go_test(
     ],
     embed = [":uprobes"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/ebpftest",
@@ -74,8 +74,8 @@ dd_agent_go_test(
     srcs = ["attacher_test.go"],
     embed = [":uprobes"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/ebpftest",
@@ -98,8 +98,8 @@ dd_agent_go_test(
     srcs = ["inspector_test.go"],
     embed = [":uprobes"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/usm/utils",

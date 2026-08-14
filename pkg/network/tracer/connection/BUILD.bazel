@@ -91,8 +91,8 @@ dd_agent_go_test(
     ],
     embed = [":connection"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/network",
         "//pkg/network/config",

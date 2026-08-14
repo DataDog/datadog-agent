@@ -22,6 +22,24 @@ dd_agent_go_test(
     embed = [":maps"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/security/ebpf/kernel",
+        "//pkg/util/kernel",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//rlimit",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "generic_map_test",
+    srcs = ["generic_map_test.go"],
+    embed = [":maps"],
+    gotags_sets = [["linux_bpf"]],
+        tags = ["requires_ebpf"],
+    include_default = False,
     deps = [
         "//pkg/security/ebpf/kernel",
         "//pkg/util/kernel",

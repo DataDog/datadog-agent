@@ -40,8 +40,8 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":symdb"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/dyninst/dyninsttest",
         "//pkg/dyninst/object",

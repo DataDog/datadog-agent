@@ -35,7 +35,7 @@ dd_agent_go_test(
     ],
     embed = [":verifier"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/filesystem",
@@ -53,8 +53,8 @@ dd_agent_go_test(
     srcs = ["elf_test.go"],
     embed = [":verifier"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/filesystem",
@@ -69,8 +69,8 @@ dd_agent_go_test(
     srcs = ["stats_test.go"],
     embed = [":verifier"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/kernel",

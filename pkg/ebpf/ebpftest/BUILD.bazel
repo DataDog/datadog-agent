@@ -78,7 +78,7 @@ dd_agent_go_test(
     ],
     embed = [":ebpftest"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "@com_github_stretchr_testify//assert",
@@ -90,8 +90,8 @@ dd_agent_go_test(
     srcs = ["buildmode_test.go"],
     embed = [":ebpftest"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "@com_github_stretchr_testify//assert",

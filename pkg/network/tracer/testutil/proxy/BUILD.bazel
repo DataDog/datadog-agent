@@ -117,8 +117,8 @@ dd_agent_go_test(
     srcs = ["unix_transparent_proxy_test.go"],
     embed = [":proxy"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/network/protocols/http/testutil",
         "@com_github_stretchr_testify//require",
