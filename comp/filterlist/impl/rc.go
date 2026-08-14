@@ -6,6 +6,7 @@
 package filterlistimpl
 
 import (
+	"cmp"
 	"encoding/json"
 	"maps"
 	"slices"
@@ -102,6 +103,15 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	if len(metricNames) > 0 {
 		// update the runtime config to be consistent
 		// in `agent config` calls.
+		//
+		// These values are also reported to the backend in the inventory agent
+		// payload, where they are compared against the previously reported
+		// configuration to detect changes. They must therefore be ordered
+		// deterministically: they are built by draining maps, whose iteration
+		// order Go randomizes, so an unsorted list differs between two
+		// consecutive refreshes even when the configuration has not changed.
+		// buildMetricFilterListConfig and buildTagFilterListConfig sort before
+		// returning.
 		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
 		if len(fl.localFilterListConfig.metricNames) > 0 {
@@ -149,6 +159,10 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 		}
 	}
 	metricNames := slices.Collect(maps.Keys(metrics))
+	// Map iteration order is randomized, so sort to keep the reported
+	// configuration stable across refreshes. See the note on ordering in
+	// onFilterListUpdateCallback.
+	slices.Sort(metricNames)
 	return metricNames
 }
 
@@ -201,8 +215,18 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 
 	tagEntriesSlice := make([]MetricTagListEntry, 0, len(tagEntries))
 	for _, entry := range tagEntries {
+		// Tags accumulate through mergeMetricTagListEntry in the order the RC
+		// configurations happened to be iterated, so sort them too. Sorting here
+		// rather than on every merge keeps it to one pass per metric.
+		slices.Sort(entry.Tags)
 		tagEntriesSlice = append(tagEntriesSlice, entry)
 	}
+	// Map iteration order is randomized, so sort to keep the reported
+	// configuration stable across refreshes. See the note on ordering in
+	// onFilterListUpdateCallback.
+	slices.SortFunc(tagEntriesSlice, func(a, b MetricTagListEntry) int {
+		return cmp.Compare(a.MetricName, b.MetricName)
+	})
 
 	return tags, tagEntriesSlice
 }

@@ -8,6 +8,7 @@
 package filterlistimpl
 
 import (
+	"cmp"
 	"slices"
 	"testing"
 
@@ -685,7 +686,9 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 		MetricTagListEntry{
 			MetricName: "metric.three",
 			Action:     "exclude",
-			Tags:       []string{"pod", "cluster"},
+			// Reported tags are sorted, so this does not follow the order the
+			// tags were declared in the configuration above.
+			Tags: []string{"cluster", "pod"},
 		},
 		metricMap["metric.three"],
 	)
@@ -933,4 +936,85 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 		Action:     "exclude",
 		Tags:       []string{"env", "host"},
 	})
+}
+
+// reportedFilterLists runs the RC callback against a fresh FilterList and returns the
+// configuration it reports back, which is what the inventory agent payload carries.
+func reportedFilterLists(t *testing.T, updates map[string]state.RawConfig) ([]string, []MetricTagListEntry) {
+	t.Helper()
+
+	filterList, configComponent := newFilterList(t)
+
+	filterList.onFilterListUpdateCallback(updates, func(string, state.ApplyStatus) {})
+
+	var metricNames []string
+	require.NoError(t, structure.UnmarshalKey(configComponent, "metric_filterlist", &metricNames))
+
+	var tagEntries []MetricTagListEntry
+	require.NoError(t, structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries))
+
+	return metricNames, tagEntries
+}
+
+// TestReportedFilterListsAreOrderIndependent verifies that the configuration reported for
+// `agent config` and the inventory agent payload does not depend on the order the metrics,
+// the tags, or the RC configurations themselves happen to be iterated in.
+//
+// The lists are built by draining maps, and Go randomizes map iteration order, so without
+// an explicit sort the reported configuration differs between two consecutive refreshes
+// even when nothing changed. That is reported to the backend as a configuration change.
+func TestReportedFilterListsAreOrderIndependent(t *testing.T) {
+	firstOrder := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {"by_name": {"values": [
+				{"metric_name": "metric.a"},
+				{"metric_name": "metric.b"}
+			]}},
+			"tag_filterlist": {"by_name": {"values": [
+				{"metric_name": "metric.one", "exclude_tags_mode": true, "tags": ["pod", "cluster"]}
+			]}}
+		}`)},
+		"config2": {Config: []byte(`{
+			"blocked_metrics": {"by_name": {"values": [{"metric_name": "metric.c"}]}},
+			"tag_filterlist": {"by_name": {"values": [
+				{"metric_name": "metric.one", "exclude_tags_mode": true, "tags": ["env"]},
+				{"metric_name": "metric.two", "exclude_tags_mode": false, "tags": ["host"]}
+			]}}
+		}`)},
+	}
+
+	// Same configuration, but every list is declared in the opposite order and the
+	// entries are split across the two RC configurations differently.
+	secondOrder := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {"by_name": {"values": [{"metric_name": "metric.c"}]}},
+			"tag_filterlist": {"by_name": {"values": [
+				{"metric_name": "metric.two", "exclude_tags_mode": false, "tags": ["host"]},
+				{"metric_name": "metric.one", "exclude_tags_mode": true, "tags": ["env"]}
+			]}}
+		}`)},
+		"config2": {Config: []byte(`{
+			"blocked_metrics": {"by_name": {"values": [
+				{"metric_name": "metric.b"},
+				{"metric_name": "metric.a"}
+			]}},
+			"tag_filterlist": {"by_name": {"values": [
+				{"metric_name": "metric.one", "exclude_tags_mode": true, "tags": ["cluster", "pod"]}
+			]}}
+		}`)},
+	}
+
+	firstMetrics, firstTags := reportedFilterLists(t, firstOrder)
+	secondMetrics, secondTags := reportedFilterLists(t, secondOrder)
+
+	require.Equal(t, firstMetrics, secondMetrics)
+	require.Equal(t, firstTags, secondTags)
+
+	require.True(t, slices.IsSorted(firstMetrics), "reported metric_filterlist must be sorted, got %v", firstMetrics)
+	require.True(t, slices.IsSortedFunc(firstTags, func(a, b MetricTagListEntry) int {
+		return cmp.Compare(a.MetricName, b.MetricName)
+	}), "reported metric_tag_filterlist must be sorted by metric name, got %v", firstTags)
+	for _, entry := range firstTags {
+		require.True(t, slices.IsSorted(entry.Tags), "reported tags for %q must be sorted, got %v", entry.MetricName, entry.Tags)
+	}
 }
