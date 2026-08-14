@@ -225,7 +225,9 @@ func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
 }
 
 // TestCheckHostnameDriftDetectsHostnameChange covers the actual drift path: EC2 metadata reports a
-// different hostname before the first scheduled check runs.
+// different hostname on the next check. checkHostnameDrift is called synchronously here (the
+// sibling test above already proves the scheduler reaches it) so there's no timer to race and no
+// window between the telemetry Inc and the cache update to observe mid-flight.
 func TestCheckHostnameDriftDetectsHostnameChange(t *testing.T) {
 	setupHostnameTest(t, testCase{
 		name:             "hostname from EC2 with default system name",
@@ -236,27 +238,24 @@ func TestCheckHostnameDriftDetectsHostnameChange(t *testing.T) {
 		expectedProvider: "aws",
 	})
 
-	cfg := configmock.New(t)
-	cfg.SetInTest("hostname_drift_initial_delay", "20ms")
+	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
+	t.Cleanup(func() { cache.Cache.Delete(cacheHostnameKey) })
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname_check")) })
-
-	_, err := GetWithProvider(ctx)
+	initial, err := GetWithProvider(context.Background())
 	require.NoError(t, err)
+	require.Equal(t, "aws", initial.Provider)
 
 	prevEC2GetInstanceID := ec2GetInstanceID
 	t.Cleanup(func() { ec2GetInstanceID = prevEC2GetInstanceID })
 	ec2GetInstanceID = func(context.Context) (string, error) { return "hostname-from-ec2-v2", nil }
 
-	require.Eventually(t, func() bool {
-		body := scrapeTelemetry(t)
-		return strings.Contains(body, `hostname__drift_detected{provider="aws",state="`+hostnameChanged+`"} 1`)
-	}, 2*time.Second, 5*time.Millisecond,
+	(&driftService{}).checkHostnameDrift(context.Background(), cacheHostnameKey)
+
+	body := scrapeTelemetry(t)
+	assert.Contains(t, body, `hostname__drift_detected{provider="aws",state="`+hostnameChanged+`"} 1`,
 		"drift_detected should increment once the re-resolved hostname disagrees with the cached one")
 
-	cachedData, found := cache.Cache.Get(cache.BuildAgentKey("hostname_check"))
+	cachedData, found := cache.Cache.Get(cacheHostnameKey)
 	require.True(t, found)
 	assert.Equal(t, Data{Hostname: "hostname-from-ec2-v2", Provider: "aws"}, cachedData,
 		"cache should be updated to the newly detected hostname after drift")
