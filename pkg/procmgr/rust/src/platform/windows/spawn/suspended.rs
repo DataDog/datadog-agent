@@ -36,24 +36,21 @@ impl SuspendedChild {
         process: &mut ManagedProcess,
         job: JobObject,
     ) -> Result<ProcessHandle> {
-        let process_name = process.name();
-        if let Err(e) = job.assign_process(self.pid) {
+        let process_name = process.name().to_owned();
+        let pid = self.pid;
+        if let Err(e) = job.assign_process(pid) {
             warn!("[{process_name}] failed to assign to job object: {e:#}");
-            self.abort_before_supervision(process_name, None);
+            self.abort_before_supervision(&process_name, None);
             process.clear_windows_spawn_resources();
-            bail!(
-                "[{process_name}] failed to assign pid {} to supervision job: {e:#}",
-                self.pid
-            );
+            bail!("[{process_name}] failed to assign pid {pid} to supervision job: {e:#}");
         }
 
         let previous_count = unsafe { ResumeThread(self.thread.as_handle()) };
         if previous_count == u32::MAX {
-            self.abort_before_supervision(process_name, Some(&job));
+            self.abort_before_supervision(&process_name, Some(&job));
             process.clear_windows_spawn_resources();
             bail!(
-                "ResumeThread({}) failed: {}",
-                self.pid,
+                "ResumeThread({pid}) failed: {}",
                 std::io::Error::last_os_error()
             );
         }
