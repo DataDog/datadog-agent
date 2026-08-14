@@ -1,5 +1,4 @@
 ---
-sut_path: /Users/jon.rosario/go/src/github.com/DataDog/datadog-agent
 commit: f2da1471bb748fb5108f89f36f7b83cab305ca79
 updated: 2026-07-21
 external_references: []

@@ -17,7 +17,7 @@ Inject this script into a Dockerfile to notify Antithesis that setup is complete
 This directory contains the `docker-compose.yaml` file used to bring up this system within the Antithesis environment, along with any closely related config files. Snouty will push tagged images, consume this config directory, and launch the run.
 
 **scratchbook**
-This directory is the Antithesis scratchbook for the codebase. It contains system analysis (`sut-analysis.md`), the property catalog (`property-catalog.md`, 37 properties), deployment topology (`deployment-topology.md`), property relationship maps, per-property evidence files (`scratchbook/properties/`), and evaluation records (`scratchbook/evaluation/`). Keep it up to date as Antithesis-related decisions change.
+This directory is the Antithesis scratchbook for the codebase. It contains system analysis (`sut-analysis.md`), the property catalog (`property-catalog.md`, 37 properties — each with its SUT-side instrumentation and investigation log inlined), deployment topology (`deployment-topology.md`), property relationship maps, and evaluation records (`scratchbook/evaluation/`). Keep it up to date as Antithesis-related decisions change.
 
 **test**
 This directory contains test templates. A test template is a directory containing test command executable files. Each test command must have a valid prefix: `parallel_driver_, singleton_driver_, serial_driver_, first_, eventually_, finally_, anytime_`. Prefixes constrain when and how commands are composed in a single timeline. Files or subdirectories prefixed with `helper_` are ignored by Antithesis and can be used for helper scripts kept alongside the commands.

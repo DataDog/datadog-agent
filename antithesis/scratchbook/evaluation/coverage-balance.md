@@ -1,5 +1,4 @@
 ---
-sut_path: /Users/jon.rosario/go/src/github.com/DataDog/datadog-agent
 commit: f2da1471bb748fb5108f89f36f7b83cab305ca79
 updated: 2026-07-21
 external_references: []
@@ -16,7 +15,7 @@ and grounded each gap against primary source.
 ## Method
 
 - Enumerated the risk claims in sut-analysis §2–§10 and mapped each to catalog slugs.
-- Confirmed `properties/` contains exactly the 27 slugs in the catalog — nothing extra.
+- Confirmed the catalog's 27 property entries each carry their own SUT-side instrumentation and investigation log (previously in per-property `properties/*.md` files, now inlined into `property-catalog.md`) — nothing extra, nothing hidden.
 - Grepped the SUT to confirm the flagged-but-uncovered surfaces are real, live DCA code
   (not out-of-scope or dead): leader-forwarder RequestURI restoration, DCA gRPC
   tagger/kube-metadata streaming, DatadogMetric CRD autoscaling store, rebalance algorithm.

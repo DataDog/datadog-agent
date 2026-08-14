@@ -73,6 +73,7 @@ ALL_TAGS = set([
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
     "remove_all_sd",  # remove all discovery provider from prometheusreceiver components
+    "antithesis",  # link the Antithesis SDK and emit fault-injection assertions
 ]).union(COMMON_TAGS)
 
 # Tags Gazelle needs to see in addition to ALL_TAGS so it can analyse test-only

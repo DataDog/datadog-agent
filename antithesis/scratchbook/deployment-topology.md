@@ -1,5 +1,4 @@
 ---
-sut_path: /Users/jon.rosario/go/src/github.com/DataDog/datadog-agent
 commit: f2da1471bb748fb5108f89f36f7b83cab305ca79
 updated: 2026-08-04
 external_references: []
@@ -69,10 +68,13 @@ naturally settled when writing the actual compose/Helm config, not from a markdo
 
 - **Custom DCA image, built up front — DONE.** The `dca-*` containers run an image built from a tree
   with the Antithesis Go SDK added to the root `github.com/DataDog/datadog-agent` module (see
-  `cmd/cluster-agent/subcommands/start/command.go`'s bootstrap `assert.Reachable`), so `assert.*` calls
-  are usable from the first run. Built via plain `go build` (see "Instrumentation decision" above) inside
-  a Linux container — `antithesis/dca.Dockerfile`. Verified end-to-end: 2-replica Lease-based leader
-  election runs correctly against the harness's bare kube-apiserver (see `antithesis/README.md`).
+  `cmd/cluster-agent/subcommands/start/antithesis_assert.go`'s bootstrap `assert.Reachable`), so `assert.*` calls
+  are usable from the first run. The SDK import is build-tag-gated (`//go:build antithesis`); a paired
+  no-op stub (`//go:build !antithesis`) keeps the SDK out of every normal cluster-agent build. Only
+  `antithesis/dca.Dockerfile` passes `-tags ...,antithesis`. Built via plain `go build` (see
+  "Instrumentation decision" above) inside a Linux container — `antithesis/dca.Dockerfile`. Verified
+  end-to-end: 2-replica Lease-based leader election runs correctly against the harness's bare
+  kube-apiserver (see `antithesis/README.md`).
 - **SUT-side export of per-replica "am-dispatching" state**, aggregated by the workload for the
   cross-replica split-brain assertion (rather than minting a shared IPC token).
 - **Short lease as a fixed harness setting.** Pin a short `leader_lease_duration` (and matching
