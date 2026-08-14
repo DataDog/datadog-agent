@@ -370,7 +370,7 @@ impl ProcessManager {
         let mut unchanged = Vec::new();
         for np in new_configs {
             if let Some(existing) = procs.iter_mut().find(|p| p.name() == np.name) {
-                if *existing.config() != np.config {
+                if existing.config() != np.config {
                     info!("[{}] config changed, updating", np.name);
                     if existing.is_running() {
                         modified_running.push(np.name.clone());
