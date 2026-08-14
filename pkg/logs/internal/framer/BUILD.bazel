@@ -36,6 +36,7 @@ dd_agent_go_test(
     name = "framer_test",
     srcs = [
         "docker_stream_test.go",
+        "framer_proptest_test.go",
         "framer_test.go",
         "matcher_test.go",
         "syslog_test.go",
@@ -46,5 +47,6 @@ dd_agent_go_test(
         "//pkg/logs/status/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@net_pgregory_rapid//:rapid",
     ],
 )
