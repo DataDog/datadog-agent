@@ -6,7 +6,6 @@
 package procmgr
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -58,16 +57,6 @@ func ensureWindowsDirPS(dir string) string {
 	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
 }
 
-// writeProcessesDYamlContent writes a processes.d YAML file as UTF-8 without a BOM.
-// Set-Content -Encoding utf8 adds a BOM on Windows PowerShell 5.1, which breaks dd-procmgr parsing.
-func writeProcessesDYamlContent(yamlPath, content string) string {
-	b64 := base64.StdEncoding.EncodeToString([]byte(content))
-	return psRemote(
-		`$ErrorActionPreference='Stop'; $p='%s'; $b = [Convert]::FromBase64String('%s'); [IO.File]::WriteAllBytes($p, $b)`,
-		yamlPath, b64,
-	)
-}
-
 // replaceProcessesDYaml applies old→new in processes.d YAML without a UTF-8 BOM.
 // Set-Content -Encoding utf8 adds a BOM on Windows PowerShell 5.1, which breaks dd-procmgr parsing.
 func replaceProcessesDYaml(yamlPath, old, new string) string {
@@ -75,24 +64,6 @@ func replaceProcessesDYaml(yamlPath, old, new string) string {
 		`$ErrorActionPreference='Stop'; $p='%s'; $c=[IO.File]::ReadAllText($p); $o=$c; $c=$c.Replace('%s','%s'); if ($o -eq $c) { exit 1 }; $enc=New-Object System.Text.UTF8Encoding $false; [IO.File]::WriteAllText($p,$c,$enc)`,
 		yamlPath, old, new,
 	)
-}
-
-func windowsProcessOwnerByName(host *e2ecomponents.RemoteHost, name string) (string, error) {
-	script := psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "Name='%s'" | Select-Object -First 1; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
-		name,
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
-}
-
-func windowsProcessOwnerByPID(host *e2ecomponents.RemoteHost, pid string) (string, error) {
-	script := psRemote(
-		`$p = Get-CimInstance Win32_Process -Filter "ProcessId=%s"; if ($null -eq $p) { exit 1 }; $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner; if ($o.ReturnValue -ne 0) { exit $o.ReturnValue }; "$($o.Domain)/$($o.User)"`,
-		pid,
-	)
-	out, err := host.Execute(script)
-	return strings.TrimSpace(out), err
 }
 
 func waitProcmgrDescribeRunning(
