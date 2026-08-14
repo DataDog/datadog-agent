@@ -7,7 +7,6 @@ package syslog
 
 import (
 	"encoding/json"
-	"flag"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,13 +47,24 @@ import (
 //
 // To adopt new output after an intentional parser change:
 //
-//	go test ./pkg/logs/internal/parsers/syslog -run TestCorpusGolden -update-golden
+//	UPDATE_SYSLOG_CORPUS=1 dda inv test \
+//	  --targets=./pkg/logs/internal/parsers/syslog -e TestCorpusGolden
 //
 // Review the resulting diff message by message. A field moving from a real
 // value to the nilvalue, or CONTENT shifting into a header field, is a
 // regression even when the test would otherwise pass once regenerated.
-var updateGolden = flag.Bool("update-golden", false,
-	"rewrite testdata/corpus.json with the parser's current output")
+//
+// The trigger is an environment variable rather than a -update-golden flag
+// because go test only accepts test-binary flags after the package list, while
+// the dda inv wrapper always emits flags ahead of it. A flag would therefore be
+// reachable only by invoking go test directly, which the repository forbids.
+//
+// Should regenerating ever grow past a single command — more golden files in
+// this package, or work to do either side of the rewrite — the idiom to reach
+// for is an invoke task running go test from the package directory, the way
+// host-profiler.update-golden-tests does. That is not worth a task module and a
+// collection registration while one environment variable covers it.
+var updateGolden = os.Getenv("UPDATE_SYSLOG_CORPUS") != ""
 
 const goldenPath = "testdata/corpus.json"
 
@@ -160,7 +170,7 @@ func loadCorpus(t *testing.T) corpusFile {
 func TestCorpusGolden(t *testing.T) {
 	corpus := loadCorpus(t)
 
-	if *updateGolden {
+	if updateGolden {
 		// Only Want is regenerated; the origin pins and the provenance recorded
 		// with each message are hand-maintained and must survive the rewrite.
 		for i := range corpus.Messages {
@@ -177,7 +187,7 @@ func TestCorpusGolden(t *testing.T) {
 		t.Run(tc.Integration+"/"+tc.Source, func(t *testing.T) {
 			got := parseCorpusLine(tc.Line)
 			assert.Equal(t, tc.Want, got,
-				"parse of %s changed\nline: %q\nrerun with -update-golden to adopt",
+				"parse of %s changed\nline: %q\nset UPDATE_SYSLOG_CORPUS=1 to adopt",
 				tc.Source, tc.Line)
 		})
 	}
