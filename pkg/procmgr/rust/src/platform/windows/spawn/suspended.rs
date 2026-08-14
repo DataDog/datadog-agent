@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use std::time::Duration;
+
 use anyhow::{Result, bail};
 use log::warn;
 use windows_sys::Win32::Foundation::HANDLE;
@@ -61,8 +63,19 @@ impl SuspendedChild {
     }
 
     fn abort_before_supervision(self, process_name: &str, job: Option<&JobObject>) {
-        request_termination(process_name, self.pid, self.process.as_handle(), job);
-        if let Err(e) = wait_for_process_exit(process_name, self.pid, self.process.as_handle()) {
+        if !request_termination(process_name, self.pid, self.process.as_handle(), job) {
+            warn!(
+                "[{process_name}] skipping wait for suspended child (pid={}): termination request failed",
+                self.pid
+            );
+            return;
+        }
+        if let Err(e) = wait_for_process_exit(
+            process_name,
+            self.pid,
+            self.process.as_handle(),
+            ManagedProcess::FORCE_KILL_TIMEOUT,
+        ) {
             warn!(
                 "[{process_name}] failed to wait for suspended child (pid={}) termination: {e:#}",
                 self.pid
@@ -76,25 +89,35 @@ fn request_termination(
     pid: u32,
     process_handle: HANDLE,
     job: Option<&JobObject>,
-) {
+) -> bool {
     if let Some(job) = job {
-        if let Err(e) = job.terminate() {
-            warn!(
-                "[{process_name}] failed to terminate suspended child (pid={pid}) via job after spawn failure: {e:#}"
-            );
-            if let Err(e) = terminate_process_handle(process_name, pid, process_handle) {
+        match job.terminate() {
+            Ok(()) => return true,
+            Err(e) => {
                 warn!(
-                    "[{process_name}] failed to terminate suspended child (pid={pid}) directly after job terminate failure: {e:#}"
+                    "[{process_name}] failed to terminate suspended child (pid={pid}) via job after spawn failure: {e:#}"
                 );
             }
         }
-        return;
+        return match terminate_process_handle(process_name, pid, process_handle) {
+            Ok(()) => true,
+            Err(e) => {
+                warn!(
+                    "[{process_name}] failed to terminate suspended child (pid={pid}) directly after job terminate failure: {e:#}"
+                );
+                false
+            }
+        };
     }
 
-    if let Err(e) = terminate_process_handle(process_name, pid, process_handle) {
-        warn!(
-            "[{process_name}] failed to terminate unsupervised suspended child (pid={pid}): {e:#}"
-        );
+    match terminate_process_handle(process_name, pid, process_handle) {
+        Ok(()) => true,
+        Err(e) => {
+            warn!(
+                "[{process_name}] failed to terminate unsupervised suspended child (pid={pid}): {e:#}"
+            );
+            false
+        }
     }
 }
 
@@ -111,19 +134,29 @@ fn terminate_process_handle(process_name: &str, pid: u32, process_handle: HANDLE
     Ok(())
 }
 
-fn wait_for_process_exit(process_name: &str, pid: u32, process_handle: HANDLE) -> Result<()> {
-    use windows_sys::Win32::System::Threading::{
-        GetExitCodeProcess, INFINITE, WaitForSingleObject,
-    };
+fn wait_for_process_exit(
+    process_name: &str,
+    pid: u32,
+    process_handle: HANDLE,
+    timeout: Duration,
+) -> Result<()> {
+    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
 
     const WAIT_OBJECT_0: u32 = 0;
     const WAIT_FAILED: u32 = 0xFFFF_FFFF;
+    const WAIT_TIMEOUT: u32 = 0x0000_0102;
 
-    let wait_result = unsafe { WaitForSingleObject(process_handle, INFINITE) };
+    let timeout_ms = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX);
+    let wait_result = unsafe { WaitForSingleObject(process_handle, timeout_ms) };
     if wait_result == WAIT_FAILED {
         bail!(
             "[{process_name}] WaitForSingleObject({pid}) failed: {}",
             std::io::Error::last_os_error()
+        );
+    }
+    if wait_result == WAIT_TIMEOUT {
+        bail!(
+            "[{process_name}] timed out waiting for suspended child (pid={pid}) to exit after {timeout:?}"
         );
     }
     if wait_result != WAIT_OBJECT_0 {
