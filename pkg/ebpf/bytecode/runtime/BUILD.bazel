@@ -96,8 +96,8 @@ dd_agent_go_test(
     ],
     embed = [":runtime"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/kernel",
@@ -121,8 +121,8 @@ dd_agent_go_test(
     srcs = ["helpers_test.go"],
     embed = [":runtime"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/util/kernel",

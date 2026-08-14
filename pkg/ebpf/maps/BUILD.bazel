@@ -38,8 +38,8 @@ dd_agent_go_test(
     srcs = ["generic_map_test.go"],
     embed = [":maps"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/security/ebpf/kernel",
         "//pkg/util/kernel",

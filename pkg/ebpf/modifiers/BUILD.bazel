@@ -29,8 +29,8 @@ dd_agent_go_test(
     srcs = ["sleepable_modifier_test.go"],
     embed = [":modifiers"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
@@ -52,8 +52,8 @@ dd_agent_go_test(
     srcs = ["sleepable_modifier_test.go"],
     embed = [":modifiers"],
     gotags_sets = [["linux_bpf"]],
-        tags = ["requires_ebpf"],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
