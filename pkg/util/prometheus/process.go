@@ -41,6 +41,11 @@ type ProcessConfig struct {
 	ShareLabels map[string]ShareLabelConfig `json:"share_labels"`
 }
 
+// ProcessResult wraps processed metric families returned by ProcessMetrics.
+type ProcessResult struct {
+	Families []ProcessedMetricFamily `json:"families"`
+}
+
 // ShareLabelConfig configures how labels from one metric are shared to others.
 type ShareLabelConfig struct {
 	// Match is the set of label names used for matching (join keys).
@@ -53,10 +58,11 @@ type ShareLabelConfig struct {
 
 // ProcessedSample is a single metric sample with pre-built tags.
 type ProcessedSample struct {
-	SampleName string   `json:"sample_name"`
-	Value      float64  `json:"value"`
-	Tags       []string `json:"tags"`
-	Hostname   string   `json:"hostname,omitempty"`
+	SampleName string            `json:"sample_name"`
+	Value      float64           `json:"value"`
+	Tags       []string          `json:"tags"`
+	Hostname   string            `json:"hostname,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
 }
 
 // ProcessedMetricFamily is a metric family with processed samples.
@@ -166,15 +172,18 @@ func compileConfig(cfg *ProcessConfig) (*compiledConfig, error) {
 }
 
 // ProcessMetrics parses prometheus-formatted metrics and applies label/tag processing.
-func ProcessMetrics(data []byte, contentType string, cfg *ProcessConfig) ([]ProcessedMetricFamily, error) {
+//
+// When ShareLabels is configured, all source-metric labels are collected from the whole payload
+// first (batch mode), then applied to every family regardless of order.
+func ProcessMetrics(data []byte, contentType string, cfg *ProcessConfig) (ProcessResult, error) {
 	families, err := ParseMetricsWithFilter(data, nil, contentType)
 	if err != nil {
-		return nil, err
+		return ProcessResult{}, err
 	}
 
 	cc, err := compileConfig(cfg)
 	if err != nil {
-		return nil, err
+		return ProcessResult{}, err
 	}
 
 	// Strip _total suffix from counter family names to match Python prometheus_client behavior.
@@ -184,48 +193,46 @@ func ProcessMetrics(data []byte, contentType string, cfg *ProcessConfig) ([]Proc
 		}
 	}
 
-	// Phase 1: strip prefix and collect shared labels
+	// Strip raw_metric_prefix.
 	for i := range families {
 		if cc.rawMetricPrefix != "" && strings.HasPrefix(families[i].Name, cc.rawMetricPrefix) {
 			families[i].Name = families[i].Name[len(cc.rawMetricPrefix):]
 		}
 	}
 
+	result := make([]ProcessedMetricFamily, 0, len(families))
+
+	// Collect shared labels from the whole payload first (batch mode).
 	sharedState := collectSharedLabels(families, cc)
 
-	// Phase 2: process each family
-	result := make([]ProcessedMetricFamily, 0, len(families))
 	for _, fam := range families {
-		// Check metric exclusion
 		if _, excluded := cc.excludeMetrics[fam.Name]; excluded {
 			continue
 		}
 		if cc.excludeMetricsPattern != nil && cc.excludeMetricsPattern.MatchString(fam.Name) {
 			continue
 		}
-
 		processed := processFamily(fam, cc, sharedState)
 		if len(processed.Samples) > 0 {
 			result = append(result, processed)
 		}
 	}
-
-	return result, nil
+	return ProcessResult{Families: result}, nil
 }
 
-// ProcessMetricsToJSON processes metrics and returns the result as JSON.
+// ProcessMetricsToJSON processes metrics and returns a JSON-encoded ProcessResult.
 func ProcessMetricsToJSON(data []byte, contentType string, configJSON string) (string, error) {
 	var cfg ProcessConfig
 	if err := json.Unmarshal([]byte(configJSON), &cfg); err != nil {
 		return "", fmt.Errorf("invalid config: %w", err)
 	}
 
-	families, err := ProcessMetrics(data, contentType, &cfg)
+	processResult, err := ProcessMetrics(data, contentType, &cfg)
 	if err != nil {
 		return "", err
 	}
 
-	out, err := json.Marshal(families)
+	out, err := json.Marshal(processResult)
 	if err != nil {
 		return "", err
 	}
@@ -355,6 +362,7 @@ func processFamily(fam MetricFamily, cc *compiledConfig, shared *sharedLabelStat
 			Value:      sample.Value,
 			Tags:       tags,
 			Hostname:   hostname,
+			Labels:     labels,
 		})
 	}
 

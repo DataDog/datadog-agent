@@ -14,6 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// processMetrics is a test helper that calls ProcessMetrics and fails immediately on error.
+func processMetrics(t testing.TB, data []byte, contentType string, cfg *ProcessConfig) []ProcessedMetricFamily {
+	t.Helper()
+	pr, err := ProcessMetrics(data, contentType, cfg)
+	require.NoError(t, err)
+	return pr.Families
+}
+
 func TestProcessMetrics_BasicGauge(t *testing.T) {
 	data := []byte(`# TYPE temperature gauge
 temperature{location="us-east",host="web01"} 72.5
@@ -23,8 +31,7 @@ temperature{location="us-west",host="web02"} 68.3`)
 		StaticTags: []string{"env:prod"},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	assert.Equal(t, "temperature", result[0].Name)
 	assert.Equal(t, "GAUGE", result[0].Type)
@@ -46,8 +53,7 @@ cpu{host="web01",pod="abc",container_id="xyz"} 0.5`)
 		ExcludeLabels: []string{"container_id"},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	require.Len(t, result[0].Samples, 1)
 
@@ -67,8 +73,7 @@ cpu{host="web01",pod="abc",container_id="xyz"} 0.5`)
 		IncludeLabels: []string{"host"},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result[0].Samples, 1)
 
 	tags := result[0].Samples[0].Tags
@@ -84,8 +89,7 @@ cpu{old_name="value1"} 1.0`)
 		RenameLabels: map[string]string{"old_name": "new_name"},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 
 	tags := result[0].Samples[0].Tags
 	assert.Contains(t, tags, "new_name:value1")
@@ -107,8 +111,7 @@ also_unwanted{a="3"} 3.0`)
 		ExcludeMetricsPatterns: []string{"also_.*"},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	assert.Equal(t, "wanted", result[0].Name)
 }
@@ -125,8 +128,7 @@ http_requests{status="503"} 2`)
 		},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	require.Len(t, result[0].Samples, 1)
 	assert.Equal(t, 100.0, result[0].Samples[0].Value)
@@ -143,8 +145,7 @@ http_requests{debug="true"} 5`)
 		},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	require.Len(t, result[0].Samples, 1)
 	assert.Equal(t, 100.0, result[0].Samples[0].Value)
@@ -158,8 +159,7 @@ myapp_requests{a="1"} 10`)
 		RawMetricPrefix: "myapp_",
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	assert.Equal(t, "requests", result[0].Name)
 }
@@ -172,8 +172,7 @@ cpu{node="web01.example.com",region="us-east"} 0.5`)
 		HostnameLabel: "node",
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	assert.Equal(t, "web01.example.com", result[0].Samples[0].Hostname)
 }
 
@@ -186,8 +185,7 @@ cpu{node="web01"} 0.5`)
 		HostnameFormat: "<HOSTNAME>.example.com",
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	assert.Equal(t, "web01.example.com", result[0].Samples[0].Hostname)
 }
 
@@ -201,8 +199,7 @@ http_duration_count 100`)
 
 	cfg := &ProcessConfig{}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	assert.Equal(t, "HISTOGRAM", result[0].Type)
 
@@ -233,8 +230,7 @@ rpc_duration_count 200`)
 
 	cfg := &ProcessConfig{}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 
 	// quantile values should be canonicalized
@@ -264,8 +260,7 @@ kube_pod_status{pod="pod1",namespace="ns1"} 1`)
 		},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 
 	// Find kube_pod_status
 	var statusFamily *ProcessedMetricFamily
@@ -301,8 +296,7 @@ kube_pod_status{pod="pod2",namespace="ns2"} 2`)
 		},
 	}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 
 	var statusFamily *ProcessedMetricFamily
 	for i := range result {
@@ -343,8 +337,7 @@ test{a="3"} +Inf`)
 
 	cfg := &ProcessConfig{}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	require.Len(t, result[0].Samples, 1)
 	assert.Equal(t, 1.0, result[0].Samples[0].Value)
@@ -358,8 +351,7 @@ http_requests_total{method="GET"} 100
 
 	cfg := &ProcessConfig{}
 
-	result, err := ProcessMetrics(data, "application/openmetrics-text; version=1.0.0", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "application/openmetrics-text; version=1.0.0", cfg)
 	require.Len(t, result, 1)
 	assert.Equal(t, "http_requests", result[0].Name)
 	assert.Equal(t, "COUNTER", result[0].Type)
@@ -371,8 +363,7 @@ http_requests_total{method="GET"} 100`)
 
 	cfg := &ProcessConfig{}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 	require.Len(t, result, 1)
 	assert.Equal(t, "http_requests", result[0].Name) // _total stripped for Prometheus counters too
 	assert.Equal(t, "COUNTER", result[0].Type)
@@ -384,8 +375,7 @@ test{a="1"} 1.0`)
 
 	cfg := &ProcessConfig{}
 
-	result, err := ProcessMetrics(data, "", cfg)
-	require.NoError(t, err)
+	result := processMetrics(t, data, "", cfg)
 
 	// __name__ should not appear in tags
 	for _, tag := range result[0].Samples[0].Tags {
@@ -402,13 +392,13 @@ cpu{host="web01"} 0.5`)
 	jsonResult, err := ProcessMetricsToJSON(data, "", configJSON)
 	require.NoError(t, err)
 
-	var families []ProcessedMetricFamily
-	err = json.Unmarshal([]byte(jsonResult), &families)
+	var processResult ProcessResult
+	err = json.Unmarshal([]byte(jsonResult), &processResult)
 	require.NoError(t, err)
-	require.Len(t, families, 1)
-	assert.Equal(t, "cpu", families[0].Name)
-	assert.Contains(t, families[0].Samples[0].Tags, "env:test")
-	assert.Contains(t, families[0].Samples[0].Tags, "host:web01")
+	require.Len(t, processResult.Families, 1)
+	assert.Equal(t, "cpu", processResult.Families[0].Name)
+	assert.Contains(t, processResult.Families[0].Samples[0].Tags, "env:test")
+	assert.Contains(t, processResult.Families[0].Samples[0].Tags, "host:web01")
 }
 
 func TestProcessMetricsToJSON_InvalidConfig(t *testing.T) {
@@ -449,18 +439,18 @@ func BenchmarkProcessMetrics(b *testing.B) {
 		StaticTags:    []string{"env:prod", "endpoint:http://localhost:9090/metrics"},
 	}
 
-	var result []ProcessedMetricFamily
+	var pr ProcessResult
 	var err error
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		result, err = ProcessMetrics(data, "", cfg)
+		pr, err = ProcessMetrics(data, "", cfg)
 	}
 	b.StopTimer()
 
 	require.NoError(b, err)
-	require.NotEmpty(b, result)
+	require.NotEmpty(b, pr.Families)
 }
 
 func BenchmarkProcessMetricsWithShareLabels(b *testing.B) {
@@ -488,16 +478,16 @@ func BenchmarkProcessMetricsWithShareLabels(b *testing.B) {
 		StaticTags: []string{"env:prod"},
 	}
 
-	var result []ProcessedMetricFamily
+	var pr ProcessResult
 	var err error
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for b.Loop() {
-		result, err = ProcessMetrics(lines, "", cfg)
+		pr, err = ProcessMetrics(lines, "", cfg)
 	}
 	b.StopTimer()
 
 	require.NoError(b, err)
-	require.NotEmpty(b, result)
+	require.NotEmpty(b, pr.Families)
 }
