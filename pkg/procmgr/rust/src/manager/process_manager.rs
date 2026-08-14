@@ -1,18 +1,15 @@
 use super::{
-    ExitEvent, PendingRestart, RuntimeHandles, Supervisor, enqueue_pending_restart,
-    find_index_by_name, resolve_index, try_auto_start,
+    ExitEvent, PendingRestart, RuntimeHandles, Supervisor, find_index_by_name, queue_restart,
+    recompute_startup_order, resolve_index, try_spawn_and_watch,
 };
 use crate::command::{CreateResult, StartResult, StopResult};
-use crate::config::{self, ConfigLoader, ProcessDefinition};
-use crate::ordering;
+use crate::config::{self, ConfigLoader};
 use crate::process::ManagedProcess;
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
 use std::sync::Arc;
-#[cfg(windows)]
-use std::time::Instant;
 use tokio::sync::RwLock;
 use tonic::Status;
 
@@ -26,24 +23,41 @@ pub struct ProcessManager {
 
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
-        let (processes, startup_order) = load_catalog(config_loader.as_ref(), uuid_gen.as_ref());
+        let configs = config_loader.load();
+        let mut processes: Vec<ManagedProcess> = configs
+            .into_iter()
+            .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
+            .collect();
+        for proc in &mut processes {
+            proc.record_config_gate_met();
+        }
+        let startup_result = recompute_startup_order(&processes);
         Self {
             processes: Arc::new(RwLock::new(processes)),
-            startup_order: Arc::new(RwLock::new(startup_order)),
+            startup_order: Arc::new(RwLock::new(startup_result.order)),
             config_loader,
             uuid_gen,
         }
     }
 
+    /// Wrap this manager in a [`Supervisor`] for daemon execution.
     pub fn supervisor(self) -> Supervisor {
         Supervisor::new(self)
     }
 
-    pub(in crate::manager) async fn auto_start_all(&self, handles: &RuntimeHandles) {
+    pub(in crate::manager) async fn start_configured_processes(&self, handles: &RuntimeHandles) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
-            try_auto_start(&mut procs[idx], handles);
+            let proc = &mut procs[idx];
+            let name = proc.name().to_owned();
+            if proc.may_auto_start()
+                && let Err(e) = try_spawn_and_watch(proc, handles)
+            {
+                warn!("[{name}] auto-start failed: {e:#}");
+                queue_restart(proc, handles);
+            }
+            proc.record_config_gate_met();
         }
     }
 
@@ -59,7 +73,11 @@ impl ProcessManager {
         self.config_loader.location()
     }
 
-    pub(in crate::manager) async fn handle_exit(&self, event: ExitEvent, handles: &RuntimeHandles) {
+    pub(in crate::manager) async fn handle_exit(
+        &self,
+        event: ExitEvent,
+        handles: &RuntimeHandles,
+    ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);
@@ -70,11 +88,8 @@ impl ProcessManager {
             info!("[{}] exited with {}", proc.name(), event.status);
             proc.set_last_status(event.status);
             #[cfg(windows)]
-            proc.ensure_windows_spawn_resources_released(shutdown::ShutdownBudget::unlimited(
-                Instant::now(),
-            ))
-            .await;
-            enqueue_pending_restart(proc, handles);
+            proc.ensure_windows_spawn_resources_released().await;
+            queue_restart(proc, handles);
             return;
         }
 
@@ -100,26 +115,24 @@ impl ProcessManager {
             return;
         };
         let name = proc.name().to_owned();
-        if pending.spawn_seq != proc.spawn_seq() {
-            info!(
-                "[{name}] ignoring stale queued restart (spawn_seq {} != {})",
-                pending.spawn_seq,
-                proc.spawn_seq()
-            );
-            return;
-        }
         if proc.is_running() {
             info!("[{name}] already running, skipping queued restart");
             return;
         }
-        if !proc.should_complete_pending_restart() {
-            info!("[{name}] not restarting: policy or start conditions not met");
+        if pending.config_generation != proc.config_generation() {
+            info!("[{name}] discarding stale retry after config reload");
             return;
         }
-        if let Err(e) = proc.spawn_and_watch(handles.exit_tx.clone()) {
-            warn!("[{name}] restart failed: {e:#}");
-            enqueue_pending_restart(proc, handles);
+        if !proc.should_complete_pending_restart() {
+            info!("[{name}] not restarting: policy or start conditions not met");
+            proc.record_config_gate_met();
+            return;
         }
+        if let Err(e) = try_spawn_and_watch(proc, handles) {
+            warn!("[{name}] restart failed: {e:#}");
+            queue_restart(proc, handles);
+        }
+        proc.record_config_gate_met();
     }
 
     pub(in crate::manager) async fn handle_create(
@@ -154,7 +167,12 @@ impl ProcessManager {
             uuid = proc.uuid().to_owned();
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
-            try_auto_start(procs.last_mut().unwrap(), handles);
+            let proc = procs.last_mut().unwrap();
+            if proc.may_auto_start()
+                && let Err(e) = try_spawn_and_watch(proc, handles)
+            {
+                warn!("[{name}] auto-start failed: {e:#}");
+            }
         }
         let warnings = self.update_startup_order().await;
         Ok(CreateResult { uuid, warnings })
@@ -175,8 +193,9 @@ impl ProcessManager {
                 "process '{name}' is already running",
             )));
         }
-        proc.spawn_and_watch(handles.exit_tx.clone())
+        try_spawn_and_watch(proc, handles)
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
+        proc.record_config_gate_met();
         Ok(StartResult {
             uuid: proc.uuid().to_owned(),
             pid: proc.pid(),
@@ -221,46 +240,5 @@ impl ProcessManager {
             .collect();
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
-    }
-}
-
-struct StartupOrderResult {
-    order: Vec<usize>,
-    warnings: Vec<String>,
-}
-
-fn load_catalog(
-    config_loader: &dyn ConfigLoader,
-    uuid_gen: &dyn UuidGenerator,
-) -> (Vec<ManagedProcess>, Vec<usize>) {
-    let processes: Vec<ManagedProcess> = config_loader
-        .load()
-        .into_iter()
-        .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
-        .collect();
-    let startup_order = recompute_startup_order(&processes).order;
-    (processes, startup_order)
-}
-
-fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
-    let defs: Vec<ProcessDefinition> = procs
-        .iter()
-        .map(|p| ProcessDefinition {
-            name: p.name().to_string(),
-            config: p.config().clone(),
-        })
-        .collect();
-    let result = ordering::resolve_order(&defs);
-    if !result.skipped.is_empty() {
-        warn!(
-            "dependency cycle detected, skipping processes: {}",
-            result.skipped.join(", ")
-        );
-    }
-    let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
-    debug!("startup order: {}", names.join(" -> "));
-    StartupOrderResult {
-        order: result.order,
-        warnings: result.warnings,
     }
 }
