@@ -12,6 +12,7 @@ import (
 	"math/bits"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,7 +41,7 @@ type dogstatsdEvent struct {
 	priority       eventPriority
 	sourceType     string
 	alertType      alertType
-	tags           []string
+	tags           []tagset.InternedTag
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection

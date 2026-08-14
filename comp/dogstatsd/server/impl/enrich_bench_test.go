@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -24,7 +25,7 @@ func buildTags(tagCount int) []string {
 }
 
 // used to store the result and avoid optimizations
-var tags []string
+var tags []tagset.InternedTag
 
 func BenchmarkExtractTagsMetadata(b *testing.B) {
 	conf := enrichConfig{
@@ -32,7 +33,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 	}
 	for i := 20; i <= 200; i += 20 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(sb *testing.B) {
-			baseTags := append([]string{hostTagPrefix + "foo", entityIDTagPrefix + "bar"}, buildTags(i/10)...)
+			baseTags := tagset.InternAll(append([]string{hostTagPrefix + "foo", entityIDTagPrefix + "bar"}, buildTags(i/10)...))
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
@@ -46,7 +47,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	conf := enrichConfig{}
 
 	sample := dogstatsdMetricSample{
-		name: "datadog.agent.testing.metric.does_not_match",
+		name: tagset.Intern("datadog.agent.testing.metric.does_not_match"),
 	}
 
 	out := make([]metrics.MetricSample, 0, 10)

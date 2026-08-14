@@ -11,6 +11,7 @@ go_library(
         "hashed_tags_pvt.go",
         "hashing_tags_accumulator.go",
         "hashless_tags_accumulator.go",
+        "interned.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/tagset",

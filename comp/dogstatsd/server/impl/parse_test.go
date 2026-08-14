@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestIdentifyEvent(t *testing.T) {
@@ -44,7 +46,7 @@ func TestParseTags(t *testing.T) {
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags)
 	expectedTags := []string{"tag:test", "mytag", "good:boy"}
-	assert.ElementsMatch(t, expectedTags, tags)
+	assert.ElementsMatch(t, expectedTags, tagset.Values(tags))
 }
 
 func TestParseTagsEmpty(t *testing.T) {

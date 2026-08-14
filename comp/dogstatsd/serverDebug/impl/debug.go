@@ -166,6 +166,7 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 
 	// key
 	defer d.tagsAccumulator.Reset()
+	d.tagsAccumulator.AppendInterned(sample.ITags...)
 	d.tagsAccumulator.Append(sample.Tags...)
 	key := d.keyGen.Generate(sample.Name, "", d.tagsAccumulator)
 

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -50,7 +51,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 	if len(samples) != 1 {
 		return metrics.MetricSample{}, errors.New("wrong number of metrics parsed")
 	}
-	return samples[0], nil
+	return resolveSampleTags(samples)[0], nil
 }
 
 func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
@@ -63,7 +64,18 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 	}
 
 	samples := []metrics.MetricSample{}
-	return enrichMetricSample(samples, parsed, "", 0, "", conf, nil), nil
+	return resolveSampleTags(enrichMetricSample(samples, parsed, "", 0, "", conf, nil)), nil
+}
+
+// resolveSampleTags materializes the interned tags the dogstatsd pipeline
+// produces into MetricSample.Tags, so that tests can keep asserting on plain
+// strings. In production this resolution happens further down, at the tag
+// accumulator.
+func resolveSampleTags(samples []metrics.MetricSample) []metrics.MetricSample {
+	for i := range samples {
+		samples[i].Tags = tagset.Values(samples[i].ITags)
+	}
+	return samples
 }
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
@@ -1500,8 +1512,8 @@ func TestEnrichTags(t *testing.T) {
 		tt.wantedOrigin.ProductOrigin = origindetection.ProductOriginDogStatsD
 
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, metricSource, _ := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
-			assert.Equal(t, tt.wantedTags, tags)
+			tags, host, origin, metricSource, _ := extractTagsMetadata(tagset.InternAll(tt.args.tags), tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
+			assert.Equal(t, tt.wantedTags, tagset.Values(tags))
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
@@ -1548,7 +1560,8 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, _, _, metricSource, _ := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
+			itags, _, _, metricSource, _ := extractTagsMetadata(tagset.InternAll(tt.tags), "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
+			tags := tagset.Values(itags)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
 			assert.NotContains(t, tags, tt.jmxCheckName)

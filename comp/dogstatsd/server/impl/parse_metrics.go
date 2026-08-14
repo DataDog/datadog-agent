@@ -8,8 +8,10 @@ package serverimpl
 import (
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 type metricType int
@@ -37,7 +39,7 @@ var (
 )
 
 type dogstatsdMetricSample struct {
-	name string
+	name tagset.InternedTag
 	// use for single value messages
 	value float64
 	// use for multiple value messages
@@ -46,7 +48,7 @@ type dogstatsdMetricSample struct {
 	setValue   string
 	metricType metricType
 	sampleRate float64
-	tags       []string
+	tags       []tagset.InternedTag
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection

@@ -119,7 +119,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		}
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, pkgconfigsetup.Datadog()); err != nil {
-			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
+			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.GetRawTags(), err)
 			return
 		}
 	}

@@ -7,24 +7,30 @@ package serverimpl
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// stringInterner is a string cache providing a longer life for strings,
-// helping to avoid GC runs because they're re-used many times instead of
-// created every time.
+// stringInterner hands out tagset.InternedTag values for strings read off the
+// wire, so that a tag or metric name seen many times is stored once.
 //
-// The current interning strategy is fairly simple, but can require manual
-// adjustments of the `maxSize` to improve performance, which is not ideal.
-
-// However the current strategy works well enough, and there is an
-// accepted go proposal to offer an "interning" mechanism from the
-// go runtime directly.
-
-// Once this is available, the interner design should be re-visited to
-// take advantage of the new "Unique" api that is proposed below.
-// ref: https://github.com/golang/go/issues/62483
+// Canonicalization itself is done by the standard library `unique` package: it
+// owns the single copy of each string and keeps it alive exactly as long as some
+// handle still refers to it. That removes the two problems the hand-rolled
+// interner had:
+//
+//   - a reset dropped the canonical strings, so the same tag arriving after a
+//     reset allocated a fresh copy and the agent held several copies of the same
+//     tag at once. Handles issued before a reset stay valid and stay canonical.
+//   - entries were retained forever (up to maxSize) even if no sample referenced
+//     them anymore. `unique` reclaims a string once the last handle goes away.
+//
+// What is left here is a per-worker lookaside cache. It exists for two reasons:
+// looking up by []byte without allocating a string (which unique.Make cannot do),
+// and memoizing the tag hash so a given tag is hashed once rather than once per
+// sample carrying it. maxSize now only bounds this cache, not the strings.
 type stringInterner struct {
-	strings map[string]string
+	cache   map[string]tagset.InternedTag
 	maxSize int
 	id      string
 
@@ -32,11 +38,9 @@ type stringInterner struct {
 }
 
 func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
-	// telemetryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
-
 	id := fmt.Sprintf("interner_%d", internerID)
 	i := &stringInterner{
-		strings:   make(map[string]string),
+		cache:     make(map[string]tagset.InternedTag),
 		id:        id,
 		maxSize:   maxSize,
 		telemetry: siTelemetry.PrepareForID(id),
@@ -45,31 +49,52 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 	return i
 }
 
-// LoadOrStore always returns the string from the cache, adding it into the
-// cache if needed.
-// If we need to store a new entry and the cache is at its maximum capacity,
-// it is reset.
-func (i *stringInterner) LoadOrStore(key []byte) string {
+// LoadOrStore always returns a handle for the given key, interning it if this is
+// the first time the worker sees it.
+func (i *stringInterner) LoadOrStore(key []byte) tagset.InternedTag {
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
 	// returning the string value -> no new heap allocation
 	// for this string.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
-	if s, found := i.strings[string(key)]; found {
+	if t, found := i.cache[string(key)]; found {
 		i.telemetry.Hit()
-		return s
+		return t
 	}
 
-	if len(i.strings) >= i.maxSize {
-		i.telemetry.Reset(len(i.strings))
+	if len(i.cache) >= i.maxSize {
+		i.telemetry.Reset(len(i.cache))
 
-		i.strings = make(map[string]string)
+		i.cache = make(map[string]tagset.InternedTag)
 	}
 
-	s := string(key)
-	i.strings[s] = s
+	t := tagset.InternBytes(key)
+	// Key the cache on the canonical string so the cache does not retain a second
+	// copy of it.
+	i.cache[t.Value()] = t
 
-	i.telemetry.Miss(len(s))
+	i.telemetry.Miss(len(key))
 
-	return s
+	return t
+}
+
+// LoadOrStoreString is LoadOrStore for a key the caller already holds as a string.
+func (i *stringInterner) LoadOrStoreString(key string) tagset.InternedTag {
+	if t, found := i.cache[key]; found {
+		i.telemetry.Hit()
+		return t
+	}
+
+	if len(i.cache) >= i.maxSize {
+		i.telemetry.Reset(len(i.cache))
+
+		i.cache = make(map[string]tagset.InternedTag)
+	}
+
+	t := tagset.Intern(key)
+	i.cache[t.Value()] = t
+
+	i.telemetry.Miss(len(key))
+
+	return t
 }

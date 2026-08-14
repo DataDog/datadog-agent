@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -107,12 +108,12 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func (p *parser) parseTags(rawTags []byte) []string {
+func (p *parser) parseTags(rawTags []byte) []tagset.InternedTag {
 	if len(rawTags) == 0 {
 		return nil
 	}
 	tagsCount := bytes.Count(rawTags, commaSeparator)
-	tagsList := make([]string, tagsCount+1)
+	tagsList := make([]tagset.InternedTag, tagsCount+1)
 
 	i := 0
 	for i < tagsCount {
@@ -175,7 +176,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	// sample rate, tags, container ID, timestamp, ...
 
 	sampleRate := 1.0
-	var tags []string
+	var tags []tagset.InternedTag
 	var localData origindetection.LocalData
 	var externalData origindetection.ExternalData
 	var cardinality string

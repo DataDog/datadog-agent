@@ -668,7 +668,7 @@ func newContextStore(shardCount int) *contextStore {
 }
 
 func (s *contextStore) retain(source Source, sample metrics.MetricSample) (uint64, int) {
-	tags := canonicalTags(sample.Tags)
+	tags := canonicalTags(sample.GetRawTags())
 	key := buildContextKey(source, sample, tags)
 	ctx := metricContext{
 		source:         source,

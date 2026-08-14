@@ -6,6 +6,8 @@
 package metrics
 
 import (
+	"slices"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -96,11 +98,20 @@ const UnitMilliseconds = "millisecond"
 
 // MetricSample represents a raw metric sample
 type MetricSample struct {
-	Name            string
-	Value           float64
-	RawValue        string
-	Mtype           MetricType
-	Tags            []string
+	Name     string
+	Value    float64
+	RawValue string
+	Mtype    MetricType
+	Tags     []string
+	// ITags carries the client tags as interned handles, each with its hash
+	// already computed. The dogstatsd pipeline populates this instead of Tags so
+	// that tags parsed off the wire travel to the aggregator without being
+	// re-hashed or re-copied per sample.
+	//
+	// When ITags is non-empty it is authoritative and Tags is only materialized
+	// on demand, by GetRawTags. Producers that do not intern (checks, python,
+	// otlp, ...) keep using Tags and leave this nil.
+	ITags           []tagset.InternedTag
 	Host            string
 	SampleRate      float64
 	Timestamp       float64 // Seconds since epoch (accepts fractional seconds)
@@ -126,7 +137,17 @@ func (m *MetricSample) GetHost() string {
 
 // GetTags returns the metric sample tags
 func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, tagger tagger.Component) {
-	metricBuffer.Append(m.Tags...)
+	if len(m.ITags) > 0 {
+		if hashing, ok := metricBuffer.(*tagset.HashingTagsAccumulator); ok {
+			hashing.AppendInterned(m.ITags...)
+		} else {
+			for _, t := range m.ITags {
+				metricBuffer.Append(t.Value())
+			}
+		}
+	} else {
+		metricBuffer.Append(m.Tags...)
+	}
 	tagger.EnrichTags(taggerBuffer, m.OriginInfo)
 }
 
@@ -139,8 +160,13 @@ func (m *MetricSample) GetMetricType() MetricType {
 func (m *MetricSample) Copy() *MetricSample {
 	dst := &MetricSample{}
 	*dst = *m
-	dst.Tags = make([]string, len(m.Tags))
-	copy(dst.Tags, m.Tags)
+	// Keep Tags nil when the source is interned, otherwise GetRawTags would hand
+	// out an empty slice instead of resolving ITags.
+	if m.Tags != nil {
+		dst.Tags = make([]string, len(m.Tags))
+		copy(dst.Tags, m.Tags)
+	}
+	dst.ITags = slices.Clone(m.ITags)
 	return dst
 }
 
@@ -161,7 +187,14 @@ func (m *MetricSample) GetValue() float64 {
 
 // GetRawTags returns the metric sample tags, satisfying observer.MetricView.
 // The caller must not retain the slice — it may be returned to a pool.
+//
+// For interned samples this resolves the handles into Tags and caches the result
+// on the sample, so an active observer costs one materialization per sample and
+// nothing when no observer is attached.
 func (m *MetricSample) GetRawTags() []string {
+	if len(m.Tags) == 0 && len(m.ITags) > 0 {
+		m.Tags = tagset.Values(m.ITags)
+	}
 	return m.Tags
 }
 

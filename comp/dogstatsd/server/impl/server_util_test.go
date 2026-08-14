@@ -267,7 +267,7 @@ func (m tMetricSample) testMetric(t *testing.T, actual metrics.MetricSample) {
 	assert.Equal(t, m.Name, actual.Name, s, "name")
 	assert.Equal(t, m.Value, actual.Value, s, "value")
 	assert.Equal(t, m.Mtype, actual.Mtype, s, "type")
-	assert.ElementsMatch(t, m.Tags, actual.Tags, s, "tags")
+	assert.ElementsMatch(t, m.Tags, actual.GetRawTags(), s, "tags")
 	assert.Equal(t, m.SampleRate, actual.SampleRate, s, "sample rate")
 	assert.Equal(t, m.RawValue, actual.RawValue, s, "raw value")
 	assert.Equal(t, m.Timestamp, actual.Timestamp, s, "timestamp")

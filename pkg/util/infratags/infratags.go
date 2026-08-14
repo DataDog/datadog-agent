@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // InfraModeCloudCostTag is the tag appended to eligible integration metrics in cloud_cost_only mode.
@@ -36,7 +37,10 @@ func tagsForMode(infraMode string) (tags []string, ok bool) {
 // A nil *Tagger disables tagging.
 type Tagger struct {
 	infraModeTags []string
-	taggedChecks  map[string]struct{} // nil = all non-custom checks eligible
+	// infraModeITags is infraModeTags interned once, for callers that carry
+	// interned tags (the DogStatsD pipeline).
+	infraModeITags []tagset.InternedTag
+	taggedChecks   map[string]struct{} // nil = all non-custom checks eligible
 }
 
 // NewTagger resolves the infra mode tagging configuration from cfg.
@@ -49,13 +53,13 @@ func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
 	}
 	checks := cfg.GetStringSlice("integration." + infraMode + ".tagged")
 	if len(checks) == 0 {
-		return &Tagger{infraModeTags: tags}
+		return &Tagger{infraModeTags: tags, infraModeITags: tagset.InternAll(tags)}
 	}
 	taggedChecks := make(map[string]struct{}, len(checks))
 	for _, c := range checks {
 		taggedChecks[c] = struct{}{}
 	}
-	return &Tagger{infraModeTags: tags, taggedChecks: taggedChecks}
+	return &Tagger{infraModeTags: tags, infraModeITags: tagset.InternAll(tags), taggedChecks: taggedChecks}
 }
 
 // IsCheckEligible reports whether the given check should receive infra mode tags.
@@ -83,4 +87,14 @@ func (t *Tagger) AppendTags(tags []string) []string {
 	}
 
 	return append(tags, t.infraModeTags...)
+}
+
+// AppendInternedTags appends the infra mode tags to tags as interned handles.
+// The infra mode tags are interned once, when the Tagger is built.
+func (t *Tagger) AppendInternedTags(tags []tagset.InternedTag) []tagset.InternedTag {
+	if t == nil || len(t.infraModeITags) == 0 {
+		return tags
+	}
+
+	return append(tags, t.infraModeITags...)
 }

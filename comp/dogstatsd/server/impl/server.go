@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
@@ -143,8 +144,11 @@ type dsdServer struct {
 	histToDist              bool
 	histToDistPrefix        string
 	extraTags               []string
-	Debug                   serverdebug.Component
-	filterList              filterlist.Component
+	// extraITags is extraTags interned once at startup, so that appending them to
+	// every sample does not re-intern them.
+	extraITags []tagset.InternedTag
+	Debug      serverdebug.Component
+	filterList filterlist.Component
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component
@@ -306,6 +310,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
+		extraITags:              tagset.InternAll(extraTags),
 		eolTerminationUDP:       eolTerminationUDP,
 		eolTerminationUDS:       eolTerminationUDS,
 		eolTerminationNamedPipe: eolTerminationNamedPipe,
@@ -837,11 +842,13 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 	}
 
 	if s.mapper != nil {
-		mapResult := s.mapper.Map(sample.name)
+		mapResult := s.mapper.Map(sample.name.Value())
 		if mapResult != nil {
 			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
-			sample.name = mapResult.Name
-			sample.tags = append(sample.tags, mapResult.Tags...)
+			sample.name = parser.interner.LoadOrStoreString(mapResult.Name)
+			for _, tag := range mapResult.Tags {
+				sample.tags = append(sample.tags, parser.interner.LoadOrStoreString(tag))
+			}
 		}
 	}
 
@@ -852,12 +859,12 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 	}
 
 	for idx := range metricSamples {
-		// All metricSamples already share the same Tags slice. We can
+		// All metricSamples already share the same ITags slice. We can
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
-			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+			metricSamples[idx].ITags = append(metricSamples[idx].ITags, s.extraITags...)
 		} else {
-			metricSamples[idx].Tags = metricSamples[0].Tags
+			metricSamples[idx].ITags = metricSamples[0].ITags
 		}
 
 		// If we're receiving runtime metrics, we need to convert the default source to the runtime source
