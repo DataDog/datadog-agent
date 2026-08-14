@@ -122,6 +122,19 @@ func TestSave(t *testing.T) {
 	}
 }
 
+func TestGetArchiveNameIsUniqueWithinSameSecond(t *testing.T) {
+	timestamp := time.Date(2026, time.August, 14, 12, 0, 0, 0, time.UTC)
+	names := make(map[string]struct{})
+
+	for range 100 {
+		name := getArchiveNameForTime(timestamp)
+		if _, found := names[name]; found {
+			t.Fatalf("archive name %q was generated more than once", name)
+		}
+		names[name] = struct{}{}
+	}
+}
+
 func TestAddFileFromFunc(t *testing.T) {
 	fb := getNewBuilder(t)
 	defer fb.clean()
