@@ -236,6 +236,7 @@ func RevertAndRelease(ctx context.Context, region, profile, leaseBucket, instanc
 
 		if revertErr := revertRootVolume(ctx, ec2Client, instanceID, imageID); revertErr != nil {
 			if errors.Is(revertErr, errImageUnresolvable) {
+				fmt.Printf("WARNING: baseline image %s for instance %s is no longer resolvable, skipping revert: %v\n", imageID, instanceID, revertErr)
 				imageID = "" // baseline no longer resolvable: skip revert, clear it, still release
 			} else {
 				return fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, revertErr)
