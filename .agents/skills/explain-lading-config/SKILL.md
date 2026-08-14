@@ -41,12 +41,13 @@ Override the checkout location with `LADING_DIR` if needed.
 ## Step 2: Determine target file
 
 Use `.agents/skills/explain-lading-config/scripts/resolve-lading-config.sh` to
-avoid ad-hoc matching. The script enumerates experiments under
-`test/regression/cases/` (active) and `test/regression/x-disabled-cases/`
-(disabled). Each experiment is a `<case>/lading/lading.yaml` addressed by its
-case-directory name; disabled rows are flagged with a trailing `(disabled)`
-column in the listing. `ebpf/cases/` (split-mode) and
-`ebpf/config-only/cases/` are intentionally out of scope; if a user asks about
+avoid ad-hoc matching. The script enumerates experiments under any `cases/`
+directory within `test/regression/` (e.g. `quality_gates/cases/`,
+`logs/<group>/cases/`) and `test/regression/x-disabled-cases/` (disabled). Each
+experiment is a `<case>/lading/lading.yaml` addressed by its case-directory
+name; disabled rows are flagged with a trailing `(disabled)` column in the
+listing. The `ebpf/` subtrees (split-mode and config-only) are intentionally
+out of scope; if a user asks about
 one, tell them this skill doesn't cover it yet.
 
 The script handles path-like inputs, substring case names, and shell
