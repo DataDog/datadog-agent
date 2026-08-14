@@ -101,6 +101,29 @@ func (h *Host) ConfigureAptMirrors() {
 	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
+// ConfigureYumMirrors hardens yum against package-mirror outages on CentOS hosts, the
+// yum-side counterpart to ConfigureAptMirrors. CentOS 7 is EOL: its content is served
+// from vault.centos.org, but the default /centos/7/ path the stock AMI repos point at can
+// return HTTP 403, which fails any "yum install" that must first refresh the base/updates/
+// extras metadata. It rewrites the CentOS base/updates/extras repos to list the default
+// vault path first and the versioned-archive vault path (/7.9.2009/) as a fallback
+// baseurl, with failovermethod=priority so yum tries the default first and retries the
+// alternative mirror when it fails — the same default-then-fallback behavior as the apt
+// mirrorlist. skip_if_unavailable and a bounded timeout let an unreachable mirror fail fast
+// and degrade gracefully instead of hanging until the CI job's 2h timeout. See incident 58780.
+func (h *Host) ConfigureYumMirrors() {
+	if h.pkgManager != "yum" {
+		return
+	}
+	// Only CentOS 7 needs the vault fallback; other yum distros (RHEL, Amazon Linux) have working repos.
+	if h.os.Flavor != e2eos.CentOS {
+		return
+	}
+	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base\nbaseurl=https://vault.centos.org/centos/7/os/$basearch/\n https://vault.centos.org/7.9.2009/os/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates\nbaseurl=https://vault.centos.org/centos/7/updates/$basearch/\n https://vault.centos.org/7.9.2009/updates/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras\nbaseurl=https://vault.centos.org/centos/7/extras/$basearch/\n https://vault.centos.org/7.9.2009/extras/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
+	// Drop metadata cached against the previous repo config so the next yum call uses the new mirrors.
+	h.remote.MustExecute("sudo yum clean all")
+}
+
 // dockerImage returns the ECR pull-through URL for ecrPath when a registry is configured,
 // or publicFallback otherwise.
 func (h *Host) dockerImage(ecrPath, publicFallback string) string {
@@ -176,14 +199,7 @@ func (h *Host) InstallDocker() {
 		h.remote.MustExecute("sudo apt-get update -qq")
 		h.remote.MustExecute("sudo apt-get install -y docker.io")
 	case "yum":
-		if h.os.Flavor == e2eos.CentOS {
-			// CentOS 7 is EOL: the distro "docker" package can no longer be installed
-			// from the stock mirrors (see installDockerCEOnCentOS). Install the Docker
-			// engine from Docker's own repo instead.
-			h.installDockerCEOnCentOS()
-		} else {
-			h.remote.MustExecute("sudo yum install -y docker")
-		}
+		h.remote.MustExecute("sudo yum install -y docker")
 	case "zypper":
 		h.remote.MustExecute("sudo zypper install -y docker")
 	default:
@@ -192,32 +208,6 @@ func (h *Host) InstallDocker() {
 
 	h.installECRCredentialHelper()
 	h.configureDockerECRCredentialHelper()
-}
-
-// installDockerCEOnCentOS installs the Docker engine on CentOS hosts.
-//
-// CentOS 7 reached EOL on 2024-06-30. Its content moved to vault.centos.org and the
-// "/centos/7/" path the stock AMI repos point at now returns HTTP 403, so any
-// "yum install" that must first refresh the base/updates/extras metadata fails — and
-// takes the distro "docker" package install down with it. The failure surfaces later
-// and confusingly as `systemctl start docker` → "Failed to start docker.service: Unit
-// not found." in the InstallDocker cleanup defer (docker was simply never installed).
-//
-// The fix has two parts:
-//
-//  1. Repoint the CentOS base repos at the versioned vault archive so dependency
-//     resolution still works — docker-ce has a hard RPM dependency on container-selinux
-//     from the "extras" repo — and mark them skip_if_unavailable so a future vault
-//     outage degrades gracefully instead of failing the whole install.
-//  2. Install the Docker engine from Docker's official repo (download.docker.com) rather
-//     than the EOL distro package, so the engine itself no longer depends on the CentOS
-//     mirror. $releasever resolves to 7, yielding the el7 packages.
-func (h *Host) installDockerCEOnCentOS() {
-	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base - vault\nbaseurl=https://vault.centos.org/7.9.2009/os/$basearch/\ngpgcheck=0\nskip_if_unavailable=1\n\n[updates]\nname=CentOS-7 - Updates - vault\nbaseurl=https://vault.centos.org/7.9.2009/updates/$basearch/\ngpgcheck=0\nskip_if_unavailable=1\n\n[extras]\nname=CentOS-7 - Extras - vault\nbaseurl=https://vault.centos.org/7.9.2009/extras/$basearch/\ngpgcheck=0\nskip_if_unavailable=1\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
-	// Drop metadata cached against the old (403ing) repo URLs before installing.
-	h.remote.MustExecute("sudo yum clean all")
-	h.remote.MustExecute("sudo curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo")
-	h.remote.MustExecute("sudo yum install -y docker-ce docker-ce-cli containerd.io")
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
