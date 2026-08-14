@@ -8,11 +8,11 @@
 package sysctl
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestSnapshotEvent_ToJSON(t *testing.T) {
@@ -93,14 +93,24 @@ func TestSnapshotEvent_ToJSON(t *testing.T) {
 	}
 }
 
-func TestSnapshotSysMissingRequiredFile(t *testing.T) {
-	t.Cleanup(kernel.ResetProcSysRootCachesForTest)
-	t.Setenv("HOST_SYS", t.TempDir())
-	kernel.ResetProcSysRootCachesForTest()
+func TestReadSnapshotSystemControl(t *testing.T) {
+	t.Run("falls back when the primary path is unavailable", func(t *testing.T) {
+		root := t.TempDir()
+		primaryPath := filepath.Join(root, "sys", "kernel", "security", "lockdown")
+		fallbackPath := filepath.Join(root, "root", "sys", "kernel", "security", "lockdown")
+		assert.NoError(t, os.MkdirAll(filepath.Dir(fallbackPath), 0755))
+		assert.NoError(t, os.WriteFile(fallbackPath, []byte("integrity\n"), 0644))
 
-	snapshot := NewSnapshot()
-	err := snapshot.snapshotSys(nil)
-	assert.ErrorIs(t, err, ErrRequiredSysctlSnapshotFileNotFound)
+		value, err := readSnapshotSystemControl(primaryPath, fallbackPath, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, "integrity\n", string(value))
+	})
+
+	t.Run("returns a sentinel error when both paths are unavailable", func(t *testing.T) {
+		root := t.TempDir()
+		_, err := readSnapshotSystemControl(filepath.Join(root, "sys", "lockdown"), filepath.Join(root, "root", "sys", "lockdown"), nil)
+		assert.ErrorIs(t, err, ErrRequiredSysctlSnapshotFileNotFound)
+	})
 }
 
 func TestSnapshot_InsertSnapshotEntry(t *testing.T) {
