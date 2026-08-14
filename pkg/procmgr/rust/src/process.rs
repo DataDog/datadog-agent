@@ -462,24 +462,6 @@ impl ManagedProcess {
         self.watcher_handle = Some(handle);
     }
 
-    fn take_watcher_handle(&mut self) -> Option<JoinHandle<Option<std::process::ExitStatus>>> {
-        self.watcher_handle.take()
-    }
-
-    pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
-        self.last_exit_status = Some(status);
-        self.pid = None;
-        #[cfg(windows)]
-        self.prepare_windows_spawn_resource_release();
-        if self.state == ProcessState::Stopping {
-            self.transition_to(ProcessState::Stopped);
-        } else if status.success() {
-            self.transition_to(ProcessState::Exited);
-        } else {
-            self.transition_to(ProcessState::Failed);
-        }
-    }
-
     fn graceful_stop(&self) {
         if let Some(pid) = self.pid
             && let Err(e) = platform::send_graceful_stop(pid)
@@ -504,6 +486,155 @@ impl ManagedProcess {
         {
             warn!("[{}] force kill failed: {e}", self.name);
         }
+    }
+
+    fn stop_timeout(&self) -> Duration {
+        self.config.stop_timeout()
+    }
+
+    fn mark_stopped(&mut self) {
+        self.transition_to(ProcessState::Stopped);
+        self.pid = None;
+    }
+
+    pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
+        self.last_exit_status = Some(status);
+        self.pid = None;
+        #[cfg(windows)]
+        self.prepare_windows_spawn_resource_release();
+        if self.state == ProcessState::Stopping {
+            self.transition_to(ProcessState::Stopped);
+        } else if status.success() {
+            self.transition_to(ProcessState::Exited);
+        } else {
+            self.transition_to(ProcessState::Failed);
+        }
+    }
+
+    async fn force_kill_and_wait_watcher(
+        &mut self,
+        graceful_timeout: Duration,
+        handle: &mut core::pin::Pin<&mut JoinHandle<Option<std::process::ExitStatus>>>,
+    ) -> Option<std::process::ExitStatus> {
+        warn!(
+            "[{}] stop timeout ({}s) reached, force-killing",
+            self.name,
+            graceful_timeout.as_secs()
+        );
+        self.force_kill();
+        match time::timeout(Self::FORCE_KILL_TIMEOUT, &mut **handle).await {
+            Ok(Ok(status)) => status,
+            Ok(Err(e)) => {
+                warn!(
+                    "[{}] watcher join failed after force-kill: {e:#}",
+                    self.name
+                );
+                None
+            }
+            Err(_) => {
+                warn!("[{}] still running after force-kill, giving up", self.name);
+                None
+            }
+        }
+    }
+
+    async fn force_kill_and_wait_handle(
+        &mut self,
+        graceful_timeout: Duration,
+    ) -> Option<std::process::ExitStatus> {
+        warn!(
+            "[{}] stop timeout ({}s) reached, force-killing",
+            self.name,
+            graceful_timeout.as_secs()
+        );
+        self.force_kill();
+        match time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait()).await {
+            Ok(Ok(status)) => Some(status),
+            Ok(Err(e)) => {
+                warn!("[{}] wait failed after force-kill: {e:#}", self.name);
+                None
+            }
+            Err(_) => {
+                warn!("[{}] still running after force-kill, giving up", self.name);
+                None
+            }
+        }
+    }
+
+    async fn wait_for_stop_exit(&mut self) -> bool {
+        let timeout = self.stop_timeout();
+
+        if let Some(handle) = self.watcher_handle.take() {
+            tokio::pin!(handle);
+            let status = match time::timeout(timeout, &mut handle).await {
+                Ok(Ok(status)) => status,
+                Ok(Err(e)) => {
+                    warn!("[{}] watcher join failed: {e:#}", self.name);
+                    None
+                }
+                Err(_) => self.force_kill_and_wait_watcher(timeout, &mut handle).await,
+            };
+            return status.is_some_and(|status| {
+                self.set_last_status(status);
+                true
+            });
+        }
+
+        if self.has_child_handle() {
+            let status = match time::timeout(timeout, self.wait()).await {
+                Ok(Ok(status)) => Some(status),
+                Ok(Err(e)) => {
+                    warn!("[{}] wait failed during stop: {e:#}", self.name);
+                    None
+                }
+                Err(_) => self.force_kill_and_wait_handle(timeout).await,
+            };
+            return status.is_some_and(|status| {
+                self.set_last_status(status);
+                true
+            });
+        }
+
+        false
+    }
+
+    pub async fn stop(&mut self) {
+        let started = Instant::now();
+
+        match self.state {
+            ProcessState::Running => {
+                self.transition_to(ProcessState::Stopping);
+                info!("[{}] stopping (graceful)", self.name);
+                self.graceful_stop();
+            }
+            ProcessState::Stopping => {
+                debug!("[{}] stop called while already stopping", self.name);
+            }
+            _ => {
+                #[cfg(windows)]
+                self.ensure_windows_spawn_resources_released().await;
+                debug!(
+                    "[{}] stop finished (state={}, no-op), took {:?}",
+                    self.name,
+                    self.state,
+                    started.elapsed()
+                );
+                return;
+            }
+        }
+
+        if !self.wait_for_stop_exit().await {
+            self.mark_stopped();
+        }
+
+        #[cfg(windows)]
+        self.ensure_windows_spawn_resources_released().await;
+        debug!(
+            "[{}] stop finished (state={}), took {:?}",
+            self.name,
+            self.state,
+            started.elapsed()
+        );
     }
 
     #[cfg(unix)]
@@ -531,101 +662,6 @@ impl ManagedProcess {
         info!("[{}] exited with {status}", self.name);
         self.handle = None;
         Ok(status)
-    }
-
-    fn stop_timeout(&self) -> Duration {
-        self.config.stop_timeout()
-    }
-
-    pub async fn stop(&mut self) {
-        if self.state == ProcessState::Running {
-            self.transition_to(ProcessState::Stopping);
-            info!("[{}] stopping (graceful)", self.name);
-            self.graceful_stop();
-        } else if self.state != ProcessState::Stopping {
-            #[cfg(windows)]
-            self.ensure_windows_spawn_resources_released().await;
-            return;
-        }
-
-        let stop = self.stop_timeout();
-        let mut got_status = false;
-        if let Some(handle) = self.take_watcher_handle() {
-            tokio::pin!(handle);
-            let status = match time::timeout(stop, &mut handle).await {
-                Ok(Ok(status)) => status,
-                Ok(Err(e)) => {
-                    warn!("[{}] watcher join failed: {e:#}", self.name);
-                    None
-                }
-                Err(_) => {
-                    warn!(
-                        "[{}] stop timeout ({}s) reached, force-killing",
-                        self.name,
-                        stop.as_secs()
-                    );
-                    self.force_kill();
-                    match time::timeout(Self::FORCE_KILL_TIMEOUT, handle).await {
-                        Ok(Ok(status)) => status,
-                        Ok(Err(e)) => {
-                            warn!(
-                                "[{}] watcher join failed after force-kill: {e:#}",
-                                self.name
-                            );
-                            None
-                        }
-                        Err(_) => {
-                            warn!("[{}] still running after force-kill, giving up", self.name);
-                            None
-                        }
-                    }
-                }
-            };
-            if let Some(status) = status {
-                self.set_last_status(status);
-                got_status = true;
-            }
-        } else if self.has_child_handle() {
-            match time::timeout(stop, self.wait()).await {
-                Ok(Ok(status)) => {
-                    self.set_last_status(status);
-                    got_status = true;
-                }
-                Ok(Err(e)) => {
-                    warn!("[{}] wait failed during stop: {e:#}", self.name);
-                }
-                Err(_) => {
-                    warn!(
-                        "[{}] stop timeout ({}s) reached, force-killing",
-                        self.name,
-                        stop.as_secs()
-                    );
-                    self.force_kill();
-                    match time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait()).await {
-                        Ok(Ok(status)) => {
-                            self.set_last_status(status);
-                            got_status = true;
-                        }
-                        Ok(Err(e)) => {
-                            warn!("[{}] wait failed after force-kill: {e:#}", self.name);
-                        }
-                        Err(_) => {
-                            warn!("[{}] still running after force-kill, giving up", self.name);
-                        }
-                    }
-                }
-            }
-        }
-        if !got_status {
-            self.mark_stopped();
-        }
-        #[cfg(windows)]
-        self.ensure_windows_spawn_resources_released().await;
-    }
-
-    fn mark_stopped(&mut self) {
-        self.transition_to(ProcessState::Stopped);
-        self.pid = None;
     }
 
     #[cfg(test)]
