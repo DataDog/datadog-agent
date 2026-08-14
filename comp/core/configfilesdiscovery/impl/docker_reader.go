@@ -16,10 +16,9 @@ import (
 	"path"
 	"strings"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 )
-
-const maxConfigFileSize = 1024 * 1024 // 1MiB
 
 // dockerConfigClient is a narrow Docker interface; reader tests mock it so tar
 // decoding, env filtering, and command-line extraction are tested without a
@@ -41,13 +40,10 @@ func newDockerConfigClient() (dockerConfigClient, error) {
 type dockerConfigReader struct {
 	containerID string
 	client      dockerConfigClient
+	store       workloadmeta.Component
 }
 
-func newDockerConfigReader(t target) (ConfigReader, error) {
-	return newDockerConfigReaderWithClientFactory(t, newDockerConfigClient)
-}
-
-func newDockerConfigReaderWithClientFactory(t target, newClient func() (dockerConfigClient, error)) (ConfigReader, error) {
+func newDockerConfigReader(t target, store workloadmeta.Component) (ConfigReader, error) {
 	if t.runtime != RuntimeDocker {
 		return nil, fmt.Errorf("unsupported runtime %q", t.runtime)
 	}
@@ -55,24 +51,23 @@ func newDockerConfigReaderWithClientFactory(t target, newClient func() (dockerCo
 		return nil, errors.New("empty docker container id")
 	}
 
-	client, err := newClient()
+	client, err := newDockerConfigClient()
 	if err != nil {
 		return nil, err
 	}
 
-	return newDockerConfigReaderWithClient(t.entityID, client), nil
-}
-
-func newDockerConfigReaderWithClient(containerID string, client dockerConfigClient) ConfigReader {
 	return &dockerConfigReader{
-		containerID: containerID,
+		containerID: t.entityID,
 		client:      client,
-	}
+		store:       store,
+	}, nil
 }
 
 func (r *dockerConfigReader) Runtime() RuntimeType {
 	return RuntimeDocker
 }
+
+func (r *dockerConfigReader) Close() {}
 
 func (r *dockerConfigReader) ReadFile(ctx context.Context, filePath string) (ConfigFile, error) {
 	cleanPath, err := cleanContainerFilePath(filePath)
@@ -89,8 +84,8 @@ func (r *dockerConfigReader) ReadFile(ctx context.Context, filePath string) (Con
 	return readConfigFileFromDockerArchive(body, cleanPath)
 }
 
-func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, names []string) (map[string]string, error) {
-	if len(names) == 0 {
+func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
+	if predicate == nil {
 		return map[string]string{}, nil
 	}
 
@@ -99,16 +94,19 @@ func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, names []string) (m
 		return nil, fmt.Errorf("get docker container env: %w", err)
 	}
 
-	return filterEnvVars(envEntries, names), nil
+	return filterEnvVars(envEntries, predicate), nil
 }
 
-func (r *dockerConfigReader) ReadCommandline(ctx context.Context) (TargetCommandline, error) {
+func (r *dockerConfigReader) ReadRuntimeCommandline(ctx context.Context) (TargetCommandline, error) {
 	commandline, err := r.client.getCommandline(ctx, r.containerID)
 	if err != nil {
 		return TargetCommandline{}, fmt.Errorf("get docker container command line: %w", err)
 	}
-
 	return commandline, nil
+}
+
+func (r *dockerConfigReader) ReadLiveProcessCommandlines(context.Context) []TargetCommandline {
+	return readContainerProcessCommandlines(r.store, r.containerID)
 }
 
 func readConfigFileFromDockerArchive(r io.Reader, requestedPath string) (ConfigFile, error) {
@@ -122,27 +120,6 @@ func readConfigFileFromDockerArchive(r io.Reader, requestedPath string) (ConfigF
 		Content:   content,
 		Truncated: truncated,
 	}, nil
-}
-
-func filterEnvVars(envEntries []string, names []string) map[string]string {
-	wanted := make(map[string]struct{}, len(names))
-	for _, name := range names {
-		wanted[name] = struct{}{}
-	}
-
-	env := make(map[string]string)
-	for _, entry := range envEntries {
-		name, value, ok := strings.Cut(entry, "=")
-		if !ok {
-			continue
-		}
-		if _, ok := wanted[name]; !ok {
-			continue
-		}
-		env[name] = value
-	}
-
-	return env
 }
 
 func readRegularFileFromTar(r io.Reader, requestedPath string) ([]byte, bool, error) {
@@ -182,21 +159,6 @@ func readRegularFileFromTar(r io.Reader, requestedPath string) ([]byte, bool, er
 	return content, false, nil
 }
 
-func cleanContainerFilePath(filePath string) (string, error) {
-	if filePath == "" {
-		return "", errors.New("empty config file path")
-	}
-	if !path.IsAbs(filePath) {
-		return "", fmt.Errorf("config file path %q is not absolute", filePath)
-	}
-	for _, elem := range strings.Split(filePath, "/") {
-		if elem == ".." {
-			return "", fmt.Errorf("config file path %q contains parent traversal", filePath)
-		}
-	}
-	return path.Clean(filePath), nil
-}
-
 func isRegularTarEntry(header *tar.Header) bool {
 	// tar.Reader normalizes the legacy NUL regular-file marker to TypeReg.
 	return header.Typeflag == tar.TypeReg
@@ -210,21 +172,6 @@ func matchesRequestedPath(entryName string, requestedPath string) bool {
 
 func cleanTarPath(filePath string) string {
 	return strings.TrimPrefix(path.Clean(filePath), "/")
-}
-
-func readLimitedFileContent(r io.Reader, limit int) ([]byte, bool, error) {
-	// Read one byte past the returned content limit so we can tell callers whether the
-	// file was truncated or not. Reading only limit bytes does not allow us to distinguish
-	// a file exactly at the limit from a larger file, since the limited reader returns EOF
-	// in both cases.
-	content, err := io.ReadAll(io.LimitReader(r, int64(limit)+1))
-	if err != nil {
-		return nil, false, err
-	}
-	if len(content) <= limit {
-		return content, false, nil
-	}
-	return content[:limit], true, nil
 }
 
 type dockerUtilConfigClient struct {

@@ -186,12 +186,8 @@ func mergeContainerdNamespaces(cfg model.ReaderWriter) {
 	)
 
 	// Workaround: convert to []interface{}.
-	// The MergeConfigOverride func in "github.com/DataDog/viper" (tested in
-	// v1.10.0) raises an error if we send a []string{} in Set():
-	// "svType != tvType; key=containerd_namespace, st=[]interface {}, tt=[]string, sv=[], tv=[]"
-	// The reason is that when reading from a config file, all the arrays are
-	// considered as []interface{} by Viper, and the merge fails when the types
-	// are different.
+	// Arrays read from a config file are decoded as []interface{}, so setting a []string{}
+	// here could raise a type-mismatch error when the value is merged with the existing one.
 	convertedNamespaces := make([]interface{}, len(namespaces))
 	for i, namespace := range namespaces {
 		convertedNamespaces[i] = namespace
@@ -411,8 +407,10 @@ func getDefaultNvmlPaths() []string {
 	}
 
 	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
-		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                    // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",  // nvidia-gpu-operator install
+		"/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",                   // default system install on ARM64
+		"/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install on ARM64
 	}
 
 	hostRoot := os.Getenv("HOST_ROOT")

@@ -9,6 +9,7 @@ package converters
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -20,6 +21,19 @@ import (
 	"go.uber.org/zap"
 	"go.yaml.in/yaml/v3"
 )
+
+// noContainerID stands in for cgroup.GetSelfContainerID, which otherwise succeeds when the
+// cgroup namespace is the host's (e.g. `cgroup: host` in cmd/host-profiler/docker-compose.yml)
+// and injects an extra container-attribute processor, mismatching every golden file.
+func noContainerID() (string, error) { return "", errors.New("not running in a container") }
+
+// newTestConverterWithoutAgent stubs out the container ID lookup so conversions do not
+// depend on the ambient cgroup namespace.
+func newTestConverterWithoutAgent(logger *zap.Logger, selfContainerID func() (string, error)) confmap.Converter {
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger}).(*converterWithoutAgent)
+	conv.selfContainerID = selfContainerID
+	return conv
+}
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
 
@@ -164,11 +178,6 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-apikey/out.yaml",
 		},
 		{
-			name:     "converts-non-string-app-key",
-			provided: "no_agent/conv-nonstr-appkey/in.yaml",
-			expected: "no_agent/conv-nonstr-appkey/out.yaml",
-		},
-		{
 			name:     "adds-profiling-to-pipeline",
 			provided: "no_agent/add-prof-to-pipe/in.yaml",
 			expected: "no_agent/add-prof-to-pipe/out.yaml",
@@ -255,33 +264,118 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 		{
 			name:     "internal-metrics-creates-pipeline-with-inferred-endpoint",
-			provided: "no_agent/int-metrics-infer-ep/in.yaml",
-			expected: "no_agent/int-metrics-infer-ep/out.yaml",
+			provided: "no_agent/metrics-infer-ep/in.yaml",
+			expected: "no_agent/metrics-infer-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-reuses-exporter-with-bare-endpoint",
-			provided: "no_agent/int-metrics-bare-ep/in.yaml",
-			expected: "no_agent/int-metrics-bare-ep/out.yaml",
+			provided: "no_agent/metrics-bare-ep/in.yaml",
+			expected: "no_agent/metrics-bare-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-endpoint-takes-precedence-over-profiles-endpoint",
-			provided: "no_agent/int-metrics-prefer-ep/in.yaml",
-			expected: "no_agent/int-metrics-prefer-ep/out.yaml",
+			provided: "no_agent/metrics-prefer-ep/in.yaml",
+			expected: "no_agent/metrics-prefer-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-preserves-user-metrics-endpoint",
-			provided: "no_agent/int-metrics-existing-ep/in.yaml",
-			expected: "no_agent/int-metrics-existing-ep/out.yaml",
+			provided: "no_agent/metrics-existing-ep/in.yaml",
+			expected: "no_agent/metrics-existing-ep/out.yaml",
 		},
 		{
 			name:     "internal-metrics-skipped-when-telemetry-level-none",
-			provided: "no_agent/int-metrics-level-none/in.yaml",
-			expected: "no_agent/int-metrics-level-none/out.yaml",
+			provided: "no_agent/metrics-level-none/in.yaml",
+			expected: "no_agent/metrics-level-none/out.yaml",
+		},
+		{
+			name:     "internal-metrics-preserves-absent-user-metrics-pipeline",
+			provided: "no_agent/metrics-absent-reader/in.yaml",
+			expected: "no_agent/metrics-absent-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-receiver-conflict",
+			provided: "no_agent/metrics-reserved-recv/in.yaml",
+			expected: "no_agent/metrics-reserved-recv/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-processor-conflict",
+			provided: "no_agent/metrics-reserved-proc/in.yaml",
+			expected: "no_agent/metrics-reserved-proc/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-pipeline-conflict",
+			provided: "no_agent/metrics-reserved-pipe/in.yaml",
+			expected: "no_agent/metrics-reserved-pipe/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-on-reserved-container-id-processor-conflict",
+			provided: "no_agent/reserved-cid-proc/in.yaml",
+			expected: "no_agent/reserved-cid-proc/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-explicit-prometheus-reader",
+			provided: "no_agent/metrics-explicit-reader/in.yaml",
+			expected: "no_agent/metrics-explicit-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-uses-first-valid-prometheus-reader",
+			provided: "no_agent/metrics-multi-readers/in.yaml",
+			expected: "no_agent/metrics-multi-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-periodic-reader",
+			provided: "no_agent/metrics-periodic-reader/in.yaml",
+			expected: "no_agent/metrics-periodic-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-empty-readers",
+			provided: "no_agent/metrics-empty-readers/in.yaml",
+			expected: "no_agent/metrics-empty-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-malformed-prometheus-reader",
+			provided: "no_agent/metrics-bad-reader/in.yaml",
+			expected: "no_agent/metrics-bad-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-null-readers",
+			provided: "no_agent/metrics-null-readers/in.yaml",
+			expected: "no_agent/metrics-null-readers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-for-mixed-reader",
+			provided: "no_agent/metrics-mixed-reader/in.yaml",
+			expected: "no_agent/metrics-mixed-reader/out.yaml",
+		},
+		{
+			name:     "internal-metrics-covered-by-user-pipeline",
+			provided: "no_agent/metrics-covered-user/in.yaml",
+			expected: "no_agent/metrics-covered-user/out.yaml",
+		},
+		{
+			name:     "internal-metrics-covered-with-explicit-scheme-and-metrics-path",
+			provided: "no_agent/metrics-covered-path/in.yaml",
+			expected: "no_agent/metrics-covered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-custom-metrics-path",
+			provided: "no_agent/metrics-uncovered-path/in.yaml",
+			expected: "no_agent/metrics-uncovered-path/out.yaml",
+		},
+		{
+			name:     "internal-metrics-not-covered-https-scheme",
+			provided: "no_agent/metrics-uncovered-scheme/in.yaml",
+			expected: "no_agent/metrics-uncovered-scheme/out.yaml",
+		},
+		{
+			name:     "internal-metrics-partial-user-pipeline-coverage",
+			provided: "no_agent/metrics-partial-coverage/in.yaml",
+			expected: "no_agent/metrics-partial-coverage/out.yaml",
 		},
 		{
 			name:     "internal-metrics-skips-exporters-without-any-endpoint",
-			provided: "no_agent/int-metrics-mixed/in.yaml",
-			expected: "no_agent/int-metrics-mixed/out.yaml",
+			provided: "no_agent/metrics-mixed/in.yaml",
+			expected: "no_agent/metrics-mixed/out.yaml",
 		},
 		{
 			name:     "deprecated-otlphttp-name-accepted",
@@ -290,7 +384,19 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 	}
 
-	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
+	runSuccessTests(t, newTestConverterWithoutAgent(zap.NewNop(), noContainerID), tests)
+}
+
+func TestConverterWithoutAgentContainerID(t *testing.T) {
+	const containerID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	conv := newTestConverterWithoutAgent(zap.NewNop(), func() (string, error) { return containerID, nil })
+	runSuccessTests(t, conv, []testCase{
+		{
+			name:     "internal-metrics-adds-container-id-processor",
+			provided: "no_agent/metrics-container-id/in.yaml",
+			expected: "no_agent/metrics-container-id/out.yaml",
+		},
+	})
 }
 
 func TestConverterWithoutAgentErrors(t *testing.T) {
@@ -352,5 +458,5 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 		},
 	}
 
-	runErrorTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
+	runErrorTests(t, newTestConverterWithoutAgent(zap.NewNop(), noContainerID), tests)
 }

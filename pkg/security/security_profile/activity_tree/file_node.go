@@ -161,9 +161,9 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 	}
 }
 
-// InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
-// the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
+// InsertFileEvent inserts an event in a FileNode. Returns whether a new entry was added and
+// the NodeBase of the leaf FileNode reached or created.
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -185,7 +185,6 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			continue
 		}
 
-		// create new child
 		newEntry = true
 		if dryRun {
 			break
@@ -195,6 +194,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			currentFn.Children[parent] = leafNode
 			stats.FileNodes++
 			stats.SizeBytes += leafNode.size()
+			currentFn = leafNode
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
@@ -203,7 +203,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		currentFn = newChild
 		currentPath = currentPath[nextParentIndex:]
 	}
-	return newEntry
+	return newEntry, &currentFn.NodeBase
 }
 
 func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {

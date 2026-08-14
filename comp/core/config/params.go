@@ -65,7 +65,7 @@ func NewParams(defaultConfPath string, options ...func(*Params)) Params {
 func NewAgentParams(confFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
 	params.ConfFilePath = confFilePath
-	setup.InitConfigObjects(params.ConfFilePath, params.defaultConfPath)
+	setup.InitConfigObjects()
 	return params
 }
 

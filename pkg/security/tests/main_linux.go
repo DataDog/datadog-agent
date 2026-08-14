@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -94,6 +95,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestOpen/truncate",
 			"TestOpen/ftruncate",
 			"TestOpen/io_uring",
+			"TestOpen/io_uring_ftruncate",
 			"TestProcessContext/inode",
 			"TestProcessContext/pid1",
 			"~TestProcessBusybox",
@@ -115,6 +117,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestProcessInterpreter",
 			"~TestConnectEventAFInetIOUring",
 			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
+			"TestSocketEvent/socket-af-inet-tcp-io-uring",
 			"TestOpenTree",
 			"TestMoveMount",
 			"TestMoveMountRecursiveNoPropagation",
@@ -190,11 +193,25 @@ func preTestsHook() {
 		}
 		os.Exit(retCode)
 	}
+
+	// Nothing to gain in ebpfless mode, there are no probes to detach.
+	if expediteRCU && !ebpfLessEnabled {
+		restore, err := ebpftest.ExpediteRCU()
+		if err != nil {
+			fmt.Printf("unable to use expedited RCU grace periods, tests will be slower: %s\n", err)
+		} else {
+			restoreRCU = restore
+		}
+	}
 }
 
 func postTestsHook() {
 	if testMod != nil {
 		testMod.cleanup()
+	}
+
+	if restoreRCU != nil {
+		restoreRCU()
 	}
 }
 
@@ -205,7 +222,11 @@ var (
 	trace            bool
 	disableTracePipe bool
 	disableSeccomp   bool
+	expediteRCU      bool
 )
+
+// restoreRCU is set by preTestsHook and run by postTestsHook.
+var restoreRCU func()
 
 var testSuitePid uint32
 
@@ -217,6 +238,7 @@ func init() {
 	flag.BoolVar(&disableTracePipe, "no-trace-pipe", false, "disable the trace pipe log")
 	flag.BoolVar(&disableSeccomp, "disable-seccomp", false, "disable seccomp in the ptracer")
 	flag.BoolVar(&ebpfLessEnabled, "ebpfless", false, "enabled the ebpfless mode")
+	flag.BoolVar(&expediteRCU, "expedite-rcu", true, "use expedited RCU grace periods while the suite runs, which makes probe detach much faster")
 
 	testSuitePid = utils.Getpid()
 }

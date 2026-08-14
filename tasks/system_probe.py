@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.types.arch import ALL_ARCHS, Arch
+from tasks.schema.generate import schema_codegen
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -48,6 +49,7 @@ NPM_TAG = "npm"
 TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
+    "./cmd/system-probe/modules/...",
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
@@ -364,6 +366,9 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
     # we iterate over the packages here to get the nice streaming test output
@@ -590,11 +595,9 @@ def e2e_prepare(ctx, ci=False, packages=""):
                 binary = Path(target_path) / cbin
                 ctx.run(f"clang -static -o {binary} {source}")
 
-    gopath = os.getenv("GOPATH")
     copy_files = [
         "/opt/datadog-agent/embedded/bin/clang-bpf",
         "/opt/datadog-agent/embedded/bin/llc-bpf",
-        f"{gopath}/bin/gotestsum",
     ]
 
     files_dir = os.path.join(E2E_ARTIFACT_DIR, "..")
@@ -602,6 +605,7 @@ def e2e_prepare(ctx, ci=False, packages=""):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
+    bazel(ctx, "run", "//internal/tools:install_gotestsum", "--", f"--destdir={files_dir}")
     go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
@@ -1130,7 +1134,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
 _BAZEL_WINDOWS_RESOURCE_COPIES = (
-    ("pkg/util/winutil/messagestrings/rsrc.syso", "pkg/util/winutil/messagestrings/rsrc.syso"),
+    ("pkg/util/winutil/messagestrings/messagestrings.syso", "pkg/util/winutil/messagestrings/messagestrings.syso"),
     ("pkg/util/winutil/messagestrings/messagestrings.h", "pkg/util/winutil/messagestrings/messagestrings.h"),
     ("cmd/system-probe/windows_resources/rsrc.syso", "cmd/system-probe/rsrc.syso"),
 )
@@ -1141,8 +1145,8 @@ def bazel_build_windows_resources(ctx: Context) -> None:
 
     Replaces the ninja-based windmc/windres pipeline for system-probe.
     Produces:
-      - pkg/util/winutil/messagestrings/rsrc.syso + messagestrings.h  (shared message table)
-      - cmd/system-probe/rsrc.syso                                    (system-probe versioninfo)
+      - pkg/util/winutil/messagestrings/messagestrings.syso + messagestrings.h  (shared message table)
+      - cmd/system-probe/rsrc.syso                                              (system-probe versioninfo)
     """
     import shutil
 
@@ -1240,7 +1244,7 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     }
 
     platform_flags = []
-    if arch.kmt_arch in platform_map:
+    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:
@@ -1823,17 +1827,21 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False):
+def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False, ci: bool = False):
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
-        go_parallelism = compute_go_parallelism(debug, ci=False)
+        go_parallelism = compute_go_parallelism(debug, ci=ci)
         nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",
             command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 

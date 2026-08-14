@@ -213,16 +213,44 @@ func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
 
 	jsonStr := string(jsonData)
 
-	// Verify private fields are NOT in JSON
+	// Verify private fields are NOT in JSON. install_path is checked as a quoted
+	// key because it is a substring of the exposed install_paths.
 	assert.NotContains(t, jsonStr, "broken_reason")
 	assert.NotContains(t, jsonStr, "install_source")
 	assert.NotContains(t, jsonStr, "pkg_id")
-	assert.NotContains(t, jsonStr, "install_path")
-	assert.NotContains(t, jsonStr, "install_paths")
+	assert.NotContains(t, jsonStr, `"install_path"`)
 
 	// Verify public fields ARE in JSON
 	assert.Contains(t, jsonStr, "software_type")
 	assert.Contains(t, jsonStr, "name")
 	assert.Contains(t, jsonStr, "version")
 	assert.Contains(t, jsonStr, "product_code")
+	assert.Contains(t, jsonStr, `"install_paths"`)
+	assert.Contains(t, jsonStr, "/Applications")
+	assert.Contains(t, jsonStr, "/Library")
+}
+
+func TestInstallPathsMirrorsInstallPath(t *testing.T) {
+	// GetSoftwareInventoryWithCollectors mirrors the scalar InstallPath into
+	// InstallPaths for single-location collectors, while leaving collectors that
+	// already populate InstallPaths (e.g. macOS PKG receipts) untouched.
+	collector := &MockCollector{
+		entries: map[string]*Entry{
+			"single": {DisplayName: "Single", Source: "app", InstallPath: "/Applications/Single.app"},
+			"multi":  {DisplayName: "Multi", Source: "pkg", InstallPath: "/usr/local", InstallPaths: []string{"/usr/local/bin", "/usr/local/lib"}},
+			"none":   {DisplayName: "None", Source: "app"},
+		},
+	}
+
+	inventory, _, err := GetSoftwareInventoryWithCollectors([]Collector{collector})
+	assert.NoError(t, err)
+
+	byName := make(map[string]*Entry, len(inventory))
+	for _, e := range inventory {
+		byName[e.DisplayName] = e
+	}
+
+	assert.Equal(t, []string{"/Applications/Single.app"}, byName["Single"].InstallPaths)
+	assert.Equal(t, []string{"/usr/local/bin", "/usr/local/lib"}, byName["Multi"].InstallPaths)
+	assert.Empty(t, byName["None"].InstallPaths)
 }

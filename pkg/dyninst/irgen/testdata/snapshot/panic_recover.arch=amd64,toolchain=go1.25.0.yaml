@@ -932,6 +932,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 168
       Name: Probe[main.b]Return
@@ -951,6 +952,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 169
       Name: Probe[main.c]
@@ -970,6 +972,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: s
           Offset: 9
           Kind: argument
@@ -983,6 +986,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 170
       Name: Probe[main.c]Return
@@ -1002,6 +1006,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 173
       Name: Probe[main.d]
@@ -1039,6 +1044,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 182
       Name: Probe[main.goroutinePanic]
@@ -1067,6 +1073,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 178
       Name: Probe[main.probedRecoverer]
@@ -1095,6 +1102,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 164
       Name: Probe[main.warmupErrorType]
@@ -1114,6 +1122,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 186
       Name: Probe[runtime.recovery]
@@ -1144,6 +1153,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 95
       Name: '[10]runtime.heldLockInfo'

@@ -54,5 +54,13 @@
     {{- if gt .stats_writer.Errors 0.0}}
     WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}
     {{- end}}
+    {{- with .trace_semantics }}
+
+  Trace Semantics
+  ===============
+    Source: {{ if eq .Source "remote-config" }}Remote Config{{ else }}embedded default{{ end }}
+    Content hash: {{ .ContentHash }}
+    Version: {{ .Version }}
+    {{- end }}
 {{- end}}
 {{- end}}

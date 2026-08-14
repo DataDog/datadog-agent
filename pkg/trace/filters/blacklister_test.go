@@ -58,9 +58,9 @@ func TestBlacklisterDenyingRule(t *testing.T) {
 func TestCompileRules(t *testing.T) {
 	filter := NewBlacklister([]string{"[123", "]123", "{6}"})
 	for i := 0; i < 100; i++ {
-		span := testutil.RandomSpan()
-		stat := pb.ClientGroupedStats{Resource: span.Resource}
-		result, _ := filter.AllowsString(span.Resource)
+		resource := testutil.RandomSpanResource()
+		stat := pb.ClientGroupedStats{Resource: resource}
+		result, _ := filter.AllowsString(resource)
 		assert.True(t, result)
 		assert.True(t, filter.AllowsStat(&stat))
 	}

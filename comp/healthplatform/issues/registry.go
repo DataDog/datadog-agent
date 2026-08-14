@@ -34,10 +34,12 @@ func NewRegistry() *Registry {
 // RegisterModule registers an issue module, extracting its template, periodic
 // check, and once check.
 func (r *Registry) RegisterModule(module Module) {
+	name := module.IssueName()
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.templates[module.IssueName()] = module
+	r.templates[name] = module
 
 	if check := module.BuiltInPeriodicHealthCheck(); check != nil {
 		check.IssueNames = append(check.IssueNames, module.IssueName())

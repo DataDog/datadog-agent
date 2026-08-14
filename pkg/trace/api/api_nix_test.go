@@ -96,6 +96,7 @@ func TestUDS(t *testing.T) {
 
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverPort = 0 // do not bind production port 8126
 		conf.ReceiverSocket = filepath.Join(dir, "apm.socket")
 
 		r := newTestReceiverFromConfig(conf)

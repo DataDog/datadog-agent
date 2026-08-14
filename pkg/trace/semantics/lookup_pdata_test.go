@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
@@ -100,8 +99,7 @@ func TestNewOTelSpanAccessor(t *testing.T) {
 }
 
 func TestPDataAccessorWithRegistry(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	spanAttrs := pcommon.NewMap()
 	spanAttrs.PutStr("db.statement", "SELECT * FROM users")
@@ -114,8 +112,7 @@ func TestPDataAccessorWithRegistry(t *testing.T) {
 }
 
 func TestPDataAccessorTypedLookup(t *testing.T) {
-	r, err := NewEmbeddedRegistry()
-	require.NoError(t, err)
+	r := testRegistry
 
 	spanAttrs := pcommon.NewMap()
 	spanAttrs.PutInt("http.status_code", 404)

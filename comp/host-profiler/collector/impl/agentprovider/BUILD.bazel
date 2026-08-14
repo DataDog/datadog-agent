@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "agentprovider",
@@ -13,6 +14,7 @@ go_library(
         "//comp/core/config",
         "//comp/host-profiler/collector/impl/extensions/hpflareextension",
         "//comp/host-profiler/collector/impl/params",
+        "//comp/host-profiler/symboluploader/cgroup",
         "//comp/host-profiler/version",
         "//pkg/config/utils",
         "//pkg/util/confmaputils",
@@ -21,7 +23,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "agentprovider_test",
     srcs = [
         "config_builder_test.go",
@@ -30,7 +32,6 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":agentprovider"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "@com_github_stretchr_testify//assert",

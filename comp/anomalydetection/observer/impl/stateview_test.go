@@ -180,6 +180,7 @@ type mockDetector struct {
 }
 
 func (d *mockDetector) Name() string { return d.name }
+func (*mockDetector) Ready() bool    { return true }
 func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
@@ -192,6 +193,7 @@ type mockCorrelator struct {
 func (c *mockCorrelator) Name() string                                        { return c.name }
 func (c *mockCorrelator) ProcessAnomaly(_ observerdef.Anomaly)                {}
 func (c *mockCorrelator) Advance(_ int64)                                     {}
+func (c *mockCorrelator) PendingEvents() []observerdef.CorrelatorEvent        { return nil }
 func (c *mockCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return nil }
 func (c *mockCorrelator) Reset()                                              {}
 

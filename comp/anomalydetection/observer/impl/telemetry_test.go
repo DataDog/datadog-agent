@@ -20,6 +20,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordLogPatternCountDelta("log_pattern_extractor", 1)
 	tel.recordLogIngested("internal", 256)
 	tel.recordDroppedLog("logs", []string{"source:kubelet"})
+	tel.recordFilteredMetric("dogstatsd")
 	tel.incrementLogsInFlight("internal")
 	tel.decrementLogsInFlight("internal")
 	tel.initLogsInFlight()
@@ -30,7 +31,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 }
 
 func TestClassifyLogSource(t *testing.T) {
-	require.Equal(t, "internal", classifyLogSource("agent-internal-logs", nil))
+	require.Equal(t, "internal", classifyLogSource("agent_logs", nil))
 	require.Equal(t, "kubelet", classifyLogSource("logs", []string{"source:kubelet", "service:kubelet"}))
 	require.Equal(t, "containers", classifyLogSource("logs", []string{"source:docker"}))
 }

@@ -252,6 +252,13 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 	})
 
 	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".vertical_inplace.disruption_throttled",
+		Type:  metricsstore.MetricTypeMonotonicCount,
+		Value: float64(internal.InPlaceDisruptionThrottledCount()),
+		Tags:  baseWithVerticalSourceTags,
+	})
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
 		Name:  metricPrefix + ".vertical_inplace.resize_completed",
 		Type:  metricsstore.MetricTypeMonotonicCount,
 		Value: float64(internal.InPlaceResizeCompletedCount()),

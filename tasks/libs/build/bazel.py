@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import IO, NamedTuple
 
 from invoke import Exit
 from invoke.context import Context
+from invoke.runners import Result
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import get_repo_root
@@ -96,37 +98,54 @@ def bazel(
     ctx: Context,
     *args: str,
     capture_output: bool = False,
+    env: dict[str, str] | None = None,
+    ignore_errors: bool = False,
+    input_stream: IO[str] | bool = False,
     sudo: bool = False,
-    capture_stderr: bool = False,
-) -> None | str:
+) -> str | Result:
     """Execute a bazel command.
 
-    capture_output: capture stdout.
-    capture_stderr: also capture stderr and append it to the returned string.
-        Use this when Bazel writes important output (e.g.  test results) to stderr
-        and the caller needs to process it.
+    env: environment variables when passing them through the corresponding Bazel `--*_env=` flags is not suitable.
+    ignore_errors: do not fail fast, but instead return the raw `Result`, whether the Bazel command succeeded or not.
     """
 
-    if not (resolved_bazel := shutil.which("bazel")):
+    if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise Exit(bazel_not_found_message("red"))
-    cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
+    cmd = (("sudo",) if sudo else ()) + (bazelisk, *_insert_omnibazel_flags(args))
+    cmdline = (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd)
+    print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
     kwargs = {}
     # Invoke terminolgy is subtle. "hide" means hide from the user.
     # In every other libray, that would be called capture, and the
     # act of capturing it would hide it from the user.
     # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
     if capture_output:
-        kwargs["hide"] = "both" if capture_stderr else "out"
+        kwargs["hide"] = "out"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
-    result = ctx.run(
-        (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd + args),
-        echo=True,
-        in_stream=False,
-        **kwargs,
-    )
-    if not capture_output:
-        return None
-    if capture_stderr:
-        return (result.stdout or "") + (result.stderr or "")
-    return result.stdout
+    result = ctx.run(cmdline, echo=False, env=env, in_stream=input_stream, warn=ignore_errors, **kwargs)
+    if ignore_errors:
+        return result
+    return result.stdout if capture_output else ""
+
+
+def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
+    """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
+    omnibus build environment variables.
+    💡 Mirrors `omnibazel_flags` in omnibus/lib/ostools.rb.
+    """
+    flags = []
+    if agent_flavor := os.environ.get("AGENT_FLAVOR"):
+        flags.append(f"--//packages/agent:flavor={agent_flavor}")
+    if install_dir := os.environ.get("INSTALL_DIR"):
+        # In macos, omnibus install_dir is the build location, which is different from the expected install location
+        if sys.platform == "darwin":
+            flags.append("--//:install_dir=/opt/datadog-agent")
+        else:
+            flags.append(f"--//:install_dir={install_dir}")
+        flags.append(f"--//:output_config_dir={os.environ.get("OUTPUT_CONFIG_DIR", "")}")
+    if not flags:
+        return args
+    # insert flags right after the bazel command, preserving startup options before it and subcommand arguments after it
+    index = next((i for i, a in enumerate(args, 1) if not a.startswith("-")), len(args))
+    return (*args[:index], *flags, *args[index:])

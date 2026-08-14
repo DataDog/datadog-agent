@@ -8,6 +8,7 @@ from tasks.static_quality_gates.metrics import (
     fetch_main_headroom,
     fetch_pr_metrics,
 )
+from tasks.static_quality_gates.thresholds import BUFFER_SIZE
 
 
 class MockPoint:
@@ -248,8 +249,8 @@ class TestFetchMainHeadroom(unittest.TestCase):
         self.assertEqual(headroom["wire_headroom"], 25 * 1024 * 1024)
 
     @patch("tasks.static_quality_gates.metrics.query_metrics")
-    def test_headroom_never_negative(self, mock_query):
-        """Headroom should never be negative (clamped to 0)."""
+    def test_headroom_floored_when_main_over_its_own_limit(self, mock_query):
+        """Headroom should floor at BUFFER_SIZE, not 0-, when main is over its own limit."""
         # Single API call with current > max
         mock_query.return_value = [
             {
@@ -277,8 +278,8 @@ class TestFetchMainHeadroom(unittest.TestCase):
         result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
 
         headroom = result["static_quality_gate_agent_deb_amd64"]
-        # disk_headroom = max(0, 150 - 200) = 0
-        self.assertEqual(headroom["disk_headroom"], 0)
+        # disk_headroom = max(BUFFER_SIZE, 150 - 200) = BUFFER_SIZE
+        self.assertEqual(headroom["disk_headroom"], BUFFER_SIZE)
 
     def test_returns_empty_for_no_gates(self):
         """Should return empty dict when no gates provided."""

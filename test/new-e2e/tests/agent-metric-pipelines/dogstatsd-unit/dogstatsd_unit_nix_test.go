@@ -53,23 +53,33 @@ type dogstatsdUnitSuite struct {
 func testDogstatsdMetricUnit(t *testing.T, adpEnabled, v3Enabled bool) {
 	t.Parallel()
 
-	agentOptions := []agentparams.Option{
-		agentparams.WithAgentConfig(`
+	agentConfig := `
 histogram_aggregates:
   - max
   - avg
   - count
 histogram_percentiles:
   - "0.95"
-`),
+`
+	if v3Enabled {
+		// The test fakeintake URL is not a Datadog intake URL, so explicitly opt in
+		// to V3 instead of relying on the default datadog_only mode.
+		agentConfig += `
+use_v3_api:
+  series:
+    enabled: "true"
+`
+	}
+
+	agentOptions := []agentparams.Option{
+		agentparams.WithAgentConfig(agentConfig),
 	}
 	if adpEnabled {
 		agentOptions = append(agentOptions, common.WithADPEnabled())
 	}
-	if v3Enabled {
-		// WithV3MetricsEnabled must come after WithFakeintake, which the provisioner
-		// prepends automatically, so this ordering is correct.
-		agentOptions = append(agentOptions, agentparams.WithV3MetricsEnabled())
+	if !v3Enabled {
+		// Force V2 explicitly to exercise the V2 wire format.
+		agentOptions = append(agentOptions, agentparams.WithV3MetricsDisabled())
 	}
 
 	stackName := "dogstatsdmetricunit"
@@ -92,7 +102,7 @@ histogram_percentiles:
 	)
 }
 
-// TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux.
+// TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux with the V2 metrics intake API.
 func TestDogstatsdMetricUnit(t *testing.T) {
 	testDogstatsdMetricUnit(t, false, false)
 }
@@ -117,7 +127,7 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 
 // TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing metric in
 // parallel and verifies that only the timing metric carries a unit. The test runs for both V2
-// (default) and V3 intake protocols; in both cases it asserts that payloads were routed
+// and V3 intake protocols; in both cases it asserts that payloads were routed
 // exclusively to the expected endpoint.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 	if s.adpEnabled {

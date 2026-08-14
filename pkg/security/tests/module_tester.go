@@ -589,13 +589,13 @@ func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func
 	})
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
 	b, err := serializers.MarshalEvent(ev, nil, tm.probe.GetScrubber())
 	return string(b), err
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func (tm *testModule) debugEvent(ev *model.Event) string {
 	b, err := tm.marshalEvent(ev)
 	if err != nil {
@@ -604,13 +604,13 @@ func (tm *testModule) debugEvent(ev *model.Event) string {
 	return string(b)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 	tb.Helper()
 	return assert.Equal(tb, id, r.ID, "wrong triggered rule")
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertFieldEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -621,7 +621,7 @@ func assertFieldEqual(tb testing.TB, e *model.Event, field string, value interfa
 	return assert.Equal(tb, value, fieldValue, msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertFieldEqualCaseInsensitve(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -643,7 +643,7 @@ func assertFieldEqualCaseInsensitve(tb testing.TB, e *model.Event, field string,
 	return eq
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertFieldNotEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -654,7 +654,7 @@ func assertFieldNotEqual(tb testing.TB, e *model.Event, field string, value inte
 	return assert.NotEqual(tb, value, fieldValue, msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertFieldNotEmpty(tb testing.TB, e *model.Event, field string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -665,7 +665,7 @@ func assertFieldNotEmpty(tb testing.TB, e *model.Event, field string, msgAndArgs
 	return assert.NotEmpty(tb, fieldValue, msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertFieldContains(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -676,7 +676,7 @@ func assertFieldContains(tb testing.TB, e *model.Event, field string, value inte
 	return assert.Contains(tb, fieldValue, value, msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertFieldIsOneOf(tb testing.TB, e *model.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -687,7 +687,7 @@ func assertFieldIsOneOf(tb testing.TB, e *model.Event, field string, possibleVal
 	return assert.Contains(tb, possibleValues, fieldValue, msgAndArgs...)
 }
 
-//nolint:deadcode,unused
+//nolint:unused
 func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)

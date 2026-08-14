@@ -149,3 +149,37 @@ func TestHttpDestinationFactory(t *testing.T) {
 		})
 	}
 }
+
+// TestNewHTTPSender_UsesCallerPipelineMonitor verifies NewHTTPSender uses the caller's monitor rather than creating its own.
+func TestNewHTTPSender_UsesCallerPipelineMonitor(t *testing.T) {
+	endpoints := config.NewMockEndpoints([]config.Endpoint{
+		config.NewMockEndpointWithOptions(map[string]interface{}{
+			"host":        "localhost:8080",
+			"is_reliable": true,
+		}),
+	})
+	mockConfig := configmock.New(t)
+	noop := metrics.NewNoopPipelineMonitor("test")
+
+	s := NewHTTPSender(
+		mockConfig,
+		&sender.NoopSink{},
+		1,
+		sender.NewServerlessMeta(false),
+		endpoints,
+		client.NewDestinationsContext(),
+		"test-component",
+		"application/json",
+		"",
+		1,
+		1,
+		1,
+		1,
+		secretsnoopimpl.NewComponent().Comp,
+		noop,
+	)
+
+	assert.Same(t, noop, s.PipelineMonitor(),
+		"NewHTTPSender must use the caller-provided pipeline monitor, not fabricate its own — "+
+			"a passthrough pipeline passing a Noop monitor must not register global snapshots")
+}

@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -118,12 +119,41 @@ func ListWERDumps(host *components.RemoteHost, dumpFolder string) ([]WERDumpFile
 	return dumps, nil
 }
 
+const (
+	// crashDumpDownloadAttempts is how many times we try to pull a crash dump off the
+	// host before giving up. Host.GetFile does no retrying of its own and opens a fresh
+	// SFTP session per call, so a dropped connection gets a genuine second chance.
+	// Dumps are only produced when something crashed, so this costs nothing on the
+	// happy path.
+	crashDumpDownloadAttempts = 3
+
+	crashDumpRetryInitialInterval = 2 * time.Second
+	crashDumpRetryMaxInterval     = 10 * time.Second
+)
+
+// getFileWithRetry copies a remote file to dst, retrying a few times with backoff.
+func getFileWithRetry(host *components.RemoteHost, src string, dst string) error {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = crashDumpRetryInitialInterval
+	b.MaxInterval = crashDumpRetryMaxInterval
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
+		return nil, host.GetFile(src, dst)
+	}, backoff.WithBackOff(b), backoff.WithMaxTries(crashDumpDownloadAttempts))
+	if err != nil {
+		return fmt.Errorf("gave up after %d attempts: %w", crashDumpDownloadAttempts, err)
+	}
+	return nil
+}
+
 // DownloadWERDump downloads a WER dump from a remote host and saves it to a local folder
 // with the format <host address>-<dump file name>
+//
+// The transfer is retried a few times before failing, since these dumps are the only
+// evidence we get of a crash and the copy is prone to transient SFTP failures.
 func DownloadWERDump(host *components.RemoteHost, dump WERDumpFile, outputDir string) (string, error) {
 	outName := fmt.Sprintf("%s-%s", host.Address, dump.FileName)
 	outPath := filepath.Join(outputDir, outName)
-	err := host.GetFile(dump.Path, outPath)
+	err := getFileWithRetry(host, dump.Path, outPath)
 	if err != nil {
 		return "", fmt.Errorf("error getting WER dump file %s: %w", dump.Path, err)
 	}
@@ -252,8 +282,8 @@ func DownloadSystemCrashDump(host *components.RemoteHost, systemCrashDumpFile st
 		return "", fmt.Errorf("error copying system crash dump file %s to %s: %w", systemCrashDumpFile, tmpPath, err)
 	}
 
-	// The framework may timeout trying to download the dump.
-	err = host.GetFile(tmpPath, outputFile)
+	// The framework may timeout trying to download the dump, so retry a few times.
+	err = getFileWithRetry(host, tmpPath, outputFile)
 
 	if err != nil {
 		return "", fmt.Errorf("error getting system crash dump file %s: %w", tmpPath, err)

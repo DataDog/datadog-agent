@@ -42,7 +42,7 @@ int arraylen(char **array, int max_len) {
 import "C"
 
 func testTags(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
@@ -66,7 +66,7 @@ func testTags(t *testing.T) {
 }
 
 func testTagsNull(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", nil, nil, nil, nil)
@@ -82,7 +82,7 @@ func testTagsNull(t *testing.T) {
 }
 
 func testTagsEmpty(t *testing.T) {
-	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
 	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{}, nil, nil, nil)

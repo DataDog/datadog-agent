@@ -6,6 +6,7 @@ exporters:
             dd-api-key: test_api_key_123
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
     otlp_http/us3.datadoghq.com_0:
         compression: zstd
         endpoint: https://otlp.us3.datadoghq.com
@@ -13,6 +14,7 @@ exporters:
             dd-api-key: us3_api_key
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 extensions:
     hpflare:
         endpoint: localhost:7778

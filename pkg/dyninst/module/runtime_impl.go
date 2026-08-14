@@ -170,6 +170,7 @@ func (rt *runtimeImpl) Load(
 	if opts.SkipRuntimeRecoveryProbe {
 		irgenOpts = append(irgenOpts, irgen.WithSkipRuntimeRecoveryProbe(true))
 	}
+	irgenOpts = append(irgenOpts, irgen.WithRedaction(redactionConfigForPID(processID.PID)))
 	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}

@@ -12,7 +12,7 @@
 // repository, but is not designed as a general-purpose logging system.  Its
 // API may change incompatibly.
 
-//go:build !windows
+//go:build !windows && !aix
 
 package hostinfo
 

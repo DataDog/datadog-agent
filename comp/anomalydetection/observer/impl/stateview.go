@@ -45,6 +45,17 @@ func (sv *stateView) Anomalies() []observerdef.Anomaly {
 	return sv.engine.RawAnomalies()
 }
 
+// ScoreState returns a snapshot of the scorer's accumulated state.
+// Returns an empty AnomalyScoreState if no scorer is configured.
+func (sv *stateView) ScoreState() observerdef.AnomalyScoreState {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+	if sv.engine.scorer == nil {
+		return observerdef.AnomalyScoreState{}
+	}
+	return sv.engine.scorer.ScoreState()
+}
+
 // TotalAnomalyCount returns the total number of anomalies ever detected.
 func (sv *stateView) TotalAnomalyCount() int {
 	return sv.engine.TotalAnomalyCount()
@@ -183,9 +194,9 @@ func (sv *stateView) LatestDataTime() int64 {
 	return sv.engine.latestDataTime
 }
 
-// TotalSeriesCount returns the number of unique metric series, excluding the given namespace.
-func (sv *stateView) TotalSeriesCount(excludeNamespace string) int {
-	return sv.engine.storage.TotalSeriesCount(excludeNamespace)
+// TotalSeriesCount returns the number of unique non-telemetry metric series.
+func (sv *stateView) TotalSeriesCount() int {
+	return sv.engine.storage.TotalSeriesCount()
 }
 
 // TotalSampleCount returns the total number of stored data points, excluding the given namespace.

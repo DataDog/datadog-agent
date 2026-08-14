@@ -21,8 +21,59 @@ runs:
       echo "version=${version}" >> $GITHUB_OUTPUT
     shell: bash
 
+  - name: Set cache key
+    id: cache-key
+    run: |-
+      version="${DDA_INPUT_VERSION:-${DDA_DEFAULT_VERSION}}"
+      features="${DDA_FEATURES:-base}"
+
+      features_key="$(printf '%s' "$features" | tr -cs '[:alnum:]._+-' '-')"
+      features_key="${features_key#-}"
+      features_key="${features_key%-}"
+
+      echo "version=${version}" >> "$GITHUB_OUTPUT"
+      echo "features=${features_key:-base}" >> "$GITHUB_OUTPUT"
+    shell: bash
+    env:
+      DDA_INPUT_VERSION: ${{ inputs.version }}
+      DDA_DEFAULT_VERSION: ${{ steps.set-version.outputs.version }}
+      DDA_FEATURES: ${{ inputs.features }}
+
+  - name: Restore dda cache
+    id: dda-cache
+    uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    with:
+      key: dda-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache-key.outputs.version }}-${{ steps.cache-key.outputs.features }}
+      path: |
+        ~/.local/share/pyapp/dda
+        ~/.cache/dda
+        ~/.cache/pip
+        ~/.cache/uv
+        ${{ runner.tool_cache }}/.dda
+
+  - name: Install dda from cache
+    id: install-from-cache
+    if: steps.dda-cache.outputs.cache-hit == 'true'
+    continue-on-error: true
+    uses: DataDog/datadog-agent-dev@00e4a423088309efce1d5ba6b8c5366eef648710 # install
+    env:
+      UV_OFFLINE: "1"
+    with:
+      version: ${{ steps.cache-key.outputs.version }}
+      features: ${{ inputs.features }}
+
+  - name: Reset cached dda install
+    if: steps.dda-cache.outputs.cache-hit == 'true' && steps.install-from-cache.outcome != 'success'
+    run: |-
+      rm -rf "${HOME}/.local/share/pyapp/dda"
+      if [[ -n "${RUNNER_TOOL_CACHE:-}" ]]; then
+        rm -rf "${RUNNER_TOOL_CACHE}/.dda"
+      fi
+    shell: bash
+
   - name: Install dda
+    if: steps.dda-cache.outputs.cache-hit != 'true' || steps.install-from-cache.outcome != 'success'
     uses: DataDog/datadog-agent-dev@00e4a423088309efce1d5ba6b8c5366eef648710 # install
     with:
-      version: ${{ inputs.version || steps.set-version.outputs.version }}
+      version: ${{ steps.cache-key.outputs.version }}
       features: ${{ inputs.features }}

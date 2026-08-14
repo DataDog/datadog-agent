@@ -12,6 +12,8 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SafeDevice represents a safe wrapper around NVML device operations.
@@ -52,6 +54,8 @@ type SafeDevice interface {
 	GetGpuInstanceId() (int, error)
 	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
 	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
+	// GetGpuFabricInfo returns the NVLink fabric information for the device.
+	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
 	// GetMaxClockInfo returns the maximum clock speed for the given clock type
@@ -76,6 +80,8 @@ type SafeDevice interface {
 	GetNumGpuCores() (int, error)
 	// GetNumFans returns the number of fans in the device
 	GetNumFans() (int, error)
+	// GetPciInfo returns PCI information of the device
+	GetPciInfo() (nvml.PciInfo, error)
 	// GetPcieThroughput returns the PCIe throughput in bytes/sec
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
 	// GetCurrPcieLinkGeneration returns the current PCIe generation
@@ -139,11 +145,12 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion    uint32
-	UUID         string
-	Name         string
-	CoreCount    int
-	Architecture nvml.DeviceArchitecture
+	SMVersion          uint32
+	UUID               string
+	Name               string
+	CoreCount          int
+	Architecture       nvml.DeviceArchitecture
+	VirtualizationMode nvml.GpuVirtualizationMode
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -374,6 +381,12 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		return fmt.Errorf("error getting CUDA compute capability: %w", err)
 	}
 	d.SMVersion = uint32(major*10 + minor)
+
+	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
+		d.VirtualizationMode = virtualizationMode
+	} else if logLimiter.ShouldLog() {
+		log.Warnf("cannot get virtualization mode: %v", err)
+	}
 
 	return nil
 }

@@ -8,7 +8,7 @@ package gke
 import (
 	"strings"
 
-	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/container"
+	"github.com/pulumi/pulumi-gcp/sdk/v9/go/gcp/container"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -30,7 +30,7 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 	clusterLabels := e.ResourcesTags()
 	clusterLabels = clusterLabels.ToStringMapOutput().ApplyT(func(labels map[string]string) map[string]string {
 		for k, v := range labels {
-			labels[k] = strings.ReplaceAll(strings.ToLower(v), ".", "-")
+			labels[k] = gcp.TruncateLabelValue(strings.ReplaceAll(strings.ToLower(v), ".", "-"))
 		}
 
 		return labels
@@ -68,7 +68,7 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 
 	// Autopilot clusters manage nodes automatically, so we don't specify node configuration
 	if !autopilot {
-		clusterArgs.InitialNodeCount = pulumi.Int(1)
+		clusterArgs.InitialNodeCount = pulumi.Int(e.DefaultGKENodeCount())
 		clusterArgs.NodeVersion = pulumi.String(e.KubernetesVersion())
 		clusterArgs.NodeLocations = pulumi.StringArray{pulumi.String(e.Zone())}
 		clusterArgs.NodeConfig = &container.ClusterNodeConfigArgs{

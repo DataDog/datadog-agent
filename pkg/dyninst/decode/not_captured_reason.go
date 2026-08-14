@@ -24,5 +24,12 @@ var (
 	tokenNotCapturedReasonMissingTypeInfo = jsontext.String("missing type information")
 	// tokenNotCapturedReasonFieldCount      = jsontext.String("fieldCount")
 
+	// redactedIdent is used when a value is dropped because the name of the
+	// variable, field, or string map key holding it matches a redacted
+	// identifier. redactedType is used when a value is dropped because its type
+	// matches a redacted type. These mirror the Java, .NET, and Python tracers.
+	tokenNotCapturedReasonRedactedIdent = jsontext.String("redactedIdent")
+	tokenNotCapturedReasonRedactedType  = jsontext.String("redactedType")
+
 	tokenTruncated = jsontext.String("truncated")
 )

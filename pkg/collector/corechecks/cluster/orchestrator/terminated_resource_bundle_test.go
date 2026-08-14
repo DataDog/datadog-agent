@@ -218,7 +218,7 @@ func (f *fakeK8sCollector) Informer() cache.SharedInformer { return nil }
 // holding tb.mu.
 func TestDisableDoesNotBlockWithStoppedManifestBuffer(t *testing.T) {
 	checkBase := core.NewCheckBase("test-orchestrator")
-	mockSender := mocksender.NewMockSender(checkBase.ID())
+	mockSender := mocksender.NewMockSender(t, checkBase.ID())
 	mockSender.On("OrchestratorManifest", mock.Anything, mock.Anything).Return()
 	mockSender.On("OrchestratorMetadata", mock.Anything, mock.Anything, mock.Anything).Return()
 

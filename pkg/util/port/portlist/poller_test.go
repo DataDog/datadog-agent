@@ -7,10 +7,13 @@ package portlist
 
 import (
 	"net"
+	"net/netip"
 	"reflect"
 	"runtime"
 	"testing"
 )
+
+var ipv4Loopback = netip.MustParseAddr("127.0.0.1")
 
 func TestEqualLessThan(t *testing.T) {
 	tests := []struct {
@@ -80,26 +83,26 @@ func TestEqualLessThan(t *testing.T) {
 		},
 		{
 			"IP a < b",
-			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
-			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: netip.IPv4Unspecified(), Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: ipv4Loopback, Process: "proc1"},
 			true,
 		},
 		{
 			"IP a > b",
-			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
-			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: ipv4Loopback, Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: netip.IPv4Unspecified(), Process: "proc1"},
 			false,
 		},
 		{
 			"IP evaluated third",
-			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc2"},
-			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: netip.IPv4Unspecified(), Process: "proc2"},
+			Port{Proto: "tcp", Port: 100, IP: ipv4Loopback, Process: "proc1"},
 			true,
 		},
 		{
 			"equal with IP",
-			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
-			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: netip.IPv4Unspecified(), Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: netip.IPv4Unspecified(), Process: "proc1"},
 			false,
 		},
 	}
@@ -169,12 +172,12 @@ func TestSortAndDedup(t *testing.T) {
 		{
 			"Same port different IPs preserved",
 			List{
-				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
-				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: ipv4Loopback, Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: netip.IPv4Unspecified(), Process: "nginx"},
 			},
 			List{
-				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
-				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: netip.IPv4Unspecified(), Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: ipv4Loopback, Process: "nginx"},
 			},
 		},
 	}
@@ -276,16 +279,16 @@ func TestPollerIPPopulated(t *testing.T) {
 	}
 	tests := []struct {
 		addr   string
-		wantIP string
+		wantIP netip.Addr
 	}{
-		{"127.0.0.1:0", "127.0.0.1"},
-		{"[::1]:0", "::1"},
-		{"[::]:0", "::"},
+		{"127.0.0.1:0", ipv4Loopback},
+		{"[::1]:0", netip.IPv6Loopback()},
+		{"[::]:0", netip.IPv6Unspecified()},
 	}
 
 	type bound struct {
 		port   uint16
-		wantIP string
+		wantIP netip.Addr
 		ln     net.Listener
 	}
 	var bounds []bound

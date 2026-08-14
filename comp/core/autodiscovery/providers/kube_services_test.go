@@ -27,6 +27,7 @@ import (
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -487,4 +488,47 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 			assert.Equal(t, test.expectedErrorsAfterCollect, provider.GetConfigErrors())
 		})
 	}
+}
+
+func TestKubeServiceHealthPlatformReporting(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+	hp := healthplatformmock.New(t)
+	cfg := configmock.New(t)
+
+	provider := KubeServiceConfigProvider{
+		configErrors:   map[string]providerTypes.ErrorMsgSet{},
+		telemetryStore: telemetryStore,
+		upToDate:       atomic.NewBool(false),
+		healthPlatform: hp,
+	}
+
+	const issueID = "ad-annotation:kube_service://default/withErrors"
+
+	svc := &v1.Service{
+		TypeMeta: metav1.TypeMeta{Kind: kubernetes.ServiceKind},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "withErrors",
+			Namespace: "default",
+			UID:       "123",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/service.checks": `{"some_check": {"instances": [{"url" "%%host%%"}]}}`, // Invalid JSON (missing ":" after "url")
+			},
+		},
+	}
+
+	// A malformed annotation is reported as a health-platform issue.
+	_, err := provider.parseServiceAnnotations([]*v1.Service{svc}, cfg)
+	require.NoError(t, err)
+	issue := hp.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, issueID, issue.Id)
+	assert.Contains(t, issue.Description, "service annotation")
+
+	// Fixing the annotation resolves the issue.
+	fixed := svc.DeepCopy()
+	fixed.Annotations["ad.datadoghq.com/service.checks"] = `{"some_check": {"instances": [{"url": "%%host%%"}]}}`
+	_, err = provider.parseServiceAnnotations([]*v1.Service{fixed}, cfg)
+	require.NoError(t, err)
+	assert.Nil(t, hp.GetIssue(issueID))
 }

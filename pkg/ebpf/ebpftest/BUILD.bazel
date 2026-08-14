@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ebpftest",
@@ -11,15 +12,16 @@ go_library(
         "dumpmaps_helper.go",
         "fail_log.go",
         "log.go",
+        "rcu_linux.go",
         "trace_pipe.go",
         "trace_pipe_linux.go",
         "version_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
-    # Don't pick this up in ... expansion. It requires gotag linux_bpf to build
-    # but you can't add gotags to go_library. One fix is to test with
-    # --build_tests_only. 'manual' is the other recommended work-around
-    # https://github.com/bazel-contrib/rules_go/issues/3203
+    # Sources depend on symbols gated behind //go:build test (log.Default, etc.)
+    # and linux_bpf. go_library has no gotags attribute, so this target cannot
+    # be compiled correctly outside of an embedding go_test. Manual keeps it out
+    # of //... expansion; tests supply the right gotags themselves.
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
@@ -67,7 +69,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ebpftest_test",
     srcs = [
         "buildmode_test.go",
@@ -75,7 +77,7 @@ go_test(
         "trace_pipe_linux_test.go",
     ],
     embed = [":ebpftest"],
-    gotags = ["test"],
+    gotags_sets = [["linux_bpf"]],
     deps = [
         "//pkg/ebpf",
         "@com_github_stretchr_testify//assert",

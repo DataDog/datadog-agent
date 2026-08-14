@@ -1,0 +1,24 @@
+---
+enhancements:
+  - |
+    Add a new ``trace_container_tag_promotion`` configuration option to the
+    ``infraattributes`` processor in the Datadog Agent's embedded
+    OpenTelemetry Collector (DDOT). When set to ``duplicate`` or
+    ``rename``, custom tags emitted by the processor (for example tags
+    produced by ``podLabelsAsTags``) are written with a
+    ``datadog.container.tag.`` prefix so they are promoted into Datadog
+    container tags and become visible in the Infrastructure tab of a
+    span. The default value ``off`` preserves the previous behavior.
+    Known Datadog and OpenTelemetry container semantic conventions, as
+    well as ``service`` / ``env`` / ``version`` tags, are exempt and
+    always written under their canonical key.
+  - |
+    OTLP ingest: The ``container_tag_promotion`` mode used by the
+    ``infraattributes`` processor on the OTLP ingest traces pipeline is now
+    configurable through
+    ``otlp_config.traces.infra_attributes.container_tag_promotion``
+    (environment variable
+    ``DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_CONTAINER_TAG_PROMOTION``).
+    Accepted values are ``off``, ``duplicate`` and ``rename``. The default
+    ``off`` matches the processor's own default, so promotion is opt-in and
+    the previous behavior is preserved.

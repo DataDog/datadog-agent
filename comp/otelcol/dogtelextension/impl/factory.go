@@ -107,8 +107,8 @@ type Requires struct {
 	Secrets      secrets.Component
 }
 
-// NewExtension creates a new dogtelextension instance for use with FX.
-func NewExtension(reqs Requires) (dogtelextension.Component, error) {
+// NewComponent creates a new dogtelextension instance for use with FX.
+func NewComponent(reqs Requires) (dogtelextension.Component, error) {
 	cfg := createDefaultConfig().(*Config)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)

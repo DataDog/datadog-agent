@@ -183,7 +183,11 @@ func assertSyslogStructuredOutput(
 			return
 		}
 
-		assert.Equal(c, "Syslog e2e test message", body["message"], "unexpected message body")
+		// message is intentionally the full raw syslog frame: debug_attr_parsing
+		// only appends syslog/siem keys alongside it, it does not replace the
+		// transmitted content with the parsed MSG body. The framer trims the
+		// trailing newline, so all transports land on the same value.
+		assert.Equal(c, "<134>1 2025-06-15T10:30:00Z testhost testapp 1234 - - Syslog e2e test message", body["message"], "message should be the full raw syslog line")
 		if !assert.Contains(c, body, "syslog", "missing 'syslog' key in structured output") {
 			return
 		}

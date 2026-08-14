@@ -24,6 +24,14 @@ import (
 // unchanged on RHEL 10 and avoids depending on a release that may be missing.
 const kubeadmContainerdRepoReleasever = "9"
 
+// kubeadmFlannelVersion pins the flannel CNI manifest to a known-good release.
+// The manifest was previously fetched from the floating
+// .../releases/latest/download/kube-flannel.yml URL, which broke cluster
+// provisioning (HTTP 404) when the upstream latest release stopped publishing
+// that asset. Pin an explicit tag so the CNI apply does not depend on whatever
+// the current upstream latest release happens to ship.
+const kubeadmFlannelVersion = "v0.28.5"
+
 // ContainerRuntime selects the CRI installed on the kubeadm node. The Agent
 // produces identical SBOMs across runtimes; only the install steps and the CRI
 // socket differ.
@@ -214,10 +222,13 @@ kubeadm init \
 		}
 
 		// Flannel's default network is 10.244.0.0/16, matching --pod-network-cidr above.
+		// Pin the manifest to a specific flannel release (see kubeadmFlannelVersion)
+		// rather than the floating latest release, whose kube-flannel.yml asset can
+		// disappear and 404 the CNI apply.
 		cni, err := runner.Command(namer.ResourceName("kubeadm-cni"), &command.Args{
 			Sudo: true,
-			Create: rootScript(`export KUBECONFIG=/etc/kubernetes/admin.conf
-kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml`),
+			Create: rootScript(fmt.Sprintf(`export KUBECONFIG=/etc/kubernetes/admin.conf
+kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/%s/Documentation/kustomization/kube-flannel/kube-flannel.yml`, kubeadmFlannelVersion)),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(initCluster))...)
 		if err != nil {
 			return err

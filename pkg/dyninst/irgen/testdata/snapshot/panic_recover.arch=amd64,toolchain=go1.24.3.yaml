@@ -875,6 +875,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 153
       Name: Probe[main.b]Return
@@ -894,6 +895,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 154
       Name: Probe[main.c]
@@ -913,6 +915,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: s
           Offset: 9
           Kind: argument
@@ -926,6 +929,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 155
       Name: Probe[main.c]Return
@@ -945,6 +949,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 158
       Name: Probe[main.d]
@@ -982,6 +987,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 167
       Name: Probe[main.goroutinePanic]
@@ -1010,6 +1016,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 163
       Name: Probe[main.probedRecoverer]
@@ -1038,6 +1045,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 149
       Name: Probe[main.warmupErrorType]
@@ -1057,6 +1065,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 171
       Name: Probe[runtime.recovery]
@@ -1087,6 +1096,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 95
       Name: '[0]uint8'

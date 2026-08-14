@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    NetFlow: automatically detect and split Cisco FirePower/ASA bidirectional (NSEL)
+    flow records into two unidirectional flow events. NSEL records carry
+    initiator→responder and responder→initiator byte/packet counts in NFv9 fields
+    231/232/298/299; the agent now captures these fields via built-in mappings and
+    emits a separate flow for each direction with correctly swapped src/dst
+    addresses, ports, and interfaces. No user configuration is required.

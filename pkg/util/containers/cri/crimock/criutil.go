@@ -9,6 +9,9 @@
 package crimock
 
 import (
+	"context"
+	"time"
+
 	"github.com/stretchr/testify/mock"
 	criv1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
@@ -28,6 +31,15 @@ func (m *MockCRIClient) ListContainerStats() (map[string]*criv1.ContainerStats, 
 func (m *MockCRIClient) GetContainerStats(containerID string) (*criv1.ContainerStats, error) {
 	args := m.Called(containerID)
 	return args.Get(0).(*criv1.ContainerStats), args.Error(1)
+}
+
+// ExecSync is a mock of ExecSync
+func (m *MockCRIClient) ExecSync(ctx context.Context, containerID string, cmd []string, timeout time.Duration) ([]byte, []byte, int32, error) {
+	args := m.Called(ctx, containerID, cmd, timeout)
+	stdout, _ := args.Get(0).([]byte)
+	stderr, _ := args.Get(1).([]byte)
+	exitCode, _ := args.Get(2).(int32)
+	return stdout, stderr, exitCode, args.Error(3)
 }
 
 // GetRuntime is a mock of GetRuntime

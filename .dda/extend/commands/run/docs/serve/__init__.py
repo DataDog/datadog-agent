@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import click
-
 from dda.cli.base import dynamic_command, pass_app
 
 if TYPE_CHECKING:
@@ -20,7 +19,6 @@ def cmd(app: Application, *, port: int, launch: bool) -> None:
     """
     from dda.utils.fs import Path
     from dda.utils.process import EnvVars
-
     from utils.docs.constants import SOURCE_DATE_EPOCH
     from utils.docs.deps import DEPENDENCIES
 
@@ -30,10 +28,8 @@ def cmd(app: Application, *, port: int, launch: bool) -> None:
         with app.status("Syncing dependencies"):
             app.tools.uv.run(["pip", "install", "-q", *DEPENDENCIES])
 
-        if launch:
-            import webbrowser
-
-            webbrowser.open(f"http://localhost:{port}")
-
         env_vars = EnvVars({"SOURCE_DATE_EPOCH": SOURCE_DATE_EPOCH})
-        app.subprocess.exit_with(["mkdocs", "serve", "--dev-addr", f"localhost:{port}"], env=env_vars)
+        serve_command = ["zensical", "serve", "--dev-addr", f"localhost:{port}"]
+        if launch:
+            serve_command.append("--open")
+        app.subprocess.exit_with(serve_command, env=env_vars)

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Reduced per-sample allocations in the metrics aggregator, lowering CPU and
+    garbage-collection overhead on Agents processing a high volume of metrics.

@@ -1,12 +1,15 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
 
 go_library(
     name = "daemon",
     srcs = [
         "api.go",
         "command.go",
-        "memory_darwin.go",
         "memory_linux.go",
+        "memory_nix_nolinux.go",
         "run.go",
         "run_nix.go",
         "run_windows.go",
@@ -32,7 +35,7 @@ go_library(
         "//comp/updater/telemetry/fx",
         "//comp/updater/updater/fx",
         "//pkg/config/remote/service",
-        "//pkg/config/setup",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
@@ -139,7 +142,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "daemon_test",
     srcs = [
         "api_test.go",
@@ -147,7 +150,6 @@ go_test(
         "run_windows_test.go",
     ],
     embed = [":daemon"],
-    gotags = ["test"],
     deps = [
         "//cmd/installer/command",
         "//pkg/util/fxutil",

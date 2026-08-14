@@ -75,7 +75,7 @@ type Config struct {
 	AdvancedADIdentifiers []AdvancedADIdentifier `json:"advanced_ad_identifiers"` // (include in digest: false)
 
 	// CELSelector is the list of CEL-based selectors for this integration. (optional)
-	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: false)
+	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: true)
 
 	// Internal field to Autodiscovery, not serialized.
 	// Maps resource type to the compiled CEL matching program for that type.
@@ -475,6 +475,7 @@ func (c *Config) IntDigest() uint64 {
 	for _, i := range c.ADIdentifiers {
 		_, _ = h.Write([]byte(i))
 	}
+	_, _ = h.Write([]byte(c.CELSelector.String()))
 	_, _ = h.Write([]byte(c.NodeName))
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
@@ -501,6 +502,7 @@ func (c *Config) FastDigest() uint64 {
 	for _, i := range c.ADIdentifiers {
 		_, _ = h.Write([]byte(i))
 	}
+	_, _ = h.Write([]byte(c.CELSelector.String()))
 	_, _ = h.Write([]byte(c.NodeName))
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))

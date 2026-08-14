@@ -92,15 +92,15 @@ interface GigabitEthernet0/1
 		},
 	})
 	t.Run("running_config", func(t *testing.T) {
-		config, err := conn.RetrieveRunningConfig(context.Background())
+		result, err := conn.RetrieveRunningConfig(context.Background())
 		if assert.NoError(t, err) {
-			assert.Equal(t, expectedConfig, string(config))
+			assert.Equal(t, expectedConfig, string(result.Output))
 		}
 	})
 	t.Run("startup_config", func(t *testing.T) {
-		config, err := conn.RetrieveStartupConfig(context.Background())
+		result, err := conn.RetrieveStartupConfig(context.Background())
 		if assert.NoError(t, err) {
-			assert.Equal(t, expectedConfig, string(config))
+			assert.Equal(t, expectedConfig, string(result.Output))
 		}
 	})
 }
@@ -329,7 +329,7 @@ func TestBuildAuthMethods(t *testing.T) {
 				Username: "test",
 				Password: "hunter2",
 			},
-			expectedAuthMethods: 1,
+			expectedAuthMethods: 2,
 		},
 		{
 			name: "success: private key only",
@@ -349,13 +349,13 @@ func TestBuildAuthMethods(t *testing.T) {
 			expectedAuthMethods: 1,
 		},
 		{
-			name: "success: 2 auth methods, user/pass + private key",
+			name: "success: 2 auth methods, user+pass + private key",
 			auth: ncmconfig.AuthCredentials{
 				Username:       "test",
 				Password:       "hunter2",
 				PrivateKeyFile: privateKeyPath,
 			},
-			expectedAuthMethods: 2,
+			expectedAuthMethods: 3,
 		},
 		{
 			name: "error: cannot read private key",

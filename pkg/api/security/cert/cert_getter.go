@@ -144,6 +144,20 @@ func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) (*tls.
 	return clientConfig, serverConfig, clusterClientConfig, err
 }
 
+// LoadClientTLSConfigFromPath reads the PEM at certPath and returns a client TLS config.
+// No config component, no cluster CA handling — for callers that already know the path.
+func LoadClientTLSConfigFromPath(certPath string) (*tls.Config, error) {
+	cert, err := filesystem.TryFetchArtifact(certPath, &certificateFactory{})
+	if err != nil {
+		return nil, fmt.Errorf("read IPC cert at %s: %w", certPath, err)
+	}
+	clientConfig, _, err := GetTLSConfigFromCert(cert.cert, cert.key)
+	if err != nil {
+		return nil, fmt.Errorf("build client TLS config: %w", err)
+	}
+	return clientConfig, nil
+}
+
 // GetTLSConfigFromCert returns the TLS configs for the client and server using the provided IPC certificate and key.
 // It returns the client and server TLS configurations, or an error if the certificate or key cannot be parsed.
 // It expects the certificate and key to be in PEM format.

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add a new reflector-based Kubernetes event collection path, enabled via ``event_collection_mode: watch``.

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -112,12 +112,11 @@ func TestSidecarPattern_MutatePod_Success(t *testing.T) {
 		return true, createdFilter, nil
 	})
 
-	// Execute
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	// Verify
 	require.NoError(t, err)
-	assert.True(t, modified, "Pod should be modified")
+	assert.Equal(t, appsecconfig.MutationMutated, outcome, "Pod should be modified")
 
 	// Check that sidecar container was added
 	require.Len(t, pod.Spec.Containers, 2, "Should have original container + sidecar")
@@ -138,11 +137,15 @@ func TestSidecarPattern_MutatePod_AlreadyInjected(t *testing.T) {
 		Image: "datadog/appsec-processor:latest",
 	})
 
-	// Execute ShouldMutatePod (not MutatePod) - webhook checks this first
-	shouldMutate := pattern.ShouldMutatePod(pod)
+	// Execute
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	// Verify
-	assert.False(t, shouldMutate, "Should not mutate pod that already has sidecar")
+	require.Error(t, err)
+	assert.Equal(t, appsecconfig.MutationSkipped, outcome, "Should skip pod that already has sidecar")
+	var skipReason *appsecconfig.MutationSkippedReason
+	require.ErrorAs(t, err, &skipReason)
+	assert.Equal(t, appsecconfig.SkipReasonAlreadySidecar, skipReason.Reason)
 	assert.Len(t, pod.Spec.Containers, 2, "Should still have 2 containers")
 }
 
@@ -153,15 +156,15 @@ func TestSidecarPattern_MutatePod_GatewayClassNotFound(t *testing.T) {
 
 	// Setup mock client to return NotFound error
 	pattern.client.(*dynamicfake.FakeDynamicClient).PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, errors.NewNotFound(schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "gatewayclasses"}, "missing-gatewayclass")
+		return true, nil, k8serrors.NewNotFound(schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "gatewayclasses"}, "missing-gatewayclass")
 	})
 
 	// Execute
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	// Verify
 	require.Error(t, err)
-	assert.False(t, modified)
+	assert.Equal(t, appsecconfig.MutationError, outcome)
 	assert.Contains(t, err.Error(), "error getting gatewayclass")
 }
 
@@ -176,11 +179,10 @@ func TestSidecarPattern_MutatePod_NonIstioGatewayClass(t *testing.T) {
 		return true, gwClass, nil
 	})
 
-	// Execute ShouldMutatePod (not MutatePod) - webhook checks this first
-	shouldMutate := pattern.ShouldMutatePod(pod)
+	isEligible := pattern.IsPodEligible(pod, "default")
 
 	// Verify
-	assert.False(t, shouldMutate, "Should not mutate pod for non-Istio gateway class")
+	assert.False(t, isEligible, "Should not own pod for non-Istio gateway class")
 }
 
 func TestSidecarPattern_PodDeleted_IsNoOp(t *testing.T) {
@@ -195,22 +197,23 @@ func TestSidecarPattern_PodDeleted_IsNoOp(t *testing.T) {
 	})
 
 	// Execute - should be a no-op
-	_, err := pattern.PodDeleted(pod, "default", pattern.client)
+	outcome, err := pattern.PodDeleted(pod, "default", pattern.client)
 
 	// Verify
 	require.NoError(t, err)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 	assert.False(t, deleteCalled, "PodDeleted should be a no-op")
 }
 
-func TestSidecarPattern_ShouldMutatePod(t *testing.T) {
+func TestSidecarPattern_IsPodEligible(t *testing.T) {
 	tests := []struct {
-		name               string
-		pod                *corev1.Pod
-		setupMock          func(*dynamicfake.FakeDynamicClient)
-		expectShouldMutate bool
+		name           string
+		pod            *corev1.Pod
+		setupMock      func(*dynamicfake.FakeDynamicClient)
+		expectEligible bool
 	}{
 		{
-			name: "should mutate when pod has gateway class label and is istio",
+			name: "eligible when pod has gateway class label and is istio",
 			pod:  newTestPodForSidecar("test-pod", "default", "istio"),
 			setupMock: func(client *dynamicfake.FakeDynamicClient) {
 				gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
@@ -218,10 +221,10 @@ func TestSidecarPattern_ShouldMutatePod(t *testing.T) {
 					return true, gwClass, nil
 				})
 			},
-			expectShouldMutate: true,
+			expectEligible: true,
 		},
 		{
-			name: "should not mutate when sidecar already exists",
+			name: "eligible when sidecar already exists on owned pod",
 			pod: func() *corev1.Pod {
 				pod := newTestPodForSidecar("test-pod", "default", "istio")
 				pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
@@ -230,23 +233,26 @@ func TestSidecarPattern_ShouldMutatePod(t *testing.T) {
 				})
 				return pod
 			}(),
-			setupMock: func(_ *dynamicfake.FakeDynamicClient) {
-				// Should not even call get since HasProcessorSidecar returns true
+			setupMock: func(client *dynamicfake.FakeDynamicClient) {
+				gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
+				client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+					return true, gwClass, nil
+				})
 			},
-			expectShouldMutate: false,
+			expectEligible: true,
 		},
 		{
-			name: "should not mutate when gateway class not found",
+			name: "not eligible when gateway class not found",
 			pod:  newTestPodForSidecar("test-pod", "default", "missing-gc"),
 			setupMock: func(client *dynamicfake.FakeDynamicClient) {
 				client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-					return true, nil, errors.NewNotFound(schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "gatewayclasses"}, "missing-gc")
+					return true, nil, k8serrors.NewNotFound(schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "gatewayclasses"}, "missing-gc")
 				})
 			},
-			expectShouldMutate: false,
+			expectEligible: false,
 		},
 		{
-			name: "should not mutate when gateway class is not istio",
+			name: "not eligible when gateway class is not istio",
 			pod:  newTestPodForSidecar("test-pod", "default", "envoy"),
 			setupMock: func(client *dynamicfake.FakeDynamicClient) {
 				gwClass := newTestGatewayClass("envoy", "envoy.io/gateway-controller")
@@ -254,10 +260,30 @@ func TestSidecarPattern_ShouldMutatePod(t *testing.T) {
 					return true, gwClass, nil
 				})
 			},
-			expectShouldMutate: false,
+			expectEligible: false,
 		},
 		{
-			name: "should not mutate when pod has no gateway class label",
+			name: "not eligible when gateway class controller is malformed",
+			pod:  newTestPodForSidecar("test-pod", "default", "malformed"),
+			setupMock: func(client *dynamicfake.FakeDynamicClient) {
+				gwClass := &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": "gateway.networking.k8s.io/v1",
+					"kind":       "GatewayClass",
+					"metadata": map[string]any{
+						"name": "malformed",
+					},
+					"spec": map[string]any{
+						"controllerName": []any{"not-a-string"},
+					},
+				}}
+				client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+					return true, gwClass, nil
+				})
+			},
+			expectEligible: false,
+		},
+		{
+			name: "not eligible when pod has no gateway class label",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pod",
@@ -268,7 +294,7 @@ func TestSidecarPattern_ShouldMutatePod(t *testing.T) {
 			setupMock: func(_ *dynamicfake.FakeDynamicClient) {
 				// Should not call get since label is missing
 			},
-			expectShouldMutate: false,
+			expectEligible: false,
 		},
 	}
 
@@ -279,30 +305,9 @@ func TestSidecarPattern_ShouldMutatePod(t *testing.T) {
 				tt.setupMock(pattern.client.(*dynamicfake.FakeDynamicClient))
 			}
 
-			result := pattern.ShouldMutatePod(tt.pod)
+			result := pattern.IsPodEligible(tt.pod, tt.pod.Namespace)
 
-			assert.Equal(t, tt.expectShouldMutate, result)
-		})
-	}
-}
-
-func TestSidecarPattern_IsNamespaceEligible(t *testing.T) {
-	pattern := newTestIstioSidecarPattern(t)
-
-	tests := []struct {
-		namespace string
-	}{
-		{"default"},
-		{"kube-system"},
-		{"istio-system"},
-		{"datadog"},
-		{""},
-	}
-
-	for _, tt := range tests {
-		t.Run("namespace_"+tt.namespace, func(t *testing.T) {
-			result := pattern.IsNamespaceEligible(tt.namespace)
-			assert.True(t, result, "All namespaces should be eligible")
+			assert.Equal(t, tt.expectEligible, result)
 		})
 	}
 }
@@ -333,15 +338,15 @@ func TestSidecarPattern_MutatePod_EnvoyFilterCreationFailure(t *testing.T) {
 
 	// Make EnvoyFilter creation fail
 	pattern.client.(*dynamicfake.FakeDynamicClient).PrependReactor("create", "envoyfilters", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, errors.NewInternalError(assert.AnError)
+		return true, nil, k8serrors.NewInternalError(assert.AnError)
 	})
 
 	// Execute
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	// Verify
 	require.Error(t, err)
-	assert.False(t, modified)
+	assert.Equal(t, appsecconfig.MutationError, outcome)
 	assert.Contains(t, err.Error(), "could not create Envoy Filter")
 }
 
@@ -368,26 +373,26 @@ func TestSidecarPattern_MutatePod_IdempotentEnvoyFilterCreation(t *testing.T) {
 			return true, createdFilter, nil
 		}
 		// Second call should get AlreadyExists error
-		return true, nil, errors.NewAlreadyExists(schema.GroupResource{Group: "networking.istio.io", Resource: "envoyfilters"}, "appsec-extproc")
+		return true, nil, k8serrors.NewAlreadyExists(schema.GroupResource{Group: "networking.istio.io", Resource: "envoyfilters"}, "appsec-extproc")
 	})
 
 	pattern.client.(*dynamicfake.FakeDynamicClient).PrependReactor("get", "envoyfilters", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		if createdFilter != nil {
 			return true, createdFilter, nil
 		}
-		return true, nil, errors.NewNotFound(schema.GroupResource{Group: "networking.istio.io", Resource: "envoyfilters"}, "appsec-extproc")
+		return true, nil, k8serrors.NewNotFound(schema.GroupResource{Group: "networking.istio.io", Resource: "envoyfilters"}, "appsec-extproc")
 	})
 
 	// First pod injection - creates EnvoyFilter
-	modified1, err1 := pattern.MutatePod(pod1, "default", pattern.client)
+	outcome1, err1 := pattern.MutatePod(pod1, "default", pattern.client)
 	require.NoError(t, err1)
-	assert.True(t, modified1)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome1)
 	assert.Equal(t, 1, createCallCount, "EnvoyFilter should be created once")
 
 	// Second pod injection - EnvoyFilter already exists
-	modified2, err2 := pattern.MutatePod(pod2, "default", pattern.client)
+	outcome2, err2 := pattern.MutatePod(pod2, "default", pattern.client)
 	require.NoError(t, err2)
-	assert.True(t, modified2)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome2)
 	// With current implementation, Added() will try to create again and handle AlreadyExists
 }
 
@@ -421,11 +426,11 @@ func TestSidecarPattern_MutatePod_ContainerInjection(t *testing.T) {
 	})
 
 	// Execute
-	modified, err := pattern.MutatePod(pod, "default", pattern.client)
+	outcome, err := pattern.MutatePod(pod, "default", pattern.client)
 
 	// Verify
 	require.NoError(t, err)
-	assert.True(t, modified)
+	assert.Equal(t, appsecconfig.MutationMutated, outcome)
 
 	// Verify sidecar container was injected with correct config
 	require.Len(t, pod.Spec.Containers, 2, "Should have original + sidecar container")

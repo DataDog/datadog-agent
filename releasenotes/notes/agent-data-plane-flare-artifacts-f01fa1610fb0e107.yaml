@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    ``agent flare`` now includes diagnostic artifacts from the Agent Data Plane
+    (ADP) process when ``data_plane.enabled`` is set to ``true``. If ADP is
+    unreachable at flare time, an ``UNREACHABLE.txt`` file containing the
+    connection error is written to ADP's subdirectory and the rest of the flare
+    completes normally.

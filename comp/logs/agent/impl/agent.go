@@ -28,6 +28,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -39,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -47,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/goroutinesdump"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -67,13 +66,7 @@ const (
 	logsTransport = "logs_transport"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newLogsAgent))
-}
-
-type dependencies struct {
+type Requires struct {
 	compdef.In
 
 	Lc                 compdef.Lifecycle
@@ -89,7 +82,7 @@ type dependencies struct {
 	Secrets            secrets.Component
 }
 
-type provides struct {
+type Provides struct {
 	compdef.Out
 
 	Comp           option.Option[agent.Component]
@@ -141,7 +134,8 @@ type logAgent struct {
 	httpRetryMutex  sync.Mutex
 }
 
-func newLogsAgent(deps dependencies) provides {
+// NewComponent creates a new logs agent component.
+func NewComponent(deps Requires) Provides {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -172,7 +166,7 @@ func newLogsAgent(deps dependencies) provides {
 			OnStop:  logsAgent.stop,
 		})
 
-		return provides{
+		return Provides{
 			Comp:           option.New[agent.Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
@@ -185,7 +179,7 @@ func newLogsAgent(deps dependencies) provides {
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return provides{
+	return Provides{
 		Comp:           option.None[agent.Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 		LogsReciever:   option.None[integrations.Component](),
@@ -279,7 +273,7 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 func (a *logAgent) startPipeline() {
 
 	// setup the status
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
 
 	starter := startstop.NewStarter(
 		a.destinationsCtx,

@@ -15,7 +15,7 @@ receivers:
   otlp:
 
 processors:
-  infraattributes:
+  infraattributes/traces:
 
 exporters:
   otlp:
@@ -32,7 +32,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [infraattributes]
+      processors: [infraattributes/traces]
       exporters: [otlp]
 `
 

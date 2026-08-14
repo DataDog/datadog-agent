@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "service",
@@ -28,11 +29,12 @@ go_library(
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
         "@org_golang_x_time//rate",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "service_test",
     srcs = [
         "clients_test.go",
@@ -42,7 +44,6 @@ go_test(
         "util_test.go",
     ],
     embed = [":service"],
-    gotags = ["test"],
     deps = [
         "//pkg/config/mock",
         "//pkg/config/remote/api",
@@ -62,5 +63,6 @@ go_test(
         "@org_golang_google_grpc//stats",
         "@org_golang_google_grpc//status",
         "@org_golang_google_grpc//test/bufconn",
+        "@org_golang_google_protobuf//proto",
     ],
 )

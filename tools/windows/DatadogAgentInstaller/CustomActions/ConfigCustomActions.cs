@@ -16,9 +16,6 @@ namespace Datadog.CustomActions
 {
     public class ConfigCustomActions
     {
-        private const string AiUsageNativeHostConfigName = "ai_usage_native_host.yaml";
-        private const string AiUsageNativeHostName = "com.datadoghq.ai_prompt_logger.native_host";
-
         /// <summary>
         /// Subset of the Datadog config file that we are going to read.
         /// </summary>
@@ -27,13 +24,6 @@ namespace Datadog.CustomActions
         {
             // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public int? ReceiverPort { get; set; }
-        }
-
-        // ReSharper disable once ArrangeTypeMemberModifiers
-        class AiUsageNativeHostConfig
-        {
-            // ReSharper disable once UnusedAutoPropertyAccessor.Local
-            public string ChromeExtensionId { get; set; }
         }
 
         // ReSharper disable once ArrangeTypeMemberModifiers
@@ -359,121 +349,9 @@ namespace Datadog.CustomActions
             return yaml;
         }
 
-        private static int ReadAgentReceiverPort(string configFolder)
-        {
-            const int defaultPort = 8126;
-            var datadogYamlPath = Path.Combine(configFolder, "datadog.yaml");
-            if (!File.Exists(datadogYamlPath))
-            {
-                return defaultPort;
-            }
-
-            try
-            {
-                using var input = new StreamReader(datadogYamlPath);
-                var deserializer = new DeserializerBuilder()
-                    .IgnoreUnmatchedProperties()
-                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                    .Build();
-                var cfg = deserializer.Deserialize<DatadogConfig>(input);
-                return cfg?.ApmConfig?.ReceiverPort ?? defaultPort;
-            }
-            catch
-            {
-                return defaultPort;
-            }
-        }
-
-        private static string ReadAiUsageChromeExtensionIdFromFile(string configPath)
-        {
-            if (!File.Exists(configPath))
-            {
-                return "";
-            }
-
-            try
-            {
-                using var input = new StreamReader(configPath);
-                var deserializer = new DeserializerBuilder()
-                    .IgnoreUnmatchedProperties()
-                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                    .Build();
-                var cfg = deserializer.Deserialize<AiUsageNativeHostConfig>(input);
-                return cfg?.ChromeExtensionId?.Trim() ?? "";
-            }
-            catch
-            {
-                return "";
-            }
-        }
-
-        private static string ReadAiUsageChromeExtensionId(string configFolder, ISession session)
-        {
-            var aiUsageNativeHostYamlPath = Path.Combine(configFolder, AiUsageNativeHostConfigName);
-            var extensionId = ReadAiUsageChromeExtensionIdFromFile(aiUsageNativeHostYamlPath);
-            if (!string.IsNullOrEmpty(extensionId))
-            {
-                return extensionId;
-            }
-
-            var aiUsageNativeHostExamplePath = Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example");
-            extensionId = ReadAiUsageChromeExtensionIdFromFile(aiUsageNativeHostExamplePath);
-            if (!string.IsNullOrEmpty(extensionId))
-            {
-                return extensionId;
-            }
-
-            session.Log(
-                $"No chrome_extension_id override found in {aiUsageNativeHostYamlPath} or {aiUsageNativeHostExamplePath}; " +
-                $"using fallback Chrome extension ID {Constants.FallbackAiUsageChromeExtensionId}.");
-            return Constants.FallbackAiUsageChromeExtensionId;
-        }
-
-        private static string JsonEscape(string value)
-        {
-            return value
-                .Replace("\\", "\\\\")
-                .Replace("\"", "\\\"");
-        }
-
-        private static void WriteAiUsageNativeMessagingManifest(string projectLocation, string configFolder, ISession session)
-        {
-            var manifestDir = Path.Combine(projectLocation, "bin", "agent", "dist");
-            Directory.CreateDirectory(manifestDir);
-
-            var hostExe = Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe");
-            var extensionId = ReadAiUsageChromeExtensionId(configFolder, session);
-            var manifestPath = Path.Combine(manifestDir, $"{AiUsageNativeHostName}.json");
-
-            var manifest = "{\n" +
-                           $"  \"name\": \"{AiUsageNativeHostName}\",\n" +
-                           "  \"description\": \"Datadog AI usage native messaging host\",\n" +
-                           $"  \"path\": \"{JsonEscape(hostExe)}\",\n" +
-                           "  \"type\": \"stdio\",\n" +
-                           "  \"allowed_origins\": [\n" +
-                           $"    \"chrome-extension://{JsonEscape(extensionId)}/\"\n" +
-                           "  ]\n" +
-                           "}\n";
-
-            File.WriteAllText(manifestPath, manifest);
-        }
-
-        private static void GrantAiUsageNativeHostConfigReadAccess(string configPath)
-        {
-            var security = File.GetAccessControl(configPath);
-            // Chrome launches the native messaging host as the browser user, so all
-            // local users need read access to the host config under ProgramData.
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                FileSystemRights.Read,
-                AccessControlType.Allow));
-            File.SetAccessControl(configPath, security);
-        }
-
         private static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
-            var projectLocation = session.Property("PROJECTLOCATION");
             try
             {
                 var copyFileFn = new Action<string>(c => File.Copy(c + ".example", c));
@@ -507,31 +385,6 @@ namespace Datadog.CustomActions
                                     output.Write(yaml);
                                 })
                             }
-                        })
-                        .Concat(new[]
-                        {
-                            new
-                            {
-                                Path = AiUsageNativeHostConfigName,
-                                CreateFn = new Action<string>(c =>
-                                {
-                                    string yaml;
-                                    using (var input = new StreamReader(Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example")))
-                                    {
-                                        yaml = input.ReadToEnd();
-                                    }
-
-                                    var port = ReadAgentReceiverPort(configFolder);
-                                    yaml = Regex.Replace(
-                                        yaml,
-                                        "^[ #]*trace_agent_url:.*$",
-                                        $"trace_agent_url: \"http://127.0.0.1:{port}\"",
-                                        RegexOptions.Multiline);
-
-                                    using var output = new StreamWriter(c);
-                                    output.Write(yaml);
-                                })
-                            }
                         });
 
                 foreach (var c in configFiles)
@@ -552,14 +405,7 @@ namespace Datadog.CustomActions
                     {
                         session.Log($"{configPath}.example doesn't exists.");
                     }
-
-                    if (c.Path == AiUsageNativeHostConfigName && File.Exists(configPath))
-                    {
-                        GrantAiUsageNativeHostConfigReadAccess(configPath);
-                    }
                 }
-
-                WriteAiUsageNativeMessagingManifest(projectLocation, configFolder, session);
             }
             catch (Exception e)
             {

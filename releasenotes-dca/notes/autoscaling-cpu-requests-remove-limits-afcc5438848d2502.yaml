@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add support for ``CPURequestsRemoveLimitsMemoryRequestsAndLimits`` as a container
+    ``controlledValues`` in ``DatadogPodAutoscaler`` and ``DatadogPodAutoscalerClusterProfile``.
+    When set, CPU requests are controlled and any existing CPU limits are removed,
+    allowing containers to burst freely. Memory requests and limits are controlled as usual.

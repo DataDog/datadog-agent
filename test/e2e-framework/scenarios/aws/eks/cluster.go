@@ -122,6 +122,9 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 					},
 				},
 			},
+			UpgradePolicy: awsEks.ClusterUpgradePolicyArgs{
+				SupportType: pulumi.String("STANDARD"),
+			},
 		}
 
 		// Fargate Configuration (enabled by default)

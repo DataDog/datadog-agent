@@ -6,7 +6,7 @@
 // Package inventorychecks implements a component to generate the 'check_metadata' metadata payload for inventory.
 package inventorychecks
 
-// team: agent-configuration
+// team: fleet-automation
 
 // Component is the component type.
 //

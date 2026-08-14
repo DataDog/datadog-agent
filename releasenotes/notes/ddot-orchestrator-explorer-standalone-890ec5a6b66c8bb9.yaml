@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    DDOT (Datadog Distribution of OpenTelemetry Collector): the embedded
+    ``datadog`` exporter now honors the ``orchestrator_explorer`` setting when
+    the OpenTelemetry Agent runs in standalone mode (``DD_OTEL_STANDALONE=true``).
+    When enabled, Kubernetes resource manifests collected by a ``k8sobjects``
+    receiver in the exporter's logs pipeline are forwarded to the Orchestrator
+    Explorer (Kubernetes Resources) intake. In connected mode this setting is
+    ignored, as the Datadog Cluster Agent already collects and ships
+    orchestrator data.

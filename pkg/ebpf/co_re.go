@@ -17,6 +17,7 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
@@ -56,6 +57,7 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 			Programs: bpflib.ProgramOptions{
 				KernelTypes: ret.vmlinux,
 			},
+			Cache: ddbtf.Cache(),
 		},
 	}
 

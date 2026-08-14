@@ -35,6 +35,15 @@ int hook_do_rmdir(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_rmdir")
+int hook_filename_rmdir(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
+    if (!syscall) {
+        return trace__sys_rmdir(ctx, ASYNC_SYSCALL, NULL);
+    }
+    return 0;
+}
+
 // security_inode_rmdir is shared between rmdir and unlink syscalls
 HOOK_ENTRY("security_inode_rmdir")
 int hook_security_inode_rmdir(ctx_t *ctx) {
@@ -171,6 +180,12 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
 
 HOOK_EXIT("do_rmdir")
 int rethook_do_rmdir(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_rmdir_ret(ctx, retval);
+}
+
+HOOK_EXIT("filename_rmdir")
+int rethook_filename_rmdir(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_rmdir_ret(ctx, retval);
 }

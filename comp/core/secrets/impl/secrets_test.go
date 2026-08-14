@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -23,6 +25,8 @@ import (
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 var (
@@ -293,6 +297,25 @@ func TestConfigurePrecedence(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestConfigureEmbeddedConnectorPathClusterAgent verifies that when a native secret
+// backend is configured, the cluster-agent flavor resolves secret-generic-connector
+// under GetInstallPath()/bin rather than GetEmbeddedBinPath(), since the cluster-agent
+// image has no "embedded/" tree.
+func TestConfigureEmbeddedConnectorPathClusterAgent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("cluster-agent does not ship on windows")
+	}
+
+	previousFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(previousFlavor) })
+
+	flavor.SetFlavor(flavor.ClusterAgent)
+	r := newResolver(t, secrets.ConfigParams{Type: "file.yaml"})
+
+	want := filepath.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector")
+	assert.Equal(t, want, r.backendCommand)
 }
 
 func TestResolveNoCommand(t *testing.T) {

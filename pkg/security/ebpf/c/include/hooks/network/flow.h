@@ -2,6 +2,7 @@
 #define _HOOKS_NETWORK_FLOW_H_
 #include "constants/offsets/network.h"
 #include "constants/offsets/netns.h"
+#include "helpers/network/parser.h"
 #include "helpers/network/pid_resolver.h"
 #include "helpers/network/utils.h"
 #include "helpers/network/flow.h"
@@ -160,7 +161,7 @@ __attribute__((always_inline)) int trace_nat_manip_pkt(struct nf_conn *ct) {
     u32 netns = get_netns_from_nf_conn(ct);
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
-    bpf_probe_read(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+    bpf_probe_read(&tuplehash, sizeof(tuplehash), (void *)ct + get_nf_conn_tuplehash_offset());
 
     struct nf_conntrack_tuple *orig_tuple = &tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple *reply_tuple = &tuplehash[IP_CT_DIR_REPLY].tuple;
@@ -221,7 +222,7 @@ int hook_nf_ct_delete(ctx_t *ctx) {
     u32 netns = get_netns_from_nf_conn(ct);
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
-    bpf_probe_read(&tuplehash, sizeof(tuplehash), &ct->tuplehash);
+    bpf_probe_read(&tuplehash, sizeof(tuplehash), (void *)ct + get_nf_conn_tuplehash_offset());
     struct nf_conntrack_tuple *orig_tuple = &tuplehash[IP_CT_DIR_ORIGINAL].tuple;
     struct nf_conntrack_tuple *reply_tuple = &tuplehash[IP_CT_DIR_REPLY].tuple;
 
@@ -628,6 +629,103 @@ HOOK_EXIT("inet6_bind")
 int rethook_inet6_bind(ctx_t *ctx) {
     int ret = CTX_PARMRET(ctx);
     return handle_inet_bind_ret(ret);
+}
+
+__attribute__((always_inline)) int register_connected_flow(struct sock *sk, u64 pid_tgid) {
+    struct pid_route_t route = {};
+
+    route.netns = get_netns_from_sock(sk);
+    route.l4_protocol = get_protocol_from_sock(sk);
+    route.port = get_skc_num_from_sock_common((void *)sk);
+    if (route.port == 0) {
+        return 0;
+    }
+
+    u16 family = get_family_from_sock_common((void *)sk);
+    if (family == AF_INET) {
+        bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
+    } else if (family == AF_INET6) {
+        bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
+    } else {
+        return 0;
+    }
+
+    struct sock_meta_t *meta = get_sock_meta(sk);
+    if (meta != NULL) {
+        struct pid_route_t previous = meta->existing_route;
+        if (previous.port != 0 || previous.addr[0] != 0 || previous.addr[1] != 0) {
+            if (can_delete_route(&previous, sk)) {
+
+                #if defined(DEBUG_NETWORK_FLOW)
+                bpf_printk("|    flushing route registered before the source address was known:");
+                print_route(&previous);
+                #endif
+
+                bpf_map_delete_elem(&flow_pid, &previous);
+            }
+        }
+    }
+
+    if (!can_delete_route(&route, sk)) {
+        // we don't want to override the existing entry
+        return 0;
+    }
+
+    struct pid_route_entry_t value = {};
+    value.pid = pid_tgid >> 32;
+    value.type = FLOW_CLASSIFICATION_ENTRY;
+    value.owner_sk = sk;
+    bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
+
+    if (meta != NULL) {
+        meta->existing_route = route;
+    }
+
+    if (route.netns != 0) {
+        u32 tid = (u32)pid_tgid;
+        bpf_map_update_elem(&netns_cache, &tid, &route.netns, BPF_ANY);
+    }
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("register_connected_flow: @:0x%p", sk);
+    print_route(&route);
+    print_route_entry(&value);
+    #endif
+
+    return 0;
+}
+
+// Before Linux 7.0 an IPv6 socket was classified on its first transmit by security_sk_classify_flow.
+// Starting with Linux 7.0, security_sk_classify_flow is only called by inet6_csk_xmit on a route miss,
+// so IPv6 sockets need to call this helper to register the corresponding flow.
+__attribute__((always_inline)) int register_native_ipv6_flow(struct sock *sk, u64 pid_tgid) {
+    // IPv4 sockets still reach security_sk_classify_flow with a usable flow
+    if (get_family_from_sock_common((void *)sk) != AF_INET6) {
+        return 0;
+    }
+
+    u64 addr[2] = {};
+    bpf_probe_read(&addr, sizeof(addr), &sk->__sk_common.skc_v6_rcv_saddr);
+    // IPv6 sockets using IPv4 mapped addresses still reach security_sk_classify_flow with a usable flow
+    if (is_ipv4_mapped_ipv6_addr(addr)) {
+        return 0;
+    }
+
+    return register_connected_flow(sk, pid_tgid);
+}
+
+// the BIND_ENTRY of a wildcard listener doesn't cover the local address the connection landed on
+__attribute__((always_inline)) int register_accepted_flow(struct sock *sk) {
+    return register_native_ipv6_flow(sk, bpf_get_current_pid_tgid());
+}
+
+// tcp_v6_connect classifies the flow before inet_hash_connect assigns the ephemeral port
+__attribute__((always_inline)) int register_connecting_flow(struct sock *sk, u64 pid_tgid) {
+    if (sk == NULL) {
+        return 0;
+    }
+
+    return register_native_ipv6_flow(sk, pid_tgid);
 }
 
 #endif

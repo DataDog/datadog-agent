@@ -343,7 +343,7 @@ func getInt(key string) int {
 
 func getDuration(key string) time.Duration {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetDuration(deprecatedKey)
 	}

@@ -3,18 +3,6 @@
 # These lists baseline existing violations at the time the linter was introduced.
 # Remove entries as violations are fixed; do NOT add new entries without a good reason.
 
-# Settings without a default value.
-# Each entry MUST also carry the 'TODO:fix-no-default' tag in the schema.
-no_default:
-  - logs_config.api_key
-  - multi_region_failover.remote_configuration.refresh_interval
-
-# Settings without a type field.
-# Each entry MUST also carry the 'TODO:fix-missing-type' tag in the schema.
-no_type:
-  - logs_config.api_key
-  - multi_region_failover.remote_configuration.refresh_interval
-
 # Array settings without an 'items' field.
 array_no_items:
   - apm_config.instrumentation.targets

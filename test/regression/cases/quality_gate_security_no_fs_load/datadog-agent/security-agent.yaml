@@ -1,0 +1,4 @@
+# Per https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/
+# Only enable workload protection
+runtime_security_config:
+  enabled: true

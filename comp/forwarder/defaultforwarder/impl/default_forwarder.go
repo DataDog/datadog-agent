@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -192,9 +193,9 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		log.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
-			pkgconfigsetup.DefaultAPIKeyValidationInterval,
+			constants.DefaultAPIKeyValidationInterval,
 		)
-		validationInterval = pkgconfigsetup.DefaultAPIKeyValidationInterval
+		validationInterval = constants.DefaultAPIKeyValidationInterval
 	}
 
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
@@ -307,9 +308,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentName != "" {
 		storagePath := config.GetString("forwarder_storage_path")
-		if storagePath == "" {
-			storagePath = path.Join(config.GetString("run_path"), "transactions_to_retry")
-		}
 		outdatedFileInDays := config.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
@@ -333,8 +331,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	}
 
 	flushToDiskMemRatio := config.GetFloat64("forwarder_flush_to_disk_mem_ratio")
-	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
-	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
@@ -359,7 +355,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				flushToDiskMemRatio,
 				domainFolderPath,
 				diskUsageLimit,
-				transactionContainerSort,
 				resolver,
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
@@ -377,7 +372,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				transactionContainer,
 				numberOfWorkers,
 				options.ConnectionResetInterval,
-				domainForwarderSort,
 				pointCountTelemetry,
 				options.transport)
 			f.domainForwarders[domain] = fwd
@@ -481,6 +475,7 @@ func (f *DefaultForwarder) Stop() {
 		select {
 		case <-donePurging:
 		case <-time.After(purgeTimeout):
+			// On timeout, transactions still queued for purge are dropped.
 			f.log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
 		}
 	} else {

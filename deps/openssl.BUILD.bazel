@@ -10,7 +10,20 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            ".ctags.d/**",
+            "doc/**",
+            "test/recipes/**",
+            "VMS/**",
+            "*.md",
+            "funding.json",
+        ],
+    ) + glob([
+        "doc/**/build.info",
+    ]),
 )
 
 config_setting(
@@ -312,8 +325,8 @@ dd_cc_packaged(
         # Non-FIPS Windows has out_data_dirs = [] so the engines/modules output groups
         # do not exist there; non-FIPS non-Windows builds don't need them either.
         "@@//packages/agent:fips_flavor": {
-            ":_engines": "lib/engines-3",
-            ":_ossl_modules": "lib/ossl-modules",
+            ":_engines": "lib",
+            ":_ossl_modules": "lib",
             "@openssl_fips//:fips_provider": "lib/ossl-modules",
         },
         "//conditions:default": {},

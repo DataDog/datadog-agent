@@ -178,13 +178,17 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}
 
-	// Return event to update the ContainerImageMetadata entity
+	// Emit the enriched SBOM under the resolved image's own EntityID, so it lands
+	// on the same ContainerImageMetadata the runtime collector populates and
+	// workloadmeta merges the two sources. existingImage is looked up by
+	// container.Image.ID, or by matching RepoDigest when the kubelet reports that
+	// ID as a manifest/repo digest, so its ID can differ from imageID.
 	return workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.ContainerImageMetadata{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainerImageMetadata,
-				ID:   imageID,
+				ID:   existingImage.EntityID.ID,
 			},
 			SBOM: finalCompressedSBOM,
 		},
@@ -304,32 +308,29 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			updateProperty(RunningAsRootProperty)
 		}
 
-		// If LastAccessProperty is not present in the merged component (neither from
-		// existingBom nor from newBom), set it to zero so downstream consumers can
-		// distinguish "never seen running" from "unknown".
-		hasLastAccess := false
-		for _, prop := range mergedComp.Properties {
-			if prop != nil && prop.Name == LastAccessProperty {
-				hasLastAccess = true
-				break
-			}
-		}
-		if !hasLastAccess {
-			if mergedComp.Properties == nil {
-				mergedComp.Properties = []*cyclonedx_v1_4.Property{}
-			}
-			zeroValue := "0"
-			mergedComp.Properties = append(mergedComp.Properties, &cyclonedx_v1_4.Property{
-				Name:  LastAccessProperty,
-				Value: &zeroValue,
-			})
-			log.Tracef("Set %s to zero for component %s@%s", LastAccessProperty, existingComp.Name, existingComp.Version)
-		}
+		// Default any runtime property absent from the merged component so consumers
+		// can distinguish "not in use" from "unknown": a package never seen running
+		// is LastSeenRunning "0", not setuid, and not running as root.
+		ensureProperty(mergedComp, LastAccessProperty, "0")
+		ensureProperty(mergedComp, HasSetSuidBitProperty, "false")
+		ensureProperty(mergedComp, RunningAsRootProperty, "false")
 
 		mergedBom.Components = append(mergedBom.Components, mergedComp)
 	}
 
 	return mergedBom
+}
+
+// ensureProperty appends a property with the given name and value to the
+// component unless it already carries one with that name.
+func ensureProperty(comp *cyclonedx_v1_4.Component, name, value string) {
+	for _, p := range comp.Properties {
+		if p != nil && p.Name == name {
+			return
+		}
+	}
+	v := value
+	comp.Properties = append(comp.Properties, &cyclonedx_v1_4.Property{Name: name, Value: &v})
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any

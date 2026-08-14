@@ -22,8 +22,19 @@ func GetInstrumentationStatus() (status APMInstrumentationStatus, err error) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
 	}
+	// The launcher is referenced either by its persistent OCI path or, on
+	// systemd-managed hosts, through the reboot-safe /run/datadog-apm-inject
+	// tmpfs symlink.
 	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
 		status.HostInstrumented = true
+	} else if bytes.Contains(ldPreloadContent, []byte("/run/datadog-apm-inject")) {
+		// In the broken-injector reboot path, /run is wiped but ld.so.preload
+		// retains the entry; ld.so silently skips missing paths, so no tracer
+		// is injected. Only report as instrumented when the symlink and its
+		// target both exist.
+		if _, statErr := os.Stat("/run/datadog-apm-inject"); statErr == nil {
+			status.HostInstrumented = true
+		}
 	}
 
 	// Docker is installed if the docker binary is in the PATH

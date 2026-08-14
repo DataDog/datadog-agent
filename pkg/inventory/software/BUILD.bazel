@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "software",
@@ -42,8 +43,7 @@ go_library(
     }),
 )
 
-# TODO{agent-build}: re-enable once the DLL loading path under Bazel runfiles is fixed properly
-go_test(
+dd_agent_go_test(
     name = "software_test",
     srcs = [
         "collector_darwin_pkg_helper_test.go",
@@ -53,6 +53,7 @@ go_test(
         "collector_windows_test.go",
         "config_test.go",
         "integration_windows_test.go",
+        "main_windows_test.go",
         "wire_test.go",
     ],
     data = select({
@@ -65,11 +66,12 @@ go_test(
     env = select({
         "@rules_go//go/platform:windows": {
             "INTEROP_DLL_PATH": "$(rlocationpath //tools/windows/DatadogInterop:libdatadog_interop)",
+            # Override .bazelrc's RunAsInvoker so admin users get an elevated token
+            # (needed for Get-AppxPackage -AllUsers / FindPackagesWithPackageTypes).
+            "__COMPAT_LAYER": "RunAsHighest",
         },
         "//conditions:default": {},
     }),
-    gotags = ["test"],
-    tags = ["manual"],  # keep
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({

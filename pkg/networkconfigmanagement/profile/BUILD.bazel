@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "profile",
@@ -47,20 +48,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/networkconfigmanagement/types",
         "//pkg/util/log",
         "//pkg/util/scrubber",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "profile_test",
     srcs = [
         "default_profiles_test.go",
         "profile_processing_test.go",
     ],
-    data = ["//pkg/networkconfigmanagement/test/conf.d/network_config_management.d/default_profiles"],
     embed = [":profile"],
-    gotags = ["test"],
     deps = [
         "//pkg/util/log",
         "@com_github_google_go_cmp//cmp",

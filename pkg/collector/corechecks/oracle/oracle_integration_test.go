@@ -116,9 +116,9 @@ END;`
 	}
 }
 
-func connectToDB(driver string) (*sqlx.DB, error) {
+func connectToDB(t *testing.T, driver string) (*sqlx.DB, error) {
 	var connStr string
-	connectionConfig := getConnectData(nil, useDefaultUser)
+	connectionConfig := getConnectData(t, useDefaultUser)
 	if driver == common.Godror {
 		godrorConnectionConfig := connectionConfig
 		godrorConnectionConfig.OracleClient = true
@@ -282,7 +282,7 @@ func TestBindingSimple(t *testing.T) {
 	result := 3
 
 	driver := "oracle"
-	db, err := connectToDB(driver)
+	db, err := connectToDB(t, driver)
 	require.NoError(t, err)
 	stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
 	if err != nil {
@@ -305,7 +305,7 @@ func TestSQLXIn(t *testing.T) {
 	slice := []any{1}
 	result := 7
 	driver := common.GoOra
-	db, err := connectToDB(driver)
+	db, err := connectToDB(t, driver)
 	require.NoError(t, err, "failed to connect to DB")
 
 	var rows *sql.Rows

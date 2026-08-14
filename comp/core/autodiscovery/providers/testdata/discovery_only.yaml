@@ -1,0 +1,4 @@
+ad_identifiers:
+  - discovery_only_id
+
+discovery: {}

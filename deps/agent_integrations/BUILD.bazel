@@ -1,0 +1,129 @@
+load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/agent:defs.bzl", "CONF_DIR_SELECTOR")
+load(":defs.bzl", "install_wheels")
+load(":source_packages_test.bzl", "source_packages_test_suite")
+
+source_packages_test_suite(name = "source_packages_tests")
+
+py_binary(
+    name = "install_wheels_tool",
+    srcs = ["install_wheels.py"],
+    main = "install_wheels.py",
+    deps = [requirement("installer")],
+)
+
+py_binary(
+    name = "build_wheel_tool",
+    srcs = ["build_wheel.py"],
+    main = "build_wheel.py",
+    deps = [
+        requirement("hatchling"),
+    ],
+)
+
+embedded_dir = select({
+    "@platforms//os:windows": "embedded3",
+    "//conditions:default": "embedded",
+})
+
+entrypoints_dirname = select({
+    "@platforms//os:windows": "Scripts",
+    "//conditions:default": "bin",
+})
+
+install_wheels(
+    name = "integrations",
+    srcs = [
+        "@integration_source_packages//:all_wheels",
+        "@pip//file",
+    ] + select(
+        {
+            "//:linux_x86_64": ["@integration_dependency_wheels_linux_x86_64//:dependency_wheels"],
+            "//:linux_arm64": ["@integration_dependency_wheels_linux_aarch64//:dependency_wheels"],
+            "//:macos_x86_64": ["@integration_dependency_wheels_macos_x86_64//:dependency_wheels"],
+            "//:macos_arm64": ["@integration_dependency_wheels_macos_aarch64//:dependency_wheels"],
+            "//:windows_x86_64": ["@integration_dependency_wheels_windows_x86_64//:dependency_wheels"],
+        },
+        no_match_error = "No integration dependency lockfile repo is configured for this target platform.",
+    ),
+    entrypoints_dirname = entrypoints_dirname,
+    script_interpreter_relative_path = embedded_dir + select({
+        "@platforms//os:windows": "/python.exe",
+        "//conditions:default": "/bin/python3",
+    }),
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "integrations_runtime",
+    srcs = [":integrations"],
+    output_group = "runtime",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "integrations_bin",
+    srcs = [":integrations"],
+    output_group = "bin",
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "integrations_runtime_files",
+    srcs = [":integrations_runtime"],
+    attributes = pkg_attributes(mode = "0644"),
+    prefix = embedded_dir,
+    renames = {
+        ":integrations_runtime": REMOVE_BASE_DIRECTORY,
+    },
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "integrations_bin_files",
+    srcs = [":integrations_bin"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = embedded_dir + "/" + entrypoints_dirname,
+    renames = {
+        ":integrations_bin": REMOVE_BASE_DIRECTORY,
+    },
+    tags = ["manual"],
+)
+
+pkg_filegroup(
+    name = "integration_configuration_files",
+    srcs = ["@integration_source_packages//:integrations_configuration_files"],
+    prefix = select(CONF_DIR_SELECTOR),
+    tags = ["manual"],
+)
+
+# Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
+# Used by the `datadog-agent integration` command to prevent downgrading a check to a version
+# older than the one shipped in the agent
+pkg_files(
+    name = "requirements_agent_release_file",
+    srcs = ["@integration_source_packages//:requirements-agent-release.txt"],
+    prefix = "",
+    tags = ["manual"],
+)
+
+package_licenses(
+    name = "license_files",
+    src = "@integration_source_packages//:all_wheels",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":integration_configuration_files",
+        ":integrations_bin_files",
+        ":integrations_runtime_files",
+        ":license_files",
+        ":requirements_agent_release_file",
+    ],
+    tags = ["manual"],
+)

@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dda",
+    srcs = ["datadogagent.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dda",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/agentwithoperatorparams",
+        "//test/e2e-framework/components/kubernetes",
+        "@cat_dario_mergo//:mergo",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/yaml",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

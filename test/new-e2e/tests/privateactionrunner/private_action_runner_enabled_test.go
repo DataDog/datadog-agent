@@ -26,13 +26,7 @@ const (
 )
 
 func generateTestPrivateActionRunnerConfig(t *testing.T) string {
-	t.Helper()
-	urn, privateKeyB64 := generateTestRunnerIdentity(t)
-	return fmt.Sprintf(`private_action_runner:
-  enabled: true
-  private_key: %s
-  urn: %s
-`, privateKeyB64, urn)
+	return GenerateTestPrivateActionRunnerConfig(t)
 }
 
 type linuxPrivateActionRunnerEnabledSuite struct {
@@ -77,14 +71,12 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 
 	// Verify the log file exists
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, logExistsErr := host.Execute("sudo test -f " + privateActionRunnerLogFile)
-		assert.NoError(c, logExistsErr)
+		host.MustExecuteOn(c, "sudo test -f "+privateActionRunnerLogFile)
 	}, 2*time.Minute, 5*time.Second, "private action runner log file should exist")
 
 	// Verify log contains startup message
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		_, logContainsErr := host.Execute(fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
-		assert.NoError(c, logContainsErr)
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 }
 

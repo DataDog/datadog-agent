@@ -26,6 +26,7 @@ import (
 const (
 	ncmCheckDurationMetric             = "datadog.ncm.check_duration"
 	ncmCheckIntervalMetric             = "datadog.ncm.check_interval"
+	ncmCheckFailureMetric              = "datadog.ncm.check_failure"
 	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
 	ncmConfigSizeMetric                = "ncm.config_size"
 
@@ -62,8 +63,13 @@ func (s *NCMSender) getDeviceTags() []string {
 }
 
 // SendNCMCheckMetrics sends metrics about the check itself to Datadog
-func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.Time) {
+func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.Time, success bool) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
+	if success {
+		tags = append(tags, "status:ok")
+	} else {
+		tags = append(tags, "status:error")
+	}
 	duration := s.clock.Since(startTime).Seconds()
 	s.Sender.Gauge(ncmCheckDurationMetric, duration, s.agentHostname, tags)
 
@@ -71,6 +77,21 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 		interval := startTime.Sub(lastCheckTime).Seconds()
 		s.Sender.Gauge(ncmCheckIntervalMetric, interval, s.agentHostname, tags)
 	}
+}
+
+// SendNCMCheckFailure sends a single count metric indicating that the NCM
+// check failed, tagged with each of the distinct failure reasons.
+func (s *NCMSender) SendNCMCheckFailure(errTypes ...types.ErrorType) {
+	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
+	seen := make(map[types.ErrorType]struct{}, len(errTypes))
+	for _, errType := range errTypes {
+		if _, ok := seen[errType]; ok {
+			continue
+		}
+		seen[errType] = struct{}{}
+		tags = append(tags, "error:"+string(errType))
+	}
+	s.Sender.Count(ncmCheckFailureMetric, 1, s.agentHostname, tags)
 }
 
 func (s *NCMSender) sendNCMPayloadMetrics(payload ncmreport.NCMPayload) {

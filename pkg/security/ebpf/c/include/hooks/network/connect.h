@@ -4,6 +4,7 @@
 #include "constants/offsets/netns.h"
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
+#include "hooks/network/flow.h"
 
 int __attribute__((always_inline)) sys_connect(void *ctx, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_CONNECT);
@@ -40,6 +41,20 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
+    register_connecting_flow(syscall->connect.sk, syscall->connect.pid_tgid ? syscall->connect.pid_tgid : bpf_get_current_pid_tgid());
+
+    // these probes are also loaded with the network probes, only send the event when a rule asks for it
+    if (!is_event_enabled(EVENT_CONNECT)) {
+        return 0;
+    }
+
+    // emit a sample refresh if the dedup map flagged one
+    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
+        struct sample_refresh_event_t ev = {};
+        ev.cookie = syscall->sample_cookie;
+        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
+    }
+
     if (syscall->state == DISCARDED) {
         return 0;
     }
@@ -53,6 +68,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .port = syscall->connect.port,
         .protocol = syscall->connect.protocol,
         .event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
+        .sample_cookie = syscall->sample_cookie,
     };
 
     struct proc_cache_t *entry;
@@ -107,6 +123,7 @@ int hook_security_socket_connect(ctx_t *ctx) {
     
     struct sock *sk = get_sock_from_socket(sock);
     syscall->connect.protocol = get_protocol_from_sock(sk);
+    syscall->connect.sk = sk;
     return 0;
 }
 

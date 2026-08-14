@@ -162,6 +162,11 @@ func FetchAuthToken(config configModel.Reader) (string, error) {
 	return filesystem.TryFetchArtifact(GetAuthTokenFilepath(config), &authtokenFactory{}) // TODO IPC: replace this call by FetchArtifact to retry until the artifact is successfully retrieved or the context is done
 }
 
+// LoadAuthTokenFromPath reads the auth token at path, no config component required.
+func LoadAuthTokenFromPath(path string) (string, error) {
+	return filesystem.TryFetchArtifact(path, &authtokenFactory{})
+}
+
 // FetchOrCreateAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 // It takes a context to allow for cancellation or timeout of the operation

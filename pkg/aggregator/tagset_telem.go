@@ -72,9 +72,9 @@ func (t *tagsetTelemetry) updateTelemetry(tagsetSize uint64, atomicCounts []*ato
 	}
 }
 
-// updateHugeSketches huge and almost-huge series in the given value
-func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeries) {
-	tagsetSize := uint64(sketches.Tags.Len())
+// updateHugeSketchesTelemetry counts huge and almost-huge sketch tagsets.
+func (t *tagsetTelemetry) updateHugeSketchesTelemetry(metadata *metrics.DistributionMetadata) {
+	tagsetSize := uint64(metadata.Tags.Len())
 	t.updateTelemetry(tagsetSize, t.hugeSketchesCount, t.tlmHugeSketches)
 }
 

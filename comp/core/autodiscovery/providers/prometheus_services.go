@@ -20,6 +20,7 @@ import (
 	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -67,7 +68,7 @@ type PrometheusServicesConfigProvider struct {
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*constants.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -290,7 +291,9 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj
 	defer p.Unlock()
 	if found := p.monitoredEndpoints[endpointsID]; found {
 		// Invalidate only when subsets change
-		p.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
+		if !equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets) {
+			p.upToDate = false
+		}
 	}
 }
 

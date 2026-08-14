@@ -50,6 +50,7 @@ kmt_setup_env_secagent_x64:
     TEST_COMPONENT: security-agent
 
 .upload_secagent_tests:
+  extends: .bazel:defs:cache:progressive
   stage: kernel_matrix_testing_prepare
   allow_failure: true
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -59,6 +60,7 @@ kmt_setup_env_secagent_x64:
     - !reference [.write_ssh_key_file]
   script:
     # copy agent tests
+    - bazel --batch run //internal/tools:install_gotestsum_linux_$ARCH -- --destdir=$CI_PROJECT_DIR/kmt-deps/ci/$ARCH/opt/testing-tools/go/bin
     - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
     - tar czvf $TEST_ARCHIVE_NAME opt
     - popd
@@ -145,10 +147,12 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -188,10 +192,12 @@ kmt_run_secagent_tests_x64_peds:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -292,10 +298,12 @@ kmt_run_secagent_tests_x64_docker:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -329,9 +337,11 @@ kmt_run_secagent_tests_arm64:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -365,9 +375,11 @@ kmt_run_secagent_tests_arm64_peds:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -443,9 +455,11 @@ kmt_run_secagent_tests_arm64_docker:
           - "ubuntu_22.04"
           - "ubuntu_24.04"
           - "ubuntu_25.10"
+          - "ubuntu_26.04"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -475,13 +489,18 @@ kmt_run_secagent_tests_arm64_docker:
   script:
     - echo "nothing to do here"
 
-kmt_secagent_tests_join_arm64:
+kmt_secagent_tests_join1_arm64:
   extends:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_arm64
     - kmt_run_secagent_tests_arm64_peds
     - kmt_run_secagent_tests_arm64_ad
+
+kmt_secagent_tests_join2_arm64:
+  extends:
+    - .kmt_secagent_tests_join
+  needs:
     - kmt_run_secagent_tests_arm64_ebpfless
     - kmt_run_secagent_tests_arm64_docker
 
@@ -491,7 +510,8 @@ kmt_secagent_cleanup_arm64:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_arm64
-    - kmt_secagent_tests_join_arm64
+    - kmt_secagent_tests_join1_arm64
+    - kmt_secagent_tests_join2_arm64
     - upload_secagent_tests_arm64
   variables:
     ARCH: arm64

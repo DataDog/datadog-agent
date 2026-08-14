@@ -1,0 +1,17 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed several issues in the SBOM runtime usage enrichment ("package in use").
+    The ``HasSetSuidBit`` and ``RunningAsRoot`` properties are now reported as
+    ``false`` for packages that are not in use (previously absent), so consumers
+    can distinguish "not in use" from "unknown". A package's setuid observation is
+    no longer cleared by a later access to one of its non-setuid files. An idle
+    workload whose container image scan is slow is now enriched once the scan
+    completes, instead of being skipped after a fixed number of retries.

@@ -30,6 +30,12 @@ const (
 	// InjectionMode specifies the injection mode (e.g. init_container, csi).
 	// Example value: csi
 	InjectionMode = "admission.datadoghq.com/apm-inject.injection-mode"
+	// TracerConfigs sets tracer configuration options (injected as environment variables) during
+	// Local SDK Injection. It is the annotation-based equivalent of the targets[].ddTraceConfigs
+	// config option. The value is a JSON array of objects matching the ddTraceConfigs schema, and
+	// every entry's name must start with the DD_ prefix.
+	// Example value: [{"name":"DD_PROFILING_ENABLED","value":"true"}]
+	TracerConfigs = "admission.datadoghq.com/apm-inject.tracer-configs"
 	// LibraryVersion sets the library to use during Local SDK Injection.
 	// Example annotation: admission.datadoghq.com/python-lib.version
 	// Example value: v3
@@ -59,6 +65,9 @@ const (
 	// AppliedTarget is the JSON of the target that was applied to the pod.
 	// Example value: {"name":"python","podSelector":{"matchLabels":{"language":"python"}},"ddTraceVersions":{"python ":"3"}}
 	AppliedTarget = "internal.apm.datadoghq.com/applied-target"
+	// AppliedPolicy is the compact JSON of the remote-config policy that was applied to the pod.
+	// Example value: {"name":"python","version":3,"ddTraceVersions":{"python":"3"}}
+	AppliedPolicy = "internal.apm.datadoghq.com/applied-policy"
 	// InjectionError is set by the webhook when there was an error during mutation.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
 	InjectionError = "internal.apm.datadoghq.com/injection-error"

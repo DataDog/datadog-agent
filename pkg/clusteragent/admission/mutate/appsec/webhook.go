@@ -17,6 +17,7 @@ import (
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,7 +39,7 @@ type Webhook struct {
 	endpoint      string
 	resources     []common.WebhookResourceRule
 	operations    []admissionregistrationv1.OperationType
-	patterns      []appsecconfig.SidecarInjectionPattern
+	patterns      map[appsecconfig.ProxyType]appsecconfig.SidecarInjectionPattern
 	configMutator mutatecommon.Mutator
 }
 
@@ -117,7 +118,14 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 
 func (w *Webhook) patternsExpression(useOldObject bool) string {
 	var finalExpression strings.Builder
-	for i, pattern := range w.patterns {
+	for _, proxyType := range appsecconfig.AllProxyTypes {
+		pattern, ok := w.patterns[proxyType]
+		if !ok {
+			continue
+		}
+		if finalExpression.Len() > 0 {
+			finalExpression.WriteString("||")
+		}
 		expression := pattern.MatchCondition().Expression
 		if useOldObject {
 			expression = strings.ReplaceAll(expression, "object.", "oldObject.")
@@ -125,9 +133,6 @@ func (w *Webhook) patternsExpression(useOldObject bool) string {
 		finalExpression.WriteRune('(')
 		finalExpression.WriteString(expression)
 		finalExpression.WriteRune(')')
-		if i != len(w.patterns)-1 {
-			finalExpression.WriteString("||")
-		}
 	}
 
 	return finalExpression.String()
@@ -149,12 +154,19 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 				request.Namespace,
 				w.Name(),
 				func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-					mutated, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
-					if err == nil && mutated {
+					matched, proxyType, outcome, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
+					if !matched {
+						return false, nil
+					}
+					canonical, reason, _ := appsecconfig.NormalizeOutcome(outcome, err)
+					sidecarMutationsCounter.Inc(string(proxyType), outcomeString(canonical), reason)
+					log.Debugf("appsec sidecar mutate_pod for pod %s: outcome=%s reason=%s", mutatecommon.PodString(pod), outcomeString(canonical), reason)
+					mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
+					if admErr == nil && mutated {
 						// Add APM config, label and tags so the pod is treated as a first-class citizen APM service.
 						return w.configMutator.MutatePod(pod, ns, cl)
 					}
-					return mutated, err
+					return mutated, admErr
 				},
 				request.DynamicClient,
 			))
@@ -163,8 +175,11 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			if err := json.Unmarshal(request.OldObject, &pod); err != nil {
 				return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
 			}
-			if _, err := w.callPattern(&pod, request.Namespace, request.DynamicClient, appsecconfig.SidecarInjectionPattern.PodDeleted); err != nil {
-				return common.MutationResponse(nil, fmt.Errorf("failed to delete resources associated with sidecar: %v", err))
+			matched, _, outcome, err := w.callPattern(&pod, request.Namespace, request.DynamicClient, appsecconfig.SidecarInjectionPattern.PodDeleted)
+			if matched {
+				if _, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err); admErr != nil {
+					return common.MutationResponse(nil, fmt.Errorf("failed to delete resources associated with sidecar: %v", admErr))
+				}
 			}
 			const emptyPatch = "[]"
 			return common.MutationResponse([]byte(emptyPatch), nil)
@@ -175,17 +190,16 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	}
 }
 
-func (w *Webhook) callPattern(pod *corev1.Pod, ns string, dl dynamic.Interface, podCallback func(appsecconfig.SidecarInjectionPattern, *corev1.Pod, string, dynamic.Interface) (bool, error)) (bool, error) {
-	for _, pattern := range w.patterns {
-		if !pattern.IsNamespaceEligible(ns) {
+func (w *Webhook) callPattern(pod *corev1.Pod, ns string, dl dynamic.Interface,
+	podCallback func(appsecconfig.SidecarInjectionPattern, *corev1.Pod, string, dynamic.Interface) (appsecconfig.MutationOutcome, error),
+) (matched bool, proxyType appsecconfig.ProxyType, outcome appsecconfig.MutationOutcome, err error) {
+	for proxyType, pattern := range w.patterns {
+		if !pattern.IsPodEligible(pod, ns) {
 			continue
 		}
 
-		if !pattern.ShouldMutatePod(pod) {
-			continue
-		}
-
-		return podCallback(pattern, pod, ns, dl)
+		outcome, err = podCallback(pattern, pod, ns, dl)
+		return true, proxyType, outcome, err
 	}
-	return false, nil
+	return false, "", 0, nil
 }

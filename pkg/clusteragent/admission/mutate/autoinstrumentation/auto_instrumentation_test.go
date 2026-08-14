@@ -38,7 +38,7 @@ var defaultContainerNames = []string{defaultTestContainer}
 var defaultLibraries = map[string]string{
 	"dotnet": "v3",
 	"java":   "v1",
-	"js":     "v5",
+	"js":     "v6",
 	"php":    "v1",
 	"python": "v4",
 	"ruby":   "v2",
@@ -95,7 +95,7 @@ func TestAutoinstrumentation(t *testing.T) {
 		shouldMutate bool
 		expected     *expected
 	}{
-		"default configuration should not mutate": {
+		"default on-demand configuration should not mutate without a matching rule": {
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
 				NS:         "application",
@@ -1307,6 +1307,67 @@ func TestAutoinstrumentation(t *testing.T) {
 				injectorVersion: defaultInjectorVersion,
 				libraryVersions: map[string]string{
 					"ruby": "v3",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"local sdk injection with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version":          "v3",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"},{"name":"DD_DATA_JOBS_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"ruby": "v3",
+				},
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
+					"DD_DATA_JOBS_ENABLED": "true",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"inject-all annotation with tracer-configs annotation injects env vars": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version":           "latest",
+					"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"DD_PROFILING_ENABLED","value":"true"}]`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				requiredEnvs: map[string]string{
+					"DD_PROFILING_ENABLED": "true",
 				},
 				containerNames: defaultContainerNames,
 			},
@@ -2641,7 +2702,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
-				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v5, v1
+				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v6, v1
 				containerNames:  defaultContainerNames,
 			},
 		},
@@ -2715,7 +2776,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2783,7 +2844,7 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 		mockMeta.(workloadmetamock.Mock).Set(&ns)
 	}
 
-	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
 	require.NoError(t, err)
 
 	pod := common.FakePodSpec{
@@ -2946,7 +3007,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3145,7 +3206,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

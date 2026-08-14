@@ -143,7 +143,7 @@ func (a *logAgent) setupAgentForRestart() error {
 // Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipeline() {
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars)
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()

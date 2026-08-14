@@ -81,6 +81,7 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 // SelfEnroll performs self-registration using API key + application key.
 func SelfEnroll(
 	ctx context.Context,
+	cfg configModel.Reader,
 	ddSite,
 	runnerNamePrefix,
 	apiKey,
@@ -100,7 +101,7 @@ func SelfEnroll(
 	}
 
 	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -157,15 +158,16 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 	}
 
 	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
-		return SelfEnrollApiKeyOnly(ctx, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
+		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
 	}
 	appKey := cfg.GetString("app_key")
-	return SelfEnroll(ctx, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
+	return SelfEnroll(ctx, cfg, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
 }
 
 // SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).
 func SelfEnrollApiKeyOnly(
 	ctx context.Context,
+	cfg configModel.Reader,
 	ddSite,
 	runnerNamePrefix,
 	apiKey string,
@@ -184,7 +186,7 @@ func SelfEnrollApiKeyOnly(
 	}
 
 	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 

@@ -65,10 +65,12 @@ const (
 //  3. Mounting the .so volume and the agent socket directory into every app container.
 //  4. Setting NCCL env vars (incl. NCCL_DD_SOCKET_PATH from the agent config).
 //
-// Mirrors `mutate/config` (APM/DSD): bind-mounts the socket file itself
-// with HostPathSocket, composing host file = hostSocketDir+"/"+filename
-// and in-workload file = clientSocketDir+"/"+filename. NCCL_DD_SOCKET_PATH
-// is set to the in-workload file.
+// Mounts the agent socket DIRECTORY (HostPathDirectoryOrCreate) and points
+// NCCL_DD_SOCKET_PATH at the socket file inside it. Mounting the directory --
+// not the file via HostPathSocket -- keeps the path valid across agent
+// restarts: the agent re-creates the socket with a new inode on every start
+// (os.Remove + ListenUnix), so a file bind-mount would strand long-lived
+// workload pods on the dead old inode (agent then receives 0 events).
 // initResources is the optional resource requirements applied to the injected
 // init container. nil means no Resources block is set (cluster default applies);
 // operators with a LimitRange or strict QoS requirements override via
@@ -83,22 +85,25 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketDir, clientSocketDir, s
 	}
 	soMount := corev1.VolumeMount{Name: soVolumeName, MountPath: soMountPath, ReadOnly: true}
 
-	// Pod paths are POSIX regardless of where the cluster-agent runs; do
-	// not use path/filepath here (it'd produce backslashes on Windows).
-	hostFile := hostSocketDir + "/" + socketFilename
+	// Pod paths are POSIX regardless of where the cluster-agent runs; do not use
+	// path/filepath here (it'd produce backslashes on Windows).
 	clientFile := clientSocketDir + "/" + socketFilename
-	hostPathType := corev1.HostPathSocket
-	socketVolume := corev1.Volume{
+	// Mount the DIRECTORY, not the socket file: a HostPathSocket (file) bind-mount
+	// pins the inode at pod-creation time, and the agent recreates the socket on
+	// every restart, stranding the pod on a dead inode. Mounting the directory
+	// lets the in-pod NCCL_DD_SOCKET_PATH re-resolve to the live socket each time.
+	hostPathType := corev1.HostPathDirectoryOrCreate
+	volume := corev1.Volume{
 		Name: socketVolumeName,
 		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{Path: hostFile, Type: &hostPathType},
+			HostPath: &corev1.HostPathVolumeSource{Path: hostSocketDir, Type: &hostPathType},
 		},
 	}
-	socketMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: clientFile, ReadOnly: true}
+	volumeMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: clientSocketDir, ReadOnly: true}
 
 	// Inject volumes + mounts into all app containers using shared helpers.
 	soVolAdded, soMountAdded := mutatecommon.InjectVolume(pod, soVolume, soMount)
-	sockVolAdded, sockMountAdded := mutatecommon.InjectVolume(pod, socketVolume, socketMount)
+	sockVolAdded, sockMountAdded := mutatecommon.InjectVolume(pod, volume, volumeMount)
 
 	// Inject NCCL env vars into all app containers.
 	envAdded := mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})

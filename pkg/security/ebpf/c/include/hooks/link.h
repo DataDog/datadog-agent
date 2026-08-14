@@ -39,6 +39,15 @@ int hook_do_linkat(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_linkat")
+int hook_filename_linkat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall) {
+        return trace__sys_link(ctx, ASYNC_SYSCALL, NULL, NULL);
+    }
+    return 0;
+}
+
 HOOK_ENTRY("complete_walk")
 int hook_complete_walk(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -125,8 +134,24 @@ int rethook_filename_create(ctx_t *ctx) {
     return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK_FILENAME_CREATE);
 }
 
+// __filename_create is the pre-5.15 upstream (and some el9 z-streams') name for
+// the same function: identical signature, returns the target dentry.
+HOOK_EXIT("__filename_create")
+int rethook___filename_create(ctx_t *ctx) {
+    return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK_FILENAME_CREATE);
+}
+
 HOOK_EXIT("__lookup_hash")
 int rethook___lookup_hash(ctx_t *ctx) {
+    return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
+}
+
+// lookup_one_qstr_excl replaces __lookup_hash on upstream >= 6.5 and on el9
+// z-streams that backported the rename. Same return value semantics — the
+// resolved target dentry — so we route it through the same origin so the
+// overlayfs-aware state machine (see comment above) still picks "last call".
+HOOK_EXIT("lookup_one_qstr_excl")
+int rethook_lookup_one_qstr_excl(ctx_t *ctx) {
     return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
 }
 
@@ -181,6 +206,12 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL
 
 HOOK_EXIT("do_linkat")
 int rethook_do_linkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
+HOOK_EXIT("filename_linkat")
+int rethook_filename_linkat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }

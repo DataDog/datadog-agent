@@ -94,6 +94,9 @@ const (
 	CoverageOutDir StoreKey = "coverage_out_dir"
 	// SkipWindows skips Windows infrastructure and workloads in tests
 	SkipWindows StoreKey = "skip_windows"
+	// FakeintakeImageOverride overrides the pinned fakeintake image (CI sets it to
+	// the freshly built server image on a fakeintake PR). See test/fakeintake/version.
+	FakeintakeImageOverride StoreKey = "fakeintake_image_override"
 )
 
 const (

@@ -44,19 +44,19 @@ func DefaultCUSUMConfig() CUSUMConfig {
 	}
 }
 
-// CUSUMDetector uses the Cumulative Sum (CUSUM) algorithm to detect when a
+// CUSUMDetector uses a two-sided Cumulative Sum (CUSUM) algorithm to detect when a
 // metric shifts from its baseline. CUSUM is designed for detecting change points.
 //
-// Algorithm:
+// Algorithm (upper and lower recurrences run in parallel):
 //
-//	S[0] = 0
-//	S[t] = max(0, S[t-1] + (x[t] - μ - k))
+//	S_high[t] = max(0, S_high[t-1] + (x[t] - μ - k))
+//	S_low[t]  = max(0, S_low[t-1]  + (μ - x[t] - k))
 //
 // Where μ is the baseline mean and k is the slack parameter (allowance for noise).
-// An anomaly is emitted when S[t] first exceeds threshold h, representing the
-// point of change detection.
+// An anomaly is emitted when either S_high[t] or S_low[t] first exceeds threshold h.
 type CUSUMDetector struct {
 	config CUSUMConfig
+	ready  bool
 }
 
 // NewCUSUMDetector creates a CUSUMDetector with the given config.
@@ -83,7 +83,12 @@ func (c *CUSUMDetector) Name() string {
 	return "cusum"
 }
 
-// Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
+func (c *CUSUMDetector) Ready() bool { return c.ready }
+
+// Reset clears the readiness signal for replay/reanalysis.
+func (c *CUSUMDetector) Reset() { c.ready = false }
+
+// Detect runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult {
 	cfg := c.config
@@ -118,6 +123,7 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult 
 			return observer.DetectionResult{}
 		}
 	}
+	c.ready = true
 
 	// CUSUM parameters
 	k := cfg.SlackFactor * baselineStddev     // slack: ignore small deviations

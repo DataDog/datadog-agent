@@ -335,7 +335,7 @@ func TestProvider_Provide(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
-			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+			mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -498,7 +498,7 @@ func (suite *FilteringTestSuite) SetupTest() {
 	))
 
 	suite.store = store
-	suite.mockSender = mocksender.NewMockSender(checkid.ID("test"))
+	suite.mockSender = mocksender.NewMockSender(suite.T(), checkid.ID("test"))
 	suite.mockSender.SetupAcceptAll()
 
 	// Set up kubelet mock
@@ -798,7 +798,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	}
 
 	// Setup sender
-	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	// Create provider

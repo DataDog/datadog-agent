@@ -2,7 +2,9 @@ name: Update OTel Collector Dependencies and Generate OTel Agent
 
 on:
   schedule:
-    - cron: '0 12 * * 3'
+    # Run every Friday; the job below keeps only every other Friday,
+    # anchored so the next scheduled update is 2026-06-26.
+    - cron: '0 12 * * 5'
   workflow_dispatch:
 
 jobs:
@@ -11,11 +13,20 @@ jobs:
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
+      - name: Cleanup runner
+        run: |
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1 || true
+          docker rmi $(docker image ls -aq) >/dev/null 2>&1 || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf "/usr/local/share/boost" || true
+          df -h
+
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: .go-version
 
@@ -24,30 +35,64 @@ jobs:
         with:
           features: legacy-tasks
 
+      - name: Set up Bazel cache
+        uses: ./.github/actions/bazel-cache
+
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
           policy: self.collector-generate-and-update.create-pr
 
+      - name: Check biweekly schedule
+        id: check-schedule
+        if: github.event_name == 'schedule'
+        run: |
+          REFERENCE_DATE="2026-06-26"
+          TODAY=$(date -u +%Y-%m-%d)
+          DAYS_SINCE_REFERENCE=$(( ( $(date -u -d "$TODAY" +%s) - $(date -u -d "$REFERENCE_DATE" +%s) ) / 86400 ))
+
+          if (( DAYS_SINCE_REFERENCE % 14 != 0 )); then
+            echo "$TODAY is not on the biweekly schedule anchored at $REFERENCE_DATE; skipping."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Collector Update Script
+        if: steps.check-schedule.outputs.skip != 'true'
         id: collector-update
         env:
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
           dda inv -- -e install-tools
           dda inv -- -e collector.update
+          OCB_VERSION=$(grep -m1 'OCB_VERSION = ' tasks/collector.py | grep -oP '"\K[^"]+')
           echo "OCB_VERSION=$OCB_VERSION" >> $GITHUB_OUTPUT
           dda inv -- -e collector.generate
+          dda inv -- -e components.lint-components --fix
+          dda inv -- -e modules.add-all-replace
+          dda inv -- -e tidy
+          bazel run //:go_mod_tidy_all
           dda inv -- -e generate-licenses
 
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         name: Create pull request
+        if: steps.check-schedule.outputs.skip != 'true'
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           commit-message: Update OTel Collector dependencies to ${{ steps.collector-update.outputs.OCB_VERSION}} and generate OTel Agent
           branch: update-otel-collector-dependencies-${{ steps.collector-update.outputs.OCB_VERSION}}
           sign-commits: true
           title: Update OTel Collector dependencies to v${{ steps.collector-update.outputs.OCB_VERSION}}
-          body: This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.
-          draft: true
+          body: This PR updates the dependencies of the OTel Collector to v${{ steps.collector-update.outputs.OCB_VERSION}} and generates the OTel Agent code.
+          labels: team/opentelemetry-agent
+          draft: false
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          payload: |
+            channel: C08R19TR3FS
+            text: ":x: *collector-generate-and-update* failed\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

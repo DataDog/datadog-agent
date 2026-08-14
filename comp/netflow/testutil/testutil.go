@@ -39,6 +39,9 @@ var netflow9pcapng []byte
 //go:embed pcap_recordings/sflow.pcapng
 var sflowpcapng []byte
 
+//go:embed pcap_recordings/biflow_netflow9.pcapng
+var biflowNetflow9pcapng []byte
+
 // SendUDPPacket sends data to a local port over UDP.
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -66,6 +69,9 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwardermock.MockComp
     "packets": 1,
     "ether_type": "IPv4",
     "ip_protocol": "TCP",
+    "tos": 0,
+    "dscp": 0,
+    "dscp_name": "CS0",
     "device": {
         "namespace": "default"
     },
@@ -113,6 +119,9 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwardermock.MockComp
     "packets": 1,
     "ether_type": "IPv4",
     "ip_protocol": "TCP",
+    "tos": 0,
+    "dscp": 0,
+    "dscp_name": "CS0",
     "device": {
         "namespace": "default"
     },
@@ -200,6 +209,9 @@ func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwardermo
     }
   },
   "ip_protocol": "ICMP",
+  "tos": 233,
+  "dscp": 58,
+  "dscp_name": "DSCP-58",
   "next_hop": {
     "ip": ""
   },
@@ -266,4 +278,93 @@ func GetNetFlow9Packet() ([]byte, error) {
 // GetSFlow5Packet parses our saved sflow5 packet.
 func GetSFlow5Packet() ([]byte, error) {
 	return GetPacketFromPCAP(sflowpcapng, layers.LayerTypeEthernet, 1)
+}
+
+// GetBiflowNetflow9Packet parses our saved netflow9 packet with biflow fields.
+func GetBiflowNetflow9Packet() ([]byte, error) {
+	return GetPacketFromPCAP(biflowNetflow9pcapng, layers.LayerTypeLoopback, 0)
+}
+
+// ExpectBiflowPayloadWithAdditionalFields expects the two payloads that result from
+// splitting the single biflow record in biflow_netflow9.pcapng into two unidirectional flows
+func ExpectBiflowPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwardermock.MockComponent) {
+
+	// forward flow
+	fwdEvent := []byte(`{
+  "flush_timestamp": 0,
+  "type": "netflow9",
+  "sampling_rate": 0,
+  "direction": "ingress",
+  "start": 0,
+  "end": 0,
+  "bytes": 5,
+  "packets": 10,
+  "ether_type": "IPv4",
+  "ip_protocol": "TCP",
+  "tos": 0,
+  "dscp": 0,
+  "dscp_name": "CS0",
+  "device": {"namespace": "default"},
+  "exporter": {"ip": "127.0.0.1"},
+  "source": {
+    "ip": "116.170.172.17",
+    "port": "32827",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "destination": {
+    "ip": "182.145.255.56",
+    "port": "17017",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "ingress": {"interface": {"index": 1}},
+  "egress": {"interface": {"index": 2}},
+  "host": "my-hostname",
+  "next_hop": {"ip": ""}
+}`)
+
+	// reverse flow (src/dst, direction, and bytes/packets changed)
+	revEvent := []byte(`{
+  "flush_timestamp": 0,
+  "type": "netflow9",
+  "sampling_rate": 0,
+  "direction": "egress",
+  "start": 0,
+  "end": 0,
+  "bytes": 10,
+  "packets": 5,
+  "ether_type": "IPv4",
+  "ip_protocol": "TCP",
+  "tos": 0,
+  "dscp": 0,
+  "dscp_name": "CS0",
+  "device": {"namespace": "default"},
+  "exporter": {"ip": "127.0.0.1"},
+  "source": {
+    "ip": "182.145.255.56",
+    "port": "17017",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "destination": {
+    "ip": "116.170.172.17",
+    "port": "32827",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "ingress": {"interface": {"index": 2}},
+  "egress": {"interface": {"index": 1}},
+  "host": "my-hostname",
+  "next_hop": {"ip": ""}
+}`)
+
+	// expect both forward and reverse flow events to be sent to the forwarder
+	for _, event := range [][]byte{fwdEvent, revEvent} {
+		compactEvent := new(bytes.Buffer)
+		err := json.Compact(compactEvent, event)
+		assert.NoError(t, err)
+		m := message.NewMessage(compactEvent.Bytes(), nil, "", 0)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(MatchEVPFlow(m), eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil)
+	}
 }

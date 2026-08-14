@@ -23,11 +23,12 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
-func newTestProfileController() (*Controller, *autoscaling.Store[model.PodAutoscalerProfileInternal]) {
-	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+func newTestProfileController() (*Controller, *autoscalingstore.Store[model.PodAutoscalerProfileInternal]) {
+	profileStore := autoscalingstore.NewStore[model.PodAutoscalerProfileInternal]()
 	fakeClock := clocktesting.NewFakeClock(metav1.Now().Time)
 	c := &Controller{
 		Controller: &autoscaling.Controller{
@@ -87,7 +88,7 @@ func TestSyncProfileNewProfile(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, autoscaling.Requeue, res)
 
-	pi, ok := profileStore.Get("high-cpu")
+	pi, ok := profileStore.Peek("high-cpu")
 	require.True(t, ok, "Profile should be in store")
 	assert.Equal(t, "high-cpu", pi.Name())
 	assert.Equal(t, int64(1), pi.Generation())
@@ -104,7 +105,7 @@ func TestSyncProfileNilBothSides(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, autoscaling.NoRequeue, res)
 
-	_, ok := profileStore.Get("missing")
+	_, ok := profileStore.Peek("missing")
 	assert.False(t, ok, "Should not create entry when both are nil")
 }
 
@@ -115,7 +116,7 @@ func TestSyncProfileDelete(t *testing.T) {
 	profile := newTestProfile("high-cpu", 1, validTemplate())
 	_, _ = c.syncProfile(ctx, "high-cpu", profile)
 
-	_, ok := profileStore.Get("high-cpu")
+	_, ok := profileStore.Peek("high-cpu")
 	require.True(t, ok)
 
 	res, err := c.syncProfile(ctx, "high-cpu", nil)
@@ -123,7 +124,7 @@ func TestSyncProfileDelete(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, autoscaling.NoRequeue, res)
 
-	_, ok = profileStore.Get("high-cpu")
+	_, ok = profileStore.Peek("high-cpu")
 	assert.False(t, ok, "Profile should be deleted from store")
 }
 
@@ -135,18 +136,19 @@ func TestSyncProfilePreservesWorkloadRefs(t *testing.T) {
 	_, _ = c.syncProfile(ctx, "high-cpu", profile1)
 
 	// Simulate the workload watcher setting refs.
-	pi, _ := profileStore.Get("high-cpu")
+	pi, _ := profileStore.Peek("high-cpu")
 	pi.UpdateWorkloads([]model.NamespacedObjectReference{
 		testRef("prod", "web-app"),
 	})
-	profileStore.Set("high-cpu", pi, "pw")
+	item, _ := profileStore.Get("high-cpu")
+	item.Upsert(pi, "pw")
 
 	// Re-sync with a new generation. The status update to K8s will fail (fake client
 	// doesn't have the CRD) but the store is updated regardless.
 	profile2 := newTestProfile("high-cpu", 2, validTemplate())
 	_, _ = c.syncProfile(ctx, "high-cpu", profile2)
 
-	pi2, ok := profileStore.Get("high-cpu")
+	pi2, ok := profileStore.Peek("high-cpu")
 	require.True(t, ok)
 	assert.Equal(t, int64(2), pi2.Generation())
 	assert.Len(t, pi2.Workloads(), 1, "Workload refs should be preserved across profile updates")
@@ -157,8 +159,8 @@ func TestSyncProfileDeleteNotifiesObservers(t *testing.T) {
 	ctx := context.Background()
 
 	deleted := false
-	profileStore.RegisterObserver(autoscaling.Observer{
-		DeleteFunc: func(key string, _ autoscaling.SenderID) {
+	profileStore.RegisterObserver(autoscalingstore.Observer{
+		DeleteFunc: func(key string, _ autoscalingstore.SenderID) {
 			if key == "high-cpu" {
 				deleted = true
 			}
@@ -183,7 +185,7 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 		_, err := c.syncProfile(ctx, "p1", profile)
 		require.NoError(t, err)
 
-		pi, ok := profileStore.Get("p1")
+		pi, ok := profileStore.Peek("p1")
 		require.True(t, ok)
 		assert.Equal(t, `{"burstable":true}`, pi.PreviewAnnotation())
 	})
@@ -193,7 +195,7 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 		_, err := c.syncProfile(ctx, "p2", profile)
 		require.NoError(t, err)
 
-		pi, ok := profileStore.Get("p2")
+		pi, ok := profileStore.Peek("p2")
 		require.True(t, ok)
 		assert.Empty(t, pi.PreviewAnnotation())
 	})
@@ -203,7 +205,7 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 		profile.Annotations = map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`}
 		_, _ = c.syncProfile(ctx, "p3", profile)
 
-		pi, _ := profileStore.Get("p3")
+		pi, _ := profileStore.Peek("p3")
 		assert.NotEmpty(t, pi.PreviewAnnotation())
 
 		// Remove annotation and re-sync.
@@ -213,7 +215,7 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 		profile.Generation = 2
 		_, _ = c.syncProfile(ctx, "p3", profile)
 
-		pi, ok := profileStore.Get("p3")
+		pi, ok := profileStore.Peek("p3")
 		require.True(t, ok)
 		assert.Empty(t, pi.PreviewAnnotation(), "preview annotation should be empty after annotation is removed")
 	})

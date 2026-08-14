@@ -19,8 +19,6 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -123,7 +121,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(tl)
 
-		require.Len(t, milestones, 12)
+		require.Len(t, milestones, 11)
 
 		// gap = SessionLogon(29s) - LoginUIDone(10s) = 19000ms; milestones
 		// at/after SessionLogon have their offset collapsed by the idle gap.
@@ -135,7 +133,6 @@ func TestBuildTimelineMilestones(t *testing.T) {
 			{"Login UI Start", 8000},
 			{"Computer Group Policy", 12000},
 			{"User Group Policy", 13000},
-			{"User Logon", 10000},
 			{"Logon Duration", 10000},
 			{"Profile Loaded", 12000},
 			{"Profile Created", 14000},
@@ -324,8 +321,7 @@ func TestBuildCustomPayload(t *testing.T) {
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {
 	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
-	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname)
 
 	comp := &logonDurationComponent{
 		hostname:               hostname,
@@ -382,8 +378,7 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 
 func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
-	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname)
 
 	comp := &logonDurationComponent{
 		hostname:               hostname,
@@ -461,8 +456,7 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-			compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
-			forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+			forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname)
 
 			comp := &logonDurationComponent{
 				hostname:               hostname,
@@ -486,8 +480,7 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 
 func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
 	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
-	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression)
+	forwarder := eventplatformimpl.NewNoopEventPlatformForwarder(hostname)
 
 	comp := &logonDurationComponent{
 		hostname:               hostname,

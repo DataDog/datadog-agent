@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -24,12 +25,62 @@ const (
 	CdbZipPath = "C:/debugtools.zip"
 	// SymbolCachePath is the directory where downloaded debug symbols are cached
 	SymbolCachePath = `C:\symbols`
+	// MicrosoftSymbolURL is the Microsoft public symbol server, used to resolve OS symbols
+	MicrosoftSymbolURL = "https://msdl.microsoft.com/download/symbols"
 	// DatadogSymbolURL is the S3 bucket where Datadog driver PDB symbols (ddnpm, etc.) are uploaded
 	DatadogSymbolURL = "https://s3.amazonaws.com/dd-windows-symbols/datadog-windows-filter"
-	// DefaultSymbolPath is the default _NT_SYMBOL_PATH combining Microsoft public symbols
-	// and Datadog driver symbols for full stack resolution in kernel driver crashes
-	DefaultSymbolPath = `srv*C:\symbols*https://msdl.microsoft.com/download/symbols;srv*C:\symbols*https://s3.amazonaws.com/dd-windows-symbols/datadog-windows-filter`
+	// AgentSymbolURL is the S3 bucket where Agent build pipeline PDB symbols
+	// (agent.exe, trace-agent.exe, etc.) are uploaded, used to resolve user-mode
+	// crash stacks in the Agent's own binaries
+	AgentSymbolURL = "https://s3.amazonaws.com/dd-agent-mstesting/pipelines/windows-symbols"
 )
+
+// symbolEntries are the individual `srv*cache*server` entries that make up the
+// symbol path, in priority order. They are kept as separate entries so they can be
+// emitted as distinct `.sympath`/`.sympath+` lines in the cdb script (see
+// analyzeScript): cdb treats `;` as a command separator, so a single
+// `.sympath a;b;c` line is ambiguous, while one entry per line is not.
+var symbolEntries = []string{
+	fmt.Sprintf(`srv*%s*%s`, SymbolCachePath, MicrosoftSymbolURL),
+	fmt.Sprintf(`srv*%s*%s`, SymbolCachePath, DatadogSymbolURL),
+	fmt.Sprintf(`srv*%s*%s`, SymbolCachePath, AgentSymbolURL),
+}
+
+// DefaultSymbolPath is the default _NT_SYMBOL_PATH combining the Microsoft public
+// symbol server, the Datadog driver symbol server, and the Agent build symbol
+// server for full stack resolution in both kernel driver and Agent crashes.
+var DefaultSymbolPath = strings.Join(symbolEntries, ";")
+
+// analyzeScript builds the cdb command script run against a crash dump.
+//
+// The commands are fed to cdb via a script file (cdb -cf) rather than an inline
+// `-c "..."` argument. Routing them through a file avoids two problems with the
+// inline form:
+//
+//   - Quoting: the command string transits Go -> SSH -> the Windows default shell
+//     (PowerShell) -> cdb. Embedded double quotes do not survive that round trip
+//     intact, so the `-c "..."` payload arrives mangled and !analyze never runs.
+//   - Semicolons: cdb treats `;` as a command separator, which collides with the
+//     `;` used to join multiple symbol servers in a single `.sympath` argument.
+//
+// The script sets the symbol path explicitly (NOT .symfix, which resets to
+// Microsoft-only and would drop the Datadog symbol servers), reloads symbols,
+// runs verbose automated crash analysis, and quits.
+func analyzeScript() string {
+	lines := make([]string, 0, len(symbolEntries)+3)
+	// First entry sets the path; subsequent entries append (.sympath+), so each
+	// server lives on its own line and cdb's `;`-as-separator can't split them.
+	for i, entry := range symbolEntries {
+		if i == 0 {
+			lines = append(lines, ".sympath "+entry)
+		} else {
+			lines = append(lines, ".sympath+ "+entry)
+		}
+	}
+	lines = append(lines, ".reload", "!analyze -v", "q")
+	// Use CRLF line endings for the script file written to the Windows host.
+	return strings.Join(lines, "\r\n") + "\r\n"
+}
 
 // SetupCdb downloads and extracts the Debugging Tools for Windows (cdb.exe) to the remote host.
 //
@@ -38,8 +89,9 @@ const (
 //
 // This function downloads a pre-staged debugtools.zip from the artifact bucket (containing
 // the Debugging Tools for Windows x64 directory from a Windows SDK installation) and
-// configures the symbol path for automatic symbol resolution from the Microsoft public
-// symbol server and the Datadog driver symbol server.
+// configures the symbol path (DefaultSymbolPath) for automatic symbol resolution from the
+// Microsoft public symbol server, the Datadog driver symbol server, and the Agent build
+// symbol server.
 func SetupCdb(host *components.RemoteHost) error {
 	err := host.HostArtifactClient.Get("windows-products/debugtools.zip", CdbZipPath)
 	if err != nil {
@@ -63,8 +115,9 @@ func SetupCdb(host *components.RemoteHost) error {
 		return fmt.Errorf("failed to create symbol cache directory: %w", err)
 	}
 
-	// Set _NT_SYMBOL_PATH so cdb.exe can resolve symbols from both the Microsoft public
-	// symbol server and the Datadog driver symbol server (ddnpm, ddprocmon, etc.)
+	// Set _NT_SYMBOL_PATH so cdb.exe can resolve symbols from the Microsoft public
+	// symbol server, the Datadog driver symbol server (ddnpm, ddprocmon, etc.), and
+	// the Agent build symbol server (agent.exe, trace-agent.exe, etc.)
 	_, err = host.Execute(fmt.Sprintf(`[Environment]::SetEnvironmentVariable('_NT_SYMBOL_PATH', '%s', 'Machine')`, DefaultSymbolPath))
 	if err != nil {
 		return fmt.Errorf("failed to set _NT_SYMBOL_PATH: %w", err)
@@ -89,15 +142,32 @@ func AnalyzeDump(host *components.RemoteHost, dumpPath string) (string, error) {
 		return "", fmt.Errorf("cdb.exe not found: %w", err)
 	}
 
+	// Write the cdb command script to a file on the host. We feed commands to cdb
+	// via a script file (-cf) rather than an inline -c "..." argument because the
+	// inline form's embedded double quotes and semicolons do not survive the
+	// Go -> SSH -> PowerShell -> cdb round trip intact (see analyzeScript).
+	//
+	// host.WriteFile uses SFTP, so the script content is transferred byte-for-byte
+	// with no shell quoting involved.
+	tmpDir, err := host.GetTmpFolder()
+	if err != nil {
+		return "", fmt.Errorf("failed to get TMP folder: %w", err)
+	}
+	scriptPath := host.JoinPath(tmpDir, "cdb_analyze.txt")
+	if _, err := host.WriteFile(scriptPath, []byte(analyzeScript())); err != nil {
+		return "", fmt.Errorf("failed to write cdb script: %w", err)
+	}
+	defer func() {
+		_, _ = host.Execute(fmt.Sprintf(`Remove-Item -Path '%s' -Force`, scriptPath))
+	}()
+
 	// Run cdb.exe non-interactively:
 	// -z: open the dump file
-	// -c: execute commands then quit
-	//   .sympath: set the symbol path explicitly (NOT .symfix, which resets to Microsoft-only
-	//             and would drop the Datadog driver symbol server configured in _NT_SYMBOL_PATH)
-	//   .reload: reload symbols with the updated path
-	//   !analyze -v: verbose automated crash analysis
-	//   q: quit cdb
-	cmd := fmt.Sprintf(`& '%s' -z '%s' -c ".sympath %s; .reload; !analyze -v; q"`, CdbExe, dumpPath, DefaultSymbolPath)
+	// -cf: read and execute commands from the script file
+	//
+	// The invocation contains only single-quoted path arguments (no embedded
+	// double quotes, no semicolons), so it survives the SSH/PowerShell transport.
+	cmd := fmt.Sprintf(`& '%s' -z '%s' -cf '%s'`, CdbExe, dumpPath, scriptPath)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		return output, fmt.Errorf("cdb analysis failed for %s: %w", dumpPath, err)

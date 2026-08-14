@@ -15,9 +15,7 @@ properties:
     visibility: public
     description: Set to true to enable Cloud Security Posture Management (CSPM).
     tags:
-    - template_section:CoreAgent
     - full-agent-only:true
-    comment: Datadog security agent (compliance)
   dir:
     node_type: setting
     type: string
@@ -26,11 +24,10 @@ properties:
     description: Directory path for compliance checks configuration containing enabled
       benchmarks
     tags:
-    - template_section:CoreAgent
     - full-agent-only:true
   check_interval:
     node_type: setting
-    type: number
+    type: string
     default: 20m0s
     format: duration
     visibility: public
@@ -39,7 +36,6 @@ properties:
     example: 20m
     tags:
     - golang_type:duration
-    - template_section:CoreAgent
     - full-agent-only:true
   check_max_events_per_run:
     node_type: setting
@@ -48,7 +44,6 @@ properties:
     visibility: public
     description: The maximum number of events emitted by a check each time it runs.
     tags:
-    - template_section:CoreAgent
     - full-agent-only:true
   container_exclude:
     node_type: setting

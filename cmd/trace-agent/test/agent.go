@@ -31,7 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -302,7 +302,7 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 // createConfigFile creates a config file from the given config, altering the
 // apm_config.apm_dd_url and log_level values and returns the full path.
 func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
-	v := create.NewConfig("datadog", "")
+	v := create.NewConfig("datadog")
 	v.SetTestOnlyDynamicSchema(true)
 	v.SetConfigType("yaml")
 	if err := v.ReadConfig(bytes.NewReader(conf)); err != nil {

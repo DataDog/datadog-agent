@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fix a potential goroutine hang in the OTLP logs exporter during graceful
+    shutdown. The blocking channel send now respects context cancellation,
+    allowing the exporter to stop cleanly instead of waiting indefinitely
+    for the downstream logs pipeline.
+  - |
+    Fix the OTLP logs exporter sending corrupt data downstream when JSON
+    marshaling of a log record fails. The malformed record is now dropped
+    and the error is logged.

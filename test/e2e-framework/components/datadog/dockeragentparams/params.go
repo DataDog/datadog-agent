@@ -34,7 +34,7 @@ import (
 //	 - [WithFakeintake]
 //	 - [WithLogs]
 //   - [WithExtraComposeManifest]
-//   - [WithV3MetricsEnabled]
+//   - [WithV3MetricsDisabled]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
@@ -62,10 +62,6 @@ type Params struct {
 	PulumiDependsOn []pulumi.ResourceOption
 	// FIPS is true if FIPS image is needed.
 	FIPS bool
-
-	// intakeURL is stored by withIntakeHostname so that WithV3MetricsEnabled
-	// can inject V3 endpoint config after fakeintake wiring.
-	intakeURL pulumi.StringInput
 }
 
 type Option = func(*Params) error
@@ -136,6 +132,8 @@ func WithPulumiDependsOn(resources ...pulumi.ResourceOption) func(*Params) error
 	}
 }
 
+// WithEnvironmentVariables sets variables for the docker compose command and compose-file
+// interpolation only. Use [WithAgentServiceEnvVariable] for variables the agent process must see.
 func WithEnvironmentVariables(environmentVariables pulumi.StringMap) func(*Params) error {
 	return func(p *Params) error {
 		p.EnvironmentVariables = environmentVariables
@@ -209,21 +207,28 @@ func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 
 func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.BoolInput) func(*Params) error {
 	return func(p *Params) error {
-		p.intakeURL = url
 		envVars := pulumi.Map{
-			"DD_DD_URL":                                  pulumi.Sprintf("%s", url),
-			"DD_PROCESS_CONFIG_PROCESS_DD_URL":           pulumi.Sprintf("%s", url),
-			"DD_APM_DD_URL":                              pulumi.Sprintf("%s", url),
-			"DD_SKIP_SSL_VALIDATION":                     shouldSkipSSLValidation,
-			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":  shouldSkipSSLValidation,
-			"DD_LOGS_CONFIG_FORCE_USE_HTTP":              pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
-			"DD_LOGS_CONFIG_LOGS_DD_URL":                 pulumi.Sprintf("%s", url),
-			"DD_LOGS_CONFIG_LOGS_NO_SSL":                 shouldSkipSSLValidation,
-			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_DD_URL":                                       pulumi.Sprintf("%s", url),
+			"DD_PROCESS_CONFIG_PROCESS_DD_URL":                pulumi.Sprintf("%s", url),
+			"DD_APM_DD_URL":                                   pulumi.Sprintf("%s", url),
+			"DD_SKIP_SSL_VALIDATION":                          shouldSkipSSLValidation,
+			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":       shouldSkipSSLValidation,
+			"DD_LOGS_CONFIG_FORCE_USE_HTTP":                   pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
+			"DD_LOGS_CONFIG_LOGS_DD_URL":                      pulumi.Sprintf("%s", url),
+			"DD_LOGS_CONFIG_LOGS_NO_SSL":                      shouldSkipSSLValidation,
+			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL":      pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
+			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_NO_SSL": shouldSkipSSLValidation,
 			// Host and container image SBOMs ship through the event platform
 			// forwarder; redirect those endpoints to the fakeintake as well.
 			"DD_SBOM_DD_URL":            pulumi.Sprintf("%s", url),
 			"DD_CONTAINER_IMAGE_DD_URL": pulumi.Sprintf("%s", url),
+			// Compliance findings ride the logs pipeline through a dedicated endpoint.
+			// Redirect it too so a containerized agent's findings reach the fakeintake,
+			// mirroring the host provisioner (agentparams withIntakeHostname).
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_DD_URL":    pulumi.Sprintf("%s", url),
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_NO_SSL":    shouldSkipSSLValidation,
+			"DD_COMPLIANCE_CONFIG_ENDPOINTS_FORCE_USE_HTTP": pulumi.Bool(true),
 		}
 		for key, value := range envVars {
 			if err := WithAgentServiceEnvVariable(key, value)(p); err != nil {
@@ -234,22 +239,12 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 	}
 }
 
-// WithV3MetricsEnabled opts the Agent into the V3 metrics intake API for its primary
-// fakeintake endpoint. It adds serializer_experimental_use_v3_api series endpoints pointing
-// at the same URL used for DD_DD_URL, so the serializer sends to /api/intake/metrics/v3/series
-// instead of /api/v2/series.
-//
-// Only series are redirected; sketches V3 support is not yet implemented in fakeintake.
-//
-// Must be called after WithFakeintake or WithIntake so the intake URL is known.
-func WithV3MetricsEnabled() func(*Params) error {
+// WithV3MetricsDisabled forces the Agent onto the V2 series intake API by setting
+// DD_USE_V3_API_SERIES_ENABLED=false.
+func WithV3MetricsDisabled() func(*Params) error {
 	return func(p *Params) error {
-		if p.intakeURL == nil {
-			return fmt.Errorf("WithV3MetricsEnabled must be called after WithFakeintake or WithIntake")
-		}
 		return WithAgentServiceEnvVariable(
-			"DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SERIES_ENDPOINTS",
-			pulumi.Sprintf("%s", p.intakeURL),
+			"DD_USE_V3_API_SERIES_ENABLED", pulumi.StringPtr("false"),
 		)(p)
 	}
 }

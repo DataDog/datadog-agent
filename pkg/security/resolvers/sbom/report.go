@@ -25,12 +25,12 @@ const (
 
 // PackagesReport wraps package data and implements the sbom.Report interface
 type PackagesReport struct {
-	packages    []sbomtypes.PackageWithInstalledFiles
+	packages    []sbomtypes.Package
 	containerID containerutils.ContainerID
 }
 
 // NewPackagesReport creates a new PackagesReport from a slice of packages
-func NewPackagesReport(packages []sbomtypes.PackageWithInstalledFiles, containerID containerutils.ContainerID) *PackagesReport {
+func NewPackagesReport(packages []sbomtypes.Package, containerID containerutils.ContainerID) *PackagesReport {
 	return &PackagesReport{
 		packages:    packages,
 		containerID: containerID,
@@ -61,14 +61,18 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 			Purl:    pointer.Ptr(purl),
 		}
 
-		// Add LastAccess property if available
+		// Always emit LastSeenRunning, "0" meaning never seen running. The
+		// core-agent merge overwrites only the runtime properties present in the
+		// forwarded report, so omitting a zero value would leave a stale timestamp
+		// in place when a package-database refresh resets a package's usage.
+		lastAccess := "0"
 		if !pkg.LastAccess.IsZero() {
-			lastAccess := strconv.FormatInt(pkg.LastAccess.Unix(), 10)
-			component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
-				Name:  LastAccessProperty,
-				Value: pointer.Ptr(lastAccess),
-			})
+			lastAccess = strconv.FormatInt(pkg.LastAccess.Unix(), 10)
 		}
+		component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
+			Name:  LastAccessProperty,
+			Value: pointer.Ptr(lastAccess),
+		})
 
 		suidBit := strconv.FormatBool(pkg.SuidBit)
 		component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{

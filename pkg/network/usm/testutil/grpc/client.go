@@ -13,9 +13,9 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sync/atomic"
 	"time"
 
-	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -27,34 +27,39 @@ const (
 	defaultDialTimeout = 5 * time.Second
 )
 
+var nextStreamID atomic.Int32
+
 // HandleUnary performs a gRPC unary call to SayHello RPC of the greeter service.
 func (c *Client) HandleUnary(ctx context.Context, name string) error {
 	_, err := c.greeterClient.SayHello(ctx, &pb.HelloRequest{Name: name}, grpc.MaxCallRecvMsgSize(100*1024*1024), grpc.MaxCallSendMsgSize(100*1024*1024))
 	return err
 }
 
-// HandleStream performs a gRPC stream call to FetchResponse RPC of StreamService service.
+// HandleStream performs a gRPC stream call to RouteChat RPC of RouteGuide service.
 func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error {
-	stream, err := c.streamClient.Max(ctx)
+	stream, err := c.routeGuideClient.RouteChat(ctx)
 	if err != nil {
 		return err
 	}
 
 	input := make([]int32, numberOfMessages)
+	pending := make(map[int32]struct{}, numberOfMessages)
 	for i := int32(0); i < numberOfMessages; i++ {
 		// The array is zero based, but we want the values to be 1 based.
-		input[i] = i + 1
+		elem := i + 1
+		input[i] = elem
+		pending[elem] = struct{}{}
 	}
 
 	rand.Shuffle(len(input), func(i, j int) { input[i], input[j] = input[j], input[i] })
 
-	var max int32
+	id := nextStreamID.Add(1) // so unrelated streams don't interfere as RouteChat accumulates notes by point
 	var sendErr error
 	// A go routine to send input requests
 	go func() {
 		defer func() { _ = stream.CloseSend() }()
 		for _, elem := range input {
-			if err := stream.Send(&pbStream.Request{Num: elem}); err != nil {
+			if err := stream.Send(&routeguide.RouteNote{Location: &routeguide.Point{Latitude: elem, Longitude: id}}); err != nil {
 				sendErr = err
 				return
 			}
@@ -62,7 +67,7 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 	}()
 
 	var receiveErr error
-	// A go routine to receive the requests and save the max number
+	// A go routine to receive the responses and keep track of those still expected
 	go func() {
 		for {
 			resp, err := stream.Recv()
@@ -73,7 +78,12 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 				receiveErr = err
 				return
 			}
-			max = resp.Result
+			elem := resp.Location.Latitude
+			if _, ok := pending[elem]; !ok {
+				receiveErr = fmt.Errorf("received duplicate response %v", resp)
+				return
+			}
+			delete(pending, elem)
 		}
 	}()
 
@@ -86,8 +96,8 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 	if receiveErr != nil {
 		return receiveErr
 	}
-	if max != numberOfMessages {
-		return fmt.Errorf("expected to have %d as max, but instead got %d", numberOfMessages, max)
+	if len(pending) != 0 {
+		return fmt.Errorf("expected to receive %d responses, but %d are missing", numberOfMessages, len(pending))
 	}
 	return nil
 }
@@ -135,7 +145,6 @@ func (c *Client) ListFeatures(ctx context.Context, longLo, latLo, longHi, latHi 
 type Client struct {
 	conn             *grpc.ClientConn
 	greeterClient    pb.GreeterClient
-	streamClient     pbStream.MathClient
 	routeGuideClient routeguide.RouteGuideClient
 }
 
@@ -175,7 +184,6 @@ func NewClient(addr string, options Options, withTLS bool) (Client, error) {
 	return Client{
 		conn:             conn,
 		greeterClient:    pb.NewGreeterClient(conn),
-		streamClient:     pbStream.NewMathClient(conn),
 		routeGuideClient: routeguide.NewRouteGuideClient(conn),
 	}, nil
 }

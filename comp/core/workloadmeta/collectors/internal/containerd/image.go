@@ -14,12 +14,12 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/content"
-	containerdevents "github.com/containerd/containerd/events"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/namespaces"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/content"
+	containerdevents "github.com/containerd/containerd/v2/core/events"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/proto"
 

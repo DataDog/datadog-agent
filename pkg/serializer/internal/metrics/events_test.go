@@ -143,7 +143,7 @@ func TestEventsMarshaler2(t *testing.T) {
 				"",
 				mockConfig,
 				logmock.New(t),
-				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+				metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp,
 			)
 			assert.NoError(t, err)
 			payloads := decodePayload(t, mockConfig, bytePayloads)
@@ -175,7 +175,7 @@ func TestEventsMarshaler2Split(t *testing.T) {
 				"",
 				mockConfig,
 				logmock.New(t),
-				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+				metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp,
 			)
 			assert.NoError(t, err)
 			payloads := decodePayload(t, mockConfig, bytePayloads)
@@ -211,7 +211,7 @@ func TestEventsMarshaler2Drop(t *testing.T) {
 				"",
 				mockConfig,
 				logmock.New(t),
-				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+				metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp,
 			)
 
 			// assert positions of big events in the sorted array to make sure we're testing the expected states
@@ -234,7 +234,7 @@ func BenchmarkMarshaler2(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
 		logger := logmock.New(b)
-		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+		compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: cfg}).Comp
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
