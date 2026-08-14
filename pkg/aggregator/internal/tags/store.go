@@ -10,8 +10,6 @@ import (
 	"maps"
 	"math/bits"
 	"strconv"
-	"sync"
-	"unsafe"
 
 	"go.uber.org/atomic"
 
@@ -19,7 +17,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	sizeutil "github.com/DataDog/datadog-agent/pkg/util/size"
+	"github.com/DataDog/datadog-agent/pkg/util/size"
 )
 
 // Entry is used to keep track of tag slices shared by the contexts.
@@ -32,62 +30,28 @@ type Entry struct {
 	// required per Entry.
 	refs atomic.Uint64
 
-	// handles holds this entry's tags as interned handles. This is the
-	// representation contexts keep: 8 bytes per tag instead of a 16 byte string
-	// header, and tags shared between contexts share one copy of the string.
-	handles []tagset.Handle
-
-	// strings is the resolved form of handles, materialized on first use by
-	// Tags() and cached from then on. Entries are shared between contexts and
-	// outlive many flushes, so each unique tag set is resolved once rather than
-	// once per flush.
-	strings     []string
-	stringsOnce sync.Once
+	// tags contains the cached tags in this entry.
+	tags []string
 }
 
 // SizeInBytes returns the size of the Entry in bytes.
 func (e *Entry) SizeInBytes() int {
-	size := int(handleSliceSize) + len(e.handles)*int(handleSize) + 8
-	if e.strings != nil {
-		size += sizeutil.SizeOfStringSlice(e.strings)
-	}
-	return size
+	return size.SizeOfStringSlice(e.tags) + 8
 }
 
 // DataSizeInBytes returns the size of the Entry data in bytes.
 func (e *Entry) DataSizeInBytes() int {
-	dataSize := 0
-	for _, h := range e.handles {
-		dataSize += len(h.Value())
-	}
-	return dataSize
+	return size.DataSizeOfStringSlice(e.tags)
 }
 
-var (
-	handleSize      = unsafe.Sizeof(tagset.Handle{})
-	handleSliceSize = unsafe.Sizeof([]tagset.Handle{})
-)
+var _ size.HasSizeInBytes = (*Entry)(nil)
 
-var _ sizeutil.HasSizeInBytes = (*Entry)(nil)
-
-// Tags returns the strings stored in the Entry, resolving the interned handles on
-// first call and caching the result. The slice may be shared with other users and
-// should not be modified. Users can keep the slice after the entry was removed
-// from the store; it is not recycled or otherwise modified by the store.
-//
-// This is where a context's tags become plain strings again, on their way into a
-// serie and then the serializer.
+// Tags returns the strings stored in the Entry. The slice may be
+// shared with other users and should not be modified. Users can keep
+// the slice after the entry was removed from the store; it is not
+// recycled or otherwise modified by the store.
 func (e *Entry) Tags() []string {
-	e.stringsOnce.Do(func() {
-		e.strings = tagset.HandleValues(e.handles)
-	})
-	return e.strings
-}
-
-// Handles returns the interned tags stored in the Entry. The slice must not be
-// modified.
-func (e *Entry) Handles() []tagset.Handle {
-	return e.handles
+	return e.tags
 }
 
 // Release decrements internal reference counter, potentially marking
@@ -130,7 +94,7 @@ func NewStore(enabled bool, name string) *Store {
 func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
 		return &Entry{
-			handles: tagsBuffer.CopyHandles(),
+			tags: tagsBuffer.Copy(),
 		}
 	}
 
@@ -141,7 +105,7 @@ func (tc *Store) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 		tc.telemetry.hits.Inc()
 	} else {
 		entry = &Entry{
-			handles: tagsBuffer.CopyHandles(),
+			tags: tagsBuffer.Copy(),
 		}
 		entry.refs.Inc()
 		tc.tagsByKey[key] = entry
@@ -260,7 +224,7 @@ func (s *entryStats) visit(e *Entry, r uint64) {
 		s.refsFreq[7]++
 	}
 
-	n := len(e.handles)
+	n := len(e.tags)
 	if n < s.minSize || s.count == 0 {
 		s.minSize = n
 	}

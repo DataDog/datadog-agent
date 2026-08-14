@@ -74,11 +74,14 @@ type parser struct {
 }
 
 func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
-	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
+	// The interner is no longer capped at this size: it evicts tags that stop
+	// arriving instead. The setting is kept as a pre-allocation hint so existing
+	// configs still mean something.
+	stringInternerSizeHint := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
+		interner:         newStringInterner(stringInternerSizeHint, workerNum, stringInternerTelemetry),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),

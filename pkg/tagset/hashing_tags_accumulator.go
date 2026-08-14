@@ -7,7 +7,6 @@ package tagset
 
 import (
 	"sort"
-	"unique"
 
 	"github.com/twmb/murmur3"
 )
@@ -62,32 +61,17 @@ func (h *HashingTagsAccumulator) Append(tags ...string) {
 }
 
 // AppendInterned appends already-interned tags to the builder, reusing the hash
-// memoized on each handle. Unlike Append this does no hashing at all, which is
-// the point of carrying interned tags down from the parser.
+// memoized on each tag. Unlike Append this does no hashing at all, which is the
+// point of carrying interned tags down from the parser.
 //
-// Resolving a handle to its string does not allocate, so what lands in the
-// accumulator is the canonical copy of the tag rather than a new one.
+// What lands in the accumulator is the interned copy of the string, so anything
+// that later copies these tags out — an aggregator context, for instance — shares
+// that copy rather than making its own.
 func (h *HashingTagsAccumulator) AppendInterned(tags ...InternedTag) {
 	for _, t := range tags {
 		h.data = append(h.data, t.Value())
-		h.hash = append(h.hash, t.hash)
+		h.hash = append(h.hash, t.Hash())
 	}
-}
-
-// CopyHandles interns the accumulated tags and returns their handles.
-//
-// Callers use this to hand a tag set to something that retains it, such as an
-// aggregator context: a handle is 8 bytes against a 16 byte string header, and
-// tag sets shared between contexts end up sharing one copy of each string.
-func (h *HashingTagsAccumulator) CopyHandles() []Handle {
-	if len(h.data) == 0 {
-		return nil
-	}
-	handles := make([]Handle, len(h.data))
-	for i, t := range h.data {
-		handles[i] = unique.Make(t)
-	}
-	return handles
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder

@@ -11,7 +11,7 @@ go_library(
         "hashed_tags_pvt.go",
         "hashing_tags_accumulator.go",
         "hashless_tags_accumulator.go",
-        "interned.go",
+        "intern.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/tagset",
@@ -31,6 +31,7 @@ dd_agent_go_test(
         "hashed_tags_test.go",
         "hashing_tags_accumulator_test.go",
         "hashless_tags_accumulator_test.go",
+        "intern_test.go",
     ],
     embed = [":tagset"],
     deps = [

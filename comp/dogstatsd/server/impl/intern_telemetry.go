@@ -19,8 +19,9 @@ type stringInternerTelemetry struct {
 }
 
 type stringInternerInstanceTelemetry struct {
-	enabled  bool
-	curBytes int
+	enabled    bool
+	curBytes   int
+	curEntries int
 
 	resets               telemetry.SimpleCounter
 	size                 telemetry.SimpleGauge
@@ -37,7 +38,7 @@ func newSiTelemetry(enabled bool, telemetry telemetry.Component) *stringInterner
 			globaltlmSIRStrBytes: telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 				"Number of times string with specific length were added",
 				[]float64{1, 2, 4, 8, 16, 32, 64, 128}),
-			resets: telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"}, "Amount of resets of the string interner used in dogstatsd"),
+			resets: telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"}, "Amount of eviction sweeps of the string interner used in dogstatsd"),
 			size:   telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"}, "Number of entries in the string interner"),
 			bytes:  telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"}, "Number of bytes stored in the string interner"),
 			hits:   telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"}, "Number of times string interner returned an existing string"),
@@ -76,12 +77,29 @@ func (si *stringInternerInstanceTelemetry) Hit() {
 	}
 }
 
-// Reset increments the reset counter and updates the size and bytes gauges.
-func (si *stringInternerInstanceTelemetry) Reset(length int) {
-	if si.enabled {
-		si.resets.Inc()
-		si.bytes.Sub(float64(si.curBytes))
-		si.size.Sub(float64(length))
+// Evict counts one eviction sweep and decrements the size gauge by the number of
+// tags it dropped.
+//
+// Unlike the reset it replaces, a sweep drops only the tags that stopped
+// arriving, so the byte gauge is decremented by the evicted share rather than
+// zeroed. Sizes are approximated as the running mean, since the interner does not
+// keep per-entry lengths.
+func (si *stringInternerInstanceTelemetry) Evict(evicted int) {
+	if !si.enabled {
+		return
+	}
+	si.resets.Inc()
+	si.size.Sub(float64(evicted))
+
+	bytes := 0
+	if si.curEntries > 0 {
+		bytes = si.curBytes * evicted / si.curEntries
+	}
+	si.bytes.Sub(float64(bytes))
+	si.curBytes -= bytes
+	si.curEntries -= evicted
+	if si.curEntries < 0 {
+		si.curEntries = 0
 		si.curBytes = 0
 	}
 }
@@ -94,5 +112,6 @@ func (si *stringInternerInstanceTelemetry) Miss(length int) {
 		si.bytes.Add(float64(length))
 		si.globaltlmSIRStrBytes.Observe(float64(length))
 		si.curBytes += length
+		si.curEntries++
 	}
 }

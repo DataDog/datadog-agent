@@ -103,26 +103,21 @@ func TestInternHandlesSurviveReset(t *testing.T) {
 	assert.Equal(before.Hash(), after.Hash())
 }
 
-func TestInternLoadOrStoreReset(t *testing.T) {
+func TestInternLoadOrStoreGrowsPastSizeHint(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
+	// the size argument is only a pre-allocation hint now, not a cap
 	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
 
-	// first test that the good value is returned.
-	sInterner.LoadOrStore([]byte("foo"))
-	assert.Equal(1, len(sInterner.cache))
-	sInterner.LoadOrStore([]byte("bar"))
-	sInterner.LoadOrStore([]byte("bar"))
-	assert.Equal(2, len(sInterner.cache))
-	sInterner.LoadOrStore([]byte("boo"))
-	assert.Equal(3, len(sInterner.cache))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
-	assert.Equal(4, len(sInterner.cache))
-	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.cache))
-	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.cache))
+	for i := 0; i < 64; i++ {
+		sInterner.LoadOrStore([]byte(fmt.Sprintf("tag:%d", i)))
+	}
+	assert.Equal(64, sInterner.table.Len(), "the interner must not evict tags that are still arriving")
+
+	// and repeats keep hitting rather than re-interning
+	first := sInterner.LoadOrStore([]byte("tag:0"))
+	second := sInterner.LoadOrStore([]byte("tag:0"))
+	assert.Same(first, second)
+	assert.Equal(64, sInterner.table.Len())
 }
