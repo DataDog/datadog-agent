@@ -122,9 +122,9 @@ properties:
     type: integer
     default: 60
     description: |-
-      Sets the split-mode control plane's executor idle timeout in seconds. The
-      executor uses three times this value as a self-termination watchdog;
-      values of zero or less disable the watchdog.
+      Sets the split-mode executor's idle timeout in seconds. The executor
+      self-terminates after this much time without activity; values of zero or
+      less disable the watchdog.
   log_file:
     node_type: setting
     type: string

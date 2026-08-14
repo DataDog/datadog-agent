@@ -140,7 +140,7 @@ fn resolve_bool(
     if fleet_value.is_some() {
         return Ok(fleet_value);
     }
-    let Some(raw) = env(name) else {
+    let Some(raw) = env(name).filter(|value| !value.is_empty()) else {
         return Ok(yaml_value);
     };
     let value = match raw.trim() {
@@ -193,6 +193,23 @@ mod tests {
         assert!(launch.gate.split_mode);
         assert!(!launch.gate.self_enroll);
         assert_eq!(launch.log_level, log::LevelFilter::Trace);
+    }
+
+    #[test]
+    fn empty_environment_overrides_fall_back_to_yaml() {
+        let env = |name: &str| match name {
+            "DD_PRIVATE_ACTION_RUNNER_ENABLED"
+            | "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"
+            | "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL" => Some(String::new()),
+            _ => None,
+        };
+        let launch = Launch::from_yaml_str_with_env(
+            "private_action_runner:\n  enabled: true\n  split_enabled: true\n  self_enroll: false\n",
+            env,
+        )
+        .unwrap();
+        assert!(launch.gate.split_mode);
+        assert!(!launch.gate.self_enroll);
     }
 
     #[test]
