@@ -1,3 +1,50 @@
+# Lint gate for the SMP experiment tree. `smp experiments resolve` validates the manifest + experiment
+# structure (duplicate names, entries matching nothing, any experiment in no bucket) and, given the
+# PR's involved teams + labels, prints what would run. BLOCKING on validation: the exit code is driven
+# by validation only, so a missing/failed PR context just narrows the preview and never fails the gate.
+# The trigger job depends on this (optional), so a broken manifest never reaches submit. ebpf is a
+# separate lane (test/regression/ebpf) outside this gate's target dir, so it isn't part of selection.
+single_machine_performance-experiments-resolve:
+  stage: lint
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - changes:
+        paths:
+          - test/regression/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  variables:
+    SMP_VERSION: dev-pr4753-1af89fd44
+    CONFIG_DIR: test/regression/container
+    AWS_NAMED_PROFILE: single-machine-performance
+    BOT_LOGIN: bot_login
+    BOT_TOKEN: bot_token
+  script:
+    # Fetch the SMP bot AWS creds and download the smp binary (same source as the run job).
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_LOGIN)
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $BOT_TOKEN)
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+    - aws --profile ${AWS_NAMED_PROFILE} s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
+    - chmod +x smp
+    # Resolve the PR's involved teams + labels, then validate + show the run set. In a block so the
+    # shell (redirections, ${VAR:+...}) is taken literally. GitHub calls live in the dda task.
+    - |
+      SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr || true)
+      export GITHUB_TOKEN="${SMP_GH_TOKEN}"
+      dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null \
+        || { echo "pr-context failed; validating with no PR context"; : > pr_labels.txt; : > involved_teams.txt; }
+      INVOLVED=$(cat involved_teams.txt 2>/dev/null || true)
+      LABELS=$(cat pr_labels.txt 2>/dev/null || true)
+      # Exit code is driven by validation only; missing PR context just narrows the shown set.
+      ./smp experiments resolve --target-config-dir "${CONFIG_DIR}" --manifest "${CONFIG_DIR}/selection.yaml" ${INVOLVED:+--involved-team "$INVOLVED"} ${LABELS:+--label "$LABELS"}
+
 single_machine_performance-regression_detector-merge_base_check:
   stage: functional_test
   timeout: 10m
@@ -209,6 +256,9 @@ single_machine_performance-regression_detector-merge_base_check:
     - job: single_machine_performance-full-amd64-a7
       artifacts: false  # Ensures comparison image is in ECR before child pipeline starts (dev branches)
       optional: true  # Build job may not run if triggered only via RUN_E2E_TESTS or experiments
+    - job: single_machine_performance-experiments-resolve
+      artifacts: false
+      optional: true  # Only present when test/regression changed; if it ran and failed, submit is gated off
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BASELINE_SHA: $BASELINE_SHA  # Forwarded from the merge_base_check dotenv artifact
