@@ -734,7 +734,6 @@ dependencies = [
  "clap",
  "dd-agent-log",
  "dd-procmgr-client",
- "hyper-util",
  "libc",
  "log",
  "nix",
