@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-
 use anyhow::{Context, Result, bail};
 use std::ptr;
 use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, WIN32_ERROR};

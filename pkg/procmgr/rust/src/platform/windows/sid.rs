@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-
 use anyhow::{Result, bail};
 use std::ptr;
 use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;

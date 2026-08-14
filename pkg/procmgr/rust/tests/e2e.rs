@@ -1973,7 +1973,7 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     );
     assert!(
         daemon.wait_for_log_default(
-            "[datadog-agent-ddot] exit does not match restart policy, not restarting"
+            "[datadog-agent-ddot] exit does not match restart policy (state=exited, restart=on-failure), not restarting"
         ),
         "on-failure restart should not trigger on exit 0"
     );

@@ -76,11 +76,11 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
             let proc = &mut procs[idx];
-            if proc.may_auto_start() {
-                if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
-                    warn!("{e:#}");
-                    queue_restart(proc, restart_tx);
-                }
+            if proc.may_auto_start()
+                && let Err(e) = try_spawn_and_watch(proc, exit_tx)
+            {
+                warn!("{e:#}");
+                queue_restart(proc, restart_tx);
             }
             proc.record_config_gate_met();
         }
@@ -819,10 +819,7 @@ fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRes
     }
 }
 
-fn try_spawn_and_watch(
-    proc: &mut ManagedProcess,
-    exit_tx: &mpsc::Sender<ExitEvent>,
-) -> Result<()> {
+fn try_spawn_and_watch(proc: &mut ManagedProcess, exit_tx: &mpsc::Sender<ExitEvent>) -> Result<()> {
     proc.spawn()?;
     spawn_watcher(proc, exit_tx.clone());
     Ok(())
@@ -1018,14 +1015,16 @@ mod tests {
             "reload should start the process with fresh counters"
         );
 
-        mgr.complete_restart(stale_pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(stale_pending, &exit_tx, &restart_tx)
+            .await;
         let pid = mgr.processes().await[0].pid().unwrap();
         test_helpers::cleanup_process(pid);
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_reload_discards_pending_retry_for_failed_auto_start_false() -> anyhow::Result<()> {
+    async fn test_reload_discards_pending_retry_for_failed_auto_start_false() -> anyhow::Result<()>
+    {
         let (cmd, _args) = test_helpers::sleep_cmd(60);
         let make_def = |secs: u32| ProcessDefinition {
             name: "action-executor".to_string(),
@@ -1072,7 +1071,8 @@ mod tests {
         mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
         assert!(!mgr.processes().await[0].is_running());
 
-        mgr.complete_restart(stale_pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(stale_pending, &exit_tx, &restart_tx)
+            .await;
         assert!(
             !mgr.processes().await[0].is_running(),
             "config reload should discard pending crash retries for failed auto_start=false processes"
