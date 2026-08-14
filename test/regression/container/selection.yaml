@@ -19,3 +19,7 @@ always:
 codeowners:
   agent-log-pipelines:
     - logs/general/**
+
+labels:
+  smp/logs/syslog:
+    - logs/syslog/**
