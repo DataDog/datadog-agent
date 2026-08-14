@@ -501,6 +501,8 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
+	check.parallelCollectors = true
+
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
