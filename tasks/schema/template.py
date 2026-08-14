@@ -446,7 +446,7 @@ def template_all(ctx, core_schema=CORE_SCHEMA_FILE, sysprobe_schema=SYSPROBE_SCH
 
     for build_type, schema in schema_for_build_type.items():
         for os_target in VALID_OS_TARGETS:
-            dest = os.path.join(TEMPLATE_OUTPUT_DIR, f"{build_type}_{os_target}.yaml")
+            dest = os.path.join(TEMPLATE_OUTPUT_DIR, f"{build_type}_{os_target}.yaml.example")
             generate_template(schema, dest, build_type, os_target)
             print(f"  {dest}")
 
