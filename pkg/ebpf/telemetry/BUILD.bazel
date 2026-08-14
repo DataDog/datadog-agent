@@ -70,6 +70,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":telemetry"],
     gotags_sets = [["linux_bpf"]],
+        tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "//pkg/ebpf/bytecode",
@@ -81,6 +82,100 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "debugfs_test",
+    srcs = ["debugfs_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":telemetry"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "errors_collector_linux_test",
+    srcs = ["errors_collector_linux_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":telemetry"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/names",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@com_github_prometheus_client_model//go",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/names",
+            "@com_github_prometheus_client_golang//prometheus",
+            "@com_github_prometheus_client_model//go",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "errors_telemetry_test",
+    srcs = ["errors_telemetry_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":telemetry"],
+    gotags_sets = [["linux_bpf"]],
+        tags = ["requires_ebpf"],
+    include_default = False,
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/names",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "modifier_test",
+    srcs = ["modifier_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":telemetry"],
+    gotags_sets = [["linux_bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/ebpf",
+        "//pkg/ebpf/bytecode",
+        "//pkg/ebpf/names",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "types_linux_test",
+    srcs = ["types_linux_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":telemetry"],
+    gotags_sets = [["linux_bpf"]],
+    deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf/ebpftest:cgo_align",
         ],
