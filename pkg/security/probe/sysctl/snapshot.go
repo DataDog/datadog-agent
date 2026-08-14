@@ -28,6 +28,11 @@ import (
 
 var (
 	redactedContent = "******"
+
+	// ErrRequiredSysctlSnapshotFileNotFound indicates that a sysfs file needed to
+	// build a sysctl snapshot is unavailable. Callers should disable snapshots
+	// rather than repeatedly retrying an unsupported host configuration.
+	ErrRequiredSysctlSnapshotFileNotFound = errors.New("required sysctl snapshot file not found")
 )
 
 // readFileContent reads a file and processes its content based on the given rules.
@@ -156,6 +161,9 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 		"/kernel/security/lsm",
 	} {
 		value, err := readFileContent(kernel.HostSys(systemControl), ignoredBaseNames)
+		if errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("%w: %w", ErrRequiredSysctlSnapshotFileNotFound, err)
+		}
 		if err != nil {
 			return err
 		}
