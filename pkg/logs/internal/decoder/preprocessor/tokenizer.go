@@ -16,6 +16,9 @@ import (
 const (
 	maxRun         = 10
 	ipv4TokenWidth = 7 // D Period D Period D Period D
+	// maxIPv4OctetDigits is the longest digit run that can be an octet, so a
+	// run longer than this can never close a dotted quad.
+	maxIPv4OctetDigits = 3
 )
 
 // maxSpecialTokenLen and the special-token/debug-string tables are generated
@@ -150,9 +153,15 @@ func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 			r = maxRun - 1
 		}
 		t.tsBuf = append(t.tsBuf, token+Token(r))
-	} else {
-		t.tsBuf = append(t.tsBuf, token)
+		// A dotted quad can only ever be closed by its final octet, so this is
+		// the one emission that can complete the pattern. Checking here keeps
+		// the cost off every other token and avoids a second pass entirely.
+		if token == D1 && runLen <= maxIPv4OctetDigits {
+			t.collapseIPv4Tail()
+		}
+		return
 	}
+	t.tsBuf = append(t.tsBuf, token)
 }
 
 // tokenizeIntoBuffers scans input a single time and emits tokens into the
@@ -163,13 +172,11 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 		return nil, nil
 	}
 	t.emitRuns(input)
-	t.collapseHybridTokens()
 	return t.tsBuf, t.idxBuf
 }
 
-// emitRuns run-length-encodes input into tsBuf/idxBuf without hybrid collapse.
-// Tests use this to reconstruct the pre-IPv4-token tokenizer for the IIS
-// false-aggregate case.
+// emitRuns run-length-encodes input into tsBuf/idxBuf, collapsing hybrid tokens
+// via emitToken as each one completes.
 func (t *Tokenizer) emitRuns(input []byte) {
 	inputLen := len(input)
 	if inputLen == 0 {
@@ -213,49 +220,40 @@ func isIPv4OctetToken(tok Token) bool {
 	return tok >= D1 && tok <= D3
 }
 
-// ipv4At reports whether tokens[i:] starts with an IPv4 dotted quad.
-// Each octet is a 1-3 digit run and each separator is a single '.'.
-// A collapsed ".." / "..." Period token is rejected via the start indices.
-func ipv4At(tokens []Token, indices []int, i int) bool {
-	if i+ipv4TokenWidth > len(tokens) {
-		return false
-	}
-	if !isIPv4OctetToken(tokens[i]) || tokens[i+1] != Period ||
-		!isIPv4OctetToken(tokens[i+2]) || tokens[i+3] != Period ||
-		!isIPv4OctetToken(tokens[i+4]) || tokens[i+5] != Period ||
-		!isIPv4OctetToken(tokens[i+6]) {
-		return false
-	}
-	return indices[i+2] == indices[i+1]+1 &&
-		indices[i+4] == indices[i+3]+1 &&
-		indices[i+6] == indices[i+5]+1
-}
-
-// collapseHybridTokens rewrites multi-token patterns into a single token.
-// IPv4 dotted quads are the first of these: as separate digit/period tokens
-// they look like timestamp fragments to the detector, and addresses with
-// different octet widths would otherwise be different sampler patterns.
-func (t *Tokenizer) collapseHybridTokens() {
+// collapseIPv4Tail rewrites a dotted quad ending at the last emitted token into
+// a single IPv4 token. As separate digit/period tokens a quad looks like a
+// timestamp fragment to the detector, and addresses with different octet widths
+// would otherwise be different sampler patterns.
+//
+// Called from emitToken immediately after a 1-3 digit run is appended, which is
+// the only emission that can close the pattern, so the tokenizer never makes a
+// second pass over the token list. Each octet must be a 1-3 digit run and each
+// separator a single '.'; a collapsed ".." / "..." Period token is rejected via
+// the start indices.
+func (t *Tokenizer) collapseIPv4Tail() {
 	n := len(t.tsBuf)
 	if n < ipv4TokenWidth {
 		return
 	}
-	w := 0
-	for r := 0; r < n; {
-		if ipv4At(t.tsBuf, t.idxBuf, r) {
-			t.tsBuf[w] = IPv4
-			t.idxBuf[w] = t.idxBuf[r]
-			w++
-			r += ipv4TokenWidth
-			continue
-		}
-		t.tsBuf[w] = t.tsBuf[r]
-		t.idxBuf[w] = t.idxBuf[r]
-		w++
-		r++
+	ts := t.tsBuf[n-ipv4TokenWidth:]
+
+	// Separators first: they reject nearly every call in a single compare, and
+	// the trailing octet is already known from the caller.
+	if ts[5] != Period || ts[3] != Period || ts[1] != Period {
+		return
 	}
-	t.tsBuf = t.tsBuf[:w]
-	t.idxBuf = t.idxBuf[:w]
+	if !isIPv4OctetToken(ts[0]) || !isIPv4OctetToken(ts[2]) || !isIPv4OctetToken(ts[4]) {
+		return
+	}
+	idx := t.idxBuf[n-ipv4TokenWidth:]
+	if idx[2] != idx[1]+1 || idx[4] != idx[3]+1 || idx[6] != idx[5]+1 {
+		return
+	}
+
+	// Keep idx[0] (the address start) and drop the six tokens it absorbed.
+	ts[0] = IPv4
+	t.tsBuf = t.tsBuf[:n-ipv4TokenWidth+1]
+	t.idxBuf = t.idxBuf[:n-ipv4TokenWidth+1]
 }
 
 // tokensToString converts a list of tokens to a debug string.
