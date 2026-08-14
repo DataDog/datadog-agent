@@ -30,7 +30,6 @@ dd_agent_go_test(
 dd_agent_go_test(
     name = "pclntab_test",
     srcs = ["pclntab_test.go"],
-    tags = ["manual"],
     deps = select({
         "@rules_go//go/platform:android": [
             ":pclntab",
