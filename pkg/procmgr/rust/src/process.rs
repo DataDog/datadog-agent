@@ -346,13 +346,15 @@ impl ManagedProcess {
     }
 
     fn condition_path_exists_met(&self) -> bool {
-        match &self.config.condition_path_exists {
-            None => true,
-            Some(raw) => {
-                let path = expand_env_vars(raw);
-                std::path::Path::new(&path).exists()
-            }
+        let Some(raw) = &self.config.condition_path_exists else {
+            return true;
+        };
+        let path = expand_env_vars(raw);
+        if std::path::Path::new(&path).exists() {
+            return true;
         }
+        info!("[{}] condition_path_exists not met: {path}", self.name);
+        false
     }
 
     #[must_use]
@@ -366,14 +368,7 @@ impl ManagedProcess {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
         }
-        if !self.condition_path_exists_met() {
-            if let Some(ref raw) = self.config.condition_path_exists {
-                let path = expand_env_vars(raw);
-                info!("[{}] condition_path_exists not met: {path}", self.name);
-            }
-            return false;
-        }
-        true
+        self.start_conditions_met()
     }
 
     #[must_use]
