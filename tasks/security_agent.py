@@ -378,7 +378,7 @@ def build_functional_tests(
     }
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(cmd.format(**args), env=env)
 
@@ -502,7 +502,7 @@ def generate_cws_documentation(ctx):
 @task
 def cws_go_generate(ctx, verbose=False):
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
@@ -662,7 +662,7 @@ class FailingTask:
 @task
 def go_generate_check(ctx):
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     tasks = [
         [cws_go_generate],
@@ -757,7 +757,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
         args += " -trace"
 
     # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx, keep_orig_order=False, fix=True)
+    schema_codegen(ctx)
 
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args} {testflags}", env=env)
 
