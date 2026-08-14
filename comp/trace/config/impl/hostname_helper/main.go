@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main is a helper binary for TestConfigHostname/external that returns
+// a response string and exits with a given code, simulating an external hostname
+// provider.
 package main
 
 import (
