@@ -21,5 +21,3 @@ pub fn condition_config_any_met(_conditions: &[ConditionConfigFile]) -> bool {
 pub fn condition_config_summary(_conditions: &[ConditionConfigFile]) -> String {
     String::new()
 }
-
-pub fn clear_secret_caches() {}

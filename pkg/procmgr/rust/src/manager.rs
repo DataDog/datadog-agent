@@ -299,7 +299,6 @@ impl ProcessManager {
         exit_tx: &mpsc::Sender<ExitEvent>,
         restart_tx: &mpsc::Sender<PendingRestart>,
     ) -> Result<ReloadResult, Status> {
-        crate::config_gate::clear_secret_caches();
         let new_configs = self.config_loader.load();
 
         let removed = self
