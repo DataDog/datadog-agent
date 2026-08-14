@@ -28,7 +28,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type checkMap struct {
@@ -191,7 +190,6 @@ func TestLoadWithMaxTrackedRanges(t *testing.T) {
 	if !lockContentionCollectorSupported() {
 		t.Skip("EBPF lock contention collector not supported")
 	}
-	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	l := NewLockContentionCollector()
 	require.NotNil(t, l)
