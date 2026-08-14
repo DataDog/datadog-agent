@@ -3873,12 +3873,12 @@
   
 
 
-<h1 id="defining-apps-and-binaries">Defining Apps and Binaries<a class="headerlink" href="#defining-apps-and-binaries" title="Permanent link">&para;</a></h1>
-<h2 id="binaries">Binaries<a class="headerlink" href="#binaries" title="Permanent link">&para;</a></h2>
+<h1 id="defining-apps-and-binaries">Defining Apps and Binaries</h1>
+<h2 id="binaries">Binaries</h2>
 <p>Each binary is defined as a <code>main</code> package in the <code>cmd/</code> directory, such as <code>cmd/iot-agent</code>. This top-level package contains <em>only</em> a simple <code>main</code> function (or often, one for Windows and one for *nix) which performs any platform-specific initialization and then creates and executes a Cobra command.</p>
-<h3 id="binary-size">Binary Size<a class="headerlink" href="#binary-size" title="Permanent link">&para;</a></h3>
+<h3 id="binary-size">Binary Size</h3>
 <p>Consider carefully the tree of Go imports that begins with the <code>main</code> package. While the Go linker does some removal of unused symbols, the safest means to ensure a particular package isn't occuping space in the resulting binary is to not include it.</p>
-<h3 id="simple-binaries">Simple Binaries<a class="headerlink" href="#simple-binaries" title="Permanent link">&para;</a></h3>
+<h3 id="simple-binaries">Simple Binaries</h3>
 <p>A "simple binary" here is one that does not have subcommands.</p>
 <p>The Cobra configuration for the binary is contained in the <code>command</code> subpackage of the main package (<code>cmd/&lt;binary&gt;/command</code>). The <code>main</code> function calls this package to create the command, and then executes it:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:1"><input checked="checked" id="cmdmaingo" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="cmdmaingo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> cmd/&lt;binary&gt;/main.go</label></div>
@@ -3894,7 +3894,7 @@
 </div>
 </div>
 <p>The <code>command.MakeCommand</code> function creates the <code>*cobra.Command</code> for the binary, with a <code>RunE</code> field that defines an app, as described below.</p>
-<h3 id="binaries-with-subcommands">Binaries With Subcommands<a class="headerlink" href="#binaries-with-subcommands" title="Permanent link">&para;</a></h3>
+<h3 id="binaries-with-subcommands">Binaries With Subcommands</h3>
 <p>Many binaries have a collection of subcommands, along with some command-line flags defined at the binary level. For example, the <code>agent</code> binary has subcommands like <code>agent flare</code> or <code>agent diagnose</code> and accepts global <code>--cfgfile</code> and <code>--no-color</code> arguments.</p>
 <p>As with simple binaries, the top-level Cobra command is defined by a <code>MakeCommand</code> function in <code>cmd/&lt;binary&gt;/command</code>. This <code>command</code> package should also define a <code>GlobalParams</code> struct and a <code>SubcommandFactory</code> type:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:1"><input checked="checked" id="cmdcommandcommandgo" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="cmdcommandcommandgo"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M4 1.75C4 .784 4.784 0 5.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v8.586A1.75 1.75 0 0 1 14.25 15h-9a.75.75 0 0 1 0-1.5h9a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 10 4.25V1.5H5.75a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0Zm1.72 4.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.749.749 0 0 1-1.275-.326.75.75 0 0 1 .215-.734l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06M3.28 7.78 1.81 9.25l1.47 1.47a.75.75 0 0 1-.018 1.042.75.75 0 0 1-1.042.018l-2-2a.75.75 0 0 1 0-1.06l2-2a.75.75 0 0 1 1.042.018.75.75 0 0 1 .018 1.042m8.22-6.218V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914z"/></svg></span> cmd/&lt;binary&gt;/command/command.go</label></div>
@@ -3969,10 +3969,10 @@
 <code>subcommands/&lt;command&gt;</code> package and create the slice there using source files with <code>//go:build</code> directives. Your
 factory can return <code>nil</code> if your command is not compatible with the current build flag. In all cases, the subcommands
 build logic should be constrained to its package. See <code>cmd/agent/subcommands/jmx/command_nojmx.go</code> for an example.</p>
-<h2 id="apps">Apps<a class="headerlink" href="#apps" title="Permanent link">&para;</a></h2>
+<h2 id="apps">Apps</h2>
 <p>Apps map directly to <code>fx.App</code> instances, and as such they define a set of provided components and instantiate some of them.</p>
 <p>The <code>fx.App</code> is always created <em>after</em> Cobra has parsed the command-line, within a <a href="https://pkg.go.dev/github.com/spf13/cobra#Command"><code>cobra.Command#RunE</code> function</a>. This means that the components supplied to an app, and any BundleParams values, are specific to the invoked command or subcommand.</p>
-<h3 id="one-shot-apps">One-Shot Apps<a class="headerlink" href="#one-shot-apps" title="Permanent link">&para;</a></h3>
+<h3 id="one-shot-apps">One-Shot Apps</h3>
 <p>A one-shot app is one which performs some task and exits, such as <code>agent status</code>. The <code>pkg/util/fxutil.OneShot</code> helper function provides a convenient shorthand to run a function only after all components have started. Use it like this:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">cobra</span><span class="p">.</span><span class="nx">Command</span><span class="p">{</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="nx">Use</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;foo&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span>
@@ -4028,7 +4028,7 @@ build logic should be constrained to its package. See <code>cmd/agent/subcommand
 </span><span id="__span-7-28"><a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>This example includes cli params drawn from GlobalParams (<code>Verbose</code>), from subcommand-specific args (<code>useTLS</code>), and from Cobra (<code>args</code>).</p>
-<h3 id="daemon-apps">Daemon Apps<a class="headerlink" href="#daemon-apps" title="Permanent link">&para;</a></h3>
+<h3 id="daemon-apps">Daemon Apps</h3>
 <p>A daemon app is one that runs "forever", such as <code>agent run</code>. Use the <code>fxutil.Run</code> helper function for this variety of app:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nx">cmd</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">cobra</span><span class="p">.</span><span class="nx">Command</span><span class="p">{</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nx">Use</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;foo&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">...</span><span class="p">,</span>
