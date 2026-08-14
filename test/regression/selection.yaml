@@ -1,0 +1,13 @@
+# SMP regression experiment selection policy.
+#
+# Trigger buckets -> experiments, UNIONED: an experiment runs if it matches `always`, OR it matches
+# `codeowners` AND its CODEOWNERS owner is involved in the PR, OR any applied label lists it.
+#
+# Entries are standard globs (`*` = one path segment, `**` = any depth) matched against experiment
+# paths relative to test/regression, or an exact path, or a bare (globally-unique) experiment name.
+# A label is valid iff it is a key under `labels:` (this file is the SMP label registry); keep the
+# `smp/` prefix. Experiments matched by no bucket default to `always` at runtime but are flagged by
+# `validate --in-ci` (bucket them before merge). ebpf is excluded from this flow for now.
+
+always:
+  - quality_gates/**
