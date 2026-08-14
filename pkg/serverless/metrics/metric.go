@@ -77,6 +77,24 @@ func (c *ServerlessMetricAgent) FlushAll() {
 	c.Demux.ForceFlushToSerializer(time.Now(), true, true)
 }
 
+// pendingSampleDrainer is satisfied by *aggregator.AgentDemultiplexer, and by
+// anything embedding it — notably the Fx demultiplexer component's wrapper
+// struct, which is what c.Demux actually holds in production. Asserting
+// against this interface instead of the concrete *AgentDemultiplexer type
+// lets Go's method promotion see through that wrapper.
+type pendingSampleDrainer interface {
+	WaitForPendingSamples()
+}
+
+// WaitForPendingSamples blocks until samples enqueued before this call have
+// been consumed. Satisfied interface: cmd/serverless-init/lifecycle.SampleDrainer.
+// No-op if the demux doesn't support draining (e.g. unset in tests).
+func (c *ServerlessMetricAgent) WaitForPendingSamples() {
+	if d, ok := c.Demux.(pendingSampleDrainer); ok {
+		d.WaitForPendingSamples()
+	}
+}
+
 // sendMetricSample records a distribution metric sample using the agent's extra tags plus any
 // optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, metricsType metrics.MetricType, timestamp float64, tags []string, extraTags ...string) {
