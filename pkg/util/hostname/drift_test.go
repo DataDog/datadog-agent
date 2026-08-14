@@ -188,23 +188,11 @@ func scrapeTelemetry(t *testing.T) string {
 	return rec.Body.String()
 }
 
-// TestCheckHostnameDriftEmitsTelemetry replaces
-// test/new-e2e/tests/agent-runtimes/hostname_drift_{common,nix,win}_test.go, which provisioned a
-// real EC2 Linux/Windows host and asserted this same steady-state telemetry line via
-// `agent diagnose show-metadata agent-full-telemetry`.
-//
-// It goes through the real production entrypoint, GetWithProvider, rather than calling
-// checkHostnameDrift directly: driftCalculator.scheduleHostnameDriftChecks is only reached from
-// getHostname's fallthrough path (providers.go:233-238), which early-stop providers such as the
-// "hostname" config value never reach (they return at providers.go:228, before that call). Only
-// the "coupled" chain (fqdn/container/os/aws) that a real, unconfigured EC2 host falls through
-// schedules drift checks at all, so the replacement has to drive that same path to catch a
-// regression in the scheduling wiring itself.
-//
-// setupHostnameTest's "hostname from EC2 with default system name" fixture (providers_test.go)
-// reproduces exactly that: a default AWS-pattern OS hostname with no config/file/fargate/GCE/azure
-// override, so resolution falls through to the EC2 provider — the same real path the deleted E2E
-// suite exercised on an actual EC2 instance.
+// TestCheckHostnameDriftEmitsTelemetry replaces the deleted hostname_drift E2E suite. It goes
+// through GetWithProvider (not checkHostnameDrift directly) because scheduleHostnameDriftChecks is
+// only reached via getHostname's fallthrough/"coupled" provider chain (fqdn/container/os/aws) —
+// early-stop providers return before that call. The EC2-fallthrough fixture below reproduces that
+// path deterministically.
 func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
 	setupHostnameTest(t, testCase{
 		name:             "hostname from EC2 with default system name",
@@ -215,9 +203,7 @@ func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
 		expectedProvider: "aws",
 	})
 
-	// configmock.New(t) is idempotent within a test (see pkg/config/mock/mock.go), so this just
-	// gets a handle to the same mock setupHostnameTest already installed.
-	cfg := configmock.New(t)
+	cfg := configmock.New(t) // idempotent; reuses setupHostnameTest's mock
 	cfg.SetInTest("hostname_drift_initial_delay", "1ms")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -227,10 +213,8 @@ func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
 	_, err := GetWithProvider(ctx)
 	require.NoError(t, err)
 
-	// Prometheus's text exposition format (which the diagnose CLI ultimately renders) sorts label
-	// names alphabetically, and telemetry.Options.NameWithSeparator inserts a leading "_" that
-	// becomes a second underscore once joined with the "hostname" subsystem — hence
-	// "hostname__drift_..." with labels ordered provider-then-state, not the declaration order.
+	// Metric name has a double underscore and labels are alphabetical (provider before state) —
+	// see telemetry.Options.NameWithSeparator and Prometheus's exposition format.
 	require.Eventually(t, func() bool {
 		body := scrapeTelemetry(t)
 		return strings.Contains(body, "hostname__drift_resolution_time_ms_count{") &&
@@ -238,4 +222,42 @@ func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
 			strings.Contains(body, `state="`+noDrift+`"`)
 	}, time.Second, 5*time.Millisecond,
 		"drift telemetry with provider=aws, state=no_drift should be scheduled and emitted")
+}
+
+// TestCheckHostnameDriftDetectsHostnameChange covers the actual drift path: EC2 metadata reports a
+// different hostname before the first scheduled check runs.
+func TestCheckHostnameDriftDetectsHostnameChange(t *testing.T) {
+	setupHostnameTest(t, testCase{
+		name:             "hostname from EC2 with default system name",
+		FQDNEC2:          true,
+		OSEC2:            true,
+		EC2:              true,
+		expectedHostname: "hostname-from-ec2",
+		expectedProvider: "aws",
+	})
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("hostname_drift_initial_delay", "20ms")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname_check")) })
+
+	_, err := GetWithProvider(ctx)
+	require.NoError(t, err)
+
+	prevEC2GetInstanceID := ec2GetInstanceID
+	t.Cleanup(func() { ec2GetInstanceID = prevEC2GetInstanceID })
+	ec2GetInstanceID = func(context.Context) (string, error) { return "hostname-from-ec2-v2", nil }
+
+	require.Eventually(t, func() bool {
+		body := scrapeTelemetry(t)
+		return strings.Contains(body, `hostname__drift_detected{provider="aws",state="`+hostnameChanged+`"} 1`)
+	}, 2*time.Second, 5*time.Millisecond,
+		"drift_detected should increment once the re-resolved hostname disagrees with the cached one")
+
+	cachedData, found := cache.Cache.Get(cache.BuildAgentKey("hostname_check"))
+	require.True(t, found)
+	assert.Equal(t, Data{Hostname: "hostname-from-ec2-v2", Provider: "aws"}, cachedData,
+		"cache should be updated to the newly detected hostname after drift")
 }
