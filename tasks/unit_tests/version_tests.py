@@ -524,7 +524,9 @@ class TestGetVersionNumericOnly(unittest.TestCase):
         self.assertEqual(get_version_numeric_only(ctx), "7.84.0")
         ctx.run.assert_not_called()
 
-    @patch.dict(os.environ, {"CI": "true", "CI_PIPELINE_ID": "131065751", "CI_PROJECT_NAME": "datadog-agent"}, clear=True)
+    @patch.dict(
+        os.environ, {"CI": "true", "CI_PIPELINE_ID": "131065751", "CI_PROJECT_NAME": "datadog-agent"}, clear=True
+    )
     @patch("tasks.libs.releasing.version.os.path.exists", return_value=False)
     def test_fetches_cache_from_s3_when_missing(self, _mock_exists):
         ctx = MagicMock()
