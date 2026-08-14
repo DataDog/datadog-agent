@@ -19,7 +19,6 @@ use windows_sys::Win32::Foundation::HANDLE;
 
 use crate::platform::{create_pipe_server, pipe_client_may_mutate};
 
-const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 const DEFAULT_PIPE_INSTANCES: usize = 4;
 
 pub fn ipc_path() -> PathBuf {
