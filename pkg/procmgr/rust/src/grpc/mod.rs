@@ -19,7 +19,7 @@ mod tests {
     use super::service::ProcessManagerService;
     use crate::command::Command;
     use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
-    use crate::manager::{PendingRestart, ProcessManager};
+    use crate::manager::ProcessManager;
     use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
@@ -34,7 +34,7 @@ mod tests {
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
     ) {
-        let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
+        let (cmd_tx, cmd_rx) = mpsc::channel::<Command>(64);
         let dir = tempfile::tempdir().unwrap();
         let sock_path = dir.path().join("test.sock");
         let uds = UnixListener::bind(&sock_path).unwrap();
@@ -74,46 +74,7 @@ mod tests {
             drop(dir);
         });
 
-        let (exit_tx, mut exit_rx) = mpsc::channel::<crate::manager::ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
-        let mgr_loop = mgr.clone();
-        let exit_tx_loop = exit_tx.clone();
-        let restart_tx_loop = restart_tx.clone();
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(cmd) = cmd_rx.recv() => {
-                        match cmd {
-                            Command::Create { name, config, reply } => {
-                                let _ = reply.send(
-                                    mgr_loop.handle_create(name, *config, &exit_tx_loop).await,
-                                );
-                            }
-                            Command::Start { name_or_uuid, reply } => {
-                                let _ = reply.send(
-                                    mgr_loop.handle_start(&name_or_uuid, &exit_tx_loop).await,
-                                );
-                            }
-                            Command::Stop { name_or_uuid, reply } => {
-                                let _ = reply.send(mgr_loop.handle_stop(&name_or_uuid).await);
-                            }
-                            Command::ReloadConfig { reply } => {
-                                let _ = reply.send(
-                                    mgr_loop.handle_reload_config(&exit_tx_loop, &restart_tx_loop).await,
-                                );
-                            }
-                        }
-                    }
-                    Some(event) = exit_rx.recv() => {
-                        mgr_loop.handle_exit(event, &restart_tx_loop).await;
-                    }
-                    Some(pending) = restart_rx.recv() => {
-                        mgr_loop.complete_restart(pending, &exit_tx_loop, &restart_tx_loop).await;
-                    }
-                    else => break,
-                }
-            }
-        });
+        crate::manager::spawn_command_loop_for_tests(mgr.clone(), cmd_rx);
 
         let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
 
