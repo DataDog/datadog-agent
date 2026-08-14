@@ -13,6 +13,7 @@ go_library(
         "debug_server.go",
         "debug_server_serverless.go",
         "debugger.go",
+        "dela.go",
         "dogstatsd.go",
         "endpoints.go",
         "evp_proxy.go",
@@ -39,7 +40,6 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl/noops",
-        "//pkg/config/utils",
         "//pkg/obfuscate",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",

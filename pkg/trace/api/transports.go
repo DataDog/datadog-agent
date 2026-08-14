@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -82,7 +81,7 @@ func newForwardingTransport(
 			continue
 		}
 		for _, key := range keys {
-			if utils.IsDelaDirective(key) {
+			if isDelaDirective(key) {
 				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
 				continue
 			}

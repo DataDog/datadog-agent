@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -64,7 +63,7 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 
 	for host, keys := range cfg.OpenLineageProxy.AdditionalEndpoints {
 		for _, key := range keys {
-			if utils.IsDelaDirective(key) {
+			if isDelaDirective(key) {
 				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
 				continue
 			}

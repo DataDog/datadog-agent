@@ -21,7 +21,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -70,7 +69,7 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 				continue
 			}
 			for _, key := range extra[endpoint] {
-				if utils.IsDelaDirective(key) {
+				if isDelaDirective(key) {
 					// Pending DELA(...) directive - see IsDelaDirective's doc comment.
 					continue
 				}

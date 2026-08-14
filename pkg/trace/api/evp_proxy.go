@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -50,7 +49,7 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	endpoints := []config.Endpoint{{Host: endpoint, APIKey: apiKey}} // main endpoint
 	for host, keys := range conf.EVPProxy.AdditionalEndpoints {
 		for _, key := range keys {
-			if utils.IsDelaDirective(key) {
+			if isDelaDirective(key) {
 				// Pending DELA(...) directive - see IsDelaDirective's doc comment.
 				continue
 			}
