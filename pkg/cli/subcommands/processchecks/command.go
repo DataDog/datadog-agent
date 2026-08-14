@@ -7,7 +7,6 @@
 package processchecks
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -136,7 +135,7 @@ func RunCheckCmd(deps dependencies) error {
 
 	// Wait for Workloadmeta to be initialized otherwise results may be empty as this is a hard dependency
 	// for some checks
-	_ = wmetautil.WaitForInitialization(context.Background(), deps.WorkloadMeta, workloadmetaTimeout, deps.Log)
+	_ = wmetautil.WaitForInitialization(deps.WorkloadMeta, workloadmetaTimeout, deps.Log)
 
 	names := make([]string, 0, len(deps.Checks))
 	for _, checkComponent := range deps.Checks {

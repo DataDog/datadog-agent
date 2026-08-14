@@ -6,7 +6,6 @@
 package workloadmeta
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -35,7 +34,7 @@ func (f *fakeStore) IsInitialized() bool {
 func TestWaitForInitializationAlreadyInitialized(t *testing.T) {
 	wmeta := &fakeStore{}
 
-	assert.True(t, WaitForInitialization(context.Background(), wmeta, time.Minute, logmock.New(t)))
+	assert.True(t, WaitForInitialization(wmeta, time.Minute, logmock.New(t)))
 	// A single call means the ticker was never involved.
 	assert.Equal(t, 1, wmeta.calls)
 }
@@ -43,7 +42,7 @@ func TestWaitForInitializationAlreadyInitialized(t *testing.T) {
 func TestWaitForInitializationWhilePolling(t *testing.T) {
 	wmeta := &fakeStore{readyAfter: 3}
 
-	assert.True(t, WaitForInitialization(context.Background(), wmeta, time.Minute, logmock.New(t)))
+	assert.True(t, WaitForInitialization(wmeta, time.Minute, logmock.New(t)))
 	assert.Equal(t, 4, wmeta.calls)
 }
 
@@ -52,7 +51,7 @@ func TestWaitForInitializationTimeout(t *testing.T) {
 	timeout := 5 * pollInterval
 
 	start := time.Now()
-	assert.False(t, WaitForInitialization(context.Background(), wmeta, timeout, logmock.New(t)))
+	assert.False(t, WaitForInitialization(wmeta, timeout, logmock.New(t)))
 
 	// The wait is bounded: it gives up instead of blocking the command forever.
 	assert.GreaterOrEqual(t, time.Since(start), timeout)
@@ -61,18 +60,7 @@ func TestWaitForInitializationTimeout(t *testing.T) {
 func TestWaitForInitializationDisabled(t *testing.T) {
 	wmeta := &fakeStore{neverReady: true}
 
-	assert.False(t, WaitForInitialization(context.Background(), wmeta, 0, logmock.New(t)))
+	assert.False(t, WaitForInitialization(wmeta, 0, logmock.New(t)))
 	// A zero timeout still reports the current state, it just never polls again.
 	assert.Equal(t, 1, wmeta.calls)
-}
-
-func TestWaitForInitializationCancelledContext(t *testing.T) {
-	wmeta := &fakeStore{neverReady: true}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// An already cancelled context must not make the caller wait for the whole timeout.
-	start := time.Now()
-	assert.False(t, WaitForInitialization(ctx, wmeta, time.Minute, logmock.New(t)))
-	assert.Less(t, time.Since(start), time.Minute)
 }

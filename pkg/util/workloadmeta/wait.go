@@ -7,7 +7,6 @@
 package workloadmeta
 
 import (
-	"context"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -41,7 +40,7 @@ const (
 // be valid JSON: progress goes through the log component, and is therefore subject to the log
 // level the command was configured with. Callers that need to surface a failed wait to the user
 // regardless of that level should do so from the returned value.
-func WaitForInitialization(ctx context.Context, wmeta workloadmeta.Component, timeout time.Duration, logger log.Component) bool {
+func WaitForInitialization(wmeta workloadmeta.Component, timeout time.Duration, logger log.Component) bool {
 	if wmeta.IsInitialized() {
 		return true
 	}
@@ -52,20 +51,16 @@ func WaitForInitialization(ctx context.Context, wmeta workloadmeta.Component, ti
 	logger.Info("Waiting for workloadmeta to be initialized...")
 	start := time.Now()
 
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-waitCtx.Done():
-			if err := ctx.Err(); err != nil {
-				logger.Infof("Stopped waiting for workloadmeta after %v: %v", time.Since(start), err)
-			} else {
-				logger.Warnf("Workloadmeta is not ready after %v, proceeding anyway: results may be incomplete or empty", timeout)
-			}
+		case <-deadline.C:
+			logger.Warnf("Workloadmeta is not ready after %v, proceeding anyway: results may be incomplete or empty", timeout)
 			return false
 		case <-ticker.C:
 			if wmeta.IsInitialized() {

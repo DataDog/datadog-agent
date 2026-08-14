@@ -324,7 +324,7 @@ func run(
 	// Checks are run right away, without going through the autodiscovery scheduler, so nothing
 	// else guarantees that the workloadmeta store is populated by then. This also happens
 	// before config resolution below, as autodiscovery listeners are fed by that same store.
-	if !wmetautil.WaitForInitialization(context.Background(), wmeta, time.Duration(cliParams.workloadmetaTimeout)*time.Second, logger) && !cliParams.formatJSON {
+	if !wmetautil.WaitForInitialization(wmeta, time.Duration(cliParams.workloadmetaTimeout)*time.Second, logger) && !cliParams.formatJSON {
 		// This command turns the log component off by default, so the warning it emits there
 		// would go unnoticed — and a check silently reporting nothing is the very failure mode
 		// this wait exists to prevent. Not in JSON mode though: consumers of `check --json`
