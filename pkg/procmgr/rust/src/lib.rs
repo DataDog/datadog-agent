@@ -5,7 +5,6 @@
 
 pub mod command;
 pub mod config;
-mod config_gate;
 pub mod env;
 pub mod grpc;
 pub mod handle;
