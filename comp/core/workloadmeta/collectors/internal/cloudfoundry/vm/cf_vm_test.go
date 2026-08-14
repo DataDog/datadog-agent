@@ -509,3 +509,40 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 
 	assert.Contains(t, container.CollectorTags, "container_name:"+"app-name-1")
 }
+
+// TestPullDCAUnreachableTwice reproduces the typed-nil interface trap: when
+// clusteragent.GetClusterAgentClient returns a concrete (*DCAClient)(nil)
+// alongside an error, assigning it into an interface field before the error
+// check poisons the field with a non-nil interface wrapping a nil pointer.
+// A second Pull would then see c.dcaClient != nil, skip re-init, and call a
+// method on a nil *DCAClient receiver.
+func TestPullDCAUnreachableTwice(t *testing.T) {
+	fakeGardenUtil := FakeGardenUtil{containers: nil}
+
+	orig := getClusterAgentClient
+	getClusterAgentClient = func() (*clusteragent.DCAClient, error) {
+		// Simulate GetClusterAgentClient's real error path: a nil concrete
+		// pointer alongside a non-nil error.
+		return nil, fmt.Errorf("cluster agent unreachable")
+	}
+	t.Cleanup(func() { getClusterAgentClient = orig })
+
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      workloadmetaStore,
+		dcaEnabled: true,
+	}
+
+	require.NoError(t, c.Pull(context.TODO()))
+	require.Nil(t, c.dcaClient, "first Pull must not poison the dcaClient field on error")
+
+	require.NotPanics(t, func() {
+		require.NoError(t, c.Pull(context.TODO()))
+	})
+	require.Nil(t, c.dcaClient, "second Pull must not poison the dcaClient field on error")
+}

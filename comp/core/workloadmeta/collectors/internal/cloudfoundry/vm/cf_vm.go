@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -29,6 +30,10 @@ const (
 	componentName = "workloadmeta-cloudfoundry-vm"
 )
 
+// getClusterAgentClient is overridden in tests to avoid depending on the
+// real cluster agent connection singleton.
+var getClusterAgentClient = clusteragent.GetClusterAgentClient
+
 type dependencies struct {
 	fx.In
 
@@ -45,8 +50,9 @@ type collector struct {
 	gardenUtil cloudfoundry.GardenUtilInterface
 	nodeName   string
 
-	dcaClient  clusteragent.DCAClientInterface
-	dcaEnabled bool
+	dcaClientLock sync.Mutex
+	dcaClient     clusteragent.DCAClientInterface
+	dcaEnabled    bool
 }
 
 // NewCollector instantiates a CollectorProvider which can provide a CF container collector
@@ -108,7 +114,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 	var allContainersTags map[string][]string
 	if dcaClient := c.getDCAClient(); dcaClient != nil {
-		allContainersTags, err = c.dcaClient.GetCFAppsMetadataForNode(c.nodeName)
+		allContainersTags, err = dcaClient.GetCFAppsMetadataForNode(c.nodeName)
 		if err != nil {
 			log.Debugf("Unable to fetch CF tags from cluster agent, CF tags will be missing, err: %v", err)
 		}
@@ -223,6 +229,9 @@ func (c *collector) Pull(_ context.Context) error {
 }
 
 func (c *collector) getDCAClient() clusteragent.DCAClientInterface {
+	c.dcaClientLock.Lock()
+	defer c.dcaClientLock.Unlock()
+
 	if !c.dcaEnabled {
 		return nil
 	}
@@ -231,13 +240,13 @@ func (c *collector) getDCAClient() clusteragent.DCAClientInterface {
 		return c.dcaClient
 	}
 
-	var err error
-	c.dcaClient, err = clusteragent.GetClusterAgentClient()
+	client, err := getClusterAgentClient()
 	if err != nil {
 		log.Debugf("Could not initialise the communication with the cluster agent, PCF tags may be missing, err: %v", err)
 		return nil
 	}
 
+	c.dcaClient = client
 	return c.dcaClient
 }
 
