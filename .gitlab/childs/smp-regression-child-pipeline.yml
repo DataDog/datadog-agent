@@ -19,6 +19,7 @@ variables:
   GIT_DEPTH: 1
   # Repo-owned minijinja template rendered into the PR comment by
   # `smp report render`. Shared by every SMP job in this pipeline.
+  #
   REPORT_TEMPLATE: test/regression/report_template.md.j2
 
 .smp_config_only_job_submit:
