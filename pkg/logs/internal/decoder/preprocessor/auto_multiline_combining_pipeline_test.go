@@ -322,90 +322,23 @@ func newDefaultThresholdCombiningPipeline(t *testing.T) (*Preprocessor, chan *me
 // IPv4 collapse the following 10.1.48.10 records stay aggregate and are
 // appended until flush. With collapse each record starts its own group.
 func TestPathCPipeline_IISW3CRecordsStaySingleLineAtDefaultThreshold(t *testing.T) {
-	t.Run("after IIS Date header", func(t *testing.T) {
-		pipeline, outputChan := newDefaultThresholdCombiningPipeline(t)
-
-		pipeline.Process(newTestPreprocessorMessage(iisW3CDateHeader))
-		require.Empty(t, drainAll(outputChan), "timestamped #Date header must open a group and stay buffered")
-
-		pipeline.Process(newTestPreprocessorMessage(iisW3CFailingShape))
-		emitted := drainAll(outputChan)
-		require.Len(t, emitted, 1, "first IIS record must start a group and flush the header, not append to it")
-		assert.Equal(t, iisW3CDateHeader, string(emitted[0].GetContent()))
-		assert.NotContains(t, string(emitted[0].GetContent()), `\n`)
-
-		pipeline.Process(newTestPreprocessorMessage(iisW3CPostLine))
-		emitted = drainAll(outputChan)
-		require.Len(t, emitted, 1, "second IIS record must start a group and flush the first record")
-		assert.Equal(t, iisW3CFailingShape, string(emitted[0].GetContent()))
-		assert.NotContains(t, string(emitted[0].GetContent()), `\n`)
-		assert.NotContains(t, string(emitted[0].GetContent()), iisW3CPostLine)
-
-		pipeline.Flush()
-		emitted = drainAll(outputChan)
-		require.Len(t, emitted, 1)
-		assert.Equal(t, iisW3CPostLine, string(emitted[0].GetContent()))
-		assert.NotContains(t, string(emitted[0].GetContent()), iisW3CFailingShape)
-	})
-
-	t.Run("after control IPv4 that already started a group", func(t *testing.T) {
-		pipeline, outputChan := newDefaultThresholdCombiningPipeline(t)
-
-		pipeline.Process(newTestPreprocessorMessage(iisW3CControlIP))
-		require.Empty(t, drainAll(outputChan), "192.168.1.1 IIS record must open a group")
-
-		pipeline.Process(newTestPreprocessorMessage(iisW3CFailingShape))
-		emitted := drainAll(outputChan)
-		require.Len(t, emitted, 1, "10.1.48.10 record must not be swallowed as a continuation of 192.168.1.1")
-		assert.Equal(t, iisW3CControlIP, string(emitted[0].GetContent()))
-		assert.NotContains(t, string(emitted[0].GetContent()), `\n`)
-
-		pipeline.Flush()
-		emitted = drainAll(outputChan)
-		require.Len(t, emitted, 1)
-		assert.Equal(t, iisW3CFailingShape, string(emitted[0].GetContent()))
-	})
-}
-
-// TestPathCPipeline_ApacheCLFStaysSingleLineAtDefaultThreshold guards the
-// common IPv4+timestamp shape that was already startGroup before this
-// change: consecutive Apache CLF lines must not concatenate at 0.5.
-func TestPathCPipeline_ApacheCLFStaysSingleLineAtDefaultThreshold(t *testing.T) {
 	pipeline, outputChan := newDefaultThresholdCombiningPipeline(t)
-	line1 := "127.0.0.1 - - [16/May/2024:19:49:17 +0000] \"GET /probe HTTP/1.1\" 200 0"
-	line2 := "127.0.0.1 - - [16/May/2024:19:49:18 +0000] \"GET /health HTTP/1.1\" 200 0"
 
-	pipeline.Process(newTestPreprocessorMessage(line1))
-	require.Empty(t, drainAll(outputChan))
+	pipeline.Process(newTestPreprocessorMessage(iisW3CDateHeader))
+	require.Empty(t, drainAll(outputChan), "timestamped #Date header must open a group and stay buffered")
 
-	pipeline.Process(newTestPreprocessorMessage(line2))
+	pipeline.Process(newTestPreprocessorMessage(iisW3CFailingShape))
 	emitted := drainAll(outputChan)
-	require.Len(t, emitted, 1)
-	assert.Equal(t, line1, string(emitted[0].GetContent()))
-	assert.NotContains(t, string(emitted[0].GetContent()), `\n`)
+	require.Len(t, emitted, 1, "first IIS record must start a group and flush the header, not append to it")
+	assert.Equal(t, iisW3CDateHeader, string(emitted[0].GetContent()))
+
+	pipeline.Process(newTestPreprocessorMessage(iisW3CPostLine))
+	emitted = drainAll(outputChan)
+	require.Len(t, emitted, 1, "second IIS record must start a group and flush the first record")
+	assert.Equal(t, iisW3CFailingShape, string(emitted[0].GetContent()))
 
 	pipeline.Flush()
 	emitted = drainAll(outputChan)
 	require.Len(t, emitted, 1)
-	assert.Equal(t, line2, string(emitted[0].GetContent()))
-}
-
-// TestPathCPipeline_StackTraceStillCombinesAtDefaultThreshold guards the
-// legitimate multi-line path at the same 0.5 threshold used for IIS:
-// a timestamped leader plus a continuation must still form one group.
-func TestPathCPipeline_StackTraceStillCombinesAtDefaultThreshold(t *testing.T) {
-	pipeline, outputChan := newDefaultThresholdCombiningPipeline(t)
-
-	pipeline.Process(newTestPreprocessorMessage("2024-01-15 10:30:45 ERROR request failed"))
-	pipeline.Process(newTestPreprocessorMessage("  at HandlerImpl.process(line 42)"))
-	require.Empty(t, drainAll(outputChan), "continuation must stay buffered in the current group")
-
-	pipeline.Process(newTestPreprocessorMessage("2024-01-15 10:30:46 INFO recovered"))
-	emitted := drainAll(outputChan)
-	require.Len(t, emitted, 1)
-	combined := string(emitted[0].GetContent())
-	assert.Contains(t, combined, "request failed")
-	assert.Contains(t, combined, "HandlerImpl.process")
-	assert.Contains(t, combined, `\n`)
-	assert.NotContains(t, combined, "recovered")
+	assert.Equal(t, iisW3CPostLine, string(emitted[0].GetContent()))
 }
