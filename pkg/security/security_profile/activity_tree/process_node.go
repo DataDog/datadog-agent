@@ -91,10 +91,6 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 	node := &ProcessNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
-		Files:          make(map[string]*FileNode),
-		DNSNames:       make(map[string]*DNSNode),
-		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
-		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
 	}
 	node.NodeBase = NewNodeBase()
 
@@ -296,6 +292,9 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	}
 
 	if !dryRun {
+		if pn.Files == nil {
+			pn.Files = make(map[string]*FileNode)
+		}
 		if len(filePath) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
 			node := NewFileNode(fileEvent, event, parent, imageTagID, generationType, filePath, resolvers)
@@ -363,6 +362,9 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 	}
 
 	dnsNode = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTagID)
+	if pn.DNSNames == nil {
+		pn.DNSNames = make(map[string]*DNSNode)
+	}
 	pn.DNSNames[evt.DNS.Question.Name] = dnsNode
 	stats.DNSNodes++
 	stats.SizeBytes += dnsNode.size()
@@ -381,6 +383,9 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 	if !dryRun {
 		// create new node
 		imdsNode := NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTagID)
+		if pn.IMDSEvents == nil {
+			pn.IMDSEvents = make(map[model.IMDSEvent]*IMDSNode)
+		}
 		pn.IMDSEvents[evt.IMDS] = imdsNode
 		stats.IMDSNodes++
 		stats.SizeBytes += imdsNode.size()
@@ -397,6 +402,9 @@ func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTagI
 
 	if !dryRun {
 		newNode := NewNetworkDeviceNode(&evt.NetworkFlowMonitor.Device, generationType)
+		if pn.NetworkDevices == nil {
+			pn.NetworkDevices = make(map[model.NetworkDeviceContext]*NetworkDeviceNode)
+		}
 		pn.NetworkDevices[evt.NetworkFlowMonitor.Device] = newNode
 		// Charge for the device struct itself before its first flow is inserted; the
 		// flow's own size is added by insertNetworkFlowMonitorEvent below.

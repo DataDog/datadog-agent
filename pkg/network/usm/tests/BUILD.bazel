@@ -30,9 +30,6 @@ dd_agent_go_test(
         ["npm"],
     ],
     include_default = False,
-    # keep: the linux_bpf variant needs a privileged host with a live kernel;
-    # it runs in the system-probe lane, not under wildcard builds.
-    tags = ["manual"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/config/env",

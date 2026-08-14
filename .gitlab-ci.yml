@@ -121,6 +121,9 @@
 
   # E2E framework
   - test/e2e-framework/components/activedirectory/**/*
+  - test/e2e-framework/components/os/scripts/setup-ssh.ps1
+  - test/e2e-framework/components/os/windows*
+  - test/e2e-framework/scenarios/aws/ec2/os_win.go
 
 # Process manager
 .windows_path_4: &windows_path_4
@@ -170,6 +173,11 @@ default:
   retry:
     max: 1 # Retry everything once on failure
     when: always
+
+# Full git history. Override the default shallow clone.
+.needs_full_git_history:
+  variables:
+    GIT_DEPTH: 0
 
 stages:
   - .pre
@@ -307,9 +315,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v126430166-27084be1
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v126430166-27084be1
+  CI_IMAGE_WIN_LTSC2022_X64: v127592905-6a747366
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v126430166-27084be1
+  CI_IMAGE_WIN_LTSC2025_X64: v127592905-6a747366
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -372,8 +380,9 @@ variables:
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
-  # Job cloning strategy
+  # Shallow clone by default.
   GIT_STRATEGY: "fetch"
+  GIT_DEPTH: 1
   DISABLE_GIT_CACHE: true
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
@@ -522,8 +531,6 @@ variables:
   changes:
     paths:
       - omnibus/**/*
-      - pkg/config/config_template.yaml
-      - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
@@ -548,6 +555,19 @@ workflow:
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
     - <<: *if_mergequeue
+    # ADP is shipped in every Agent package and exercised across several test suites.
+    # Treat an ADP version bump like a full pipeline so platform-specific regressions
+    # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
+    - changes:
+        paths:
+          - deps/agent_data_plane/agent_data_plane.MODULE.bazel
+        compare_to: $COMPARE_TO_BRANCH
+      variables:
+        RUN_ALL_BUILDS: "true"
+        RUN_E2E_TESTS: "on"
+        RUN_KMT_TESTS: "on"
+        RUN_UNIT_TESTS: "on"
+        SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path
         compare_to: main
@@ -1123,10 +1143,26 @@ workflow:
   - changes:
       paths:
         - cmd/agent/dist/conf.d/discovery.d/*
+        - comp/core/autodiscovery/discoverer/**/*
+        - comp/core/autodiscovery/impl/configmgr*
         - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/discovery/**/*
         - pkg/discovery/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+.on_adp_preflight_mode_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/dataplane/preflightmode/**/*
+        - test/new-e2e/tests/agent-data-plane/**/*
+        # Preflight mode's eligibility gate lives in the config layer, not in the component:
+        # sanitizeDataPlaneConfig decides whether data_plane.enabled stays at its default
+        # source, which is what makes the pre-flight run at all.
+        - pkg/config/setup/config.go
+        # The pre-flight has nothing to run if ADP stops being packaged.
+        - deps/agent_data_plane/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_amp_or_e2e_changes:

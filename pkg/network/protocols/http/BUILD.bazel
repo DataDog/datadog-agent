@@ -150,7 +150,6 @@ dd_agent_go_test(
         ["linux_bpf"],
         ["npm"],
     ],
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//pkg/ebpf",
         "//pkg/network/config",
