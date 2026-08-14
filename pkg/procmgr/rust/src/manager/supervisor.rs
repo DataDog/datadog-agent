@@ -16,7 +16,11 @@ pub(crate) struct RuntimeHandles {
 }
 
 impl RuntimeHandles {
-    pub(super) fn new() -> (Self, mpsc::Receiver<ExitEvent>, mpsc::Receiver<PendingRestart>) {
+    pub(super) fn new() -> (
+        Self,
+        mpsc::Receiver<ExitEvent>,
+        mpsc::Receiver<PendingRestart>,
+    ) {
         let (exit_tx, exit_rx) = mpsc::channel(256);
         let (restart_tx, restart_rx) = mpsc::channel(256);
         (
@@ -40,13 +44,23 @@ impl RuntimeHandles {
 
 async fn handle_command(manager: &ProcessManager, handles: &RuntimeHandles, cmd: Command) {
     match cmd {
-        Command::Create { name, config, reply } => {
+        Command::Create {
+            name,
+            config,
+            reply,
+        } => {
             let _ = reply.send(manager.handle_create(name, *config, handles).await);
         }
-        Command::Start { name_or_uuid, reply } => {
+        Command::Start {
+            name_or_uuid,
+            reply,
+        } => {
             let _ = reply.send(manager.handle_start(&name_or_uuid, handles).await);
         }
-        Command::Stop { name_or_uuid, reply } => {
+        Command::Stop {
+            name_or_uuid,
+            reply,
+        } => {
             let _ = reply.send(manager.handle_stop(&name_or_uuid).await);
         }
         Command::ReloadConfig { reply } => {
@@ -129,7 +143,7 @@ impl Supervisor {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn spawn_command_loop_for_tests(
     manager: ProcessManager,
     mut cmd_rx: mpsc::Receiver<Command>,

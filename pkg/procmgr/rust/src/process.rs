@@ -212,11 +212,6 @@ impl ManagedProcess {
     }
 
     #[cfg(windows)]
-    pub(crate) fn clear_windows_job_object(&mut self) {
-        self.job_object = None;
-    }
-
-    #[cfg(windows)]
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;

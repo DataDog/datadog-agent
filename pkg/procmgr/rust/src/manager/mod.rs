@@ -11,18 +11,16 @@ mod supervisor;
 
 use supervisor::RuntimeHandles;
 
-use crate::config::ProcessDefinition;
 use crate::process::ManagedProcess;
 use anyhow::Result;
 use log::warn;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 use tonic::Status;
 
 pub use process_manager::ProcessManager;
 pub use supervisor::Supervisor;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) use supervisor::spawn_command_loop_for_tests;
 
 pub(crate) struct ExitEvent {
@@ -125,10 +123,14 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ConfigLoader, MutableConfigLoader, ProcessConfig, RestartPolicy, StaticConfigLoader};
+    use crate::config::{
+        ConfigLoader, MutableConfigLoader, ProcessConfig, ProcessDefinition, RestartPolicy,
+        StaticConfigLoader,
+    };
     use crate::state::ProcessState;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, UuidGenerator, V4UuidGenerator};
+    use std::sync::Arc;
 
     fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
         Arc::new(StaticConfigLoader::new(defs))
@@ -138,8 +140,7 @@ mod tests {
         Arc::new(V4UuidGenerator)
     }
 
-    fn test_runtime_handles(
-    ) -> (
+    fn test_runtime_handles() -> (
         RuntimeHandles,
         mpsc::Receiver<ExitEvent>,
         mpsc::Receiver<PendingRestart>,
@@ -255,8 +256,7 @@ mod tests {
             "reload should start the process with fresh counters"
         );
 
-        mgr.complete_restart(stale_pending, &handles)
-            .await;
+        mgr.complete_restart(stale_pending, &handles).await;
         let pid = mgr.processes().await[0].pid().unwrap();
         test_helpers::cleanup_process(pid);
         Ok(())
@@ -310,8 +310,7 @@ mod tests {
         mgr.handle_reload_config(&handles).await?;
         assert!(!mgr.processes().await[0].is_running());
 
-        mgr.complete_restart(stale_pending, &handles)
-            .await;
+        mgr.complete_restart(stale_pending, &handles).await;
         assert!(
             !mgr.processes().await[0].is_running(),
             "config reload should discard pending crash retries for failed auto_start=false processes"
