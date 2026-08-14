@@ -103,9 +103,9 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 		h.log.Debugf("Received config %s: %s", configPath, string(rawConfig.Config))
 
 		var discriminator workloadBalancingDiscriminator
-		if err := json.Unmarshal(rawConfig.Config, &discriminator); err == nil && discriminator.GroupID != "" {
+		if err := json.Unmarshal(rawConfig.Config, &discriminator); err == nil && discriminator.Type == workloadBalancingType {
 			// Owned by comp/workloadbalancing, not HA Agent.
-			h.log.Debugf("Skipping config %s: belongs to comp/workloadbalancing (group_id=%s)", configPath, discriminator.GroupID)
+			h.log.Debugf("Skipping config %s: belongs to comp/workloadbalancing (type=%s)", configPath, discriminator.Type)
 			continue
 		}
 		sawHaAgentDoc = true

@@ -209,7 +209,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			name:         "workload balancing document is left for its own listener, HA state resets",
 			initialState: haagent.Active,
 			updates: map[string]state.RawConfig{
-				testRCConfigID: {Config: []byte(`{"group_id":"group-01","active_agent":"my-agent-hostname"}`)},
+				testRCConfigID: {Config: []byte(`{"type":"workload_balancing","workload_balancing_group_id":"group-01","active_agent":"my-agent-hostname"}`)},
 			},
 			expectedApplyID:     "",
 			expectedApplyStatus: state.ApplyStatus{},
@@ -220,7 +220,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{
 				testRCConfigID:              {Config: []byte(`{"config_id":"testConfig01","active_agent":"my-agent-hostname"}`)},
-				testRCConfigID + "-foreign": {Config: []byte(`{"group_id":"group-01","active_agent":"another-agent-hostname"}`)},
+				testRCConfigID + "-foreign": {Config: []byte(`{"type":"workload_balancing","workload_balancing_group_id":"group-01","active_agent":"another-agent-hostname"}`)},
 			},
 			expectedApplyID: testRCConfigID,
 			expectedApplyStatus: state.ApplyStatus{
