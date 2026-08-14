@@ -44,6 +44,10 @@ import (
 
 const jsonContentType = "application/json"
 
+// maxRequestBodyBytes bounds the AdmissionReview body the webhook will buffer.
+// Matches controller-runtime's own maxRequestSize.
+const maxRequestBodyBytes = int64(7 << 20)
+
 // Request contains the information of an admission request
 type Request struct {
 	// UID is the unique identifier of the AdmissionRequest
@@ -200,17 +204,23 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Warnf("Could not read request body: %v", err)
-		return
-	}
-	defer r.Body.Close()
-
 	if contentType := r.Header.Get("Content-Type"); contentType != jsonContentType {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Warnf("Unsupported content type %s, only %s is supported", contentType, jsonContentType)
+		return
+	}
+
+	defer r.Body.Close()
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBodyBytes))
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			log.Warnf("Request body exceeds %d bytes", maxRequestBodyBytes)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		log.Warnf("Could not read request body: %v", err)
 		return
 	}
 
