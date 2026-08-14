@@ -1,0 +1,520 @@
+-- allium: 3
+-- multiline_json_aggregator.allium
+
+-- Scope: A JSONAggregator implementation that buffers consecutive
+--   log messages until they form a complete top-level JSON object,
+--   then emits a single compacted message combining all buffered
+--   content. Used by log sources whose framing splits a single
+--   logical JSON event across multiple input lines
+--   (pretty-printed JSON, JSON with embedded newlines).
+-- Includes: Fast-path emission of single-message complete JSON,
+--   buffered accumulation for multi-message JSON, size-bounded
+--   flush, validator integration semantics, complete-JSON tag
+--   application, top-level-array limitation, explicit drain,
+--   fulfilment of the JSONAggregator contract at the
+--   JSONAggregation surface.
+-- Excludes:
+--   - The JSONAggregator contract itself. It lives in
+--     json_aggregator.allium and is imported here to declare
+--     fulfilment.
+--   - Upstream message framing and aggregator selection
+--     (json_detector.go, combining_aggregator.go)
+--   - Other JSON-aggregation strategies. NoopJSONAggregator is a
+--     trivial pass-through whose behaviour is described at the
+--     JSONAggregator contract level — its fulfiller is either
+--     inlined or specified separately as a one-line module.
+--   - Other (post-tokenization) aggregation strategies for the
+--     downstream Aggregator contract (regex, combining,
+--     detecting, pass-through). Those live in their own modules.
+--   - Telemetry counters (TlmAutoMultilineJSONAggregatorFlush)
+--   - Per-source decoder configuration that selects this
+--     aggregator and constructs its dependencies
+--   - Byte-marker (`...TRUNCATED...`) truncation. This
+--     aggregator does NOT perform byte-marker truncation:
+--     its size-limit handling (FlushOnSizeLimit) emits
+--     buffered messages unmodified rather than cutting and
+--     decorating them, and no message emitted by this
+--     aggregator has IsTruncated set or a truncation-reason
+--     tag added by its own logic (such flags or tags inherit
+--     from upstream stages unchanged). The Truncatable
+--     contract at truncation.allium does not apply here; the
+--     JSONAggregator's domain is JSON-shape aggregation, not
+--     byte-length enforcement.
+
+use "./json_aggregator.allium" as json_aggregator
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract IncrementalJSONValidator {
+    -- The aggregator's buffered-path validator. It is consulted
+    -- on the bytes accumulated in the buffer so far (extended
+    -- with whatever message is currently being processed) to
+    -- decide whether those bytes already form a complete
+    -- top-level JSON object, are a strict prefix of one, or
+    -- cannot be extended into one at all.
+    is_complete_object: (bytes: String) -> Boolean
+    is_invalid_object: (bytes: String) -> Boolean
+
+    @invariant TopLevelArrayInvalid
+        -- A top-level JSON array always yields is_invalid_object
+        -- true, even when the bytes would parse as a valid JSON
+        -- value under a general-purpose RFC 8259 validator. This
+        -- is the property the aggregator depends on to treat a
+        -- top-level array split across messages as a flush
+        -- trigger rather than as in-progress aggregation.
+
+    @invariant TristateExclusive
+        -- is_complete_object and is_invalid_object are never
+        -- simultaneously true on the same input. When both
+        -- return false the input is incomplete: a strict prefix
+        -- of a complete top-level JSON object whose bytes so far
+        -- are valid JSON tokens.
+
+    @invariant InvalidStable
+        -- The is_invalid_object return value covers TWO
+        -- distinct states, indistinguishable from the return
+        -- alone:
+        --   (a) A genuine parse error — the accumulated bytes
+        --       are unrecoverable, and any extension also
+        --       returns is_invalid_object true. Examples: a
+        --       top-level array (per TopLevelArrayInvalid),
+        --       or malformed syntax mid-parse.
+        --   (b) A strict prefix of a valid JSON value whose
+        --       leading token has not yet been completed.
+        --       Examples: an unclosed string "\"foo", a
+        --       partial keyword "t", or whitespace-only
+        --       inputs (per RFC 8259 §2: leading whitespace
+        --       may precede a top-level value). These states
+        --       may transition to Complete or Incomplete when
+        --       enough bytes arrive to complete the leading
+        --       token.
+        --
+        -- The stability guarantee therefore binds only in
+        -- case (a). Callers treating is_invalid_object true
+        -- as a flush trigger see safe behaviour either way:
+        -- (a) is terminal and flushing is correct; (b) will
+        -- eventually stabilise or complete on subsequent
+        -- writes.
+
+    @invariant Determinism
+        -- Both predicates are deterministic: the same input
+        -- bytes always produce the same result.
+
+    @guidance
+        -- The implementation is incremental: it maintains a
+        -- cursor across successive calls and scans only the
+        -- newly arriving bytes. From the aggregator's
+        -- perspective the only observable property is the
+        -- result computed over the union of all bytes since
+        -- the last reset; the incremental behaviour is a
+        -- performance characteristic, not part of the contract.
+        --
+        -- Top-level JSON scalars (strings, numbers, booleans,
+        -- null) are NOT rejected by the validator: they yield
+        -- is_complete_object true. This is a quirk of the
+        -- tokenizer-based implementation, which only flags
+        -- non-object delimiters at top level, not bare scalar
+        -- tokens. The quirk is latent in normal operation:
+        -- FastPathEmit's is_valid_json check (RFC 8259-wide)
+        -- catches every single-message scalar before it
+        -- reaches the validator, so the only path to a scalar
+        -- being validated is a degenerate buffered sequence
+        -- where preceding bytes are not valid JSON. In that
+        -- case json.Compact on the joined bytes fails inside
+        -- EmitAggregated and the aggregator falls through to
+        -- the same flush behaviour the validator would have
+        -- requested directly. Spec consumers should not rely
+        -- on the validator to reject top-level scalars.
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity Aggregation {
+    -- Per-source aggregator state. Each logs source owns one
+    -- Aggregation instance for the lifetime of its decoder.
+    buffered: BufferedFragment with aggregation = this
+
+    is_empty: buffered.count = 0
+    buffered_size: sum_by(buffered, b => b.msg.raw_data_len)
+    buffered_bytes: join_contents(buffered)
+}
+
+entity BufferedFragment {
+    -- One log line currently held in the aggregator's buffer
+    -- waiting for completion. Created when a non-fast-path
+    -- message arrives and the cumulative size is still under
+    -- the bound. Removed on every flush or successful
+    -- aggregation.
+    aggregation: Aggregation
+    msg: json_aggregator/Message
+}
+
+given {
+    aggregation: Aggregation
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- When true, an emission produced by combining two or more
+    -- buffered fragments into one is tagged with the aggregated
+    -- JSON marker before being delivered. Single-fragment
+    -- emissions are never tagged regardless of this setting.
+    tag_complete_json: Boolean = false
+
+    -- Maximum cumulative raw byte size the aggregator will
+    -- buffer before giving up on completion. When the next
+    -- arriving message would push the buffered raw size beyond
+    -- this bound, the buffer plus the new message are flushed
+    -- unmodified. The default reflects the upstream pipeline's
+    -- per-message size policy.
+    max_content_size: Integer = 1000000
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- Fast path: with an empty buffer, a message that is already
+-- a complete valid JSON value passes through unchanged. The
+-- buffer remains empty, the validator is untouched and no
+-- aggregation tag is added.
+
+rule FastPathEmit {
+    when: MessageReceived(msg)
+    requires: aggregation.is_empty
+    requires: is_valid_json(msg.content)
+
+    ensures: MessageDelivered(
+        content: msg.content,
+        raw_data_len: msg.raw_data_len,
+        tags: msg.tags
+    )
+
+    @guidance
+        -- The fast-path validity check (is_valid_json) is
+        -- general-purpose RFC 8259: it accepts top-level
+        -- objects, arrays, scalars and nested combinations.
+        -- This is wider than the IncrementalJSONValidator
+        -- contract (TopLevelArrayInvalid invariant). A
+        -- single-message top-level array therefore takes the
+        -- fast path. A top-level array split across messages
+        -- does not (see TopLevelArrayNotAggregated below).
+}
+
+-- Size-limit flush: the next message would push the buffered
+-- raw size past the configured ceiling. The buffer plus the
+-- incoming message are emitted in arrival order, unmodified;
+-- the buffer is cleared. No compaction, no tag.
+
+rule FlushOnSizeLimit {
+    when: MessageReceived(msg)
+    requires: not (aggregation.is_empty and is_valid_json(msg.content))
+    requires: aggregation.buffered_size + msg.raw_data_len > config.max_content_size
+
+    ensures:
+        for f in aggregation.buffered:
+            MessageDelivered(
+                content: f.msg.content,
+                raw_data_len: f.msg.raw_data_len,
+                tags: f.msg.tags
+            )
+    ensures:
+        for f in aggregation.buffered:
+            not exists f
+    ensures: MessageDelivered(
+        content: msg.content,
+        raw_data_len: msg.raw_data_len,
+        tags: msg.tags
+    )
+}
+
+-- Buffered path, incomplete: the would-be-aggregated bytes do
+-- not yet form a complete top-level JSON object and the size
+-- limit has not been reached. The message is appended to the
+-- buffer; nothing is delivered.
+
+rule BufferIncomplete {
+    when: MessageReceived(msg)
+    requires: not (aggregation.is_empty and is_valid_json(msg.content))
+    requires: aggregation.buffered_size + msg.raw_data_len <= config.max_content_size
+    requires: not is_complete_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+    requires: not is_invalid_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+
+    ensures: BufferedFragment.created(
+        aggregation: aggregation,
+        msg: msg
+    )
+}
+
+-- Buffered path, complete: the would-be-aggregated bytes form
+-- a complete top-level JSON object. The combined content is
+-- compacted (insignificant whitespace removed) and emitted as
+-- a single message; the buffer is cleared. When two or more
+-- fragments contributed to the result and tag_complete_json
+-- is enabled, the emitted message carries the aggregated JSON
+-- tag.
+
+rule EmitAggregated {
+    when: MessageReceived(msg)
+    requires: not (aggregation.is_empty and is_valid_json(msg.content))
+    requires: aggregation.buffered_size + msg.raw_data_len <= config.max_content_size
+    requires: is_complete_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+
+    let combined_count = aggregation.buffered.count + 1
+    let combined_bytes = extend_bytes(aggregation.buffered_bytes, msg.content)
+    let combined_raw_size = aggregation.buffered_size + msg.raw_data_len
+    let was_aggregation = combined_count > 1
+    let output_tags =
+        if config.tag_complete_json and was_aggregation:
+            tags_with_aggregated_marker(msg.tags)
+        else:
+            msg.tags
+
+    ensures:
+        for f in aggregation.buffered:
+            not exists f
+    ensures: MessageDelivered(
+        content: compact(combined_bytes),
+        raw_data_len: combined_raw_size,
+        tags: output_tags
+    )
+
+    @guidance
+        -- compact removes insignificant whitespace from a valid
+        -- JSON object. tags_with_aggregated_marker appends the
+        -- opaque "complete JSON" tag (literal value defined by
+        -- the implementation, not part of this contract). When
+        -- exactly one fragment was buffered (combined_count =
+        -- 1, which arises when the incoming message alone
+        -- completes the validator without taking the fast
+        -- path) the implementation skips compaction and emits
+        -- the message bytes directly; the spec captures this
+        -- as compact applied to a single complete object,
+        -- which is byte-equivalent except for whitespace
+        -- elision.
+}
+
+-- Buffered path, invalid: the would-be-aggregated bytes are
+-- not a valid (or in-progress) top-level JSON object. The
+-- buffer plus the incoming message are emitted in arrival
+-- order, unmodified; the buffer is cleared. No compaction,
+-- no tag.
+
+rule FlushOnInvalid {
+    when: MessageReceived(msg)
+    requires: not (aggregation.is_empty and is_valid_json(msg.content))
+    requires: aggregation.buffered_size + msg.raw_data_len <= config.max_content_size
+    requires: is_invalid_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+
+    ensures:
+        for f in aggregation.buffered:
+            MessageDelivered(
+                content: f.msg.content,
+                raw_data_len: f.msg.raw_data_len,
+                tags: f.msg.tags
+            )
+    ensures:
+        for f in aggregation.buffered:
+            not exists f
+    ensures: MessageDelivered(
+        content: msg.content,
+        raw_data_len: msg.raw_data_len,
+        tags: msg.tags
+    )
+}
+
+-- Explicit drain: the upstream pipeline asks the aggregator
+-- to empty its buffer. Buffered fragments are emitted in
+-- arrival order, unmodified; the buffer is cleared. No
+-- compaction, no tag.
+
+rule DrainOnFlush {
+    when: FlushRequested()
+
+    ensures:
+        for f in aggregation.buffered:
+            MessageDelivered(
+                content: f.msg.content,
+                raw_data_len: f.msg.raw_data_len,
+                tags: f.msg.tags
+            )
+    ensures:
+        for f in aggregation.buffered:
+            not exists f
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant BufferedSizeNonNegative {
+    -- raw_data_len is non-negative for every buffered fragment;
+    -- the aggregation's accumulated size is the sum of those.
+    aggregation.buffered_size >= 0
+}
+
+invariant EmptyImpliesZeroSize {
+    -- An empty buffer carries no accumulated raw size.
+    aggregation.is_empty implies aggregation.buffered_size = 0
+}
+
+invariant FragmentBackrefConsistent {
+    -- Every fragment in a buffer points back to the aggregation
+    -- that holds it. Trivially true given the relationship
+    -- declaration; stated explicitly to make the backreference
+    -- part of the contract surface other code may rely on.
+    for f in aggregation.buffered:
+        f.aggregation = aggregation
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface JSONAggregation {
+    -- The boundary between the upstream preprocessor stage and
+    -- one multi-line JSON aggregator instance. The pipeline
+    -- drives the aggregator by feeding messages and asking for
+    -- drains; the aggregator emits combined or pass-through
+    -- messages via the rules above.
+
+    provides:
+        MessageReceived(msg)
+        FlushRequested()
+
+    contracts:
+        fulfils JSONAggregator
+        demands IncrementalJSONValidator
+
+    @guarantee Determinism
+        -- The JSONAggregator contract's Determinism invariant
+        -- holds: process, flush and is_empty are pure functions
+        -- of the aggregator's state plus their inputs. The 6
+        -- rules partition the (msg, state) input space via
+        -- mutually-exclusive requires clauses; each rule's
+        -- ensures clauses are deterministic functions of
+        -- pre-state and inputs. The is_complete_object,
+        -- is_invalid_object, is_valid_json, compact,
+        -- extend_bytes and tags_with_aggregated_marker
+        -- primitives are pure.
+
+    @guarantee Totality
+        -- The JSONAggregator contract's Totality invariant holds:
+        -- every (msg, state) input matches the preconditions of
+        -- exactly one rule (FastPathEmit, FlushOnSizeLimit,
+        -- BufferIncomplete, EmitAggregated, FlushOnInvalid) so
+        -- process always terminates with a defined sequence of
+        -- emissions (possibly empty for the BufferIncomplete
+        -- path).
+
+    @guarantee FlushDrainsBuffer
+        -- The JSONAggregator contract's FlushDrainsBuffer
+        -- invariant holds: DrainOnFlush emits any buffered
+        -- fragments and removes them, leaving aggregation.is_empty
+        -- true. A flush on an already-empty buffer emits
+        -- nothing and changes no observable state.
+
+    @guarantee IsEmptyConsistency
+        -- The JSONAggregator contract's IsEmptyConsistency
+        -- invariant holds: is_empty (derived as
+        -- aggregation.buffered.count = 0) tracks the buffer
+        -- exactly. Becomes false on BufferIncomplete creating a
+        -- BufferedFragment; becomes true again on any rule that
+        -- removes all fragments (EmitAggregated, FlushOnSizeLimit,
+        -- FlushOnInvalid, DrainOnFlush).
+
+    @guarantee ResultLifetime
+        -- The JSONAggregator contract's ResultLifetime invariant
+        -- holds: the implementation reuses a backing slice for
+        -- the sequence returned by process and flush. The next
+        -- call invalidates the previous return value. Callers
+        -- retaining a returned sequence beyond the next
+        -- operation observe undefined contents.
+
+    @guarantee CompletenessOrPassthrough
+        -- For every contiguous run of messages received between
+        -- explicit drains, the aggregator either emits a single
+        -- combined JSON object covering them (EmitAggregated)
+        -- or emits the original messages unmodified, in order,
+        -- without merging. Partial combinations are never
+        -- produced.
+
+    @guarantee ContentBytePassthrough
+        -- The JSONAggregator contract's ByteConservation
+        -- invariant is refined here: bytes delivered downstream
+        -- are byte-identical to the corresponding inputs except
+        -- in the EmitAggregated rule, where the only modification
+        -- is deterministic JSON compaction (whitespace elision)
+        -- of the concatenated buffered content.
+
+    @guarantee DeliveryOrPreservation
+        -- Every message that enters the aggregator either
+        -- contributes its bytes to a single combined JSON
+        -- emission (EmitAggregated) or is emitted downstream
+        -- unmodified (FastPathEmit, FlushOnSizeLimit,
+        -- FlushOnInvalid or DrainOnFlush). Messages are never
+        -- silently dropped.
+
+    @guarantee TagsOnlyOnAggregation
+        -- The aggregated JSON marker is added only by
+        -- EmitAggregated and only when combined_count > 1 and
+        -- config.tag_complete_json is true. Single-fragment
+        -- emissions and flushes never add the tag.
+
+    @guarantee ArrivalOrderEmission
+        -- Where multiple buffered fragments are emitted
+        -- (FlushOnSizeLimit, FlushOnInvalid, DrainOnFlush) they
+        -- are emitted in arrival order, followed by the incoming
+        -- message where applicable. The spec models the buffer
+        -- as an unordered relationship; the arrival ordering is
+        -- an implementation guarantee that downstream consumers
+        -- may rely on.
+}
+
+-- Behavioural limitation: TopLevelArrayNotAggregated
+--
+-- A top-level JSON array split across multiple messages (for
+-- example "[" / "{...}," / "{...}" / "]") is not aggregated
+-- as one combined value. The IncrementalJSONValidator's
+-- TopLevelArrayInvalid invariant causes is_invalid_object
+-- to return true as soon as the opening "[" is seen at the
+-- top level, which fires FlushOnInvalid and emits the
+-- buffered messages unmodified. Single-message top-level
+-- arrays are unaffected: they take the FastPathEmit path
+-- through is_valid_json, which is RFC 8259-wide.
+-- Implementation: see the object-only loop in
+-- pkg/logs/internal/decoder/preprocessor/incremental_json_validator.go
+-- (IncrementalJSONValidator.Write).
+-- Anchored in: TestJSONAggregator_TopLevelArraySplitNotAggregated
+-- (pkg/logs/internal/decoder/preprocessor/json_aggregator_test.go).
+
+-- Behavioural limitation: MidTokenSplitNotAggregated
+--
+-- The aggregator's input contract assumes chunk boundaries fall
+-- between JSON tokens. A chunk boundary that lands mid-token
+-- (mid-string, mid-number, mid-keyword) cannot be reliably
+-- resumed by the IncrementalJSONValidator: the underlying
+-- json.Decoder does not support resuming Token() reads after
+-- ErrUnexpectedEOF in the middle of a token, so the validator
+-- returns Invalid on the next Write that completes the token.
+-- The aggregator then takes the FlushOnInvalid path: every
+-- buffered message and the incoming message are emitted
+-- unmodified in arrival order; no aggregation occurs and no
+-- aggregated-JSON tag is added.
+--
+-- This contract is satisfied by the agent's line-based log
+-- framing, which splits at newline boundaries; pretty-printed
+-- JSON output emits newlines between tokens, never mid-token.
+-- Mid-token chunk boundaries are degenerate cases that do not
+-- occur in normal production input. The graceful FlushOnInvalid
+-- fallback ensures no data loss in the degenerate case.
+--
+-- Anchored in: TestJSONAggregator_MidTokenSplitFallsBackToFlushOnInvalid
+-- (pkg/logs/internal/decoder/preprocessor/json_aggregator_test.go).
