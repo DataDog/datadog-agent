@@ -110,6 +110,35 @@ var (
 		exportedMetric)
 )
 
+// noopCounter/noopGauge implement telemetry.SimpleCounter/telemetry.SimpleGauge
+// as pure no-ops. Used in place of a real WithValues(...)-derived child
+// series when checks.sdc_compression_telemetry_enabled is false: unlike
+// merely skipping Inc()/Add() calls, never calling WithValues() at all means
+// no child series is ever materialized in the underlying Prometheus vec, so
+// there is nothing for the built-in "telemetry" corecheck to scrape and ship
+// as datadog.agent.sdcsender_* — with SDC compression enabled for many
+// checks/metrics, that check_name/metric_name-tagged telemetry can itself
+// become a sizable share of the very payload SDC is meant to shrink.
+type noopCounter struct{}
+
+func (noopCounter) Inc()         {}
+func (noopCounter) Add(float64)  {}
+func (noopCounter) Get() float64 { return 0 }
+
+type noopGauge struct{}
+
+func (noopGauge) Inc()         {}
+func (noopGauge) Dec()         {}
+func (noopGauge) Add(float64)  {}
+func (noopGauge) Sub(float64)  {}
+func (noopGauge) Set(float64)  {}
+func (noopGauge) Get() float64 { return 0 }
+
+var (
+	noopSimpleCounter telemetry.SimpleCounter = noopCounter{}
+	noopSimpleGauge   telemetry.SimpleGauge   = noopGauge{}
+)
+
 // compressorConfig returns the SDC compressor tuning parameters from the
 // checks.sdc_compression_* config settings (not per-metric — shared by
 // every compressed context). Read fresh whenever a new context is created;
@@ -143,6 +172,9 @@ type SenderManager struct {
 	// enabledKinds: see sdcCompressedMetricKinds's doc comment.
 	enabledKinds map[metricKind]bool
 
+	// telemetryEnabled: see Wrap's doc comment.
+	telemetryEnabled bool
+
 	mu      sync.Mutex
 	senders map[checkid.ID]*Sender
 }
@@ -165,14 +197,27 @@ type SenderManager struct {
 // versa for a longer one) independent of that default reasoning. There's
 // still no access to the real flush tick itself from the sender side, so
 // this is tracked independently by wall-clock (sample-timestamp) time.
+//
+// checks.sdc_compression_telemetry_enabled (default true) controls whether
+// sdcsender's own diagnostic telemetry (samples_total, breakpoints_total,
+// contexts, etc. — see the tlm* vars) ever materializes a child series for
+// any check/metric. When false, every context is built with no-op
+// SimpleCounter/SimpleGauge stand-ins instead of real
+// WithValues(...)-derived ones (see noopCounter/noopGauge), so nothing
+// ships under datadog.agent.sdcsender_* at all — useful when comparing
+// forwarder payload size before/after enabling SDC compression itself,
+// since that telemetry (tagged by check_name/metric_name) can otherwise
+// become a sizable, confounding share of the payload on its own.
 func Wrap(inner sender.SenderManager, dryRun bool) *SenderManager {
-	iv := setup.Datadog().GetInt("checks.sdc_compression_window_duration")
+	cfg := setup.Datadog()
+	iv := cfg.GetInt("checks.sdc_compression_window_duration")
 	return &SenderManager{
-		inner:          inner,
-		dryRun:         dryRun,
-		windowDuration: time.Duration(iv) * time.Second,
-		enabledKinds:   sdcCompressedMetricKinds(),
-		senders:        make(map[checkid.ID]*Sender),
+		inner:            inner,
+		dryRun:           dryRun,
+		windowDuration:   time.Duration(iv) * time.Second,
+		enabledKinds:     sdcCompressedMetricKinds(),
+		telemetryEnabled: cfg.GetBool("checks.sdc_compression_telemetry_enabled"),
+		senders:          make(map[checkid.ID]*Sender),
 	}
 }
 
@@ -260,7 +305,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real, m.dryRun, checkName, m.windowDuration, m.enabledKinds)
+	s := newSender(real, m.dryRun, checkName, m.windowDuration, m.enabledKinds, m.telemetryEnabled)
 	m.senders[id] = s
 	return s, nil
 }
@@ -393,6 +438,11 @@ type Sender struct {
 	// once at construction time, same as windowDuration/dryRun.
 	enabledKinds map[metricKind]bool
 
+	// telemetryEnabled: see Wrap's doc comment. Captured once at
+	// construction time; determines whether newly created contexts get
+	// real or no-op tlm* fields (see compressAt).
+	telemetryEnabled bool
+
 	tlmContexts telemetry.SimpleGauge
 
 	mu sync.Mutex
@@ -407,15 +457,20 @@ type Sender struct {
 	lastFlushTs float64
 }
 
-func newSender(real sender.Sender, dryRun bool, checkName string, windowDuration time.Duration, enabledKinds map[metricKind]bool) *Sender {
+func newSender(real sender.Sender, dryRun bool, checkName string, windowDuration time.Duration, enabledKinds map[metricKind]bool, telemetryEnabled bool) *Sender {
+	tlmCtx := noopSimpleGauge
+	if telemetryEnabled {
+		tlmCtx = tlmContexts.WithValues(checkName)
+	}
 	return &Sender{
-		Sender:         real,
-		checkName:      checkName,
-		dryRun:         dryRun,
-		windowDuration: windowDuration,
-		enabledKinds:   enabledKinds,
-		tlmContexts:    tlmContexts.WithValues(checkName),
-		contexts:       make(map[string]*contextState),
+		Sender:           real,
+		checkName:        checkName,
+		dryRun:           dryRun,
+		windowDuration:   windowDuration,
+		enabledKinds:     enabledKinds,
+		telemetryEnabled: telemetryEnabled,
+		tlmContexts:      tlmCtx,
+		contexts:         make(map[string]*contextState),
 	}
 }
 
@@ -528,18 +583,27 @@ func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, ho
 		copy(tagsCopy, tags)
 		cfg := compressorConfig()
 		ctx = &contextState{
-			metric:                   metric,
-			hostname:                 hostname,
-			tags:                     tagsCopy,
-			kind:                     kind,
-			compressor:               sdc.New(cfg),
-			cfg:                      cfg,
-			tlmSamples:               tlmSamples.WithValues(s.checkName, metric),
-			tlmBreakpoints:           tlmBreakpoints.WithValues(s.checkName, metric),
-			tlmFloorBoundSamples:     tlmFloorBoundSamples.WithValues(s.checkName, metric),
-			tlmFloorBoundBreakpoints: tlmFloorBoundBreakpoints.WithValues(s.checkName, metric),
-			tlmScaleDeviationSum:     tlmScaleDeviationSum.WithValues(s.checkName, metric),
-			tlmScaleDeviationCount:   tlmScaleDeviationCount.WithValues(s.checkName, metric),
+			metric:     metric,
+			hostname:   hostname,
+			tags:       tagsCopy,
+			kind:       kind,
+			compressor: sdc.New(cfg),
+			cfg:        cfg,
+		}
+		if s.telemetryEnabled {
+			ctx.tlmSamples = tlmSamples.WithValues(s.checkName, metric)
+			ctx.tlmBreakpoints = tlmBreakpoints.WithValues(s.checkName, metric)
+			ctx.tlmFloorBoundSamples = tlmFloorBoundSamples.WithValues(s.checkName, metric)
+			ctx.tlmFloorBoundBreakpoints = tlmFloorBoundBreakpoints.WithValues(s.checkName, metric)
+			ctx.tlmScaleDeviationSum = tlmScaleDeviationSum.WithValues(s.checkName, metric)
+			ctx.tlmScaleDeviationCount = tlmScaleDeviationCount.WithValues(s.checkName, metric)
+		} else {
+			ctx.tlmSamples = noopSimpleCounter
+			ctx.tlmBreakpoints = noopSimpleCounter
+			ctx.tlmFloorBoundSamples = noopSimpleCounter
+			ctx.tlmFloorBoundBreakpoints = noopSimpleCounter
+			ctx.tlmScaleDeviationSum = noopSimpleCounter
+			ctx.tlmScaleDeviationCount = noopSimpleCounter
 		}
 		s.contexts[key] = ctx
 		s.tlmContexts.Inc()
