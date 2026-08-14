@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sdktracestats",
+    srcs = ["sdk_trace_stats.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/sdktracestats",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/trace/traceutil/normalize",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)
+
+dd_agent_go_test(
+    name = "sdktracestats_test",
+    srcs = ["sdk_trace_stats_test.go"],
+    embed = [":sdktracestats"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+    ],
+)
