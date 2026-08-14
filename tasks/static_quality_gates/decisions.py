@@ -24,11 +24,12 @@ PER_PR_THRESHOLD_EXCLUDED_GATES = {
 }
 # Individuals or teams allowed to grant per-PR size threshold exceptions.
 # Entries are either plain GitHub usernames (e.g. "cmourot") or team references
-# in the form "Org/team-slug" (e.g. "DataDog/agent-supply-chain"), which are
-# expanded to their current membership at check time.
+# in the form "Org/team-slug" (e.g. "DataDog/agent-build"), which are expanded
+# to their current membership at check time.
 EXCEPTION_APPROVERS = {
     "cmourot",
-    "DataDog/agent-supply-chain",
+    "DataDog/agent-build",
+    "DataDog/agent-devx",
 }
 
 

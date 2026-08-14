@@ -302,17 +302,17 @@ class TestExceptionApprovalChecker(unittest.TestCase):
         mock_pr.get_reviews.return_value = [mock_review]
 
         fetcher = MagicMock(return_value={"someone"})
-        with patch("tasks.static_quality_gates.decisions.EXCEPTION_APPROVERS", {"DataDog/agent-supply-chain"}):
+        with patch("tasks.static_quality_gates.decisions.EXCEPTION_APPROVERS", {"DataDog/agent-build"}):
             checker = ExceptionApprovalChecker(mock_pr, team_members_fetcher=fetcher)
             self.assertEqual(checker.get(), "someone")
-        fetcher.assert_called_once_with("agent-supply-chain")
+        fetcher.assert_called_once_with("agent-build")
 
     def test_mixed_list_combines_plain_usernames_and_team_members(self):
         """A list mixing plain usernames and a team reference authorizes members of both."""
         fetcher = MagicMock(return_value={"alopezz"})
         with patch(
             "tasks.static_quality_gates.decisions.EXCEPTION_APPROVERS",
-            {"cmourot", "DataDog/agent-supply-chain"},
+            {"cmourot", "DataDog/agent-build"},
         ):
             for approver in ("cmourot", "alopezz"):
                 with self.subTest(approver=approver):
