@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_7.82.1:
+
+7.82.1
+======
+
+.. _Release Notes_7.82.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-11
+
+- Please refer to the `7.82.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7821>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.82.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Windows: Fixed an issue where an explicit ``DDAGENTUSER_KEEP_RIGHTS`` or
+  ``DDAGENTUSER_NAME`` value passed as an install argument to a Fleet
+  Automation-triggered Windows Agent install/upgrade could be silently
+  overridden by a stale fallback value (respectively from the registry
+  and from the running service account).
+
+- Fix an issue where GPU monitoring could trigger a kernel panic on multi-GPU
+  nodes with Hopper/Blackwell GPUs.
+
+
 .. _Release Notes_7.82.0:
 
 7.82.0
