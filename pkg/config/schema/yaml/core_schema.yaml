@@ -6899,6 +6899,18 @@ properties:
           the compressor entirely, forwarded unmodified like dry-run mode
           does. Empty (the default) applies no restriction — every
           supported type is compressed.
+      sdc_compression_telemetry_enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: |-
+          When false, sdcsender's own diagnostic telemetry (sdcsender_samples_total,
+          sdcsender_breakpoints_total, sdcsender_contexts, etc., tagged by
+          check_name/metric_name) never materializes a series for any
+          check/metric, so nothing ships under datadog.agent.sdcsender_*.
+          Useful when measuring forwarder payload size, since that
+          telemetry can otherwise become a sizable, confounding share of
+          the payload on its own once SDC compression is enabled broadly.
       sdc_compression_warmup:
         node_type: setting
         type: integer
