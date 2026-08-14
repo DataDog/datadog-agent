@@ -109,10 +109,6 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
 	}
-
-	d.lib.fieldValuesLock()
-	defer d.lib.fieldValuesUnlock()
-
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
 }

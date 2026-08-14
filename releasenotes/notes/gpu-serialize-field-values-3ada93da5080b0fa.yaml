@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    gpu: fix concurrent calls to NVML GetFieldValues API, that could cause missing NVLink metrics.
