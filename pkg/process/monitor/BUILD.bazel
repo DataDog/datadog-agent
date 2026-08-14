@@ -36,6 +36,7 @@ dd_agent_go_test(
     srcs = ["process_monitor_test.go"],
     embed = [":monitor"],
     gotags_sets = [["linux_bpf"]],
+        tags = ["requires_ebpf"],
     include_default = False,
     deps = [
         "//pkg/eventmonitor/consumers/testutil",

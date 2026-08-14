@@ -12,6 +12,7 @@ go_library(
 dd_agent_go_test(
     name = "htlhash_test",
     srcs = ["htlhash_test.go"],
+        tags = ["requires_ebpf"],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
     deps = [
