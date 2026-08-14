@@ -6,10 +6,10 @@ go 1.26.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.205
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.82.0
-	github.com/DataDog/datadog-agent/pkg/metrics v0.82.0
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.82.0
-	github.com/DataDog/datadog-agent/pkg/proto v0.82.0
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.82.1
+	github.com/DataDog/datadog-agent/pkg/metrics v0.82.1
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.82.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.82.1
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v6 v6.0.1
@@ -25,9 +25,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.82.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.82.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -53,7 +53,7 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260618152121-87f3d3e198d3 // indirect
-	google.golang.org/grpc v1.82.0 // indirect
+	google.golang.org/grpc v1.82.1 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

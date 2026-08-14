@@ -884,6 +884,43 @@ network_path:
 	assert.True(t, config.GetBool("notable_events.enabled"))
 }
 
+func TestInfrastructureModeEndUserDeviceEnablesLogonDuration(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.True(t, config.GetBool("logon_duration.enabled"),
+		"end_user_device mode should auto-enable logon_duration")
+}
+
+func TestInfrastructureModeNonEUDLeavesLogonDurationDefault(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"non-EUD modes should leave logon_duration at its default (false)")
+}
+
+func TestInfrastructureModeEndUserDeviceLogonDurationUserOverride(t *testing.T) {
+	// An explicit user setting must win over the EUD default, since SourceInfraMode
+	// sits below file config in priority.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+logon_duration:
+  enabled: false
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"explicit user logon_duration.enabled=false should override the EUD default")
+}
+
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
 		cfg := confFromYAML(t, `
