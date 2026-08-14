@@ -208,6 +208,7 @@
 /.gitlab/deploy/network_device_build/                                     @DataDog/agent-delivery
 /.gitlab/test/benchmarks/benchmarks.yml                                   @DataDog/agent-apm
 /.gitlab/test/functional_test/regression_detector.yml                     @DataDog/single-machine-performance
+/.gitlab/childs/smp-regression-child-pipeline.yml                         @DataDog/single-machine-performance
 
 /chocolatey/ @DataDog/windows-products
 
@@ -990,8 +991,9 @@
 /test/benchmarks/apm_scripts/                                   @DataDog/agent-apm
 /test/regression/                                               @DataDog/single-machine-performance
 /test/regression/ebpf                                           @DataDog/single-machine-performance @DataDog/ebpf-platform
-/test/regression/cases/quality_gate_security_*                  @DataDog/single-machine-performance @DataDog/agent-security
-/test/regression/cases/quality_gate_private_action_runner*      @DataDog/single-machine-performance @DataDog/action-platform
+/test/regression/container/quality_gates/quality_gate_security_*  @DataDog/single-machine-performance @DataDog/agent-security
+/test/regression/container/quality_gates/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
+/test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 
 /tools/                                                              @DataDog/agent-devx
 /tools/host-profiler/                                                @DataDog/profiling-full-host

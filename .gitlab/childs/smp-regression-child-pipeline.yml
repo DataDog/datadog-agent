@@ -48,7 +48,31 @@ variables:
       echo "smp job submit command failed with code $exit_code"
       datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
       exit $exit_code
-    } 
+    }
+
+# Manifest-driven submit (container job). submit-regression --manifest resolves the run set internally
+# from the PR's involved teams + labels, and falls back to the always-bucket (quality gates) when both
+# are empty (no PR / tooling failure) — so a selection problem never drops the gates. SMP_INVOLVED /
+# SMP_LABELS are set by the SELECT_EXPERIMENTS block below.
+.smp_manifest_job_submit:
+  - |
+    RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+    job submit-regression \
+    --manifest ${CONFIG_DIR}/selection.yaml \
+    --target-config-dir ${CONFIG_DIR} \
+    ${SMP_INVOLVED:+--involved-team "${SMP_INVOLVED}"} \
+    ${SMP_LABELS:+--label "${SMP_LABELS}"} \
+    --baseline-image ${BASELINE_IMAGE} \
+    --comparison-image ${COMPARISON_IMAGE} \
+    --baseline-sha ${BASELINE_SHA} \
+    --comparison-sha ${CI_COMMIT_SHA} \
+    --submission-metadata submission_metadata \
+    --tags ${SMP_TAGS} || {
+      exit_code=$?
+      echo "smp job submit-regression command failed with code $exit_code"
+      datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
+      exit $exit_code
+    }
 
 # Base template shared by all SMP run jobs.
 # BASELINE_SHA is written to regression_detector.env in before_script so the
@@ -152,8 +176,25 @@ variables:
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
+    # PR-driven experiment selection (container job only; gated by SELECT_EXPERIMENTS). Resolve the PR's
+    # applied labels + involved teams; submit-regression --manifest turns them into the run set. On main
+    # / no PR both are empty and submit-regression falls back to the always-bucket (the quality gates),
+    # so a selection-tooling problem never drops the gates.
+    - |
+      if [ "${SELECT_EXPERIMENTS}" == "true" ]; then
+        SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr || true)
+        export GITHUB_TOKEN="${SMP_GH_TOKEN}"
+        # GitHub calls live in the dda task (via GithubAPI), not curl/jq here. Empty on no-PR/failure.
+        dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null \
+          || { echo "owners.smp-pr-context failed; submitting the always-bucket only."; : > pr_labels.txt; : > involved_teams.txt; }
+        SMP_LABELS=$(cat pr_labels.txt 2>/dev/null || true)
+        SMP_INVOLVED=$(cat involved_teams.txt 2>/dev/null || true)
+        echo "Selection inputs: labels=[${SMP_LABELS}] involved_teams=[${SMP_INVOLVED}]"
+      fi
     - if [ "$RUN_CONFIG_ONLY" == "true" ]; then
     - !reference [.smp_config_only_job_submit]
+    - elif [ "$SELECT_EXPERIMENTS" == "true" ]; then
+    - !reference [.smp_manifest_job_submit]
     - else
     - !reference [.smp_job_submit]
     - fi
@@ -289,6 +330,11 @@ variables:
 single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  # id_tokens inlined (child pipelines don't inherit the parent's .dd_octo_sts anchor). Used by the
+  # SELECT_EXPERIMENTS block to mint a GitHub token for reading the PR's labels + involved teams.
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   # allow_failure is driven by SMP_ALLOW_FAILURE so the parent trigger can
   # decide per-context without changing this shared child job.
   rules:
@@ -299,10 +345,13 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.28.0
+    SMP_VERSION: dev-pr4753-1af89fd44
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
-    CONFIG_DIR: test/regression
+    CONFIG_DIR: test/regression/container
+    # Enables the PR-driven experiment-selection block in the shared run template. Only the container
+    # job selects; the metal/ebpf jobs (old SMP) leave this unset and run unchanged.
+    SELECT_EXPERIMENTS: "true"
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
