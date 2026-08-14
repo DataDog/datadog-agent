@@ -103,10 +103,10 @@ func (h *Host) ConfigureAptMirrors() {
 
 // ConfigureYumMirrors is the yum counterpart to ConfigureAptMirrors. CentOS 7 is EOL and its
 // stock /centos/7/ path on vault.centos.org now returns HTTP 403, breaking any "yum install".
-// It repoints base/updates/extras at the versioned vault archive
-// (http://vault.centos.org/7.9.2009/), the same known-good path the agent's production
-// kernel-header downloader uses (pkg/util/kernel/headers/download/rpm/centos.go), and adds
-// skip_if_unavailable + a bounded timeout to fail fast. See incident 58780.
+// It repoints base/updates/extras at the versioned vault archive (7.9.2009), with the CERN and
+// kernel.org vault mirrors as ordered fallbacks (failovermethod=priority) plus skip_if_unavailable
+// and a bounded timeout to fail fast. vault's http path matches the agent's production
+// kernel-header downloader (pkg/util/kernel/headers/download/rpm/centos.go). See incident 58780.
 func (h *Host) ConfigureYumMirrors() {
 	if h.pkgManager != "yum" {
 		return
@@ -115,7 +115,7 @@ func (h *Host) ConfigureYumMirrors() {
 	if h.os.Flavor != e2eos.CentOS {
 		return
 	}
-	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base - vault\nbaseurl=http://vault.centos.org/7.9.2009/os/$basearch/\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates - vault\nbaseurl=http://vault.centos.org/7.9.2009/updates/$basearch/\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras - vault\nbaseurl=http://vault.centos.org/7.9.2009/extras/$basearch/\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
+	h.remote.MustExecute(`printf '[base]\nname=CentOS-7 - Base\nbaseurl=http://vault.centos.org/7.9.2009/os/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/os/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/os/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[updates]\nname=CentOS-7 - Updates\nbaseurl=http://vault.centos.org/7.9.2009/updates/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/updates/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/updates/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n\n[extras]\nname=CentOS-7 - Extras\nbaseurl=http://vault.centos.org/7.9.2009/extras/$basearch/\n        https://linuxsoft.cern.ch/centos-vault/7.9.2009/extras/$basearch/\n        https://archive.kernel.org/centos-vault/7.9.2009/extras/$basearch/\nfailovermethod=priority\ngpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7\nskip_if_unavailable=1\ntimeout=30\n' | sudo tee /etc/yum.repos.d/CentOS-Base.repo > /dev/null`)
 	// Drop metadata cached against the previous (403ing) repo config so the next yum call uses the new mirror.
 	h.remote.MustExecute("sudo yum clean all")
 }
