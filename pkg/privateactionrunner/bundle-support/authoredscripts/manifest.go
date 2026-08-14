@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 
-	securejoin "github.com/cyphar/filepath-securejoin"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -140,10 +139,6 @@ func validateManifestEnvironmentVariables(scope string, variables []EnvironmentV
 	return nil
 }
 
-// openPackageFile resolves path against root, opens it, and verifies it is a regular file.
-// The regular-file check happens on the open descriptor rather than the path so that
-// whatever is checked is exactly what gets read, with no window for the file at path to be
-// swapped for a symlink, FIFO, or device in between.
 func openPackageFile(root, path string) (*os.File, error) {
 	if path == "" {
 		return nil, errors.New("path is empty")
@@ -152,11 +147,13 @@ func openPackageFile(root, path string) (*os.File, error) {
 		return nil, fmt.Errorf("path %q is not relative to the package", path)
 	}
 
-	resolvedPath, err := securejoin.SecureJoin(root, path)
+	rootHandle, err := os.OpenRoot(root)
 	if err != nil {
-		return nil, fmt.Errorf("could not resolve path %q: %w", path, err)
+		return nil, fmt.Errorf("could not open package root: %w", err)
 	}
-	file, err := os.Open(resolvedPath)
+	defer rootHandle.Close()
+
+	file, err := rootHandle.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("could not access file %q: %w", path, err)
 	}

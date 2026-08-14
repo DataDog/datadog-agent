@@ -6,10 +6,7 @@ go_library(
     srcs = ["manifest.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts",
     visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
-        "@in_yaml_go_yaml_v3//:yaml",
-    ],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
 )
 
 dd_agent_go_test(
