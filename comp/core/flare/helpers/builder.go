@@ -30,7 +30,8 @@ import (
 )
 
 const (
-	filePerm = 0644
+	filePerm      = 0644
+	ciJobIDEnvVar = "CI_JOB_ID"
 )
 
 func newBuilder(root string, hostname string, localFlare bool, flareArgs types.FlareArgs) (*builder, error) {
@@ -170,7 +171,34 @@ func newArchiveNameID() (string, error) {
 	if _, err := rand.Read(randomBytes[:]); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(randomBytes[:]), nil
+	return archiveNameID(os.Getenv(ciJobIDEnvVar), hex.EncodeToString(randomBytes[:])), nil
+}
+
+func archiveNameID(ciJobID string, randomID string) string {
+	ciJobID = sanitizeArchiveNamePart(ciJobID)
+	if ciJobID == "" {
+		return randomID
+	}
+	return fmt.Sprintf("job-%s-%s", ciJobID, randomID)
+}
+
+func sanitizeArchiveNamePart(value string) string {
+	var sanitized strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			sanitized.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			sanitized.WriteRune(r)
+		case r >= '0' && r <= '9':
+			sanitized.WriteRune(r)
+		case r == '-' || r == '_':
+			sanitized.WriteRune(r)
+		default:
+			sanitized.WriteByte('-')
+		}
+	}
+	return strings.Trim(sanitized.String(), "-")
 }
 
 func (fb *builder) Save() (string, error) {

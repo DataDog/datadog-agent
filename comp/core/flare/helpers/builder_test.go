@@ -139,6 +139,12 @@ func TestGetArchiveNameIsUniqueWithinSameSecond(t *testing.T) {
 	}
 }
 
+func TestArchiveNameIDIncludesCIJobIDWhenAvailable(t *testing.T) {
+	assert.Equal(t, "job-12345-abcdef", archiveNameID("12345", "abcdef"))
+	assert.Equal(t, "job-123-45-abcdef", archiveNameID("123/45", "abcdef"))
+	assert.Equal(t, "abcdef", archiveNameID("", "abcdef"))
+}
+
 func TestAddFileFromFunc(t *testing.T) {
 	fb := getNewBuilder(t)
 	defer fb.clean()
