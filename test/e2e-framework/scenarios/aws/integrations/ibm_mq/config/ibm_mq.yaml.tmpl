@@ -9,7 +9,9 @@ instances:
     host: localhost
     port: {{ .Port }}
     mq_installation_dir: /opt/mqm/
-    auto_discover_queues: {{ $.AutoDiscoverQueues }}
+{{- if and $.AutoDiscoverQueues (not $.QueueRegex) (not $.ExplicitQueues) }}
+    auto_discover_queues: true
+{{- end }}
     collect_reset_queue_metrics: {{ $.CollectResetQueue }}
     min_collection_interval: {{ $.MinCollectionInterval }}
 {{- if $.QueueRegex }}
