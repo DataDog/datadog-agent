@@ -156,14 +156,23 @@ func (c *cfg) reloadAdditionalEndpoints(setting string) {
 	switch setting {
 	case apmAdditionalEndpointsConfigKey:
 		// c.Endpoints[0] is the main endpoint, optionally followed by an MRF endpoint; rebuild only
-		// the tail so those are preserved.
+		// the tail so those are preserved. Counted via each endpoint's own IsMRF marker (set once
+		// at startup in setup.go) rather than re-checking the live config flag - multi_region_failover.enabled
+		// is remote-config-toggleable, so if it flipped on after startup, c.Endpoints[1] would still
+		// be a real additional endpoint, not MRF, and re-including it as "base" here would silently
+		// duplicate it.
 		baseCount := 1
-		if c.coreConfig.GetBool("multi_region_failover.enabled") {
-			baseCount = 2
+		for _, e := range c.Endpoints {
+			if e.IsMRF {
+				baseCount++
+			}
 		}
 		if len(c.Endpoints) < baseCount {
 			log.Warnf("Cannot reload '%s': trace-agent has fewer endpoints (%d) than expected (%d)", setting, len(c.Endpoints), baseCount)
-			return
+			// break, not return: this only aborts the apm endpoints rebuild. The shared
+			// additionalEndpointsChangedFn() call below must still run so a resolved key on a
+			// different additional_endpoints setting isn't silently kept from the live proxies.
+			break
 		}
 		base := make([]*pkgtraceconfig.Endpoint, baseCount)
 		copy(base, c.Endpoints[:baseCount])
@@ -196,7 +205,8 @@ func (c *cfg) reloadAdditionalEndpoints(setting string) {
 	case telemetryAdditionalEndpointsConfigKey:
 		if !c.coreConfig.GetBool("apm_config.telemetry.enabled") || len(c.Endpoints) == 0 {
 			log.Warnf("Cannot reload '%s': telemetry disabled or no main endpoint", setting)
-			return
+			// break, not return: see the apm endpoints case above.
+			break
 		}
 		// Rebuild the telemetry endpoints the same way setup does: main endpoint + additional.
 		c.TelemetryConfig.Endpoints = []*pkgtraceconfig.Endpoint{{

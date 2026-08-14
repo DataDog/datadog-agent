@@ -2375,6 +2375,38 @@ func TestReloadAdditionalEndpointsAfterDelayedResolution(t *testing.T) {
 		assert.Equal(t, "resolved-real-key", cfg.Endpoints[2].APIKey)
 	})
 
+	// Regression test: baseCount must be derived from each endpoint's own IsMRF marker, not by
+	// re-checking the live multi_region_failover.enabled flag. That flag is remote-config-toggleable;
+	// if MRF starts disabled (no MRF endpoint exists) and flips on later, cfg.Endpoints[1] is a real
+	// additional endpoint, not MRF - re-including it as "base" on the next reload would duplicate it.
+	t.Run("apm_config.additional_endpoints does not misclassify an additional endpoint as MRF if the flag flips on later", func(t *testing.T) {
+		coreConfig := configcomp.NewMock(t)
+		coreConfig.SetInTest("multi_region_failover.enabled", false)
+		coreConfig.SetInTest("apm_config.additional_endpoints", map[string][]string{
+			"https://second-org.datadoghq.com": {"resolved-real-key"},
+		})
+		config := buildComponent(t, true, coreConfig)
+		cfg := config.Object()
+		require.Len(t, cfg.Endpoints, 2)
+		require.False(t, cfg.Endpoints[1].IsMRF)
+
+		// Flip MRF on at runtime, without an MRF endpoint ever being created - only reachable if
+		// multi_region_failover.site is also configured, but the flag alone is what the old buggy
+		// baseCount check re-read, so exercise that read in isolation.
+		coreConfig.Set("multi_region_failover.enabled", true, configmodel.SourceAgentRuntime)
+		coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
+			"https://second-org.datadoghq.com": {"resolved-real-key"},
+			"https://third-org.datadoghq.com":  {"another-key"},
+		}, configmodel.SourceSecret)
+
+		require.Len(t, cfg.Endpoints, 3, "the pre-existing additional endpoint must not be reclassified as the MRF base")
+		assert.False(t, cfg.Endpoints[1].IsMRF)
+		assert.False(t, cfg.Endpoints[2].IsMRF)
+		// additional_endpoints is a map, so the two entries' relative order isn't guaranteed.
+		apiKeys := []string{cfg.Endpoints[1].APIKey, cfg.Endpoints[2].APIKey}
+		assert.ElementsMatch(t, []string{"resolved-real-key", "another-key"}, apiKeys)
+	})
+
 	t.Run("apm_config.profiling_additional_endpoints", func(t *testing.T) {
 		coreConfig := configcomp.NewMock(t)
 		coreConfig.SetInTest("apm_config.profiling_additional_endpoints", map[string][]string{
@@ -2510,6 +2542,50 @@ func TestOnAdditionalEndpointsChangedFiresOnReload(t *testing.T) {
 	}, configmodel.SourceSecret)
 
 	assert.Equal(t, int32(1), fired.Load(), "additional_endpoints change must fire the rebuild callback")
+}
+
+// TestOnAdditionalEndpointsChangedFiresEvenWhenTelemetryGuardTrips is a regression test: the
+// telemetry-disabled guard in reloadAdditionalEndpoints must only skip rebuilding the telemetry
+// endpoints, not the shared additionalEndpointsChangedFn() callback - otherwise an unrelated
+// resolved key (e.g. on evp_proxy_config.additional_endpoints) would never reach the live proxies
+// whenever it happens to be telemetry's own additional_endpoints setting that triggers the reload.
+func TestOnAdditionalEndpointsChangedFiresEvenWhenTelemetryGuardTrips(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.SetInTest("apm_config.telemetry.enabled", false)
+	coreConfig.SetInTest("apm_config.telemetry.additional_endpoints", map[string][]string{
+		"https://telemetry.second-org.datadoghq.com": {"DELA(telemetry-org-uuid, aws)"},
+	})
+	config := buildComponent(t, true, coreConfig)
+
+	var fired atomic.Int32
+	config.OnAdditionalEndpointsChanged(func() { fired.Add(1) })
+
+	coreConfig.Set("apm_config.telemetry.additional_endpoints", map[string][]string{
+		"https://telemetry.second-org.datadoghq.com": {"resolved-real-key"},
+	}, configmodel.SourceSecret)
+
+	assert.Equal(t, int32(1), fired.Load(), "the shared rebuild callback must still fire even though telemetry is disabled")
+}
+
+// TestOnAdditionalEndpointsChangedFiresEvenWhenApmGuardTrips is a regression test: the
+// too-few-endpoints guard in reloadAdditionalEndpoints's apm_config.additional_endpoints case must
+// only skip rebuilding those endpoints, not the shared additionalEndpointsChangedFn() callback.
+func TestOnAdditionalEndpointsChangedFiresEvenWhenApmGuardTrips(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	config := buildComponent(t, true, coreConfig)
+	cfg := config.Object()
+	// Force the guard: fewer endpoints than the expected base count (main + nothing here, but the
+	// reload path expects at least baseCount, which the empty slice below violates).
+	cfg.Endpoints = nil
+
+	var fired atomic.Int32
+	config.OnAdditionalEndpointsChanged(func() { fired.Add(1) })
+
+	coreConfig.Set("apm_config.additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com": {"some-key"},
+	}, configmodel.SourceSecret)
+
+	assert.Equal(t, int32(1), fired.Load(), "the shared rebuild callback must still fire even though the apm endpoints guard tripped")
 }
 
 func buildConfigComponent(t *testing.T, setHostnameInConfig bool) Component {

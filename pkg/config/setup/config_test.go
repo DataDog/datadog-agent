@@ -2184,6 +2184,43 @@ additional_endpoints:
 	assert.ElementsMatch(t, []string{"org-a-uuid", "org-b-uuid"}, orgUUIDs)
 }
 
+// TestConfigureAdditionalEndpointsDelegatedAuthSameOrgDifferentParamsOnSameDomain is a regression
+// test: two directives for the SAME org UUID but different params (e.g. different regions) under
+// the same domain previously collided on APIKeyConfigKey (which was only domain+orgUUID), so one
+// instance would silently replace the other's refresh goroutine. The directive's index in the
+// domain's key list must also be part of the key.
+func TestConfigureAdditionalEndpointsDelegatedAuthSameOrgDifferentParamsOnSameDomain(t *testing.T) {
+	datadogYaml := `
+api_key: fakeapikey
+additional_endpoints:
+  "https://multi-region.datadoghq.com":
+  - 'DELA(same-org-uuid, aws, region=us-east-1)'
+  - 'DELA(same-org-uuid, aws, region=eu-west-1)'
+`
+	config := confFromYAML(t, datadogYaml)
+
+	var captured []delegatedauth.InstanceParams
+	mockComp := &delegatedauthmock.Mock{
+		AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+			captured = append(captured, params)
+			return nil
+		},
+	}
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, mockComp, nil, secretsmock.New(t))
+
+	require.Len(t, captured, 2)
+	assert.NotEqual(t, captured[0].APIKeyConfigKey, captured[1].APIKeyConfigKey,
+		"two directives for the same org on the same domain must get distinct APIKeyConfigKeys, or one silently loses its delegated auth instance")
+	assert.NotEqual(t, captured[0].AdditionalEndpointKeyIndex, captured[1].AdditionalEndpointKeyIndex)
+
+	regions := []string{
+		captured[0].ProviderConfig.(*cloudauthconfig.AWSProviderConfig).Region,
+		captured[1].ProviderConfig.(*cloudauthconfig.AWSProviderConfig).Region,
+	}
+	assert.ElementsMatch(t, []string{"us-east-1", "eu-west-1"}, regions)
+}
+
 func TestConfigureAdditionalEndpointsDelegatedAuthOtherMapShapeKeys(t *testing.T) {
 	// configureAdditionalEndpointsDelegatedAuth must scan every map-shape additional_endpoints
 	// config key (see mapShapeAdditionalEndpointsConfigKeys), not just the top-level metrics one.
@@ -2221,7 +2258,7 @@ process_config:
 	assert.Equal(t, "apm-org-uuid", apm.OrgUUID)
 	assert.Equal(t, "https://trace.agent.second-org.datadoghq.com", apm.AdditionalEndpointDomain)
 	assert.Equal(t, "static-apm-fallback-key", apm.FallbackAPIKey)
-	assert.Equal(t, "apm_config.additional_endpoints[https://trace.agent.second-org.datadoghq.com][apm-org-uuid]", apm.APIKeyConfigKey)
+	assert.Equal(t, "apm_config.additional_endpoints[https://trace.agent.second-org.datadoghq.com][0][apm-org-uuid]", apm.APIKeyConfigKey)
 
 	process := byConfigKey["process_config.additional_endpoints"]
 	assert.Equal(t, "process-org-uuid", process.OrgUUID)

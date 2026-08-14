@@ -656,17 +656,23 @@ var mapShapeAdditionalEndpointsConfigKeys = []string{
 func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig, secretResolver secrets.Component) {
 	for _, configKey := range mapShapeAdditionalEndpointsConfigKeys {
 		for domain, keys := range config.GetStringMapStringSlice(configKey) {
-			for _, key := range keys {
+			for index, key := range keys {
 				// Mirrors pkg/config/utils.IsDelaDirective's prefix check (duplicated to avoid a setup<->utils import cycle).
 				if !strings.HasPrefix(strings.TrimSpace(key), "DELA(") {
 					continue
 				}
+				// The index disambiguates two directives under the same domain that share an org
+				// UUID (e.g. the same org with different params, like region) - see the
+				// APIKeyConfigKey uniqueness comment in addDelegatedAuthInstance. It also lets
+				// mergeIntoAdditionalEndpoints match this instance's own entry by position instead
+				// of by value alone.
 				addDelegatedAuthInstance(ctx, config, delegatedAuthComp, defaultProviderConfig, secretResolver, key,
 					fmt.Sprintf("additional endpoint '%s' at '%s'", domain, configKey),
-					fmt.Sprintf("%s[%s]", configKey, domain), configKey,
+					fmt.Sprintf("%s[%s][%d]", configKey, domain, index), configKey,
 					delegatedauth.InstanceParams{
 						AdditionalEndpointDomain:     domain,
 						AdditionalEndpointsConfigKey: configKey,
+						AdditionalEndpointKeyIndex:   index,
 					})
 			}
 		}
@@ -764,8 +770,10 @@ func addDelegatedAuthInstance(ctx context.Context, config pkgconfigmodel.Config,
 	params.ProviderConfig = instanceProviderConfig
 	params.OrgUUID = directive.orgUUID
 	params.RefreshInterval = config.GetInt("delegated_auth.refresh_interval_mins")
-	// APIKeyConfigKey must be unique per directive, not just per domain: the component's instances
-	// map is keyed by this string, so colliding keys would silently drop all but one org.
+	// APIKeyConfigKey must be unique per directive, not just per domain or org: the component's
+	// instances map is keyed by this string, so colliding keys would silently drop all but one
+	// instance. apiKeyKeyPrefix already includes the directive's position for map- and list-shape
+	// callers, so appending orgUUID here is a belt-and-suspenders disambiguator, not the sole one.
 	params.APIKeyConfigKey = apiKeyKeyPrefix + "[" + directive.orgUUID + "]"
 	params.AdditionalEndpointDirective = directiveText
 	params.FallbackAPIKey = resolveFallbackAPIKey(secretResolver, directive.params["fallback"], configKey)
