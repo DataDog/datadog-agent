@@ -50,8 +50,10 @@ const (
 	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
 
 	// scorerEpisodeStartedMarker is emitted by the stdout reporter when the
-	// scorer opens an episode after reaching High severity.
-	scorerEpisodeStartedMarker = "[observer] scorer episode started: scorer=anomaly_scorer"
+	// scorer opens an episode after reaching High severity. The reporter appends
+	// either the scorer metadata or a multiline contributor summary, so retain
+	// only the prefix common to both renderings.
+	scorerEpisodeStartedMarker = "[observer] scorer episode started:"
 
 	// scorerHelperRegisteredMarker is logged once at agent startup when the
 	// anomaly scorer is successfully wired with telemetry. Waiting for it
