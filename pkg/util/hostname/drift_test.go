@@ -9,12 +9,17 @@ package hostname
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -169,4 +174,79 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 
 	// Give some time for the goroutine to clean up
 	time.Sleep(10 * time.Millisecond)
+}
+
+// scrapeTelemetry renders the process-wide telemetry registry as Prometheus text, the same way
+// `agent diagnose show-metadata agent-full-telemetry` does, so tests can assert on emitted labels.
+func scrapeTelemetry(t *testing.T) string {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, "/", nil)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	telemetryimpl.GetCompatComponent().Handler().ServeHTTP(rec, req)
+	return rec.Body.String()
+}
+
+func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
+	cfg := configmock.New(t)
+	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
+
+	// Seed the cache the way scheduleHostnameDriftChecks does at agent startup: the currently
+	// resolved hostname/provider, before any check has run.
+	cfg.SetInTest("hostname", "host-a")
+	cache.Cache.Set(cacheHostnameKey, Data{Hostname: "host-a", Provider: configProviderName}, cache.NoExpiration)
+
+	ds := driftService{}
+	ds.checkHostnameDrift(context.Background(), cacheHostnameKey)
+
+	// Prometheus's text exposition format (which the diagnose CLI ultimately renders) sorts label
+	// names alphabetically, and telemetry.Options.NameWithSeparator inserts a leading "_" that
+	// becomes a second underscore once joined with the "hostname" subsystem — hence
+	// "hostname__drift_..." with labels ordered provider-then-state, not the declaration order.
+	body := scrapeTelemetry(t)
+	noDriftLabels := fmt.Sprintf(`provider="%s",state="%s"`, configProviderName, noDrift)
+	assert.Contains(t, body, "hostname__drift_resolution_time_ms_count{"+noDriftLabels+"}",
+		"steady state should record a resolution-time sample with state=no_drift")
+	assert.NotContains(t, body, fmt.Sprintf(`hostname__drift_detected{provider="%s",state="%s"`, configProviderName, hostnameChanged),
+		"steady state must not increment drift_detected")
+
+	// Now change the config-provided hostname between checks: this is the drift transition the
+	// E2E suite (test/new-e2e/tests/agent-runtimes/hostname_drift_*_test.go) never exercised.
+	cfg.SetInTest("hostname", "host-b")
+	ds.checkHostnameDrift(context.Background(), cacheHostnameKey)
+
+	body = scrapeTelemetry(t)
+	driftLabels := fmt.Sprintf(`provider="%s",state="%s"`, configProviderName, hostnameChanged)
+	assert.Contains(t, body, "hostname__drift_resolution_time_ms_count{"+driftLabels+"} 1",
+		"hostname change should record a resolution-time sample with state=hostname_drift")
+	assert.Contains(t, body, "hostname__drift_detected{"+driftLabels+"} 1",
+		"hostname change should increment drift_detected exactly once")
+
+	cachedData, found := cache.Cache.Get(cacheHostnameKey)
+	require.True(t, found)
+	assert.Equal(t, Data{Hostname: "host-b", Provider: configProviderName}, cachedData,
+		"cache should be updated to the newly detected hostname after drift")
+}
+
+func TestDriftServiceConfigOverrides(t *testing.T) {
+	ds := driftService{
+		initialDelay:      defaultInitialDelay,
+		recurringInterval: defaultRecurringInterval,
+	}
+
+	t.Run("falls back to struct defaults when unset", func(t *testing.T) {
+		configmock.New(t)
+		assert.Equal(t, defaultInitialDelay, ds.getInitialDelay())
+		assert.Equal(t, defaultRecurringInterval, ds.getRecurringInterval())
+	})
+
+	t.Run("config value overrides the struct default", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("hostname_drift_initial_delay", "45s")
+		cfg.SetInTest("hostname_drift_recurring_interval", "2h")
+
+		assert.Equal(t, 45*time.Second, ds.getInitialDelay())
+		assert.Equal(t, 2*time.Hour, ds.getRecurringInterval())
+	})
 }
