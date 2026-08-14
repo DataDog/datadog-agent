@@ -50,12 +50,13 @@ func (d *directSenderConsumer) Copy(ev *model.Event) any {
 		PPid:      ev.GetProcessPpid(),
 		EventType: ev.GetEventType(),
 		Exe:       ev.GetExecFilePath(),
+		Cmdline:   procutil.ParseCmdLineArgs(ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.ProcessContext.Process)),
 	}
 	return p
 }
 
 func (d *directSenderConsumer) handleNewProcess(p *process) {
-	if p.Cwd != "" && p.Comm != "" && len(p.Cmdline) > 0 {
+	if p.Exe != "" && len(p.Cmdline) > 0 {
 		return
 	}
 
@@ -64,11 +65,8 @@ func (d *directSenderConsumer) handleNewProcess(p *process) {
 		return
 	}
 
-	if p.Cwd == "" {
-		p.Cwd = pp.Cwd
-	}
-	if p.Comm == "" {
-		p.Comm = pp.Comm
+	if p.Exe == "" {
+		p.Exe = pp.Exe
 	}
 	if len(p.Cmdline) == 0 {
 		p.Cmdline = pp.Cmdline
@@ -90,7 +88,6 @@ func (d *directSenderConsumer) collectProcesses() error {
 			Pid:       uint32(pp.Pid),
 			PPid:      uint32(pp.Ppid),
 			Cmdline:   pp.Cmdline,
-			Cwd:       pp.Cwd,
 			Comm:      pp.Comm,
 			Exe:       pp.Exe,
 			EventType: model.ExecEventType,
