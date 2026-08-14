@@ -74,11 +74,7 @@ impl ProcessManager {
         self.config_loader.location()
     }
 
-    pub(in crate::manager) async fn handle_exit(
-        &self,
-        event: ExitEvent,
-        handles: &RuntimeHandles,
-    ) {
+    pub(in crate::manager) async fn handle_exit(&self, event: ExitEvent, handles: &RuntimeHandles) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);

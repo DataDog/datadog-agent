@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-
 use crate::platform;
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
