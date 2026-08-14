@@ -352,7 +352,7 @@ impl ManagedProcess {
 
     #[must_use]
     pub(crate) fn start_conditions_met(&self) -> bool {
-        self.condition_path_exists_met()
+        self.condition_path_exists_met() && self.config_gate_met()
     }
 
     #[must_use]
