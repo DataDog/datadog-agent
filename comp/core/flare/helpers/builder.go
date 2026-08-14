@@ -8,8 +8,6 @@ package helpers
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -30,9 +29,10 @@ import (
 )
 
 const (
-	filePerm      = 0644
-	ciJobIDEnvVar = "CI_JOB_ID"
+	filePerm = 0644
 )
+
+var archiveNameCounter atomic.Uint64
 
 func newBuilder(root string, hostname string, localFlare bool, flareArgs types.FlareArgs) (*builder, error) {
 	fb := &builder{
@@ -146,16 +146,12 @@ type builder struct {
 	nonScrubbedFiles map[string]bool
 }
 
-func getArchiveName() (string, error) {
-	return getArchiveNameForTime(time.Now().UTC(), newArchiveNameID)
+func getArchiveName() string {
+	return getArchiveNameForTime(time.Now().UTC(), newArchiveNameID())
 }
 
-func getArchiveNameForTime(t time.Time, newID func() (string, error)) (string, error) {
+func getArchiveNameForTime(t time.Time, uniqueSuffix string) string {
 	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
-	uniqueSuffix, err := newID()
-	if err != nil {
-		return "", fmt.Errorf("could not generate unique archive name suffix: %w", err)
-	}
 
 	logLevel, err := log.GetLogLevel()
 	logLevelString := ""
@@ -163,42 +159,11 @@ func getArchiveNameForTime(t time.Time, newID func() (string, error)) (string, e
 		logLevelString = "-" + logLevel.String()
 	}
 
-	return fmt.Sprintf("datadog-agent-%s-%s%s.zip", timeString, uniqueSuffix, logLevelString), nil
+	return fmt.Sprintf("datadog-agent-%s-%s%s.zip", timeString, uniqueSuffix, logLevelString)
 }
 
-func newArchiveNameID() (string, error) {
-	var randomBytes [8]byte
-	if _, err := rand.Read(randomBytes[:]); err != nil {
-		return "", err
-	}
-	return archiveNameID(os.Getenv(ciJobIDEnvVar), hex.EncodeToString(randomBytes[:])), nil
-}
-
-func archiveNameID(ciJobID string, randomID string) string {
-	ciJobID = sanitizeArchiveNamePart(ciJobID)
-	if ciJobID == "" {
-		return randomID
-	}
-	return fmt.Sprintf("job-%s-%s", ciJobID, randomID)
-}
-
-func sanitizeArchiveNamePart(value string) string {
-	var sanitized strings.Builder
-	for _, r := range value {
-		switch {
-		case r >= 'a' && r <= 'z':
-			sanitized.WriteRune(r)
-		case r >= 'A' && r <= 'Z':
-			sanitized.WriteRune(r)
-		case r >= '0' && r <= '9':
-			sanitized.WriteRune(r)
-		case r == '-' || r == '_':
-			sanitized.WriteRune(r)
-		default:
-			sanitized.WriteByte('-')
-		}
-	}
-	return strings.Trim(sanitized.String(), "-")
+func newArchiveNameID() string {
+	return fmt.Sprintf("%d-%d", os.Getpid(), archiveNameCounter.Add(1))
 }
 
 func (fb *builder) Save() (string, error) {
@@ -243,17 +208,14 @@ func (fb *builder) Save() (string, error) {
 	defer fb.Unlock()
 	fb.isClosed = true
 
-	archiveName, err := getArchiveName()
-	if err != nil {
-		return "", err
-	}
+	archiveName := getArchiveName()
 	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
 	archiveFinalPath := filepath.Join(os.TempDir(), archiveName)
 
 	// We first create the archive in our fb.tmpDir directory which is only readable by the current user (and
 	// SYSTEM/ADMIN on Windows). Then we retrict the archive permissions before moving it to the system temporary
 	// directory. This prevents other users from being able to read local flares.
-	err = archive.Zip([]string{fb.flareDir}, archiveTmpPath)
+	err := archive.Zip([]string{fb.flareDir}, archiveTmpPath)
 	if err != nil {
 		return "", err
 	}

@@ -8,7 +8,6 @@ package helpers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -128,21 +127,12 @@ func TestGetArchiveNameIsUniqueWithinSameSecond(t *testing.T) {
 	names := make(map[string]struct{})
 
 	for range 100 {
-		name, err := getArchiveNameForTime(timestamp, func() (string, error) {
-			return fmt.Sprintf("unique-%d", len(names)), nil
-		})
-		require.NoError(t, err)
+		name := getArchiveNameForTime(timestamp, newArchiveNameID())
 		if _, found := names[name]; found {
 			t.Fatalf("archive name %q was generated more than once", name)
 		}
 		names[name] = struct{}{}
 	}
-}
-
-func TestArchiveNameIDIncludesCIJobIDWhenAvailable(t *testing.T) {
-	assert.Equal(t, "job-12345-abcdef", archiveNameID("12345", "abcdef"))
-	assert.Equal(t, "job-123-45-abcdef", archiveNameID("123/45", "abcdef"))
-	assert.Equal(t, "abcdef", archiveNameID("", "abcdef"))
 }
 
 func TestAddFileFromFunc(t *testing.T) {
