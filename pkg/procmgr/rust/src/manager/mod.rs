@@ -12,10 +12,9 @@ mod supervisor;
 use supervisor::RuntimeHandles;
 
 use crate::config::ProcessDefinition;
-use crate::ordering;
 use crate::process::ManagedProcess;
 use anyhow::Result;
-use log::{debug, warn};
+use log::warn;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tonic::Status;
@@ -120,34 +119,6 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
             Some(status)
         });
         proc.set_watcher_handle(watcher_handle);
-    }
-}
-
-struct StartupOrderResult {
-    order: Vec<usize>,
-    warnings: Vec<String>,
-}
-
-fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
-    let defs: Vec<ProcessDefinition> = procs
-        .iter()
-        .map(|p| ProcessDefinition {
-            name: p.name().to_string(),
-            config: p.config().clone(),
-        })
-        .collect();
-    let result = ordering::resolve_order(&defs);
-    if !result.skipped.is_empty() {
-        warn!(
-            "dependency cycle detected, skipping processes: {}",
-            result.skipped.join(", ")
-        );
-    }
-    let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
-    debug!("startup order: {}", names.join(" -> "));
-    StartupOrderResult {
-        order: result.order,
-        warnings: result.warnings,
     }
 }
 
