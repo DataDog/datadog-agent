@@ -58,18 +58,37 @@ func IsGenericIntegrationCheckName(name string) bool {
 }
 
 // NamespaceRoot returns the portion of namespace before the first '.', or the
-// whole string if there is none — e.g. "krakend.api" roots to "krakend". A
-// discovery-driven integration's check name is assumed to equal its own
-// metric namespace's root (true for the vast majority of integrations; a
-// small, currently-accepted set of exceptions diverge — e.g. zk's own
-// namespace is "zookeeper", not "zk"), so comparing a generic-scraper
-// namespace's root against a discovery template's check name directly is
-// enough to detect a conflict without a hand-maintained map.
+// whole string if there is none — e.g. "krakend.api" roots to "krakend".
 func NamespaceRoot(namespace string) string {
 	if i := strings.IndexByte(namespace, '.'); i >= 0 {
 		return namespace[:i]
 	}
 	return namespace
+}
+
+// ExpectedNamespaceRoot returns the metric-namespace root a discovery-driven
+// integration's own metrics are expected to be published under: the root of
+// its declared `discovery.metrics_prefix` (see integration.DiscoveryConfig)
+// when set, or its own check name otherwise — true for the vast majority of
+// integrations, with a small set of exceptions (e.g. gearmand's own namespace
+// is "gearman", not "gearmandd") that need metrics_prefix to be detected
+// correctly.
+//
+// Only the root is used even when metrics_prefix is itself multi-segment
+// (e.g. krakend's "krakend.api"): a generic scraper's own `namespace:` or
+// metric rename could independently collide at a shorter prefix (e.g.
+// `namespace: krakend` with no `.api`, or a pass-through metric whose raw
+// Prometheus name already happens to start with "krakend."), and there's no
+// way to tell from the raw instance config alone whether that would actually
+// produce the exact same final metric name — so comparing only the root
+// stays conservative and consistent with how the generic-scraper side of the
+// comparison already only ever compares roots (see
+// GenericIntegrationNamespaceRoots).
+func ExpectedNamespaceRoot(cfg integration.Config) string {
+	if cfg.Discovery != nil && cfg.Discovery.MetricsPrefix != "" {
+		return NamespaceRoot(cfg.Discovery.MetricsPrefix)
+	}
+	return cfg.Name
 }
 
 // GenericIntegrationNamespaceRoots returns, for each instance in cfg, the
@@ -100,6 +119,7 @@ func GenericIntegrationNamespaceRoots(cfg integration.Config) []string {
 	for _, inst := range cfg.Instances {
 		var common integration.CommonInstanceConfig
 		if err := yaml.Unmarshal(inst, &common); err != nil {
+			log.Debugf("Error while checking namespace root for %s, skipping instance: %v", cfg.Name, err)
 			continue
 		}
 		if common.Namespace != "" {
@@ -160,12 +180,12 @@ func instanceMetricRenameTargets(inst integration.Data) []string {
 //     matched this same service (present in configs), or
 //  2. a sibling generic-scraper (openmetrics/prometheus) template matched to
 //     this same service configures a namespace whose root matches this
-//     integration's check name, or
+//     integration's expected namespace root (see ExpectedNamespaceRoot), or
 //  3. a scheduled non-template (static) config exists for the same Name, or a
 //     scheduled non-template generic-scraper config anywhere on the host
-//     configures a namespace whose root matches this integration's check name
-//     (both tracked, by check name and by namespace root respectively, in the
-//     same staticIdx — see configmgr.go).
+//     configures a namespace whose root matches this integration's expected
+//     namespace root (both tracked, by check name and by namespace root
+//     respectively, in the same staticIdx — see configmgr.go).
 //
 // Logs-only sibling templates (no Instances) are ignored — discovery covers
 // metric-check configuration and shouldn't be suppressed by an integration's
@@ -192,8 +212,9 @@ func filterTemplatesDiscovery(staticIdx *StaticConfigIndex, configs map[string]i
 			continue
 		}
 		_, hasSibling := nonDiscoveryNames[cfg.Name]
-		_, hasNamespaceConflict := siblingGenericNamespaceRoots[cfg.Name]
-		if hasSibling || hasNamespaceConflict || staticIdx.Has(cfg.Name) {
+		expectedRoot := ExpectedNamespaceRoot(cfg)
+		_, hasNamespaceConflict := siblingGenericNamespaceRoots[expectedRoot]
+		if hasSibling || hasNamespaceConflict || staticIdx.Has(cfg.Name) || (expectedRoot != cfg.Name && staticIdx.Has(expectedRoot)) {
 			log.Debugf("Ignoring discovery template %s from %s: another config source already covers this integration",
 				cfg.Name, cfg.Source)
 			delete(configs, digest)

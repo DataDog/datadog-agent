@@ -31,6 +31,45 @@ func TestNamespaceRoot(t *testing.T) {
 	}
 }
 
+func TestExpectedNamespaceRoot(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  integration.Config
+		want string
+	}{
+		{
+			"no Discovery falls back to check name",
+			integration.Config{Name: "krakend"},
+			"krakend",
+		},
+		{
+			"Discovery with empty MetricsPrefix falls back to check name",
+			integration.Config{Name: "krakend", Discovery: &integration.DiscoveryConfig{}},
+			"krakend",
+		},
+		{
+			"MetricsPrefix rooting to the same value as the check name: no behavior change",
+			integration.Config{Name: "krakend", Discovery: &integration.DiscoveryConfig{MetricsPrefix: "krakend.api"}},
+			"krakend",
+		},
+		{
+			"MetricsPrefix diverging from the check name is used instead",
+			integration.Config{Name: "gearmand", Discovery: &integration.DiscoveryConfig{MetricsPrefix: "gearman"}},
+			"gearman",
+		},
+		{
+			"MetricsPrefix diverging from the check name and itself multi-segment: only the root is used",
+			integration.Config{Name: "gearmand", Discovery: &integration.DiscoveryConfig{MetricsPrefix: "gearman.jobs"}},
+			"gearman",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ExpectedNamespaceRoot(tc.cfg))
+		})
+	}
+}
+
 func TestIsGenericIntegrationCheckName(t *testing.T) {
 	assert.True(t, IsGenericIntegrationCheckName("openmetrics"))
 	assert.True(t, IsGenericIntegrationCheckName("prometheus"))

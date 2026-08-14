@@ -366,8 +366,13 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		Name:          "krakend",
 		Provider:      names.File,
 		ADIdentifiers: []string{"krakend"},
-		Discovery:     &integration.DiscoveryConfig{},
-		Source:        "file:krakend/auto_conf.yaml",
+		// Declares metrics_prefix explicitly (rooting to "krakend", same as
+		// the check name) so every subtest below also covers the case where
+		// an integration declares metrics_prefix even though it doesn't
+		// diverge from its own check name -- exercised alongside the
+		// dedicated divergence case using gearmand further down.
+		Discovery: &integration.DiscoveryConfig{MetricsPrefix: "krakend.api"},
+		Source:    "file:krakend/auto_conf.yaml",
 	}
 
 	genericSiblingWithNamespace := func(namespace string) integration.Config {
@@ -496,27 +501,72 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 			"discovery template should be kept when no tracked namespace root matches")
 	})
 
-	t.Run("known gap: namespace divergent from check name is not detected without a map", func(t *testing.T) {
-		// zk's own metrics use the "zookeeper" namespace, not "zk". Without a
-		// hard-coded check-name-to-namespace override map (deliberately
-		// dropped in favor of assuming an integration's namespace root equals
-		// its check name), this divergence isn't detected: it's an accepted,
-		// documented gap rather than a silent regression.
-		zkDiscoveryTpl := integration.Config{
-			Name:          "zk",
-			Provider:      names.File,
-			ADIdentifiers: []string{"zk"},
-			Discovery:     &integration.DiscoveryConfig{},
-			Source:        "file:zk/auto_conf.yaml",
-		}
-		sibling := genericSiblingWithNamespace("zookeeper")
+	gearmandDiscoveryTpl := integration.Config{
+		Name:          "gearmand",
+		Provider:      names.File,
+		ADIdentifiers: []string{"gearmand"},
+		Discovery:     &integration.DiscoveryConfig{MetricsPrefix: "gearman"},
+		Source:        "file:gearmand/auto_conf.yaml",
+	}
+
+	t.Run("discovery dropped when sibling namespace matches metrics_prefix root, not the check name", func(t *testing.T) {
+		// gearmand's own metrics use the "gearman" namespace, not "gearmand".
+		// Without discovery.metrics_prefix, this divergence would go
+		// undetected (checkName "gearmand" != "gearman"); with it declared,
+		// ExpectedNamespaceRoot uses "gearman" instead of the check name.
+		sibling := genericSiblingWithNamespace("gearman")
 		configs := map[string]integration.Config{
-			zkDiscoveryTpl.Digest(): zkDiscoveryTpl,
-			sibling.Digest():        sibling,
+			gearmandDiscoveryTpl.Digest(): gearmandDiscoveryTpl,
+			sibling.Digest():              sibling,
 		}
 		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
-		assert.Contains(t, configs, zkDiscoveryTpl.Digest(),
-			"zk's discovery template is kept even though a sibling claims the 'zookeeper' namespace, since 'zk' != 'zookeeper' without an override map")
+		assert.NotContains(t, configs, gearmandDiscoveryTpl.Digest(),
+			"discovery template should be dropped when a sibling claims the metrics_prefix-rooted namespace, even though it doesn't match the check name")
+	})
+
+	t.Run("discovery dropped when static config index matches metrics_prefix root, not the check name", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("gearman")
+
+		configs := map[string]integration.Config{
+			gearmandDiscoveryTpl.Digest(): gearmandDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, gearmandDiscoveryTpl.Digest(),
+			"discovery template should be dropped when a host-wide static config claims the metrics_prefix-rooted namespace")
+	})
+
+	t.Run("discovery dropped when a same-name sibling matches, even with a diverging metrics_prefix", func(t *testing.T) {
+		// The same-name-sibling rule (hasSibling, keyed by cfg.Name) is
+		// orthogonal to metrics_prefix/namespace-root matching, and must
+		// keep working unchanged for an integration whose expected root
+		// diverges from its check name.
+		sibling := integration.Config{
+			Name:          "gearmand",
+			Provider:      names.File,
+			ADIdentifiers: []string{"gearmand"},
+			Instances:     []integration.Data{[]byte("port: 4730")},
+			Source:        "file:gearmand/conf.yaml",
+		}
+		configs := map[string]integration.Config{
+			gearmandDiscoveryTpl.Digest(): gearmandDiscoveryTpl,
+			sibling.Digest():              sibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, gearmandDiscoveryTpl.Digest(),
+			"discovery template should still be dropped by the same-name-sibling rule regardless of metrics_prefix")
+	})
+
+	t.Run("discovery dropped when static config index matches the check name, even with a diverging metrics_prefix", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("gearmand")
+
+		configs := map[string]integration.Config{
+			gearmandDiscoveryTpl.Digest(): gearmandDiscoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, gearmandDiscoveryTpl.Digest(),
+			"discovery template should still be dropped by the same-name static-config rule regardless of metrics_prefix")
 	})
 }
 
