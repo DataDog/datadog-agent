@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-
 use windows_sys::Win32::Foundation::{HANDLE, TRUE};
 use windows_sys::Win32::Security::{
     AllocateAndInitializeSid, EqualSid, FreeSid, GetTokenInformation, IsWellKnownSid, RevertToSelf,

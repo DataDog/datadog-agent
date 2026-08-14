@@ -440,6 +440,7 @@ impl ManagedProcess {
         self.config_generation
     }
 
+    #[cfg(test)]
     pub(crate) fn has_ever_run_successfully(&self) -> bool {
         self.had_successful_run || self.restarts.last_spawn_time.is_some()
     }

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-
 use std::ffi::c_void;
 use std::path::PathBuf;
 use std::sync::Arc;
