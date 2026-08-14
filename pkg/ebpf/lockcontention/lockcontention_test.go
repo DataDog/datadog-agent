@@ -173,6 +173,9 @@ func TestLockRanges(t *testing.T) {
 			ddebpf.AddNameMappingsForMap(m, spec.Name, "lockcontention_test")
 
 			err := l.Initialize(false)
+			if err != nil {
+				SkipIfLockContentionCollectorNotSupported(t, err)
+			}
 			require.NoError(t, err)
 
 			require.Equal(t, entries(l.objects.MapAddrFd), c.lockCount)
