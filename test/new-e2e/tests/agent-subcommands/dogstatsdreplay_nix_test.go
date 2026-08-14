@@ -30,13 +30,6 @@ log_level: DEBUG
 dogstatsd_non_local_traffic: true
 dogstatsd_tag_cardinality: high
 dogstatsd_origin_detection: true
-# dogstatsd-replay tag enrichment relies on the Core Agent DSD server's PID map
-# (set via DogstatsdSetTaggerState). ADP does not consult this map for origin
-# detection, so replay tag enrichment does not work when ADP handles DSD.
-# Disable ADP here so this test exercises the Core Agent DSD path.
-# TODO: fix dogstatsd-replay to inject dd.internal.entity_id into packets so
-# it works with ADP too (https://github.com/DataDog/saluki/issues/2341).
-data_plane.enabled: false
 `),
 				),
 			),
