@@ -8,6 +8,8 @@ package helpers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +18,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -31,8 +32,6 @@ import (
 const (
 	filePerm = 0644
 )
-
-var archiveNameCounter atomic.Uint64
 
 func newBuilder(root string, hostname string, localFlare bool, flareArgs types.FlareArgs) (*builder, error) {
 	fb := &builder{
@@ -146,13 +145,16 @@ type builder struct {
 	nonScrubbedFiles map[string]bool
 }
 
-func getArchiveName() string {
-	return getArchiveNameForTime(time.Now().UTC())
+func getArchiveName() (string, error) {
+	return getArchiveNameForTime(time.Now().UTC(), newArchiveNameID)
 }
 
-func getArchiveNameForTime(t time.Time) string {
+func getArchiveNameForTime(t time.Time, newID func() (string, error)) (string, error) {
 	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
-	uniqueSuffix := fmt.Sprintf("%d-%d", os.Getpid(), archiveNameCounter.Add(1))
+	uniqueSuffix, err := newID()
+	if err != nil {
+		return "", fmt.Errorf("could not generate unique archive name suffix: %w", err)
+	}
 
 	logLevel, err := log.GetLogLevel()
 	logLevelString := ""
@@ -160,7 +162,15 @@ func getArchiveNameForTime(t time.Time) string {
 		logLevelString = "-" + logLevel.String()
 	}
 
-	return fmt.Sprintf("datadog-agent-%s-%s%s.zip", timeString, uniqueSuffix, logLevelString)
+	return fmt.Sprintf("datadog-agent-%s-%s%s.zip", timeString, uniqueSuffix, logLevelString), nil
+}
+
+func newArchiveNameID() (string, error) {
+	var randomBytes [8]byte
+	if _, err := rand.Read(randomBytes[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(randomBytes[:]), nil
 }
 
 func (fb *builder) Save() (string, error) {
@@ -205,14 +215,17 @@ func (fb *builder) Save() (string, error) {
 	defer fb.Unlock()
 	fb.isClosed = true
 
-	archiveName := getArchiveName()
+	archiveName, err := getArchiveName()
+	if err != nil {
+		return "", err
+	}
 	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
 	archiveFinalPath := filepath.Join(os.TempDir(), archiveName)
 
 	// We first create the archive in our fb.tmpDir directory which is only readable by the current user (and
 	// SYSTEM/ADMIN on Windows). Then we retrict the archive permissions before moving it to the system temporary
 	// directory. This prevents other users from being able to read local flares.
-	err := archive.Zip([]string{fb.flareDir}, archiveTmpPath)
+	err = archive.Zip([]string{fb.flareDir}, archiveTmpPath)
 	if err != nil {
 		return "", err
 	}
