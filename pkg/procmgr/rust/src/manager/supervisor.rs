@@ -104,7 +104,7 @@ impl Supervisor {
 
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
-        run_manager_event_loop(
+        let shutdown_requested = run_manager_event_loop(
             &manager,
             &handles,
             &mut cmd_rx,
@@ -113,6 +113,10 @@ impl Supervisor {
             shutdown,
         )
         .await;
+
+        if shutdown_requested {
+            manager.force_begin_shutdown().await;
+        }
 
         info!("dd-procmgrd shutting down");
 

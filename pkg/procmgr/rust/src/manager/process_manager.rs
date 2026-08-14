@@ -4,6 +4,7 @@ use super::{
 };
 use crate::command::{CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader};
+use crate::operation::{OperationGate, OperationKind};
 use crate::process::ManagedProcess;
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
@@ -19,6 +20,7 @@ pub struct ProcessManager {
     pub(in crate::manager) startup_order: Arc<RwLock<Vec<usize>>>,
     pub(in crate::manager) config_loader: Arc<dyn ConfigLoader>,
     pub(in crate::manager) uuid_gen: Arc<dyn UuidGenerator>,
+    pub(in crate::manager) operation_gate: OperationGate,
 }
 
 impl ProcessManager {
@@ -37,7 +39,18 @@ impl ProcessManager {
             startup_order: Arc::new(RwLock::new(startup_result.order)),
             config_loader,
             uuid_gen,
+            operation_gate: OperationGate::default(),
         }
+    }
+
+    pub(crate) async fn ensure_idle(&self) -> Result<(), Status> {
+        self.operation_gate.ensure_idle().await
+    }
+
+    pub(in crate::manager) async fn force_begin_shutdown(&self) {
+        self.operation_gate
+            .force_begin(OperationKind::Shutdown)
+            .await;
     }
 
     /// Wrap this manager in a [`Supervisor`] for daemon execution.

@@ -31,6 +31,10 @@ impl ProcessManagerService {
             cmd_tx,
         }
     }
+
+    async fn ensure_idle(&self) -> Result<(), Status> {
+        self.mgr.ensure_idle().await
+    }
 }
 
 #[tonic::async_trait]
@@ -39,6 +43,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::ListRequest>,
     ) -> Result<Response<proto::ListResponse>, Status> {
+        self.ensure_idle().await?;
         let procs = self.mgr.processes().await;
         let processes = procs.iter().map(process_to_proto).collect();
         Ok(Response::new(proto::ListResponse { processes }))
@@ -48,6 +53,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
+        self.ensure_idle().await?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (mut detail, pid) = {
             let procs = self.mgr.processes().await;
@@ -67,6 +73,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::GetStatusRequest>,
     ) -> Result<Response<proto::GetStatusResponse>, Status> {
+        self.ensure_idle().await?;
         let procs = self.mgr.processes().await;
         let total = procs.len() as u32;
         let (mut created, mut starting, mut running, mut stopping) = (0u32, 0, 0, 0);
@@ -103,6 +110,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
         require_privileged_pipe_client(&request)?;
+        self.ensure_idle().await?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -129,6 +137,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
+        self.ensure_idle().await?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -154,6 +163,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
+        self.ensure_idle().await?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -198,6 +208,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::GetConfigRequest>,
     ) -> Result<Response<proto::GetConfigResponse>, Status> {
+        self.ensure_idle().await?;
         let procs = self.mgr.processes().await;
         let runtime = procs
             .iter()

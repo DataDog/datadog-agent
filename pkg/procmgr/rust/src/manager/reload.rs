@@ -1,6 +1,7 @@
 use super::{ProcessManager, queue_restart, try_spawn_and_watch};
 use crate::command::ReloadResult;
 use crate::config::ProcessDefinition;
+use crate::operation::OperationKind;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
 use log::{info, warn};
@@ -120,6 +121,20 @@ async fn reconcile_process_after_reload(
 
 impl ProcessManager {
     pub(crate) async fn handle_reload_config(
+        &self,
+        handles: &RuntimeHandles,
+    ) -> Result<ReloadResult, Status> {
+        self.operation_gate
+            .try_begin(OperationKind::ReloadConfig)
+            .await?;
+        let result = self.handle_reload_config_impl(handles).await;
+        self.operation_gate
+            .end(OperationKind::ReloadConfig)
+            .await;
+        result
+    }
+
+    async fn handle_reload_config_impl(
         &self,
         handles: &RuntimeHandles,
     ) -> Result<ReloadResult, Status> {

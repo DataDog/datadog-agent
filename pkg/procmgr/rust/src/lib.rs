@@ -9,6 +9,7 @@ pub mod env;
 pub mod grpc;
 pub mod handle;
 pub mod manager;
+mod operation;
 pub mod ordering;
 pub mod platform;
 pub mod process;
