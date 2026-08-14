@@ -18,10 +18,21 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/stretchr/testify/require"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 )
 
 var benchmarkLogSink []recorderdef.LogData
+
+func TestScorerReportContributorNameUsesLogContext(t *testing.T) {
+	name := scorerReportContributorName(
+		&observerdef.SeriesMeta{Namespace: "log_metrics_extractor", Name: "log.pattern.abc.count", Tags: []string{"service:api"}},
+		&observerdef.MetricContext{Pattern: "ERROR <*>", Example: "ERROR: connection refused"},
+		observerdef.AggregateCount,
+	)
+
+	require.Equal(t, "log: ERROR: connection refused — {service:api}", name)
+}
 
 func TestStreamOrderedLogsV1MatchesBatchReader(t *testing.T) {
 	dir := t.TempDir()
