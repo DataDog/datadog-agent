@@ -106,16 +106,24 @@ func getNonCriticalAPIs() []string {
 	}
 }
 
-// symbolLookup is an internal interface for checking symbol availability
-type symbolLookup interface {
+// nvmlSafety is an internal interface with methods to ensure safe operations
+// with NVML
+type nvmlSafety interface {
+	// lookup checks if the given symbol is available in the NVML library
 	lookup(string) error
+	// gpmLock locks the GPM mutex. Despite NVIDIA documentation, the GPM API is not thread safe.
+	// We need to lock the mutex to ensure that only one thread can access the GPM API at a time, specifically GpmSampleGet
+	gpmLock()
+	// gpmUnlock unlocks the GPM mutex. Despite NVIDIA documentation, the GPM API is not thread safe.
+	// We need to unlock the mutex to allow other threads to access the GPM API.
+	gpmUnlock()
 }
 
 // SafeNVML represents a safe wrapper around NVML library operations.
 // It ensures that operations are only performed when the corresponding
 // symbols are available in the loaded library.
 type SafeNVML interface {
-	symbolLookup
+	nvmlSafety
 	// Shutdown shuts down the NVML library
 	Shutdown() error
 	// DeviceGetCount returns the number of NVIDIA devices in the system
@@ -141,6 +149,7 @@ type SafeNVML interface {
 type safeNvml struct {
 	lib          nvml.Interface
 	mu           sync.Mutex
+	gpmMutex     sync.Mutex
 	capabilities map[string]struct{}
 }
 
@@ -154,6 +163,14 @@ func (s *safeNvml) lookup(symbol string) error {
 	}
 
 	return nil
+}
+
+func (s *safeNvml) gpmLock() {
+	s.gpmMutex.Lock()
+}
+
+func (s *safeNvml) gpmUnlock() {
+	s.gpmMutex.Unlock()
 }
 
 // SystemGetDriverVersion returns the Nvidia driver version
