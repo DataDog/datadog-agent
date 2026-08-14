@@ -182,6 +182,11 @@ type packageInUseSuite struct {
 // use" feature end to end across package formats - ubi9 (rpm), ubuntu (dpkg) and
 // alpine (apk): a package goes from not in use, to in use once a service runs
 // its binary, and back to stale once the service stops.
+//
+// The suite's fakeintake is provisioned with a 2048 MiB memory limit and retains
+// every container-image SBOM payload, so its per-query memory footprint (driven
+// by FilterSBOMs/getFakePayloads) is the workload under measurement for the
+// /fakeintake/payloads pagination change.
 func TestSBOMPackageInUseKubeadmSuite(t *testing.T) {
 	prov := provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
