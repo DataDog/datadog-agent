@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.gates import GateExecutionError, GateMetricHandler, GateResult, byte_to_string
 
@@ -21,24 +22,13 @@ PER_PR_THRESHOLD_EXCLUDED_GATES = {
     "static_quality_gate_docker_host_profiler_amd64",
     "static_quality_gate_docker_host_profiler_arm64",
 }
-# Should be members of @Datadog/agent-supply-chain.
+# Individuals or teams allowed to grant per-PR size threshold exceptions.
+# Entries are either plain GitHub usernames (e.g. "cmourot") or team references
+# in the form "Org/team-slug" (e.g. "DataDog/agent-supply-chain"), which are
+# expanded to their current membership at check time.
 EXCEPTION_APPROVERS = {
     "cmourot",
-    "aiuto",
-    "quentinus95",
-    "alopezz",
-    "cmetz100",
-    "goxberry",
-    "GeorgeHahn",
-    "Arpafaucon",
-    "chouquette",
-    "JSGette",
-    "KevinFairise2",
-    "chouetz",
-    "preinlein",
-    "Ishirui",
-    "rdesgroppes",
-    "ofek",
+    "DataDog/agent-supply-chain",
 }
 
 
@@ -64,17 +54,40 @@ class GateVerdict:
 class ExceptionApprovalChecker:
     """Lazily fetches and caches per-PR threshold exception approval."""
 
-    def __init__(self, pr):
+    def __init__(self, pr, team_members_fetcher=None):
         self._pr = pr
         self._checked = False
         self._result: str | None = None
+        self._team_members_fetcher = team_members_fetcher or self._fetch_team_members
+
+    @staticmethod
+    def _fetch_team_members(team_slug: str) -> set[str]:
+        return {member.login for member in GithubAPI().get_team_members(team_slug)}
+
+    def _authorized_logins(self) -> set[str]:
+        """Expand EXCEPTION_APPROVERS into a flat set of GitHub logins.
+
+        Entries containing a "/" are treated as "Org/team-slug" team references
+        and expanded via the team members fetcher; all other entries are treated
+        as literal usernames. Teams are only looked up if at least one is
+        configured, so a purely user-based list never needs team-read access.
+        """
+        logins = set()
+        for approver in EXCEPTION_APPROVERS:
+            if "/" in approver:
+                _, team_slug = approver.split("/", 1)
+                logins |= self._team_members_fetcher(team_slug)
+            else:
+                logins.add(approver)
+        return logins
 
     def _fetch(self) -> str | None:
         if self._pr is None:
             return None
         try:
+            approvers = self._authorized_logins()
             for review in self._pr.get_reviews():
-                if review.state == "APPROVED" and review.user and review.user.login in EXCEPTION_APPROVERS:
+                if review.state == "APPROVED" and review.user and review.user.login in approvers:
                     return review.user.login
         except Exception as e:
             print(color_message(f"[WARN] Failed to check exception approvals: {e}", "orange"))
