@@ -12,35 +12,53 @@ import (
 )
 
 // NormalizeListShapeEntries normalizes a list-shape additional_endpoints config value into
-// []map[string]any, handling JSON strings, []any of map[any]any (YAML-sourced), and
-// []map[string]any (registered defaults). Returns ok=false for any other shape.
-func NormalizeListShapeEntries(raw any) ([]map[string]any, bool) {
+// []any, handling JSON strings, []any of map[any]any (YAML-sourced), and []map[string]any
+// (registered defaults). Map-shaped elements are converted to map[string]any; any other element
+// (e.g. a bare string, or nil from a blank YAML list item) is preserved as-is so a round-trip
+// write doesn't silently drop it. Callers matching against api_key fields should type-assert each
+// element and skip non-map entries. Returns ok=false for any other top-level shape.
+func NormalizeListShapeEntries(raw any) ([]any, bool) {
 	switch typed := raw.(type) {
 	case string:
-		var entries []map[string]any
+		var entries []any
 		if err := json.Unmarshal([]byte(typed), &entries); err != nil {
 			return nil, false
 		}
+		for i, item := range entries {
+			entries[i] = normalizeListEntry(item)
+		}
 		return entries, true
 	case []any:
-		entries := make([]map[string]any, 0, len(typed))
-		for _, item := range typed {
-			switch m := item.(type) {
-			case map[string]any:
-				entries = append(entries, m)
-			case map[any]any:
-				converted := make(map[string]any, len(m))
-				for k, v := range m {
-					converted[fmt.Sprintf("%v", k)] = v
-				}
-				entries = append(entries, converted)
-			}
+		entries := make([]any, len(typed))
+		for i, item := range typed {
+			entries[i] = normalizeListEntry(item)
 		}
 		return entries, true
 	case []map[string]any:
-		return typed, true
+		entries := make([]any, len(typed))
+		for i, item := range typed {
+			entries[i] = item
+		}
+		return entries, true
 	default:
 		return nil, false
+	}
+}
+
+// normalizeListEntry converts a map-shaped list element to map[string]any, or returns it
+// unchanged if it isn't map-shaped.
+func normalizeListEntry(item any) any {
+	switch m := item.(type) {
+	case map[string]any:
+		return m
+	case map[any]any:
+		converted := make(map[string]any, len(m))
+		for k, v := range m {
+			converted[fmt.Sprintf("%v", k)] = v
+		}
+		return converted
+	default:
+		return item
 	}
 }
 

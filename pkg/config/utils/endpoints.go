@@ -132,8 +132,9 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 
 		if len(trimmed) > 0 || hasPendingDelegatedAuth {
 			result[url] = []APIKeys{{
-				ConfigSettingPath: root,
-				Keys:              trimmed,
+				ConfigSettingPath:       root,
+				Keys:                    trimmed,
+				HasPendingDelegatedAuth: hasPendingDelegatedAuth,
 			}}
 		} else {
 			log.Infof("No API key provided for domain %q, removing domain from endpoints", url)
@@ -204,22 +205,6 @@ func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) 
 	return eds
 }
 
-// domainsPendingDelegatedAuth returns the set of domains in an `additional_endpoints`-style
-// config value that have at least one DELA(...) directive - i.e. domains still expected to get a
-// key from the delegatedauth component, even if other real (non-DELA) keys are already present.
-func domainsPendingDelegatedAuth(endpoints map[string][]string) map[string]bool {
-	pending := map[string]bool{}
-	for domain, keys := range endpoints {
-		for _, key := range keys {
-			if IsDelaDirective(key) {
-				pending[domain] = true
-				break
-			}
-		}
-	}
-	return pending
-}
-
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error) {
 	ddURL := GetInfraEndpoint(c)
@@ -234,7 +219,6 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 
 	rawAdditionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
 	additionalEndpoints := MakeEndpoints(rawAdditionalEndpoints, "additional_endpoints")
-	pendingDelegatedAuthDomains := domainsPendingDelegatedAuth(rawAdditionalEndpoints)
 
 	for domain, apiKeys := range additionalEndpoints {
 		// Validating domain
@@ -251,12 +235,6 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	}
 
 	eds := EndpointDescriptorSetFromKeysPerDomain(keysPerDomain)
-	for domain := range pendingDelegatedAuthDomains {
-		if ed, ok := eds[domain]; ok {
-			ed.HasPendingDelegatedAuth = true
-			eds[domain] = ed
-		}
-	}
 
 	// populate with MRF endpoints too
 	if c.GetBool("multi_region_failover.enabled") {

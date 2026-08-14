@@ -45,6 +45,14 @@ type InstanceParams struct {
 	// AdditionalEndpointDomain is set.
 	AdditionalEndpointsConfigKey string
 
+	// AdditionalEndpointKeyIndex is this entry's position in the domain's key list at
+	// AdditionalEndpointsConfigKey. Optional, but recommended when set alongside
+	// AdditionalEndpointDomain: it disambiguates this instance's own entry from another entry
+	// under the same domain that happens to share the same value (e.g. a fallback API key that
+	// matches a different, unrelated static key). Falls back to a value-only scan if the index
+	// doesn't point at a matching entry (e.g. the list was reordered).
+	AdditionalEndpointKeyIndex int
+
 	// AdditionalEndpointsListConfigKey, if set, routes the fetched key into the
 	// list-shape config at this path, replacing the entry whose api_key holds the
 	// DELA(...) directive. Mutually exclusive with AdditionalEndpointDomain.

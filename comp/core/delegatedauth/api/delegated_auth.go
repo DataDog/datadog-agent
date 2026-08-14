@@ -69,12 +69,21 @@ func hostOnly(endpoint string) string {
 // for known Datadog domains. This ensures API operations use the correct subdomain. endpoint may be
 // a bare hostname, a full URL, or a full URL with a path - only the host is matched against the
 // known Datadog domain pattern.
-// If the endpoint doesn't match a known Datadog domain pattern, it is returned unchanged with a debug log.
-func getAPIDomain(endpoint string) string {
+// If the endpoint doesn't match a known Datadog domain pattern, it is returned unchanged. When
+// warnIfUnknown is true, a warning is logged, since the caller (GetAPIKey, via resolveTokenURL) is
+// about to POST a signed cloud auth proof to this arbitrary host, which could be replayed by
+// whoever controls it. warnIfUnknown should be false for the agent's own primary site fallback
+// (e.g. a supported HTTP proxy dd_url), which is expected to legitimately not match this pattern.
+func getAPIDomain(endpoint string, warnIfUnknown bool) string {
 	matches := domainURLRegexp.FindStringSubmatch(hostOnly(endpoint))
 	if matches == nil {
-		// Not a known Datadog domain pattern - this could be a custom endpoint or unexpected format
-		log.Debugf("Endpoint '%s' does not match known Datadog domain pattern, using unchanged", endpoint)
+		// Not a known Datadog domain pattern - this could be a custom endpoint (e.g. a proxy) or an
+		// unexpected format.
+		if warnIfUnknown {
+			log.Warnf("Delegated auth target '%s' is not a recognized Datadog domain; sending the signed cloud auth proof to it unchanged", endpoint)
+		} else {
+			log.Debugf("Endpoint '%s' does not match known Datadog domain pattern, using unchanged", endpoint)
+		}
 		return endpoint
 	}
 
@@ -105,11 +114,14 @@ func getAPIDomain(endpoint string) string {
 // agent's configured primary site when targetSite is empty.
 func resolveTokenURL(cfg pkgconfigmodel.Reader, targetSite string) string {
 	site := targetSite
+	isDelegatedAuthTarget := site != ""
 	if site == "" {
 		site = utils.GetInfraEndpoint(cfg)
 	}
-	// Transform the endpoint to use the API subdomain (api.*)
-	site = getAPIDomain(site)
+	// Transform the endpoint to use the API subdomain (api.*). Only warn when this is an explicit
+	// delegated-auth target site, not the agent's own primary site fallback - a supported HTTP
+	// proxy dd_url legitimately won't match the known-Datadog-domain pattern either.
+	site = getAPIDomain(site, isDelegatedAuthTarget)
 	return fmt.Sprintf(tokenURLEndpoint, site)
 }
 

@@ -68,6 +68,9 @@ type authInstance struct {
 	additionalEndpointDomain string
 	// additionalEndpointsConfigKey is the map-shape config path. Only set when additionalEndpointDomain is set.
 	additionalEndpointsConfigKey string
+	// additionalEndpointKeyIndex is this instance's position in the domain's key list. Only used
+	// when additionalEndpointDomain is set. See InstanceParams.AdditionalEndpointKeyIndex.
+	additionalEndpointKeyIndex int
 	// additionalEndpointsListConfigKey, if set, routes the key into the list-shape config at
 	// this path. Mutually exclusive with additionalEndpointDomain.
 	additionalEndpointsListConfigKey string
@@ -318,6 +321,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
+		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
 		listEntryIndex:                   params.ListEntryIndex,
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
@@ -546,6 +550,7 @@ func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
+		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
 		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
 		listEntryIndex:                   params.ListEntryIndex,
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
@@ -598,14 +603,30 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		}
 
 		keys := merged[domain]
-		replaced := false
-		for i, key := range keys {
-			// Also match originalDirective in case a racing write reverted the entry.
-			if key == instance.lastWrittenValue || key == instance.originalDirective {
-				keys[i] = apiKey
-				replaced = true
-				break
+
+		// Prefer the recorded index; fall back to a value-only scan if the list was reordered or
+		// the index wasn't provided. Matching by value alone is ambiguous when another entry
+		// under the same domain (e.g. a static key equal to this instance's fallback value)
+		// happens to share the same string.
+		matchIndex := -1
+		if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
+			if v := keys[instance.additionalEndpointKeyIndex]; v == instance.lastWrittenValue || v == instance.originalDirective {
+				matchIndex = instance.additionalEndpointKeyIndex
 			}
+		}
+		if matchIndex == -1 {
+			for i, key := range keys {
+				// Also match originalDirective in case a racing write reverted the entry.
+				if key == instance.lastWrittenValue || key == instance.originalDirective {
+					matchIndex = i
+					break
+				}
+			}
+		}
+
+		replaced := matchIndex != -1
+		if replaced {
+			keys[matchIndex] = apiKey
 		}
 		lastAttempt := attempt == maxAdditionalEndpointsWriteAttempts
 		if !replaced {
@@ -613,8 +634,11 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 				// Expected value missing — concurrent writer may be mid-update. Retry.
 				continue
 			}
-			log.Warnf("Could not find previous delegated auth value for additional endpoint '%s' at '%s'; appending new key instead", domain, configKey)
-			keys = append(keys, apiKey)
+			// Unlike the list-shape path, appending here would orphan whatever key this
+			// instance was tracking (it may be a live, unrelated key) rather than just
+			// dropping this instance's own update.
+			log.Warnf("Could not find previous delegated auth value for additional endpoint '%s' at '%s'; leaving domain's keys unchanged", domain, configKey)
+			return
 		}
 		merged[domain] = keys
 
@@ -666,23 +690,29 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		}
 
 		merged := make([]any, len(entries))
-		for i, entry := range entries {
-			merged[i] = entry
-		}
+		copy(merged, entries)
 
 		// Prefer the recorded index; fall back to a value-only scan if the list was reordered.
+		// Non-map entries (preserved as-is by NormalizeListShapeEntries) can never match and are
+		// skipped rather than causing a type-assertion panic.
 		matchIndex := -1
 		apiKeyField := ""
 		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
-			if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entries[instance.listEntryIndex], "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
-				matchIndex = instance.listEntryIndex
-				apiKeyField = field
+			if entryMap, ok := entries[instance.listEntryIndex].(map[string]any); ok {
+				if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entryMap, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
+					matchIndex = instance.listEntryIndex
+					apiKeyField = field
+				}
 			}
 		}
 		if matchIndex == -1 {
 			for i, entry := range entries {
+				entryMap, ok := entry.(map[string]any)
+				if !ok {
+					continue
+				}
 				// Also match originalDirective in case a racing write reverted the entry.
-				if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entry, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
+				if field, valStr, ok := common.CaseInsensitiveStringFieldWithKey(entryMap, "api_key"); ok && (valStr == instance.lastWrittenValue || valStr == instance.originalDirective) {
 					matchIndex = i
 					apiKeyField = field
 					break
@@ -692,8 +722,9 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 
 		replaced := matchIndex != -1
 		if replaced {
-			newEntry := make(map[string]any, len(entries[matchIndex]))
-			maps.Copy(newEntry, entries[matchIndex])
+			matchedEntry := entries[matchIndex].(map[string]any)
+			newEntry := make(map[string]any, len(matchedEntry))
+			maps.Copy(newEntry, matchedEntry)
 			newEntry[apiKeyField] = apiKey
 			merged[matchIndex] = newEntry
 		}

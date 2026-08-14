@@ -1,4 +1,4 @@
 ---
-features:
+other:
   - |
-    Delegated authentication (Workload Identity Federation) can now manage API keys for additional Datadog organizations when using ``additional_endpoints``. Configure an additional endpoint with a ``DELA(...)`` directive instead of a static API key.
+    Extended the delegated authentication (Workload Identity Federation) component so it can write a resolved API key into a map- or list-shaped ``additional_endpoints`` configuration value, replacing a placeholder ``DELA(...)`` directive. This is internal foundation work; no Agent subsystem reads ``DELA(...)`` directives yet, so this does not enable any user-facing behavior on its own.

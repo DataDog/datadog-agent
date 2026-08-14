@@ -793,6 +793,82 @@ func TestMergeIntoAdditionalEndpointsDoesNotClobberOtherDomains(t *testing.T) {
 	assert.Equal(t, []string{"third-org-key"}, got["https://third-org.datadoghq.com"])
 }
 
+// TestMergeIntoAdditionalEndpointsMatchesByIndexOnValueCollision is a regression test: if two
+// entries in a domain's key list happen to share the same value (e.g. a static key equal to
+// another instance's fallback=<key>), a value-only scan can't tell them apart and would update
+// whichever one it finds first - not necessarily this instance's own entry. Recording
+// additionalEndpointKeyIndex at AddInstance time and preferring it here fixes that, mirroring the
+// same fix already applied to the list-shape path.
+func TestMergeIntoAdditionalEndpointsMatchesByIndexOnValueCollision(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://collision-org.datadoghq.com": {"shared-key", "shared-key"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://collision-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		additionalEndpointKeyIndex:   1,
+		lastWrittenValue:             "shared-key",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	require.Len(t, got["https://collision-org.datadoghq.com"], 2)
+	assert.Equal(t, "shared-key", got["https://collision-org.datadoghq.com"][0], "the entry at the other index must be untouched")
+	assert.Equal(t, "resolved-key", got["https://collision-org.datadoghq.com"][1], "the entry at this instance's recorded index must be updated")
+}
+
+// TestMergeIntoAdditionalEndpointsFallsBackToValueScanWhenIndexStale is a regression test: if the
+// domain's key list was reordered or resized since this instance was created (so
+// additionalEndpointKeyIndex no longer points at an entry with this instance's expected value),
+// the merge must still fall back to a value-only scan rather than giving up.
+func TestMergeIntoAdditionalEndpointsFallsBackToValueScanWhenIndexStale(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://reordered-org.datadoghq.com": {"some-static-key", "DELA(reordered-org-uuid, aws)"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://reordered-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		additionalEndpointKeyIndex:   0, // stale: index 0 is now the static key, not this instance's directive
+		lastWrittenValue:             "DELA(reordered-org-uuid, aws)",
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.ElementsMatch(t, []string{"some-static-key", "resolved-key"}, got["https://reordered-org.datadoghq.com"])
+}
+
+// TestMergeIntoAdditionalEndpointsLeavesDomainUnchangedWhenNoMatch is a regression test: appending
+// a new key when this instance's previous value can't be found would orphan whatever key was
+// actually in that slot (it may be a live, unrelated static key), so a failed match must leave the
+// domain's keys unchanged instead - mirroring the list-shape path's behavior.
+func TestMergeIntoAdditionalEndpointsLeavesDomainUnchangedWhenNoMatch(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://no-match-org.datadoghq.com": {"some-static-key"},
+	})
+
+	comp := &delegatedAuthComponent{config: mockConfig}
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://no-match-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(no-match-org-uuid, aws)", // never present in the list
+	}
+
+	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"some-static-key"}, got["https://no-match-org.datadoghq.com"])
+	assert.Equal(t, "DELA(no-match-org-uuid, aws)", instance.lastWrittenValue, "lastWrittenValue must not advance on a failed match")
+}
+
 func TestMergeIntoAdditionalEndpointsListReplacesDirectiveOnFirstWrite(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("logs_config.additional_endpoints", []any{
@@ -832,8 +908,10 @@ func TestMergeIntoAdditionalEndpointsListHandlesJSONString(t *testing.T) {
 	got, ok := common.NormalizeListShapeEntries(mockConfig.Get("logs_config.additional_endpoints"))
 	require.True(t, ok)
 	require.Len(t, got, 1)
-	assert.Equal(t, "real-api-key-1", got[0]["API_KEY"])
-	assert.NotContains(t, got[0], "api_key")
+	entry, ok := got[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "real-api-key-1", entry["API_KEY"])
+	assert.NotContains(t, entry, "api_key")
 	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
 }
 
