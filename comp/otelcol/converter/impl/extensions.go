@@ -170,9 +170,12 @@ func wireExtensionIDToPipeline(conf *confmap.Conf, extensionID string) error {
 
 // addExtensionToPipeline wires comp's autoconfigured instance into
 // service::extensions. It is best-effort: a config with no usable service section
-// is left untouched.
-func addExtensionToPipeline(conf *confmap.Conf, comp component) {
-	_ = wireExtensionIDToPipeline(conf, comp.EnhancedName)
+// is left untouched, with a warning logged.
+func (c *ddConverter) addExtensionToPipeline(conf *confmap.Conf, comp component) {
+	if err := wireExtensionIDToPipeline(conf, comp.EnhancedName); err != nil && c.logger != nil {
+		c.logger.Warn("Could not wire autoconfigured extension into service::extensions",
+			zap.String("extension", comp.EnhancedName), zap.Error(err))
+	}
 }
 
 // reuseExtension reports whether the user already declared an extension of the

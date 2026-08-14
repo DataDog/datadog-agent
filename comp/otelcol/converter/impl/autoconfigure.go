@@ -79,14 +79,14 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 			}
 		}
 		addComponentToConfig(conf, extension)
-		addExtensionToPipeline(conf, extension)
+		c.addExtensionToPipeline(conf, extension)
 	}
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
 		if !c.reuseExtension(conf, dogtelName) {
 			addComponentToConfig(conf, dogtelComponent)
-			addExtensionToPipeline(conf, dogtelComponent)
+			c.addExtensionToPipeline(conf, dogtelComponent)
 		}
 	}
 
