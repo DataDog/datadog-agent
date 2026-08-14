@@ -14,7 +14,7 @@
 //! `ERROR_FAILED_SERVICE_CONTROLLER_CONNECT` and falls back to console mode.
 //!
 //! The control handler bridges SCM stop events into the tokio runtime via
-//! [`crate::platform::shutdown_notify()`], so `ProcessManager::run()` shuts
+//! [`crate::platform::shutdown_notify()`], so `Supervisor::run()` shuts
 //! down without any API changes.
 
 use std::ffi::c_void;
@@ -44,7 +44,7 @@ use crate::uuid_gen::V4UuidGenerator;
 const SERVICE_NAME: &str = "dd-procmgr-service";
 /// SCM wait-hint: advisory value telling SCM how long to wait before
 /// considering the stop stalled. Set generously so that
-/// `ProcessManager::shutdown` can gracefully stop + force-kill every
+/// `ProcessManager::shutdown` (via [`Supervisor::run`]) can gracefully stop + force-kill every
 /// child without SCM intervening. The actual shutdown budget is driven
 /// by each child's `stop_timeout` (default 90s) + `FORCE_KILL_TIMEOUT`
 /// (10s).
@@ -146,7 +146,7 @@ fn default_log_file() -> PathBuf {
         .join("dd-procmgr.log")
 }
 
-/// Core service logic: creates the tokio runtime, runs ProcessManager, then
+/// Core service logic: creates the tokio runtime, runs the [`Supervisor`], then
 /// waits for the exit gate before reporting stopped.
 fn run_service_inner() -> Result<()> {
     dd_agent_log::init(dd_agent_log::LogConfig {
@@ -172,11 +172,11 @@ fn run_service_inner() -> Result<()> {
     let result = runtime.block_on(async {
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
-        mgr.run().await
+        mgr.supervisor().run().await
     });
 
     if let Err(ref e) = result {
-        warn!("ProcessManager exited with error: {e:#}");
+        warn!("Supervisor exited with error: {e:#}");
     }
 
     // Keep the service alive long enough for SCM to treat the start as
@@ -236,6 +236,6 @@ fn run_console_fallback() -> Result<()> {
     runtime.block_on(async {
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
-        mgr.run().await
+        mgr.supervisor().run().await
     })
 }

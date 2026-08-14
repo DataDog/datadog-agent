@@ -20,3 +20,5 @@ pub mod state;
 pub mod test_helpers;
 pub mod transport;
 pub mod uuid_gen;
+
+pub use manager::{ProcessManager, Supervisor};

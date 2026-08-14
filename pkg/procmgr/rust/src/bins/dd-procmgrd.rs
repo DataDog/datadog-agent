@@ -41,6 +41,6 @@ fn run() -> anyhow::Result<()> {
     runtime.block_on(async {
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
-        mgr.run().await
+        mgr.supervisor().run().await
     })
 }

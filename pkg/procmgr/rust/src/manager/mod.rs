@@ -5,20 +5,27 @@
 
 #![allow(clippy::result_large_err)]
 
-use crate::command::{Command, CreateResult, ReloadResult, StartResult, StopResult};
+mod reload;
+mod supervisor;
+
+use supervisor::RuntimeHandles;
+
+use crate::command::{CreateResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
-use crate::grpc;
 use crate::ordering;
-use crate::platform;
-use crate::process::{ManagedProcess, ProcessOrigin};
+use crate::process::ManagedProcess;
 use crate::shutdown;
-use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
 use std::sync::Arc;
-use tokio::sync::{RwLock, mpsc, oneshot};
+use tokio::sync::{RwLock, mpsc};
 use tonic::Status;
+
+pub use supervisor::Supervisor;
+
+#[cfg(test)]
+pub(crate) use supervisor::spawn_command_loop_for_tests;
 
 pub(crate) struct ExitEvent {
     pub name: String,
@@ -34,10 +41,10 @@ pub(crate) struct PendingRestart {
 
 #[derive(Clone)]
 pub struct ProcessManager {
-    processes: Arc<RwLock<Vec<ManagedProcess>>>,
-    startup_order: Arc<RwLock<Vec<usize>>>,
-    config_loader: Arc<dyn ConfigLoader>,
-    uuid_gen: Arc<dyn UuidGenerator>,
+    pub(super) processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    pub(super) startup_order: Arc<RwLock<Vec<usize>>>,
+    pub(super) config_loader: Arc<dyn ConfigLoader>,
+    pub(super) uuid_gen: Arc<dyn UuidGenerator>,
 }
 
 impl ProcessManager {
@@ -59,79 +66,25 @@ impl ProcessManager {
         }
     }
 
-    async fn start_configured_processes(
-        &self,
-        exit_tx: &mpsc::Sender<ExitEvent>,
-        restart_tx: &mpsc::Sender<PendingRestart>,
-    ) {
+    /// Wrap this manager in a [`Supervisor`] for daemon execution.
+    pub fn supervisor(self) -> Supervisor {
+        Supervisor::new(self)
+    }
+
+    async fn start_configured_processes(&self, handles: &RuntimeHandles) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
             let proc = &mut procs[idx];
+            let name = proc.name().to_owned();
             if proc.may_auto_start()
-                && let Err(e) = try_spawn_and_watch(proc, exit_tx)
+                && let Err(e) = try_spawn_and_watch(proc, handles)
             {
-                warn!("{e:#}");
-                queue_restart(proc, restart_tx);
+                warn!("[{name}] auto-start failed: {e:#}");
+                queue_restart(proc, handles);
             }
             proc.record_config_gate_met();
         }
-    }
-
-    pub async fn run(&self) -> Result<()> {
-        let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
-        let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
-        let grpc_handle = tokio::spawn(grpc::server::run(self.clone(), cmd_tx, grpc_shutdown_rx));
-
-        let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
-        self.start_configured_processes(&exit_tx, &restart_tx).await;
-
-        let shutdown = platform::shutdown_signal();
-        tokio::pin!(shutdown);
-
-        loop {
-            tokio::select! {
-                _ = &mut shutdown => {
-                    break;
-                }
-                Some(event) = exit_rx.recv() => {
-                    self.handle_exit(event, &restart_tx).await;
-                }
-                Some(pending) = restart_rx.recv() => {
-                    self.complete_restart(pending, &exit_tx, &restart_tx).await;
-                }
-                Some(cmd) = cmd_rx.recv() => {
-                    match cmd {
-                        Command::Create { name, config, reply } => {
-                            let _ = reply.send(self.handle_create(name, *config, &exit_tx).await);
-                        }
-                        Command::Start { name_or_uuid, reply } => {
-                            let _ = reply.send(self.handle_start(&name_or_uuid, &exit_tx).await);
-                        }
-                        Command::Stop { name_or_uuid, reply } => {
-                            let _ = reply.send(self.handle_stop(&name_or_uuid).await);
-                        }
-                        Command::ReloadConfig { reply } => {
-                            let _ = reply.send(self.handle_reload_config(&exit_tx, &restart_tx).await);
-                        }
-                    }
-                }
-            }
-        }
-
-        info!("dd-procmgrd shutting down");
-
-        let _ = grpc_shutdown_tx.send(());
-        match grpc_handle.await {
-            Ok(Err(e)) => warn!("gRPC server error: {e}"),
-            Err(e) => warn!("gRPC server task panicked: {e}"),
-            Ok(Ok(())) => {}
-        }
-
-        self.shutdown().await;
-        info!("dd-procmgrd stopped");
-        Ok(())
     }
 
     pub(crate) async fn processes(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
@@ -146,10 +99,10 @@ impl ProcessManager {
         self.config_loader.location()
     }
 
-    pub(crate) async fn handle_exit(
+    async fn handle_exit(
         &self,
         event: ExitEvent,
-        restart_tx: &mpsc::Sender<PendingRestart>,
+        handles: &RuntimeHandles,
     ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
@@ -162,7 +115,7 @@ impl ProcessManager {
             proc.set_last_status(event.status);
             #[cfg(windows)]
             proc.ensure_windows_spawn_resources_released().await;
-            queue_restart(proc, restart_tx);
+            queue_restart(proc, handles);
             return;
         }
 
@@ -177,11 +130,10 @@ impl ProcessManager {
         );
     }
 
-    pub(crate) async fn complete_restart(
+    async fn complete_restart(
         &self,
         pending: PendingRestart,
-        exit_tx: &mpsc::Sender<ExitEvent>,
-        restart_tx: &mpsc::Sender<PendingRestart>,
+        handles: &RuntimeHandles,
     ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.uuid() == pending.uuid) else {
@@ -202,18 +154,18 @@ impl ProcessManager {
             proc.record_config_gate_met();
             return;
         }
-        if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
+        if let Err(e) = try_spawn_and_watch(proc, handles) {
             warn!("[{name}] restart failed: {e:#}");
-            queue_restart(proc, restart_tx);
+            queue_restart(proc, handles);
         }
         proc.record_config_gate_met();
     }
 
-    pub(crate) async fn handle_create(
+    async fn handle_create(
         &self,
         name: String,
         config: config::ProcessConfig,
-        exit_tx: &mpsc::Sender<ExitEvent>,
+        handles: &RuntimeHandles,
     ) -> Result<CreateResult, Status> {
         if name.is_empty() {
             return Err(Status::invalid_argument("name must not be empty"));
@@ -243,7 +195,7 @@ impl ProcessManager {
             procs.push(proc);
             let proc = procs.last_mut().unwrap();
             if proc.may_auto_start()
-                && let Err(e) = try_spawn_and_watch(proc, exit_tx)
+                && let Err(e) = try_spawn_and_watch(proc, handles)
             {
                 warn!("[{name}] auto-start failed: {e:#}");
             }
@@ -252,10 +204,10 @@ impl ProcessManager {
         Ok(CreateResult { uuid, warnings })
     }
 
-    pub(crate) async fn handle_start(
+    async fn handle_start(
         &self,
         name_or_uuid: &str,
-        exit_tx: &mpsc::Sender<ExitEvent>,
+        handles: &RuntimeHandles,
     ) -> Result<StartResult, Status> {
         let mut procs = self.processes.write().await;
         let idx = resolve_index(&procs, name_or_uuid)?;
@@ -267,7 +219,7 @@ impl ProcessManager {
                 "process '{name}' is already running",
             )));
         }
-        try_spawn_and_watch(proc, exit_tx)
+        try_spawn_and_watch(proc, handles)
             .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
         proc.record_config_gate_met();
         Ok(StartResult {
@@ -277,7 +229,7 @@ impl ProcessManager {
         })
     }
 
-    pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
+    async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
         let mut procs = self.processes.write().await;
         let idx = resolve_index(&procs, name_or_uuid)?;
         let proc = &mut procs[idx];
@@ -292,33 +244,6 @@ impl ProcessManager {
         proc.stop().await;
         let state = proc.state();
         Ok(StopResult { uuid, state })
-    }
-
-    pub(crate) async fn handle_reload_config(
-        &self,
-        exit_tx: &mpsc::Sender<ExitEvent>,
-        restart_tx: &mpsc::Sender<PendingRestart>,
-    ) -> Result<ReloadResult, Status> {
-        let new_configs = self.config_loader.load();
-
-        let removed = self
-            .remove_and_stop_dropped_config_processes(&new_configs)
-            .await;
-
-        let apply = self
-            .apply_reloaded_config_processes(new_configs, exit_tx, restart_tx)
-            .await;
-
-        self.reconcile_processes_after_reload(&apply, exit_tx, restart_tx)
-            .await;
-
-        self.update_startup_order().await;
-        Ok(ReloadResult {
-            added: apply.added,
-            removed,
-            modified: apply.modified,
-            unchanged: apply.unchanged,
-        })
     }
 
     async fn update_startup_order(&self) -> Vec<String> {
@@ -338,95 +263,6 @@ impl ProcessManager {
             .collect();
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
-    }
-
-    /// Removes config-origin processes absent from `new_configs` and stops them outside the lock.
-    async fn remove_and_stop_dropped_config_processes(
-        &self,
-        new_configs: &[ProcessDefinition],
-    ) -> Vec<String> {
-        let new_names: std::collections::HashSet<&str> =
-            new_configs.iter().map(|c| c.name.as_str()).collect();
-        let (removed, mut procs_to_stop) = {
-            let mut procs = self.processes.write().await;
-            detach_removed_config_processes(&mut procs, &new_names)
-        };
-        for proc in &mut procs_to_stop {
-            proc.stop().await;
-        }
-        removed
-    }
-
-    async fn apply_reloaded_config_processes(
-        &self,
-        new_configs: Vec<ProcessDefinition>,
-        exit_tx: &mpsc::Sender<ExitEvent>,
-        restart_tx: &mpsc::Sender<PendingRestart>,
-    ) -> ReloadConfigApplyResult {
-        let mut procs = self.processes.write().await;
-        let mut added = Vec::new();
-        let mut modified = Vec::new();
-        let mut modified_running = Vec::new();
-        let mut unchanged = Vec::new();
-        for np in new_configs {
-            if let Some(existing) = procs.iter_mut().find(|p| p.name() == np.name) {
-                if existing.config() != np.config {
-                    info!("[{}] config changed, updating", np.name);
-                    if existing.is_running() {
-                        modified_running.push(np.name.clone());
-                    }
-                    existing.set_config(np.config);
-                    modified.push(np.name);
-                } else {
-                    unchanged.push(np.name);
-                }
-            } else {
-                info!("[{}] new config found, adding", np.name);
-                let mut proc = ManagedProcess::new_config(
-                    np.name.clone(),
-                    self.uuid_gen.generate(),
-                    np.config,
-                );
-                if proc.may_auto_start()
-                    && let Err(e) = try_spawn_and_watch(&mut proc, exit_tx)
-                {
-                    warn!("[{}] failed to start: {e:#}", np.name);
-                    queue_restart(&mut proc, restart_tx);
-                }
-                proc.record_config_gate_met();
-                added.push(np.name);
-                procs.push(proc);
-            }
-        }
-        ReloadConfigApplyResult {
-            added,
-            modified,
-            modified_running,
-            unchanged,
-        }
-    }
-
-    async fn reconcile_processes_after_reload(
-        &self,
-        apply: &ReloadConfigApplyResult,
-        exit_tx: &mpsc::Sender<ExitEvent>,
-        restart_tx: &mpsc::Sender<PendingRestart>,
-    ) {
-        let stopped_for_config_update: std::collections::HashSet<String> =
-            apply.modified_running.iter().cloned().collect();
-        let modified_names: std::collections::HashSet<String> =
-            apply.modified.iter().cloned().collect();
-        let mut procs = self.processes.write().await;
-        for proc in procs.iter_mut() {
-            reconcile_process_after_reload(
-                proc,
-                exit_tx,
-                restart_tx,
-                stopped_for_config_update.contains(proc.name()),
-                modified_names.contains(proc.name()),
-            )
-            .await;
-        }
     }
 }
 
@@ -465,126 +301,13 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-fn detach_removed_config_processes(
-    procs: &mut Vec<ManagedProcess>,
-    new_names: &std::collections::HashSet<&str>,
-) -> (Vec<String>, Vec<ManagedProcess>) {
-    let mut removed = Vec::new();
-    let mut procs_to_stop = Vec::new();
-    let mut i = 0;
-    while i < procs.len() {
-        if procs[i].origin() == ProcessOrigin::Config && !new_names.contains(procs[i].name()) {
-            let proc = procs.remove(i);
-            info!("[{}] config removed, stopping", proc.name());
-            removed.push(proc.name().to_owned());
-            procs_to_stop.push(proc);
-        } else {
-            i += 1;
-        }
-    }
-    (removed, procs_to_stop)
-}
-
-struct ReloadConfigApplyResult {
-    added: Vec<String>,
-    modified: Vec<String>,
-    modified_running: Vec<String>,
-    unchanged: Vec<String>,
-}
-
-fn should_stop_running_after_reload(
-    proc: &ManagedProcess,
-    start_conditions_was: Option<bool>,
-) -> bool {
-    if !proc.config().auto_start {
-        return !proc.start_conditions_met() && start_conditions_was == Some(true);
-    }
-    !proc.start_conditions_met()
-}
-
-fn should_start_after_config_reload(proc: &ManagedProcess, was_running: bool) -> bool {
-    if was_running {
-        if proc.config().auto_start {
-            proc.may_auto_start()
-        } else {
-            proc.start_conditions_met()
-        }
-    } else if proc.state() == ProcessState::Failed && proc.config().auto_start {
-        proc.may_auto_start()
-    } else {
-        false
-    }
-}
-
-async fn restart_after_config_change(
-    proc: &mut ManagedProcess,
-    exit_tx: &mpsc::Sender<ExitEvent>,
-    restart_tx: &mpsc::Sender<PendingRestart>,
-    was_running: bool,
-) {
-    if was_running {
-        proc.stop().await;
-    }
-
-    if should_start_after_config_reload(proc, was_running) {
-        info!("[{}] starting after config reload", proc.name());
-        if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
-            warn!(
-                "[{}] failed to start after config reload: {e:#}",
-                proc.name()
-            );
-            queue_restart(proc, restart_tx);
-        }
-    } else {
-        info!("[{}] skipping start after config reload", proc.name());
-    }
-
-    proc.record_config_gate_met();
-}
-
-async fn reconcile_process_after_reload(
-    proc: &mut ManagedProcess,
-    exit_tx: &mpsc::Sender<ExitEvent>,
-    restart_tx: &mpsc::Sender<PendingRestart>,
-    was_running: bool,
-    config_changed: bool,
-) {
-    if proc.origin() != ProcessOrigin::Config {
-        return;
-    }
-
-    if config_changed {
-        restart_after_config_change(proc, exit_tx, restart_tx, was_running).await;
-        return;
-    }
-
-    let want_start = proc.may_auto_start();
-    let start_conditions_was = proc.last_start_conditions_met();
-
-    if proc.is_running() && should_stop_running_after_reload(proc, start_conditions_was) {
-        info!("[{}] start conditions no longer met, stopping", proc.name());
-        proc.stop().await;
-    } else if !proc.is_running() && want_start && start_conditions_was == Some(false) {
-        info!("[{}] start conditions now met, starting", proc.name());
-        if let Err(e) = try_spawn_and_watch(proc, exit_tx) {
-            warn!(
-                "[{}] failed to start after start conditions opened: {e:#}",
-                proc.name()
-            );
-            queue_restart(proc, restart_tx);
-        }
-    }
-
-    proc.record_config_gate_met();
-}
-
-fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRestart>) {
+fn queue_restart(proc: &mut ManagedProcess, handles: &RuntimeHandles) {
     if let Some(delay) = proc.schedule_restart() {
         let pending = PendingRestart {
             uuid: proc.uuid().to_owned(),
             config_generation: proc.config_generation(),
         };
-        let tx = restart_tx.clone();
+        let tx = handles.restart_sender();
         tokio::spawn(async move {
             tokio::time::sleep(delay).await;
             let _ = tx.send(pending).await;
@@ -592,9 +315,9 @@ fn queue_restart(proc: &mut ManagedProcess, restart_tx: &mpsc::Sender<PendingRes
     }
 }
 
-fn try_spawn_and_watch(proc: &mut ManagedProcess, exit_tx: &mpsc::Sender<ExitEvent>) -> Result<()> {
+fn try_spawn_and_watch(proc: &mut ManagedProcess, handles: &RuntimeHandles) -> Result<()> {
     proc.spawn()?;
-    spawn_watcher(proc, exit_tx.clone());
+    spawn_watcher(proc, handles.exit_sender());
     Ok(())
 }
 
@@ -672,10 +395,13 @@ mod tests {
         Arc::new(V4UuidGenerator)
     }
 
-    fn reload_test_channels() -> (mpsc::Sender<ExitEvent>, mpsc::Sender<PendingRestart>) {
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, _restart_rx) = mpsc::channel::<PendingRestart>(256);
-        (exit_tx, restart_tx)
+    fn test_runtime_handles(
+    ) -> (
+        RuntimeHandles,
+        mpsc::Receiver<ExitEvent>,
+        mpsc::Receiver<PendingRestart>,
+    ) {
+        RuntimeHandles::new()
     }
 
     fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
@@ -715,10 +441,9 @@ mod tests {
             }]),
             uuid_gen(),
         );
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.start_configured_processes(&exit_tx, &restart_tx).await;
+        mgr.start_configured_processes(&handles).await;
 
         assert!(!mgr.processes().await[0].is_running());
         let expected_uuid = mgr.processes().await[0].uuid().to_owned();
@@ -749,10 +474,9 @@ mod tests {
         };
         let config_loader = Arc::new(MutableConfigLoader::new(vec![make_def(60)]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("svc", &exit_tx).await?;
+        mgr.handle_start("svc", &handles).await?;
         let (pid, name) = {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
@@ -767,7 +491,7 @@ mod tests {
                 pid,
                 status: test_helpers::exit_status(1),
             },
-            &restart_tx,
+            &handles,
         )
         .await;
 
@@ -778,7 +502,7 @@ mod tests {
                 .expect("expected queued restart event");
 
         config_loader.set(vec![make_def(120)]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
         assert_ne!(
             mgr.processes().await[0].config_generation(),
             stale_pending.config_generation
@@ -788,7 +512,7 @@ mod tests {
             "reload should start the process with fresh counters"
         );
 
-        mgr.complete_restart(stale_pending, &exit_tx, &restart_tx)
+        mgr.complete_restart(stale_pending, &handles)
             .await;
         let pid = mgr.processes().await[0].pid().unwrap();
         test_helpers::cleanup_process(pid);
@@ -813,10 +537,9 @@ mod tests {
         };
         let config_loader = Arc::new(MutableConfigLoader::new(vec![make_def(60)]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         let (pid, name) = {
             let procs = mgr.processes().await;
             (procs[0].pid().unwrap(), procs[0].name().to_owned())
@@ -830,7 +553,7 @@ mod tests {
                 pid,
                 status: test_helpers::exit_status(1),
             },
-            &restart_tx,
+            &handles,
         )
         .await;
 
@@ -841,17 +564,17 @@ mod tests {
                 .expect("expected queued restart event");
 
         config_loader.set(vec![make_def(90)]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
         assert!(!mgr.processes().await[0].is_running());
 
-        mgr.complete_restart(stale_pending, &exit_tx, &restart_tx)
+        mgr.complete_restart(stale_pending, &handles)
             .await;
         assert!(
             !mgr.processes().await[0].is_running(),
             "config reload should discard pending crash retries for failed auto_start=false processes"
         );
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
         Ok(())
     }
@@ -873,10 +596,9 @@ mod tests {
         };
         let config_loader = Arc::new(MutableConfigLoader::new(vec![make_def(60)]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         let (pid, name) = {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
@@ -891,7 +613,7 @@ mod tests {
                 pid,
                 status: test_helpers::exit_status(1),
             },
-            &restart_tx,
+            &handles,
         )
         .await;
 
@@ -905,7 +627,7 @@ mod tests {
             procs[0].set_command_for_test("/nonexistent/dd-procmgr-failed-respawn".to_string());
         }
 
-        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(pending, &handles).await;
 
         let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
             .await
@@ -917,7 +639,7 @@ mod tests {
             procs[0].set_command_for_test(cmd.to_string());
         }
 
-        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(pending, &handles).await;
         assert!(mgr.processes().await[0].is_running());
 
         test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
@@ -938,10 +660,9 @@ mod tests {
             },
         }]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.start_configured_processes(&exit_tx, &restart_tx).await;
+        mgr.start_configured_processes(&handles).await;
         assert_eq!(mgr.processes().await[0].state(), ProcessState::Failed);
 
         config_loader.set(vec![ProcessDefinition {
@@ -954,13 +675,13 @@ mod tests {
                 ..Default::default()
             },
         }]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
 
         let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
             .await
             .expect("timed out waiting for stale bootstrap retry")
             .expect("expected stale bootstrap retry event");
-        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(pending, &handles).await;
 
         let procs = mgr.processes().await;
         assert!(!procs[0].is_running());
@@ -992,17 +713,16 @@ mod tests {
         };
         let config_loader = Arc::new(MutableConfigLoader::new(vec![bad_def]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.start_configured_processes(&exit_tx, &restart_tx).await;
+        mgr.start_configured_processes(&handles).await;
         let old_uuid = mgr.processes().await[0].uuid().to_owned();
 
         config_loader.set(vec![]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
 
         config_loader.set(vec![auto_start_false_def]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
         assert_ne!(mgr.processes().await[0].uuid(), old_uuid);
 
         let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
@@ -1011,7 +731,7 @@ mod tests {
             .expect("expected orphaned retry event");
         assert_eq!(pending.uuid, old_uuid);
 
-        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(pending, &handles).await;
 
         let procs = mgr.processes().await;
         assert!(!procs[0].is_running());
@@ -1022,16 +742,15 @@ mod tests {
     #[tokio::test]
     async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, _restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("svc", &exit_tx).await?;
+        mgr.handle_start("svc", &handles).await?;
         let pending = {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
             current_pending_restart(&procs[0])
         };
-        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(pending, &handles).await;
 
         let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
@@ -1056,10 +775,9 @@ mod tests {
             },
         }]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, _restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
@@ -1079,7 +797,7 @@ mod tests {
             let procs = mgr.processes().await;
             current_pending_restart(&procs[0])
         };
-        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(pending, &handles).await;
         assert!(
             mgr.processes().await[0].is_running(),
             "auto_start=false process should still restart when restart policy allows"
@@ -1117,10 +835,9 @@ mod tests {
         };
         let config_loader = Arc::new(MutableConfigLoader::new(vec![always_def]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<PendingRestart>(256);
+        let (handles, _exit_rx, mut restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         let (pid, name) = {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
@@ -1135,7 +852,7 @@ mod tests {
                 pid,
                 status: test_helpers::exit_status(1),
             },
-            &restart_tx,
+            &handles,
         )
         .await;
 
@@ -1145,13 +862,13 @@ mod tests {
             .expect("expected queued restart event");
 
         config_loader.set(vec![never_def]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
         assert_ne!(
             mgr.processes().await[0].config_generation(),
             pending.config_generation
         );
 
-        mgr.complete_restart(pending, &exit_tx, &restart_tx).await;
+        mgr.complete_restart(pending, &handles).await;
         assert!(
             !mgr.processes().await[0].is_running(),
             "stale crash retry must not respawn after restart policy is revoked"
@@ -1163,9 +880,9 @@ mod tests {
     async fn test_reload_updates_modified_config() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("svc-a", &exit_tx).await?;
+        mgr.handle_start("svc-a", &handles).await?;
         let old_pid = {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
@@ -1176,7 +893,7 @@ mod tests {
 
         // Reload with modified config (different args)
         config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.modified.contains(&"svc-a".to_string()));
         assert!(result.added.is_empty());
         assert!(result.removed.is_empty());
@@ -1204,11 +921,11 @@ mod tests {
     async fn test_reload_modified_not_running_stays_stopped() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
         // Don't start svc-a — leave it in Created state
         config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.modified.contains(&"svc-a".to_string()));
 
         let procs = mgr.processes().await;
@@ -1232,13 +949,13 @@ mod tests {
             },
         }]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.start_configured_processes(&exit_tx, &restart_tx).await;
+        mgr.start_configured_processes(&handles).await;
         assert_eq!(mgr.processes().await[0].state(), ProcessState::Failed);
 
         config_loader.set(vec![sleep_def("svc-a")]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
 
         let procs = mgr.processes().await;
         assert!(
@@ -1253,14 +970,14 @@ mod tests {
     async fn test_reload_modified_stopped_process_stays_stopped() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("svc-a", &exit_tx).await?;
+        mgr.handle_start("svc-a", &handles).await?;
         mgr.handle_stop("svc-a").await?;
         assert_eq!(mgr.processes().await[0].state(), ProcessState::Stopped);
 
         config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
 
         let procs = mgr.processes().await;
         assert_eq!(procs[0].state(), ProcessState::Stopped);
@@ -1275,11 +992,11 @@ mod tests {
     async fn test_reload_unchanged_config_not_modified() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
         // Reload with the exact same config
         config_loader.set(vec![sleep_def("svc-a")]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
         Ok(())
@@ -1296,9 +1013,9 @@ mod tests {
             },
         }]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         let old_pid = mgr.processes().await[0].pid().unwrap();
 
         config_loader.set(vec![ProcessDefinition {
@@ -1308,7 +1025,7 @@ mod tests {
                 ..sleep_def_secs("action-executor", 120).config
             },
         }]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.modified.contains(&"action-executor".to_string()));
 
         let procs = mgr.processes().await;
@@ -1335,9 +1052,9 @@ mod tests {
             },
         }]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         mgr.handle_stop("action-executor").await?;
 
         config_loader.set(vec![ProcessDefinition {
@@ -1347,7 +1064,7 @@ mod tests {
                 ..sleep_def_secs("action-executor", 120).config
             },
         }]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
 
         let procs = mgr.processes().await;
         assert_eq!(procs[0].state(), ProcessState::Stopped);
@@ -1368,9 +1085,9 @@ mod tests {
             },
         }]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         assert!(mgr.processes().await[0].is_running());
 
         config_loader.set(vec![ProcessDefinition {
@@ -1380,7 +1097,7 @@ mod tests {
                 ..sleep_def("action-executor").config
             },
         }]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.unchanged.contains(&"action-executor".to_string()));
 
         let procs = mgr.processes().await;
@@ -1411,14 +1128,14 @@ mod tests {
 
         let config_loader = Arc::new(MutableConfigLoader::new(vec![def_with_path(&path_str)]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("action-executor", &exit_tx).await?;
+        mgr.handle_start("action-executor", &handles).await?;
         assert!(mgr.processes().await[0].is_running());
 
         std::fs::remove_file(&marker)?;
         config_loader.set(vec![def_with_path(&path_str)]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.unchanged.contains(&"action-executor".to_string()));
         assert!(
             !mgr.processes().await[0].is_running(),
@@ -1445,16 +1162,16 @@ mod tests {
 
         let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
         config_loader.set(vec![def_with_path(&path_str)]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.added.contains(&"svc-a".to_string()));
         assert!(mgr.processes().await[0].is_running());
 
         std::fs::remove_file(&marker)?;
         config_loader.set(vec![def_with_path(&path_str)]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(
             !mgr.processes().await[0].is_running(),
@@ -1463,7 +1180,7 @@ mod tests {
 
         std::fs::write(&marker, b"")?;
         config_loader.set(vec![def_with_path(&path_str)]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
         assert!(
             mgr.processes().await[0].is_running(),
             "process should restart when condition_path_exists is met again"
@@ -1482,9 +1199,9 @@ mod tests {
             args,
             ..Default::default()
         };
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
         let err = mgr
-            .handle_create("".to_string(), config, &exit_tx)
+            .handle_create("".to_string(), config, &handles)
             .await
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
@@ -1499,9 +1216,9 @@ mod tests {
             args,
             ..Default::default()
         };
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
         let err = mgr
-            .handle_create("bad name!".to_string(), config, &exit_tx)
+            .handle_create("bad name!".to_string(), config, &handles)
             .await
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
@@ -1516,8 +1233,8 @@ mod tests {
             args,
             ..Default::default()
         };
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
-        mgr.handle_create("my-svc_v2.0".to_string(), config, &exit_tx)
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+        mgr.handle_create("my-svc_v2.0".to_string(), config, &handles)
             .await?;
         let procs = mgr.processes().await;
         assert_eq!(procs[0].name(), "my-svc_v2.0");
@@ -1533,11 +1250,11 @@ mod tests {
             args,
             ..Default::default()
         };
-        let (exit_tx, restart_tx) = reload_test_channels();
-        mgr.handle_create("runtime-svc".to_string(), config, &exit_tx)
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
+        mgr.handle_create("runtime-svc".to_string(), config, &handles)
             .await?;
 
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(
             !result.removed.contains(&"runtime-svc".to_string()),
             "runtime-created process should not be removed by reload"
@@ -1556,14 +1273,14 @@ mod tests {
             sleep_def("svc-b"),
         ]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("svc-a", &exit_tx).await?;
-        mgr.handle_start("svc-b", &exit_tx).await?;
+        mgr.handle_start("svc-a", &handles).await?;
+        mgr.handle_start("svc-b", &handles).await?;
 
         // Reload removes svc-b
         config_loader.set(vec![sleep_def("svc-a")]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.removed.contains(&"svc-b".to_string()));
 
         // Shutdown must not panic despite svc-b being gone from the Vec
@@ -1581,13 +1298,13 @@ mod tests {
     async fn test_shutdown_after_reload_adds_process() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("svc-a", &exit_tx).await?;
+        mgr.handle_start("svc-a", &handles).await?;
 
         // Reload adds svc-b
         config_loader.set(vec![sleep_def("svc-a"), sleep_def("svc-b")]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.added.contains(&"svc-b".to_string()));
 
         // svc-b auto-started by reload; start svc-a again is already running
@@ -1605,9 +1322,9 @@ mod tests {
     async fn test_shutdown_after_reload_with_runtime_process() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        mgr.handle_start("svc-a", &exit_tx).await?;
+        mgr.handle_start("svc-a", &handles).await?;
 
         // Create a runtime process
         let (cmd, args) = test_helpers::sleep_cmd(60);
@@ -1619,14 +1336,14 @@ mod tests {
                 auto_start: false,
                 ..Default::default()
             },
-            &exit_tx,
+            &handles,
         )
         .await?;
-        mgr.handle_start("runtime-svc", &exit_tx).await?;
+        mgr.handle_start("runtime-svc", &handles).await?;
 
         // Reload removes svc-a but preserves runtime-svc
         config_loader.set(vec![]);
-        let result = mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        let result = mgr.handle_reload_config(&handles).await?;
         assert!(result.removed.contains(&"svc-a".to_string()));
 
         mgr.shutdown().await;
@@ -1659,7 +1376,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
         let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "svc-b".to_string(),
@@ -1670,7 +1387,7 @@ mod tests {
                 auto_start: false,
                 ..Default::default()
             },
-            &exit_tx,
+            &handles,
         )
         .await?;
 
@@ -1688,7 +1405,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
         let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "auto-svc".to_string(),
@@ -1698,7 +1415,7 @@ mod tests {
                 auto_start: true,
                 ..Default::default()
             },
-            &exit_tx,
+            &handles,
         )
         .await?;
 
@@ -1722,7 +1439,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
         let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "manual-svc".to_string(),
@@ -1732,7 +1449,7 @@ mod tests {
                 auto_start: false,
                 ..Default::default()
             },
-            &exit_tx,
+            &handles,
         )
         .await?;
 
@@ -1748,7 +1465,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_auto_start_bad_command_still_created() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
         let result = mgr
             .handle_create(
                 "bad-cmd".to_string(),
@@ -1757,7 +1474,7 @@ mod tests {
                     auto_start: true,
                     ..Default::default()
                 },
-                &exit_tx,
+                &handles,
             )
             .await;
 
@@ -1775,7 +1492,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
         let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "cond-svc".to_string(),
@@ -1786,7 +1503,7 @@ mod tests {
                 condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
                 ..Default::default()
             },
-            &exit_tx,
+            &handles,
         )
         .await?;
 
@@ -1803,7 +1520,7 @@ mod tests {
     async fn test_reload_recomputes_startup_order() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, restart_tx) = reload_test_channels();
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
         {
             let order = mgr.startup_order.read().await;
@@ -1825,7 +1542,7 @@ mod tests {
             },
             sleep_def("svc-b"),
         ]);
-        mgr.handle_reload_config(&exit_tx, &restart_tx).await?;
+        mgr.handle_reload_config(&handles).await?;
 
         let order = mgr.startup_order.read().await;
         let procs = mgr.processes().await;
@@ -1850,9 +1567,9 @@ mod tests {
             loader(vec![sleep_def("svc-a"), sleep_def("svc-b")]),
             uuid_gen,
         );
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (handles, _exit_rx, _restart_rx) = test_runtime_handles();
 
-        let err: Status = mgr.handle_start("aabbccdd", &exit_tx).await.unwrap_err();
+        let err: Status = mgr.handle_start("aabbccdd", &handles).await.unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
         assert!(
             err.message().contains("ambiguous"),
@@ -1861,7 +1578,7 @@ mod tests {
         );
 
         // A longer, unambiguous prefix should resolve correctly.
-        mgr.handle_start("aabbccdd-1", &exit_tx)
+        mgr.handle_start("aabbccdd-1", &handles)
             .await
             .expect("unambiguous prefix should resolve");
 

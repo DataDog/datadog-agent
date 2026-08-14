@@ -135,11 +135,11 @@ fn run_service_inner() -> Result<()> {
     let result = runtime.block_on(async {
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
-        mgr.run().await
+        mgr.supervisor().run().await
     });
 
     if let Err(ref e) = result {
-        warn!("ProcessManager exited with error: {e:#}");
+        warn!("Supervisor exited with error: {e:#}");
     }
 
     // Keep the service alive long enough for SCM to treat the start as
@@ -195,6 +195,6 @@ fn run_console_fallback() -> Result<()> {
     runtime.block_on(async {
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
-        mgr.run().await
+        mgr.supervisor().run().await
     })
 }
