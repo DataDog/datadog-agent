@@ -14,8 +14,8 @@ use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOptions};
-use windows_sys::Win32::Foundation::{ERROR_PIPE_BUSY, HANDLE};
+use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
+use windows_sys::Win32::Foundation::HANDLE;
 
 use crate::platform::{create_pipe_server, pipe_client_may_mutate};
 
