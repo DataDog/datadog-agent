@@ -190,9 +190,9 @@ static float smcFltToF(const unsigned char *b) {
 #define DATASIZE_SP78 2
 #define DATASIZE_FLT  4
 
-// SMCGetTemperature returns the key's value in °C, or 0.0 if the key does not
-// exist, is not temperature-shaped, or the read fails. Missing keys are not
-// reported as errors, so callers must range-filter the result.
+// SMCGetTemperature returns the key's value in °C, or -100.0 if the key does
+// not exist, is not temperature-shaped, or the read fails. Missing keys are
+// not reported as errors, so callers must range-filter the result.
 //
 // dataSize is reported by the kernel and is checked against the width the
 // decoder actually consumes: a key whose type says sp78/flt but whose payload
@@ -201,7 +201,7 @@ static double SMCGetTemperature(io_connect_t conn, const char *key) {
     SMCVal_t val;
     kern_return_t result = SMCReadKey(conn, key, &val);
     if (result != kIOReturnSuccess) {
-        return 0.0;
+        return -100.0;
     }
 
     if (strcmp(val.dataType, DATATYPE_SP78) == 0 && val.dataSize >= DATASIZE_SP78) {
@@ -211,7 +211,7 @@ static double SMCGetTemperature(io_connect_t conn, const char *key) {
     if (strcmp(val.dataType, DATATYPE_FLT) == 0 && val.dataSize >= DATASIZE_FLT) {
         return (double)smcFltToF((unsigned char *)val.bytes);
     }
-    return 0.0;
+    return -100.0;
 }
 
 // cpuSMCKeys are the CPU SMC keys for every supported Mac. Apple Silicon and
