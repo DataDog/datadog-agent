@@ -76,10 +76,6 @@ type Tokenizer struct {
 	maxEvalBytes int
 	tsBuf        []Token // Reusable token buffer
 	idxBuf       []int   // Reusable index buffer
-	// skipHybridCollapse disables hybrid-token collapsing so tests can
-	// reconstruct the pre-IPv4-token tokenizer. Zero value collapses, so a
-	// zero-value Tokenizer still behaves like a production one.
-	skipHybridCollapse bool
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
@@ -160,7 +156,7 @@ func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 		// A dotted quad can only ever be closed by its final octet, so this is
 		// the one emission that can complete the pattern. Checking here keeps
 		// the cost off every other token and avoids a second pass entirely.
-		if token == D1 && runLen <= maxIPv4OctetDigits && !t.skipHybridCollapse {
+		if token == D1 && runLen <= maxIPv4OctetDigits {
 			t.collapseIPv4Tail()
 		}
 		return
@@ -180,8 +176,7 @@ func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 }
 
 // emitRuns run-length-encodes input into tsBuf/idxBuf, collapsing hybrid tokens
-// as they complete unless skipHybridCollapse is set. Tests set that flag to
-// reconstruct the pre-IPv4-token tokenizer for the IIS false-aggregate case.
+// via emitToken as each one completes.
 func (t *Tokenizer) emitRuns(input []byte) {
 	inputLen := len(input)
 	if inputLen == 0 {

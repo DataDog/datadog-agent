@@ -159,17 +159,34 @@ func defaultTimestampDetectorSettings(t *testing.T) (threshold float64, labelerM
 	return threshold, labelerMaxBytes
 }
 
-func tokenizeWithoutHybridCollapse(tok *Tokenizer, input []byte) []Token {
-	maxBytes := len(input)
-	if tok.maxEvalBytes > 0 && tok.maxEvalBytes < maxBytes {
-		maxBytes = tok.maxEvalBytes
+// The token sequence for the first tokenizer_max_input_bytes of
+// iisW3CFailingShape, split around the client IP so the same fixture expresses
+// both the pre- and post-collapse shapes:
+//
+//	DDDD-DD-DD DD:DD:DD CDCCCD <ip> CCC /CCCCC/CCCCCCC/CDD
+//
+// Before the fix the IP was seven separate run tokens, which is what let Kadane
+// extend the timestamp match across it; now it is one IPv4 token.
+var (
+	iisW3CTokenPrefix = []Token{
+		D4, Dash, D2, Dash, D2, Space, // 2026-08-11
+		D2, Colon, D2, Colon, D2, Space, // 10:34:49
+		C1, D1, C3, D1, Space, // W3SVC1
 	}
-	tok.skipHybridCollapse = true
-	tok.emitRuns(input[:maxBytes])
-	tok.skipHybridCollapse = false
-	out := make([]Token, len(tok.tsBuf))
-	copy(out, tok.tsBuf)
-	return out
+	iisW3CClientIPRuns = []Token{D2, Period, D1, Period, D2, Period, D2} // 10.1.48.10
+	iisW3CTokenSuffix  = []Token{
+		Space, C3, Space, // GET
+		Fslash, C5, Fslash, C7, Fslash, C1, D2, // /ZenIT/Service/v13
+	}
+)
+
+// iisW3CTokens builds the fixture with the client IP rendered as the given
+// tokens: the seven run tokens for the pre-collapse shape, or a single IPv4.
+func iisW3CTokens(clientIP ...Token) []Token {
+	out := make([]Token, 0, len(iisW3CTokenPrefix)+len(clientIP)+len(iisW3CTokenSuffix))
+	out = append(out, iisW3CTokenPrefix...)
+	out = append(out, clientIP...)
+	return append(out, iisW3CTokenSuffix...)
 }
 
 // TestIISW3CDottedQuadDoesNotDiluteTimestampScore is the unit-level proof
@@ -186,7 +203,7 @@ func TestIISW3CDottedQuadDoesNotDiluteTimestampScore(t *testing.T) {
 	detector := NewTimestampDetector(threshold)
 	raw := []byte(iisW3CFailingShape)
 
-	without := tokenizeWithoutHybridCollapse(tok, raw)
+	without := iisW3CTokens(iisW3CClientIPRuns...)
 	matchWithout := staticTokenGraph.MatchProbability(without)
 	assert.Equal(t, 0.5, matchWithout.probability, "pre-fix Kadane average over timestamp+IP must be 0.5")
 
@@ -195,6 +212,11 @@ func TestIISW3CDottedQuadDoesNotDiluteTimestampScore(t *testing.T) {
 	assert.Equal(t, aggregate, ctxWithout.label, "without IPv4 collapse the IIS line must stay aggregate at threshold 0.5")
 
 	with, _ := tok.Tokenize(raw)
+	// Pins the fixture above to what the tokenizer actually emits, so the
+	// pre-collapse baseline cannot drift away from the real token sequence.
+	require.Equal(t, iisW3CTokens(IPv4), with,
+		"fixture must match the tokenizer output apart from the collapsed client IP")
+
 	matchWith := staticTokenGraph.MatchProbability(with)
 	assert.Equal(t, 1.0, matchWith.probability, "after collapse Kadane must stay on the timestamp-only run")
 
