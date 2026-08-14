@@ -46,8 +46,38 @@ class DummyHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-threading.Thread(
-    target=lambda: socketserver.TCPServer(("", 9090), DummyHandler).serve_forever(),
-    daemon=True,
-).start()
-socketserver.TCPServer(("", 9091), MetricsHandler).serve_forever()
+class HaproxyMetricsHandler(http.server.BaseHTTPRequestHandler):
+    # haproxy's own metrics, on its own discovery port_hints port (8404).
+    # Metric names match haproxy's real METRIC_MAP
+    # (datadog_checks/haproxy/metrics.py) verbatim.
+    BODY = (
+        b"# HELP haproxy_process_requests Total number of requests processed by process.\n"
+        b"# TYPE haproxy_process_requests counter\n"
+        b"haproxy_process_requests 42\n"
+        b"# HELP haproxy_backend_status Current status of the backend.\n"
+        b"# TYPE haproxy_backend_status gauge\n"
+        b"haproxy_backend_status 1\n"
+    )
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+        self.send_header("Content-Length", str(len(self.BODY)))
+        self.end_headers()
+        self.wfile.write(self.BODY)
+
+    def log_message(self, *args):
+        pass
+
+
+for port, handler in (
+    (9090, DummyHandler),
+    (9091, MetricsHandler),
+    (8404, HaproxyMetricsHandler),
+):
+    threading.Thread(
+        target=lambda p=port, h=handler: socketserver.TCPServer(("", p), h).serve_forever(),
+        daemon=True,
+    ).start()
+
+threading.Event().wait()
