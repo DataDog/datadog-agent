@@ -2711,5 +2711,3 @@ process_config:
         );
     }
 }
-
-pub fn clear_secret_caches() {}
