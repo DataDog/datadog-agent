@@ -710,7 +710,15 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 	for _, configKey := range listShapeAdditionalEndpointsConfigKeys {
 		entries, _ := common.NormalizeListShapeEntries(config.Get(configKey))
 
-		for index, entry := range entries {
+		for index, rawEntry := range entries {
+			// NormalizeListShapeEntries preserves non-map elements (e.g. a bare string, or nil from
+			// a blank YAML list item) as-is rather than dropping them, so they can round-trip back
+			// into config unchanged; such an entry can never hold a DELA(...) directive.
+			entry, ok := rawEntry.(map[string]any)
+			if !ok {
+				continue
+			}
+
 			valStr, ok := common.CaseInsensitiveStringField(entry, "api_key")
 			if !ok || !strings.HasPrefix(strings.TrimSpace(valStr), "DELA(") {
 				continue

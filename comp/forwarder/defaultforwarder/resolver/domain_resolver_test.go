@@ -278,9 +278,14 @@ func TestIsUsableWithPendingDelegatedAuth(t *testing.T) {
 	// A domain with no real keys yet, but flagged as waiting on a delegatedauth-managed key
 	// (a DELA(...) directive in additional_endpoints), must still be usable so the forwarder
 	// builds a live domainForwarder for it instead of dropping it until an agent restart.
+	//
+	// The pending flag is derived from APIKeySet (hasPendingDelegatedAuthKeys), not from this
+	// descriptor's own HasPendingDelegatedAuth field - that field is only reliably populated via
+	// utils.newEndpointDescriptor's aggregation, so a resolver built from a directly-constructed
+	// descriptor (as here) must carry the flag on the APIKeys entry itself.
 	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
 		BaseURL:                 "https://example.com",
-		APIKeySet:               []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}}},
+		APIKeySet:               []utils.APIKeys{{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true}},
 		HasPendingDelegatedAuth: true,
 	})
 	require.NoError(t, err)
