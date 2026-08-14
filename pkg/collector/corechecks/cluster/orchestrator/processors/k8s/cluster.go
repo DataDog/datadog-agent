@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -210,6 +211,13 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 }
 
 func fillClusterResourceVersion(c *model.Cluster) error {
+	// Nodes are collected from an informer-backed map whose iteration order is
+	// not stable. Canonicalize the slice before hashing it so an unchanged
+	// cluster always produces the same resource version and payload.
+	sort.Slice(c.NodesInfo, func(i, j int) bool {
+		return c.NodesInfo[i].GetName() < c.NodesInfo[j].GetName()
+	})
+
 	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
 	jsonClustermodel, err := marshaller.Marshal(c)
 	if err != nil {
