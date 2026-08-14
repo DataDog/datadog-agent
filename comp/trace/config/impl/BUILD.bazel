@@ -126,7 +126,6 @@ dd_agent_go_test(
         "HOSTNAME_HELPER": "$(rlocationpath //comp/trace/config/impl/hostname_helper)",  # keep
     },
     gotags_sets = [["otlp"]],
-    tags = ["manual"],
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
