@@ -551,6 +551,10 @@ type StorageReader interface {
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
 
+	// GetContext returns the optional context associated with a series, or nil
+	// if the series has been evicted or has no context.
+	GetContext(ref SeriesRef) *MetricContext
+
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
 	// Allocates a new []Point slice — see interface doc for when to prefer ForEachPoint.

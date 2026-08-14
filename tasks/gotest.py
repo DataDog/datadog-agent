@@ -662,6 +662,9 @@ def test(
     build_cpus_opt = f"-p {cpus}" if cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
     trimpath_opt = "-trimpath" if 'DELVE' not in os.environ else ""
+    if sys.platform == "win32" and "DELVE" not in os.environ:
+        # incident-59224: omit DWARF to deflate peak link memory, while preserving symbol table diagnostics
+        ldflags += "-w"
 
     nocache = '-count=1' if not cache else ''
 
