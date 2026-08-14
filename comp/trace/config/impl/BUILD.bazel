@@ -126,6 +126,11 @@ dd_agent_go_test(
         "HOSTNAME_HELPER": "$(rlocationpath //comp/trace/config/impl/hostname_helper)",  # keep
     },
     gotags_sets = [["otlp"]],
+    # Windows runfiles path for hostname_helper is currently broken.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
