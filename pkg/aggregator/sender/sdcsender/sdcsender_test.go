@@ -115,12 +115,12 @@ func (f *fakeSender) OrchestratorManifest([]types.ProcessMessageBody, string)   
 
 func newTestSender() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, false, "my_check", 15*time.Second), fake
+	return newSender(fake, false, "my_check", 15*time.Second, nil), fake
 }
 
 func newTestSenderDryRun() (*Sender, *fakeSender) {
 	fake := &fakeSender{}
-	return newSender(fake, true, "my_check", 15*time.Second), fake
+	return newSender(fake, true, "my_check", 15*time.Second, nil), fake
 }
 
 func TestGauge_FlatSignalCompressesUntilWindowFlush(t *testing.T) {
@@ -472,7 +472,7 @@ func TestWindowFlush_DrivenBySampleTimestampsNotWallClock(t *testing.T) {
 // previous hardcoded 15s.
 func TestWindowFlush_DurationIsConfigurable(t *testing.T) {
 	fake := &fakeSender{}
-	s := newSender(fake, false, "my_check", 5*time.Second)
+	s := newSender(fake, false, "my_check", 5*time.Second, nil)
 
 	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
 	require.Len(t, fake.gauges, 1, "warmup ships the first sample verbatim")
@@ -600,7 +600,7 @@ func TestTlmContexts_TracksDistinctContextCountPerSender(t *testing.T) {
 	// so reusing a name other tests already incremented would make this
 	// test's absolute-value assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_tlm_contexts_test", 15*time.Second)
+	s := newSender(fake, false, "check_tlm_contexts_test", 15*time.Second, nil)
 
 	require.Equal(t, 0.0, s.tlmContexts.Get())
 
@@ -631,7 +631,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 	// (check_name, metric_name) pair another test already observed into
 	// would make this test's exact Count/Sum assertions flaky.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_scale_deviation_test", 15*time.Second)
+	s := newSender(fake, false, "check_scale_deviation_test", 15*time.Second, nil)
 
 	values := []float64{10, 20, 15, 100, 12}
 	alpha := compressorConfig().Alpha
@@ -663,7 +663,7 @@ func TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale(t *testing.T) {
 func TestFloorBoundTelemetry_TracksSwallowedPointsWhenFloorDominates(t *testing.T) {
 	// A dedicated check name: see TestTlmScaleDeviation_ObservesAbsoluteDiffFromScale.
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_floor_bound_dominates_test", 15*time.Second)
+	s := newSender(fake, false, "check_floor_bound_dominates_test", 15*time.Second, nil)
 
 	// A near-zero-scale signal: with the default config (Epsilon=0.02,
 	// Floor=1e-3), Epsilon*scale (~2e-8) is many orders of magnitude below
@@ -684,7 +684,7 @@ func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
 	t.Cleanup(func() { pkgconfigsetup.Datadog().SetInTest("checks.sdc_compression_floor", 1e-3) })
 
 	fake := &fakeSender{}
-	s := newSender(fake, false, "check_floor_bound_disabled_test", 15*time.Second)
+	s := newSender(fake, false, "check_floor_bound_disabled_test", 15*time.Second, nil)
 
 	for i := 0; i < 20; i++ {
 		s.compressAt(kindGauge, "my.tiny_gauge", 1e-6, "host", nil, float64(i), false)
@@ -696,11 +696,79 @@ func TestFloorBoundTelemetry_DisabledWhenFloorIsZero(t *testing.T) {
 	require.Zero(t, ctx.tlmFloorBoundBreakpoints.Get())
 }
 
+// TestMetricTypes_GaugeOnlyBypassesEverythingElse is a regression test for
+// checks.sdc_compression_metric_types: restricting to "gauge" must leave
+// Count/Rate/MonotonicCount calls completely untouched by the compressor
+// (no context created, no telemetry recorded), forwarded exactly like
+// dry-run mode does, while Gauge/GaugeWithTimestamp still compress
+// normally.
+func TestMetricTypes_GaugeOnlyBypassesEverythingElse(t *testing.T) {
+	fake := &fakeSender{}
+	s := newSender(fake, false, "my_check", 15*time.Second, map[metricKind]bool{kindGauge: true, kindGaugeWithTimestamp: true})
+
+	for i := 0; i < 10; i++ {
+		s.compressAt(kindGauge, "my.gauge", 42, "host", nil, float64(i), false)
+	}
+	// Warmup(2) ships verbatim, same as with no restriction at all.
+	require.Len(t, fake.gauges, 2)
+
+	s.compressAt(kindCount, "my.count", 5, "host", nil, 0, false)
+	s.compressAt(kindRate, "my.rate", 100, "host", nil, 0, false)
+	s.compressAt(kindMonotonicCount, "my.mc", 10, "host", nil, 0, false)
+
+	require.Len(t, fake.rawCounts, 1, "Count must bypass the compressor entirely, forwarded like dry-run")
+	require.Equal(t, 5.0, fake.rawCounts[0].value)
+	require.Len(t, fake.rawRates, 1, "Rate must bypass the compressor entirely")
+	require.Len(t, fake.rawMonotonicCountsWithFlush, 1, "MonotonicCount must bypass the compressor entirely")
+	require.Empty(t, fake.counts, "bypassed kinds must never ship a compressed breakpoint")
+
+	require.Len(t, s.contexts, 1, "only the enabled kind (gauge) should ever create a context")
+}
+
+// TestMetricTypes_GaugeWithTimestampFoldsIntoGaugeBucket confirms
+// GaugeWithTimestamp is covered by the "gauge" bucket, not a separate one —
+// a check using the timestamped variant shouldn't need a different
+// checks.sdc_compression_metric_types entry than one using plain Gauge.
+func TestMetricTypes_GaugeWithTimestampFoldsIntoGaugeBucket(t *testing.T) {
+	fake := &fakeSender{}
+	s := newSender(fake, false, "my_check", 15*time.Second, map[metricKind]bool{kindGauge: true, kindGaugeWithTimestamp: true})
+
+	require.NoError(t, s.GaugeWithTimestamp("my.gauge", 42, "host", nil, 1))
+	require.Len(t, s.contexts, 1, "GaugeWithTimestamp must compress when \"gauge\" is enabled")
+}
+
+// TestMetricTypes_UnrestrictedByDefault confirms a nil enabledKinds (what
+// sdcCompressedMetricKinds returns for an empty/unset
+// checks.sdc_compression_metric_types) compresses every kind, matching
+// behavior before this config key existed.
+func TestMetricTypes_UnrestrictedByDefault(t *testing.T) {
+	s, fake := newTestSender()
+
+	s.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
+	s.compressAt(kindCount, "my.count", 1, "host", nil, 0, false)
+	s.compressAt(kindRate, "my.rate", 1, "host", nil, 0, false)
+	s.compressAt(kindMonotonicCount, "my.mc", 1, "host", nil, 0, false)
+
+	require.Empty(t, fake.rawCounts)
+	require.Empty(t, fake.rawRates)
+	require.Empty(t, fake.rawMonotonicCountsWithFlush)
+	require.Len(t, s.contexts, 4, "every kind must compress when enabledKinds is nil")
+}
+
+func TestWrap_ReadsMetricTypesFromConfig(t *testing.T) {
+	cfg := pkgconfigsetup.Datadog()
+	cfg.SetInTest("checks.sdc_compression_metric_types", []string{"gauge"})
+	t.Cleanup(func() { cfg.SetInTest("checks.sdc_compression_metric_types", []string{}) })
+
+	m := Wrap(nil, false)
+	require.Equal(t, map[metricKind]bool{kindGauge: true, kindGaugeWithTimestamp: true}, m.enabledKinds)
+}
+
 func TestTwoSendersHaveIndependentContextCounts(t *testing.T) {
 	fakeA := &fakeSender{}
-	sA := newSender(fakeA, false, "check_a", 15*time.Second)
+	sA := newSender(fakeA, false, "check_a", 15*time.Second, nil)
 	fakeB := &fakeSender{}
-	sB := newSender(fakeB, false, "check_b", 15*time.Second)
+	sB := newSender(fakeB, false, "check_b", 15*time.Second, nil)
 
 	sA.compressAt(kindGauge, "my.gauge", 1, "host", nil, 0, false)
 	sA.compressAt(kindGauge, "my.gauge2", 1, "host", nil, 0, false)

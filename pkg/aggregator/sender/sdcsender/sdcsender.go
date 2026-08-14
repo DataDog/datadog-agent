@@ -140,6 +140,9 @@ type SenderManager struct {
 	// windowDuration: see Wrap's doc comment.
 	windowDuration time.Duration
 
+	// enabledKinds: see sdcCompressedMetricKinds's doc comment.
+	enabledKinds map[metricKind]bool
+
 	mu      sync.Mutex
 	senders map[checkid.ID]*Sender
 }
@@ -168,6 +171,7 @@ func Wrap(inner sender.SenderManager, dryRun bool) *SenderManager {
 		inner:          inner,
 		dryRun:         dryRun,
 		windowDuration: time.Duration(iv) * time.Second,
+		enabledKinds:   sdcCompressedMetricKinds(),
 		senders:        make(map[checkid.ID]*Sender),
 	}
 }
@@ -185,6 +189,38 @@ func sdcCompressedCheckNames() map[string]bool {
 		m[name] = true
 	}
 	return m
+}
+
+// metricTypeKinds maps each checks.sdc_compression_metric_types config value
+// to the metricKinds it enables. GaugeWithTimestamp/CountWithTimestamp fold
+// into "gauge"/"count" respectively — which sender method a check calls
+// (timestamped or not) is a caller detail, not a different kind of metric.
+var metricTypeKinds = map[string][]metricKind{
+	"gauge":           {kindGauge, kindGaugeWithTimestamp},
+	"count":           {kindCount, kindCountWithTimestamp},
+	"rate":            {kindRate},
+	"monotonic_count": {kindMonotonicCount},
+}
+
+// sdcCompressedMetricKinds returns the set of metricKinds eligible for SDC
+// compression, from the checks.sdc_compression_metric_types config setting.
+// A nil result means "no restriction" (every kind is eligible) — the
+// default, and also what an empty config list means; any unrecognized
+// entry in the list is silently ignored. Read once in Wrap(), like
+// windowDuration — checks.sdc_compression_metric_types has no hot-reload
+// wiring, matching every other checks.sdc_compression_* key.
+func sdcCompressedMetricKinds() map[metricKind]bool {
+	names := setup.Datadog().GetStringSlice("checks.sdc_compression_metric_types")
+	if len(names) == 0 {
+		return nil
+	}
+	kinds := make(map[metricKind]bool)
+	for _, name := range names {
+		for _, k := range metricTypeKinds[name] {
+			kinds[k] = true
+		}
+	}
+	return kinds
 }
 
 // CompressionEnabledFor reports whether checkName should get SDC-compressed
@@ -224,7 +260,7 @@ func (m *SenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := newSender(real, m.dryRun, checkName, m.windowDuration)
+	s := newSender(real, m.dryRun, checkName, m.windowDuration, m.enabledKinds)
 	m.senders[id] = s
 	return s, nil
 }
@@ -353,6 +389,10 @@ type Sender struct {
 	// key.
 	windowDuration time.Duration
 
+	// enabledKinds: see sdcCompressedMetricKinds's doc comment. Captured
+	// once at construction time, same as windowDuration/dryRun.
+	enabledKinds map[metricKind]bool
+
 	tlmContexts telemetry.SimpleGauge
 
 	mu sync.Mutex
@@ -367,15 +407,23 @@ type Sender struct {
 	lastFlushTs float64
 }
 
-func newSender(real sender.Sender, dryRun bool, checkName string, windowDuration time.Duration) *Sender {
+func newSender(real sender.Sender, dryRun bool, checkName string, windowDuration time.Duration, enabledKinds map[metricKind]bool) *Sender {
 	return &Sender{
 		Sender:         real,
 		checkName:      checkName,
 		dryRun:         dryRun,
 		windowDuration: windowDuration,
+		enabledKinds:   enabledKinds,
 		tlmContexts:    tlmContexts.WithValues(checkName),
 		contexts:       make(map[string]*contextState),
 	}
+}
+
+// kindEnabled reports whether kind is eligible for SDC compression, per
+// checks.sdc_compression_metric_types (nil enabledKinds means "no
+// restriction" — every kind is eligible, the default).
+func (s *Sender) kindEnabled(kind metricKind) bool {
+	return s.enabledKinds == nil || s.enabledKinds[kind]
 }
 
 // Gauge compresses metric instead of forwarding every call.
@@ -453,6 +501,15 @@ func (s *Sender) compress(kind metricKind, metric string, rawValue float64, host
 // real elapsed wall-clock time between calls. flushFirstValue is only
 // meaningful for kindMonotonicCount (see reduce()); other kinds ignore it.
 func (s *Sender) compressAt(kind metricKind, metric string, rawValue float64, hostname string, tags []string, now float64, flushFirstValue bool) {
+	if !s.kindEnabled(kind) {
+		// This kind is excluded from SDC compression entirely (see
+		// checks.sdc_compression_metric_types): forward the call unmodified,
+		// exactly like dry-run mode does, and never touch the compressor or
+		// its telemetry for it.
+		s.forwardRaw(kind, metric, rawValue, hostname, tags, now, flushFirstValue)
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
