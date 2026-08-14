@@ -8,18 +8,15 @@ use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::{mpsc, oneshot};
 
+/// Cloneable senders passed to spawn/restart handlers during a supervisor run.
 #[derive(Clone)]
 pub(crate) struct RuntimeHandles {
-    pub(in crate::manager) exit_tx: mpsc::Sender<ExitEvent>,
-    pub(in crate::manager) restart_tx: mpsc::Sender<PendingRestart>,
+    exit_tx: mpsc::Sender<ExitEvent>,
+    restart_tx: mpsc::Sender<PendingRestart>,
 }
 
 impl RuntimeHandles {
-    pub(super) fn new() -> (
-        Self,
-        mpsc::Receiver<ExitEvent>,
-        mpsc::Receiver<PendingRestart>,
-    ) {
+    pub(super) fn new() -> (Self, mpsc::Receiver<ExitEvent>, mpsc::Receiver<PendingRestart>) {
         let (exit_tx, exit_rx) = mpsc::channel(256);
         let (restart_tx, restart_rx) = mpsc::channel(256);
         (
@@ -31,32 +28,34 @@ impl RuntimeHandles {
             restart_rx,
         )
     }
+
+    pub(super) fn exit_sender(&self) -> mpsc::Sender<ExitEvent> {
+        self.exit_tx.clone()
+    }
+
+    pub(super) fn restart_sender(&self) -> mpsc::Sender<PendingRestart> {
+        self.restart_tx.clone()
+    }
 }
 
 async fn handle_command(manager: &ProcessManager, handles: &RuntimeHandles, cmd: Command) {
     match cmd {
-        Command::Create {
-            name,
-            config,
-            reply,
-        } => {
+        Command::Create { name, config, reply } => {
             let _ = reply.send(manager.handle_create(name, *config, handles).await);
         }
-        Command::Start {
-            name_or_uuid,
-            reply,
-        } => {
+        Command::Start { name_or_uuid, reply } => {
             let _ = reply.send(manager.handle_start(&name_or_uuid, handles).await);
         }
-        Command::Stop {
-            name_or_uuid,
-            reply,
-        } => {
+        Command::Stop { name_or_uuid, reply } => {
             let _ = reply.send(manager.handle_stop(&name_or_uuid).await);
+        }
+        Command::ReloadConfig { reply } => {
+            let _ = reply.send(manager.handle_reload_config(handles).await);
         }
     }
 }
 
+/// Returns `true` when the loop exits due to shutdown, `false` when all channels close.
 pub(super) async fn run_manager_event_loop(
     manager: &ProcessManager,
     handles: &RuntimeHandles,
@@ -64,10 +63,10 @@ pub(super) async fn run_manager_event_loop(
     exit_rx: &mut mpsc::Receiver<ExitEvent>,
     restart_rx: &mut mpsc::Receiver<PendingRestart>,
     mut shutdown: Pin<&mut impl Future<Output = ()>>,
-) {
+) -> bool {
     loop {
         tokio::select! {
-            _ = shutdown.as_mut() => return,
+            _ = shutdown.as_mut() => return true,
             Some(cmd) = cmd_rx.recv() => {
                 handle_command(manager, handles, cmd).await;
             }
@@ -77,14 +76,12 @@ pub(super) async fn run_manager_event_loop(
             Some(pending) = restart_rx.recv() => {
                 manager.complete_restart(pending, handles).await;
             }
-            else => {
-                warn!("manager event loop exiting: all channels closed");
-                return;
-            }
+            else => return false,
         }
     }
 }
 
+/// Event loop wiring around a [`ProcessManager`] (gRPC, exit/restart channels, shutdown).
 pub struct Supervisor {
     manager: ProcessManager,
 }
@@ -94,9 +91,8 @@ impl Supervisor {
         Self { manager }
     }
 
+    /// Run the daemon until a platform shutdown signal is received.
     pub async fn run(self) -> Result<()> {
-        info!("dd-procmgrd starting");
-
         let manager = self.manager;
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
@@ -104,11 +100,7 @@ impl Supervisor {
             tokio::spawn(grpc::server::run(manager.clone(), cmd_tx, grpc_shutdown_rx));
 
         let (handles, mut exit_rx, mut restart_rx) = RuntimeHandles::new();
-        #[cfg(unix)]
-        {
-            let _ = platform::spawn_user_for_supervisor();
-        }
-        manager.auto_start_all(&handles).await;
+        manager.start_configured_processes(&handles).await;
 
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
@@ -137,7 +129,7 @@ impl Supervisor {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 pub(crate) fn spawn_command_loop_for_tests(
     manager: ProcessManager,
     mut cmd_rx: mpsc::Receiver<Command>,
@@ -146,7 +138,7 @@ pub(crate) fn spawn_command_loop_for_tests(
     tokio::spawn(async move {
         let pending = std::future::pending::<()>();
         tokio::pin!(pending);
-        run_manager_event_loop(
+        let _ = run_manager_event_loop(
             &manager,
             &handles,
             &mut cmd_rx,
