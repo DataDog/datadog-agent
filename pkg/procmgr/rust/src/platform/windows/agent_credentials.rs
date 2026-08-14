@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-
 use anyhow::{Context, Result, bail};
 use std::ptr;
 use windows_sys::Win32::Security::Authentication::Identity::{
@@ -34,7 +33,10 @@ pub(crate) enum AgentAccount {
         user: String,
         password: String,
     },
-    ServiceAccountLogon { domain: String, user: String },
+    ServiceAccountLogon {
+        domain: String,
+        user: String,
+    },
 }
 
 impl AgentAccount {
