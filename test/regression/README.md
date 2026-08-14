@@ -7,22 +7,48 @@ contains the experiments for Agent. A similar one exists in [Vector]. Please do
 add your own experiments, instructions below. If you have any questions do
 contact #single-machine-performance; we'll be glad to help.
 
-## Quality Gate Experiments
-Experiments prefixed with `quality_gate_` represent the strongest claims made
-about the Agent and its performance. These are discussed in more detail on
-[this
-page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)
+## Experiment selection
+
+An experiment is a directory under any `cases/` directory, at any depth (e.g.
+`quality_gates/cases/…`, `logs/general/cases/…`). Which experiments run on a
+given PR is governed by a single central manifest, `selection.yaml`, which maps
+**trigger buckets → experiments** (by glob, exact path, or experiment name):
+
+* `always` — runs unconditionally, on every PR and in scheduled SMP runs. These
+  are the strongest claims made about the Agent's performance (see
+  [Performance Quality Gates](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)).
+* `codeowners` — runs automatically on a PR when the experiment's owning team
+  (per `.github/CODEOWNERS`) has changed a file.
+* `labels` — runs when the named `smp/<label>` is applied to the PR.
+
+The buckets are **unioned**: an experiment runs if any of its triggers fire, and
+an experiment may appear in several buckets. **To run a labelled suite on a PR,
+apply its `smp/<label>` label.** `selection.yaml` is also the label registry —
+see it for the available labels.
+
+For step-by-step recipes (adding a label suite, an ownership-driven suite, and
+the CODEOWNERS delegation that ownership-driven suites require), see
+[`experiment-selection-guide.md`](experiment-selection-guide.md). For the design
+rationale, see [`adr-experiment-selection.md`](adr-experiment-selection.md).
 
 ## Adding an Experiment
 
-In order for SMP's tooling to properly read a experiment directory please
-adhere to the following structure. Starting at the root:
+In order for SMP's tooling to properly read the suite please adhere to the
+following structure. Starting at the root:
 
 * `config.yaml` -- __Required__ Configuration that applies to all experiments.
-* `cases/` -- __Required__ The directory that contains each experiment.
-  Each sub-directory is a separate experiment and the name of the
-  directory is the name of the experiment, for instance
-  `tcp_syslog_to_blackhole`. We call these sub-directories 'cases'.
+* One or more directories that (at any depth) contain a `cases/` directory:
+  * `cases/` -- The directory that contains each experiment. Each sub-directory
+    is a separate experiment and the name of the directory is the name of the
+    experiment. Experiment names must be unique across the whole suite. We call
+    these sub-directories 'cases'.
+  * `README.md` -- __Optional__ Prose docs for the folder (a one-line
+    `description` plus any notes). No selection front-matter — selection lives
+    in `selection.yaml`.
+* Assign the new experiment to a bucket in `selection.yaml` (or ensure it falls
+  under an existing glob such as `logs/**`). The validation gate
+  (`smp experiments validate --in-ci`) blocks merge until every experiment is
+  bucketed.
 
 The structure of each case is as follows:
 
@@ -57,5 +83,5 @@ See full docs [here](https://github.com/DataDog/single-machine-performance/blob/
 
 An example command may look like this:
 ```
-smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_dogstatsd_to_api --target-image datadog/agent-dev:nightly-main-fe13dead-py3
+smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case quality_gate_logs --target-image datadog/agent-dev:nightly-main-fe13dead-py3
 ```

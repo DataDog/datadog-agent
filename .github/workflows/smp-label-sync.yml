@@ -1,0 +1,75 @@
+name: "SMP label sync check"
+
+# Reports drift between the SMP selection manifest (test/regression/selection.yaml) and the repo's
+# `smp/*` labels. The manifest's `labels:` keys are the registry. Label creation/deletion is manual
+# (see the ADR) — this job never mutates labels, it emits copy-paste `gh` commands for any drift.
+# Enforcement is asymmetric: a manifest label with no repo label only WARNS (benign, self-correcting —
+# the trigger is dormant until created), while a repo `smp/*` label absent from the manifest BLOCKS
+# (misleading cruft that would otherwise accumulate). Runs when the manifest changes. (Out-of-band
+# repo-label drift when the manifest is untouched would need a scheduled run — a follow-up.)
+
+on:
+  pull_request:
+    paths:
+      - test/regression/selection.yaml
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+permissions: {}
+
+jobs:
+  smp-label-sync:
+    if: github.event.pull_request.head.repo.full_name == github.repository # non-fork PRs only
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout selection manifest
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          sparse-checkout: test/regression/selection.yaml
+          persist-credentials: false
+      - name: Report drift between manifest labels and repo smp/* labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Labels declared in the manifest (the registry). yq is preinstalled on ubuntu-latest.
+          yq -r '.labels // {} | keys | .[]' test/regression/selection.yaml | sort > manifest_labels.txt
+          # Existing smp/* labels in the repo.
+          gh label list --repo "$GITHUB_REPOSITORY" --limit 500 --json name -q '.[].name' \
+            | grep '^smp/' | sort > repo_labels.txt || true
+          echo "== manifest labels =="; cat manifest_labels.txt
+          echo "== repo smp/* labels =="; cat repo_labels.txt
+          orphans=$(comm -13 manifest_labels.txt repo_labels.txt || true)   # in repo, not in manifest
+          missing=$(comm -23 manifest_labels.txt repo_labels.txt || true)   # in manifest, not in repo
+
+          # Asymmetric enforcement (we never mutate labels ourselves — create/delete is manual):
+          #  - `missing` (manifest label, no repo label) is benign + self-correcting (the trigger is
+          #    dormant until created), so it only WARNS.
+          #  - `orphan` (repo label, not in the manifest) is misleading cruft that would otherwise pile
+          #    up (a label you can apply that selects nothing), so it BLOCKS — the block is the forcing
+          #    function that keeps the label set clean.
+          rc=0
+          if [ -n "$missing" ]; then
+            while IFS= read -r label; do
+              [ -n "$label" ] || continue
+              desc=$(yq -r ".labels[\"$label\"].description // \"\"" test/regression/selection.yaml)
+              echo "::warning::Manifest label '$label' has no repo label yet, so its trigger stays dormant until created. Create it, then re-run this check (no manifest edit needed):"
+              echo "  gh label create \"$label\" --repo \"$GITHUB_REPOSITORY\" --description \"$desc\""
+            done <<< "$missing"
+          fi
+          if [ -n "$orphans" ]; then
+            while IFS= read -r label; do
+              [ -n "$label" ] || continue
+              echo "::error::Repo label '$label' is not declared in the manifest, so applying it selects nothing. Delete the repo label, or add it to selection.yaml:"
+              echo "  gh label delete \"$label\" --repo \"$GITHUB_REPOSITORY\" --yes"
+            done <<< "$orphans"
+            rc=1
+          fi
+          if [ -z "$missing" ] && [ -z "$orphans" ]; then
+            echo "Manifest labels and repo smp/* labels are in sync."
+          fi
+          exit "$rc"
