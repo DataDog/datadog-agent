@@ -3,7 +3,7 @@
 # nothing, malformed/non-`smp/` labels, invalid runner) always fail; an experiment in no manifest
 # bucket (the must-be-bucketed policy) fails under --in-ci. Offline apart from downloading the smp
 # binary. ebpf is excluded until it is modeled.
-single-machine-performance-experiments-validate:
+single_machine_performance-experiments-validate:
   stage: lint
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
