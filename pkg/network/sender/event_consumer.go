@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
-	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
 
 const eventConsumerSubsystem = "sender__event_consumer"
@@ -51,15 +50,8 @@ func NewDirectSenderConsumer(em EventConsumerRegistry, log log.Component, syspro
 
 // NewDirectSenderPoller creates the direct sender consumer using manual process polling
 func NewDirectSenderPoller(log log.Component, sysprobeconfig sysprobeconfig.Component) error {
-	dsc := &directSenderConsumer{
-		log:                  log,
-		processes:            make(map[uint32]*process),
-		proxyFilter:          newDockerProxyFilter(log),
-		extractor:            newServiceExtractor(sysprobeconfig),
-		processNameExtractor: newProcessNameExtractor(),
-		pidAliveFunc:         ddos.PidExists,
-		fetchProcesses:       true,
-	}
+	dsc := newDirectSenderConsumer(log, sysprobeconfig)
+	dsc.fetchProcesses = true
 	directSenderConsumerInstance.Store(dsc)
 	return nil
 }

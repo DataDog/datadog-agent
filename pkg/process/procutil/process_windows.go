@@ -232,7 +232,7 @@ func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
 	if proc, ok := p.procs[pid]; ok {
 		return proc.DeepCopy(), nil
 	}
-	proc := &Process{Pid: pid}
+	proc := &Process{Pid: pid, Stats: &Stats{}}
 	if err := fillProcessDetails(pid, proc); err != nil {
 		return nil, err
 	}
