@@ -71,7 +71,38 @@ func preemptCountAMD64(cache *btf.Cache) (map[string]uint64, error) {
 		return nil, ErrRequiredVarsMissingInBTF
 	}
 
+	var pcpuHot *btf.Struct
+	if err := kSpec.TypeByName("pcpu_hot", &pcpuHot); err != nil {
+		return nil, fmt.Errorf("unable to get definition for struct pcpu_hot: %w", err)
+	}
+
+	if !btfStructHasField(pcpuHot.Members, "preempt_count") {
+		return nil, errors.New("__preempt_count missing from kernel's btf and pcpu_hot->preempt_count does not exist")
+	}
+
 	return map[string]uint64{}, nil
+}
+
+func btfStructHasField(members []btf.Member, name string) bool {
+	for _, m := range members {
+		if m.Name == name {
+			return true
+		}
+		if m.Name == "" {
+			var inner []btf.Member
+			switch t := m.Type.(type) {
+			case *btf.Struct:
+				inner = t.Members
+			case *btf.Union:
+				inner = t.Members
+			}
+			if btfStructHasField(inner, name) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func preemptCountARM64() (map[string]uint64, error) {
