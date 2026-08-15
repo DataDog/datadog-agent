@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -195,6 +196,14 @@ func (c *collector) isProcessCollectionEnabled() bool {
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
+	// Cluster Checks Runners are Deployment replicas, not DaemonSets, so they
+	// are never colocated with a system-probe on the same node and have no
+	// hostPath mount for its socket. Service discovery can never succeed
+	// there, so skip it entirely to avoid endlessly retrying system-probe
+	// requests and spamming "no such file or directory" error logs.
+	if helper.IsCLCRunner(c.config) {
+		return false
+	}
 	return serviceDiscoveryEnabled(c.systemProbeConfig)
 }
 
