@@ -16,11 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -38,22 +35,13 @@ const (
 	hostTrafficDNSRemotePath      = "/tmp/host_traffic_dns.py"
 	hostTrafficDNSLogPath         = "/tmp/host_traffic_dns.log"
 	hostTrafficDNSPIDPath         = "/tmp/host_traffic_dns.pid"
+	hostTrafficHTTPRootPath       = "/tmp/host_traffic_http_root"
+	hostTrafficHTTPLogPath        = "/tmp/host_traffic_http.log"
+	hostTrafficHTTPPIDPath        = "/tmp/host_traffic_http.pid"
 	hostTrafficResolverBackupPath = "/tmp/host_traffic_resolv.conf.backup"
 	hostTrafficResolverLinkPath   = "/tmp/host_traffic_resolv.conf.link"
 	hostTrafficGeneratorLogPath   = "/tmp/host_traffic_dynamic_path_generator.log"
 	hostTrafficGeneratorPIDPath   = "/tmp/host_traffic_dynamic_path_generator.pid"
-	hostTrafficHTTPBinComposeYAML = `version: '3.9'
-services:
-  httpbin:
-    pid: host
-    privileged: true
-    ports:
-    - 80:8080/tcp
-    image: ghcr.io/datadog/apps-go-httpbin:{APPS_VERSION}
-    container_name: httpbin
-    volumes: []
-    environment: {}
-`
 )
 
 type hostTrafficDynamicPathEnv struct {
@@ -92,38 +80,21 @@ func hostTrafficDynamicPathProvisioner(name, agentConfig, systemProbeConfig stri
 		}
 
 		// The Ubuntu e2e AMI installs apache2 (via the php meta-package) which binds to
-		// port 80 by default. Stop and disable it so the httpbin container below can
-		// claim the port during docker-compose up. `|| true` keeps this idempotent on
-		// hosts where apache2 is absent.
-		stopApache, err := httpbinHost.OS.Runner().Command(
+		// port 80 by default. Stop and disable it so the suite's local Python HTTP
+		// server can claim the port. `|| true` keeps this idempotent when it is absent.
+		_, err = httpbinHost.OS.Runner().Command(
 			"stop-apache2",
 			&command.Args{
 				Create: pulumi.String("systemctl disable --now apache2 || true"),
 				Sudo:   true,
 			},
 		)
-		if err != nil {
-			return err
-		}
-
-		dockerManager, err := docker.NewAWSManager(&awsEnv, httpbinHost, utils.PulumiDependsOn(stopApache))
-		if err != nil {
-			return err
-		}
-
-		_, err = dockerManager.ComposeStrUp("httpbin", []docker.ComposeInlineManifest{hostTrafficHTTPBinCompose()}, pulumi.StringMap{})
 		return err
 	}, nil)
 }
 
-func hostTrafficHTTPBinCompose() docker.ComposeInlineManifest {
-	return docker.ComposeInlineManifest{
-		Name:    "httpbin",
-		Content: pulumi.String(strings.ReplaceAll(hostTrafficHTTPBinComposeYAML, "{APPS_VERSION}", apps.Version)),
-	}
-}
-
 func (s *hostTrafficDynamicPathBaseSuite) setupHostTraffic() {
+	s.startHostTrafficHTTPServer()
 	s.startHostTrafficDNSServer()
 	s.assertHostTrafficServiceReady()
 	s.assertHostTrafficServiceReachable()
@@ -135,14 +106,50 @@ func (s *hostTrafficDynamicPathBaseSuite) tearDownHostTraffic() {
 	s.stopHostTrafficGenerator()
 	s.restoreAgentResolver()
 	s.stopHostTrafficDNSServer()
+	s.stopHostTrafficHTTPServer()
 }
 
 func (s *hostTrafficDynamicPathBaseSuite) AfterTest(suiteName, testName string) {
 	if s.T().Failed() {
 		s.logRemoteFile(s.Env().HTTPBinHost, hostTrafficDNSLogPath)
+		s.logRemoteFile(s.Env().HTTPBinHost, hostTrafficHTTPLogPath)
 		s.logRemoteFile(s.Env().RemoteHost, hostTrafficGeneratorLogPath)
 	}
 	s.BaseSuite.AfterTest(suiteName, testName)
+}
+
+func (s *hostTrafficDynamicPathBaseSuite) startHostTrafficHTTPServer() {
+	host := s.Env().HTTPBinHost
+	startCommand := fmt.Sprintf(
+		"mkdir -p %s; cd %s; printf 'ok\\n' >index.html; nohup python3 -m http.server 80 --bind 0.0.0.0 >%s 2>&1 & echo $! >%s",
+		shellQuote(hostTrafficHTTPRootPath),
+		shellQuote(hostTrafficHTTPRootPath),
+		shellQuote(hostTrafficHTTPLogPath),
+		shellQuote(hostTrafficHTTPPIDPath),
+	)
+	host.MustExecute(fmt.Sprintf(`if [ -f %s ]; then sudo kill "$(sudo cat %s)" || true; fi
+sudo rm -f %s %s
+sudo sh -c %s
+sleep 1
+sudo kill -0 "$(sudo cat %s)"
+`,
+		shellQuote(hostTrafficHTTPPIDPath),
+		shellQuote(hostTrafficHTTPPIDPath),
+		shellQuote(hostTrafficHTTPPIDPath),
+		shellQuote(hostTrafficHTTPLogPath),
+		shellQuote(startCommand),
+		shellQuote(hostTrafficHTTPPIDPath),
+	))
+}
+
+func (s *hostTrafficDynamicPathBaseSuite) stopHostTrafficHTTPServer() {
+	if s.Env().HTTPBinHost == nil {
+		return
+	}
+	_, err := s.Env().HTTPBinHost.Execute(fmt.Sprintf(`if [ -f %s ]; then sudo kill "$(sudo cat %s)" || true; fi`, shellQuote(hostTrafficHTTPPIDPath), shellQuote(hostTrafficHTTPPIDPath)))
+	if err != nil {
+		s.T().Logf("failed to stop host traffic HTTP server: %v", err)
+	}
 }
 
 func (s *hostTrafficDynamicPathBaseSuite) assertHostTrafficServiceReady() {
