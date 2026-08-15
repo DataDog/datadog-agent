@@ -207,6 +207,8 @@ func TestPathtestStoreOneShotDispatchesOnceAndDeletes(t *testing.T) {
 	flushed := store.Flush()
 	require.Len(t, flushed, 1)
 	assert.True(t, flushed[0].Pathtest.OneShot)
+	assert.Equal(t, 1, store.GetContextsCount(), "one-shot must remain pending until channel admission")
+	store.AcknowledgeOneShot(flushed[0].Pathtest)
 	assert.Zero(t, store.GetContextsCount())
 	assert.Empty(t, store.Flush())
 	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_dispatched"].Sum)
@@ -236,10 +238,30 @@ func TestPathtestStoreReplacesExpiredOneShotBeforeFlush(t *testing.T) {
 	replacement := store.contexts[(&common.Pathtest{Hostname: "baseline"}).GetHash()]
 	require.NotNil(t, replacement)
 	assert.Equal(t, newDeadline, replacement.runUntil)
-	assert.Len(t, store.Flush(), 1, "the next window's replacement must remain dispatchable")
+	flushed := store.Flush()
+	require.Len(t, flushed, 1, "the next window's replacement must remain dispatchable")
+	store.AcknowledgeOneShot(flushed[0].Pathtest)
 	assert.Zero(t, store.GetContextsCount())
 	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_expired"].Sum)
 	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_dispatched"].Sum)
+}
+
+func TestPathtestStoreOneShotAcknowledgmentDoesNotRemoveNewWindow(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute)})
+	flushed := store.Flush()
+	require.Len(t, flushed, 1)
+	oldWindow := flushed[0].Pathtest
+	now = now.Add(30 * time.Minute)
+	newDeadline := now.Add(30 * time.Minute)
+	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: newDeadline})
+
+	store.AcknowledgeOneShot(oldWindow)
+
+	context := store.contexts[oldWindow.GetHash()]
+	require.NotNil(t, context)
+	assert.Equal(t, newDeadline, context.runUntil)
 }
 
 func TestPathtestStoreRecurringDispatchesAtTTLBoundary(t *testing.T) {

@@ -595,6 +595,7 @@ func (s *npCollectorImpl) flush() {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
 		case s.pathtestProcessingChan <- ptConf:
+			s.pathtestStore.AcknowledgeOneShot(ptConf.Pathtest)
 			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"flush.pathtest_processed", []string{}, 1)
 		default:
 			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"flush.pathtest_dropped", []string{"reason:processing_chan_full"}, 1)

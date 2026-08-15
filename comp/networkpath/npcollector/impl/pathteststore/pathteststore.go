@@ -171,24 +171,46 @@ func (f *Store) Flush() []*PathtestContext {
 		if ptConfigCtx.nextRun.After(now) || !f.rateLimiter.AllowN(now, 1) {
 			continue
 		}
+		if ptConfigCtx.Pathtest.OneShot {
+			// Keep one-shots until the collector acknowledges that its processing
+			// channel accepted the snapshot. A full channel must leave the selection
+			// available for the next flush attempt.
+			pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.snapshot())
+			continue
+		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {
 			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
 		}
 		ptConfigCtx.lastFlushTime = now
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.snapshot())
-		if ptConfigCtx.Pathtest.OneShot {
-			if ptConfigCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
-				f.statsdClient.Incr(networkPathStoreMetricPrefix+"baseline_dispatched", []string{}, 1) //nolint:errcheck
-			}
-			delete(f.contexts, key)
-			continue
-		}
 		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 
 	f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", f.rateLimiter.Tokens(), []string{}, 1) //nolint:errcheck
 
 	return pathtestsToFlush
+}
+
+// AcknowledgeOneShot removes a one-shot after the collector processing channel
+// accepts it. The deadline check prevents a late acknowledgment from removing a
+// same-path selection admitted for a newer window.
+func (f *Store) AcknowledgeOneShot(pathtest *common.Pathtest) {
+	if !pathtest.OneShot {
+		return
+	}
+
+	f.contextsMutex.Lock()
+	defer f.contextsMutex.Unlock()
+
+	hash := pathtest.GetHash()
+	pathtestCtx, ok := f.contexts[hash]
+	if !ok || !pathtestCtx.Pathtest.OneShot || !pathtestCtx.Pathtest.ExecutionDeadline.Equal(pathtest.ExecutionDeadline) {
+		return
+	}
+	delete(f.contexts, hash)
+	if pathtestCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
+		f.statsdClient.Incr(networkPathStoreMetricPrefix+"baseline_dispatched", []string{}, 1) //nolint:errcheck
+	}
 }
 
 // Add new pathtest

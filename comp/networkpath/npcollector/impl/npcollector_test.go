@@ -1678,6 +1678,31 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
 
+func TestNpCollectorFlushRetriesOneShotAfterProcessingChannelBackpressure(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.baseline_tests.enabled": true,
+		"network_path.collector.processing_chan_size":                1,
+	}, &teststatsd.Client{}, nil)
+	deadline := time.Now().Add(time.Minute)
+	collector.pathtestStore.Add(&common.Pathtest{
+		Hostname:           "baseline",
+		Origin:             payload.PathOriginNetworkTraffic,
+		OneShot:            true,
+		ExecutionDeadline:  deadline,
+		DynamicTestProfile: payload.DynamicTestProfileBaseline,
+	})
+	collector.pathtestProcessingChan <- &pathteststore.PathtestContext{}
+
+	collector.flush()
+	assert.Equal(t, 1, collector.pathtestStore.GetContextsCount(), "full channel must retain the one-shot")
+	<-collector.pathtestProcessingChan
+
+	collector.flush()
+	require.Len(t, collector.pathtestProcessingChan, 1)
+	assert.Equal(t, "baseline", (<-collector.pathtestProcessingChan).Pathtest.Hostname)
+	assert.Zero(t, collector.pathtestStore.GetContextsCount())
+}
+
 func Test_npCollectorImpl_flushLoop(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
