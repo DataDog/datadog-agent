@@ -30,8 +30,6 @@ if windows_target?
 end
 
 build do
-
-  license "Python-2.0"
   command "bazel run #{omnibazel_flags} -- @cpython//:install --destdir=#{install_dir}",
     :live_stream => Omnibus.logger.live_stream(:info)
 
