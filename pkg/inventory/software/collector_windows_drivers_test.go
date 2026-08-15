@@ -89,6 +89,16 @@ func TestResolveDriverPath(t *testing.T) {
 			expected: `C:\Program Files\Vendor\driver.sys`,
 		},
 		{
+			name:     "a quoted path is unquoted",
+			pathName: `"C:\Program Files\Vendor\driver.sys"`,
+			expected: `C:\Program Files\Vendor\driver.sys`,
+		},
+		{
+			name:     "arguments after a quoted path are ignored",
+			pathName: `"%SystemRoot%\System32\drivers\driver.sys" -flag`,
+			expected: `C:\Windows\System32\drivers\driver.sys`,
+		},
+		{
 			name:     "a UNC path is returned untouched",
 			pathName: `\\fileserver\share\driver.sys`,
 			expected: `\\fileserver\share\driver.sys`,
@@ -101,6 +111,11 @@ func TestResolveDriverPath(t *testing.T) {
 		{
 			name:     "the NT object-manager prefix is stripped",
 			pathName: `\??\C:\Program Files\Vendor\driver.sys`,
+			expected: `C:\Program Files\Vendor\driver.sys`,
+		},
+		{
+			name:     "a quoted NT object-manager path is unquoted and stripped",
+			pathName: `"\??\C:\Program Files\Vendor\driver.sys"`,
 			expected: `C:\Program Files\Vendor\driver.sys`,
 		},
 		{
@@ -148,6 +163,13 @@ func TestResolveDriverPathRejectsEmptyPaths(t *testing.T) {
 	for _, pathName := range []string{"", "   ", "\t"} {
 		_, err := resolveDriverPath(pathName, `C:\Windows`)
 		assert.Error(t, err, "an empty image path is not resolvable")
+	}
+}
+
+func TestResolveDriverPathRejectsMalformedQuotedPaths(t *testing.T) {
+	for _, pathName := range []string{`"`, `"C:\Program Files\Vendor\driver.sys`} {
+		_, err := resolveDriverPath(pathName, `C:\Windows`)
+		assert.Error(t, err, "an unterminated quoted image path is not resolvable")
 	}
 }
 

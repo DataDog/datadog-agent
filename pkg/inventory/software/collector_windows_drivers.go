@@ -186,6 +186,19 @@ func resolveDriverPath(pathName string, windowsDir string) (string, error) {
 		return "", errEmptyImagePath
 	}
 
+	// A service binary path containing spaces may be quoted and followed by arguments.
+	// Extract the quoted executable before applying path normalization.
+	if strings.HasPrefix(path, `"`) {
+		closingQuote := strings.Index(path[1:], `"`)
+		if closingQuote < 0 {
+			return "", fmt.Errorf("unterminated quoted image path %q", pathName)
+		}
+		path = path[1 : closingQuote+1]
+		if path == "" {
+			return "", errEmptyImagePath
+		}
+	}
+
 	// "\??\C:\Program Files\Vendor\driver.sys" is the NT object-manager form of a Win32 path.
 	path = strings.TrimPrefix(path, `\??\`)
 
