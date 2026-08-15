@@ -12,7 +12,6 @@ load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
-load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
@@ -124,9 +123,9 @@ alias(
 )
 
 # bazel run //:go_mod_tidy_all -- -x
-go_shim(
+alias(
     name = "go_mod_tidy_all",
-    tool = "//bazel/rules/go_mod_tidy_all",
+    actual = "//bazel/tools:go_mod_tidy_all",
 )
 
 run_binary(
