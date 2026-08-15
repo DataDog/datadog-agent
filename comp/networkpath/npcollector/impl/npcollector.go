@@ -38,6 +38,7 @@ import (
 )
 
 const (
+	baselineSelectionInterval           = 30 * time.Minute
 	reverseDNSLookupMetricPrefix        = common.NetworkPathCollectorMetricPrefix + "reverse_dns_lookup."
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
@@ -398,7 +399,7 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 func (s *npCollectorImpl) closeBaselineWindow(now time.Time) {
 	selected := s.baselineSelector.selectPathtests()
 	s.baselineSelector.reset()
-	s.baselineDeadline = now.Add(s.collectorConfigs.baselineWindow)
+	s.baselineDeadline = now.Add(baselineSelectionInterval)
 	_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.windows_closed", nil, 1)
 	for i := range selected {
 		_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.selections", nil, 1)

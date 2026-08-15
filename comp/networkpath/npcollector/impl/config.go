@@ -19,7 +19,6 @@ import (
 
 type collectorConfigs struct {
 	dynamicTestsState               npconfig.DynamicTestsState
-	baselineWindow                  time.Duration
 	netflowMonitoringEnabled        bool
 	workers                         int
 	timeout                         time.Duration
@@ -55,7 +54,6 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		filterConfigs = nil
 	}
 	return &collectorConfigs{
-		baselineWindow:             30 * time.Minute,
 		netflowMonitoringEnabled:   agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
 		workers:                    agentConfig.GetInt("network_path.collector.workers"),
 		timeout:                    agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,

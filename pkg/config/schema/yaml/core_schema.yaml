@@ -1723,19 +1723,14 @@ properties:
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
             example: 'true'
-          baseline_tests:
-            node_type: section
-            type: object
-            description: Configuration for included baseline Network Path Dynamic Tests.
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-                description: Enables up to three included Network Path Dynamic Tests immediately
-                  for the first eligible snapshot, then every 30 minutes, when Cloud Network
-                  Monitoring is enabled.
-                example: 'true'
+          baseline_tests_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: Enables up to three included Network Path Dynamic Tests immediately
+              for the first eligible snapshot, then every 30 minutes, when Cloud Network
+              Monitoring is enabled.
+            example: 'true'
       collector:
         node_type: section
         type: object

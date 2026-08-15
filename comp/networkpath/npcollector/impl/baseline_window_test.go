@@ -35,7 +35,7 @@ func baselineWindowConn(host string, bytes uint64) npmodel.NetworkPathConnection
 
 func TestBaselineFirstSnapshotAndSteadyWindow(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.baseline_tests.enabled": true,
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
 		"network_path.collector.monitor_ip_without_domain":           true,
 		"network_path.collector.pathtest_interval":                   time.Second,
 	}, &teststatsd.Client{}, nil)
@@ -69,7 +69,7 @@ func TestBaselineFirstSnapshotAndSteadyWindow(t *testing.T) {
 
 func TestBaselineEmptySnapshotsDoNotStartVirtualWindow(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.baseline_tests.enabled": true,
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
 		"network_path.collector.monitor_ip_without_domain":           true,
 	}, &teststatsd.Client{}, nil)
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{{
@@ -84,7 +84,7 @@ func TestBaselineEmptySnapshotsDoNotStartVirtualWindow(t *testing.T) {
 
 func TestBaselineDisabledCreatesNoCollectorMachinery(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.baseline_tests.enabled": false,
+		"network_path.connections_monitoring.baseline_tests_enabled": false,
 		"network_path.collector.monitor_ip_without_domain":           true,
 	}, &teststatsd.Client{}, nil)
 
@@ -97,7 +97,7 @@ func TestBaselineDisabledCreatesNoCollectorMachinery(t *testing.T) {
 func TestBaselineSelectionConsumesSlotsBeforeChannelAdmission(t *testing.T) {
 	stats := &teststatsd.Client{}
 	_, collector := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.baseline_tests.enabled": true,
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
 		"network_path.collector.monitor_ip_without_domain":           true,
 		"network_path.collector.input_chan_size":                     1,
 	}, stats, nil)
@@ -118,7 +118,7 @@ func TestBaselineBypassesRemoteFiltersButStandardDoesNot(t *testing.T) {
 	remoteExclude := []connfilter.Config{{Type: connfilter.FilterTypeExclude, MatchIP: "10.0.0.1"}}
 
 	_, baseline := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.baseline_tests.enabled": true,
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
 		"network_path.collector.monitor_ip_without_domain":           true,
 	}, &teststatsd.Client{}, nil)
 	baseline.replaceRemoteFilters(remoteExclude)

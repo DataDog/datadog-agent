@@ -36,7 +36,7 @@ func (s DynamicTestsState) String() string {
 
 const (
 	standardEnabledKey = "network_path.connections_monitoring.enabled"
-	baselineEnabledKey = "network_path.connections_monitoring.baseline_tests.enabled"
+	baselineEnabledKey = "network_path.connections_monitoring.baseline_tests_enabled"
 	systemProbeKey     = "system_probe_config.enabled"
 	networkConfigKey   = "network_config.enabled"
 )

@@ -348,8 +348,7 @@ func TestConfigEnabledForBaselineNetworkPathTests(t *testing.T) {
 	mockConfig := mock.NewFromYAML(t, `
 network_path:
   connections_monitoring:
-    baseline_tests:
-      enabled: true
+    baseline_tests_enabled: true
 `)
 
 	systemProbeConfig := mock.NewSystemProbe(t)
@@ -363,8 +362,7 @@ func TestConfigDisabledForIneffectiveBaselineNetworkPathTests(t *testing.T) {
 	mockConfig := mock.NewFromYAML(t, `
 network_path:
   connections_monitoring:
-    baseline_tests:
-      enabled: true
+    baseline_tests_enabled: true
 `)
 
 	assert.False(t, newConfig(mockConfig, mock.NewSystemProbe(t)).enabled)

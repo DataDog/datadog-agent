@@ -1,7 +1,6 @@
 network_path:
   connections_monitoring:
-    baseline_tests:
-      enabled: true
+    baseline_tests_enabled: true
   collector:
     flush_interval: 2s
     pathtest_interval: 10s

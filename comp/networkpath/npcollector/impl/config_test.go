@@ -47,7 +47,6 @@ func TestNewConfig(t *testing.T) {
 				"network_path.collector.filters": []map[string]any{},
 			},
 			expectedConfig: &collectorConfigs{
-				baselineWindow:             30 * time.Minute,
 				netflowMonitoringEnabled:   false,
 				workers:                    4,
 				timeout:                    1000 * time.Millisecond,
@@ -120,7 +119,6 @@ func TestNewConfig(t *testing.T) {
 				},
 			},
 			expectedConfig: &collectorConfigs{
-				baselineWindow:             30 * time.Minute,
 				netflowMonitoringEnabled:   false,
 				workers:                    8,
 				timeout:                    5000 * time.Millisecond,
