@@ -41,8 +41,8 @@ const (
 	networkConfigKey   = "network_config.enabled"
 )
 
-// ResolveDynamicTestsState combines core and system-probe settings. Baseline
-// never activates outside effective CNM, and standard takes precedence.
+// ResolveDynamicTestsState combines core and system-probe settings. Dynamic
+// Tests never activate outside effective CNM, and standard takes precedence.
 func ResolveDynamicTestsState(core, systemProbe Reader) DynamicTestsState {
 	if core == nil || systemProbe == nil || !systemProbe.GetBool(systemProbeKey) || !systemProbe.GetBool(networkConfigKey) {
 		return DynamicTestsOff
