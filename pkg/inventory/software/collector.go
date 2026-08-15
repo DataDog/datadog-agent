@@ -226,11 +226,9 @@ func runCollectorWithDeadline(c Collector, timeout time.Duration) ([]*Entry, []*
 	go func() {
 		// Release the key before publishing the result, so that a collector which
 		// returned in time is immediately available to the next collection.
-		done <- func() collectorResult {
-			defer collectorsInFlight.Delete(key)
-			entries, warnings, err := c.Collect()
-			return collectorResult{entries: entries, warnings: warnings, err: err}
-		}()
+		entries, warnings, err := c.Collect()
+		collectorsInFlight.Delete(key)
+		done <- collectorResult{entries: entries, warnings: warnings, err: err}
 	}()
 
 	timer := time.NewTimer(timeout)

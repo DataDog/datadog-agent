@@ -173,12 +173,6 @@ func TestResolveDriverPathRejectsMalformedQuotedPaths(t *testing.T) {
 	}
 }
 
-func TestExpandWinEnvLeavesUnknownVariablesInPlace(t *testing.T) {
-	// Dropping an unresolved variable would silently produce a path pointing somewhere else,
-	// which is worse than reporting the original text and failing to read it.
-	assert.Equal(t, `%NotASetVariable%\driver.sys`, expandWinEnv(`%NotASetVariable%\driver.sys`))
-}
-
 func TestDriverCollectorReportsRegisteredDrivers(t *testing.T) {
 	// A third-party vendor on purpose: the Defender driver this fixture used to carry is now
 	// filtered out, since only OEM and third-party drivers are reported.

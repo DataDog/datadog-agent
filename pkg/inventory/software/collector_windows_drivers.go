@@ -10,9 +10,7 @@ package software
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -23,10 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
-
-// driveLetterPath matches a path that is already rooted at a drive letter, which needs no
-// further resolution.
-var driveLetterPath = regexp.MustCompile(`^[A-Za-z]:[\\/]`)
 
 // errEmptyImagePath reports a driver service that names no binary.
 var errEmptyImagePath = errors.New("empty image path")
@@ -204,11 +198,15 @@ func resolveDriverPath(pathName string, windowsDir string) (string, error) {
 
 	// A few drivers store their path with variables, e.g. "%SystemRoot%\System32\drivers".
 	if strings.Contains(path, "%") {
-		path = expandWinEnv(path)
+		expanded, err := winutil.ExpandEnvironmentStrings(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to expand environment variables in %q: %w", pathName, err)
+		}
+		path = expanded
 	}
 
 	// Already rooted: a drive letter, or a UNC share.
-	if driveLetterPath.MatchString(path) || strings.HasPrefix(path, `\\`) {
+	if filepath.IsAbs(path) {
 		return path, nil
 	}
 
@@ -220,20 +218,6 @@ func resolveDriverPath(pathName string, windowsDir string) (string, error) {
 	// Anything left is relative to the Windows directory, e.g. "System32\drivers\driver.sys".
 	// A leading separator here is not a root: Windows resolves it against %SystemRoot%.
 	return filepath.Join(windowsDir, strings.TrimLeft(path, `\/`)), nil
-}
-
-// winEnvVar matches a Windows-style environment variable reference, e.g. "%SystemRoot%".
-var winEnvVar = regexp.MustCompile(`%([^%\\/]+)%`)
-
-// expandWinEnv expands %VAR% references. References that do not resolve are left in place,
-// so the caller sees the original text rather than a silently truncated path.
-func expandWinEnv(path string) string {
-	return winEnvVar.ReplaceAllStringFunc(path, func(match string) string {
-		if value := os.Getenv(strings.Trim(match, "%")); value != "" {
-			return value
-		}
-		return match
-	})
 }
 
 // resolveDisplayName turns the DisplayName of a driver service into text fit for a human.

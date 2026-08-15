@@ -139,8 +139,9 @@ func parsePlistToMap(data []byte) (map[string]string, error) {
 	return result, nil
 }
 
-// readPlistXML reads a plist file, converting it from the binary format when needed
-func readPlistXML(path string) ([]byte, error) {
+// readPlistFile reads a plist file and returns its contents as a map
+// It handles both XML and binary plist formats
+func readPlistFile(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -157,17 +158,6 @@ func readPlistXML(path string) ([]byte, error) {
 			return nil, err
 		}
 		data = output
-	}
-
-	return data, nil
-}
-
-// readPlistFile reads a plist file and returns its contents as a map
-// It handles both XML and binary plist formats
-func readPlistFile(path string) (map[string]string, error) {
-	data, err := readPlistXML(path)
-	if err != nil {
-		return nil, err
 	}
 
 	return parsePlistToMap(data)
