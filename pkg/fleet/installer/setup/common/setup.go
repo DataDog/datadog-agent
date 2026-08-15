@@ -104,6 +104,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 				APIKey:   os.Getenv("DD_API_KEY"),
 				Hostname: os.Getenv("DD_HOSTNAME"),
 				Site:     os.Getenv("DD_SITE"),
+				LogLevel: os.Getenv("DD_LOG_LEVEL"),
 				Proxy: config.DatadogConfigProxy{
 					HTTP:    os.Getenv("DD_PROXY_HTTP"),
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),

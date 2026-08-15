@@ -24,9 +24,9 @@ namespace Datadog.CustomActions
         // Provider GUID -> MatchAnyKeyword mask. The session is enabled at EnableLevel=4
         // (Informational), and each mask is the OR of the keyword bits carried by the event
         // IDs that comp/logonduration/impl/analyzer.go actually consumes. The masks were read
-        // from each provider's manifest (Get-WinEvent -ListProvider); every consumed event ID
-        // is emitted at Level 4, so filtering this way is loss-less for the phases we report
-        // while dropping the verbose, all-keyword firehose we never read.
+        // from each provider's manifest (Get-WinEvent -ListProvider). Level 4 is a ceiling, so
+        // every consumed event ID satisfies it, including GroupPolicy 6016 (Warning) and 7016
+        // (Error); filtering this way drops the verbose, all-keyword firehose we never read.
         private static readonly Dictionary<string, long> ProviderKeywords = new Dictionary<string, long>
         {
             // Kernel-Process: WINEVENT_KEYWORD_PROCESS -> process start (evt 1).
@@ -39,7 +39,8 @@ namespace Datadog.CustomActions
             // User Profiles Service: Operational/Diagnostic channel keywords | win:ResponseTime ->
             // profile load (1,2) and create (1001,1002).
             { "{89B1E9F0-5AFF-44A6-9B44-0A07A7CE5845}", 0x6001000000000000L },
-            // GroupPolicy: Operational channel keyword -> machine GP (4000,8000), user GP (4001,8001).
+            // GroupPolicy: Operational channel keyword -> machine GP (4000,8000), user GP
+            // (4001,8001), CSE invocations (4016, 5016/6016/7016).
             { "{AEA1B4FA-97D1-45F2-A64C-4D69FFFD92C9}", 0x4000000000000000L },
             // Shell-Core: StartupPerf | Shell -> explorer init (9601,9602), desktop create
             // (9611,9612), desktop steps (9648,9649).
@@ -179,8 +180,8 @@ namespace Datadog.CustomActions
                     }
 
                     providerKey.SetValue("Enabled", 1, RegistryValueKind.DWord);
-                    // Informational level (4), not Verbose (5): every consumed event ID is
-                    // emitted at level 4, so this drops only noise.
+                    // Informational level (4), not Verbose (5): level 4 is a ceiling, so every
+                    // consumed event ID satisfies it and this drops only noise.
                     providerKey.SetValue("EnableLevel", 4, RegistryValueKind.DWord);
                     // Keyword filter: collect only the event categories the analyzer reads.
                     providerKey.SetValue("MatchAnyKeyword", provider.Value, RegistryValueKind.QWord);

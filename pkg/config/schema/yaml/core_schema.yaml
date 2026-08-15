@@ -4851,6 +4851,9 @@ properties:
           This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
           for a full list of available settings:
           https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
+          The debugexporter is off by default; it is attached only when this debug section
+          is configured. Declaring the section (even empty) enables it with the default
+          verbosity; set verbosity to none to leave it detached.
         tags:
         - template_section:CoreAgent
         properties:
@@ -4862,6 +4865,8 @@ properties:
             description: |-
               Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
               Valid values are basic, normal, detailed, none.
+              This default applies only once the debug section is configured; set it to
+              none to keep the debugexporter detached even when the section is present.
             comment: Debug settings (default from OTel debugexporter)
       grpc_port:
         node_type: setting
