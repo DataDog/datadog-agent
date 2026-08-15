@@ -18,16 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
+	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config := &collectorConfigs{
-		connectionsMonitoringEnabled: true,
+		dynamicTestsState: npconfig.DynamicTestsStandard,
 	}
 	assert.True(t, config.networkPathCollectorEnabled())
 
-	config.connectionsMonitoringEnabled = false
+	config.dynamicTestsState = 0
 	assert.False(t, config.networkPathCollectorEnabled())
 
 	config.netflowMonitoringEnabled = true
@@ -46,13 +47,13 @@ func TestNewConfig(t *testing.T) {
 				"network_path.collector.filters": []map[string]any{},
 			},
 			expectedConfig: &collectorConfigs{
-				connectionsMonitoringEnabled: false,
-				netflowMonitoringEnabled:     false,
-				workers:                      4,
-				timeout:                      1000 * time.Millisecond,
-				maxTTL:                       30,
-				pathtestInputChanSize:        1000,
-				pathtestProcessingChanSize:   1000,
+				baselineWindow:             30 * time.Minute,
+				netflowMonitoringEnabled:   false,
+				workers:                    4,
+				timeout:                    1000 * time.Millisecond,
+				maxTTL:                     30,
+				pathtestInputChanSize:      1000,
+				pathtestProcessingChanSize: 1000,
 				storeConfig: pathteststore.Config{
 					ContextsLimit:    1000,
 					TTL:              70 * time.Minute,
@@ -119,13 +120,13 @@ func TestNewConfig(t *testing.T) {
 				},
 			},
 			expectedConfig: &collectorConfigs{
-				connectionsMonitoringEnabled: false,
-				netflowMonitoringEnabled:     false,
-				workers:                      8,
-				timeout:                      5000 * time.Millisecond,
-				maxTTL:                       64,
-				pathtestInputChanSize:        200,
-				pathtestProcessingChanSize:   200,
+				baselineWindow:             30 * time.Minute,
+				netflowMonitoringEnabled:   false,
+				workers:                    8,
+				timeout:                    5000 * time.Millisecond,
+				maxTTL:                     64,
+				pathtestInputChanSize:      200,
+				pathtestProcessingChanSize: 200,
 				storeConfig: pathteststore.Config{
 					ContextsLimit:    10000,
 					TTL:              120 * time.Second,

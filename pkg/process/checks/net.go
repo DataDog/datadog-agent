@@ -251,6 +251,14 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.SystemProbeConn,
 			}
+			npc.SetBaselineSignals(
+				uint64(conn.TcpFailuresByErrCode[uint32(npmodel.TCPTimeoutErrno)]),
+				uint64(conn.LastTcpRtoCount),
+				uint64(conn.LastRetransmits),
+				uint64(conn.RttVar),
+				conn.LastBytesSent,
+				conn.LastBytesReceived,
+			)
 			if !yield(npc) {
 				return
 			}

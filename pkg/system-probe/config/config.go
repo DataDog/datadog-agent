@@ -16,6 +16,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
@@ -181,9 +182,6 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
-	if cfg.GetBool(tracerouteNS("enabled")) {
-		c.EnabledModules[TracerouteModule] = struct{}{}
-	}
 	if cfg.GetBool(discoveryNS("enabled")) {
 		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
@@ -238,6 +236,14 @@ func load() (*types.Config, error) {
 		}
 	}
 
+	// system_probe_config.enabled is derived from the modules above. Resolve
+	// Dynamic Tests only after publishing that effective value so CNM can
+	// activate traceroute even when system-probe was not explicitly enabled.
+	c.Enabled = len(c.EnabledModules) > 0
+	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
+	if cfg.GetBool(tracerouteNS("enabled")) || npconfig.ResolveDynamicTestsState(coreCfg, cfg) != npconfig.DynamicTestsOff {
+		c.EnabledModules[TracerouteModule] = struct{}{}
+	}
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)

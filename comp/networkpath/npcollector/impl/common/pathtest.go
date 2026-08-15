@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"hash"
 	"hash/fnv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
@@ -26,16 +27,19 @@ type PathtestMetadata struct {
 
 // Pathtest details of information necessary to run a traceroute
 type Pathtest struct {
-	Hostname          string
-	Port              uint16
-	Protocol          payload.Protocol
-	SourceContainerID string
-	Namespace         string
-	Origin            payload.PathOrigin
-	TestConfigID      string
-	TestConfigSource  payload.TestConfigSource
-	Tags              []string
-	Metadata          PathtestMetadata
+	Hostname           string
+	Port               uint16
+	Protocol           payload.Protocol
+	SourceContainerID  string
+	Namespace          string
+	Origin             payload.PathOrigin
+	TestConfigID       string
+	TestConfigSource   payload.TestConfigSource
+	DynamicTestProfile payload.DynamicTestProfile
+	OneShot            bool
+	ExecutionDeadline  time.Time
+	Tags               []string
+	Metadata           PathtestMetadata
 }
 
 // GetHash returns the hash of the Pathtest

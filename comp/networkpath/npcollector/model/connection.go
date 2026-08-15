@@ -7,10 +7,33 @@
 package model
 
 import (
+	"math"
 	"net/netip"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 )
+
+// TCPTimeoutErrno is the POSIX ETIMEDOUT value used by both CNM producers.
+const TCPTimeoutErrno uint16 = 110
+
+// SaturatingSum prevents byte counters from wrapping during signal extraction.
+func SaturatingSum(a, b uint64) (uint64, bool) {
+	if math.MaxUint64-a < b {
+		return math.MaxUint64, true
+	}
+	return a + b, false
+}
+
+// SetBaselineSignals normalizes the CNM deltas used by baseline selection.
+// Both direct and process-agent producers use this method so their ranking
+// inputs remain equivalent.
+func (c *NetworkPathConnection) SetBaselineSignals(timeoutCount, rtoCount, retransmits, rttVar, sentBytes, recvBytes uint64) {
+	c.TCPTimeout = timeoutCount > 0
+	c.TCPRTO = rtoCount > 0
+	c.Retransmits = retransmits
+	c.RTTVar = rttVar
+	c.Bytes, c.NumericSaturated = SaturatingSum(sentBytes, recvBytes)
+}
 
 // NetworkPathConnection is the minimum information needed about a connection to schedule a network path test
 type NetworkPathConnection struct {
@@ -25,4 +48,10 @@ type NetworkPathConnection struct {
 	Domain            string
 	IntraHost         bool
 	SystemProbeConn   bool
+	TCPTimeout        bool
+	TCPRTO            bool
+	Retransmits       uint64
+	RTTVar            uint64
+	Bytes             uint64
+	NumericSaturated  bool
 }

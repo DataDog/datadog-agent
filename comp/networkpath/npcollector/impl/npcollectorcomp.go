@@ -12,25 +12,29 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	nooprdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 )
 
 type dependencies struct {
 	compdef.In
-	Lc          compdef.Lifecycle
-	EpForwarder eventplatform.Component
-	Traceroute  traceroute.Component
-	Logger      log.Component
-	AgentConfig config.Component
-	RDNSQuerier rdnsquerier.Component
-	Statsd      statsd.ClientInterface
+	Lc             compdef.Lifecycle
+	EpForwarder    eventplatform.Component
+	Traceroute     traceroute.Component
+	Logger         log.Component
+	AgentConfig    config.Component
+	SysProbeConfig sysprobeconfig.Component
+	RDNSQuerier    rdnsquerier.Component
+	Statsd         statsd.ClientInterface
 }
 
 // Provides defines the output of the npcollector component
@@ -46,6 +50,8 @@ func NewComponent(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig, deps.Logger)
+	configs.dynamicTestsState = npconfig.ResolveDynamicTestsState(deps.AgentConfig, deps.SysProbeConfig)
+	_ = deps.Statsd.Gauge(common.NetworkPathCollectorMetricPrefix+"dynamic_tests_state", 1, []string{"state:" + configs.dynamicTestsState.String()}, 1)
 	deps.Logger.Debugf("Network Path Configs: %+v", configs)
 	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debug("Network Path Collector enabled")

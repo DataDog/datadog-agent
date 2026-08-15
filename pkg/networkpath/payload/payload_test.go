@@ -6,10 +6,12 @@
 package payload
 
 import (
+	"bytes"
 	"encoding/json"
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,6 +37,25 @@ func TestNetworkPathTestConfigSourceJSON(t *testing.T) {
 				return
 			}
 			require.Equal(t, string(tt.source), decoded["test_config_source"])
+		})
+	}
+}
+
+func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		profile     DynamicTestProfile
+		expectField bool
+	}{
+		{name: "unset", expectField: false},
+		{name: "baseline", profile: DynamicTestProfileBaseline, expectField: true},
+		{name: "standard", profile: DynamicTestProfileStandard, expectField: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(NetworkPath{DynamicTestProfile: tt.profile})
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectField, bytes.Contains(raw, []byte(`"dynamic_test_profile"`)))
 		})
 	}
 }

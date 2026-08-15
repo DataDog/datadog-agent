@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
@@ -68,6 +70,12 @@ func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient 
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, agentConfigs) }),
+		fx.Provide(func() sysprobeconfig.Component {
+			return sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+				"system_probe_config.enabled": true,
+				"network_config.enabled":      true,
+			})
+		}),
 		fx.Populate(&component),
 		fx.Provide(func() statsd.ClientInterface {
 			return statsdClient

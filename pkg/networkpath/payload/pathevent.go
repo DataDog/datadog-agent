@@ -129,6 +129,16 @@ const (
 	TestConfigSourceRemote TestConfigSource = "remote"
 )
 
+// DynamicTestProfile identifies the entitlement profile for a dynamic test.
+type DynamicTestProfile string
+
+const (
+	// DynamicTestProfileBaseline is an included CNM baseline test.
+	DynamicTestProfileBaseline DynamicTestProfile = "baseline"
+	// DynamicTestProfileStandard is an explicitly enabled recurring CNM test.
+	DynamicTestProfileStandard DynamicTestProfile = "standard"
+)
+
 // SourceProduct defines the product that originated the path
 type SourceProduct string
 
@@ -248,21 +258,22 @@ type TracerouteDestination struct {
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
-	Timestamp        int64                  `json:"timestamp"`
-	AgentVersion     string                 `json:"agent_version"`
-	Namespace        string                 `json:"namespace"`      // namespace used to resolve NDM resources
-	TestConfigID     string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
-	TestResultID     string                 `json:"test_result_id"` // ID of specific test result (test run)
-	TestRunID        string                 `json:"test_run_id"`
-	Origin           PathOrigin             `json:"origin"`
-	TestRunType      TestRunType            `json:"test_run_type"`
-	TestConfigSource TestConfigSource       `json:"test_config_source,omitempty"`
-	SourceProduct    SourceProduct          `json:"source_product"`
-	CollectorType    CollectorType          `json:"collector_type"`
-	Protocol         Protocol               `json:"protocol"`
-	Source           NetworkPathSource      `json:"source"`
-	Destination      NetworkPathDestination `json:"destination"`
-	Traceroute       Traceroute             `json:"traceroute"`
-	E2eProbe         E2eProbe               `json:"e2e_probe"`
-	Tags             []string               `json:"tags,omitempty"`
+	Timestamp          int64                  `json:"timestamp"`
+	AgentVersion       string                 `json:"agent_version"`
+	Namespace          string                 `json:"namespace"`      // namespace used to resolve NDM resources
+	TestConfigID       string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
+	TestResultID       string                 `json:"test_result_id"` // ID of specific test result (test run)
+	TestRunID          string                 `json:"test_run_id"`
+	Origin             PathOrigin             `json:"origin"`
+	TestRunType        TestRunType            `json:"test_run_type"`
+	TestConfigSource   TestConfigSource       `json:"test_config_source,omitempty"`
+	DynamicTestProfile DynamicTestProfile     `json:"dynamic_test_profile,omitempty"`
+	SourceProduct      SourceProduct          `json:"source_product"`
+	CollectorType      CollectorType          `json:"collector_type"`
+	Protocol           Protocol               `json:"protocol"`
+	Source             NetworkPathSource      `json:"source"`
+	Destination        NetworkPathDestination `json:"destination"`
+	Traceroute         Traceroute             `json:"traceroute"`
+	E2eProbe           E2eProbe               `json:"e2e_probe"`
+	Tags               []string               `json:"tags,omitempty"`
 }

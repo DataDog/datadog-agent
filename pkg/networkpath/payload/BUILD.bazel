@@ -18,5 +18,8 @@ dd_agent_go_test(
     name = "payload_test",
     srcs = ["payload_test.go"],
     embed = [":payload"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

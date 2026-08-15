@@ -13,11 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 type collectorConfigs struct {
-	connectionsMonitoringEnabled    bool
+	dynamicTestsState               npconfig.DynamicTestsState
+	baselineWindow                  time.Duration
 	netflowMonitoringEnabled        bool
 	workers                         int
 	timeout                         time.Duration
@@ -53,13 +55,13 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		filterConfigs = nil
 	}
 	return &collectorConfigs{
-		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		netflowMonitoringEnabled:     agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
-		workers:                      agentConfig.GetInt("network_path.collector.workers"),
-		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
-		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
-		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
-		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
+		baselineWindow:             30 * time.Minute,
+		netflowMonitoringEnabled:   agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
+		workers:                    agentConfig.GetInt("network_path.collector.workers"),
+		timeout:                    agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
+		maxTTL:                     agentConfig.GetInt("network_path.collector.max_ttl"),
+		pathtestInputChanSize:      agentConfig.GetInt("network_path.collector.input_chan_size"),
+		pathtestProcessingChanSize: agentConfig.GetInt("network_path.collector.processing_chan_size"),
 		storeConfig: pathteststore.Config{
 			ContextsLimit:    agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
 			TTL:              agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
@@ -91,5 +93,5 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 // networkPathCollectorEnabled checks if Network Path Collector should be enabled
 // Network Path Collector is expected to be enabled if a feature depend on it.
 func (c *collectorConfigs) networkPathCollectorEnabled() bool {
-	return c.connectionsMonitoringEnabled || c.netflowMonitoringEnabled
+	return c.dynamicTestsState != npconfig.DynamicTestsOff || c.netflowMonitoringEnabled
 }

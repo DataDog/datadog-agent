@@ -19,6 +19,8 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -194,6 +196,32 @@ func TestPathtestStoreFlushReturnsImmutableSnapshot(t *testing.T) {
 	assert.Equal(t, []string{"env:staging"}, store.contexts[initial.GetHash()].Pathtest.Tags)
 	assert.NotSame(t, flushed[0], store.contexts[initial.GetHash()])
 	assert.NotSame(t, flushed[0].Pathtest, store.contexts[initial.GetHash()].Pathtest)
+}
+
+func TestPathtestStoreOneShotDispatchesOnceAndDeletes(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	stats := &teststatsd.Client{}
+	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), stats, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute), DynamicTestProfile: payload.DynamicTestProfileBaseline})
+
+	flushed := store.Flush()
+	require.Len(t, flushed, 1)
+	assert.True(t, flushed[0].Pathtest.OneShot)
+	assert.Zero(t, store.GetContextsCount())
+	assert.Empty(t, store.Flush())
+	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_dispatched"].Sum)
+}
+
+func TestPathtestStoreOneShotExpiresBeforeDispatch(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	stats := &teststatsd.Client{}
+	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), stats, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute), DynamicTestProfile: payload.DynamicTestProfileBaseline})
+	now = now.Add(30 * time.Minute)
+
+	assert.Empty(t, store.Flush())
+	assert.Zero(t, store.GetContextsCount())
+	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_expired"].Sum)
 }
 
 func Test_pathtestStore_flush(t *testing.T) {

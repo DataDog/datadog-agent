@@ -16,6 +16,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 const (
@@ -96,10 +97,14 @@ type Store struct {
 
 func (f *Store) newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {
 	now := f.timeNowFn()
+	runUntil := now.Add(runUntilDuration)
+	if pt.OneShot && !pt.ExecutionDeadline.IsZero() {
+		runUntil = pt.ExecutionDeadline
+	}
 	return &PathtestContext{
 		Pathtest: pt,
 		nextRun:  now,
-		runUntil: now.Add(runUntilDuration),
+		runUntil: runUntil,
 	}
 }
 
@@ -151,12 +156,15 @@ func (f *Store) Flush() []*PathtestContext {
 
 	var pathtestsToFlush []*PathtestContext
 	for key, ptConfigCtx := range f.contexts {
-		if ptConfigCtx.runUntil.Before(now) {
+		if !ptConfigCtx.runUntil.After(now) {
 			f.logger.Tracef("Delete Pathtest context (key=%d, runUntil=%s, nextRun=%s)", key, ptConfigCtx.runUntil, ptConfigCtx.nextRun)
 			// delete ptConfigCtx wrapper if it reaches runUntil
 			delete(f.contexts, key)
 			if ptConfigCtx.lastFlushTime.IsZero() {
 				f.statsdClient.Incr(networkPathStoreMetricPrefix+"pathtest_never_run", []string{}, 1) //nolint:errcheck
+			}
+			if ptConfigCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
+				f.statsdClient.Incr(networkPathStoreMetricPrefix+"baseline_expired", nil, 1) //nolint:errcheck
 			}
 			continue
 		}
@@ -168,6 +176,13 @@ func (f *Store) Flush() []*PathtestContext {
 		}
 		ptConfigCtx.lastFlushTime = now
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.snapshot())
+		if ptConfigCtx.Pathtest.OneShot {
+			if ptConfigCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
+				f.statsdClient.Incr(networkPathStoreMetricPrefix+"baseline_dispatched", nil, 1) //nolint:errcheck
+			}
+			delete(f.contexts, key)
+			continue
+		}
 		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 
@@ -188,6 +203,11 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	hash := pathtestToAdd.GetHash()
 	pathtestCtx, ok := f.contexts[hash]
 	if ok {
+		if pathtestToAdd.OneShot {
+			// A baseline slot is consumed before admission. Deduplication must not
+			// extend or recur an already selected one-shot context.
+			return
+		}
 		// Refresh attribution from the latest admission without creating a second
 		// context for the same path.
 		pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID

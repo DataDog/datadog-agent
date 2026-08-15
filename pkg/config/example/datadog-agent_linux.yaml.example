@@ -2216,6 +2216,17 @@ api_key:
 #
 #     enabled: true
 
+#     # @param baseline_tests - custom object - optional
+#     # Configuration for included baseline Network Path Dynamic Tests.
+#
+#     baseline_tests:
+
+#       # @param enabled - boolean - optional - default: false
+#       # @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_BASELINE_TESTS_ENABLED - boolean - optional - default: false
+#       # Enables up to three included Network Path Dynamic Tests every 30 minutes when Cloud Network Monitoring is enabled.
+#
+#       enabled: true
+
 #   # @param collector - custom object - optional
 #   # Configuration related to Network Path Collector used for Network Path Dynamic Test
 #   # to monitor network traffic connections on the host.

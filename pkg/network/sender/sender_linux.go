@@ -293,6 +293,14 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.Pid == d.sysProbePID,
 			}
+			npc.SetBaselineSignals(
+				uint64(conn.TCPFailures[npmodel.TCPTimeoutErrno]),
+				uint64(conn.Last.TCPRTOCount),
+				uint64(conn.Last.Retransmits),
+				uint64(conn.RTTVar),
+				conn.Last.SentBytes,
+				conn.Last.RecvBytes,
+			)
 			if !yield(npc) {
 				return
 			}

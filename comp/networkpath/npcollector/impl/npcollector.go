@@ -30,6 +30,7 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
+	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
@@ -83,9 +84,14 @@ type npCollectorImpl struct {
 
 	networkDevicesNamespace string
 	filterMutex             sync.RWMutex
+	localFilter             *connfilter.ConnFilter
 	filter                  *connfilter.ConnFilter
 	localIPs                *localIPCache
 	remoteConfigState       dynamicRemoteConfigState
+	baselineMutex           sync.Mutex
+	baselineSelector        *baselineSelector
+	baselineDeadline        time.Time
+	baselineStarted         bool
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -133,7 +139,9 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushLoopDone:         make(chan struct{}),
 		workersDone:           make(chan struct{}),
 
-		filter: filter,
+		localFilter:      filter,
+		filter:           filter,
+		baselineSelector: newBaselineSelector(),
 	}
 }
 
@@ -213,6 +221,10 @@ type pathEvaluation struct {
 }
 
 func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) pathEvaluation {
+	return s.evaluateNetworkPathForConnWithFilters(conn, origin, vpcSubnets, true)
+}
+
+func (s *npCollectorImpl) evaluateNetworkPathForConnWithFilters(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix, includeRemoteFilters bool) pathEvaluation {
 	if conn.IntraHost {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
 		return pathEvaluation{}
@@ -242,7 +254,11 @@ func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathCon
 	}
 
 	s.filterMutex.RLock()
-	included, testConfigID, tags := s.filter.EvaluateWithTags(conn.Domain, conn.Dest.Addr())
+	filter := s.localFilter
+	if includeRemoteFilters {
+		filter = s.filter
+	}
+	included, testConfigID, tags := filter.EvaluateWithTags(conn.Domain, conn.Dest.Addr())
 	s.filterMutex.RUnlock()
 	if !included {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
@@ -286,20 +302,22 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled {
-		return
+	switch s.collectorConfigs.dynamicTestsState {
+	case npconfig.DynamicTestsStandard:
+		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, true, payload.DynamicTestProfileStandard)
+	case npconfig.DynamicTestsBaseline:
+		s.scheduleBaselineNetworkPathTests(conns)
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, true, "")
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], includeRemoteFilters bool, profile payload.DynamicTestProfile) {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
@@ -314,12 +332,13 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
+		evaluation := s.evaluateNetworkPathForConnWithFilters(conn, origin, vpcSubnets, includeRemoteFilters)
 		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		pathtest.DynamicTestProfile = profile
 		pathtest.TestConfigID = evaluation.testConfigID
 		pathtest.Tags = evaluation.tags
 		if evaluation.testConfigID != "" {
@@ -332,6 +351,63 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
+}
+
+func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	vpcSubnets, err := s.getVPCSubnets()
+	if err != nil {
+		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
+		return
+	}
+
+	s.baselineMutex.Lock()
+	defer s.baselineMutex.Unlock()
+	now := s.TimeNowFn()
+	if s.baselineStarted && !now.Before(s.baselineDeadline) {
+		s.closeBaselineWindow(now)
+	}
+
+	eligible := 0
+	for conn := range conns {
+		evaluation := s.evaluateNetworkPathForConnWithFilters(conn, payload.PathOriginNetworkTraffic, vpcSubnets, false)
+		if !evaluation.shouldSchedule {
+			continue
+		}
+		eligible++
+		pathtest := s.makePathtest(conn, payload.PathOriginNetworkTraffic)
+		pathtest.DynamicTestProfile = payload.DynamicTestProfileBaseline
+		admission := s.baselineSelector.add(pathtest, conn)
+		if admission.replaced {
+			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_replaced", nil, 1)
+		}
+		if admission.discarded {
+			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_discarded", nil, 1)
+		}
+		if admission.saturated {
+			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.numeric_saturation", nil, 1)
+		}
+	}
+	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_retained", float64(len(s.baselineSelector.diagnostic.items)+len(s.baselineSelector.healthy.items)), nil, 1)
+
+	if !s.baselineStarted && eligible > 0 {
+		s.baselineStarted = true
+		s.closeBaselineWindow(now)
+	}
+}
+
+func (s *npCollectorImpl) closeBaselineWindow(now time.Time) {
+	selected := s.baselineSelector.selectPathtests()
+	s.baselineSelector.reset()
+	s.baselineDeadline = now.Add(s.collectorConfigs.baselineWindow)
+	_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.windows_closed", nil, 1)
+	for i := range selected {
+		selected[i].OneShot = true
+		selected[i].ExecutionDeadline = s.baselineDeadline
+		_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.selections", nil, 1)
+		if err := s.scheduleOne(&selected[i]); err != nil {
+			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
+		}
+	}
 }
 
 // scheduleOne schedules pathtests.
@@ -399,12 +475,12 @@ func (s *npCollectorImpl) listenPathtests() {
 	}
 }
 
-func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
+func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) bool {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	if ptest.Pathtest.Origin == "" {
 		s.logger.Errorf("pathtest missing origin: %+v", ptest.Pathtest)
-		return
+		return false
 	}
 
 	cfg := config.Config{
@@ -427,13 +503,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path, err := s.traceroute.Run(context.TODO(), cfg)
 	if err != nil {
 		s.logger.Errorf("run traceroute error: %s", err)
-		return
+		return false
 	}
 
 	err = payload.ValidateNetworkPath(&path)
 	if err != nil {
 		s.logger.Errorf("failed to validate network path: %s", err)
-		return
+		return false
 	}
 
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
@@ -445,6 +521,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestRunType = payload.TestRunTypeDynamic
 	path.TestConfigID = ptest.Pathtest.TestConfigID
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
+	path.DynamicTestProfile = ptest.Pathtest.DynamicTestProfile
 	path.Tags = ptest.Pathtest.Tags
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
@@ -458,14 +535,17 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
 		s.logger.Errorf("json marshall error: %s", err)
+		return false
 	} else {
 		s.logger.Debugf("network path event: %s", string(payloadBytes))
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 		err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
 		if err != nil {
 			s.logger.Errorf("failed to send event to epForwarder: %s", err)
+			return false
 		}
 	}
+	return true
 }
 
 func (s *npCollectorImpl) flushLoop() {
@@ -642,8 +722,14 @@ func (s *npCollectorImpl) runWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			startTime := s.TimeNowFn()
 
-			s.runTracerouteForPath(pathtestCtx)
+			succeeded := s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
+			if pathtestCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
+				_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.executions", nil, 1)
+				if !succeeded {
+					_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.execution_failures", nil, 1)
+				}
+			}
 
 			checkInterval := pathtestCtx.LastFlushInterval()
 			checkDuration := s.TimeNowFn().Sub(startTime)

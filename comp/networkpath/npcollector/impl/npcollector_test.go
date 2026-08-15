@@ -256,6 +256,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
+    "dynamic_test_profile": "standard",
     "source_product": "network_path",
     "collector_type": "agent",
     "protocol": "UDP",
@@ -336,6 +337,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
+    "dynamic_test_profile": "standard",
     "source_product": "network_path",
     "collector_type": "agent",
     "protocol": "UDP",
@@ -1149,6 +1151,9 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 				if pathtest.Origin == "" {
 					pathtest.Origin = expectedOrigin
 				}
+				if !tt.scheduleNetflow {
+					pathtest.DynamicTestProfile = payload.DynamicTestProfileStandard
+				}
 			}
 			assert.Equal(t, expectedPathtests, actualPathtests)
 
@@ -1302,6 +1307,9 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 			select {
 			case pathtest := <-npCollector.pathtestInputChan:
 				require.NotNil(t, tt.expectedPathtest, "unexpected pathtest: %#v", pathtest)
+				if !tt.scheduleNetflow {
+					tt.expectedPathtest.DynamicTestProfile = payload.DynamicTestProfileStandard
+				}
 				assert.Equal(t, tt.expectedPathtest, pathtest)
 			default:
 				require.Nil(t, tt.expectedPathtest, "expected pathtest")
@@ -1359,10 +1367,11 @@ func Test_npCollectorImpl_ScheduleNetflowPathTests_SkipsLocalAgentSource(t *test
 		select {
 		case pathtest := <-npCollector.pathtestInputChan:
 			assert.Equal(t, &common.Pathtest{
-				Hostname: "10.0.0.20",
-				Port:     uint16(443),
-				Protocol: payload.ProtocolTCP,
-				Origin:   payload.PathOriginNetworkTraffic,
+				Hostname:           "10.0.0.20",
+				Port:               uint16(443),
+				Protocol:           payload.ProtocolTCP,
+				Origin:             payload.PathOriginNetworkTraffic,
+				DynamicTestProfile: payload.DynamicTestProfileStandard,
 			}, pathtest)
 		default:
 			require.Fail(t, "expected pathtest")
