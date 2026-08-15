@@ -91,6 +91,7 @@ dd_agent_go_test(
         "//pkg/config/remote/data",
         "//pkg/config/structure",
         "//pkg/logs/message",
+        "//pkg/networkpath/config",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
         "//pkg/remoteconfig/state",
