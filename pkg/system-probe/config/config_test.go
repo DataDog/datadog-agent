@@ -166,17 +166,18 @@ func TestEnableDiscovery(t *testing.T) {
 
 func TestTracerouteModuleDynamicTestsState(t *testing.T) {
 	tests := []struct {
-		name       string
-		core       map[string]any
-		sysprobe   map[string]any
-		wantEnable bool
+		name                 string
+		core                 map[string]any
+		sysprobe             map[string]any
+		wantEnable           bool
+		checkDefaultInjector bool
 	}{
 		{name: "baseline disabled has no impact", core: map[string]any{"network_path.connections_monitoring.baseline_tests.enabled": false}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": true}},
 		{name: "baseline outside CNM", core: map[string]any{"network_path.connections_monitoring.baseline_tests.enabled": true}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": false}},
 		{name: "effective baseline with implicit system probe", core: map[string]any{"network_path.connections_monitoring.baseline_tests.enabled": true}, sysprobe: map[string]any{"network_config.enabled": true}, wantEnable: true},
 		{name: "effective baseline", core: map[string]any{"network_path.connections_monitoring.baseline_tests.enabled": true}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": true}, wantEnable: true},
 		{name: "effective standard", core: map[string]any{"network_path.connections_monitoring.enabled": true}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": true}, wantEnable: true},
-		{name: "explicit traceroute remains supported", sysprobe: map[string]any{"traceroute.enabled": true}, wantEnable: true},
+		{name: "explicit traceroute remains supported", sysprobe: map[string]any{"traceroute.enabled": true}, wantEnable: true, checkDefaultInjector: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -191,6 +192,9 @@ func TestTracerouteModuleDynamicTestsState(t *testing.T) {
 			cfg, err := New("/doesnotexist", "")
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEnable, cfg.ModuleIsEnabled(TracerouteModule))
+			if tt.checkDefaultInjector && runtime.GOOS == "windows" {
+				assert.True(t, cfg.ModuleIsEnabled(InjectorModule), "explicit traceroute should enable the default injector module")
+			}
 		})
 	}
 }
