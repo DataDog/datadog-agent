@@ -536,14 +536,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	if err != nil {
 		s.logger.Errorf("json marshall error: %s", err)
 		return false
-	} else {
-		s.logger.Debugf("network path event: %s", string(payloadBytes))
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
-		if err != nil {
-			s.logger.Errorf("failed to send event to epForwarder: %s", err)
-			return false
-		}
+	}
+	s.logger.Debugf("network path event: %s", string(payloadBytes))
+	m := message.NewMessage(payloadBytes, nil, "", 0)
+	err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
+	if err != nil {
+		s.logger.Errorf("failed to send event to epForwarder: %s", err)
+		return false
 	}
 	return true
 }
