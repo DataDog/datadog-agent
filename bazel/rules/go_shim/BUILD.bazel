@@ -1,7 +1,0 @@
-exports_files(
-    [
-        "template.bat",
-        "template.sh",
-    ],
-    visibility = ["//visibility:private"],
-)
