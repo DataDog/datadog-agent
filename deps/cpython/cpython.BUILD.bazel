@@ -18,11 +18,14 @@ package(
     default_visibility = ["//visibility:private"],
 )
 
-# 2.0 is the license version here, not the python version.
 license(
     name = "license",
+    # 2.0 is the license version, not the python version.
     license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
-    license_text = "LICENSE",
+    # Instead of the LICENSE file upstream, we use the license text previously approved
+    # and locally cached at https://dd-agent-omnibus.s3.amazonaws.com/licenses/Python-2.0"
+    # Switching to the upstream one would add explanatory boilerplate that costs 4K of disk space.
+    license_text = "Python-2.0",
     visibility = ["//visibility:public"],
 )
 
