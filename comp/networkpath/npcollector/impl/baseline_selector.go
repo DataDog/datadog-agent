@@ -7,7 +7,6 @@ package npcollectorimpl
 
 import (
 	"encoding/binary"
-	"math"
 	"sort"
 
 	"github.com/cespare/xxhash/v2"
@@ -62,13 +61,6 @@ func writeBaselineHashString(digest *xxhash.Digest, value string) {
 	_, _ = digest.WriteString(value)
 }
 
-func saturatingAdd(a, b uint64) (uint64, bool) {
-	if math.MaxUint64-a < b {
-		return math.MaxUint64, true
-	}
-	return a + b, false
-}
-
 func (p *baselinePool) remove(hash uint64) { delete(p.items, hash) }
 
 func (p *baselinePool) weakest(diagnostic bool) *baselineCandidate {
@@ -84,7 +76,7 @@ func (p *baselinePool) weakest(diagnostic bool) *baselineCandidate {
 func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64, diagnostic bool) (replaced, discarded, saturated bool) {
 	if candidate, found := p.items[hash]; found {
 		candidate.timeout = candidate.timeout || timeout
-		candidate.count, saturated = saturatingAdd(candidate.count, weight)
+		candidate.count, saturated = npmodel.SaturatingSum(candidate.count, weight)
 		candidate.rttVar = max(candidate.rttVar, rttVar)
 		return false, false, saturated
 	}
@@ -101,7 +93,7 @@ func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, 
 		return false, true, false
 	}
 	delete(p.items, weakest.hash)
-	estimate, overflow := saturatingAdd(weakest.count, weight)
+	estimate, overflow := npmodel.SaturatingSum(weakest.count, weight)
 	// Reuse the evicted entry. High-cardinality snapshots should not allocate a
 	// candidate object for every connection that passes through a bounded pool.
 	*weakest = baselineCandidate{

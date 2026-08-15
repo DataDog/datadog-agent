@@ -34,6 +34,9 @@ import (
 //go:embed config/host_traffic_dynamic_path.yaml
 var hostTrafficDynamicPathAgentConfig string
 
+//go:embed config/baseline_host_traffic_dynamic_path.yaml
+var baselineHostTrafficDynamicPathAgentConfig string
+
 //go:embed config/host_traffic_system_probe.yaml
 var hostTrafficSystemProbeConfig string
 
@@ -91,13 +94,22 @@ type hostTrafficDynamicPathSuite struct {
 	remoteConfigAdded bool
 }
 
-// TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
-func TestHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner()))
+type baselineHostTrafficDynamicPathSuite struct {
+	hostTrafficDynamicPathSuite
 }
 
-func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
-	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv]("hostTrafficDynamicPath", func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
+// TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
+func TestHostTrafficDynamicPathSuite(t *testing.T) {
+	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig)))
+}
+
+// TestBaselineHostTrafficDynamicPathSuite verifies baseline tests from packaged Agent configuration through fakeintake.
+func TestBaselineHostTrafficDynamicPathSuite(t *testing.T) {
+	e2e.Run(t, &baselineHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig)))
+}
+
+func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Provisioner {
+	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv](name, func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -106,7 +118,7 @@ func hostTrafficDynamicPathProvisioner() provisioners.Provisioner {
 		params := ec2.GetParams(
 			ec2.WithName("hosttrafficdynamicpathvm"),
 			ec2.WithAgentOptions(
-				agentparams.WithAgentConfig(hostTrafficDynamicPathAgentConfig),
+				agentparams.WithAgentConfig(agentConfig),
 				agentparams.WithSystemProbeConfig(hostTrafficSystemProbeConfig),
 			),
 		)
@@ -217,6 +229,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
+		assert.Equal(c, payload.DynamicTestProfileStandard, match.DynamicTestProfile)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
 		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
 		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)
@@ -236,6 +249,37 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 			remoteConfigMatch.TestRunID,
 		)
 	}
+}
+
+func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
+	fakeintake := s.Env().FakeIntake.Client()
+	s.startHostTrafficGenerator(4 * time.Minute)
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.baseline.selections")
+		assertMetricPresent(c, fakeintake, "datadog.network_path.store.baseline_dispatched")
+
+		netpaths, err := fakeintake.GetLatestNetpathEvents()
+		require.NoError(c, err)
+		require.NotEmpty(c, netpaths, "no network path events")
+
+		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
+		require.NotNil(c, match, "no baseline host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
+
+		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
+		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
+		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
+		assert.Equal(c, payload.DynamicTestProfileBaseline, match.DynamicTestProfile)
+		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
+		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
+		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)
+		assert.Equal(c, uint16(80), match.Destination.Port)
+		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
+		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
+		assert.Empty(c, match.TestConfigID, "baseline test unexpectedly inherited Remote Config attribution")
+		assert.Empty(c, match.TestConfigSource, "baseline test unexpectedly inherited Remote Config attribution")
+		assert.Empty(c, match.Tags, "baseline test unexpectedly inherited Remote Config tags")
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {

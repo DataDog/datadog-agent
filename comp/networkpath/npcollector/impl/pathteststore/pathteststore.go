@@ -156,7 +156,7 @@ func (f *Store) Flush() []*PathtestContext {
 
 	var pathtestsToFlush []*PathtestContext
 	for key, ptConfigCtx := range f.contexts {
-		if !ptConfigCtx.runUntil.After(now) {
+		if ptConfigCtx.runUntil.Before(now) || (ptConfigCtx.Pathtest.OneShot && ptConfigCtx.runUntil.Equal(now)) {
 			f.logger.Tracef("Delete Pathtest context (key=%d, runUntil=%s, nextRun=%s)", key, ptConfigCtx.runUntil, ptConfigCtx.nextRun)
 			// delete ptConfigCtx wrapper if it reaches runUntil
 			delete(f.contexts, key)

@@ -1,0 +1,10 @@
+network_path:
+  remote_config:
+    enabled: true
+  connections_monitoring:
+    baseline_tests:
+      enabled: true
+  collector:
+    flush_interval: 2s
+    pathtest_interval: 10s
+    pathtest_ttl: 1m

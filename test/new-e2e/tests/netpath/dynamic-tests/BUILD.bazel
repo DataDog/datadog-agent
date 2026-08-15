@@ -8,6 +8,7 @@ dd_agent_go_test(
     ],
     data = [
         "compose/netflow_dynamic_path.yaml",
+        "config/baseline_host_traffic_dynamic_path.yaml",
         "config/host_traffic_dynamic_path.yaml",
         "config/host_traffic_system_probe.yaml",
         "config/netflow_dynamic_path.yaml",
@@ -16,6 +17,7 @@ dd_agent_go_test(
     ],
     embedsrcs = [
         "compose/netflow_dynamic_path.yaml",
+        "config/baseline_host_traffic_dynamic_path.yaml",
         "config/host_traffic_dynamic_path.yaml",
         "config/host_traffic_system_probe.yaml",
         "config/netflow_dynamic_path.yaml",
