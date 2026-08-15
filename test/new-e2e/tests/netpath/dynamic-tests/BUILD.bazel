@@ -3,6 +3,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "dynamic-tests_test",
     srcs = [
+        "baseline_host_traffic_dynamic_path_test.go",
+        "host_traffic_dynamic_path_common_test.go",
         "host_traffic_dynamic_path_test.go",
         "netflow_dynamic_path_test.go",
     ],
