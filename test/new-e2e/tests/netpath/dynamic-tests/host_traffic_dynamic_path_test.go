@@ -40,6 +40,9 @@ var baselineHostTrafficDynamicPathAgentConfig string
 //go:embed config/host_traffic_system_probe.yaml
 var hostTrafficSystemProbeConfig string
 
+//go:embed config/baseline_host_traffic_system_probe.yaml
+var baselineHostTrafficSystemProbeConfig string
+
 //go:embed fixtures/host_traffic_dns.py
 var hostTrafficDNSFiles embed.FS
 
@@ -91,7 +94,8 @@ type hostTrafficDynamicPathEnv struct {
 
 type hostTrafficDynamicPathSuite struct {
 	e2e.BaseSuite[hostTrafficDynamicPathEnv]
-	remoteConfigAdded bool
+	remoteConfigAdded       bool
+	preserveInitialPayloads bool
 }
 
 type baselineHostTrafficDynamicPathSuite struct {
@@ -100,15 +104,18 @@ type baselineHostTrafficDynamicPathSuite struct {
 
 // TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
 func TestHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig)))
+	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig, hostTrafficSystemProbeConfig)))
 }
 
 // TestBaselineHostTrafficDynamicPathSuite verifies baseline tests from packaged Agent configuration through fakeintake.
 func TestBaselineHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &baselineHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig)))
+	suite := &baselineHostTrafficDynamicPathSuite{
+		hostTrafficDynamicPathSuite: hostTrafficDynamicPathSuite{preserveInitialPayloads: true},
+	}
+	e2e.Run(t, suite, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig, baselineHostTrafficSystemProbeConfig)))
 }
 
-func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Provisioner {
+func hostTrafficDynamicPathProvisioner(name, agentConfig, systemProbeConfig string) provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv](name, func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -119,7 +126,7 @@ func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Pr
 			ec2.WithName("hosttrafficdynamicpathvm"),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithSystemProbeConfig(hostTrafficSystemProbeConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
 			),
 		)
 		if err := ec2.Run(ctx, awsEnv, env, params); err != nil {
@@ -191,7 +198,9 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 		assert.Greater(c, stats.Polls, statsAfterAdd.Polls, "agent did not poll Remote Config after the dynamic config was added")
 	}, 2*time.Minute, 5*time.Second)
 
-	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
+	if !s.preserveInitialPayloads {
+		require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
+	}
 }
 
 func (s *hostTrafficDynamicPathSuite) TearDownSuite() {

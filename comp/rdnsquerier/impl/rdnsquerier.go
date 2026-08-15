@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -23,10 +24,11 @@ import (
 
 // Requires defines the dependencies for the rdnsquerier component
 type Requires struct {
-	Lifecycle   compdef.Lifecycle
-	AgentConfig config.Component
-	Logger      log.Component
-	Telemetry   telemetry.Component
+	Lifecycle      compdef.Lifecycle
+	AgentConfig    config.Component
+	SysProbeConfig sysprobeconfig.Component
+	Logger         log.Component
+	Telemetry      telemetry.Component
 }
 
 // Provides defines the output of the rdnsquerier component
@@ -79,7 +81,7 @@ type rdnsQuerierImpl struct {
 
 // NewComponent creates a new rdnsquerier component
 func NewComponent(reqs Requires) (Provides, error) {
-	rdnsQuerierConfig := newConfig(reqs.AgentConfig)
+	rdnsQuerierConfig := newConfig(reqs.AgentConfig, reqs.SysProbeConfig)
 	reqs.Logger.Infof("Reverse DNS Enrichment config: (enabled=%t workers=%d chan_size=%d cache.enabled=%t cache.entry_ttl=%d cache.clean_interval=%d cache.persist_interval=%d cache.max_retries=%d cache.max_size=%d rate_limiter.enabled=%t rate_limiter.limit_per_sec=%d rate_limiter.limit_throttled_per_sec=%d rate_limiter.throttle_error_threshold=%d rate_limiter.recovery_intervals=%d rate_limiter.recovery_interval=%d)",
 		rdnsQuerierConfig.enabled,
 		rdnsQuerierConfig.workers,
