@@ -67,6 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/diagnostic"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
+	slinventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -363,7 +364,7 @@ func main() {
 		)),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: true}),
 		secretsfx.Module(),
-		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "trace", true)),
+		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
 		hostnameimpl.Module(),
@@ -411,6 +412,11 @@ func run(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
 		cloudService, tagConfig, metricTags, demux,
 	)
+
+	// Populate serverless-specific fields (cloud provider, workload type, etc.)
+	// before forcing the initial collection so all fields are present in the
+	// first payload sent per container lifecycle.
+	slinventory.SetInventoryFields(inventoryAgentComp, cloudService, modeConf)
 
 	// Force one inventory payload into the forwarder queue before the wrapped
 	// process starts. This guarantees the payload is queued even on containers
