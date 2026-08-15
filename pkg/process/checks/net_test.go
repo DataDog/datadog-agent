@@ -7,8 +7,10 @@ package checks
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -165,6 +168,28 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		}
 		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
 	}
+}
+
+func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
+	conn := makeConnection(1)
+	conn.Laddr.Ip = "10.0.0.1"
+	conn.Raddr.Ip = "10.0.0.2"
+	conn.TcpFailuresByErrCode = map[uint32]uint32{uint32(npmodel.TCPTimeoutErrno): 1}
+	conn.LastTcpRtoCount = 2
+	conn.LastRetransmits = 3
+	conn.RttVar = 4
+	conn.LastBytesSent = math.MaxUint64
+	conn.LastBytesReceived = 1
+
+	got := slices.Collect(networkPathConnections(&model.Connections{Conns: []*model.Connection{conn}}))
+
+	require.Len(t, got, 1)
+	assert.True(t, got[0].TCPTimeout)
+	assert.True(t, got[0].TCPRTO)
+	assert.Equal(t, uint64(3), got[0].Retransmits)
+	assert.Equal(t, uint64(4), got[0].RTTVar)
+	assert.Equal(t, uint64(math.MaxUint64), got[0].Bytes)
+	assert.True(t, got[0].NumericSaturated)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

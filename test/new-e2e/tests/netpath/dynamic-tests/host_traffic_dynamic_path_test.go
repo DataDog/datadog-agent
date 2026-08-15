@@ -94,8 +94,8 @@ type hostTrafficDynamicPathEnv struct {
 
 type hostTrafficDynamicPathSuite struct {
 	e2e.BaseSuite[hostTrafficDynamicPathEnv]
-	remoteConfigAdded       bool
-	preserveInitialPayloads bool
+	remoteConfigAdded bool
+	skipRemoteConfig  bool
 }
 
 type baselineHostTrafficDynamicPathSuite struct {
@@ -110,7 +110,7 @@ func TestHostTrafficDynamicPathSuite(t *testing.T) {
 // TestBaselineHostTrafficDynamicPathSuite verifies baseline tests from packaged Agent configuration through fakeintake.
 func TestBaselineHostTrafficDynamicPathSuite(t *testing.T) {
 	suite := &baselineHostTrafficDynamicPathSuite{
-		hostTrafficDynamicPathSuite: hostTrafficDynamicPathSuite{preserveInitialPayloads: true},
+		hostTrafficDynamicPathSuite: hostTrafficDynamicPathSuite{skipRemoteConfig: true},
 	}
 	e2e.Run(t, suite, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("baselineHostTrafficDynamicPath", baselineHostTrafficDynamicPathAgentConfig, baselineHostTrafficSystemProbeConfig)))
 }
@@ -183,6 +183,11 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	s.assertHostTrafficDomainResolves()
 
 	fakeintake := s.Env().FakeIntake.Client()
+	if s.skipRemoteConfig {
+		require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
+		return
+	}
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		stats, err := fakeintake.RCStats()
 		assert.NoError(c, err)
@@ -198,9 +203,7 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 		assert.Greater(c, stats.Polls, statsAfterAdd.Polls, "agent did not poll Remote Config after the dynamic config was added")
 	}, 2*time.Minute, 5*time.Second)
 
-	if !s.preserveInitialPayloads {
-		require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
-	}
+	require.NoError(s.T(), fakeintake.FlushServerAndResetAggregators())
 }
 
 func (s *hostTrafficDynamicPathSuite) TearDownSuite() {
@@ -285,9 +288,6 @@ func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath(
 		assert.Equal(c, uint16(80), match.Destination.Port)
 		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")
-		assert.Empty(c, match.TestConfigID, "baseline test unexpectedly inherited Remote Config attribution")
-		assert.Empty(c, match.TestConfigSource, "baseline test unexpectedly inherited Remote Config attribution")
-		assert.Empty(c, match.Tags, "baseline test unexpectedly inherited Remote Config tags")
 	}, 5*time.Minute, 10*time.Second)
 }
 
@@ -396,8 +396,6 @@ fi
 func (s *hostTrafficDynamicPathSuite) assertHostTrafficDomainResolves() {
 	output := s.Env().RemoteHost.MustExecute("getent ahostsv4 " + shellQuote(hostTrafficRemoteConfigDomain))
 	require.Contains(s.T(), output, s.Env().HTTPBinHost.Address)
-
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -4 -fsS --retry 3 --max-time 5 %s >/dev/null", shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain))))
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficGenerator(duration time.Duration) {

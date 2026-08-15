@@ -9,6 +9,7 @@ package sender
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"testing"
@@ -32,6 +33,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	npcollectorimpl "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -153,6 +155,29 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		}
 		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
 	}
+}
+
+func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
+	d := mockDirectSender(t)
+	conn := makeConnection(1)
+	conn.TCPFailures = map[uint16]uint32{npmodel.TCPTimeoutErrno: 1}
+	conn.Last.TCPRTOCount = 2
+	conn.Last.Retransmits = 3
+	conn.RTTVar = 4
+	conn.Last.SentBytes = math.MaxUint64
+	conn.Last.RecvBytes = 1
+
+	got := slices.Collect(d.networkPathConnections(&network.Connections{
+		BufferedData: network.BufferedData{Conns: []network.ConnectionStats{conn}},
+	}))
+
+	require.Len(t, got, 1)
+	assert.True(t, got[0].TCPTimeout)
+	assert.True(t, got[0].TCPRTO)
+	assert.Equal(t, uint64(3), got[0].Retransmits)
+	assert.Equal(t, uint64(4), got[0].RTTVar)
+	assert.Equal(t, uint64(math.MaxUint64), got[0].Bytes)
+	assert.True(t, got[0].NumericSaturated)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

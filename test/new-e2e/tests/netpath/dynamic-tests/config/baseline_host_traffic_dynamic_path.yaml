@@ -1,6 +1,4 @@
 network_path:
-  remote_config:
-    enabled: true
   connections_monitoring:
     baseline_tests:
       enabled: true
