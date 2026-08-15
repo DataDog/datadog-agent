@@ -40,8 +40,8 @@ const (
 	hostTrafficDNSPIDPath         = "/tmp/host_traffic_dns.pid"
 	hostTrafficResolverBackupPath = "/tmp/host_traffic_resolv.conf.backup"
 	hostTrafficResolverLinkPath   = "/tmp/host_traffic_resolv.conf.link"
-	hostTrafficCurlLogPath        = "/tmp/host_traffic_dynamic_path_curl.log"
-	hostTrafficCurlPIDPath        = "/tmp/host_traffic_dynamic_path_curl.pid"
+	hostTrafficGeneratorLogPath   = "/tmp/host_traffic_dynamic_path_generator.log"
+	hostTrafficGeneratorPIDPath   = "/tmp/host_traffic_dynamic_path_generator.pid"
 	hostTrafficHTTPBinComposeYAML = `version: '3.9'
 services:
   httpbin:
@@ -124,8 +124,8 @@ func hostTrafficHTTPBinCompose() docker.ComposeInlineManifest {
 }
 
 func (s *hostTrafficDynamicPathBaseSuite) setupHostTraffic() {
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
+	s.assertHostTrafficServiceReady()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
 }
@@ -139,13 +139,18 @@ func (s *hostTrafficDynamicPathBaseSuite) tearDownHostTraffic() {
 func (s *hostTrafficDynamicPathBaseSuite) AfterTest(suiteName, testName string) {
 	if s.T().Failed() {
 		s.logRemoteFile(s.Env().HTTPBinHost, hostTrafficDNSLogPath)
-		s.logRemoteFile(s.Env().RemoteHost, hostTrafficCurlLogPath)
+		s.logRemoteFile(s.Env().RemoteHost, hostTrafficGeneratorLogPath)
 	}
 	s.BaseSuite.AfterTest(suiteName, testName)
 }
 
-func (s *hostTrafficDynamicPathBaseSuite) ensureCurlInstalled() {
-	s.Env().RemoteHost.MustExecute("if ! command -v curl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y curl; fi")
+func (s *hostTrafficDynamicPathBaseSuite) assertHostTrafficServiceReady() {
+	s.Env().HTTPBinHost.MustExecute(`i=0; while [ "$i" -lt 30 ]; do
+  python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1/", timeout=5).read()' && exit 0
+  sleep 2
+  i=$((i+1))
+done
+exit 1`)
 }
 
 func (s *hostTrafficDynamicPathBaseSuite) startHostTrafficDNSServer() {
@@ -234,15 +239,15 @@ func (s *hostTrafficDynamicPathBaseSuite) assertHostTrafficDomainResolves() {
 
 func (s *hostTrafficDynamicPathBaseSuite) startHostTrafficGenerator(duration time.Duration) {
 	seconds := int(duration.Seconds())
-	trafficCommand := fmt.Sprintf(
-		"i=0; while [ \"$i\" -lt %d ]; do curl -4 -fsS --max-time 5 %s >/dev/null || true; sleep 2; i=$((i+2)); done",
+	trafficScript := fmt.Sprintf(
+		"import time, urllib.request\nurl = %q\nend = time.monotonic() + %d\nwhile time.monotonic() < end:\n    try:\n        urllib.request.urlopen(url, timeout=5).read()\n    except Exception:\n        pass\n    time.sleep(2)\n",
+		hostTrafficURL(hostTrafficRemoteConfigDomain),
 		seconds,
-		shellQuote(hostTrafficURL(hostTrafficRemoteConfigDomain)),
 	)
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("nohup sh -c %s >%s 2>&1 & echo $! >%s",
-		shellQuote(trafficCommand),
-		shellQuote(hostTrafficCurlLogPath),
-		shellQuote(hostTrafficCurlPIDPath),
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("nohup python3 -c %s >%s 2>&1 & echo $! >%s",
+		shellQuote(trafficScript),
+		shellQuote(hostTrafficGeneratorLogPath),
+		shellQuote(hostTrafficGeneratorPIDPath),
 	))
 }
 
@@ -250,7 +255,7 @@ func (s *hostTrafficDynamicPathBaseSuite) stopHostTrafficGenerator() {
 	if s.Env().RemoteHost == nil {
 		return
 	}
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`if [ -f %s ]; then kill "$(cat %s)" || true; fi`, shellQuote(hostTrafficCurlPIDPath), shellQuote(hostTrafficCurlPIDPath)))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`if [ -f %s ]; then kill "$(cat %s)" || true; fi`, shellQuote(hostTrafficGeneratorPIDPath), shellQuote(hostTrafficGeneratorPIDPath)))
 	if err != nil {
 		s.T().Logf("failed to stop host traffic generator: %v", err)
 	}

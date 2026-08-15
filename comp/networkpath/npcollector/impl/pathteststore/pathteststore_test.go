@@ -224,6 +224,24 @@ func TestPathtestStoreOneShotExpiresBeforeDispatch(t *testing.T) {
 	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_expired"].Sum)
 }
 
+func TestPathtestStoreReplacesExpiredOneShotBeforeFlush(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	stats := &teststatsd.Client{}
+	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), stats, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute), DynamicTestProfile: payload.DynamicTestProfileBaseline})
+	now = now.Add(30 * time.Minute)
+	newDeadline := now.Add(30 * time.Minute)
+	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: newDeadline, DynamicTestProfile: payload.DynamicTestProfileBaseline})
+
+	replacement := store.contexts[(&common.Pathtest{Hostname: "baseline"}).GetHash()]
+	require.NotNil(t, replacement)
+	assert.Equal(t, newDeadline, replacement.runUntil)
+	assert.Len(t, store.Flush(), 1, "the next window's replacement must remain dispatchable")
+	assert.Zero(t, store.GetContextsCount())
+	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_expired"].Sum)
+	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_dispatched"].Sum)
+}
+
 func TestPathtestStoreRecurringDispatchesAtTTLBoundary(t *testing.T) {
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 	store := NewPathtestStore(Config{

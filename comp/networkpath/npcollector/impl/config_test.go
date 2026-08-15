@@ -28,7 +28,7 @@ func TestNetworkPathCollectorEnabled(t *testing.T) {
 	}
 	assert.True(t, config.networkPathCollectorEnabled())
 
-	config.dynamicTestsState = 0
+	config.dynamicTestsState = npconfig.DynamicTestsOff
 	assert.False(t, config.networkPathCollectorEnabled())
 
 	config.netflowMonitoringEnabled = true
