@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"hash"
 	"hash/fnv"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
@@ -36,8 +35,6 @@ type Pathtest struct {
 	TestConfigID       string
 	TestConfigSource   payload.TestConfigSource
 	DynamicTestProfile payload.DynamicTestProfile
-	OneShot            bool
-	ExecutionDeadline  time.Time
 	Tags               []string
 	Metadata           PathtestMetadata
 }

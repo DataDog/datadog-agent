@@ -401,8 +401,6 @@ func (s *npCollectorImpl) closeBaselineWindow(now time.Time) {
 	s.baselineDeadline = now.Add(s.collectorConfigs.baselineWindow)
 	_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.windows_closed", nil, 1)
 	for i := range selected {
-		selected[i].OneShot = true
-		selected[i].ExecutionDeadline = s.baselineDeadline
 		_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.selections", nil, 1)
 		if err := s.scheduleOne(&selected[i]); err != nil {
 			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
@@ -595,7 +593,6 @@ func (s *npCollectorImpl) flush() {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
 		case s.pathtestProcessingChan <- ptConf:
-			s.pathtestStore.AcknowledgeOneShot(ptConf.Pathtest)
 			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"flush.pathtest_processed", []string{}, 1)
 		default:
 			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"flush.pathtest_dropped", []string{"reason:processing_chan_full"}, 1)

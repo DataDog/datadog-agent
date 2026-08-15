@@ -97,14 +97,10 @@ type Store struct {
 
 func (f *Store) newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {
 	now := f.timeNowFn()
-	runUntil := now.Add(runUntilDuration)
-	if pt.OneShot && !pt.ExecutionDeadline.IsZero() {
-		runUntil = pt.ExecutionDeadline
-	}
 	return &PathtestContext{
 		Pathtest: pt,
 		nextRun:  now,
-		runUntil: runUntil,
+		runUntil: now.Add(runUntilDuration),
 	}
 }
 
@@ -156,7 +152,7 @@ func (f *Store) Flush() []*PathtestContext {
 
 	var pathtestsToFlush []*PathtestContext
 	for key, ptConfigCtx := range f.contexts {
-		if ptConfigCtx.runUntil.Before(now) || (ptConfigCtx.Pathtest.OneShot && ptConfigCtx.runUntil.Equal(now)) {
+		if ptConfigCtx.runUntil.Before(now) {
 			f.logger.Tracef("Delete Pathtest context (key=%d, runUntil=%s, nextRun=%s)", key, ptConfigCtx.runUntil, ptConfigCtx.nextRun)
 			// delete ptConfigCtx wrapper if it reaches runUntil
 			delete(f.contexts, key)
@@ -169,13 +165,6 @@ func (f *Store) Flush() []*PathtestContext {
 			continue
 		}
 		if ptConfigCtx.nextRun.After(now) || !f.rateLimiter.AllowN(now, 1) {
-			continue
-		}
-		if ptConfigCtx.Pathtest.OneShot {
-			// Keep one-shots until the collector acknowledges that its processing
-			// channel accepted the snapshot. A full channel must leave the selection
-			// available for the next flush attempt.
-			pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.snapshot())
 			continue
 		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {
@@ -191,28 +180,6 @@ func (f *Store) Flush() []*PathtestContext {
 	return pathtestsToFlush
 }
 
-// AcknowledgeOneShot removes a one-shot after the collector processing channel
-// accepts it. The deadline check prevents a late acknowledgment from removing a
-// same-path selection admitted for a newer window.
-func (f *Store) AcknowledgeOneShot(pathtest *common.Pathtest) {
-	if !pathtest.OneShot {
-		return
-	}
-
-	f.contextsMutex.Lock()
-	defer f.contextsMutex.Unlock()
-
-	hash := pathtest.GetHash()
-	pathtestCtx, ok := f.contexts[hash]
-	if !ok || !pathtestCtx.Pathtest.OneShot || !pathtestCtx.Pathtest.ExecutionDeadline.Equal(pathtest.ExecutionDeadline) {
-		return
-	}
-	delete(f.contexts, hash)
-	if pathtestCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
-		f.statsdClient.Incr(networkPathStoreMetricPrefix+"baseline_dispatched", []string{}, 1) //nolint:errcheck
-	}
-}
-
 // Add new pathtest
 func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	f.logger.Tracef("Add new Pathtest: %+v", pathtestToAdd)
@@ -225,32 +192,13 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	hash := pathtestToAdd.GetHash()
 	pathtestCtx, ok := f.contexts[hash]
 	if ok {
-		if pathtestToAdd.OneShot {
-			// A baseline slot is consumed before admission. Deduplication must not
-			// extend or recur a live one-shot context. Replace an expired context
-			// immediately so a flush racing with the next window cannot discard the
-			// new selection along with the old one.
-			now := f.timeNowFn()
-			expired := pathtestCtx.runUntil.Before(now) || (pathtestCtx.Pathtest.OneShot && pathtestCtx.runUntil.Equal(now))
-			if !expired {
-				return
-			}
-			delete(f.contexts, hash)
-			if pathtestCtx.lastFlushTime.IsZero() {
-				f.statsdClient.Incr(networkPathStoreMetricPrefix+"pathtest_never_run", []string{}, 1) //nolint:errcheck
-			}
-			if pathtestCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
-				f.statsdClient.Incr(networkPathStoreMetricPrefix+"baseline_expired", []string{}, 1) //nolint:errcheck
-			}
-		} else {
-			// Refresh attribution from the latest admission without creating a second
-			// context for the same path.
-			pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
-			pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
-			pathtestCtx.Pathtest.Tags = slices.Clone(pathtestToAdd.Tags)
-			pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
-			return
-		}
+		// Refresh attribution from the latest admission without creating a second
+		// context for the same path.
+		pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
+		pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
+		pathtestCtx.Pathtest.Tags = slices.Clone(pathtestToAdd.Tags)
+		pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+		return
 	}
 
 	if len(f.contexts) >= f.config.ContextsLimit {

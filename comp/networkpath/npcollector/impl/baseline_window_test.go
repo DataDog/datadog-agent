@@ -52,8 +52,6 @@ func TestBaselineFirstSnapshotAndSteadyWindow(t *testing.T) {
 	require.Len(t, collector.pathtestInputChan, 3, "the virtual first window must select immediately")
 	first := <-collector.pathtestInputChan
 	assert.Equal(t, payload.DynamicTestProfileBaseline, first.DynamicTestProfile)
-	assert.True(t, first.OneShot)
-	assert.Equal(t, now.Add(30*time.Minute), first.ExecutionDeadline)
 	assert.Equal(t, now.Add(30*time.Minute), collector.baselineDeadline, "baseline must not inherit pathtest_interval")
 	<-collector.pathtestInputChan
 	<-collector.pathtestInputChan
@@ -67,7 +65,6 @@ func TestBaselineFirstSnapshotAndSteadyWindow(t *testing.T) {
 	require.Len(t, collector.pathtestInputChan, 1, "the completed steady-state window must close once")
 	steady := <-collector.pathtestInputChan
 	assert.Equal(t, "10.0.1.1", steady.Hostname)
-	assert.Equal(t, now.Add(30*time.Minute), steady.ExecutionDeadline)
 }
 
 func TestBaselineEmptySnapshotsDoNotStartVirtualWindow(t *testing.T) {

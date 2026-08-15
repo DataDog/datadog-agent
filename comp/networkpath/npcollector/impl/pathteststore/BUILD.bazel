@@ -23,7 +23,6 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/networkpath/npcollector/impl/common",
         "//pkg/networkpath/payload",
-        "//pkg/trace/teststatsd",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",

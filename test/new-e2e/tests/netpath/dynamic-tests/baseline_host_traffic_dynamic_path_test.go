@@ -50,7 +50,7 @@ func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath(
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.baseline.selections")
-		assertMetricPresent(c, fakeintake, "datadog.network_path.store.baseline_dispatched")
+		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.baseline.executions")
 
 		netpaths, err := fakeintake.GetLatestNetpathEvents()
 		require.NoError(c, err)

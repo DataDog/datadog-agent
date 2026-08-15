@@ -20,7 +20,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -198,70 +197,25 @@ func TestPathtestStoreFlushReturnsImmutableSnapshot(t *testing.T) {
 	assert.NotSame(t, flushed[0].Pathtest, store.contexts[initial.GetHash()].Pathtest)
 }
 
-func TestPathtestStoreOneShotDispatchesOnceAndDeletes(t *testing.T) {
+func TestPathtestStoreBaselineIsRecurring(t *testing.T) {
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	stats := &teststatsd.Client{}
-	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), stats, func() time.Time { return now })
-	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute), DynamicTestProfile: payload.DynamicTestProfileBaseline})
+	store := NewPathtestStore(Config{
+		ContextsLimit: 10,
+		TTL:           30 * time.Minute,
+		Interval:      10 * time.Minute,
+	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
+	store.Add(&common.Pathtest{Hostname: "baseline", DynamicTestProfile: payload.DynamicTestProfileBaseline})
 
-	flushed := store.Flush()
-	require.Len(t, flushed, 1)
-	assert.True(t, flushed[0].Pathtest.OneShot)
-	assert.Equal(t, 1, store.GetContextsCount(), "one-shot must remain pending until channel admission")
-	store.AcknowledgeOneShot(flushed[0].Pathtest)
-	assert.Zero(t, store.GetContextsCount())
-	assert.Empty(t, store.Flush())
-	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_dispatched"].Sum)
-}
+	require.Len(t, store.Flush(), 1)
+	assert.Equal(t, 1, store.GetContextsCount())
 
-func TestPathtestStoreOneShotExpiresBeforeDispatch(t *testing.T) {
-	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	stats := &teststatsd.Client{}
-	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), stats, func() time.Time { return now })
-	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute), DynamicTestProfile: payload.DynamicTestProfileBaseline})
-	now = now.Add(30 * time.Minute)
+	now = now.Add(5 * time.Minute)
+	store.Add(&common.Pathtest{Hostname: "baseline", DynamicTestProfile: payload.DynamicTestProfileBaseline})
+	assert.Empty(t, store.Flush(), "reselection must preserve the existing cadence")
 
-	assert.Empty(t, store.Flush())
-	assert.Zero(t, store.GetContextsCount())
-	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_expired"].Sum)
-}
-
-func TestPathtestStoreReplacesExpiredOneShotBeforeFlush(t *testing.T) {
-	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	stats := &teststatsd.Client{}
-	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), stats, func() time.Time { return now })
-	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute), DynamicTestProfile: payload.DynamicTestProfileBaseline})
-	now = now.Add(30 * time.Minute)
-	newDeadline := now.Add(30 * time.Minute)
-	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: newDeadline, DynamicTestProfile: payload.DynamicTestProfileBaseline})
-
-	replacement := store.contexts[(&common.Pathtest{Hostname: "baseline"}).GetHash()]
-	require.NotNil(t, replacement)
-	assert.Equal(t, newDeadline, replacement.runUntil)
-	flushed := store.Flush()
-	require.Len(t, flushed, 1, "the next window's replacement must remain dispatchable")
-	store.AcknowledgeOneShot(flushed[0].Pathtest)
-	assert.Zero(t, store.GetContextsCount())
-	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_expired"].Sum)
-	assert.Equal(t, int64(1), stats.GetCountSummaries()[networkPathStoreMetricPrefix+"baseline_dispatched"].Sum)
-}
-
-func TestPathtestStoreOneShotAcknowledgmentDoesNotRemoveNewWindow(t *testing.T) {
-	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	store := NewPathtestStore(Config{ContextsLimit: 10}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
-	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: now.Add(30 * time.Minute)})
-	flushed := store.Flush()
-	require.Len(t, flushed, 1)
-	oldWindow := flushed[0].Pathtest
-	now = now.Add(30 * time.Minute)
-	newDeadline := now.Add(30 * time.Minute)
-	store.Add(&common.Pathtest{Hostname: "baseline", OneShot: true, ExecutionDeadline: newDeadline})
-
-	store.AcknowledgeOneShot(oldWindow)
-
-	context := store.contexts[oldWindow.GetHash()]
-	require.NotNil(t, context)
-	assert.Equal(t, newDeadline, context.runUntil)
+	now = now.Add(5 * time.Minute)
+	require.Len(t, store.Flush(), 1)
+	assert.Equal(t, 1, store.GetContextsCount())
 }
 
 func TestPathtestStoreRecurringDispatchesAtTTLBoundary(t *testing.T) {
