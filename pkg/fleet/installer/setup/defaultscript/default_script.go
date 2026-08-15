@@ -52,6 +52,7 @@ var (
 	supportedEnvVars = []string{
 		"DD_ENV",
 		"DD_SITE",
+		"DD_LOG_LEVEL",
 		"DD_TAGS",
 		"DD_HOST_TAGS",
 		"DD_URL",

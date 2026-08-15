@@ -537,6 +537,7 @@ namespace WixSetup.Datadog_Agent
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
                            "APIKEY=[APIKEY]," +
                            "SITE=[SITE]," +
+                           "DD_LOG_LEVEL=[DD_LOG_LEVEL]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
