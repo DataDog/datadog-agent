@@ -13,7 +13,8 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 )
 
-// TCPTimeoutErrno is the POSIX ETIMEDOUT value used by both CNM producers.
+// TCPTimeoutErrno is the normalized ETIMEDOUT value emitted in CNM connection
+// payloads by both Linux and Windows producers.
 const TCPTimeoutErrno uint16 = 110
 
 // SaturatingSum prevents byte counters from wrapping during signal extraction.

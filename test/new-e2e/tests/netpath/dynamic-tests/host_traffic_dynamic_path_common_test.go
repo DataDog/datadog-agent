@@ -126,6 +126,7 @@ func hostTrafficHTTPBinCompose() docker.ComposeInlineManifest {
 func (s *hostTrafficDynamicPathBaseSuite) setupHostTraffic() {
 	s.startHostTrafficDNSServer()
 	s.assertHostTrafficServiceReady()
+	s.assertHostTrafficServiceReachable()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
 }
@@ -151,6 +152,22 @@ func (s *hostTrafficDynamicPathBaseSuite) assertHostTrafficServiceReady() {
   i=$((i+1))
 done
 exit 1`)
+}
+
+func (s *hostTrafficDynamicPathBaseSuite) assertHostTrafficServiceReachable() {
+	url := hostTrafficURL(s.Env().HTTPBinHost.Address)
+	script := fmt.Sprintf(`import time, urllib.request
+url = %q
+for attempt in range(3):
+    try:
+        urllib.request.urlopen(url, timeout=5).read()
+        break
+    except Exception:
+        if attempt == 2:
+            raise
+        time.sleep(2)
+`, url)
+	s.Env().RemoteHost.MustExecute("python3 -c " + shellQuote(script))
 }
 
 func (s *hostTrafficDynamicPathBaseSuite) startHostTrafficDNSServer() {

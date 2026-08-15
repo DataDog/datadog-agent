@@ -249,6 +249,7 @@ func load() (*types.Config, error) {
 	if npconfig.ResolveDynamicTestsState(coreCfg, cfg) != npconfig.DynamicTestsOff {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
+	// Publish the final state after Dynamic Tests may have added traceroute.
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
