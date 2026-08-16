@@ -68,11 +68,3 @@ func addBaselinePath(selected []baselineCandidate, path common.Pathtest, signals
 		bytes:      signals.Bytes,
 	})
 }
-
-func (s *npCollectorImpl) scheduleBaselinePaths(selected []baselineCandidate) {
-	for i := range selected {
-		if err := s.scheduleOne(&selected[i].path); err != nil {
-			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
-		}
-	}
-}

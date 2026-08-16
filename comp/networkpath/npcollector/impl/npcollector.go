@@ -351,6 +351,14 @@ func (s *npCollectorImpl) scheduleStandardNetworkPathTest(pathtest common.Pathte
 	return s.scheduleOne(&pathtest)
 }
 
+func (s *npCollectorImpl) scheduleBaselinePaths(selected []baselineCandidate) {
+	for i := range selected {
+		if err := s.scheduleOne(&selected[i].path); err != nil {
+			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
+		}
+	}
+}
+
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
 func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
