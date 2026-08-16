@@ -290,24 +290,28 @@ func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.Networ
 		return
 	}
 
-	vpcSubnets, err := s.getVPCSubnets()
-	if err != nil {
-		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
-		return
-	}
-
 	baseline := !s.collectorConfigs.connectionsMonitoringEnabled
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, vpcSubnets, baseline)
+	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, baseline)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, nil, false)
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, false)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], vpcSubnets []netip.Prefix, baseline bool) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], baseline bool) {
+	var vpcSubnets []netip.Prefix
+	if origin == payload.PathOriginNetworkTraffic {
+		var err error
+		vpcSubnets, err = s.getVPCSubnets()
+		if err != nil {
+			s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
+			return
+		}
+	}
+
 	startTime := s.TimeNowFn()
 	connCount := 0
 	var selected []baselineCandidate
