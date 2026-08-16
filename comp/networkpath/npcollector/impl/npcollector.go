@@ -241,9 +241,6 @@ func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathCon
 		return pathEvaluation{}
 	}
 
-	// Baseline mode and Dynamic Remote Configuration are compatible and
-	// independent: baseline controls snapshot ranking, while the effective
-	// local-plus-RC filter controls admission and attribution for every mode.
 	s.filterMutex.RLock()
 	included, testConfigID, tags := s.filter.EvaluateWithTags(conn.Domain, conn.Dest.Addr())
 	s.filterMutex.RUnlock()
@@ -326,6 +323,8 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 	for conn := range conns {
 		connCount++
+		// Baseline mode changes only post-filter ranking. All modes use the same
+		// local-plus-RC filter, and any winning RC attribution is preserved below.
 		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
