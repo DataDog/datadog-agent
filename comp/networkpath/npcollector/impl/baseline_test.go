@@ -15,9 +15,9 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,18 +154,19 @@ func TestBaselinePreservesWinningRCProvenance(t *testing.T) {
 	_, collector := newTestNpCollector(t, map[string]any{
 		"network_path.connections_monitoring.baseline_tests_enabled": true,
 		"network_path.collector.monitor_ip_without_domain":           true,
+		"network_path.collector.filters": []map[string]any{{
+			"type":     "exclude",
+			"match_ip": "10.0.0.1",
+		}},
 	}, &teststatsd.Client{}, nil)
-	filter, errs := connfilter.NewConnFilter([]connfilter.Config{
-		{Type: connfilter.FilterTypeExclude, MatchIP: "10.0.0.1"},
-		{
-			Type:         connfilter.FilterTypeInclude,
-			MatchIP:      "10.0.0.1",
-			TestConfigID: "dynamic-a",
-			Tags:         []string{"team:payments"},
-		},
-	}, "", false)
-	require.Empty(t, errs)
-	collector.filter = filter
+	collector.UpdateRemoteConfig(map[string]state.RawConfig{
+		"dynamic": {Config: []byte(`{
+			"type":"dynamic",
+			"test_config_id":"dynamic-a",
+			"tags":["team:payments"],
+			"config":{"filters":[{"type":"include","match_ip":"10.0.0.1"}]}
+		}`)},
+	}, func(string, state.ApplyStatus) {})
 
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
 		baselineConn("10.0.0.1", 1),

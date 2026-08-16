@@ -241,6 +241,9 @@ func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathCon
 		return pathEvaluation{}
 	}
 
+	// Baseline mode and Dynamic Remote Configuration are compatible and
+	// independent: baseline controls snapshot ranking, while the effective
+	// local-plus-RC filter controls admission and attribution for every mode.
 	s.filterMutex.RLock()
 	included, testConfigID, tags := s.filter.EvaluateWithTags(conn.Domain, conn.Dest.Addr())
 	s.filterMutex.RUnlock()

@@ -129,7 +129,8 @@ const (
 	TestConfigSourceRemote TestConfigSource = "remote"
 )
 
-// DynamicTestProfile identifies the entitlement profile for a dynamic test.
+// DynamicTestProfile identifies how a dynamic test was selected. It is
+// independent of the configuration source that admitted the path.
 type DynamicTestProfile string
 
 const (
