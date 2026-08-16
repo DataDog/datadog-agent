@@ -314,9 +314,12 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 
 	startTime := s.TimeNowFn()
 	connCount := 0
-	var selected []baselineCandidate
+	// Baseline mode must rank the complete snapshot before scheduling.
+	// addBaselinePath keeps this list unique, best-first, and capped at
+	// baselineSelectionsPerSnapshot; it remains nil in standard mode.
+	var selectedBaselineCandidates []baselineCandidate
 	if baseline {
-		selected = make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
+		selectedBaselineCandidates = make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
 	}
 	for conn := range conns {
 		connCount++
@@ -327,7 +330,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		}
 		pathtest := s.makePathtest(conn, origin)
 		if baseline {
-			selected = addBaselinePath(selected, pathtest, conn.Baseline)
+			selectedBaselineCandidates = addBaselinePath(selectedBaselineCandidates, pathtest, conn.Baseline)
 			continue
 		}
 
@@ -336,7 +339,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		}
 	}
 	if baseline {
-		s.scheduleBaselinePaths(selected)
+		s.scheduleBaselinePaths(selectedBaselineCandidates)
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
