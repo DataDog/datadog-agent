@@ -290,8 +290,8 @@ func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.Networ
 		return
 	}
 
-	baseline := !s.collectorConfigs.connectionsMonitoringEnabled
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, baseline)
+	baselineMode := !s.collectorConfigs.connectionsMonitoringEnabled
+	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, baselineMode)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
@@ -301,7 +301,7 @@ func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.Networ
 	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, false)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], baseline bool) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], baselineMode bool) {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
@@ -318,7 +318,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	// addBaselinePath keeps this list unique, best-first, and capped at
 	// baselineSelectionsPerSnapshot; it remains nil in standard mode.
 	var selectedBaselineCandidates []baselineCandidate
-	if baseline {
+	if baselineMode {
 		selectedBaselineCandidates = make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
 	}
 	for conn := range conns {
@@ -329,7 +329,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
-		if baseline {
+		if baselineMode {
 			selectedBaselineCandidates = addBaselinePath(selectedBaselineCandidates, pathtest, conn.Baseline)
 			continue
 		}
@@ -338,7 +338,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
-	if baseline {
+	if baselineMode {
 		s.scheduleBaselinePaths(selectedBaselineCandidates)
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
