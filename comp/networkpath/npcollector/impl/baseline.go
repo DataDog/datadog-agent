@@ -9,6 +9,8 @@ import (
 	"sort"
 
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 const baselineSelectionsPerSnapshot = 3
@@ -55,4 +57,22 @@ func addBaselineCandidate(selected []baselineCandidate, candidate baselineCandid
 	}
 	sort.Slice(selected, func(i, j int) bool { return selected[i].betterThan(selected[j]) })
 	return selected
+}
+
+func addBaselinePath(selected []baselineCandidate, path common.Pathtest, signals npmodel.BaselineSignals) []baselineCandidate {
+	path.DynamicTestProfile = payload.DynamicTestProfileBaseline
+	return addBaselineCandidate(selected, baselineCandidate{
+		path:       path,
+		pathHash:   path.GetHash(),
+		diagnostic: signals.Diagnostic,
+		bytes:      signals.Bytes,
+	})
+}
+
+func (s *npCollectorImpl) scheduleBaselinePaths(selected []baselineCandidate) {
+	for i := range selected {
+		if err := s.scheduleOne(&selected[i].path); err != nil {
+			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
+		}
+	}
 }
