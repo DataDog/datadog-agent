@@ -9,7 +9,6 @@ go_library(
     deps = [
         "//comp/core/log/def",
         "//comp/networkpath/npcollector/impl/common",
-        "//pkg/networkpath/payload",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@org_golang_x_time//rate",
     ],
@@ -22,7 +21,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/log/mock",
         "//comp/networkpath/npcollector/impl/common",
-        "//pkg/networkpath/payload",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",

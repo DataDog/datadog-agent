@@ -58,23 +58,23 @@ func (p *baselinePool) weakest() *baselineCandidate {
 	return weakest
 }
 
-func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64) (replaced, discarded bool) {
+func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64) {
 	if candidate, found := p.items[hash]; found {
 		candidate.timeout = candidate.timeout || timeout
 		candidate.count += weight
 		candidate.rttVar = max(candidate.rttVar, rttVar)
-		return false, false
+		return
 	}
 
 	if len(p.items) < p.capacity {
 		p.items[hash] = &baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight, rttVar: rttVar}
-		return false, false
+		return
 	}
 
 	weakest := p.weakest()
 	incoming := baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight, rttVar: rttVar}
 	if !p.policy.canReplace(weakest, &incoming) {
-		return false, true
+		return
 	}
 	delete(p.items, weakest.hash)
 	// Reuse the evicted entry. High-cardinality snapshots should not allocate a
@@ -82,7 +82,6 @@ func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, 
 	incoming.count = weakest.count + weight
 	*weakest = incoming
 	p.items[hash] = weakest
-	return true, false
 }
 
 func diagnosticCandidateBetter(a, b *baselineCandidate) bool {
@@ -142,27 +141,20 @@ func New() *Selector {
 	}
 }
 
-// Admission describes how adding an observation affected the bounded candidate pools.
-type Admission struct {
-	Replaced  bool
-	Discarded bool
-}
-
 // Add records a network path observation.
-func (s *Selector) Add(pathtest common.Pathtest, conn npmodel.NetworkPathConnection) Admission {
+func (s *Selector) Add(pathtest common.Pathtest, conn npmodel.NetworkPathConnection) {
 	hash := pathtest.GetHash()
 	diagnostic := conn.TCPTimeout || conn.TCPRTO || conn.Retransmits > 0
 	if diagnostic {
 		s.healthy.remove(hash)
-		replaced, discarded := s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar)
-		return Admission{Replaced: replaced, Discarded: discarded}
+		s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar)
+		return
 	}
 	if _, found := s.diagnostic.items[hash]; found {
 		s.diagnostic.add(hash, pathtest, false, 0, conn.RTTVar)
-		return Admission{}
+		return
 	}
-	replaced, discarded := s.healthy.add(hash, pathtest, false, conn.Bytes, 0)
-	return Admission{Replaced: replaced, Discarded: discarded}
+	s.healthy.add(hash, pathtest, false, conn.Bytes, 0)
 }
 
 // Select returns the highest-ranked baseline paths.
@@ -181,11 +173,6 @@ func (s *Selector) Select() []common.Pathtest {
 		}
 	}
 	return selected
-}
-
-// Retained returns the number of candidates currently retained.
-func (s *Selector) Retained() int {
-	return len(s.diagnostic.items) + len(s.healthy.items)
 }
 
 // Reset removes all retained candidates.

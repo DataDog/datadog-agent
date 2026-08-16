@@ -136,9 +136,8 @@ func TestBaselineSelectorIsBoundedAndUsesSpaceSavingEstimate(t *testing.T) {
 	for i := 0; i < baselineHealthyCandidates; i++ {
 		selector.Add(baselineTestPath(fmt.Sprintf("path-%03d", i)), npmodel.NetworkPathConnection{Bytes: uint64(i + 1)})
 	}
-	admission := selector.Add(baselineTestPath("replacement"), npmodel.NetworkPathConnection{Bytes: 1})
+	selector.Add(baselineTestPath("replacement"), npmodel.NetworkPathConnection{Bytes: 1})
 
-	assert.True(t, admission.Replaced)
 	assert.Len(t, selector.healthy.items, baselineHealthyCandidates)
 	replacement := selector.healthy.items[baselineTestPath("replacement").GetHash()]
 	require.NotNil(t, replacement)
@@ -150,9 +149,8 @@ func TestBaselineSelectorProtectsTimeoutCandidates(t *testing.T) {
 	for i := 0; i < baselineDiagnosticCandidates; i++ {
 		selector.Add(baselineTestPath(fmt.Sprintf("timeout-%03d", i)), npmodel.NetworkPathConnection{TCPTimeout: true})
 	}
-	admission := selector.Add(baselineTestPath("retrans-only"), npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
+	selector.Add(baselineTestPath("retrans-only"), npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
 
-	assert.True(t, admission.Discarded)
 	assert.Len(t, selector.diagnostic.items, baselineDiagnosticCandidates)
 	assert.NotContains(t, selector.diagnostic.items, baselineTestPath("retrans-only").GetHash())
 }
@@ -249,10 +247,8 @@ func TestBaselineSelectorRecoversLateDiagnosticHeavyHitters(t *testing.T) {
 func TestBaselineSelectorResetRetainsPolicies(t *testing.T) {
 	selector := New()
 	selector.Add(baselineTestPath("before"), npmodel.NetworkPathConnection{Bytes: 1})
-	assert.Equal(t, 1, selector.Retained())
 	selector.Reset()
 
-	assert.Zero(t, selector.Retained())
 	assert.Empty(t, selector.diagnostic.items)
 	assert.Empty(t, selector.healthy.items)
 	selector.Add(baselineTestPath("healthy"), npmodel.NetworkPathConnection{Bytes: 10})

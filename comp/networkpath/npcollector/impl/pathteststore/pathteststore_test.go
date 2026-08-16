@@ -19,7 +19,6 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -197,20 +196,20 @@ func TestPathtestStoreFlushReturnsImmutableSnapshot(t *testing.T) {
 	assert.NotSame(t, flushed[0].Pathtest, store.contexts[initial.GetHash()].Pathtest)
 }
 
-func TestPathtestStoreBaselineIsRecurring(t *testing.T) {
+func TestPathtestStoreAddPreservesRecurringCadence(t *testing.T) {
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 	store := NewPathtestStore(Config{
 		ContextsLimit: 10,
 		TTL:           30 * time.Minute,
 		Interval:      10 * time.Minute,
 	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
-	store.Add(&common.Pathtest{Hostname: "baseline", DynamicTestProfile: payload.DynamicTestProfileBaseline})
+	store.Add(&common.Pathtest{Hostname: "recurring"})
 
 	require.Len(t, store.Flush(), 1)
 	assert.Equal(t, 1, store.GetContextsCount())
 
 	now = now.Add(5 * time.Minute)
-	store.Add(&common.Pathtest{Hostname: "baseline", DynamicTestProfile: payload.DynamicTestProfileBaseline})
+	store.Add(&common.Pathtest{Hostname: "recurring"})
 	assert.Empty(t, store.Flush(), "reselection must preserve the existing cadence")
 
 	now = now.Add(5 * time.Minute)

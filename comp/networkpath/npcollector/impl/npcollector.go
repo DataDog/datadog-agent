@@ -356,26 +356,19 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 		s.closeBaselineWindow(now)
 	}
 
-	eligible := 0
+	hasEligible := false
 	for conn := range conns {
 		evaluation := s.evaluateNetworkPathForConn(conn, payload.PathOriginNetworkTraffic, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			continue
 		}
-		eligible++
+		hasEligible = true
 		pathtest := s.makePathtest(conn, payload.PathOriginNetworkTraffic)
 		pathtest.DynamicTestProfile = payload.DynamicTestProfileBaseline
-		admission := s.baselineSelector.Add(pathtest, conn)
-		if admission.Replaced {
-			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_replaced", nil, 1)
-		}
-		if admission.Discarded {
-			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_discarded", nil, 1)
-		}
+		s.baselineSelector.Add(pathtest, conn)
 	}
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_retained", float64(s.baselineSelector.Retained()), nil, 1)
 
-	if !s.baselineStarted && eligible > 0 {
+	if !s.baselineStarted && hasEligible {
 		s.baselineStarted = true
 		s.closeBaselineWindow(now)
 	}
@@ -385,9 +378,7 @@ func (s *npCollectorImpl) closeBaselineWindow(now time.Time) {
 	selected := s.baselineSelector.Select()
 	s.baselineSelector.Reset()
 	s.baselineDeadline = now.Add(baselineSelectionInterval)
-	_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.windows_closed", nil, 1)
 	for i := range selected {
-		_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.selections", nil, 1)
 		if err := s.scheduleOne(&selected[i]); err != nil {
 			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
 		}
@@ -459,12 +450,12 @@ func (s *npCollectorImpl) listenPathtests() {
 	}
 }
 
-func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) bool {
+func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	if ptest.Pathtest.Origin == "" {
 		s.logger.Errorf("pathtest missing origin: %+v", ptest.Pathtest)
-		return false
+		return
 	}
 
 	cfg := config.Config{
@@ -487,13 +478,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path, err := s.traceroute.Run(context.TODO(), cfg)
 	if err != nil {
 		s.logger.Errorf("run traceroute error: %s", err)
-		return false
+		return
 	}
 
 	err = payload.ValidateNetworkPath(&path)
 	if err != nil {
 		s.logger.Errorf("failed to validate network path: %s", err)
-		return false
+		return
 	}
 
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
@@ -519,16 +510,14 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
 		s.logger.Errorf("json marshall error: %s", err)
-		return false
+		return
 	}
 	s.logger.Debugf("network path event: %s", string(payloadBytes))
 	m := message.NewMessage(payloadBytes, nil, "", 0)
 	err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
 	if err != nil {
 		s.logger.Errorf("failed to send event to epForwarder: %s", err)
-		return false
 	}
-	return true
 }
 
 func (s *npCollectorImpl) flushLoop() {
@@ -705,14 +694,8 @@ func (s *npCollectorImpl) runWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			startTime := s.TimeNowFn()
 
-			succeeded := s.runTracerouteForPath(pathtestCtx)
+			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
-			if pathtestCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
-				_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.executions", nil, 1)
-				if !succeeded {
-					_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.execution_failures", nil, 1)
-				}
-			}
 
 			checkInterval := pathtestCtx.LastFlushInterval()
 			checkDuration := s.TimeNowFn().Sub(startTime)

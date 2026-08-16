@@ -16,7 +16,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 const (
@@ -158,9 +157,6 @@ func (f *Store) Flush() []*PathtestContext {
 			delete(f.contexts, key)
 			if ptConfigCtx.lastFlushTime.IsZero() {
 				f.statsdClient.Incr(networkPathStoreMetricPrefix+"pathtest_never_run", []string{}, 1) //nolint:errcheck
-			}
-			if ptConfigCtx.Pathtest.DynamicTestProfile == payload.DynamicTestProfileBaseline {
-				f.statsdClient.Incr(networkPathStoreMetricPrefix+"baseline_expired", []string{}, 1) //nolint:errcheck
 			}
 			continue
 		}

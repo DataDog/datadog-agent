@@ -49,9 +49,6 @@ func (s *baselineHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath(
 	s.startHostTrafficGenerator(4 * time.Minute)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.baseline.selections")
-		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.baseline.executions")
-
 		netpaths, err := fakeintake.GetLatestNetpathEvents()
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
