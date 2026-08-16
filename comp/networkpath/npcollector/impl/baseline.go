@@ -6,13 +6,9 @@
 package npcollectorimpl
 
 import (
-	"iter"
-	"net/netip"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
-	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 const baselineSelectionsPerSnapshot = 3
@@ -59,34 +55,4 @@ func addBaselineCandidate(selected []baselineCandidate, candidate baselineCandid
 	}
 	sort.Slice(selected, func(i, j int) bool { return selected[i].betterThan(selected[j]) })
 	return selected
-}
-
-func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection], vpcSubnets []netip.Prefix) {
-	startTime := s.TimeNowFn()
-	connCount := 0
-	selected := make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
-	for conn := range conns {
-		connCount++
-		evaluation := s.evaluateNetworkPathForConn(conn, payload.PathOriginNetworkTraffic, vpcSubnets)
-		if !evaluation.shouldSchedule {
-			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
-			continue
-		}
-		path := s.makePathtest(conn, payload.PathOriginNetworkTraffic)
-		path.DynamicTestProfile = payload.DynamicTestProfileBaseline
-		selected = addBaselineCandidate(selected, baselineCandidate{
-			path:       path,
-			pathHash:   path.GetHash(),
-			diagnostic: conn.Baseline.Diagnostic,
-			bytes:      conn.Baseline.Bytes,
-		})
-	}
-
-	for i := range selected {
-		if err := s.scheduleOne(&selected[i].path); err != nil {
-			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
-		}
-	}
-	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
 }

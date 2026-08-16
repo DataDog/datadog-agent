@@ -296,23 +296,24 @@ func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.Networ
 		return
 	}
 
-	if s.collectorConfigs.connectionsMonitoringEnabled {
-		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, vpcSubnets)
-	} else {
-		s.scheduleBaselineNetworkPathTests(conns, vpcSubnets)
-	}
+	baseline := !s.collectorConfigs.connectionsMonitoringEnabled
+	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, vpcSubnets, baseline)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, nil)
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, nil, false)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], vpcSubnets []netip.Prefix) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], vpcSubnets []netip.Prefix, baseline bool) {
 	startTime := s.TimeNowFn()
 	connCount := 0
+	var selected []baselineCandidate
+	if baseline {
+		selected = make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
+	}
 	for conn := range conns {
 		connCount++
 		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
@@ -321,6 +322,17 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		if baseline {
+			pathtest.DynamicTestProfile = payload.DynamicTestProfileBaseline
+			selected = addBaselineCandidate(selected, baselineCandidate{
+				path:       pathtest,
+				pathHash:   pathtest.GetHash(),
+				diagnostic: conn.Baseline.Diagnostic,
+				bytes:      conn.Baseline.Bytes,
+			})
+			continue
+		}
+
 		pathtest.TestConfigID = evaluation.testConfigID
 		pathtest.Tags = evaluation.tags
 		if evaluation.testConfigID != "" {
@@ -329,6 +341,11 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
+		}
+	}
+	for i := range selected {
+		if err := s.scheduleOne(&selected[i].path); err != nil {
+			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
 		}
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
