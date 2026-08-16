@@ -55,6 +55,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
+		baselineTestsEnabled:         agentConfig.GetBool("network_path.connections_monitoring.baseline_tests_enabled"),
 		netflowMonitoringEnabled:     agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
 		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,

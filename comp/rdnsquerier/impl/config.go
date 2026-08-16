@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 )
 
 type rdnsQuerierConfig struct {
@@ -56,11 +55,10 @@ const (
 	defaultRateLimitRecoveryInterval       = 5 * time.Second
 )
 
-func newConfig(agentConfig config.Component, systemProbeConfig npconfig.Reader) *rdnsQuerierConfig {
+func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
-	baselineTestsEnabled := npconfig.BaselineEnabled(agentConfig, systemProbeConfig)
-	networkPathDynamicTestsEnabled := agentConfig.GetBool("network_path.connections_monitoring.enabled") || baselineTestsEnabled
-	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") && networkPathDynamicTestsEnabled
+	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") &&
+		(agentConfig.GetBool("network_path.connections_monitoring.enabled") || agentConfig.GetBool("network_path.connections_monitoring.baseline_tests_enabled"))
 
 	c := &rdnsQuerierConfig{
 		enabled:  netflowRDNSEnrichmentEnabled || networkPathRDNSEnrichmentEnabled,

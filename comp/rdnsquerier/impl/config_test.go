@@ -338,7 +338,7 @@ reverse_dns_enrichment:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tt.configYaml)
-			testConfig := newConfig(mockConfig, mock.NewSystemProbe(t))
+			testConfig := newConfig(mockConfig)
 			assert.Equal(t, tt.expectedConfig, *testConfig)
 		})
 	}
@@ -351,19 +351,5 @@ network_path:
     baseline_tests_enabled: true
 `)
 
-	systemProbeConfig := mock.NewSystemProbe(t)
-	systemProbeConfig.SetInTest("system_probe_config.enabled", true)
-	systemProbeConfig.SetInTest("network_config.enabled", true)
-
-	assert.True(t, newConfig(mockConfig, systemProbeConfig).enabled)
-}
-
-func TestConfigDisabledForIneffectiveBaselineNetworkPathTests(t *testing.T) {
-	mockConfig := mock.NewFromYAML(t, `
-network_path:
-  connections_monitoring:
-    baseline_tests_enabled: true
-`)
-
-	assert.False(t, newConfig(mockConfig, mock.NewSystemProbe(t)).enabled)
+	assert.True(t, newConfig(mockConfig).enabled)
 }
