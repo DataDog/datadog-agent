@@ -27,11 +27,16 @@ const (
 )
 
 // v1CheckKeys holds the suffixes of the keys defining a v1 check
-// configuration. The optional keys (ignore_autodiscovery_tags,
-// check_tag_cardinality) and logs are left out on purpose: they can be read
-// next to a v2 check configuration, so setting them alongside one does not mean
-// they are ignored. For instance, ignore_autodiscovery_tags is applied to v2
-// configurations when cluster_checks.support_hybrid_ignore_ad_tags is enabled.
+// configuration. ignore_autodiscovery_tags and logs are left out on purpose:
+// they can be read next to a v2 check configuration, so setting them alongside
+// one does not mean they are ignored. For instance, ignore_autodiscovery_tags is
+// applied to v2 configurations when
+// cluster_checks.support_hybrid_ignore_ad_tags is enabled.
+//
+// check_tag_cardinality is also left out, for a different reason: a standalone
+// one is dropped next to a v2 configuration, but that happens whether or not v1
+// keys are set, so it is a separate gap rather than a consequence of mixing
+// formats.
 var v1CheckKeys = []string{
 	checkNamePath,
 	initConfigPath,
