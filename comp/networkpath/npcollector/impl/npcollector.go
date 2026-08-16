@@ -286,22 +286,35 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.baselineTestsEnabled {
-		return
+	if s.collectorConfigs.connectionsMonitoringEnabled {
+		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
+	} else if s.collectorConfigs.baselineTestsEnabled {
+		s.scheduleBaselineNetworkPathTests(conns)
 	}
-
-	baseline := !s.collectorConfigs.connectionsMonitoringEnabled
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, baseline)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, false)
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], baseline bool) {
+func (s *npCollectorImpl) prepareNetworkPathTest(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) (common.Pathtest, pathEvaluation, bool) {
+	evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
+	if !evaluation.shouldSchedule {
+		s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
+		return common.Pathtest{}, pathEvaluation{}, false
+	}
+	return s.makePathtest(conn, origin), evaluation, true
+}
+
+func (s *npCollectorImpl) reportScheduleTelemetry(startTime time.Time, connCount int) {
+	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
+	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
+}
+
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
@@ -314,46 +327,22 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 
 	startTime := s.TimeNowFn()
 	connCount := 0
-	var selected []baselineCandidate
-	if baseline {
-		selected = make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
-	}
 	for conn := range conns {
 		connCount++
-		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
-		if !evaluation.shouldSchedule {
-			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
+		pathtest, evaluation, ok := s.prepareNetworkPathTest(conn, origin, vpcSubnets)
+		if !ok {
 			continue
 		}
-		pathtest := s.makePathtest(conn, origin)
-		if baseline {
-			pathtest.DynamicTestProfile = payload.DynamicTestProfileBaseline
-			selected = addBaselineCandidate(selected, baselineCandidate{
-				path:       pathtest,
-				pathHash:   pathtest.GetHash(),
-				diagnostic: conn.Baseline.Diagnostic,
-				bytes:      conn.Baseline.Bytes,
-			})
-			continue
-		}
-
 		pathtest.TestConfigID = evaluation.testConfigID
 		pathtest.Tags = evaluation.tags
 		if evaluation.testConfigID != "" {
 			pathtest.TestConfigSource = payload.TestConfigSourceRemote
 		}
-		err := s.scheduleOne(&pathtest)
-		if err != nil {
+		if err := s.scheduleOne(&pathtest); err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
-	for i := range selected {
-		if err := s.scheduleOne(&selected[i].path); err != nil {
-			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
-		}
-	}
-	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
+	s.reportScheduleTelemetry(startTime, connCount)
 }
 
 // scheduleOne schedules pathtests.
