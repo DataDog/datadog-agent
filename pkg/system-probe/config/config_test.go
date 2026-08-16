@@ -163,37 +163,3 @@ func TestEnableDiscovery(t *testing.T) {
 		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 }
-
-func TestTracerouteModuleBaselineTests(t *testing.T) {
-	tests := []struct {
-		name                 string
-		core                 map[string]any
-		sysprobe             map[string]any
-		wantEnable           bool
-		checkDefaultInjector bool
-	}{
-		{name: "baseline disabled has no impact", core: map[string]any{"network_path.connections_monitoring.baseline_tests_enabled": false}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": true}},
-		{name: "baseline outside CNM", core: map[string]any{"network_path.connections_monitoring.baseline_tests_enabled": true}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": false}},
-		{name: "effective baseline with implicit system probe", core: map[string]any{"network_path.connections_monitoring.baseline_tests_enabled": true}, sysprobe: map[string]any{"network_config.enabled": true}, wantEnable: true},
-		{name: "standard wins without changing traceroute", core: map[string]any{"network_path.connections_monitoring.enabled": true, "network_path.connections_monitoring.baseline_tests_enabled": true}, sysprobe: map[string]any{"network_config.enabled": true}},
-		{name: "explicit traceroute remains supported", sysprobe: map[string]any{"traceroute.enabled": true}, wantEnable: true, checkDefaultInjector: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			core := mock.New(t)
-			sysprobe := mock.NewSystemProbe(t)
-			for key, value := range tt.core {
-				core.SetInTest(key, value)
-			}
-			for key, value := range tt.sysprobe {
-				sysprobe.SetInTest(key, value)
-			}
-			cfg, err := New("/doesnotexist", "")
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantEnable, cfg.ModuleIsEnabled(TracerouteModule))
-			if tt.checkDefaultInjector && runtime.GOOS == "windows" {
-				assert.True(t, cfg.ModuleIsEnabled(InjectorModule), "explicit traceroute should enable the default injector module")
-			}
-		})
-	}
-}

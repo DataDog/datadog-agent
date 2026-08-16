@@ -16,7 +16,6 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
@@ -182,9 +181,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
-	// Enable traceroute before platform default modules are resolved so they can
-	// observe both explicit and baseline activation.
-	if cfg.GetBool(tracerouteNS("enabled")) || npconfig.BaselineEnabled(coreCfg, cfg) {
+	if cfg.GetBool(tracerouteNS("enabled")) {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
 	if cfg.GetBool(discoveryNS("enabled")) {

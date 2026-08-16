@@ -1729,7 +1729,7 @@ properties:
             default: false
             description: Enables up to three included Network Path Dynamic Tests immediately
               for the first eligible snapshot, then every 30 minutes, when Cloud Network
-              Monitoring is enabled.
+              Monitoring is enabled. Requires traceroute.enabled in the system-probe configuration.
             example: 'true'
       collector:
         node_type: section
