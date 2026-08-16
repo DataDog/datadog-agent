@@ -195,6 +195,9 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 			},
+			errs: []error{
+				errors.New("com.datadoghq.ad.checks takes precedence, ignoring com.datadoghq.ad.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
 		},
 	}
 
