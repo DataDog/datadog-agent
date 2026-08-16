@@ -75,8 +75,8 @@ func TestBaselineSelectorTreatsTimeoutAndRTOEqually(t *testing.T) {
 
 	selected := selector.Select()
 	require.Len(t, selected, 3)
-	timeoutHash := baselinePathtestHash(&selector.hashDigest, baselineTestPath("timeout"))
-	rtoHash := baselinePathtestHash(&selector.hashDigest, baselineTestPath("rto"))
+	timeoutHash := baselineTestPath("timeout").GetHash()
+	rtoHash := baselineTestPath("rto").GetHash()
 	if timeoutHash < rtoHash {
 		assert.Equal(t, []string{"timeout", "rto", "retrans"}, selectedHosts(selector))
 	} else {
@@ -100,7 +100,7 @@ func TestBaselineSelectorAggregatesAndPromotes(t *testing.T) {
 	selector.Add(path, npmodel.NetworkPathConnection{Retransmits: 2, RTTVar: 5})
 	selector.Add(path, npmodel.NetworkPathConnection{Retransmits: 3, RTTVar: 10})
 
-	hash := baselinePathtestHash(&selector.hashDigest, path)
+	hash := path.GetHash()
 	require.NotContains(t, selector.healthy.items, hash)
 	require.Contains(t, selector.diagnostic.items, hash)
 	assert.Equal(t, uint64(5), selector.diagnostic.items[hash].count)
@@ -118,14 +118,14 @@ func TestBaselineSelectorAggregatesEverySignal(t *testing.T) {
 	selector.Add(healthyPath, npmodel.NetworkPathConnection{Bytes: 40})
 	selector.Add(healthyPath, npmodel.NetworkPathConnection{Bytes: 2})
 
-	diagnosticHash := baselinePathtestHash(&selector.hashDigest, diagnosticPath)
+	diagnosticHash := diagnosticPath.GetHash()
 	diagnostic := selector.diagnostic.items[diagnosticHash]
 	require.NotNil(t, diagnostic)
 	assert.True(t, diagnostic.timeout)
 	assert.Equal(t, uint64(5), diagnostic.count)
 	assert.Equal(t, uint64(20), diagnostic.rttVar)
 
-	healthyHash := baselinePathtestHash(&selector.hashDigest, healthyPath)
+	healthyHash := healthyPath.GetHash()
 	healthy := selector.healthy.items[healthyHash]
 	require.NotNil(t, healthy)
 	assert.Equal(t, uint64(42), healthy.count)
@@ -140,7 +140,7 @@ func TestBaselineSelectorIsBoundedAndUsesSpaceSavingEstimate(t *testing.T) {
 
 	assert.True(t, admission.Replaced)
 	assert.Len(t, selector.healthy.items, baselineHealthyCandidates)
-	replacement := selector.healthy.items[baselinePathtestHash(&selector.hashDigest, baselineTestPath("replacement"))]
+	replacement := selector.healthy.items[baselineTestPath("replacement").GetHash()]
 	require.NotNil(t, replacement)
 	assert.Greater(t, replacement.count, uint64(1), "replacement must inherit the evicted estimate")
 }
@@ -154,7 +154,7 @@ func TestBaselineSelectorProtectsTimeoutCandidates(t *testing.T) {
 
 	assert.True(t, admission.Discarded)
 	assert.Len(t, selector.diagnostic.items, baselineDiagnosticCandidates)
-	assert.NotContains(t, selector.diagnostic.items, baselinePathtestHash(&selector.hashDigest, baselineTestPath("retrans-only")))
+	assert.NotContains(t, selector.diagnostic.items, baselineTestPath("retrans-only").GetHash())
 }
 
 func TestBaselineSelectorDeterministicTies(t *testing.T) {
@@ -165,40 +165,8 @@ func TestBaselineSelectorDeterministicTies(t *testing.T) {
 	}
 	selected := selector.Select()
 	for i := 1; i < len(selected); i++ {
-		assert.Less(t, baselinePathtestHash(&selector.hashDigest, selected[i-1]), baselinePathtestHash(&selector.hashDigest, selected[i]))
+		assert.Less(t, selected[i-1].GetHash(), selected[i].GetHash())
 	}
-}
-
-func TestBaselinePathtestHashUsesOnlyPathIdentity(t *testing.T) {
-	selector := New()
-	base := common.Pathtest{
-		Hostname:          "example.com",
-		Port:              443,
-		Protocol:          payload.ProtocolTCP,
-		SourceContainerID: "container",
-		Namespace:         "default",
-		Origin:            payload.PathOriginNetworkTraffic,
-	}
-	baseHash := baselinePathtestHash(&selector.hashDigest, base)
-
-	identityVariants := []common.Pathtest{
-		func() common.Pathtest { p := base; p.Hostname = "other.example.com"; return p }(),
-		func() common.Pathtest { p := base; p.Port = 80; return p }(),
-		func() common.Pathtest { p := base; p.Protocol = payload.ProtocolUDP; return p }(),
-		func() common.Pathtest { p := base; p.SourceContainerID = "other"; return p }(),
-		func() common.Pathtest { p := base; p.Namespace = "other"; return p }(),
-		func() common.Pathtest { p := base; p.Origin = payload.PathOriginNetflow; return p }(),
-	}
-	for _, variant := range identityVariants {
-		assert.NotEqual(t, baseHash, baselinePathtestHash(&selector.hashDigest, variant))
-	}
-
-	metadataVariant := base
-	metadataVariant.DynamicTestProfile = payload.DynamicTestProfileBaseline
-	metadataVariant.TestConfigID = "config"
-	metadataVariant.Tags = []string{"env:test"}
-	metadataVariant.Metadata.ReverseDNSHostname = "reverse.example.com"
-	assert.Equal(t, baseHash, baselinePathtestHash(&selector.hashDigest, metadataVariant))
 }
 
 func TestBaselineSelectorIsDeterministicBelowCapacity(t *testing.T) {

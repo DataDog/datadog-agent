@@ -7,10 +7,7 @@
 package baselineselector
 
 import (
-	"encoding/binary"
 	"sort"
-
-	"github.com/cespare/xxhash/v2"
 
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
@@ -47,29 +44,6 @@ func newBaselinePool(capacity int, policy baselinePoolPolicy) baselinePool {
 		items:    make(map[uint64]*baselineCandidate, capacity),
 		policy:   policy,
 	}
-}
-
-// baselinePathtestHash is deliberately local to the bounded selector. The
-// selector hashes every eligible connection, so use the Agent's existing
-// allocation-efficient xxhash dependency instead of the store's general hash.
-func baselinePathtestHash(digest *xxhash.Digest, p common.Pathtest) uint64 {
-	digest.Reset()
-	writeBaselineHashString(digest, string(p.Origin))
-	writeBaselineHashString(digest, p.Namespace)
-	writeBaselineHashString(digest, p.Hostname)
-	var port [2]byte
-	binary.LittleEndian.PutUint16(port[:], p.Port)
-	_, _ = digest.Write(port[:])
-	writeBaselineHashString(digest, string(p.Protocol))
-	writeBaselineHashString(digest, p.SourceContainerID)
-	return digest.Sum64()
-}
-
-func writeBaselineHashString(digest *xxhash.Digest, value string) {
-	var length [8]byte
-	binary.LittleEndian.PutUint64(length[:], uint64(len(value)))
-	_, _ = digest.Write(length[:])
-	_, _ = digest.WriteString(value)
 }
 
 func (p *baselinePool) remove(hash uint64) { delete(p.items, hash) }
@@ -152,7 +126,6 @@ func (p *baselinePool) sorted() []*baselineCandidate {
 type Selector struct {
 	diagnostic baselinePool
 	healthy    baselinePool
-	hashDigest xxhash.Digest
 }
 
 // New creates a baseline selector.
@@ -177,7 +150,7 @@ type Admission struct {
 
 // Add records a network path observation.
 func (s *Selector) Add(pathtest common.Pathtest, conn npmodel.NetworkPathConnection) Admission {
-	hash := baselinePathtestHash(&s.hashDigest, pathtest)
+	hash := pathtest.GetHash()
 	diagnostic := conn.TCPTimeout || conn.TCPRTO || conn.Retransmits > 0
 	if diagnostic {
 		s.healthy.remove(hash)

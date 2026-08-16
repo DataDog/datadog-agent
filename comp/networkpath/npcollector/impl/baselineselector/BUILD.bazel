@@ -9,7 +9,6 @@ go_library(
     deps = [
         "//comp/networkpath/npcollector/impl/common",
         "//comp/networkpath/npcollector/model",
-        "@com_github_cespare_xxhash_v2//:xxhash",
     ],
 )
 
