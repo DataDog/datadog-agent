@@ -1,8 +1,5 @@
 ---
 features:
   - |
-    Add opt-in baseline Dynamic Tests for Cloud Network Monitoring. When
-    ``network_path.connections_monitoring.baseline_tests_enabled`` is enabled,
-    the Agent selects up to three paths from each connection snapshot while
-    full Dynamic Tests remain disabled. Existing collector limits control how
-    often the selected paths run.
+    Add opt-in baseline Dynamic Tests for Cloud Network Monitoring, providing
+    network path visibility when full Dynamic Tests are disabled.
