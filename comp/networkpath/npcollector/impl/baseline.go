@@ -78,8 +78,8 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 		selected = addBaselineCandidate(selected, baselineCandidate{
 			path:       path,
 			pathHash:   path.GetHash(),
-			diagnostic: conn.BaselineDiagnostic,
-			bytes:      conn.BaselineBytes,
+			diagnostic: conn.Baseline.Diagnostic,
+			bytes:      conn.Baseline.Bytes,
 		})
 	}
 

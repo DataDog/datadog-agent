@@ -16,12 +16,20 @@ import (
 // payloads by both Linux and Windows producers.
 const TCPTimeoutErrno uint16 = 110
 
-// SetBaselineSignals normalizes the CNM deltas used by baseline selection.
-// Both direct and process-agent producers use this method so their ranking
+// BaselineSignals contains the normalized CNM values used by baseline selection.
+type BaselineSignals struct {
+	Diagnostic bool
+	Bytes      uint64
+}
+
+// NewBaselineSignals normalizes the CNM deltas used by baseline selection.
+// Both direct and process-agent producers use this constructor so their ranking
 // inputs remain equivalent.
-func (c *NetworkPathConnection) SetBaselineSignals(timeoutCount, rtoCount, retransmits, sentBytes, recvBytes uint64) {
-	c.BaselineDiagnostic = timeoutCount > 0 || rtoCount > 0 || retransmits > 0
-	c.BaselineBytes = sentBytes + recvBytes
+func NewBaselineSignals(timeoutCount, rtoCount, retransmits, sentBytes, recvBytes uint64) BaselineSignals {
+	return BaselineSignals{
+		Diagnostic: timeoutCount > 0 || rtoCount > 0 || retransmits > 0,
+		Bytes:      sentBytes + recvBytes,
+	}
 }
 
 // NetworkPathConnection is the minimum information needed about a connection to schedule a network path test
@@ -38,6 +46,5 @@ type NetworkPathConnection struct {
 	IntraHost         bool
 	SystemProbeConn   bool
 
-	BaselineDiagnostic bool
-	BaselineBytes      uint64
+	Baseline BaselineSignals
 }

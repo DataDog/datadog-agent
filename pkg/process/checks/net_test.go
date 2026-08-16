@@ -182,8 +182,8 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	got := slices.Collect(networkPathConnections(&model.Connections{Conns: []*model.Connection{conn}}))
 
 	require.Len(t, got, 1)
-	assert.True(t, got[0].BaselineDiagnostic)
-	assert.Equal(t, uint64(11), got[0].BaselineBytes)
+	assert.True(t, got[0].Baseline.Diagnostic)
+	assert.Equal(t, uint64(11), got[0].Baseline.Bytes)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

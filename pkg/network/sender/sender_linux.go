@@ -292,14 +292,14 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				Domain:            getDNSNameForIP(conns, conn.Dest),
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.Pid == d.sysProbePID,
+				Baseline: npmodel.NewBaselineSignals(
+					uint64(conn.TCPFailures[npmodel.TCPTimeoutErrno]),
+					uint64(conn.Last.TCPRTOCount),
+					uint64(conn.Last.Retransmits),
+					conn.Last.SentBytes,
+					conn.Last.RecvBytes,
+				),
 			}
-			npc.SetBaselineSignals(
-				uint64(conn.TCPFailures[npmodel.TCPTimeoutErrno]),
-				uint64(conn.Last.TCPRTOCount),
-				uint64(conn.Last.Retransmits),
-				conn.Last.SentBytes,
-				conn.Last.RecvBytes,
-			)
 			if !yield(npc) {
 				return
 			}

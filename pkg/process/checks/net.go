@@ -255,14 +255,14 @@ func networkPathConnections(conns *model.Connections) iter.Seq[npmodel.NetworkPa
 				Family:            conn.Family,
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.SystemProbeConn,
+				Baseline: npmodel.NewBaselineSignals(
+					uint64(conn.TcpFailuresByErrCode[uint32(npmodel.TCPTimeoutErrno)]),
+					uint64(conn.LastTcpRtoCount),
+					uint64(conn.LastRetransmits),
+					conn.LastBytesSent,
+					conn.LastBytesReceived,
+				),
 			}
-			npc.SetBaselineSignals(
-				uint64(conn.TcpFailuresByErrCode[uint32(npmodel.TCPTimeoutErrno)]),
-				uint64(conn.LastTcpRtoCount),
-				uint64(conn.LastRetransmits),
-				conn.LastBytesSent,
-				conn.LastBytesReceived,
-			)
 			if !yield(npc) {
 				return
 			}

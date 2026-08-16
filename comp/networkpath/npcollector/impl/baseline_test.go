@@ -23,11 +23,11 @@ import (
 
 func baselineConn(host string, bytes uint64) npmodel.NetworkPathConnection {
 	return npmodel.NetworkPathConnection{
-		Dest:          netip.MustParseAddrPort(host + ":53"),
-		Type:          model.ConnectionType_udp,
-		Direction:     model.ConnectionDirection_outgoing,
-		Family:        model.ConnectionFamily_v4,
-		BaselineBytes: bytes,
+		Dest:      netip.MustParseAddrPort(host + ":53"),
+		Type:      model.ConnectionType_udp,
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Baseline:  npmodel.BaselineSignals{Bytes: bytes},
 	}
 }
 
@@ -70,9 +70,9 @@ func TestBaselinePrioritizesDiagnosticConnections(t *testing.T) {
 
 	healthyLarge := baselineConn("10.0.0.1", 1_000)
 	diagnosticSmall := baselineConn("10.0.0.2", 1)
-	diagnosticSmall.BaselineDiagnostic = true
+	diagnosticSmall.Baseline.Diagnostic = true
 	diagnosticLarge := baselineConn("10.0.0.3", 10)
-	diagnosticLarge.BaselineDiagnostic = true
+	diagnosticLarge.Baseline.Diagnostic = true
 
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
 		healthyLarge,
