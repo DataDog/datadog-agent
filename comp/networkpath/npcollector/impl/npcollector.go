@@ -286,10 +286,20 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.baselineTestsEnabled {
+		return
+	}
+
+	vpcSubnets, err := s.getVPCSubnets()
+	if err != nil {
+		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
+		return
+	}
+
 	if s.collectorConfigs.connectionsMonitoringEnabled {
-		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
-	} else if s.collectorConfigs.baselineTestsEnabled {
-		s.scheduleBaselineNetworkPathTests(conns)
+		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, vpcSubnets)
+	} else {
+		s.scheduleBaselineNetworkPathTests(conns, vpcSubnets)
 	}
 }
 
@@ -297,20 +307,10 @@ func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.Networ
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, nil)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
-	var vpcSubnets []netip.Prefix
-	if origin == payload.PathOriginNetworkTraffic {
-		var err error
-		vpcSubnets, err = s.getVPCSubnets()
-		if err != nil {
-			s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
-			return
-		}
-	}
-
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], vpcSubnets []netip.Prefix) {
 	startTime := s.TimeNowFn()
 	connCount := 0
 	for conn := range conns {

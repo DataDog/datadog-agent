@@ -7,6 +7,7 @@ package npcollectorimpl
 
 import (
 	"iter"
+	"net/netip"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
@@ -60,17 +61,15 @@ func addBaselineCandidate(selected []baselineCandidate, candidate baselineCandid
 	return selected
 }
 
-func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	vpcSubnets, err := s.getVPCSubnets()
-	if err != nil {
-		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
-		return
-	}
-
+func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection], vpcSubnets []netip.Prefix) {
+	startTime := s.TimeNowFn()
+	connCount := 0
 	selected := make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
 	for conn := range conns {
+		connCount++
 		evaluation := s.evaluateNetworkPathForConn(conn, payload.PathOriginNetworkTraffic, vpcSubnets)
 		if !evaluation.shouldSchedule {
+			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
 		path := s.makePathtest(conn, payload.PathOriginNetworkTraffic)
@@ -88,4 +87,6 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
 		}
 	}
+	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
+	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
 }

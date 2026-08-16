@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"slices"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -60,6 +61,28 @@ func TestBaselineSelectsCandidatesFromEverySnapshot(t *testing.T) {
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{baselineConn("10.0.1.1", 10)}))
 	require.Len(t, collector.pathtestInputChan, 1)
 	assert.Equal(t, "10.0.1.1", (<-collector.pathtestInputChan).Hostname)
+}
+
+func TestBaselineReportsSnapshotTelemetry(t *testing.T) {
+	stats := &teststatsd.Client{}
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
+		"network_path.collector.monitor_ip_without_domain":           true,
+	}, stats, nil)
+	timeNowCounter := 0
+	collector.TimeNowFn = func() time.Time {
+		now := MockTimeNow().Add(time.Duration(timeNowCounter) * time.Minute)
+		timeNowCounter++
+		return now
+	}
+
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+		baselineConn("10.0.0.1", 2),
+		baselineConn("10.0.0.2", 1),
+	}))
+
+	assert.Equal(t, int64(2), stats.GetCountSummaries()["datadog.network_path.collector.schedule.conns_received"].Sum)
+	assert.Equal(t, 60.0, stats.GetGaugeSummaries()["datadog.network_path.collector.schedule.duration"].Last)
 }
 
 func TestBaselinePrioritizesDiagnosticConnections(t *testing.T) {
