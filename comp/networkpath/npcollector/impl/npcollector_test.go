@@ -2358,7 +2358,7 @@ network_path:
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			require.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, tt.vpcSubnets, false).shouldSchedule)
+			require.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, tt.vpcSubnets).shouldSchedule)
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -2424,7 +2424,7 @@ func Test_npCollectorImpl_evaluateNetworkPathForConn_subnets(t *testing.T) {
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, nil, false).shouldSchedule)
+			assert.Equal(t, tt.shouldSchedule, npCollector.evaluateNetworkPathForConn(tt.conn, payload.PathOriginNetworkTraffic, nil).shouldSchedule)
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
