@@ -331,7 +331,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			continue
 		}
 
-		if err := s.scheduleNetworkPathTest(pathtest, evaluation); err != nil {
+		if err := s.scheduleStandardNetworkPathTest(pathtest, evaluation); err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
@@ -342,7 +342,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTest(pathtest common.Pathtest, evaluation pathEvaluation) error {
+func (s *npCollectorImpl) scheduleStandardNetworkPathTest(pathtest common.Pathtest, evaluation pathEvaluation) error {
 	pathtest.TestConfigID = evaluation.testConfigID
 	pathtest.Tags = evaluation.tags
 	if evaluation.testConfigID != "" {
