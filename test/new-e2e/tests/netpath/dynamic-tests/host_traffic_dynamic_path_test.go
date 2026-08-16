@@ -99,7 +99,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
 
-		match := assertHostTrafficNetworkPath(c, netpaths, payload.DynamicTestProfileStandard, "RC-admitted")
+		match := assertHostTrafficNetworkPath(c, netpaths, "", "RC-admitted")
 		assert.Equal(c, "dynamic-host-traffic", match.TestConfigID)
 		assert.Equal(c, payload.TestConfigSourceRemote, match.TestConfigSource)
 		assert.Equal(c, []string{"team:netpath", "env:e2e"}, match.Tags)

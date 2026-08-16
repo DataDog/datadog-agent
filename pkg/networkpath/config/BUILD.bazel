@@ -3,13 +3,13 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "config",
-    srcs = ["state.go"],
+    srcs = ["baseline.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/config",
     visibility = ["//visibility:public"],
 )
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["state_test.go"],
+    srcs = ["baseline_test.go"],
     embed = [":config"],
 )

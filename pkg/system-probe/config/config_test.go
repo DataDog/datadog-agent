@@ -164,7 +164,7 @@ func TestEnableDiscovery(t *testing.T) {
 	})
 }
 
-func TestTracerouteModuleDynamicTestsState(t *testing.T) {
+func TestTracerouteModuleBaselineTests(t *testing.T) {
 	tests := []struct {
 		name                 string
 		core                 map[string]any
@@ -175,8 +175,7 @@ func TestTracerouteModuleDynamicTestsState(t *testing.T) {
 		{name: "baseline disabled has no impact", core: map[string]any{"network_path.connections_monitoring.baseline_tests_enabled": false}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": true}},
 		{name: "baseline outside CNM", core: map[string]any{"network_path.connections_monitoring.baseline_tests_enabled": true}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": false}},
 		{name: "effective baseline with implicit system probe", core: map[string]any{"network_path.connections_monitoring.baseline_tests_enabled": true}, sysprobe: map[string]any{"network_config.enabled": true}, wantEnable: true},
-		{name: "effective baseline", core: map[string]any{"network_path.connections_monitoring.baseline_tests_enabled": true}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": true}, wantEnable: true},
-		{name: "effective standard", core: map[string]any{"network_path.connections_monitoring.enabled": true}, sysprobe: map[string]any{"system_probe_config.enabled": true, "network_config.enabled": true}, wantEnable: true},
+		{name: "standard wins without changing traceroute", core: map[string]any{"network_path.connections_monitoring.enabled": true, "network_path.connections_monitoring.baseline_tests_enabled": true}, sysprobe: map[string]any{"network_config.enabled": true}},
 		{name: "explicit traceroute remains supported", sysprobe: map[string]any{"traceroute.enabled": true}, wantEnable: true, checkDefaultInjector: true},
 	}
 	for _, tt := range tests {

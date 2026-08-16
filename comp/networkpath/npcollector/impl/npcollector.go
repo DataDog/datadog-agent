@@ -30,7 +30,6 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
-	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
@@ -293,10 +292,9 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	switch s.collectorConfigs.dynamicTestsState {
-	case npconfig.DynamicTestsStandard:
-		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, payload.DynamicTestProfileStandard)
-	case npconfig.DynamicTestsBaseline:
+	if s.collectorConfigs.connectionsMonitoringEnabled {
+		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns)
+	} else if s.collectorConfigs.baselineTestsEnabled {
 		s.scheduleBaselineNetworkPathTests(conns)
 	}
 }
@@ -305,10 +303,10 @@ func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.Networ
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, "")
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], profile payload.DynamicTestProfile) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection]) {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
@@ -329,7 +327,6 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
-		pathtest.DynamicTestProfile = profile
 		pathtest.TestConfigID = evaluation.testConfigID
 		pathtest.Tags = evaluation.tags
 		if evaluation.testConfigID != "" {

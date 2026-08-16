@@ -16,7 +16,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	nooprdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
@@ -50,8 +49,7 @@ func NewComponent(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig, deps.Logger)
-	configs.dynamicTestsState = npconfig.ResolveDynamicTestsState(deps.AgentConfig, deps.SysProbeConfig)
-	_ = deps.Statsd.Gauge(common.NetworkPathCollectorMetricPrefix+"dynamic_tests_state", 1, []string{"state:" + configs.dynamicTestsState.String()}, 1)
+	configs.baselineTestsEnabled = npconfig.BaselineEnabled(deps.AgentConfig, deps.SysProbeConfig)
 	deps.Logger.Debugf("Network Path Configs: %+v", configs)
 	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debug("Network Path Collector enabled")

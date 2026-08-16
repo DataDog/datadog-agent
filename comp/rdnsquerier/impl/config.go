@@ -58,7 +58,7 @@ const (
 
 func newConfig(agentConfig config.Component, systemProbeConfig npconfig.Reader) *rdnsQuerierConfig {
 	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
-	baselineTestsEnabled := npconfig.ResolveDynamicTestsState(agentConfig, systemProbeConfig) == npconfig.DynamicTestsBaseline
+	baselineTestsEnabled := npconfig.BaselineEnabled(agentConfig, systemProbeConfig)
 	networkPathDynamicTestsEnabled := agentConfig.GetBool("network_path.connections_monitoring.enabled") || baselineTestsEnabled
 	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") && networkPathDynamicTestsEnabled
 

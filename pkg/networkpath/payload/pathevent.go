@@ -135,8 +135,6 @@ type DynamicTestProfile string
 const (
 	// DynamicTestProfileBaseline is an included CNM baseline test.
 	DynamicTestProfileBaseline DynamicTestProfile = "baseline"
-	// DynamicTestProfileStandard is an explicitly enabled recurring CNM test.
-	DynamicTestProfileStandard DynamicTestProfile = "standard"
 )
 
 // SourceProduct defines the product that originated the path

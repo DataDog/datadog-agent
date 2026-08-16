@@ -18,19 +18,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
-	npconfig "github.com/DataDog/datadog-agent/pkg/networkpath/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config := &collectorConfigs{
-		dynamicTestsState: npconfig.DynamicTestsStandard,
+		connectionsMonitoringEnabled: true,
 	}
 	assert.True(t, config.networkPathCollectorEnabled())
 
-	config.dynamicTestsState = npconfig.DynamicTestsOff
+	config.connectionsMonitoringEnabled = false
 	assert.False(t, config.networkPathCollectorEnabled())
 
+	config.baselineTestsEnabled = true
+	assert.True(t, config.networkPathCollectorEnabled())
+
+	config.baselineTestsEnabled = false
 	config.netflowMonitoringEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 }

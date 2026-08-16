@@ -182,9 +182,9 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
-	// Keep explicit traceroute activation with the other explicit modules so
-	// platform default modules can observe it below.
-	if cfg.GetBool(tracerouteNS("enabled")) {
+	// Enable traceroute before platform default modules are resolved so they can
+	// observe both explicit and baseline activation.
+	if cfg.GetBool(tracerouteNS("enabled")) || npconfig.BaselineEnabled(coreCfg, cfg) {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
 	if cfg.GetBool(discoveryNS("enabled")) {
@@ -241,15 +241,6 @@ func load() (*types.Config, error) {
 		}
 	}
 
-	// system_probe_config.enabled is derived from the modules above. Resolve
-	// Dynamic Tests only after publishing that effective value so CNM can
-	// activate traceroute even when system-probe was not explicitly enabled.
-	c.Enabled = len(c.EnabledModules) > 0
-	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
-	if npconfig.ResolveDynamicTestsState(coreCfg, cfg) != npconfig.DynamicTestsOff {
-		c.EnabledModules[TracerouteModule] = struct{}{}
-	}
-	// Publish the final state after Dynamic Tests may have added traceroute.
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)

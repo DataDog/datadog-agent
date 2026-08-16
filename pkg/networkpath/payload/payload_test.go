@@ -49,7 +49,6 @@ func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
 	}{
 		{name: "unset", expectField: false},
 		{name: "baseline", profile: DynamicTestProfileBaseline, expectField: true},
-		{name: "standard", profile: DynamicTestProfileStandard, expectField: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
