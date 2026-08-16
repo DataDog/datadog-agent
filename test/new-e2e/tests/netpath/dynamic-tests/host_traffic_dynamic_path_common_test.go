@@ -241,12 +241,20 @@ if [ -f %s ]; then
   if [ -s %s ]; then
     target="$(cat %s)"
     sudo rm -f /etc/resolv.conf
-    sudo ln -s "$target" /etc/resolv.conf
+    case "$target" in
+      /*) resolved_target="$target" ;;
+      *) resolved_target="/etc/$target" ;;
+    esac
+    if [ -e "$resolved_target" ]; then
+      sudo ln -s "$target" /etc/resolv.conf
+    else
+      sudo cp %s /etc/resolv.conf
+    fi
   else
     sudo cp %s /etc/resolv.conf
   fi
 fi
-`, shellQuote(hostTrafficResolverBackupPath), shellQuote(hostTrafficResolverLinkPath), shellQuote(hostTrafficResolverLinkPath), shellQuote(hostTrafficResolverBackupPath)))
+`, shellQuote(hostTrafficResolverBackupPath), shellQuote(hostTrafficResolverLinkPath), shellQuote(hostTrafficResolverLinkPath), shellQuote(hostTrafficResolverBackupPath), shellQuote(hostTrafficResolverBackupPath)))
 	if err != nil {
 		s.T().Logf("failed to restore resolver: %v", err)
 	}
