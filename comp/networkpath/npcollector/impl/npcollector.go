@@ -329,12 +329,17 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			continue
 		}
 		pathtest := s.makePathtest(conn, origin)
+		pathtest.TestConfigID = evaluation.testConfigID
+		pathtest.Tags = evaluation.tags
+		if evaluation.testConfigID != "" {
+			pathtest.TestConfigSource = payload.TestConfigSourceRemote
+		}
 		if baselineMode {
 			selectedBaselineCandidates = addBaselinePath(selectedBaselineCandidates, pathtest, conn.Signals)
 			continue
 		}
 
-		if err := s.scheduleStandardNetworkPathTest(pathtest, evaluation); err != nil {
+		if err := s.scheduleOne(&pathtest); err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
@@ -344,16 +349,6 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
 }
-
-func (s *npCollectorImpl) scheduleStandardNetworkPathTest(pathtest common.Pathtest, evaluation pathEvaluation) error {
-	pathtest.TestConfigID = evaluation.testConfigID
-	pathtest.Tags = evaluation.tags
-	if evaluation.testConfigID != "" {
-		pathtest.TestConfigSource = payload.TestConfigSourceRemote
-	}
-	return s.scheduleOne(&pathtest)
-}
-
 func (s *npCollectorImpl) scheduleBaselinePaths(selected []baselineCandidate) {
 	for i := range selected {
 		if err := s.scheduleOne(&selected[i].path); err != nil {
