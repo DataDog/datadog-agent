@@ -1,5 +1,4 @@
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "model",
@@ -7,11 +6,4 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model",
     visibility = ["//visibility:public"],
     deps = ["@com_github_datadog_agent_payload_v5//process"],
-)
-
-dd_agent_go_test(
-    name = "model_test",
-    srcs = ["connection_test.go"],
-    embed = [":model"],
-    deps = ["@com_github_stretchr_testify//assert"],
 )

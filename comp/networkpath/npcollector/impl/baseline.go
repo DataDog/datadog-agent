@@ -64,7 +64,7 @@ func addBaselinePath(selected []baselineCandidate, path common.Pathtest, signals
 	return addBaselineCandidate(selected, baselineCandidate{
 		path:       path,
 		pathHash:   path.GetHash(),
-		diagnostic: signals.Diagnostic,
-		bytes:      signals.Bytes,
+		diagnostic: signals.TimeoutCount > 0 || signals.RTOCount > 0 || signals.Retransmits > 0,
+		bytes:      signals.SentBytes + signals.RecvBytes,
 	})
 }

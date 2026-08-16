@@ -14,12 +14,12 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 )
 
 func baselineConn(host string, bytes uint64) npmodel.NetworkPathConnection {
@@ -28,7 +28,7 @@ func baselineConn(host string, bytes uint64) npmodel.NetworkPathConnection {
 		Type:      model.ConnectionType_udp,
 		Direction: model.ConnectionDirection_outgoing,
 		Family:    model.ConnectionFamily_v4,
-		Baseline:  npmodel.BaselineSignals{Bytes: bytes},
+		Baseline:  npmodel.BaselineSignals{SentBytes: bytes},
 	}
 }
 
@@ -93,9 +93,9 @@ func TestBaselinePrioritizesDiagnosticConnections(t *testing.T) {
 
 	healthyLarge := baselineConn("10.0.0.1", 1_000)
 	diagnosticSmall := baselineConn("10.0.0.2", 1)
-	diagnosticSmall.Baseline.Diagnostic = true
+	diagnosticSmall.Baseline.TimeoutCount = 1
 	diagnosticLarge := baselineConn("10.0.0.3", 10)
-	diagnosticLarge.Baseline.Diagnostic = true
+	diagnosticLarge.Baseline.RTOCount = 1
 
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
 		healthyLarge,
@@ -105,6 +105,31 @@ func TestBaselinePrioritizesDiagnosticConnections(t *testing.T) {
 	}))
 
 	assert.Equal(t, []string{"10.0.0.3", "10.0.0.2", "10.0.0.1"}, scheduledBaselineHosts(t, collector))
+}
+
+func TestBaselineDiagnosticSignals(t *testing.T) {
+	for name, signals := range map[string]npmodel.BaselineSignals{
+		"timeout":    {TimeoutCount: 1},
+		"rto":        {RTOCount: 1},
+		"retransmit": {Retransmits: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			selected := addBaselinePath(nil, common.Pathtest{Hostname: name}, signals)
+
+			require.Len(t, selected, 1)
+			assert.True(t, selected[0].diagnostic)
+		})
+	}
+}
+
+func TestBaselineCombinesSentAndReceivedBytes(t *testing.T) {
+	selected := addBaselinePath(nil, common.Pathtest{Hostname: "host"}, npmodel.BaselineSignals{
+		SentBytes: 5,
+		RecvBytes: 6,
+	})
+
+	require.Len(t, selected, 1)
+	assert.Equal(t, uint64(11), selected[0].bytes)
 }
 
 func TestBaselineKeepsStrongestObservationPerPath(t *testing.T) {
