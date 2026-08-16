@@ -19,11 +19,9 @@ const TCPTimeoutErrno uint16 = 110
 // SetBaselineSignals normalizes the CNM deltas used by baseline selection.
 // Both direct and process-agent producers use this method so their ranking
 // inputs remain equivalent.
-func (c *NetworkPathConnection) SetBaselineSignals(timeoutCount, rtoCount, retransmits, rttVar, sentBytes, recvBytes uint64) {
-	c.TCPTimeout = timeoutCount > 0
-	c.TCPRTO = rtoCount > 0
+func (c *NetworkPathConnection) SetBaselineSignals(timeoutCount, rtoCount, retransmits, sentBytes, recvBytes uint64) {
+	c.TimeoutOrRTO = timeoutCount > 0 || rtoCount > 0
 	c.Retransmits = retransmits
-	c.RTTVar = rttVar
 	c.Bytes = sentBytes + recvBytes
 }
 
@@ -40,9 +38,7 @@ type NetworkPathConnection struct {
 	Domain            string
 	IntraHost         bool
 	SystemProbeConn   bool
-	TCPTimeout        bool
-	TCPRTO            bool
+	TimeoutOrRTO      bool
 	Retransmits       uint64
-	RTTVar            uint64
 	Bytes             uint64
 }

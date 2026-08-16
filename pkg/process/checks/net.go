@@ -260,7 +260,6 @@ func networkPathConnections(conns *model.Connections) iter.Seq[npmodel.NetworkPa
 				uint64(conn.TcpFailuresByErrCode[uint32(npmodel.TCPTimeoutErrno)]),
 				uint64(conn.LastTcpRtoCount),
 				uint64(conn.LastRetransmits),
-				uint64(conn.RttVar),
 				conn.LastBytesSent,
 				conn.LastBytesReceived,
 			)

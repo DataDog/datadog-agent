@@ -162,7 +162,6 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	conn.TCPFailures = map[uint16]uint32{npmodel.TCPTimeoutErrno: 1}
 	conn.Last.TCPRTOCount = 2
 	conn.Last.Retransmits = 3
-	conn.RTTVar = 4
 	conn.Last.SentBytes = 5
 	conn.Last.RecvBytes = 6
 
@@ -171,10 +170,8 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	}))
 
 	require.Len(t, got, 1)
-	assert.True(t, got[0].TCPTimeout)
-	assert.True(t, got[0].TCPRTO)
+	assert.True(t, got[0].TimeoutOrRTO)
 	assert.Equal(t, uint64(3), got[0].Retransmits)
-	assert.Equal(t, uint64(4), got[0].RTTVar)
 	assert.Equal(t, uint64(11), got[0].Bytes)
 }
 

@@ -12,12 +12,12 @@ import (
 )
 
 func TestSetBaselineSignals(t *testing.T) {
-	var conn NetworkPathConnection
-	conn.SetBaselineSignals(1, 2, 3, 4, 5, 6)
+	for _, counts := range [][2]uint64{{1, 0}, {0, 1}} {
+		var conn NetworkPathConnection
+		conn.SetBaselineSignals(counts[0], counts[1], 3, 5, 6)
 
-	assert.True(t, conn.TCPTimeout)
-	assert.True(t, conn.TCPRTO)
-	assert.Equal(t, uint64(3), conn.Retransmits)
-	assert.Equal(t, uint64(4), conn.RTTVar)
-	assert.Equal(t, uint64(11), conn.Bytes)
+		assert.True(t, conn.TimeoutOrRTO)
+		assert.Equal(t, uint64(3), conn.Retransmits)
+		assert.Equal(t, uint64(11), conn.Bytes)
+	}
 }

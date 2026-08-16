@@ -24,7 +24,6 @@ type baselineCandidate struct {
 	hash     uint64
 	timeout  bool
 	count    uint64
-	rttVar   uint64
 }
 
 type baselinePoolPolicy struct {
@@ -58,21 +57,20 @@ func (p *baselinePool) weakest() *baselineCandidate {
 	return weakest
 }
 
-func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64) {
+func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight uint64) {
 	if candidate, found := p.items[hash]; found {
 		candidate.timeout = candidate.timeout || timeout
 		candidate.count += weight
-		candidate.rttVar = max(candidate.rttVar, rttVar)
 		return
 	}
 
 	if len(p.items) < p.capacity {
-		p.items[hash] = &baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight, rttVar: rttVar}
+		p.items[hash] = &baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight}
 		return
 	}
 
 	weakest := p.weakest()
-	incoming := baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight, rttVar: rttVar}
+	incoming := baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight}
 	if !p.policy.canReplace(weakest, &incoming) {
 		return
 	}
@@ -90,9 +88,6 @@ func diagnosticCandidateBetter(a, b *baselineCandidate) bool {
 	}
 	if a.count != b.count {
 		return a.count > b.count
-	}
-	if a.rttVar != b.rttVar {
-		return a.rttVar > b.rttVar
 	}
 	return a.hash < b.hash
 }
@@ -144,17 +139,16 @@ func New() *Selector {
 // Add records a network path observation.
 func (s *Selector) Add(pathtest common.Pathtest, conn npmodel.NetworkPathConnection) {
 	hash := pathtest.GetHash()
-	diagnostic := conn.TCPTimeout || conn.TCPRTO || conn.Retransmits > 0
+	diagnostic := conn.TimeoutOrRTO || conn.Retransmits > 0
 	if diagnostic {
 		s.healthy.remove(hash)
-		s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar)
+		s.diagnostic.add(hash, pathtest, conn.TimeoutOrRTO, conn.Retransmits)
 		return
 	}
 	if _, found := s.diagnostic.items[hash]; found {
-		s.diagnostic.add(hash, pathtest, false, 0, conn.RTTVar)
 		return
 	}
-	s.healthy.add(hash, pathtest, false, conn.Bytes, 0)
+	s.healthy.add(hash, pathtest, false, conn.Bytes)
 }
 
 // Select returns the highest-ranked baseline paths.
