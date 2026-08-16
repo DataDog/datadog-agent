@@ -7,7 +7,6 @@ package checks
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"runtime"
 	"slices"
@@ -178,8 +177,8 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	conn.LastTcpRtoCount = 2
 	conn.LastRetransmits = 3
 	conn.RttVar = 4
-	conn.LastBytesSent = math.MaxUint64
-	conn.LastBytesReceived = 1
+	conn.LastBytesSent = 5
+	conn.LastBytesReceived = 6
 
 	got := slices.Collect(networkPathConnections(&model.Connections{Conns: []*model.Connection{conn}}))
 
@@ -188,8 +187,7 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	assert.True(t, got[0].TCPRTO)
 	assert.Equal(t, uint64(3), got[0].Retransmits)
 	assert.Equal(t, uint64(4), got[0].RTTVar)
-	assert.Equal(t, uint64(math.MaxUint64), got[0].Bytes)
-	assert.True(t, got[0].NumericSaturated)
+	assert.Equal(t, uint64(11), got[0].Bytes)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

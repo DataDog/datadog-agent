@@ -374,9 +374,6 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 		if admission.discarded {
 			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_discarded", nil, 1)
 		}
-		if admission.saturated {
-			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.numeric_saturation", nil, 1)
-		}
 	}
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_retained", float64(len(s.baselineSelector.diagnostic.items)+len(s.baselineSelector.healthy.items)), nil, 1)
 

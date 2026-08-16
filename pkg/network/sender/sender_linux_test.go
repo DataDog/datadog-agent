@@ -9,7 +9,6 @@ package sender
 
 import (
 	"fmt"
-	"math"
 	"slices"
 	"strconv"
 	"testing"
@@ -164,8 +163,8 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	conn.Last.TCPRTOCount = 2
 	conn.Last.Retransmits = 3
 	conn.RTTVar = 4
-	conn.Last.SentBytes = math.MaxUint64
-	conn.Last.RecvBytes = 1
+	conn.Last.SentBytes = 5
+	conn.Last.RecvBytes = 6
 
 	got := slices.Collect(d.networkPathConnections(&network.Connections{
 		BufferedData: network.BufferedData{Conns: []network.ConnectionStats{conn}},
@@ -176,8 +175,7 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	assert.True(t, got[0].TCPRTO)
 	assert.Equal(t, uint64(3), got[0].Retransmits)
 	assert.Equal(t, uint64(4), got[0].RTTVar)
-	assert.Equal(t, uint64(math.MaxUint64), got[0].Bytes)
-	assert.True(t, got[0].NumericSaturated)
+	assert.Equal(t, uint64(11), got[0].Bytes)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

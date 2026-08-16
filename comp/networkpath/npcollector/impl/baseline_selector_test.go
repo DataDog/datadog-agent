@@ -157,25 +157,6 @@ func TestBaselineSelectorProtectsTimeoutCandidates(t *testing.T) {
 	assert.NotContains(t, selector.diagnostic.items, baselinePathtestHash(&selector.hashDigest, baselineTestPath("retrans-only")))
 }
 
-func TestBaselineSelectorReportsSaturation(t *testing.T) {
-	selector := newBaselineSelector()
-	path := baselineTestPath("saturated")
-	selector.add(path, npmodel.NetworkPathConnection{Bytes: math.MaxUint64})
-	admission := selector.add(path, npmodel.NetworkPathConnection{Bytes: 1})
-	assert.True(t, admission.saturated)
-	assert.Equal(t, uint64(math.MaxUint64), selector.healthy.items[baselinePathtestHash(&selector.hashDigest, path)].count)
-}
-
-func TestBaselineSelectorReportsDiagnosticSaturation(t *testing.T) {
-	selector := newBaselineSelector()
-	path := baselineTestPath("saturated-diagnostic")
-	selector.add(path, npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
-	admission := selector.add(path, npmodel.NetworkPathConnection{Retransmits: 1})
-
-	assert.True(t, admission.saturated)
-	assert.Equal(t, uint64(math.MaxUint64), selector.diagnostic.items[baselinePathtestHash(&selector.hashDigest, path)].count)
-}
-
 func TestBaselineSelectorDeterministicTies(t *testing.T) {
 	selector := newBaselineSelector()
 	paths := []common.Pathtest{baselineTestPath("c"), baselineTestPath("a"), baselineTestPath("b")}

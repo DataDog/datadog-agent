@@ -83,32 +83,31 @@ func (p *baselinePool) weakest() *baselineCandidate {
 	return weakest
 }
 
-func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64) (replaced, discarded, saturated bool) {
+func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64) (replaced, discarded bool) {
 	if candidate, found := p.items[hash]; found {
 		candidate.timeout = candidate.timeout || timeout
-		candidate.count, saturated = npmodel.SaturatingSum(candidate.count, weight)
+		candidate.count += weight
 		candidate.rttVar = max(candidate.rttVar, rttVar)
-		return false, false, saturated
+		return false, false
 	}
 
 	if len(p.items) < p.capacity {
 		p.items[hash] = &baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight, rttVar: rttVar}
-		return false, false, false
+		return false, false
 	}
 
 	weakest := p.weakest()
 	incoming := baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight, rttVar: rttVar}
 	if !p.policy.canReplace(weakest, &incoming) {
-		return false, true, false
+		return false, true
 	}
 	delete(p.items, weakest.hash)
-	estimate, overflow := npmodel.SaturatingSum(weakest.count, weight)
 	// Reuse the evicted entry. High-cardinality snapshots should not allocate a
 	// candidate object for every connection that passes through a bounded pool.
-	incoming.count = estimate
+	incoming.count = weakest.count + weight
 	*weakest = incoming
 	p.items[hash] = weakest
-	return true, false, overflow
+	return true, false
 }
 
 func diagnosticCandidateBetter(a, b *baselineCandidate) bool {
@@ -170,7 +169,6 @@ func newBaselineSelector() *baselineSelector {
 type baselineAdmission struct {
 	replaced  bool
 	discarded bool
-	saturated bool
 }
 
 func (s *baselineSelector) add(pathtest common.Pathtest, conn npmodel.NetworkPathConnection) baselineAdmission {
@@ -178,15 +176,15 @@ func (s *baselineSelector) add(pathtest common.Pathtest, conn npmodel.NetworkPat
 	diagnostic := conn.TCPTimeout || conn.TCPRTO || conn.Retransmits > 0
 	if diagnostic {
 		s.healthy.remove(hash)
-		replaced, discarded, saturated := s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar)
-		return baselineAdmission{replaced: replaced, discarded: discarded, saturated: saturated || conn.NumericSaturated}
+		replaced, discarded := s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar)
+		return baselineAdmission{replaced: replaced, discarded: discarded}
 	}
 	if _, found := s.diagnostic.items[hash]; found {
-		_, _, saturated := s.diagnostic.add(hash, pathtest, false, 0, conn.RTTVar)
-		return baselineAdmission{saturated: saturated || conn.NumericSaturated}
+		s.diagnostic.add(hash, pathtest, false, 0, conn.RTTVar)
+		return baselineAdmission{}
 	}
-	replaced, discarded, saturated := s.healthy.add(hash, pathtest, false, conn.Bytes, 0)
-	return baselineAdmission{replaced: replaced, discarded: discarded, saturated: saturated || conn.NumericSaturated}
+	replaced, discarded := s.healthy.add(hash, pathtest, false, conn.Bytes, 0)
+	return baselineAdmission{replaced: replaced, discarded: discarded}
 }
 
 func (s *baselineSelector) selectPathtests() []common.Pathtest {

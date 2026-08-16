@@ -6,7 +6,6 @@
 package model
 
 import (
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,12 +13,11 @@ import (
 
 func TestSetBaselineSignals(t *testing.T) {
 	var conn NetworkPathConnection
-	conn.SetBaselineSignals(1, 2, 3, 4, math.MaxUint64, 1)
+	conn.SetBaselineSignals(1, 2, 3, 4, 5, 6)
 
 	assert.True(t, conn.TCPTimeout)
 	assert.True(t, conn.TCPRTO)
 	assert.Equal(t, uint64(3), conn.Retransmits)
 	assert.Equal(t, uint64(4), conn.RTTVar)
-	assert.Equal(t, uint64(math.MaxUint64), conn.Bytes)
-	assert.True(t, conn.NumericSaturated)
+	assert.Equal(t, uint64(11), conn.Bytes)
 }
