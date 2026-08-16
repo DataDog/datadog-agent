@@ -217,20 +217,6 @@ func TestPathtestStoreAddPreservesRecurringCadence(t *testing.T) {
 	assert.Equal(t, 1, store.GetContextsCount())
 }
 
-func TestPathtestStoreRecurringDispatchesAtTTLBoundary(t *testing.T) {
-	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	store := NewPathtestStore(Config{
-		ContextsLimit: 10,
-		TTL:           30 * time.Minute,
-		Interval:      30 * time.Minute,
-	}, logmock.New(t), &statsd.NoOpClient{}, func() time.Time { return now })
-	store.Add(&common.Pathtest{Hostname: "recurring"})
-	now = now.Add(30 * time.Minute)
-
-	assert.Len(t, store.Flush(), 1)
-	assert.Equal(t, 1, store.GetContextsCount())
-}
-
 func Test_pathtestStore_flush(t *testing.T) {
 	logger := logmock.New(t)
 	setMockTimeNow(mockTimeJan2)

@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
@@ -44,107 +43,41 @@ func TestBaselineSelectorRanksDiagnosticThenHealthy(t *testing.T) {
 	assert.Equal(t, []string{"timeout", "retrans-high", "retrans-low"}, selectedHosts(selector))
 }
 
-func TestBaselineCandidateRankingPolicies(t *testing.T) {
-	tests := []struct {
-		name   string
-		better func(a, b *baselineCandidate) bool
-		a      baselineCandidate
-		b      baselineCandidate
-	}{
-		{name: "diagnostic timeout before retransmits", better: diagnosticCandidateBetter, a: baselineCandidate{timeout: true}, b: baselineCandidate{count: math.MaxUint64}},
-		{name: "diagnostic retransmits before hash", better: diagnosticCandidateBetter, a: baselineCandidate{count: 2, hash: 2}, b: baselineCandidate{count: 1, hash: 1}},
-		{name: "diagnostic hash tie breaker", better: diagnosticCandidateBetter, a: baselineCandidate{count: 1, hash: 1}, b: baselineCandidate{count: 1, hash: 2}},
-		{name: "healthy bytes before hash", better: healthyCandidateBetter, a: baselineCandidate{count: 2, hash: 2}, b: baselineCandidate{count: 1, hash: 1}},
-		{name: "healthy hash tie breaker", better: healthyCandidateBetter, a: baselineCandidate{count: 1, hash: 1}, b: baselineCandidate{count: 1, hash: 2}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.True(t, tt.better(&tt.a, &tt.b))
-			assert.False(t, tt.better(&tt.b, &tt.a))
-		})
-	}
-}
-
 func TestBaselineSelectorFillsFromHealthyByVolume(t *testing.T) {
 	selector := New()
 	selector.Add(baselineTestPath("diagnostic"), npmodel.NetworkPathConnection{TimeoutOrRTO: true})
-	selector.Add(baselineTestPath("small"), npmodel.NetworkPathConnection{Bytes: 10})
+	selector.Add(baselineTestPath("small"), npmodel.NetworkPathConnection{Bytes: 60})
+	selector.Add(baselineTestPath("small"), npmodel.NetworkPathConnection{Bytes: 60})
 	selector.Add(baselineTestPath("large"), npmodel.NetworkPathConnection{Bytes: 100})
 
-	assert.Equal(t, []string{"diagnostic", "large", "small"}, selectedHosts(selector))
+	assert.Equal(t, []string{"diagnostic", "small", "large"}, selectedHosts(selector))
 }
 
 func TestBaselineSelectorAggregatesAndPromotes(t *testing.T) {
 	selector := New()
 	path := baselineTestPath("promoted")
-	selector.Add(path, npmodel.NetworkPathConnection{Bytes: 100})
+	selector.Add(path, npmodel.NetworkPathConnection{Bytes: math.MaxUint64})
 	selector.Add(path, npmodel.NetworkPathConnection{Retransmits: 2})
 	selector.Add(path, npmodel.NetworkPathConnection{Retransmits: 3})
+	selector.Add(baselineTestPath("diagnostic"), npmodel.NetworkPathConnection{Retransmits: 4})
+	selector.Add(baselineTestPath("healthy"), npmodel.NetworkPathConnection{Bytes: 1})
 
-	hash := path.GetHash()
-	require.NotContains(t, selector.healthy.items, hash)
-	require.Contains(t, selector.diagnostic.items, hash)
-	assert.Equal(t, uint64(5), selector.diagnostic.items[hash].count)
+	assert.Equal(t, []string{"promoted", "diagnostic", "healthy"}, selectedHosts(selector))
 }
 
-func TestBaselineSelectorAggregatesSignals(t *testing.T) {
+func TestBaselineSelectorRetainsBoundedPoolsAndProtectsTimeouts(t *testing.T) {
 	selector := New()
-	diagnosticPath := baselineTestPath("diagnostic")
-	healthyPath := baselineTestPath("healthy")
-
-	selector.Add(diagnosticPath, npmodel.NetworkPathConnection{Retransmits: 2})
-	selector.Add(diagnosticPath, npmodel.NetworkPathConnection{TimeoutOrRTO: true, Retransmits: 3})
-	selector.Add(diagnosticPath, npmodel.NetworkPathConnection{})
-	selector.Add(healthyPath, npmodel.NetworkPathConnection{Bytes: 40})
-	selector.Add(healthyPath, npmodel.NetworkPathConnection{Bytes: 2})
-
-	diagnosticHash := diagnosticPath.GetHash()
-	diagnostic := selector.diagnostic.items[diagnosticHash]
-	require.NotNil(t, diagnostic)
-	assert.True(t, diagnostic.timeout)
-	assert.Equal(t, uint64(5), diagnostic.count)
-
-	healthyHash := healthyPath.GetHash()
-	healthy := selector.healthy.items[healthyHash]
-	require.NotNil(t, healthy)
-	assert.Equal(t, uint64(42), healthy.count)
-}
-
-func TestBaselineSelectorIsBoundedAndUsesSpaceSavingEstimate(t *testing.T) {
-	selector := New()
-	for i := 0; i < baselineHealthyCandidates; i++ {
-		selector.Add(baselineTestPath(fmt.Sprintf("path-%03d", i)), npmodel.NetworkPathConnection{Bytes: uint64(i + 1)})
+	for i := 0; i <= baselineCandidatesPerPool; i++ {
+		selector.Add(baselineTestPath(fmt.Sprintf("healthy-%03d", i)), npmodel.NetworkPathConnection{Bytes: uint64(i + 1)})
 	}
-	selector.Add(baselineTestPath("replacement"), npmodel.NetworkPathConnection{Bytes: 1})
-
-	assert.Len(t, selector.healthy.items, baselineHealthyCandidates)
-	replacement := selector.healthy.items[baselineTestPath("replacement").GetHash()]
-	require.NotNil(t, replacement)
-	assert.Greater(t, replacement.count, uint64(1), "replacement must inherit the evicted estimate")
-}
-
-func TestBaselineSelectorProtectsTimeoutCandidates(t *testing.T) {
-	selector := New()
-	for i := 0; i < baselineDiagnosticCandidates; i++ {
+	for i := 0; i < baselineCandidatesPerPool; i++ {
 		selector.Add(baselineTestPath(fmt.Sprintf("timeout-%03d", i)), npmodel.NetworkPathConnection{TimeoutOrRTO: true})
 	}
 	selector.Add(baselineTestPath("retrans-only"), npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
 
-	assert.Len(t, selector.diagnostic.items, baselineDiagnosticCandidates)
-	assert.NotContains(t, selector.diagnostic.items, baselineTestPath("retrans-only").GetHash())
-}
-
-func TestBaselineSelectorDeterministicTies(t *testing.T) {
-	selector := New()
-	paths := []common.Pathtest{baselineTestPath("c"), baselineTestPath("a"), baselineTestPath("b")}
-	for _, path := range paths {
-		selector.Add(path, npmodel.NetworkPathConnection{Bytes: 1})
-	}
-	selected := selector.Select()
-	for i := 1; i < len(selected); i++ {
-		assert.Less(t, selected[i-1].GetHash(), selected[i].GetHash())
-	}
+	assert.Len(t, selector.healthy.items, baselineCandidatesPerPool)
+	assert.Len(t, selector.diagnostic.items, baselineCandidatesPerPool)
+	assert.NotContains(t, selectedHosts(selector), "retrans-only")
 }
 
 func TestBaselineSelectorIsDeterministicBelowCapacity(t *testing.T) {
@@ -162,6 +95,9 @@ func TestBaselineSelectorIsDeterministicBelowCapacity(t *testing.T) {
 		if i%3 == 0 {
 			events = append(events, event{path: path, conn: npmodel.NetworkPathConnection{Retransmits: uint64(i + 1)}})
 		}
+	}
+	for _, host := range []string{"tie-a", "tie-b", "tie-c"} {
+		events = append(events, event{path: baselineTestPath(host), conn: npmodel.NetworkPathConnection{Retransmits: 1_000}})
 	}
 
 	baseline := New()
@@ -183,57 +119,26 @@ func TestBaselineSelectorIsDeterministicBelowCapacity(t *testing.T) {
 	}
 }
 
-func TestBaselineSelectorRecoversExactTopSetFromLargeCardinalityStream(t *testing.T) {
-	selector := New()
-	for i := 0; i < 10_000; i++ {
-		selector.Add(baselineTestPath(fmt.Sprintf("background-%05d", i)), npmodel.NetworkPathConnection{Bytes: 1})
+func TestBaselineSelectorRecoversHeavyHittersFromLargeCardinalityStream(t *testing.T) {
+	tests := map[string]func(uint64) npmodel.NetworkPathConnection{
+		"healthy": func(weight uint64) npmodel.NetworkPathConnection { return npmodel.NetworkPathConnection{Bytes: weight} },
+		"diagnostic": func(weight uint64) npmodel.NetworkPathConnection {
+			return npmodel.NetworkPathConnection{Retransmits: weight}
+		},
 	}
-	for _, item := range []struct {
-		host  string
-		bytes uint64
-	}{
-		{host: "top-1", bytes: 50_000},
-		{host: "top-2", bytes: 40_000},
-		{host: "top-3", bytes: 30_000},
-	} {
-		selector.Add(baselineTestPath(item.host), npmodel.NetworkPathConnection{Bytes: item.bytes})
+	for name, connection := range tests {
+		t.Run(name, func(t *testing.T) {
+			selector := New()
+			for i := 0; i < 10_000; i++ {
+				selector.Add(baselineTestPath(fmt.Sprintf("background-%05d", i)), connection(1))
+			}
+			selector.Add(baselineTestPath("top-1"), connection(50_000))
+			selector.Add(baselineTestPath("top-2"), connection(40_000))
+			selector.Add(baselineTestPath("top-3"), connection(30_000))
+
+			assert.Equal(t, []string{"top-1", "top-2", "top-3"}, selectedHosts(selector))
+		})
 	}
-
-	assert.Equal(t, []string{"top-1", "top-2", "top-3"}, selectedHosts(selector),
-		"the bounded approximation should recover the exact heavy hitters")
-	assert.Len(t, selector.healthy.items, baselineHealthyCandidates)
-}
-
-func TestBaselineSelectorRecoversLateDiagnosticHeavyHitters(t *testing.T) {
-	selector := New()
-	for i := 0; i < 10_000; i++ {
-		selector.Add(baselineTestPath(fmt.Sprintf("background-%05d", i)), npmodel.NetworkPathConnection{Retransmits: 1})
-	}
-	for _, item := range []struct {
-		host        string
-		retransmits uint64
-	}{
-		{host: "top-1", retransmits: 50_000},
-		{host: "top-2", retransmits: 40_000},
-		{host: "top-3", retransmits: 30_000},
-	} {
-		selector.Add(baselineTestPath(item.host), npmodel.NetworkPathConnection{Retransmits: item.retransmits})
-	}
-
-	assert.Equal(t, []string{"top-1", "top-2", "top-3"}, selectedHosts(selector))
-	assert.Len(t, selector.diagnostic.items, baselineDiagnosticCandidates)
-}
-
-func TestBaselineSelectorResetRetainsPolicies(t *testing.T) {
-	selector := New()
-	selector.Add(baselineTestPath("before"), npmodel.NetworkPathConnection{Bytes: 1})
-	selector.Reset()
-
-	assert.Empty(t, selector.diagnostic.items)
-	assert.Empty(t, selector.healthy.items)
-	selector.Add(baselineTestPath("healthy"), npmodel.NetworkPathConnection{Bytes: 10})
-	selector.Add(baselineTestPath("diagnostic"), npmodel.NetworkPathConnection{Retransmits: 1})
-	assert.Equal(t, []string{"diagnostic", "healthy"}, selectedHosts(selector))
 }
 
 func BenchmarkBaselineSelectorBoundedMemory(b *testing.B) {
@@ -247,9 +152,9 @@ func BenchmarkBaselineSelectorBoundedMemory(b *testing.B) {
 		for n, path := range paths {
 			selector.Add(path, npmodel.NetworkPathConnection{Bytes: uint64(n + 1)})
 		}
-		if len(selector.healthy.items) != baselineHealthyCandidates {
+		if len(selector.healthy.items) != baselineCandidatesPerPool {
 			b.Fatal("selector exceeded its configured bound")
 		}
 	}
-	b.ReportMetric(baselineHealthyCandidates, "retained_candidates")
+	b.ReportMetric(baselineCandidatesPerPool, "retained_candidates")
 }

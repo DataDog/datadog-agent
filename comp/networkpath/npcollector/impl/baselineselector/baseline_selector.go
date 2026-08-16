@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	baselineDiagnosticCandidates = 128
-	baselineHealthyCandidates    = 128
-	baselineSelectionsPerWindow  = 3
+	baselineCandidatesPerPool     = 128
+	baselineSelectionsPerSnapshot = 3
 )
 
 type baselineCandidate struct {
@@ -26,31 +25,24 @@ type baselineCandidate struct {
 	count    uint64
 }
 
-type baselinePoolPolicy struct {
-	better     func(a, b *baselineCandidate) bool
-	canReplace func(weakest, incoming *baselineCandidate) bool
-}
-
 type baselinePool struct {
-	capacity int
-	items    map[uint64]*baselineCandidate
-	policy   baselinePoolPolicy
+	items           map[uint64]*baselineCandidate
+	better          func(a, b *baselineCandidate) bool
+	protectTimeouts bool
 }
 
-func newBaselinePool(capacity int, policy baselinePoolPolicy) baselinePool {
+func newBaselinePool(better func(a, b *baselineCandidate) bool, protectTimeouts bool) baselinePool {
 	return baselinePool{
-		capacity: capacity,
-		items:    make(map[uint64]*baselineCandidate, capacity),
-		policy:   policy,
+		items:           make(map[uint64]*baselineCandidate, baselineCandidatesPerPool),
+		better:          better,
+		protectTimeouts: protectTimeouts,
 	}
 }
-
-func (p *baselinePool) remove(hash uint64) { delete(p.items, hash) }
 
 func (p *baselinePool) weakest() *baselineCandidate {
 	var weakest *baselineCandidate
 	for _, candidate := range p.items {
-		if weakest == nil || p.policy.better(weakest, candidate) {
+		if weakest == nil || p.better(weakest, candidate) {
 			weakest = candidate
 		}
 	}
@@ -64,14 +56,14 @@ func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, 
 		return
 	}
 
-	if len(p.items) < p.capacity {
+	if len(p.items) < baselineCandidatesPerPool {
 		p.items[hash] = &baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight}
 		return
 	}
 
 	weakest := p.weakest()
 	incoming := baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight}
-	if !p.policy.canReplace(weakest, &incoming) {
+	if p.protectTimeouts && weakest.timeout && !incoming.timeout {
 		return
 	}
 	delete(p.items, weakest.hash)
@@ -99,24 +91,16 @@ func healthyCandidateBetter(a, b *baselineCandidate) bool {
 	return a.hash < b.hash
 }
 
-func alwaysReplace(_, _ *baselineCandidate) bool { return true }
-
-// A retransmit-only candidate cannot displace a timeout/RTO candidate. All
-// other replacement decisions use Space-Saving estimates and the pool rank.
-func canReplaceDiagnostic(weakest, incoming *baselineCandidate) bool {
-	return !weakest.timeout || incoming.timeout
-}
-
 func (p *baselinePool) sorted() []*baselineCandidate {
 	result := make([]*baselineCandidate, 0, len(p.items))
 	for _, candidate := range p.items {
 		result = append(result, candidate)
 	}
-	sort.Slice(result, func(i, j int) bool { return p.policy.better(result[i], result[j]) })
+	sort.Slice(result, func(i, j int) bool { return p.better(result[i], result[j]) })
 	return result
 }
 
-// Selector retains and ranks a bounded set of baseline path candidates.
+// Selector retains and ranks a bounded set of baseline path candidates from one connection snapshot.
 type Selector struct {
 	diagnostic baselinePool
 	healthy    baselinePool
@@ -125,14 +109,8 @@ type Selector struct {
 // New creates a baseline selector.
 func New() *Selector {
 	return &Selector{
-		diagnostic: newBaselinePool(baselineDiagnosticCandidates, baselinePoolPolicy{
-			better:     diagnosticCandidateBetter,
-			canReplace: canReplaceDiagnostic,
-		}),
-		healthy: newBaselinePool(baselineHealthyCandidates, baselinePoolPolicy{
-			better:     healthyCandidateBetter,
-			canReplace: alwaysReplace,
-		}),
+		diagnostic: newBaselinePool(diagnosticCandidateBetter, true),
+		healthy:    newBaselinePool(healthyCandidateBetter, false),
 	}
 }
 
@@ -141,7 +119,7 @@ func (s *Selector) Add(pathtest common.Pathtest, conn npmodel.NetworkPathConnect
 	hash := pathtest.GetHash()
 	diagnostic := conn.TimeoutOrRTO || conn.Retransmits > 0
 	if diagnostic {
-		s.healthy.remove(hash)
+		delete(s.healthy.items, hash)
 		s.diagnostic.add(hash, pathtest, conn.TimeoutOrRTO, conn.Retransmits)
 		return
 	}
@@ -153,24 +131,18 @@ func (s *Selector) Add(pathtest common.Pathtest, conn npmodel.NetworkPathConnect
 
 // Select returns the highest-ranked baseline paths.
 func (s *Selector) Select() []common.Pathtest {
-	selected := make([]common.Pathtest, 0, baselineSelectionsPerWindow)
+	selected := make([]common.Pathtest, 0, baselineSelectionsPerSnapshot)
 	for _, candidate := range s.diagnostic.sorted() {
 		selected = append(selected, candidate.pathtest)
-		if len(selected) == baselineSelectionsPerWindow {
+		if len(selected) == baselineSelectionsPerSnapshot {
 			return selected
 		}
 	}
 	for _, candidate := range s.healthy.sorted() {
 		selected = append(selected, candidate.pathtest)
-		if len(selected) == baselineSelectionsPerWindow {
+		if len(selected) == baselineSelectionsPerSnapshot {
 			break
 		}
 	}
 	return selected
-}
-
-// Reset removes all retained candidates.
-func (s *Selector) Reset() {
-	clear(s.diagnostic.items)
-	clear(s.healthy.items)
 }

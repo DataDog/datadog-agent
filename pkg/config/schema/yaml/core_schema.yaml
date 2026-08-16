@@ -1727,9 +1727,10 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            description: Enables up to three included Network Path Dynamic Tests immediately
-              for the first eligible snapshot, then every 30 minutes, when Cloud Network
-              Monitoring is enabled. Requires traceroute.enabled in the system-probe configuration.
+            description: Selects up to three included Network Path Dynamic Test candidates from
+              each eligible Cloud Network Monitoring snapshot. The collector's existing deduplication,
+              interval, TTL, context limit, and rate limit control their execution. Requires
+              traceroute.enabled in the system-probe configuration.
             example: 'true'
       collector:
         node_type: section

@@ -21,6 +21,5 @@ dd_agent_go_test(
         "//comp/networkpath/npcollector/model",
         "//pkg/networkpath/payload",
         "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )

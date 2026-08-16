@@ -38,7 +38,6 @@ import (
 )
 
 const (
-	baselineSelectionInterval           = 30 * time.Minute
 	reverseDNSLookupMetricPrefix        = common.NetworkPathCollectorMetricPrefix + "reverse_dns_lookup."
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
@@ -88,10 +87,6 @@ type npCollectorImpl struct {
 	filter                  *connfilter.ConnFilter
 	localIPs                *localIPCache
 	remoteConfigState       dynamicRemoteConfigState
-	baselineMutex           sync.Mutex
-	baselineSelector        *baselineselector.Selector
-	baselineDeadline        time.Time
-	baselineStarted         bool
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -139,8 +134,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushLoopDone:         make(chan struct{}),
 		workersDone:           make(chan struct{}),
 
-		filter:           filter,
-		baselineSelector: baselineselector.New(),
+		filter: filter,
 	}
 }
 
@@ -349,37 +343,19 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 		return
 	}
 
-	s.baselineMutex.Lock()
-	defer s.baselineMutex.Unlock()
-	now := s.TimeNowFn()
-	if s.baselineStarted && !now.Before(s.baselineDeadline) {
-		s.closeBaselineWindow(now)
-	}
-
-	hasEligible := false
+	selector := baselineselector.New()
 	for conn := range conns {
 		evaluation := s.evaluateNetworkPathForConn(conn, payload.PathOriginNetworkTraffic, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			continue
 		}
-		hasEligible = true
 		pathtest := s.makePathtest(conn, payload.PathOriginNetworkTraffic)
 		pathtest.DynamicTestProfile = payload.DynamicTestProfileBaseline
-		s.baselineSelector.Add(pathtest, conn)
+		selector.Add(pathtest, conn)
 	}
 
-	if !s.baselineStarted && hasEligible {
-		s.baselineStarted = true
-		s.closeBaselineWindow(now)
-	}
-}
-
-func (s *npCollectorImpl) closeBaselineWindow(now time.Time) {
-	selected := s.baselineSelector.Select()
-	s.baselineSelector.Reset()
-	s.baselineDeadline = now.Add(baselineSelectionInterval)
-	for i := range selected {
-		if err := s.scheduleOne(&selected[i]); err != nil {
+	for _, selected := range selector.Select() {
+		if err := s.scheduleOne(&selected); err != nil {
 			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
 		}
 	}
