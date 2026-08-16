@@ -85,7 +85,6 @@ type npCollectorImpl struct {
 
 	networkDevicesNamespace string
 	filterMutex             sync.RWMutex
-	localFilter             *connfilter.ConnFilter
 	filter                  *connfilter.ConnFilter
 	localIPs                *localIPCache
 	remoteConfigState       dynamicRemoteConfigState
@@ -140,7 +139,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushLoopDone:         make(chan struct{}),
 		workersDone:           make(chan struct{}),
 
-		localFilter:      filter,
 		filter:           filter,
 		baselineSelector: newBaselineSelector(),
 	}
@@ -222,10 +220,6 @@ type pathEvaluation struct {
 }
 
 func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix) pathEvaluation {
-	return s.evaluateNetworkPathForConnWithFilters(conn, origin, vpcSubnets, true)
-}
-
-func (s *npCollectorImpl) evaluateNetworkPathForConnWithFilters(conn npmodel.NetworkPathConnection, origin payload.PathOrigin, vpcSubnets []netip.Prefix, includeRemoteFilters bool) pathEvaluation {
 	if conn.IntraHost {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
 		return pathEvaluation{}
@@ -255,11 +249,7 @@ func (s *npCollectorImpl) evaluateNetworkPathForConnWithFilters(conn npmodel.Net
 	}
 
 	s.filterMutex.RLock()
-	filter := s.localFilter
-	if includeRemoteFilters {
-		filter = s.filter
-	}
-	included, testConfigID, tags := filter.EvaluateWithTags(conn.Domain, conn.Dest.Addr())
+	included, testConfigID, tags := s.filter.EvaluateWithTags(conn.Domain, conn.Dest.Addr())
 	s.filterMutex.RUnlock()
 	if !included {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
@@ -305,7 +295,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	switch s.collectorConfigs.dynamicTestsState {
 	case npconfig.DynamicTestsStandard:
-		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, true, payload.DynamicTestProfileStandard)
+		s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, payload.DynamicTestProfileStandard)
 	case npconfig.DynamicTestsBaseline:
 		s.scheduleBaselineNetworkPathTests(conns)
 	}
@@ -315,10 +305,10 @@ func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.Networ
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, true, "")
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, "")
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], includeRemoteFilters bool, profile payload.DynamicTestProfile) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], profile payload.DynamicTestProfile) {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
@@ -333,7 +323,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	connCount := 0
 	for conn := range conns {
 		connCount++
-		evaluation := s.evaluateNetworkPathForConnWithFilters(conn, origin, vpcSubnets, includeRemoteFilters)
+		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
@@ -370,7 +360,7 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 
 	eligible := 0
 	for conn := range conns {
-		evaluation := s.evaluateNetworkPathForConnWithFilters(conn, payload.PathOriginNetworkTraffic, vpcSubnets, false)
+		evaluation := s.evaluateNetworkPathForConn(conn, payload.PathOriginNetworkTraffic, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			continue
 		}

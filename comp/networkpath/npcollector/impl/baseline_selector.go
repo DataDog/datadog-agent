@@ -29,13 +29,23 @@ type baselineCandidate struct {
 	rttVar   uint64
 }
 
+type baselinePoolPolicy struct {
+	better     func(a, b *baselineCandidate) bool
+	canReplace func(weakest, incoming *baselineCandidate) bool
+}
+
 type baselinePool struct {
 	capacity int
 	items    map[uint64]*baselineCandidate
+	policy   baselinePoolPolicy
 }
 
-func newBaselinePool(capacity int) baselinePool {
-	return baselinePool{capacity: capacity, items: make(map[uint64]*baselineCandidate, capacity)}
+func newBaselinePool(capacity int, policy baselinePoolPolicy) baselinePool {
+	return baselinePool{
+		capacity: capacity,
+		items:    make(map[uint64]*baselineCandidate, capacity),
+		policy:   policy,
+	}
 }
 
 // baselinePathtestHash is deliberately local to the bounded selector. The
@@ -63,17 +73,17 @@ func writeBaselineHashString(digest *xxhash.Digest, value string) {
 
 func (p *baselinePool) remove(hash uint64) { delete(p.items, hash) }
 
-func (p *baselinePool) weakest(diagnostic bool) *baselineCandidate {
+func (p *baselinePool) weakest() *baselineCandidate {
 	var weakest *baselineCandidate
 	for _, candidate := range p.items {
-		if weakest == nil || baselineBetter(weakest, candidate, diagnostic) {
+		if weakest == nil || p.policy.better(weakest, candidate) {
 			weakest = candidate
 		}
 	}
 	return weakest
 }
 
-func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64, diagnostic bool) (replaced, discarded, saturated bool) {
+func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, weight, rttVar uint64) (replaced, discarded, saturated bool) {
 	if candidate, found := p.items[hash]; found {
 		candidate.timeout = candidate.timeout || timeout
 		candidate.count, saturated = npmodel.SaturatingSum(candidate.count, weight)
@@ -86,46 +96,55 @@ func (p *baselinePool) add(hash uint64, pathtest common.Pathtest, timeout bool, 
 		return false, false, false
 	}
 
-	weakest := p.weakest(diagnostic)
-	// Timeout/RTO is the primary diagnostic class. Do not let a non-timeout
-	// candidate evict one when the diagnostic pool contains only timeouts.
-	if diagnostic && weakest.timeout && !timeout {
+	weakest := p.weakest()
+	incoming := baselineCandidate{pathtest: pathtest, hash: hash, timeout: timeout, count: weight, rttVar: rttVar}
+	if !p.policy.canReplace(weakest, &incoming) {
 		return false, true, false
 	}
 	delete(p.items, weakest.hash)
 	estimate, overflow := npmodel.SaturatingSum(weakest.count, weight)
 	// Reuse the evicted entry. High-cardinality snapshots should not allocate a
 	// candidate object for every connection that passes through a bounded pool.
-	*weakest = baselineCandidate{
-		pathtest: pathtest,
-		hash:     hash,
-		timeout:  timeout,
-		count:    estimate,
-		rttVar:   rttVar,
-	}
+	incoming.count = estimate
+	*weakest = incoming
 	p.items[hash] = weakest
 	return true, false, overflow
 }
 
-func baselineBetter(a, b *baselineCandidate, diagnostic bool) bool {
-	if diagnostic && a.timeout != b.timeout {
+func diagnosticCandidateBetter(a, b *baselineCandidate) bool {
+	if a.timeout != b.timeout {
 		return a.timeout
 	}
 	if a.count != b.count {
 		return a.count > b.count
 	}
-	if diagnostic && a.rttVar != b.rttVar {
+	if a.rttVar != b.rttVar {
 		return a.rttVar > b.rttVar
 	}
 	return a.hash < b.hash
 }
 
-func (p *baselinePool) sorted(diagnostic bool) []*baselineCandidate {
+func healthyCandidateBetter(a, b *baselineCandidate) bool {
+	if a.count != b.count {
+		return a.count > b.count
+	}
+	return a.hash < b.hash
+}
+
+func alwaysReplace(_, _ *baselineCandidate) bool { return true }
+
+// A retransmit-only candidate cannot displace a timeout/RTO candidate. All
+// other replacement decisions use Space-Saving estimates and the pool rank.
+func canReplaceDiagnostic(weakest, incoming *baselineCandidate) bool {
+	return !weakest.timeout || incoming.timeout
+}
+
+func (p *baselinePool) sorted() []*baselineCandidate {
 	result := make([]*baselineCandidate, 0, len(p.items))
 	for _, candidate := range p.items {
 		result = append(result, candidate)
 	}
-	sort.Slice(result, func(i, j int) bool { return baselineBetter(result[i], result[j], diagnostic) })
+	sort.Slice(result, func(i, j int) bool { return p.policy.better(result[i], result[j]) })
 	return result
 }
 
@@ -137,8 +156,14 @@ type baselineSelector struct {
 
 func newBaselineSelector() *baselineSelector {
 	return &baselineSelector{
-		diagnostic: newBaselinePool(baselineDiagnosticCandidates),
-		healthy:    newBaselinePool(baselineHealthyCandidates),
+		diagnostic: newBaselinePool(baselineDiagnosticCandidates, baselinePoolPolicy{
+			better:     diagnosticCandidateBetter,
+			canReplace: canReplaceDiagnostic,
+		}),
+		healthy: newBaselinePool(baselineHealthyCandidates, baselinePoolPolicy{
+			better:     healthyCandidateBetter,
+			canReplace: alwaysReplace,
+		}),
 	}
 }
 
@@ -153,26 +178,26 @@ func (s *baselineSelector) add(pathtest common.Pathtest, conn npmodel.NetworkPat
 	diagnostic := conn.TCPTimeout || conn.TCPRTO || conn.Retransmits > 0
 	if diagnostic {
 		s.healthy.remove(hash)
-		replaced, discarded, saturated := s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar, true)
+		replaced, discarded, saturated := s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar)
 		return baselineAdmission{replaced: replaced, discarded: discarded, saturated: saturated || conn.NumericSaturated}
 	}
 	if _, found := s.diagnostic.items[hash]; found {
-		_, _, saturated := s.diagnostic.add(hash, pathtest, false, 0, conn.RTTVar, true)
+		_, _, saturated := s.diagnostic.add(hash, pathtest, false, 0, conn.RTTVar)
 		return baselineAdmission{saturated: saturated || conn.NumericSaturated}
 	}
-	replaced, discarded, saturated := s.healthy.add(hash, pathtest, false, conn.Bytes, 0, false)
+	replaced, discarded, saturated := s.healthy.add(hash, pathtest, false, conn.Bytes, 0)
 	return baselineAdmission{replaced: replaced, discarded: discarded, saturated: saturated || conn.NumericSaturated}
 }
 
 func (s *baselineSelector) selectPathtests() []common.Pathtest {
 	selected := make([]common.Pathtest, 0, baselineSelectionsPerWindow)
-	for _, candidate := range s.diagnostic.sorted(true) {
+	for _, candidate := range s.diagnostic.sorted() {
 		selected = append(selected, candidate.pathtest)
 		if len(selected) == baselineSelectionsPerWindow {
 			return selected
 		}
 	}
-	for _, candidate := range s.healthy.sorted(false) {
+	for _, candidate := range s.healthy.sorted() {
 		selected = append(selected, candidate.pathtest)
 		if len(selected) == baselineSelectionsPerWindow {
 			break
@@ -182,6 +207,6 @@ func (s *baselineSelector) selectPathtests() []common.Pathtest {
 }
 
 func (s *baselineSelector) reset() {
-	s.diagnostic = newBaselinePool(baselineDiagnosticCandidates)
-	s.healthy = newBaselinePool(baselineHealthyCandidates)
+	clear(s.diagnostic.items)
+	clear(s.healthy.items)
 }

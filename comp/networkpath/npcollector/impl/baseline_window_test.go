@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 )
 
@@ -112,24 +111,4 @@ func TestBaselineSelectionConsumesSlotsBeforeChannelAdmission(t *testing.T) {
 	assert.Equal(t, int64(3), stats.GetCountSummaries()["datadog.network_path.collector.baseline.selections"].Sum,
 		"all selected slots are consumed even when downstream admission drops tests")
 	assert.Equal(t, int64(2), stats.GetCountSummaries()["datadog.network_path.collector.schedule.pathtest_dropped"].Sum)
-}
-
-func TestBaselineBypassesRemoteFiltersButStandardDoesNot(t *testing.T) {
-	remoteExclude := []connfilter.Config{{Type: connfilter.FilterTypeExclude, MatchIP: "10.0.0.1"}}
-
-	_, baseline := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.baseline_tests_enabled": true,
-		"network_path.collector.monitor_ip_without_domain":           true,
-	}, &teststatsd.Client{}, nil)
-	baseline.replaceRemoteFilters(remoteExclude)
-	baseline.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{baselineWindowConn("10.0.0.1", 1)}))
-	require.Len(t, baseline.pathtestInputChan, 1, "mutable remote filters must not change baseline eligibility")
-
-	_, standard := newTestNpCollector(t, map[string]any{
-		"network_path.connections_monitoring.enabled":      true,
-		"network_path.collector.monitor_ip_without_domain": true,
-	}, &teststatsd.Client{}, nil)
-	standard.replaceRemoteFilters(remoteExclude)
-	standard.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{baselineWindowConn("10.0.0.1", 1)}))
-	assert.Empty(t, standard.pathtestInputChan, "standard tests must continue to honor remote filters")
 }
