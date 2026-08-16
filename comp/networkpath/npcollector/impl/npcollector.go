@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"iter"
 	"net/netip"
+	"sort"
 	"sync"
 	"time"
 
@@ -22,7 +23,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/baselineselector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
@@ -38,11 +38,55 @@ import (
 )
 
 const (
+	baselineSelectionsPerSnapshot       = 3
 	reverseDNSLookupMetricPrefix        = common.NetworkPathCollectorMetricPrefix + "reverse_dns_lookup."
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
 	netpathConnsSkippedMetricName       = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
 )
+
+type baselineCandidate struct {
+	pathtest   common.Pathtest
+	hash       uint64
+	diagnostic bool
+	bytes      uint64
+}
+
+func baselineCandidateBetter(a, b baselineCandidate) bool {
+	if a.diagnostic != b.diagnostic {
+		return a.diagnostic
+	}
+	if a.bytes != b.bytes {
+		return a.bytes > b.bytes
+	}
+	return a.hash < b.hash
+}
+
+func addBaselineCandidate(selected []baselineCandidate, candidate baselineCandidate) []baselineCandidate {
+	// A discarded observation cannot become a winner unless the same path is
+	// observed later with a stronger score, at which point it is reconsidered.
+	for i := range selected {
+		if selected[i].hash != candidate.hash {
+			continue
+		}
+		if !baselineCandidateBetter(candidate, selected[i]) {
+			return selected
+		}
+		selected[i] = candidate
+		sort.Slice(selected, func(i, j int) bool { return baselineCandidateBetter(selected[i], selected[j]) })
+		return selected
+	}
+
+	if len(selected) < baselineSelectionsPerSnapshot {
+		selected = append(selected, candidate)
+	} else if baselineCandidateBetter(candidate, selected[len(selected)-1]) {
+		selected[len(selected)-1] = candidate
+	} else {
+		return selected
+	}
+	sort.Slice(selected, func(i, j int) bool { return baselineCandidateBetter(selected[i], selected[j]) })
+	return selected
+}
 
 var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
 
@@ -343,7 +387,7 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 		return
 	}
 
-	selector := baselineselector.New()
+	selected := make([]baselineCandidate, 0, baselineSelectionsPerSnapshot)
 	for conn := range conns {
 		evaluation := s.evaluateNetworkPathForConn(conn, payload.PathOriginNetworkTraffic, vpcSubnets)
 		if !evaluation.shouldSchedule {
@@ -351,11 +395,16 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 		}
 		pathtest := s.makePathtest(conn, payload.PathOriginNetworkTraffic)
 		pathtest.DynamicTestProfile = payload.DynamicTestProfileBaseline
-		selector.Add(pathtest, conn)
+		selected = addBaselineCandidate(selected, baselineCandidate{
+			pathtest:   pathtest,
+			hash:       pathtest.GetHash(),
+			diagnostic: conn.BaselineDiagnostic,
+			bytes:      conn.BaselineBytes,
+		})
 	}
 
-	for _, selected := range selector.Select() {
-		if err := s.scheduleOne(&selected); err != nil {
+	for i := range selected {
+		if err := s.scheduleOne(&selected[i].pathtest); err != nil {
 			s.logger.Errorf("Error scheduling baseline pathtest: %s", err)
 		}
 	}

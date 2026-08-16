@@ -12,12 +12,18 @@ import (
 )
 
 func TestSetBaselineSignals(t *testing.T) {
-	for _, counts := range [][2]uint64{{1, 0}, {0, 1}} {
-		var conn NetworkPathConnection
-		conn.SetBaselineSignals(counts[0], counts[1], 3, 5, 6)
+	for name, counts := range map[string][3]uint64{
+		"healthy":    {},
+		"timeout":    {1, 0, 0},
+		"rto":        {0, 1, 0},
+		"retransmit": {0, 0, 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var conn NetworkPathConnection
+			conn.SetBaselineSignals(counts[0], counts[1], counts[2], 5, 6)
 
-		assert.True(t, conn.TimeoutOrRTO)
-		assert.Equal(t, uint64(3), conn.Retransmits)
-		assert.Equal(t, uint64(11), conn.Bytes)
+			assert.Equal(t, name != "healthy", conn.BaselineDiagnostic)
+			assert.Equal(t, uint64(11), conn.BaselineBytes)
+		})
 	}
 }

@@ -23,12 +23,23 @@ import (
 
 func baselineConn(host string, bytes uint64) npmodel.NetworkPathConnection {
 	return npmodel.NetworkPathConnection{
-		Dest:      netip.MustParseAddrPort(host + ":53"),
-		Type:      model.ConnectionType_udp,
-		Direction: model.ConnectionDirection_outgoing,
-		Family:    model.ConnectionFamily_v4,
-		Bytes:     bytes,
+		Dest:          netip.MustParseAddrPort(host + ":53"),
+		Type:          model.ConnectionType_udp,
+		Direction:     model.ConnectionDirection_outgoing,
+		Family:        model.ConnectionFamily_v4,
+		BaselineBytes: bytes,
 	}
+}
+
+func scheduledBaselineHosts(t *testing.T, collector *npCollectorImpl) []string {
+	t.Helper()
+	hosts := make([]string, 0, len(collector.pathtestInputChan))
+	for len(collector.pathtestInputChan) > 0 {
+		pathtest := <-collector.pathtestInputChan
+		assert.Equal(t, payload.DynamicTestProfileBaseline, pathtest.DynamicTestProfile)
+		hosts = append(hosts, pathtest.Hostname)
+	}
+	return hosts
 }
 
 func TestBaselineSelectsCandidatesFromEverySnapshot(t *testing.T) {
@@ -44,15 +55,50 @@ func TestBaselineSelectsCandidatesFromEverySnapshot(t *testing.T) {
 		baselineConn("10.0.0.4", 4),
 	}))
 
-	require.Len(t, collector.pathtestInputChan, 3)
-	first := <-collector.pathtestInputChan
-	assert.Equal(t, payload.DynamicTestProfileBaseline, first.DynamicTestProfile)
-	<-collector.pathtestInputChan
-	<-collector.pathtestInputChan
+	assert.Equal(t, []string{"10.0.0.4", "10.0.0.2", "10.0.0.3"}, scheduledBaselineHosts(t, collector))
 
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{baselineConn("10.0.1.1", 10)}))
 	require.Len(t, collector.pathtestInputChan, 1)
 	assert.Equal(t, "10.0.1.1", (<-collector.pathtestInputChan).Hostname)
+}
+
+func TestBaselinePrioritizesDiagnosticConnections(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
+		"network_path.collector.monitor_ip_without_domain":           true,
+	}, &teststatsd.Client{}, nil)
+
+	healthyLarge := baselineConn("10.0.0.1", 1_000)
+	diagnosticSmall := baselineConn("10.0.0.2", 1)
+	diagnosticSmall.BaselineDiagnostic = true
+	diagnosticLarge := baselineConn("10.0.0.3", 10)
+	diagnosticLarge.BaselineDiagnostic = true
+
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+		healthyLarge,
+		diagnosticSmall,
+		diagnosticLarge,
+		baselineConn("10.0.0.4", 500),
+	}))
+
+	assert.Equal(t, []string{"10.0.0.3", "10.0.0.2", "10.0.0.1"}, scheduledBaselineHosts(t, collector))
+}
+
+func TestBaselineKeepsStrongestObservationPerPath(t *testing.T) {
+	_, collector := newTestNpCollector(t, map[string]any{
+		"network_path.connections_monitoring.baseline_tests_enabled": true,
+		"network_path.collector.monitor_ip_without_domain":           true,
+	}, &teststatsd.Client{}, nil)
+
+	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+		baselineConn("10.0.0.1", 1),
+		baselineConn("10.0.0.2", 90),
+		baselineConn("10.0.0.1", 100),
+		baselineConn("10.0.0.3", 80),
+		baselineConn("10.0.0.4", 70),
+	}))
+
+	assert.Equal(t, []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, scheduledBaselineHosts(t, collector))
 }
 
 func TestBaselineEmptySnapshotsSelectNothing(t *testing.T) {

@@ -22,7 +22,6 @@ go_library(
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/networkpath/npcollector/def",
-        "//comp/networkpath/npcollector/impl/baselineselector",
         "//comp/networkpath/npcollector/impl/common",
         "//comp/networkpath/npcollector/impl/connfilter",
         "//comp/networkpath/npcollector/impl/pathteststore",

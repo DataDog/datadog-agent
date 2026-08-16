@@ -20,9 +20,8 @@ const TCPTimeoutErrno uint16 = 110
 // Both direct and process-agent producers use this method so their ranking
 // inputs remain equivalent.
 func (c *NetworkPathConnection) SetBaselineSignals(timeoutCount, rtoCount, retransmits, sentBytes, recvBytes uint64) {
-	c.TimeoutOrRTO = timeoutCount > 0 || rtoCount > 0
-	c.Retransmits = retransmits
-	c.Bytes = sentBytes + recvBytes
+	c.BaselineDiagnostic = timeoutCount > 0 || rtoCount > 0 || retransmits > 0
+	c.BaselineBytes = sentBytes + recvBytes
 }
 
 // NetworkPathConnection is the minimum information needed about a connection to schedule a network path test
@@ -38,7 +37,7 @@ type NetworkPathConnection struct {
 	Domain            string
 	IntraHost         bool
 	SystemProbeConn   bool
-	TimeoutOrRTO      bool
-	Retransmits       uint64
-	Bytes             uint64
+
+	BaselineDiagnostic bool
+	BaselineBytes      uint64
 }

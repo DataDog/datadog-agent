@@ -170,9 +170,8 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	}))
 
 	require.Len(t, got, 1)
-	assert.True(t, got[0].TimeoutOrRTO)
-	assert.Equal(t, uint64(3), got[0].Retransmits)
-	assert.Equal(t, uint64(11), got[0].Bytes)
+	assert.True(t, got[0].BaselineDiagnostic)
+	assert.Equal(t, uint64(11), got[0].BaselineBytes)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
