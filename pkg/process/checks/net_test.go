@@ -169,7 +169,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	}
 }
 
-func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
+func TestNetworkPathConnectionsSignals(t *testing.T) {
 	conn := makeConnection(1)
 	conn.Laddr.Ip = "10.0.0.1"
 	conn.Raddr.Ip = "10.0.0.2"
@@ -182,13 +182,13 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	got := slices.Collect(networkPathConnections(&model.Connections{Conns: []*model.Connection{conn}}))
 
 	require.Len(t, got, 1)
-	assert.Equal(t, npmodel.BaselineSignals{
+	assert.Equal(t, npmodel.ConnectionSignals{
 		TimeoutCount: 1,
 		RTOCount:     2,
 		Retransmits:  3,
 		SentBytes:    5,
 		RecvBytes:    6,
-	}, got[0].Baseline)
+	}, got[0].Signals)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {

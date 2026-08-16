@@ -59,7 +59,7 @@ func addBaselineCandidate(selected []baselineCandidate, candidate baselineCandid
 	return selected
 }
 
-func addBaselinePath(selected []baselineCandidate, path common.Pathtest, signals npmodel.BaselineSignals) []baselineCandidate {
+func addBaselinePath(selected []baselineCandidate, path common.Pathtest, signals npmodel.ConnectionSignals) []baselineCandidate {
 	path.DynamicTestProfile = payload.DynamicTestProfileBaseline
 	return addBaselineCandidate(selected, baselineCandidate{
 		path:       path,

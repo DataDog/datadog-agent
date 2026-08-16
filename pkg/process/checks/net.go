@@ -255,7 +255,7 @@ func networkPathConnections(conns *model.Connections) iter.Seq[npmodel.NetworkPa
 				Family:            conn.Family,
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.SystemProbeConn,
-				Baseline: npmodel.BaselineSignals{
+				Signals: npmodel.ConnectionSignals{
 					TimeoutCount: uint64(conn.TcpFailuresByErrCode[uint32(npmodel.TCPTimeoutErrno)]),
 					RTOCount:     uint64(conn.LastTcpRtoCount),
 					Retransmits:  uint64(conn.LastRetransmits),

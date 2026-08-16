@@ -330,7 +330,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		}
 		pathtest := s.makePathtest(conn, origin)
 		if baselineMode {
-			selectedBaselineCandidates = addBaselinePath(selectedBaselineCandidates, pathtest, conn.Baseline)
+			selectedBaselineCandidates = addBaselinePath(selectedBaselineCandidates, pathtest, conn.Signals)
 			continue
 		}
 

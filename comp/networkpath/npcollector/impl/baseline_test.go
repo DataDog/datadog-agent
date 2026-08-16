@@ -28,7 +28,7 @@ func baselineConn(host string, bytes uint64) npmodel.NetworkPathConnection {
 		Type:      model.ConnectionType_udp,
 		Direction: model.ConnectionDirection_outgoing,
 		Family:    model.ConnectionFamily_v4,
-		Baseline:  npmodel.BaselineSignals{SentBytes: bytes},
+		Signals:   npmodel.ConnectionSignals{SentBytes: bytes},
 	}
 }
 
@@ -93,9 +93,9 @@ func TestBaselinePrioritizesDiagnosticConnections(t *testing.T) {
 
 	healthyLarge := baselineConn("10.0.0.1", 1_000)
 	diagnosticSmall := baselineConn("10.0.0.2", 1)
-	diagnosticSmall.Baseline.TimeoutCount = 1
+	diagnosticSmall.Signals.TimeoutCount = 1
 	diagnosticLarge := baselineConn("10.0.0.3", 10)
-	diagnosticLarge.Baseline.RTOCount = 1
+	diagnosticLarge.Signals.RTOCount = 1
 
 	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
 		healthyLarge,
@@ -108,7 +108,7 @@ func TestBaselinePrioritizesDiagnosticConnections(t *testing.T) {
 }
 
 func TestBaselineDiagnosticSignals(t *testing.T) {
-	for name, signals := range map[string]npmodel.BaselineSignals{
+	for name, signals := range map[string]npmodel.ConnectionSignals{
 		"timeout":    {TimeoutCount: 1},
 		"rto":        {RTOCount: 1},
 		"retransmit": {Retransmits: 1},
@@ -123,7 +123,7 @@ func TestBaselineDiagnosticSignals(t *testing.T) {
 }
 
 func TestBaselineCombinesSentAndReceivedBytes(t *testing.T) {
-	selected := addBaselinePath(nil, common.Pathtest{Hostname: "host"}, npmodel.BaselineSignals{
+	selected := addBaselinePath(nil, common.Pathtest{Hostname: "host"}, npmodel.ConnectionSignals{
 		SentBytes: 5,
 		RecvBytes: 6,
 	})

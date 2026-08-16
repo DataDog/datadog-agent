@@ -16,8 +16,8 @@ import (
 // payloads by both Linux and Windows producers.
 const TCPTimeoutErrno uint16 = 110
 
-// BaselineSignals contains the normalized CNM values used by baseline selection.
-type BaselineSignals struct {
+// ConnectionSignals contains normalized connection measurements used by network path decisions.
+type ConnectionSignals struct {
 	TimeoutCount uint64
 	RTOCount     uint64
 	Retransmits  uint64
@@ -39,5 +39,5 @@ type NetworkPathConnection struct {
 	IntraHost         bool
 	SystemProbeConn   bool
 
-	Baseline BaselineSignals
+	Signals ConnectionSignals
 }

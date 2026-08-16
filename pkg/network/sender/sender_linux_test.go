@@ -156,7 +156,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	}
 }
 
-func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
+func TestNetworkPathConnectionsSignals(t *testing.T) {
 	d := mockDirectSender(t)
 	conn := makeConnection(1)
 	conn.TCPFailures = map[uint16]uint32{npmodel.TCPTimeoutErrno: 1}
@@ -170,13 +170,13 @@ func TestNetworkPathConnectionsBaselineSignals(t *testing.T) {
 	}))
 
 	require.Len(t, got, 1)
-	assert.Equal(t, npmodel.BaselineSignals{
+	assert.Equal(t, npmodel.ConnectionSignals{
 		TimeoutCount: 1,
 		RTOCount:     2,
 		Retransmits:  3,
 		SentBytes:    5,
 		RecvBytes:    6,
-	}, got[0].Baseline)
+	}, got[0].Signals)
 }
 
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
