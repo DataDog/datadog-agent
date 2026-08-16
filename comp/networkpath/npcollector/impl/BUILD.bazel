@@ -6,7 +6,6 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
-        "baseline_selector.go",
         "config.go",
         "localips.go",
         "npcollector.go",
@@ -23,6 +22,7 @@ go_library(
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/networkpath/npcollector/def",
+        "//comp/networkpath/npcollector/impl/baselineselector",
         "//comp/networkpath/npcollector/impl/common",
         "//comp/networkpath/npcollector/impl/connfilter",
         "//comp/networkpath/npcollector/impl/pathteststore",
@@ -40,7 +40,6 @@ go_library(
         "//pkg/remoteconfig/state",
         "//pkg/util/cloudproviders/network",
         "//pkg/util/log",
-        "@com_github_cespare_xxhash_v2//:xxhash",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_patrickmn_go_cache//:go-cache",
@@ -51,7 +50,6 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
-        "baseline_selector_test.go",
         "baseline_window_test.go",
         "config_test.go",
         "localips_test.go",

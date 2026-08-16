@@ -5,7 +5,7 @@
 
 //go:build test
 
-package npcollectorimpl
+package baselineselector
 
 import (
 	"fmt"
@@ -25,8 +25,8 @@ func baselineTestPath(name string) common.Pathtest {
 	return common.Pathtest{Hostname: name, Protocol: payload.ProtocolUDP, Origin: payload.PathOriginNetworkTraffic}
 }
 
-func selectedHosts(selector *baselineSelector) []string {
-	paths := selector.selectPathtests()
+func selectedHosts(selector *Selector) []string {
+	paths := selector.Select()
 	hosts := make([]string, len(paths))
 	for i := range paths {
 		hosts[i] = paths[i].Hostname
@@ -35,11 +35,11 @@ func selectedHosts(selector *baselineSelector) []string {
 }
 
 func TestBaselineSelectorRanksDiagnosticThenHealthy(t *testing.T) {
-	selector := newBaselineSelector()
-	selector.add(baselineTestPath("healthy-large"), npmodel.NetworkPathConnection{Bytes: 10_000})
-	selector.add(baselineTestPath("retrans-low"), npmodel.NetworkPathConnection{Retransmits: 1, RTTVar: 100})
-	selector.add(baselineTestPath("retrans-high"), npmodel.NetworkPathConnection{Retransmits: 5})
-	selector.add(baselineTestPath("timeout"), npmodel.NetworkPathConnection{TCPTimeout: true})
+	selector := New()
+	selector.Add(baselineTestPath("healthy-large"), npmodel.NetworkPathConnection{Bytes: 10_000})
+	selector.Add(baselineTestPath("retrans-low"), npmodel.NetworkPathConnection{Retransmits: 1, RTTVar: 100})
+	selector.Add(baselineTestPath("retrans-high"), npmodel.NetworkPathConnection{Retransmits: 5})
+	selector.Add(baselineTestPath("timeout"), npmodel.NetworkPathConnection{TCPTimeout: true})
 
 	assert.Equal(t, []string{"timeout", "retrans-high", "retrans-low"}, selectedHosts(selector))
 }
@@ -68,12 +68,12 @@ func TestBaselineCandidateRankingPolicies(t *testing.T) {
 }
 
 func TestBaselineSelectorTreatsTimeoutAndRTOEqually(t *testing.T) {
-	selector := newBaselineSelector()
-	selector.add(baselineTestPath("timeout"), npmodel.NetworkPathConnection{TCPTimeout: true})
-	selector.add(baselineTestPath("rto"), npmodel.NetworkPathConnection{TCPRTO: true})
-	selector.add(baselineTestPath("retrans"), npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
+	selector := New()
+	selector.Add(baselineTestPath("timeout"), npmodel.NetworkPathConnection{TCPTimeout: true})
+	selector.Add(baselineTestPath("rto"), npmodel.NetworkPathConnection{TCPRTO: true})
+	selector.Add(baselineTestPath("retrans"), npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
 
-	selected := selector.selectPathtests()
+	selected := selector.Select()
 	require.Len(t, selected, 3)
 	timeoutHash := baselinePathtestHash(&selector.hashDigest, baselineTestPath("timeout"))
 	rtoHash := baselinePathtestHash(&selector.hashDigest, baselineTestPath("rto"))
@@ -85,20 +85,20 @@ func TestBaselineSelectorTreatsTimeoutAndRTOEqually(t *testing.T) {
 }
 
 func TestBaselineSelectorFillsFromHealthyByVolume(t *testing.T) {
-	selector := newBaselineSelector()
-	selector.add(baselineTestPath("diagnostic"), npmodel.NetworkPathConnection{TCPRTO: true})
-	selector.add(baselineTestPath("small"), npmodel.NetworkPathConnection{Bytes: 10})
-	selector.add(baselineTestPath("large"), npmodel.NetworkPathConnection{Bytes: 100})
+	selector := New()
+	selector.Add(baselineTestPath("diagnostic"), npmodel.NetworkPathConnection{TCPRTO: true})
+	selector.Add(baselineTestPath("small"), npmodel.NetworkPathConnection{Bytes: 10})
+	selector.Add(baselineTestPath("large"), npmodel.NetworkPathConnection{Bytes: 100})
 
 	assert.Equal(t, []string{"diagnostic", "large", "small"}, selectedHosts(selector))
 }
 
 func TestBaselineSelectorAggregatesAndPromotes(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	path := baselineTestPath("promoted")
-	selector.add(path, npmodel.NetworkPathConnection{Bytes: 100})
-	selector.add(path, npmodel.NetworkPathConnection{Retransmits: 2, RTTVar: 5})
-	selector.add(path, npmodel.NetworkPathConnection{Retransmits: 3, RTTVar: 10})
+	selector.Add(path, npmodel.NetworkPathConnection{Bytes: 100})
+	selector.Add(path, npmodel.NetworkPathConnection{Retransmits: 2, RTTVar: 5})
+	selector.Add(path, npmodel.NetworkPathConnection{Retransmits: 3, RTTVar: 10})
 
 	hash := baselinePathtestHash(&selector.hashDigest, path)
 	require.NotContains(t, selector.healthy.items, hash)
@@ -108,15 +108,15 @@ func TestBaselineSelectorAggregatesAndPromotes(t *testing.T) {
 }
 
 func TestBaselineSelectorAggregatesEverySignal(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	diagnosticPath := baselineTestPath("diagnostic")
 	healthyPath := baselineTestPath("healthy")
 
-	selector.add(diagnosticPath, npmodel.NetworkPathConnection{Retransmits: 2, RTTVar: 10})
-	selector.add(diagnosticPath, npmodel.NetworkPathConnection{TCPRTO: true, Retransmits: 3, RTTVar: 5})
-	selector.add(diagnosticPath, npmodel.NetworkPathConnection{RTTVar: 20})
-	selector.add(healthyPath, npmodel.NetworkPathConnection{Bytes: 40})
-	selector.add(healthyPath, npmodel.NetworkPathConnection{Bytes: 2})
+	selector.Add(diagnosticPath, npmodel.NetworkPathConnection{Retransmits: 2, RTTVar: 10})
+	selector.Add(diagnosticPath, npmodel.NetworkPathConnection{TCPRTO: true, Retransmits: 3, RTTVar: 5})
+	selector.Add(diagnosticPath, npmodel.NetworkPathConnection{RTTVar: 20})
+	selector.Add(healthyPath, npmodel.NetworkPathConnection{Bytes: 40})
+	selector.Add(healthyPath, npmodel.NetworkPathConnection{Bytes: 2})
 
 	diagnosticHash := baselinePathtestHash(&selector.hashDigest, diagnosticPath)
 	diagnostic := selector.diagnostic.items[diagnosticHash]
@@ -132,13 +132,13 @@ func TestBaselineSelectorAggregatesEverySignal(t *testing.T) {
 }
 
 func TestBaselineSelectorIsBoundedAndUsesSpaceSavingEstimate(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	for i := 0; i < baselineHealthyCandidates; i++ {
-		selector.add(baselineTestPath(fmt.Sprintf("path-%03d", i)), npmodel.NetworkPathConnection{Bytes: uint64(i + 1)})
+		selector.Add(baselineTestPath(fmt.Sprintf("path-%03d", i)), npmodel.NetworkPathConnection{Bytes: uint64(i + 1)})
 	}
-	admission := selector.add(baselineTestPath("replacement"), npmodel.NetworkPathConnection{Bytes: 1})
+	admission := selector.Add(baselineTestPath("replacement"), npmodel.NetworkPathConnection{Bytes: 1})
 
-	assert.True(t, admission.replaced)
+	assert.True(t, admission.Replaced)
 	assert.Len(t, selector.healthy.items, baselineHealthyCandidates)
 	replacement := selector.healthy.items[baselinePathtestHash(&selector.hashDigest, baselineTestPath("replacement"))]
 	require.NotNil(t, replacement)
@@ -146,31 +146,31 @@ func TestBaselineSelectorIsBoundedAndUsesSpaceSavingEstimate(t *testing.T) {
 }
 
 func TestBaselineSelectorProtectsTimeoutCandidates(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	for i := 0; i < baselineDiagnosticCandidates; i++ {
-		selector.add(baselineTestPath(fmt.Sprintf("timeout-%03d", i)), npmodel.NetworkPathConnection{TCPTimeout: true})
+		selector.Add(baselineTestPath(fmt.Sprintf("timeout-%03d", i)), npmodel.NetworkPathConnection{TCPTimeout: true})
 	}
-	admission := selector.add(baselineTestPath("retrans-only"), npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
+	admission := selector.Add(baselineTestPath("retrans-only"), npmodel.NetworkPathConnection{Retransmits: math.MaxUint64})
 
-	assert.True(t, admission.discarded)
+	assert.True(t, admission.Discarded)
 	assert.Len(t, selector.diagnostic.items, baselineDiagnosticCandidates)
 	assert.NotContains(t, selector.diagnostic.items, baselinePathtestHash(&selector.hashDigest, baselineTestPath("retrans-only")))
 }
 
 func TestBaselineSelectorDeterministicTies(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	paths := []common.Pathtest{baselineTestPath("c"), baselineTestPath("a"), baselineTestPath("b")}
 	for _, path := range paths {
-		selector.add(path, npmodel.NetworkPathConnection{Bytes: 1})
+		selector.Add(path, npmodel.NetworkPathConnection{Bytes: 1})
 	}
-	selected := selector.selectPathtests()
+	selected := selector.Select()
 	for i := 1; i < len(selected); i++ {
 		assert.Less(t, baselinePathtestHash(&selector.hashDigest, selected[i-1]), baselinePathtestHash(&selector.hashDigest, selected[i]))
 	}
 }
 
 func TestBaselinePathtestHashUsesOnlyPathIdentity(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	base := common.Pathtest{
 		Hostname:          "example.com",
 		Port:              443,
@@ -218,9 +218,9 @@ func TestBaselineSelectorIsDeterministicBelowCapacity(t *testing.T) {
 		}
 	}
 
-	baseline := newBaselineSelector()
+	baseline := New()
 	for _, event := range events {
-		baseline.add(event.path, event.conn)
+		baseline.Add(event.path, event.conn)
 	}
 	want := selectedHosts(baseline)
 
@@ -229,18 +229,18 @@ func TestBaselineSelectorIsDeterministicBelowCapacity(t *testing.T) {
 		rand.New(rand.NewSource(seed)).Shuffle(len(shuffled), func(i, j int) {
 			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 		})
-		selector := newBaselineSelector()
+		selector := New()
 		for _, event := range shuffled {
-			selector.add(event.path, event.conn)
+			selector.Add(event.path, event.conn)
 		}
 		assert.Equalf(t, want, selectedHosts(selector), "seed %d", seed)
 	}
 }
 
 func TestBaselineSelectorRecoversExactTopSetFromLargeCardinalityStream(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	for i := 0; i < 10_000; i++ {
-		selector.add(baselineTestPath(fmt.Sprintf("background-%05d", i)), npmodel.NetworkPathConnection{Bytes: 1})
+		selector.Add(baselineTestPath(fmt.Sprintf("background-%05d", i)), npmodel.NetworkPathConnection{Bytes: 1})
 	}
 	for _, item := range []struct {
 		host  string
@@ -250,7 +250,7 @@ func TestBaselineSelectorRecoversExactTopSetFromLargeCardinalityStream(t *testin
 		{host: "top-2", bytes: 40_000},
 		{host: "top-3", bytes: 30_000},
 	} {
-		selector.add(baselineTestPath(item.host), npmodel.NetworkPathConnection{Bytes: item.bytes})
+		selector.Add(baselineTestPath(item.host), npmodel.NetworkPathConnection{Bytes: item.bytes})
 	}
 
 	assert.Equal(t, []string{"top-1", "top-2", "top-3"}, selectedHosts(selector),
@@ -259,9 +259,9 @@ func TestBaselineSelectorRecoversExactTopSetFromLargeCardinalityStream(t *testin
 }
 
 func TestBaselineSelectorRecoversLateDiagnosticHeavyHitters(t *testing.T) {
-	selector := newBaselineSelector()
+	selector := New()
 	for i := 0; i < 10_000; i++ {
-		selector.add(baselineTestPath(fmt.Sprintf("background-%05d", i)), npmodel.NetworkPathConnection{Retransmits: 1})
+		selector.Add(baselineTestPath(fmt.Sprintf("background-%05d", i)), npmodel.NetworkPathConnection{Retransmits: 1})
 	}
 	for _, item := range []struct {
 		host        string
@@ -271,7 +271,7 @@ func TestBaselineSelectorRecoversLateDiagnosticHeavyHitters(t *testing.T) {
 		{host: "top-2", retransmits: 40_000},
 		{host: "top-3", retransmits: 30_000},
 	} {
-		selector.add(baselineTestPath(item.host), npmodel.NetworkPathConnection{Retransmits: item.retransmits})
+		selector.Add(baselineTestPath(item.host), npmodel.NetworkPathConnection{Retransmits: item.retransmits})
 	}
 
 	assert.Equal(t, []string{"top-1", "top-2", "top-3"}, selectedHosts(selector))
@@ -279,14 +279,16 @@ func TestBaselineSelectorRecoversLateDiagnosticHeavyHitters(t *testing.T) {
 }
 
 func TestBaselineSelectorResetRetainsPolicies(t *testing.T) {
-	selector := newBaselineSelector()
-	selector.add(baselineTestPath("before"), npmodel.NetworkPathConnection{Bytes: 1})
-	selector.reset()
+	selector := New()
+	selector.Add(baselineTestPath("before"), npmodel.NetworkPathConnection{Bytes: 1})
+	assert.Equal(t, 1, selector.Retained())
+	selector.Reset()
 
+	assert.Zero(t, selector.Retained())
 	assert.Empty(t, selector.diagnostic.items)
 	assert.Empty(t, selector.healthy.items)
-	selector.add(baselineTestPath("healthy"), npmodel.NetworkPathConnection{Bytes: 10})
-	selector.add(baselineTestPath("diagnostic"), npmodel.NetworkPathConnection{Retransmits: 1})
+	selector.Add(baselineTestPath("healthy"), npmodel.NetworkPathConnection{Bytes: 10})
+	selector.Add(baselineTestPath("diagnostic"), npmodel.NetworkPathConnection{Retransmits: 1})
 	assert.Equal(t, []string{"diagnostic", "healthy"}, selectedHosts(selector))
 }
 
@@ -297,9 +299,9 @@ func BenchmarkBaselineSelectorBoundedMemory(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		selector := newBaselineSelector()
+		selector := New()
 		for n, path := range paths {
-			selector.add(path, npmodel.NetworkPathConnection{Bytes: uint64(n + 1)})
+			selector.Add(path, npmodel.NetworkPathConnection{Bytes: uint64(n + 1)})
 		}
 		if len(selector.healthy.items) != baselineHealthyCandidates {
 			b.Fatal("selector exceeded its configured bound")

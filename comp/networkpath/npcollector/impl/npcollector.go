@@ -22,6 +22,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/baselineselector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
@@ -88,7 +89,7 @@ type npCollectorImpl struct {
 	localIPs                *localIPCache
 	remoteConfigState       dynamicRemoteConfigState
 	baselineMutex           sync.Mutex
-	baselineSelector        *baselineSelector
+	baselineSelector        *baselineselector.Selector
 	baselineDeadline        time.Time
 	baselineStarted         bool
 }
@@ -139,7 +140,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		workersDone:           make(chan struct{}),
 
 		filter:           filter,
-		baselineSelector: newBaselineSelector(),
+		baselineSelector: baselineselector.New(),
 	}
 }
 
@@ -364,15 +365,15 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 		eligible++
 		pathtest := s.makePathtest(conn, payload.PathOriginNetworkTraffic)
 		pathtest.DynamicTestProfile = payload.DynamicTestProfileBaseline
-		admission := s.baselineSelector.add(pathtest, conn)
-		if admission.replaced {
+		admission := s.baselineSelector.Add(pathtest, conn)
+		if admission.Replaced {
 			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_replaced", nil, 1)
 		}
-		if admission.discarded {
+		if admission.Discarded {
 			_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_discarded", nil, 1)
 		}
 	}
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_retained", float64(len(s.baselineSelector.diagnostic.items)+len(s.baselineSelector.healthy.items)), nil, 1)
+	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"baseline.candidates_retained", float64(s.baselineSelector.Retained()), nil, 1)
 
 	if !s.baselineStarted && eligible > 0 {
 		s.baselineStarted = true
@@ -381,8 +382,8 @@ func (s *npCollectorImpl) scheduleBaselineNetworkPathTests(conns iter.Seq[npmode
 }
 
 func (s *npCollectorImpl) closeBaselineWindow(now time.Time) {
-	selected := s.baselineSelector.selectPathtests()
-	s.baselineSelector.reset()
+	selected := s.baselineSelector.Select()
+	s.baselineSelector.Reset()
 	s.baselineDeadline = now.Add(baselineSelectionInterval)
 	_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"baseline.windows_closed", nil, 1)
 	for i := range selected {

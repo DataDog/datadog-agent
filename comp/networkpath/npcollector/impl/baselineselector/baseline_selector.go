@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package npcollectorimpl
+// Package baselineselector selects representative network paths from connection observations.
+package baselineselector
 
 import (
 	"encoding/binary"
@@ -147,14 +148,16 @@ func (p *baselinePool) sorted() []*baselineCandidate {
 	return result
 }
 
-type baselineSelector struct {
+// Selector retains and ranks a bounded set of baseline path candidates.
+type Selector struct {
 	diagnostic baselinePool
 	healthy    baselinePool
 	hashDigest xxhash.Digest
 }
 
-func newBaselineSelector() *baselineSelector {
-	return &baselineSelector{
+// New creates a baseline selector.
+func New() *Selector {
+	return &Selector{
 		diagnostic: newBaselinePool(baselineDiagnosticCandidates, baselinePoolPolicy{
 			better:     diagnosticCandidateBetter,
 			canReplace: canReplaceDiagnostic,
@@ -166,28 +169,31 @@ func newBaselineSelector() *baselineSelector {
 	}
 }
 
-type baselineAdmission struct {
-	replaced  bool
-	discarded bool
+// Admission describes how adding an observation affected the bounded candidate pools.
+type Admission struct {
+	Replaced  bool
+	Discarded bool
 }
 
-func (s *baselineSelector) add(pathtest common.Pathtest, conn npmodel.NetworkPathConnection) baselineAdmission {
+// Add records a network path observation.
+func (s *Selector) Add(pathtest common.Pathtest, conn npmodel.NetworkPathConnection) Admission {
 	hash := baselinePathtestHash(&s.hashDigest, pathtest)
 	diagnostic := conn.TCPTimeout || conn.TCPRTO || conn.Retransmits > 0
 	if diagnostic {
 		s.healthy.remove(hash)
 		replaced, discarded := s.diagnostic.add(hash, pathtest, conn.TCPTimeout || conn.TCPRTO, conn.Retransmits, conn.RTTVar)
-		return baselineAdmission{replaced: replaced, discarded: discarded}
+		return Admission{Replaced: replaced, Discarded: discarded}
 	}
 	if _, found := s.diagnostic.items[hash]; found {
 		s.diagnostic.add(hash, pathtest, false, 0, conn.RTTVar)
-		return baselineAdmission{}
+		return Admission{}
 	}
 	replaced, discarded := s.healthy.add(hash, pathtest, false, conn.Bytes, 0)
-	return baselineAdmission{replaced: replaced, discarded: discarded}
+	return Admission{Replaced: replaced, Discarded: discarded}
 }
 
-func (s *baselineSelector) selectPathtests() []common.Pathtest {
+// Select returns the highest-ranked baseline paths.
+func (s *Selector) Select() []common.Pathtest {
 	selected := make([]common.Pathtest, 0, baselineSelectionsPerWindow)
 	for _, candidate := range s.diagnostic.sorted() {
 		selected = append(selected, candidate.pathtest)
@@ -204,7 +210,13 @@ func (s *baselineSelector) selectPathtests() []common.Pathtest {
 	return selected
 }
 
-func (s *baselineSelector) reset() {
+// Retained returns the number of candidates currently retained.
+func (s *Selector) Retained() int {
+	return len(s.diagnostic.items) + len(s.healthy.items)
+}
+
+// Reset removes all retained candidates.
+func (s *Selector) Reset() {
 	clear(s.diagnostic.items)
 	clear(s.healthy.items)
 }
