@@ -323,8 +323,6 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 	for conn := range conns {
 		connCount++
-		// Baseline mode changes only post-filter ranking. All modes use the same
-		// local-plus-RC filter, and any winning RC attribution is preserved below.
 		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
