@@ -99,7 +99,12 @@ func GetCloudProviderNTPHosts(ctx context.Context) []string {
 type cloudProviderAliasesDetector struct {
 	name       string
 	isCloudEnv bool
-	callback   func(context.Context) ([]string, error)
+	// requiresKubelet marks detectors that route through the shared kubelet
+	// client singleton. Cluster Checks Runners are Deployment replicas, not
+	// DaemonSets, so they are never colocated with a node's kubelet and can
+	// never reach it; these detectors are skipped entirely on CCRs.
+	requiresKubelet bool
+	callback        func(context.Context) ([]string, error)
 }
 
 // getValidHostAliases is an alias from pkg config
@@ -123,26 +128,17 @@ var hostAliasesDetectors = []cloudProviderAliasesDetector{
 	{name: azure.CloudProviderName, isCloudEnv: true, callback: azure.GetHostAliases},
 	{name: gce.CloudProviderName, isCloudEnv: true, callback: gce.GetHostAliases},
 	{name: cloudfoundry.CloudProviderName, isCloudEnv: true, callback: cloudfoundry.GetHostAliases},
-	{name: "kubelet", callback: kubelet.GetHostAliases},
+	{name: "kubelet", requiresKubelet: true, callback: kubelet.GetHostAliases},
 	{name: tencent.CloudProviderName, isCloudEnv: true, callback: tencent.GetHostAliases},
 	{name: oracle.CloudProviderName, isCloudEnv: true, callback: oracle.GetHostAliases},
 	{name: ibm.CloudProviderName, isCloudEnv: true, callback: ibm.GetHostAliases},
-	{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
+	{name: kubernetes.CloudProviderName, requiresKubelet: true, callback: kubernetes.GetHostAliases},
 }
 
 var (
 	hostAliasMutex   = sync.Mutex{}
 	hostAliasLogOnce = true
 )
-
-// kubeletDependentHostAliasDetectors are the host-alias detectors that route through
-// the shared kubelet client singleton. Cluster Checks Runners are Deployment
-// replicas, not DaemonSets, so they are never colocated with a node's kubelet and can
-// never reach it.
-var kubeletDependentHostAliasDetectors = map[string]bool{
-	"kubelet":                    true,
-	kubernetes.CloudProviderName: true,
-}
 
 // GetHostAliases returns the hostname aliases and the name of the possible cloud providers
 func GetHostAliases(ctx context.Context) ([]string, string) {
@@ -155,7 +151,7 @@ func GetHostAliases(ctx context.Context) ([]string, string) {
 	var wg sync.WaitGroup
 
 	for _, hostAliasesDetector := range hostAliasesDetectors {
-		if isCLCRunner && kubeletDependentHostAliasDetectors[hostAliasesDetector.name] {
+		if isCLCRunner && hostAliasesDetector.requiresKubelet {
 			// Skip probing the kubelet client singleton: it can never succeed on a
 			// CCR and would otherwise trigger its exponential-backoff retrier and
 			// its "Impossible to reach Kubelet" warning for no benefit.

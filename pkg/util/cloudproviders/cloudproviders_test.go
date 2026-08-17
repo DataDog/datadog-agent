@@ -82,14 +82,16 @@ func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testin
 
 	hostAliasesDetectors = []cloudProviderAliasesDetector{
 		{
-			name: "kubelet",
+			name:            "kubelet",
+			requiresKubelet: true,
 			callback: func(_ context.Context) ([]string, error) {
 				kubeletCalled = true
 				return []string{"kubelet-alias"}, nil
 			},
 		},
 		{
-			name: "kubernetes",
+			name:            "kubernetes",
+			requiresKubelet: true,
 			callback: func(_ context.Context) ([]string, error) {
 				kubernetesDetectorCalled = true
 				return []string{"kubernetes-alias"}, nil
