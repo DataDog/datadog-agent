@@ -128,6 +128,7 @@ func TestController(t *testing.T) {
 			return len(s3.events) > 0
 		}, 2*time.Second, 100*time.Millisecond, "Unexpected event received")
 		ms.Stop()
+		synctest.Wait()
 		s3.reset()
 	})
 }

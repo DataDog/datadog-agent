@@ -162,5 +162,6 @@ func TestOrderRate(t *testing.T) {
 		lock.RUnlock()
 
 		cancel()
+		synctest.Wait()
 	})
 }

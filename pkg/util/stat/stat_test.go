@@ -7,6 +7,7 @@ package stat
 
 import (
 	"expvar"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -21,6 +22,11 @@ func TestStats(t *testing.T) {
 
 		s, err := NewStats(10)
 		require.NoError(t, err)
+		stop := sync.OnceFunc(s.Stop)
+		defer func() {
+			stop()
+			synctest.Wait()
+		}()
 
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -40,7 +46,7 @@ func TestStats(t *testing.T) {
 					s.StatEvent(int64(i))
 				}
 			case <-deadline:
-				s.Stop()
+				stop()
 				break loop
 			}
 		}

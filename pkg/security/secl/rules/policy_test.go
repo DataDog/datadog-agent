@@ -415,6 +415,10 @@ func TestActionSetVariableTTL(t *testing.T) {
 			t.Fatal(err)
 		}
 		loader := NewPolicyLoader(provider)
+		defer func() {
+			loader.Close()
+			synctest.Wait()
+		}()
 
 		rs := newRuleSet()
 		if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
@@ -514,8 +518,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 		value, isSet = intVarScopedVar.GetValue(ctx, false)
 		assert.False(t, isSet)
 		assert.Equal(t, 0, value)
-		loader.Close()
-		synctest.Wait()
 	})
 }
 
