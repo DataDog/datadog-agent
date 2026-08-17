@@ -15,7 +15,6 @@ use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{debug, info, warn};
 use std::collections::VecDeque;
-use std::pin::Pin;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
@@ -433,24 +432,14 @@ impl ManagedProcess {
             let name = self.name().to_owned();
             let pid = self.pid().unwrap_or(0);
             let watcher_handle = tokio::spawn(async move {
-                #[cfg(windows)]
-                let wait_control = proc_handle.wait_control();
                 let status = match proc_handle.wait().await {
                     Ok(status) => status,
                     Err(e) => {
-                        #[cfg(windows)]
-                        if wait_control.is_cancelled() {
-                            return None;
-                        }
                         warn!("[{name}] wait error: {e}, killing process");
                         let _ = proc_handle.kill().await;
                         match proc_handle.wait().await {
                             Ok(s) => s,
                             Err(e2) => {
-                                #[cfg(windows)]
-                                if wait_control.is_cancelled() {
-                                    return None;
-                                }
                                 warn!("[{name}] failed to reap after kill: {e2}");
                                 return None;
                             }
