@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
@@ -118,12 +119,21 @@ func copyDirRecursive(ctx context.Context, src, dst string) error {
 		if err != nil {
 			return err
 		}
-		return os.Symlink(link, dst)
+		if err := os.Symlink(link, dst); err != nil {
+			return err
+		}
+		return preserveOwnership(src, dst)
 	}
 	if !info.IsDir() {
-		return copyFileWithMode(src, dst, info.Mode())
+		if err := copyFileWithMode(src, dst, info.Mode()); err != nil {
+			return err
+		}
+		return preserveOwnership(src, dst)
 	}
 	if err := os.MkdirAll(dst, info.Mode()); err != nil {
+		return err
+	}
+	if err := preserveOwnership(src, dst); err != nil {
 		return err
 	}
 	entries, err := os.ReadDir(src)
@@ -153,6 +163,21 @@ func copyFileWithMode(src, dst string, mode os.FileMode) error {
 		return err
 	}
 	return nil
+}
+
+// preserveOwnership copies the uid and gid from src to dst, mirroring the
+// ownership preservation of ``cp -a``. It is a no-op when the underlying stat
+// does not expose ownership (non-Unix).
+func preserveOwnership(src, dst string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || stat == nil {
+		return nil
+	}
+	return os.Lchown(dst, int(stat.Uid), int(stat.Gid))
 }
 
 func isSameFile(file1, file2 string) bool {
