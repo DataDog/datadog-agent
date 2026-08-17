@@ -682,6 +682,8 @@ impl ManagedProcess {
         false
     }
 
+    /// Mark the process for stop and send a graceful-stop signal. Does not wait
+    /// for exit; pair with [`Self::wait_for_stop`] when shutting down many processes.
     pub fn request_stop(&mut self) {
         match self.state {
             ProcessState::Running => {
@@ -696,19 +698,37 @@ impl ManagedProcess {
         }
     }
 
+    /// Wait for a process that was signaled with [`Self::request_stop`] to exit,
+    /// force-killing on timeout and releasing Windows spawn resources.
     pub async fn wait_for_stop(&mut self) {
-        self.wait_for_stop_since(ShutdownBudget::unlimited(Instant::now().into()))
-            .await;
-    }
-
-    pub(crate) async fn wait_for_stop_since(&mut self, budget: ShutdownBudget) {
         match self.state {
             ProcessState::Running | ProcessState::Stopping => {
-                if !self.wait_for_stop_exit(budget).await {
+                if !self.wait_for_stop_exit().await {
                     self.mark_stopped();
                 }
                 #[cfg(windows)]
-                self.ensure_windows_spawn_resources_released(budget).await;
+                self.ensure_windows_spawn_resources_released().await;
+            }
+            _ => {
+                #[cfg(windows)]
+                self.ensure_windows_spawn_resources_released().await;
+            }
+        }
+    }
+
+    pub async fn stop(&mut self) {
+        let started = Instant::now();
+
+        match self.state {
+            ProcessState::Running | ProcessState::Stopping => {
+                self.request_stop();
+                self.wait_for_stop().await;
+                debug!(
+                    "[{}] stop finished (state={}), took {:?}",
+                    self.name,
+                    self.state,
+                    started.elapsed()
+                );
             }
             _ => {
                 #[cfg(windows)]

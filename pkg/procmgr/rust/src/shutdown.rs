@@ -6,70 +6,15 @@
 use crate::process::ManagedProcess;
 use std::time::{Duration, Instant};
 
-/// Shared time budget for ordered child shutdown.
-///
-/// When a deadline is set (Windows service stop), graceful, force-kill, and
-/// job-drain waits all consume the same remaining time instead of each phase
-/// applying its own cap serially per child.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ShutdownBudget {
-    signal_time: Instant,
-    deadline: Option<Instant>,
-}
-
-impl ShutdownBudget {
-    /// No service-wide cap; each phase uses its configured per-phase limit.
-    pub(crate) fn unlimited(signal_time: Instant) -> Self {
-        Self {
-            signal_time,
-            deadline: None,
-        }
-    }
-
-    /// Budget for ordered shutdown after a service stop signal.
-    pub(crate) fn service_stop(signal_time: Instant) -> Self {
-        #[cfg(windows)]
-        {
-            Self {
-                signal_time,
-                deadline: Some(crate::platform::service_shutdown_deadline(signal_time)),
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            Self::unlimited(signal_time)
-        }
-    }
-
-    #[cfg(test)]
-    fn with_deadline(signal_time: Instant, deadline: Instant) -> Self {
-        Self {
-            signal_time,
-            deadline: Some(deadline),
-        }
-    }
-
-    pub(crate) fn graceful_budget(&self, stop_timeout: Duration) -> Duration {
-        let from_stop_timeout = stop_timeout.saturating_sub(self.signal_time.elapsed());
-        self.remaining_cap(from_stop_timeout)
-    }
-
-    /// Remaining time for a phase, capped by `cap` and the service deadline.
-    pub(crate) fn remaining_cap(&self, cap: Duration) -> Duration {
-        self.deadline
-            .map(|deadline| cap.min(deadline.saturating_duration_since(Instant::now())))
-            .unwrap_or(cap)
-    }
-}
-
+/// Shut down processes in the given index order (typically reverse startup order).
+/// Sends graceful stop to all first, then waits for each in order so total shutdown
+/// time is bounded by the slowest process rather than the sum of per-process timeouts.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
     }
-    let signal_time = crate::platform::service_stop_signal_time().unwrap_or_else(Instant::now);
-    let budget = ShutdownBudget::service_stop(signal_time);
     for &idx in order {
-        processes[idx].wait_for_stop_since(budget).await;
+        processes[idx].wait_for_stop().await;
     }
 }
 
