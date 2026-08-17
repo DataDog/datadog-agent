@@ -63,9 +63,6 @@ async fn handle_command(manager: &ProcessManager, handles: &RuntimeHandles, cmd:
         } => {
             let _ = reply.send(manager.handle_stop(&name_or_uuid).await);
         }
-        Command::ReloadConfig { reply } => {
-            let _ = reply.send(manager.handle_reload_config(handles).await);
-        }
     }
 }
 
