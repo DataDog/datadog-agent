@@ -263,8 +263,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reload_discards_pending_retry_for_failed_auto_start_false() -> anyhow::Result<()>
-    {
+    async fn test_reload_retries_failed_manual_process_after_config_change() -> anyhow::Result<()> {
         let (cmd, _args) = test_helpers::sleep_cmd(60);
         let make_def = |secs: u32| ProcessDefinition {
             name: "action-executor".to_string(),
@@ -308,15 +307,17 @@ mod tests {
 
         config_loader.set(vec![make_def(90)]);
         mgr.handle_reload_config(&handles).await?;
-        assert!(!mgr.processes().await[0].is_running());
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "reload should restart failed manual process when restart policy still allows"
+        );
 
         mgr.complete_restart(stale_pending, &handles).await;
         assert!(
-            !mgr.processes().await[0].is_running(),
-            "config reload should discard pending crash retries for failed auto_start=false processes"
+            mgr.processes().await[0].is_running(),
+            "pre-reload pending retry should be discarded without stopping the process"
         );
 
-        mgr.handle_start("action-executor", &handles).await?;
         test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
         Ok(())
     }
