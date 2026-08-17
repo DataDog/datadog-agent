@@ -107,6 +107,14 @@ func (c *Collector) collect(ctx context.Context) vdimodel.ProviderInventory {
 
 	var failures []string
 	for _, session := range sessions {
+		result.Sessions = append(result.Sessions, vdimodel.ProtocolSession{
+			Provider:          vdimodel.ProviderAWSWorkSpaces,
+			Protocol:          vdimodel.ProtocolDCV,
+			ProtocolSessionID: session.id,
+			Owner:             session.owner,
+		})
+		resultSession := &result.Sessions[len(result.Sessions)-1]
+
 		commandCtx, cancel = context.WithTimeout(ctx, commandTimeout)
 		connectionsOutput, runErr := c.runner.Run(commandCtx, "list-connections", session.id, "--json")
 		cancel()
@@ -123,13 +131,7 @@ func (c *Collector) collect(ctx context.Context) vdimodel.ProviderInventory {
 			failures = append(failures, fmt.Sprintf("session %q: %v", session.id, parseErr))
 			continue
 		}
-		result.Sessions = append(result.Sessions, vdimodel.ProtocolSession{
-			Provider:          vdimodel.ProviderAWSWorkSpaces,
-			Protocol:          vdimodel.ProtocolDCV,
-			ProtocolSessionID: session.id,
-			Owner:             session.owner,
-			Connections:       connections,
-		})
+		resultSession.Connections = connections
 	}
 
 	if len(failures) > 0 {

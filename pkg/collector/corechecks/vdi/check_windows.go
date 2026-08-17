@@ -52,7 +52,6 @@ type instanceConfig struct {
 	CollectUserTags    *bool                `yaml:"collect_user_tags"`
 	CollectSessionTags *bool                `yaml:"collect_session_tags"`
 	InventoryStaleTTL  *int                 `yaml:"inventory_stale_ttl"`
-	Tags               []string             `yaml:"tags"`
 }
 
 type inventoryClient interface {
@@ -438,8 +437,7 @@ func (c *checkImpl) connectionMetadataTags(connection vdimodel.DesktopConnection
 }
 
 func (c *checkImpl) baseTags() []string {
-	tags := append([]string(nil), c.config.Tags...)
-	tags = append(tags, "vdi_provider:"+vdimodel.ProviderAWSWorkSpaces, "vdi_protocol:"+vdimodel.ProtocolDCV)
+	tags := []string{"vdi_provider:" + vdimodel.ProviderAWSWorkSpaces, "vdi_protocol:" + vdimodel.ProtocolDCV}
 	product := c.config.AWSWorkSpaces.Product
 	if product == "auto" {
 		if os.Getenv("AppStream_Resource_Type") != "" {

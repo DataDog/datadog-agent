@@ -132,5 +132,9 @@ func TestCollectorReturnsPartialProviderResults(t *testing.T) {
 	result := NewCollector(runner).Collect(context.Background())
 	require.Equal(t, vdimodel.StatusPartial, result.Status)
 	require.ErrorContains(t, errors.New(result.Error), "access denied")
-	require.Len(t, result.Sessions, 1)
+	require.Len(t, result.Sessions, 2)
+	require.Equal(t, "one", result.Sessions[0].ProtocolSessionID)
+	require.Len(t, result.Sessions[0].Connections, 1)
+	require.Equal(t, "two", result.Sessions[1].ProtocolSessionID)
+	require.Empty(t, result.Sessions[1].Connections)
 }
