@@ -60,11 +60,12 @@ const (
 )
 
 // pendingFileEvent holds the minimal information needed to re-process a file
-// access once the SBOM for its container becomes available.
+// access once the SBOM for its container becomes available. Accesses are indexed
+// by file path, and the drain stamps every entry with the same timestamp, so only
+// the sticky properties have to be kept.
 type pendingFileEvent struct {
-	filePath string
-	fileMode uint16
-	uid      uint32
+	suidBit        bool
+	accessedByRoot bool
 }
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
@@ -189,9 +190,9 @@ type Resolver struct {
 	pendingScanLock sync.Mutex
 	pendingScan     []containerutils.ContainerID
 
-	// pending file events: file accesses received before the SBOM was ready
+	// pending file events: file accesses received before the SBOM was ready, deduplicated per file path
 	pendingFileEventsLock sync.Mutex
-	pendingFileEvents     map[containerutils.ContainerID][]pendingFileEvent
+	pendingFileEvents     *simplelru.LRU[containerutils.ContainerID, map[string]pendingFileEvent]
 
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
@@ -222,6 +223,12 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
 
+	// one entry per workload waiting for its scan, so the same bound as the sboms cache
+	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[string]pendingFileEvent](maxSBOMEntries, nil)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
+	}
+
 	hostProcRootPath := utils.ProcRootPath(1)
 	stat, err := utils.UnixStat(hostProcRootPath)
 	if err != nil {
@@ -241,14 +248,10 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		sbomsCacheMiss:        atomic.NewUint64(0),
 		failedSBOMGenerations: atomic.NewUint64(0),
 		wmeta:                 wmeta,
-		pendingFileEvents:     make(map[containerutils.ContainerID][]pendingFileEvent),
+		pendingFileEvents:     pendingFileEvents,
 	}
 
-	sboms, err := simplelru.NewLRU(maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
-		// should be trigger from a function already locking the sbom, see Add, Delete
-		sbom.stop()
-		resolver.removePendingScan(sbom.ContainerID)
-	})
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, resolver.onSBOMEvicted)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOM resolver: %w", err)
 	}
@@ -589,7 +592,6 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 
 		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
 			sbom.usrMerged = isUsrMerged(containerProcRootPath)
-			sbom.setReport(report)
 			scanned = true
 			break
 		}
@@ -654,21 +656,32 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		if currentState != stoppedState {
 			// should not append, ignore
 			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sb.ContainerID, currentState)
-			return nil
 		}
+
+		// a stopped workload is unreachable from the resolver, so not returning here would start a new
+		// forwarding debouncer go routine that we can never stop
+		return nil
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	r.dataCacheLock.RLock()
+	r.dataCacheLock.Lock()
 	if data, exists := r.dataCache.Get(sb.workloadKey); exists {
-		r.dataCacheLock.RUnlock()
+		r.dataCacheLock.Unlock()
 		sb.data = data
 
+		sb.state.Store(computedState)
+
+		r.sbomsCacheHit.Inc()
+
 		r.removePendingScan(sb.ContainerID)
+		r.processPendingFileEvents(sb)
 
 		return nil
 	}
-	r.dataCacheLock.RUnlock()
+	r.dataCacheLock.Unlock()
+
+	// Only count a cache miss when we actually do the scan
+	r.sbomsCacheMiss.Inc()
 
 	report, scanErr := r.doScan(sb)
 	if scanErr != nil {
@@ -790,25 +803,40 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	return pkg
 }
 
-// queuePendingFileEvent stores a file access that arrived before the SBOM for
-// the given container was ready. The queue keeps the last maxPendingFileEvents
-// entries per container, dropping the oldest when full.
+// queuePendingFileEvent stores a file access that arrived before the SBOM for the
+// given container was ready, keeping up to maxPendingFileEvents distinct paths per
+// container. Accesses are merged per path: the snapshot replay emits one open event
+// per (process, mapped file) pair and runs again on every ruleset reload, so without
+// deduplication the shared libraries mapped by every process of a workload crowd out
+// the distinct paths worth keeping.
 func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, uid uint32) {
 	if containerID == "" {
 		return
 	}
+
+	event := pendingFileEvent{
+		suidBit:        fs.FileMode(fileMode)&04000 != 0,
+		accessedByRoot: uid == 0,
+	}
+
 	r.pendingFileEventsLock.Lock()
 	defer r.pendingFileEventsLock.Unlock()
 
-	events := r.pendingFileEvents[containerID]
-	event := pendingFileEvent{filePath: filePath, fileMode: fileMode, uid: uid}
-	if len(events) >= maxPendingFileEvents {
-		// drop the oldest entry to keep the last N
-		events = append(events[1:], event)
-	} else {
-		events = append(events, event)
+	events, ok := r.pendingFileEvents.Get(containerID)
+	if !ok {
+		events = make(map[string]pendingFileEvent)
+		r.pendingFileEvents.Add(containerID, events)
 	}
-	r.pendingFileEvents[containerID] = events
+
+	if previous, ok := events[filePath]; ok {
+		event.suidBit = event.suidBit || previous.suidBit
+		event.accessedByRoot = event.accessedByRoot || previous.accessedByRoot
+	} else if len(events) >= maxPendingFileEvents {
+		seclog.Debugf("dropping pending file event '%s' for container '%s': too many pending events", filePath, containerID)
+		return
+	}
+
+	events[filePath] = event
 }
 
 // processPendingFileEvents drains the pending file-event queue for the given
@@ -816,10 +844,8 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 // Must be called with sbom.Lock() already held.
 func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 	r.pendingFileEventsLock.Lock()
-	events, ok := r.pendingFileEvents[sbom.ContainerID]
-	if ok {
-		delete(r.pendingFileEvents, sbom.ContainerID)
-	}
+	events, ok := r.pendingFileEvents.Peek(sbom.ContainerID)
+	r.pendingFileEvents.Remove(sbom.ContainerID)
 	r.pendingFileEventsLock.Unlock()
 
 	if !ok || len(events) == 0 {
@@ -829,14 +855,14 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
 
 	now := time.Now()
-	for _, event := range events {
-		pkg := sbom.data.files.queryFile(event.filePath)
+	for filePath, event := range events {
+		pkg := sbom.data.files.queryFile(filePath)
 		if pkg == nil {
 			continue
 		}
 		pkg.LastAccess = now
-		pkg.SuidBit = pkg.SuidBit || fs.FileMode(event.fileMode)&04000 != 0
-		pkg.AccessedByRoot = pkg.AccessedByRoot || event.uid == 0
+		pkg.SuidBit = pkg.SuidBit || event.suidBit
+		pkg.AccessedByRoot = pkg.AccessedByRoot || event.accessedByRoot
 
 		sbom.invalidated = true
 	}
@@ -863,17 +889,24 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 
 	// check if this sbom has been scanned before
 	r.dataCacheLock.Lock()
-	defer r.dataCacheLock.Unlock()
+	data, cached := r.dataCache.Get(sbom.workloadKey)
+	r.dataCacheLock.Unlock()
 
-	if data, ok := r.dataCache.Get(sbom.workloadKey); ok {
+	if cached {
 		sbom.data = data
 
 		sbom.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
+
+		// file accesses are queued from the moment a container ID resolves, which
+		// happens before the workload selector that got us here.
+		r.processPendingFileEvents(sbom)
+
 		return
 	}
-	r.sbomsCacheMiss.Inc()
+	// Do not increment sbomsCacheMiss here since the SBOM can still hit
+	// the cache after it has been dequeued.
 
 	r.triggerScan(sbom)
 }
@@ -950,6 +983,10 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 
 	sbom, ok := r.sboms.Peek(id)
 	if !ok {
+		// file accesses are queued as soon as a container ID is resolved, which
+		// happens well before the workload selector that creates the SBOM entry, so
+		// a container that dies in between has accesses to release and nothing else
+		r.deletePendingFileEvents(id)
 		return
 	}
 	sbom.Lock()
@@ -964,12 +1001,26 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
 
-	r.pendingFileEventsLock.Lock()
-	delete(r.pendingFileEvents, sbom.ContainerID)
-	r.pendingFileEventsLock.Unlock()
-
 	// should be called under sbom.Lock and sbomsLock.Lock
+	// the eviction callback releases everything else indexed by the container ID
 	r.sboms.Remove(sbom.ContainerID)
+}
+
+// onSBOMEvicted releases everything indexed by the container ID of an SBOM leaving
+// the cache. It runs both on the explicit removal done by deleteSBOM and on the
+// eviction of the least recently used entry, so it is the single release point.
+// Should be triggered from a function already locking the sbom, see Add, Delete.
+func (r *Resolver) onSBOMEvicted(_ containerutils.ContainerID, sbom *SBOM) {
+	sbom.stop()
+	r.removePendingScan(sbom.ContainerID)
+	r.deletePendingFileEvents(sbom.ContainerID)
+}
+
+// deletePendingFileEvents drops the file accesses queued for the provided container ID
+func (r *Resolver) deletePendingFileEvents(containerID containerutils.ContainerID) {
+	r.pendingFileEventsLock.Lock()
+	r.pendingFileEvents.Remove(containerID)
+	r.pendingFileEventsLock.Unlock()
 }
 
 // SetPolicyGeneratorCallback sets a callback to be called when an SBOM is computed

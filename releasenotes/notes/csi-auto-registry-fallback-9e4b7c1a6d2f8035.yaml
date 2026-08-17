@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM: Make the automatic library injection mode use the CSI driver only when
+    the injector and library images come from configured Datadog registries.
+    Images from other registries now fall back to init containers so Kubernetes
+    can use the workload's image pull credentials.

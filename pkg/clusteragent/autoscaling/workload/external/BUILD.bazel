@@ -40,10 +40,14 @@ dd_agent_go_test(
         "recommender_test.go",
     ],
     embed = [":external"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/clusteragent/autoscaling/store",
         "//pkg/clusteragent/autoscaling/workload",

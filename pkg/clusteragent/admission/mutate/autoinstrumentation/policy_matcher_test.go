@@ -43,24 +43,18 @@ func TestPolicyMatcherPodLabels(t *testing.T) {
 		}
 	}
 
-	out, ok, err := m.Match(podWith("any", map[string]string{"app": "db"}))
-	if err != nil {
-		t.Fatalf("db pod: unexpected error: %v", err)
-	}
+	out, ok := m.Match(podWith("any", map[string]string{"app": "db"}))
 	if !ok || out.TracerVersions["java"] != "latest" {
 		t.Fatalf("db pod: got %+v ok=%v", out, ok)
 	}
 
-	out, ok, err = m.Match(podWith("any", map[string]string{"app": "web"}))
-	if err != nil {
-		t.Fatalf("web pod: unexpected error: %v", err)
-	}
+	out, ok = m.Match(podWith("any", map[string]string{"app": "web"}))
 	if !ok || out.TracerVersions["php"] != "latest" {
 		t.Fatalf("web pod should hit catch-all: got %+v ok=%v", out, ok)
 	}
 }
 
-func TestPolicyMatcherReportsUnavailableNamespaceLabels(t *testing.T) {
+func TestPolicyMatcherSkipsUnavailableNamespaceLabels(t *testing.T) {
 	targets := []Target{
 		{
 			Name:              "namespace-label-target",
@@ -70,12 +64,9 @@ func TestPolicyMatcherReportsUnavailableNamespaceLabels(t *testing.T) {
 	}
 	m := newPolicyMatcher(policiesFromTargets(targets), newMatchTestWmeta(t))
 
-	idx, err := m.matchIndex(podWith("temporarily-unavailable", nil))
-	if err == nil {
-		t.Fatal("expected unavailable namespace labels to return an error")
-	}
-	if idx != -1 {
-		t.Fatalf("expected no matching index, got %d", idx)
+	idx := m.matchIndex(podWith("temporarily-unavailable", nil))
+	if idx != 1 {
+		t.Fatalf("expected fallback policy at index 1, got %d", idx)
 	}
 }
 

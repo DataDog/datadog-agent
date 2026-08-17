@@ -207,6 +207,27 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlKeysAvailable() {
 	assert.Equal(t, 60, c.GetInt("agent_ipc.config_refresh_interval"))
 }
 
+// TestStandaloneModeIgnoresCoreAgentIPCEnvVars reproduces OTAGENT-1149: a
+// deployment tool that colocates otel-agent with a core Datadog Agent (e.g.
+// the Datadog Operator's DaemonSet) injects that agent's env vars —
+// DD_REMOTE_CONFIGURATION_ENABLED=true and DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL
+// — into the otel-agent container too. Standalone mode must win regardless,
+// since there is no core agent IPC endpoint for the RC client or configsync
+// to talk to.
+func (suite *ConfigTestSuite) TestStandaloneModeIgnoresCoreAgentIPCEnvVars() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+	t.Setenv("DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL", "60")
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, -1, c.GetInt("cmd_port"))
+	assert.False(t, c.GetBool("remote_configuration.enabled"))
+	assert.Equal(t, 0, c.GetInt("agent_ipc.config_refresh_interval"))
+}
+
 func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
