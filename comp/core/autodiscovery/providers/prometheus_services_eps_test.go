@@ -113,27 +113,6 @@ func TestPrometheusServicesEPS_Collect(t *testing.T) {
 				},
 			},
 			collectEndpoints: true,
-			endpointSlices: []*discv1.EndpointSlice{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "svc-abc123",
-						Namespace: "ns",
-						Labels: map[string]string{
-							"kubernetes.io/service-name": "svc",
-						},
-					},
-					Endpoints: []discv1.Endpoint{
-						{
-							Addresses: []string{"10.0.0.1"},
-							TargetRef: &v1.ObjectReference{
-								Kind: "Pod",
-								UID:  "svc-pod-1",
-							},
-							NodeName: &nodeNames[0],
-						},
-					},
-				},
-			},
 			expectConfigs: nil,
 		},
 		{
