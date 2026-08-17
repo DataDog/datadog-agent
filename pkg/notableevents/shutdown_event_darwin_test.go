@@ -23,9 +23,8 @@ const testBootUUID = "4D0D452B-C974-480E-AF64-0F35ACD2A43E"
 
 func TestShutdownCauseEventContract(t *testing.T) {
 	bootTime := time.Date(2026, time.August, 11, 9, 55, 21, 0, time.UTC)
-	result, emit := classifyShutdownTokens(pmuBootFaultInfo{Groups: [][]string{
-		{"ot,tdie_overtemp", "ot,tsns_overtemp"},
-		{"sochot,reset_in_3"},
+	result, emit := classifyShutdownTokens(pmuBootFaultInfo{Tokens: []string{
+		"ot,tdie_overtemp", "ot,tsns_overtemp", "sochot,reset_in_3",
 	}})
 	require.True(t, emit)
 
@@ -49,7 +48,6 @@ func TestShutdownCauseEventContract(t *testing.T) {
 		"ot,tdie_overtemp", "ot,tsns_overtemp", "sochot,reset_in_3",
 	}, payload["tokens"])
 	assert.Equal(t, payload["tokens"], payload["fault_tokens"])
-	assert.Equal(t, 2, payload["pmu_count"])
 	assert.Equal(t, testBootUUID, payload["boot_uuid"])
 	assert.Equal(t, "2026-08-11T09:55:21Z", payload["boot_time"])
 }
@@ -59,7 +57,7 @@ func TestShutdownCauseEventContract(t *testing.T) {
 // reported as a zero value.
 func TestShutdownCauseEventOmitsUnknownBootTime(t *testing.T) {
 	fallback := time.Date(2026, time.August, 13, 8, 0, 0, 0, time.UTC)
-	result, emit := classifyShutdownTokens(pmuBootFaultInfo{Groups: [][]string{{"ntc_shdn"}}})
+	result, emit := classifyShutdownTokens(pmuBootFaultInfo{Tokens: []string{"ntc_shdn"}})
 	require.True(t, emit)
 
 	event := result.event(shutdownCauseIdentity(testBootUUID, result.FaultTokens), testBootUUID, time.Time{}, fallback)
@@ -85,7 +83,7 @@ func TestShutdownCauseEventEveryClassification(t *testing.T) {
 
 	for _, class := range shutdownClassPrecedence {
 		t.Run(string(class), func(t *testing.T) {
-			result, emit := classifyShutdownTokens(pmuBootFaultInfo{Groups: [][]string{{tokens[class]}}})
+			result, emit := classifyShutdownTokens(pmuBootFaultInfo{Tokens: []string{tokens[class]}})
 			require.True(t, emit)
 			require.Equal(t, class, result.Class)
 
@@ -108,7 +106,7 @@ func TestShutdownCauseEventEveryClassification(t *testing.T) {
 // TestShutdownCauseEventFitsWireLimit uses the full 80-token dictionary, which
 // is the largest payload the measured hardware can produce.
 func TestShutdownCauseEventFitsWireLimit(t *testing.T) {
-	result, emit := classifyShutdownTokens(pmuBootFaultInfo{Groups: [][]string{allPMUFaultTokens()}})
+	result, emit := classifyShutdownTokens(pmuBootFaultInfo{Tokens: allPMUFaultTokens()})
 	require.True(t, emit)
 	require.Equal(t, shutdownClassThermal, result.Class)
 	require.Len(t, result.Tokens, 80)

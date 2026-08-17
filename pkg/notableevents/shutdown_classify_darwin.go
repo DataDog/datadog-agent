@@ -158,8 +158,6 @@ type shutdownCauseResult struct {
 	Families []string
 	// FaultTokens is the subset of Tokens belonging to a fault family.
 	FaultTokens []string
-	// PMUCount is the number of services that published the property.
-	PMUCount int
 }
 
 // tokenFamily returns the family a PMU fault token belongs to: the prefix
@@ -184,27 +182,22 @@ func tokenFamily(token string) string {
 // validatePMUBootFaultInfo rejects a payload that cannot be trusted as event
 // content. A rejected read is never partially classified.
 //
-// The token bound counts the distinct union rather than the raw total, because
-// that is what classifyShutdownTokens carries into the payload. Every PMU
-// republishes the same token set, so a raw count charges the bound once per
-// publishing service: the measured pattern C payload is 11 raw tokens for 6
-// distinct across 3 groups, and with DD_PMU_MAX_SERVICES publishers a raw count
-// would leave roughly maxShutdownTokens/N usable against an 80-token
-// dictionary, rejecting whole payloads that are well inside the real limit.
+// The token bound counts the distinct union rather than a raw total: dedup
+// already happened in parsePMUBootFaultPayload, but info.Tokens is a plain
+// slice a caller could hand-construct with duplicates, so the bound is still
+// charged per distinct token rather than per slice entry.
 func validatePMUBootFaultInfo(info pmuBootFaultInfo) error {
 	distinct := make(map[string]struct{})
-	for _, group := range info.Groups {
-		for _, token := range group {
-			if len(token) > maxShutdownTokenBytes {
-				return fmt.Errorf("PMU fault token exceeds %d bytes", maxShutdownTokenBytes)
-			}
-			if !isShutdownToken(token) {
-				return fmt.Errorf("malformed PMU fault token %q", token)
-			}
-			distinct[token] = struct{}{}
-			if len(distinct) > maxShutdownTokens {
-				return fmt.Errorf("more than %d distinct PMU fault tokens", maxShutdownTokens)
-			}
+	for _, token := range info.Tokens {
+		if len(token) > maxShutdownTokenBytes {
+			return fmt.Errorf("PMU fault token exceeds %d bytes", maxShutdownTokenBytes)
+		}
+		if !isShutdownToken(token) {
+			return fmt.Errorf("malformed PMU fault token %q", token)
+		}
+		distinct[token] = struct{}{}
+		if len(distinct) > maxShutdownTokens {
+			return fmt.Errorf("more than %d distinct PMU fault tokens", maxShutdownTokens)
 		}
 	}
 	return nil
@@ -232,11 +225,9 @@ func isShutdownToken(token string) bool {
 // is false when nothing qualifies as a fault, which is the clean-shutdown case
 // and must produce no event at all.
 func classifyShutdownTokens(info pmuBootFaultInfo) (shutdownCauseResult, bool) {
-	tokens := make(map[string]struct{})
-	for _, group := range info.Groups {
-		for _, token := range group {
-			tokens[token] = struct{}{}
-		}
+	tokens := make(map[string]struct{}, len(info.Tokens))
+	for _, token := range info.Tokens {
+		tokens[token] = struct{}{}
 	}
 	if len(tokens) == 0 {
 		return shutdownCauseResult{}, false
@@ -246,7 +237,6 @@ func classifyShutdownTokens(info pmuBootFaultInfo) (shutdownCauseResult, bool) {
 		Tokens:      make([]string, 0, len(tokens)),
 		Families:    make([]string, 0, len(tokens)),
 		FaultTokens: make([]string, 0, len(tokens)),
-		PMUCount:    len(info.Groups),
 	}
 	families := make(map[string]struct{})
 	classFamilies := make(map[shutdownClass]map[string]struct{})

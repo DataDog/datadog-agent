@@ -31,10 +31,8 @@ const (
 	// classification input and payload.
 	pmuBootFaultProperty = "IOPMUBootFaultInfo"
 
-	// pmuTokenSeparator and pmuServiceSeparator match the flattening performed
-	// by the C reader.
-	pmuTokenSeparator   = "\x1f"
-	pmuServiceSeparator = "\x1e"
+	// pmuTokenSeparator matches the flattening performed by the C reader.
+	pmuTokenSeparator = "\x1f"
 
 	// pmuBootFaultInitialBufferSize holds every payload observed in testing
 	// with room to spare; pmuBootFaultMaxBufferSize is the single retry.
@@ -48,10 +46,11 @@ const (
 var errShutdownCauseUnsupported = errors.New("shutdown cause reporting requires arm64 Darwin")
 
 // pmuBootFaultInfo is one boot's PMU fault payload, as read from the
-// IORegistry. Groups holds one entry per service that published the property;
-// a machine with several PMUs reports several groups.
+// IORegistry. Tokens is the deduplicated union across every publishing PMU:
+// several PMUs on the same machine tend to republish the same fault tokens,
+// so which service reported a token is not tracked.
 type pmuBootFaultInfo struct {
-	Groups [][]string
+	Tokens []string
 }
 
 // readPMUBootFaultInfo reads IOPMUBootFaultInfo from every service in the
@@ -84,12 +83,11 @@ func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, bool, error
 	}
 	defer C.free(buffer)
 
-	var written, services C.size_t
+	var written C.size_t
 	status := C.dd_pkg_notableevents_read_pmu_boot_fault_info(
 		(*C.char)(buffer),
 		C.size_t(size),
-		&written,
-		&services)
+		&written)
 
 	switch status {
 	case 0:
@@ -101,27 +99,28 @@ func readPMUBootFaultInfoWithBufferSize(size int) (pmuBootFaultInfo, bool, error
 		return pmuBootFaultInfo{}, false, fmt.Errorf("failed to read %s from the IORegistry", pmuBootFaultProperty)
 	}
 
-	if services == 0 || written == 0 {
+	if written == 0 {
 		return pmuBootFaultInfo{}, false, nil
 	}
 	payload := C.GoStringN((*C.char)(buffer), C.int(written))
 	return parsePMUBootFaultPayload(payload), false, nil
 }
 
-// parsePMUBootFaultPayload splits the flattened native payload back into one
-// token slice per publishing service. It performs no validation; the
-// classifier owns that.
+// parsePMUBootFaultPayload splits the flattened native payload into its
+// tokens and dedupes them. It performs no validation; the classifier owns
+// that.
 func parsePMUBootFaultPayload(payload string) pmuBootFaultInfo {
 	var info pmuBootFaultInfo
-	for _, group := range strings.Split(payload, pmuServiceSeparator) {
-		tokens := make([]string, 0, 8)
-		for _, token := range strings.Split(group, pmuTokenSeparator) {
-			if token == "" {
-				continue
-			}
-			tokens = append(tokens, token)
+	seen := make(map[string]struct{})
+	for _, token := range strings.Split(payload, pmuTokenSeparator) {
+		if token == "" {
+			continue
 		}
-		info.Groups = append(info.Groups, tokens)
+		if _, duplicate := seen[token]; duplicate {
+			continue
+		}
+		seen[token] = struct{}{}
+		info.Tokens = append(info.Tokens, token)
 	}
 	return info
 }

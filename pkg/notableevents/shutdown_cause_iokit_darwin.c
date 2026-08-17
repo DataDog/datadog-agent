@@ -31,7 +31,6 @@
 #define DD_PMU_TOKEN_INLINE_BYTES 128
 
 #define DD_PMU_TOKEN_SEPARATOR '\x1f'
-#define DD_PMU_SERVICE_SEPARATOR '\x1e'
 
 // dd_pkg_notableevents_append copies value into buffer, reporting whether the
 // remaining capacity was sufficient.
@@ -50,8 +49,12 @@ static bool dd_pkg_notableevents_append(
 }
 
 // dd_pkg_notableevents_append_tokens flattens one service's IOPMUBootFaultInfo
-// array into buffer. Returns 0 on success, -2 when buffer was too small and -3
-// when the array could not be rendered in full.
+// array into buffer, continuing the flat, DD_PMU_TOKEN_SEPARATOR-delimited
+// sequence started by an earlier call: *emitted is shared across every
+// service so a separator lands between services too, with no boundary marker
+// distinguishing one service's tokens from the next. Returns 0 on success, -2
+// when buffer was too small and -3 when the array could not be rendered in
+// full.
 //
 // A token is never shortened and never skipped for its length. Classification
 // runs over the whole set and a missing token can change the elected class, so
@@ -60,13 +63,13 @@ static int dd_pkg_notableevents_append_tokens(
     CFArrayRef tokens,
     char *buffer,
     size_t size,
-    size_t *written) {
+    size_t *written,
+    size_t *emitted) {
     CFIndex count = CFArrayGetCount(tokens);
     if (count > DD_PMU_MAX_TOKENS_PER_SERVICE) {
         return -3;
     }
 
-    size_t emitted = 0;
     for (CFIndex i = 0; i < count; i++) {
         CFTypeRef element = CFArrayGetValueAtIndex(tokens, i);
         // A non-string element cannot be a fault token, so stepping over it
@@ -114,7 +117,7 @@ static int dd_pkg_notableevents_append_tokens(
             continue;
         }
 
-        if (emitted > 0) {
+        if (*emitted > 0) {
             const char separator = DD_PMU_TOKEN_SEPARATOR;
             if (!dd_pkg_notableevents_append(buffer, size, written, &separator, 1)) {
                 free(heap_token);
@@ -125,7 +128,7 @@ static int dd_pkg_notableevents_append_tokens(
             free(heap_token);
             return -2;
         }
-        emitted++;
+        (*emitted)++;
         free(heap_token);
     }
 
@@ -137,13 +140,11 @@ static int dd_pkg_notableevents_append_tokens(
 int dd_pkg_notableevents_read_pmu_boot_fault_info(
     char *buffer,
     size_t size,
-    size_t *written,
-    size_t *services) {
-    if (buffer == NULL || size == 0 || written == NULL || services == NULL) {
+    size_t *written) {
+    if (buffer == NULL || size == 0 || written == NULL) {
         return -1;
     }
     *written = 0;
-    *services = 0;
 
     // The property is published by a PMIC-specific class name that differs
     // across Macs, and IOKit matching cannot match on key presence alone
@@ -162,9 +163,14 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
     }
 
     int status = 0;
+    size_t services = 0;
+    // Shared across every service's dd_pkg_notableevents_append_tokens call
+    // so the token separator is placed correctly between services too: the
+    // property is flattened into one token sequence with no service boundary.
+    size_t emitted = 0;
     io_object_t entry = IO_OBJECT_NULL;
     while ((entry = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
-        if (*services >= DD_PMU_MAX_SERVICES) {
+        if (services >= DD_PMU_MAX_SERVICES) {
             IOObjectRelease(entry);
             break;
         }
@@ -184,28 +190,19 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         }
 
         size_t candidate = *written;
-        if (*services > 0) {
-            const char separator = DD_PMU_SERVICE_SEPARATOR;
-            if (!dd_pkg_notableevents_append(buffer, size, &candidate, &separator, 1)) {
-                CFRelease(property);
-                status = -2;
-                break;
-            }
-        }
-        status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate);
+        status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate, &emitted);
         CFRelease(property);
         if (status != 0) {
             break;
         }
 
         *written = candidate;
-        *services += 1;
+        services += 1;
     }
 
     IOObjectRelease(iterator);
     if (status != 0) {
         *written = 0;
-        *services = 0;
     }
     return status;
 }

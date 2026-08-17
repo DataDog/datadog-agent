@@ -1637,7 +1637,7 @@ func TestDarwinCollectorPrunesExpiredUnreferencedAcknowledgements(t *testing.T) 
 const otherTestBootUUID = "D27F2229-FD15-4D46-94A1-318553D26EF9"
 
 var (
-	thermalPMUPayload   = pmuBootFaultInfo{Groups: [][]string{{"ot,tdie_overtemp"}}}
+	thermalPMUPayload   = pmuBootFaultInfo{Tokens: []string{"ot,tdie_overtemp"}}
 	testShutdownBootTme = time.Date(2026, time.August, 11, 9, 55, 21, 0, time.UTC)
 )
 
@@ -1993,7 +1993,7 @@ func TestDarwinCollectorSurvivesShutdownCauseReadFailures(t *testing.T) {
 			name: "untrusted payload",
 			install: func(c *Collector) {
 				c.readShutdownCause = func() (pmuBootFaultInfo, error) {
-					return pmuBootFaultInfo{Groups: [][]string{{"ot,<script>"}}}, nil
+					return pmuBootFaultInfo{Tokens: []string{"ot,<script>"}}, nil
 				}
 			},
 			expectRecorded: true,

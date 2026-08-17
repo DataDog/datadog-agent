@@ -9,17 +9,16 @@
 #include <stddef.h>
 
 // dd_pkg_notableevents_read_pmu_boot_fault_info flattens every
-// IOPMUBootFaultInfo string array in the IOService plane into buffer. Tokens
-// within one service are separated by 0x1f and services by 0x1e, so no Core
-// Foundation type crosses the cgo boundary. Returns 0 on success, -1 on an
-// IOKit failure, -2 when buffer was too small and -3 when a service's array
-// could not be rendered in full, which is never reported as a partial read.
-// *written receives the byte count and *services the number of services that
-// carried the property.
+// IOPMUBootFaultInfo string array in the IOService plane into buffer. Every
+// token from every publishing service lands in the same flat, 0x1f-separated
+// sequence with no service-boundary marker, so no Core Foundation type
+// crosses the cgo boundary. Returns 0 on success, -1 on an IOKit failure, -2
+// when buffer was too small and -3 when a service's array could not be
+// rendered in full, which is never reported as a partial read. *written
+// receives the byte count.
 int dd_pkg_notableevents_read_pmu_boot_fault_info(
     char *buffer,
     size_t size,
-    size_t *written,
-    size_t *services);
+    size_t *written);
 
 #endif

@@ -20,43 +20,35 @@ func TestParsePMUBootFaultPayload(t *testing.T) {
 	tests := []struct {
 		name    string
 		payload string
-		expect  [][]string
+		expect  []string
 	}{
 		{
-			name:    "single service",
+			name:    "single token",
 			payload: "target_off_restart",
-			expect:  [][]string{{"target_off_restart"}},
+			expect:  []string{"target_off_restart"},
 		},
 		{
-			name:    "several services",
-			payload: "rst\x1fbtn_rst,btn_seq_reset\x1etarget_off_restart\x1ewdog,reset_in_1",
-			expect: [][]string{
-				{"rst", "btn_rst,btn_seq_reset"},
-				{"target_off_restart"},
-				{"wdog,reset_in_1"},
+			name:    "several tokens",
+			payload: "rst\x1fbtn_rst,btn_seq_reset\x1ftarget_off_restart\x1fwdog,reset_in_1",
+			expect: []string{
+				"rst", "btn_rst,btn_seq_reset", "target_off_restart", "wdog,reset_in_1",
 			},
 		},
 		{
 			name:    "empty tokens are dropped",
-			payload: "\x1frst\x1f\x1ewdog,reset_in_1\x1f",
-			expect: [][]string{
-				{"rst"},
-				{"wdog,reset_in_1"},
-			},
+			payload: "\x1frst\x1f\x1fwdog,reset_in_1\x1f",
+			expect:  []string{"rst", "wdog,reset_in_1"},
 		},
 		{
-			name:    "service publishing an empty array",
-			payload: "rst\x1e",
-			expect: [][]string{
-				{"rst"},
-				{},
-			},
+			name:    "duplicate tokens are deduplicated",
+			payload: "wdog,reset_in_1\x1frst_in,reset_in_1_deassert\x1fwdog,reset_in_1",
+			expect:  []string{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.expect, parsePMUBootFaultPayload(test.payload).Groups)
+			assert.Equal(t, test.expect, parsePMUBootFaultPayload(test.payload).Tokens)
 		})
 	}
 }
@@ -72,12 +64,9 @@ func TestReadPMUBootFaultInfoDegradesGracefully(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	for _, group := range info.Groups {
-		for _, token := range group {
-			assert.NotEmpty(t, token)
-			assert.NotContains(t, token, pmuTokenSeparator)
-			assert.NotContains(t, token, pmuServiceSeparator)
-		}
+	for _, token := range info.Tokens {
+		assert.NotEmpty(t, token)
+		assert.NotContains(t, token, pmuTokenSeparator)
 	}
 }
 

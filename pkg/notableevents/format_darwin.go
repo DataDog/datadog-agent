@@ -310,7 +310,6 @@ func (r shutdownCauseResult) customPayload(bootUUID string, bootTime time.Time) 
 		"families":       sanitizedPayloadStrings(r.Families),
 		"tokens":         sanitizedPayloadStrings(r.Tokens),
 		"fault_tokens":   sanitizedPayloadStrings(r.FaultTokens),
-		"pmu_count":      r.PMUCount,
 	}
 	if family := sanitizePayloadString(r.PrimaryFamily); family != "" {
 		payload["primary_family"] = boundedString(family, maxDarwinEventStringBytes)

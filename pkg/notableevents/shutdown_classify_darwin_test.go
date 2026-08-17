@@ -16,24 +16,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The measured payloads from the PMU boot-fault test run. Pattern C is the
-// load-bearing fixture: it is the only payload a real trigger produced that
-// also emits an event.
+// The measured payloads from the PMU boot-fault test run, flattened to their
+// distinct token union (several PMUs on the measured hardware redundantly
+// republish the same tokens). Pattern C is the load-bearing fixture: it is
+// the only payload a real trigger produced that also emits an event.
 var (
-	measuredPatternACleanShutdown = pmuBootFaultInfo{Groups: [][]string{
-		{"target_off_restart"},
-		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
-		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+	measuredPatternACleanShutdown = pmuBootFaultInfo{Tokens: []string{
+		"target_off_restart", "wdog,reset_in_1", "rst_in,reset_in_1_deassert",
 	}}
-	measuredPatternBReboot = pmuBootFaultInfo{Groups: [][]string{
-		{"wdog,reset_in_1"},
-		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
-		{"wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+	measuredPatternBReboot = pmuBootFaultInfo{Tokens: []string{
+		"wdog,reset_in_1", "rst_in,reset_in_1_deassert",
 	}}
-	measuredPatternCButtonForce = pmuBootFaultInfo{Groups: [][]string{
-		{"rst", "btn_rst,btn_seq_reset", "target_off_restart"},
-		{"rst", "crash,crash0_in", "wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
-		{"rst", "crash,crash0_in", "wdog,reset_in_1", "rst_in,reset_in_1_deassert"},
+	measuredPatternCButtonForce = pmuBootFaultInfo{Tokens: []string{
+		"rst", "btn_rst,btn_seq_reset", "target_off_restart", "crash,crash0_in", "wdog,reset_in_1", "rst_in,reset_in_1_deassert",
 	}}
 )
 
@@ -64,7 +59,7 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name:          "thermal",
-			info:          pmuBootFaultInfo{Groups: [][]string{{"ot,tdie_overtemp"}}},
+			info:          pmuBootFaultInfo{Tokens: []string{"ot,tdie_overtemp"}},
 			expectEvent:   true,
 			expectClass:   shutdownClassThermal,
 			expectPrimary: "ot",
@@ -72,7 +67,7 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name:          "thermal alternate family",
-			info:          pmuBootFaultInfo{Groups: [][]string{{"sochot,reset_in_3"}}},
+			info:          pmuBootFaultInfo{Tokens: []string{"sochot,reset_in_3"}},
 			expectEvent:   true,
 			expectClass:   shutdownClassThermal,
 			expectPrimary: "sochot",
@@ -80,7 +75,7 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name:          "thermal singleton",
-			info:          pmuBootFaultInfo{Groups: [][]string{{"ntc_shdn"}}},
+			info:          pmuBootFaultInfo{Tokens: []string{"ntc_shdn"}},
 			expectEvent:   true,
 			expectClass:   shutdownClassThermal,
 			expectPrimary: "ntc_shdn",
@@ -88,7 +83,7 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name:          "hypervisor crash",
-			info:          pmuBootFaultInfo{Groups: [][]string{{"crash,hyp_fw_crash"}}},
+			info:          pmuBootFaultInfo{Tokens: []string{"crash,hyp_fw_crash"}},
 			expectEvent:   true,
 			expectClass:   shutdownClassCrash,
 			expectPrimary: "crash",
@@ -96,9 +91,9 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name: "thermal wins over every other class",
-			info: pmuBootFaultInfo{Groups: [][]string{{
+			info: pmuBootFaultInfo{Tokens: []string{
 				"ot,overtemp", "uv,vddmain_uvlo", "crash,crash_in", "timeout,watchdog_timeout",
-			}}},
+			}},
 			expectEvent:   true,
 			expectClass:   shutdownClassThermal,
 			expectPrimary: "ot",
@@ -108,9 +103,9 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name: "power wins without thermal",
-			info: pmuBootFaultInfo{Groups: [][]string{{
+			info: pmuBootFaultInfo{Tokens: []string{
 				"uv,vddmain_uvlo", "crash,crash_in", "timeout,watchdog_timeout",
-			}}},
+			}},
 			expectEvent:   true,
 			expectClass:   shutdownClassPower,
 			expectPrimary: "uv",
@@ -120,9 +115,9 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name: "crash wins over watchdog",
-			info: pmuBootFaultInfo{Groups: [][]string{{
+			info: pmuBootFaultInfo{Tokens: []string{
 				"crash,crash_in", "timeout,watchdog_timeout",
-			}}},
+			}},
 			expectEvent:   true,
 			expectClass:   shutdownClassCrash,
 			expectPrimary: "crash",
@@ -130,7 +125,7 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name:          "underscore separated power family",
-			info:          pmuBootFaultInfo{Groups: [][]string{{"buck_en_err", "pgood_error_idx0"}}},
+			info:          pmuBootFaultInfo{Tokens: []string{"buck_en_err", "pgood_error_idx0"}},
 			expectEvent:   true,
 			expectClass:   shutdownClassPower,
 			expectPrimary: "buck",
@@ -138,11 +133,11 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name: "unknown family stays silent",
-			info: pmuBootFaultInfo{Groups: [][]string{{"nonsense,whatever"}}},
+			info: pmuBootFaultInfo{Tokens: []string{"nonsense,whatever"}},
 		},
 		{
 			name:          "unknown thermal suffix still classifies",
-			info:          pmuBootFaultInfo{Groups: [][]string{{"ot,some_future_sensor"}}},
+			info:          pmuBootFaultInfo{Tokens: []string{"ot,some_future_sensor"}},
 			expectEvent:   true,
 			expectClass:   shutdownClassThermal,
 			expectPrimary: "ot",
@@ -150,7 +145,7 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name:          "unknown crash suffix still classifies",
-			info:          pmuBootFaultInfo{Groups: [][]string{{"crash,some_future_line"}}},
+			info:          pmuBootFaultInfo{Tokens: []string{"crash,some_future_line"}},
 			expectEvent:   true,
 			expectClass:   shutdownClassCrash,
 			expectPrimary: "crash",
@@ -158,9 +153,8 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		},
 		{
 			name: "benign payload mixed with a fault",
-			info: pmuBootFaultInfo{Groups: [][]string{
-				{"target_off_restart"},
-				{"wdog,reset_in_1", "rst_in,reset_in_1_deassert", "ot,overtemp"},
+			info: pmuBootFaultInfo{Tokens: []string{
+				"target_off_restart", "wdog,reset_in_1", "rst_in,reset_in_1_deassert", "ot,overtemp",
 			}},
 			expectEvent:   true,
 			expectClass:   shutdownClassThermal,
@@ -170,10 +164,6 @@ func TestClassifyShutdownTokens(t *testing.T) {
 		{
 			name: "absent property",
 			info: pmuBootFaultInfo{},
-		},
-		{
-			name: "empty arrays",
-			info: pmuBootFaultInfo{Groups: [][]string{{}, {}}},
 		},
 	}
 
@@ -195,13 +185,10 @@ func TestClassifyShutdownTokens(t *testing.T) {
 			assert.NotEmpty(t, shutdownMessages[result.Class])
 
 			// Every token stays in Tokens whether or not it is a fault.
-			for _, group := range test.info.Groups {
-				for _, token := range group {
-					assert.Contains(t, result.Tokens, token)
-					assert.Contains(t, result.Families, tokenFamily(token))
-				}
+			for _, token := range test.info.Tokens {
+				assert.Contains(t, result.Tokens, token)
+				assert.Contains(t, result.Families, tokenFamily(token))
 			}
-			assert.Equal(t, len(test.info.Groups), result.PMUCount)
 			assert.True(t, sortedAscending(result.Tokens))
 			assert.True(t, sortedAscending(result.Families))
 			assert.True(t, sortedAscending(result.FaultTokens))
@@ -231,14 +218,17 @@ func TestClassifyShutdownTokensPatternCPayload(t *testing.T) {
 	assert.Equal(t, "macOS crash shutdown", shutdownTitles[result.Class])
 }
 
-// TestClassifyShutdownTokensIgnoresPMUOrdering guards the dedup identity: PMU
-// enumeration order is not stable across boots, so a permuted payload must
-// classify identically.
-func TestClassifyShutdownTokensIgnoresPMUOrdering(t *testing.T) {
-	permuted := pmuBootFaultInfo{Groups: [][]string{
-		measuredPatternCButtonForce.Groups[2],
-		measuredPatternCButtonForce.Groups[0],
-		measuredPatternCButtonForce.Groups[1],
+// TestClassifyShutdownTokensIgnoresTokenOrdering guards the dedup identity:
+// IOKit service enumeration order is not stable across boots, so a permuted
+// token list must classify identically.
+func TestClassifyShutdownTokensIgnoresTokenOrdering(t *testing.T) {
+	permuted := pmuBootFaultInfo{Tokens: []string{
+		measuredPatternCButtonForce.Tokens[3],
+		measuredPatternCButtonForce.Tokens[0],
+		measuredPatternCButtonForce.Tokens[2],
+		measuredPatternCButtonForce.Tokens[5],
+		measuredPatternCButtonForce.Tokens[1],
+		measuredPatternCButtonForce.Tokens[4],
 	}}
 
 	expected, emit := classifyShutdownTokens(measuredPatternCButtonForce)
@@ -261,33 +251,27 @@ func TestValidatePMUBootFaultInfoRejectsUntrustedPayloads(t *testing.T) {
 	}{
 		{
 			name: "too many tokens",
-			info: pmuBootFaultInfo{Groups: [][]string{oversized}},
-		},
-		{
-			name: "too many tokens across services",
-			info: pmuBootFaultInfo{Groups: [][]string{
-				oversized[:maxShutdownTokens], {"ot,overtemp"},
-			}},
+			info: pmuBootFaultInfo{Tokens: oversized},
 		},
 		{
 			name: "oversized token",
-			info: pmuBootFaultInfo{Groups: [][]string{{strings.Repeat("a", maxShutdownTokenBytes+1)}}},
+			info: pmuBootFaultInfo{Tokens: []string{strings.Repeat("a", maxShutdownTokenBytes+1)}},
 		},
 		{
 			name: "markup in a token",
-			info: pmuBootFaultInfo{Groups: [][]string{{"ot,<script>"}}},
+			info: pmuBootFaultInfo{Tokens: []string{"ot,<script>"}},
 		},
 		{
 			name: "uppercase in a token",
-			info: pmuBootFaultInfo{Groups: [][]string{{"OT,OVERTEMP"}}},
+			info: pmuBootFaultInfo{Tokens: []string{"OT,OVERTEMP"}},
 		},
 		{
 			name: "whitespace in a token",
-			info: pmuBootFaultInfo{Groups: [][]string{{"ot, overtemp"}}},
+			info: pmuBootFaultInfo{Tokens: []string{"ot, overtemp"}},
 		},
 		{
 			name: "empty token",
-			info: pmuBootFaultInfo{Groups: [][]string{{""}}},
+			info: pmuBootFaultInfo{Tokens: []string{""}},
 		},
 	}
 
@@ -299,16 +283,18 @@ func TestValidatePMUBootFaultInfoRejectsUntrustedPayloads(t *testing.T) {
 }
 
 // TestValidatePMUBootFaultInfoBoundsTheDistinctUnion proves the token bound is
-// charged once for a token rather than once per publishing service. Several
-// PMUs republishing the same set is the normal case, so a raw count would
-// reject payloads whose distinct union is well inside the limit.
+// charged once for a token rather than once per occurrence. Several PMUs
+// republishing the same set is the normal case (parsePMUBootFaultPayload
+// already dedups it, but a hand-built pmuBootFaultInfo could still contain
+// duplicates), so a raw count would reject payloads whose distinct union is
+// well inside the limit.
 func TestValidatePMUBootFaultInfoBoundsTheDistinctUnion(t *testing.T) {
 	dictionary := allPMUFaultTokens()
 	require.Less(t, len(dictionary), maxShutdownTokens)
 
-	republished := pmuBootFaultInfo{}
+	var republished pmuBootFaultInfo
 	for range 3 {
-		republished.Groups = append(republished.Groups, dictionary)
+		republished.Tokens = append(republished.Tokens, dictionary...)
 	}
 	// 240 raw tokens, 80 distinct.
 	require.NoError(t, validatePMUBootFaultInfo(republished))
@@ -318,9 +304,7 @@ func TestValidatePMUBootFaultInfoBoundsTheDistinctUnion(t *testing.T) {
 	for index := range oversized {
 		oversized[index] = fmt.Sprintf("ot,sensor_%d", index)
 	}
-	require.Error(t, validatePMUBootFaultInfo(pmuBootFaultInfo{
-		Groups: [][]string{oversized[:64], oversized[64:]},
-	}))
+	require.Error(t, validatePMUBootFaultInfo(pmuBootFaultInfo{Tokens: oversized}))
 }
 
 // TestValidatePMUBootFaultInfoAcceptsLongTokens covers the window the native
@@ -331,7 +315,7 @@ func TestValidatePMUBootFaultInfoAcceptsLongTokens(t *testing.T) {
 	token := "ot," + strings.Repeat("a", maxShutdownTokenBytes-3)
 	require.Len(t, token, maxShutdownTokenBytes)
 
-	info := pmuBootFaultInfo{Groups: [][]string{{token}}}
+	info := pmuBootFaultInfo{Tokens: []string{token}}
 	require.NoError(t, validatePMUBootFaultInfo(info))
 
 	result, emit := classifyShutdownTokens(info)
@@ -341,7 +325,7 @@ func TestValidatePMUBootFaultInfoAcceptsLongTokens(t *testing.T) {
 
 func TestValidatePMUBootFaultInfoAcceptsTheFullDictionary(t *testing.T) {
 	for _, token := range allPMUFaultTokens() {
-		require.NoError(t, validatePMUBootFaultInfo(pmuBootFaultInfo{Groups: [][]string{{token}}}), token)
+		require.NoError(t, validatePMUBootFaultInfo(pmuBootFaultInfo{Tokens: []string{token}}), token)
 	}
 }
 
@@ -408,14 +392,14 @@ func TestShutdownBenignTokensAreOtherwiseFaults(t *testing.T) {
 func TestClassifyShutdownTokensExcludesBenignTokens(t *testing.T) {
 	for token := range shutdownBenignTokens {
 		t.Run(token+" alone stays silent", func(t *testing.T) {
-			result, emit := classifyShutdownTokens(pmuBootFaultInfo{Groups: [][]string{{token}}})
+			result, emit := classifyShutdownTokens(pmuBootFaultInfo{Tokens: []string{token}})
 			assert.False(t, emit)
 			assert.Empty(t, result.Class)
 		})
 
 		t.Run(token+" retained beside a real fault", func(t *testing.T) {
 			result, emit := classifyShutdownTokens(pmuBootFaultInfo{
-				Groups: [][]string{{token, "uv,vddmain_uvlo"}},
+				Tokens: []string{token, "uv,vddmain_uvlo"},
 			})
 			require.True(t, emit)
 			assert.Equal(t, shutdownClassPower, result.Class)
