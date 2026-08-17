@@ -212,10 +212,6 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 		events = append(events, p.buildKueueWorkloadEvents(update.updatedKueueWorkloads)...)
 	}
 
-	if len(update.updatedResourceSlices) > 0 {
-		events = append(events, p.buildResourceSliceEvents(update.updatedResourceSlices)...)
-	}
-
 	if update.updateIsFullState {
 		for _, uid := range seenPods {
 			if podEvent, ok := p.buildPodEventFromUID(uid); ok {
@@ -427,33 +423,6 @@ func (p *streamingProvider) buildKueueResourceFlavorEvents(updatedFlavorIDs map[
 	return events
 }
 
-func (p *streamingProvider) buildResourceSliceEvents(updatedSliceIDs map[string]struct{}) []workloadmeta.CollectorEvent {
-	events := make([]workloadmeta.CollectorEvent, 0, len(updatedSliceIDs))
-	for sliceID := range updatedSliceIDs {
-		slice, found := p.dcaStream.getResourceSlice(sliceID)
-		if found {
-			events = append(events, workloadmeta.CollectorEvent{
-				Source: workloadmeta.SourceClusterOrchestrator,
-				Type:   workloadmeta.EventTypeSet,
-				Entity: slice,
-			})
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceClusterOrchestrator,
-			Type:   workloadmeta.EventTypeUnset,
-			Entity: &workloadmeta.KubernetesResourceSlice{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesResourceSlice,
-					ID:   sliceID,
-				},
-			},
-		})
-	}
-	return events
-}
-
 func (p *streamingProvider) buildKueueWorkloadEvents(updatedWorkloadIDs map[string]struct{}) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(updatedWorkloadIDs))
 	for workloadID := range updatedWorkloadIDs {
@@ -488,7 +457,6 @@ type streamUpdate struct {
 	updatedKueueQueues          map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKueueResourceFlavors map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKueueWorkloads       map[string]struct{} // keys are workloadmeta entity IDs
-	updatedResourceSlices       map[string]struct{} // keys are workloadmeta entity IDs
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -503,7 +471,6 @@ type dcaStreamClient struct {
 	kueueQueues          map[string]*workloadmeta.KubernetesKueueQueue
 	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
 	kueueWorkloads       map[string]*workloadmeta.KubernetesKueueWorkload
-	resourceSlices       map[string]*workloadmeta.KubernetesResourceSlice
 	initialized          bool
 	unimplemented        bool
 	pendingUpdate        streamUpdate
@@ -525,7 +492,6 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		kueueQueues:          make(map[string]*workloadmeta.KubernetesKueueQueue),
 		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
 		kueueWorkloads:       make(map[string]*workloadmeta.KubernetesKueueWorkload),
-		resourceSlices:       make(map[string]*workloadmeta.KubernetesResourceSlice),
 		readyCh:              make(chan struct{}),
 		updateCh:             make(chan struct{}, 1),
 	}
@@ -631,20 +597,6 @@ func (sc *dcaStreamClient) getKueueWorkload(workloadID string) (*workloadmeta.Ku
 	// workload is passed to workloadmeta after sc.mu is released, and it contains
 	// mutable maps such as Labels, Annotations, and PodSetAssignment flavors.
 	return workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload), true
-}
-
-func (sc *dcaStreamClient) getResourceSlice(sliceID string) (*workloadmeta.KubernetesResourceSlice, bool) {
-	sc.mu.RLock()
-	defer sc.mu.RUnlock()
-
-	slice, found := sc.resourceSlices[sliceID]
-	if !found {
-		return nil, false
-	}
-	// Keep ownership of the cached entity with the stream client: the returned
-	// slice is handed to workloadmeta after sc.mu is released and contains a
-	// mutable Devices slice.
-	return slice.DeepCopy().(*workloadmeta.KubernetesResourceSlice), true
 }
 
 func (sc *dcaStreamClient) isUnimplemented() bool {
@@ -821,33 +773,17 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.kueueWorkloads = newKueueWorkloads
 
-		newResourceSlices := make(map[string]*workloadmeta.KubernetesResourceSlice, len(resp.ResourceSlices))
-		updatedResourceSlices := make(map[string]struct{}, len(resp.ResourceSlices)+len(sc.resourceSlices))
-		for sliceID := range sc.resourceSlices {
-			updatedResourceSlices[sliceID] = struct{}{}
-		}
-		for _, sliceMetadata := range resp.ResourceSlices {
-			slice := newResourceSlice(sliceMetadata)
-			if slice == nil {
-				continue
-			}
-			newResourceSlices[slice.EntityID.ID] = slice
-			updatedResourceSlices[slice.EntityID.ID] = struct{}{}
-		}
-		sc.resourceSlices = newResourceSlices
-
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
 		sc.pendingUpdate.updatedKueueQueues = updatedKueueQueues
 		sc.pendingUpdate.updatedKueueResourceFlavors = updatedKueueResourceFlavors
 		sc.pendingUpdate.updatedKueueWorkloads = updatedKueueWorkloads
-		sc.pendingUpdate.updatedResourceSlices = updatedResourceSlices
 		sc.notifyUpdate()
 		sc.signalReady()
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.ResourceSlices) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -954,77 +890,9 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedKueueWorkloads[workloadID] = struct{}{}
 	}
 
-	for _, sliceMetadata := range resp.ResourceSlices {
-		sliceID := resourceSliceID(sliceMetadata)
-		switch sliceMetadata.Type {
-		case pb.KubeMetadataEventType_SET:
-			slice := newResourceSlice(sliceMetadata)
-			if slice == nil {
-				continue
-			}
-			sc.resourceSlices[slice.EntityID.ID] = slice
-			sliceID = slice.EntityID.ID
-		case pb.KubeMetadataEventType_UNSET:
-			delete(sc.resourceSlices, sliceID)
-		default:
-			log.Errorf("Unknown event type %d for ResourceSlice metadata %s", sliceMetadata.Type, sliceID)
-			continue
-		}
-		if sc.pendingUpdate.updatedResourceSlices == nil {
-			sc.pendingUpdate.updatedResourceSlices = make(map[string]struct{})
-		}
-		sc.pendingUpdate.updatedResourceSlices[sliceID] = struct{}{}
-	}
-
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.ResourceSlices) > 0 {
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 {
 		sc.notifyUpdate()
 	}
-}
-
-func newResourceSlice(sliceMetadata *pb.ResourceSlice) *workloadmeta.KubernetesResourceSlice {
-	if sliceMetadata == nil || sliceMetadata.Name == "" {
-		return nil
-	}
-
-	devices := make([]workloadmeta.ResourceSliceDevice, 0, len(sliceMetadata.Devices))
-	for _, device := range sliceMetadata.Devices {
-		if device == nil || device.Name == "" {
-			continue
-		}
-		devices = append(devices, workloadmeta.ResourceSliceDevice{
-			Name:        device.Name,
-			UUID:        device.Uuid,
-			ProductName: device.ProductName,
-			PCIeRoot:    device.PcieRoot,
-			ParentUUID:  device.ParentUuid,
-			Profile:     device.Profile,
-			MemoryBytes: device.MemoryBytes,
-		})
-	}
-
-	return &workloadmeta.KubernetesResourceSlice{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesResourceSlice,
-			ID:   workloadmeta.GenerateResourceSliceEntityID(sliceMetadata.Name),
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: sliceMetadata.Name,
-		},
-		NodeName:       sliceMetadata.NodeName,
-		Driver:         sliceMetadata.Driver,
-		Pool:           sliceMetadata.Pool,
-		PoolGeneration: sliceMetadata.Generation,
-		Devices:        devices,
-	}
-}
-
-// resourceSliceID derives the entity ID from the proto message. It must work for
-// UNSET messages too, which carry identity fields only.
-func resourceSliceID(sliceMetadata *pb.ResourceSlice) string {
-	if sliceMetadata == nil {
-		return ""
-	}
-	return workloadmeta.GenerateResourceSliceEntityID(sliceMetadata.Name)
 }
 
 func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQueue {

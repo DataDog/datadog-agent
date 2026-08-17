@@ -637,198 +637,6 @@ func (x *KueueWorkload) GetType() KubeMetadataEventType {
 	return KubeMetadataEventType_SET
 }
 
-// ResourceSliceDevice is one device advertised by a DRA driver.
-type ResourceSliceDevice struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// uuid is the vendor device UUID, which for NVIDIA matches what NVML
-	// reports for the same physical card. Empty on MIG devices.
-	Uuid        string `protobuf:"bytes,2,opt,name=uuid,proto3" json:"uuid,omitempty"`
-	ProductName string `protobuf:"bytes,3,opt,name=product_name,json=productName,proto3" json:"product_name,omitempty"`
-	PcieRoot    string `protobuf:"bytes,4,opt,name=pcie_root,json=pcieRoot,proto3" json:"pcie_root,omitempty"`
-	// parent_uuid and profile are only set on MIG devices.
-	ParentUuid    string `protobuf:"bytes,5,opt,name=parent_uuid,json=parentUuid,proto3" json:"parent_uuid,omitempty"`
-	Profile       string `protobuf:"bytes,6,opt,name=profile,proto3" json:"profile,omitempty"`
-	MemoryBytes   int64  `protobuf:"varint,7,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResourceSliceDevice) Reset() {
-	*x = ResourceSliceDevice{}
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResourceSliceDevice) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResourceSliceDevice) ProtoMessage() {}
-
-func (x *ResourceSliceDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceSliceDevice.ProtoReflect.Descriptor instead.
-func (*ResourceSliceDevice) Descriptor() ([]byte, []int) {
-	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *ResourceSliceDevice) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ResourceSliceDevice) GetUuid() string {
-	if x != nil {
-		return x.Uuid
-	}
-	return ""
-}
-
-func (x *ResourceSliceDevice) GetProductName() string {
-	if x != nil {
-		return x.ProductName
-	}
-	return ""
-}
-
-func (x *ResourceSliceDevice) GetPcieRoot() string {
-	if x != nil {
-		return x.PcieRoot
-	}
-	return ""
-}
-
-func (x *ResourceSliceDevice) GetParentUuid() string {
-	if x != nil {
-		return x.ParentUuid
-	}
-	return ""
-}
-
-func (x *ResourceSliceDevice) GetProfile() string {
-	if x != nil {
-		return x.Profile
-	}
-	return ""
-}
-
-func (x *ResourceSliceDevice) GetMemoryBytes() int64 {
-	if x != nil {
-		return x.MemoryBytes
-	}
-	return 0
-}
-
-// ResourceSlice is a DRA ResourceSlice: the device inventory for one node.
-// Only slices belonging to the requesting node are sent on a given stream.
-type ResourceSlice struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	Name     string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	NodeName string                 `protobuf:"bytes,2,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
-	Driver   string                 `protobuf:"bytes,3,opt,name=driver,proto3" json:"driver,omitempty"`
-	Pool     string                 `protobuf:"bytes,4,opt,name=pool,proto3" json:"pool,omitempty"`
-	Devices  []*ResourceSliceDevice `protobuf:"bytes,5,rep,name=devices,proto3" json:"devices,omitempty"`
-	Type     KubeMetadataEventType  `protobuf:"varint,6,opt,name=type,proto3,enum=datadog.kubemetadata.KubeMetadataEventType" json:"type,omitempty"`
-	// generation lets a consumer tell stale inventory apart from current:
-	// Kubernetes requires considering only the highest generation of a pool.
-	Generation    int64 `protobuf:"varint,7,opt,name=generation,proto3" json:"generation,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResourceSlice) Reset() {
-	*x = ResourceSlice{}
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResourceSlice) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResourceSlice) ProtoMessage() {}
-
-func (x *ResourceSlice) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceSlice.ProtoReflect.Descriptor instead.
-func (*ResourceSlice) Descriptor() ([]byte, []int) {
-	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ResourceSlice) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ResourceSlice) GetNodeName() string {
-	if x != nil {
-		return x.NodeName
-	}
-	return ""
-}
-
-func (x *ResourceSlice) GetDriver() string {
-	if x != nil {
-		return x.Driver
-	}
-	return ""
-}
-
-func (x *ResourceSlice) GetPool() string {
-	if x != nil {
-		return x.Pool
-	}
-	return ""
-}
-
-func (x *ResourceSlice) GetDevices() []*ResourceSliceDevice {
-	if x != nil {
-		return x.Devices
-	}
-	return nil
-}
-
-func (x *ResourceSlice) GetType() KubeMetadataEventType {
-	if x != nil {
-		return x.Type
-	}
-	return KubeMetadataEventType_SET
-}
-
-func (x *ResourceSlice) GetGeneration() int64 {
-	if x != nil {
-		return x.Generation
-	}
-	return 0
-}
-
 type KubeMetadataStreamResponse struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	IsFullState          bool                   `protobuf:"varint,1,opt,name=is_full_state,json=isFullState,proto3" json:"is_full_state,omitempty"`
@@ -837,14 +645,13 @@ type KubeMetadataStreamResponse struct {
 	KueueQueues          []*KueueQueue          `protobuf:"bytes,4,rep,name=kueue_queues,json=kueueQueues,proto3" json:"kueue_queues,omitempty"`
 	KueueResourceFlavors []*KueueResourceFlavor `protobuf:"bytes,5,rep,name=kueue_resource_flavors,json=kueueResourceFlavors,proto3" json:"kueue_resource_flavors,omitempty"`
 	KueueWorkloads       []*KueueWorkload       `protobuf:"bytes,6,rep,name=kueue_workloads,json=kueueWorkloads,proto3" json:"kueue_workloads,omitempty"`
-	ResourceSlices       []*ResourceSlice       `protobuf:"bytes,7,rep,name=resource_slices,json=resourceSlices,proto3" json:"resource_slices,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
 
 func (x *KubeMetadataStreamResponse) Reset() {
 	*x = KubeMetadataStreamResponse{}
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[9]
+	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -856,7 +663,7 @@ func (x *KubeMetadataStreamResponse) String() string {
 func (*KubeMetadataStreamResponse) ProtoMessage() {}
 
 func (x *KubeMetadataStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[9]
+	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -869,7 +676,7 @@ func (x *KubeMetadataStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeMetadataStreamResponse.ProtoReflect.Descriptor instead.
 func (*KubeMetadataStreamResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{9}
+	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *KubeMetadataStreamResponse) GetIsFullState() bool {
@@ -910,13 +717,6 @@ func (x *KubeMetadataStreamResponse) GetKueueResourceFlavors() []*KueueResourceF
 func (x *KubeMetadataStreamResponse) GetKueueWorkloads() []*KueueWorkload {
 	if x != nil {
 		return x.KueueWorkloads
-	}
-	return nil
-}
-
-func (x *KubeMetadataStreamResponse) GetResourceSlices() []*ResourceSlice {
-	if x != nil {
-		return x.ResourceSlices
 	}
 	return nil
 }
@@ -998,34 +798,14 @@ const file_datadog_kubemetadata_kubemetadata_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdb\x01\n" +
-	"\x13ResourceSliceDevice\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
-	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12!\n" +
-	"\fproduct_name\x18\x03 \x01(\tR\vproductName\x12\x1b\n" +
-	"\tpcie_root\x18\x04 \x01(\tR\bpcieRoot\x12\x1f\n" +
-	"\vparent_uuid\x18\x05 \x01(\tR\n" +
-	"parentUuid\x12\x18\n" +
-	"\aprofile\x18\x06 \x01(\tR\aprofile\x12!\n" +
-	"\fmemory_bytes\x18\a \x01(\x03R\vmemoryBytes\"\x92\x02\n" +
-	"\rResourceSlice\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
-	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x16\n" +
-	"\x06driver\x18\x03 \x01(\tR\x06driver\x12\x12\n" +
-	"\x04pool\x18\x04 \x01(\tR\x04pool\x12C\n" +
-	"\adevices\x18\x05 \x03(\v2).datadog.kubemetadata.ResourceSliceDeviceR\adevices\x12?\n" +
-	"\x04type\x18\x06 \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\x12\x1e\n" +
-	"\n" +
-	"generation\x18\a \x01(\x03R\n" +
-	"generation\"\x9f\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd1\x03\n" +
 	"\x1aKubeMetadataStreamResponse\x12\"\n" +
 	"\ris_full_state\x18\x01 \x01(\bR\visFullState\x12C\n" +
 	"\bmappings\x18\x02 \x03(\v2'.datadog.kubemetadata.PodServiceMappingR\bmappings\x12V\n" +
 	"\x12namespace_metadata\x18\x03 \x03(\v2'.datadog.kubemetadata.NamespaceMetadataR\x11namespaceMetadata\x12C\n" +
 	"\fkueue_queues\x18\x04 \x03(\v2 .datadog.kubemetadata.KueueQueueR\vkueueQueues\x12_\n" +
 	"\x16kueue_resource_flavors\x18\x05 \x03(\v2).datadog.kubemetadata.KueueResourceFlavorR\x14kueueResourceFlavors\x12L\n" +
-	"\x0fkueue_workloads\x18\x06 \x03(\v2#.datadog.kubemetadata.KueueWorkloadR\x0ekueueWorkloads\x12L\n" +
-	"\x0fresource_slices\x18\a \x03(\v2#.datadog.kubemetadata.ResourceSliceR\x0eresourceSlices*+\n" +
+	"\x0fkueue_workloads\x18\x06 \x03(\v2#.datadog.kubemetadata.KueueWorkloadR\x0ekueueWorkloads*+\n" +
 	"\x15KubeMetadataEventType\x12\a\n" +
 	"\x03SET\x10\x00\x12\t\n" +
 	"\x05UNSET\x10\x01*4\n" +
@@ -1046,7 +826,7 @@ func file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_kubemetadata_kubemetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_kubemetadata_kubemetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_datadog_kubemetadata_kubemetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_datadog_kubemetadata_kubemetadata_proto_goTypes = []any{
 	(KubeMetadataEventType)(0),         // 0: datadog.kubemetadata.KubeMetadataEventType
 	(KueueQueueType)(0),                // 1: datadog.kubemetadata.KueueQueueType
@@ -1057,51 +837,46 @@ var file_datadog_kubemetadata_kubemetadata_proto_goTypes = []any{
 	(*KueueResourceFlavor)(nil),        // 6: datadog.kubemetadata.KueueResourceFlavor
 	(*KueuePodSetAssignment)(nil),      // 7: datadog.kubemetadata.KueuePodSetAssignment
 	(*KueueWorkload)(nil),              // 8: datadog.kubemetadata.KueueWorkload
-	(*ResourceSliceDevice)(nil),        // 9: datadog.kubemetadata.ResourceSliceDevice
-	(*ResourceSlice)(nil),              // 10: datadog.kubemetadata.ResourceSlice
-	(*KubeMetadataStreamResponse)(nil), // 11: datadog.kubemetadata.KubeMetadataStreamResponse
-	nil,                                // 12: datadog.kubemetadata.NamespaceMetadata.LabelsEntry
-	nil,                                // 13: datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
-	nil,                                // 14: datadog.kubemetadata.KueueQueue.LabelsEntry
-	nil,                                // 15: datadog.kubemetadata.KueueQueue.AnnotationsEntry
-	nil,                                // 16: datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
-	nil,                                // 17: datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
-	nil,                                // 18: datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
-	nil,                                // 19: datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
-	nil,                                // 20: datadog.kubemetadata.KueueWorkload.LabelsEntry
-	nil,                                // 21: datadog.kubemetadata.KueueWorkload.AnnotationsEntry
+	(*KubeMetadataStreamResponse)(nil), // 9: datadog.kubemetadata.KubeMetadataStreamResponse
+	nil,                                // 10: datadog.kubemetadata.NamespaceMetadata.LabelsEntry
+	nil,                                // 11: datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
+	nil,                                // 12: datadog.kubemetadata.KueueQueue.LabelsEntry
+	nil,                                // 13: datadog.kubemetadata.KueueQueue.AnnotationsEntry
+	nil,                                // 14: datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
+	nil,                                // 15: datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
+	nil,                                // 16: datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
+	nil,                                // 17: datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
+	nil,                                // 18: datadog.kubemetadata.KueueWorkload.LabelsEntry
+	nil,                                // 19: datadog.kubemetadata.KueueWorkload.AnnotationsEntry
 }
 var file_datadog_kubemetadata_kubemetadata_proto_depIdxs = []int32{
 	0,  // 0: datadog.kubemetadata.PodServiceMapping.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	12, // 1: datadog.kubemetadata.NamespaceMetadata.labels:type_name -> datadog.kubemetadata.NamespaceMetadata.LabelsEntry
-	13, // 2: datadog.kubemetadata.NamespaceMetadata.annotations:type_name -> datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
+	10, // 1: datadog.kubemetadata.NamespaceMetadata.labels:type_name -> datadog.kubemetadata.NamespaceMetadata.LabelsEntry
+	11, // 2: datadog.kubemetadata.NamespaceMetadata.annotations:type_name -> datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
 	0,  // 3: datadog.kubemetadata.NamespaceMetadata.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
 	1,  // 4: datadog.kubemetadata.KueueQueue.queue_type:type_name -> datadog.kubemetadata.KueueQueueType
-	14, // 5: datadog.kubemetadata.KueueQueue.labels:type_name -> datadog.kubemetadata.KueueQueue.LabelsEntry
-	15, // 6: datadog.kubemetadata.KueueQueue.annotations:type_name -> datadog.kubemetadata.KueueQueue.AnnotationsEntry
+	12, // 5: datadog.kubemetadata.KueueQueue.labels:type_name -> datadog.kubemetadata.KueueQueue.LabelsEntry
+	13, // 6: datadog.kubemetadata.KueueQueue.annotations:type_name -> datadog.kubemetadata.KueueQueue.AnnotationsEntry
 	0,  // 7: datadog.kubemetadata.KueueQueue.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	16, // 8: datadog.kubemetadata.KueueResourceFlavor.labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
-	17, // 9: datadog.kubemetadata.KueueResourceFlavor.annotations:type_name -> datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
-	18, // 10: datadog.kubemetadata.KueueResourceFlavor.node_affinity_labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
+	14, // 8: datadog.kubemetadata.KueueResourceFlavor.labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
+	15, // 9: datadog.kubemetadata.KueueResourceFlavor.annotations:type_name -> datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
+	16, // 10: datadog.kubemetadata.KueueResourceFlavor.node_affinity_labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
 	0,  // 11: datadog.kubemetadata.KueueResourceFlavor.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	19, // 12: datadog.kubemetadata.KueuePodSetAssignment.flavors:type_name -> datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
-	20, // 13: datadog.kubemetadata.KueueWorkload.labels:type_name -> datadog.kubemetadata.KueueWorkload.LabelsEntry
-	21, // 14: datadog.kubemetadata.KueueWorkload.annotations:type_name -> datadog.kubemetadata.KueueWorkload.AnnotationsEntry
+	17, // 12: datadog.kubemetadata.KueuePodSetAssignment.flavors:type_name -> datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
+	18, // 13: datadog.kubemetadata.KueueWorkload.labels:type_name -> datadog.kubemetadata.KueueWorkload.LabelsEntry
+	19, // 14: datadog.kubemetadata.KueueWorkload.annotations:type_name -> datadog.kubemetadata.KueueWorkload.AnnotationsEntry
 	7,  // 15: datadog.kubemetadata.KueueWorkload.pod_set_assignments:type_name -> datadog.kubemetadata.KueuePodSetAssignment
 	0,  // 16: datadog.kubemetadata.KueueWorkload.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	9,  // 17: datadog.kubemetadata.ResourceSlice.devices:type_name -> datadog.kubemetadata.ResourceSliceDevice
-	0,  // 18: datadog.kubemetadata.ResourceSlice.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	3,  // 19: datadog.kubemetadata.KubeMetadataStreamResponse.mappings:type_name -> datadog.kubemetadata.PodServiceMapping
-	4,  // 20: datadog.kubemetadata.KubeMetadataStreamResponse.namespace_metadata:type_name -> datadog.kubemetadata.NamespaceMetadata
-	5,  // 21: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_queues:type_name -> datadog.kubemetadata.KueueQueue
-	6,  // 22: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_resource_flavors:type_name -> datadog.kubemetadata.KueueResourceFlavor
-	8,  // 23: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_workloads:type_name -> datadog.kubemetadata.KueueWorkload
-	10, // 24: datadog.kubemetadata.KubeMetadataStreamResponse.resource_slices:type_name -> datadog.kubemetadata.ResourceSlice
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	3,  // 17: datadog.kubemetadata.KubeMetadataStreamResponse.mappings:type_name -> datadog.kubemetadata.PodServiceMapping
+	4,  // 18: datadog.kubemetadata.KubeMetadataStreamResponse.namespace_metadata:type_name -> datadog.kubemetadata.NamespaceMetadata
+	5,  // 19: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_queues:type_name -> datadog.kubemetadata.KueueQueue
+	6,  // 20: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_resource_flavors:type_name -> datadog.kubemetadata.KueueResourceFlavor
+	8,  // 21: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_workloads:type_name -> datadog.kubemetadata.KueueWorkload
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_datadog_kubemetadata_kubemetadata_proto_init() }
@@ -1115,7 +890,7 @@ func file_datadog_kubemetadata_kubemetadata_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_kubemetadata_kubemetadata_proto_rawDesc), len(file_datadog_kubemetadata_kubemetadata_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   20,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
