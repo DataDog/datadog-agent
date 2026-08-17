@@ -152,6 +152,22 @@ func Test_CollectEventsWithMinimalPod(t *testing.T) {
 	assert.Equal(t, expected, bundle)
 }
 
+func Test_MinimalPodParsesResourceClaimNames(t *testing.T) {
+	claimName := "shared-claim"
+	pod := &MinimalPod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "team-a", UID: types.UID("test-pod-uid")},
+		Spec: MinimalPodSpec{
+			Containers: []MinimalContainer{},
+			ResourceClaims: []corev1.PodResourceClaim{
+				{Name: "gpu", ResourceClaimName: &claimName},
+			},
+		},
+	}
+
+	entity := (minimalPodParser{}).Parse(pod).(*workloadmeta.KubernetesPod)
+	assert.Equal(t, []string{"shared-claim"}, entity.ResourceClaimNames)
+}
+
 func Test_MinimalPodDeepCopy(t *testing.T) {
 	runtimeClassName := "test-runtime"
 

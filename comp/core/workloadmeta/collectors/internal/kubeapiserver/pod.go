@@ -65,11 +65,12 @@ type MinimalPod struct {
 
 // MinimalPodSpec contains only the pod spec fields we need
 type MinimalPodSpec struct {
-	NodeName          string             `json:"nodeName,omitempty"`
-	Containers        []MinimalContainer `json:"containers"`
-	Volumes           []MinimalVolume    `json:"volumes,omitempty"`
-	RuntimeClassName  *string            `json:"runtimeClassName,omitempty"`
-	PriorityClassName string             `json:"priorityClassName,omitempty"`
+	NodeName          string                    `json:"nodeName,omitempty"`
+	Containers        []MinimalContainer        `json:"containers"`
+	Volumes           []MinimalVolume           `json:"volumes,omitempty"`
+	RuntimeClassName  *string                   `json:"runtimeClassName,omitempty"`
+	PriorityClassName string                    `json:"priorityClassName,omitempty"`
+	ResourceClaims    []corev1.PodResourceClaim `json:"resourceClaims,omitempty"`
 }
 
 // MinimalContainer contains only the container fields we need
@@ -153,6 +154,13 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 			if p.Spec.Volumes[i].PersistentVolumeClaim != nil {
 				out.Spec.Volumes[i].PersistentVolumeClaim = p.Spec.Volumes[i].PersistentVolumeClaim.DeepCopy()
 			}
+		}
+	}
+
+	if p.Spec.ResourceClaims != nil {
+		out.Spec.ResourceClaims = make([]corev1.PodResourceClaim, len(p.Spec.ResourceClaims))
+		for i := range p.Spec.ResourceClaims {
+			p.Spec.ResourceClaims[i].DeepCopyInto(&out.Spec.ResourceClaims[i])
 		}
 	}
 
@@ -307,6 +315,13 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 	}
 
+	var resourceClaimNames []string
+	for _, claim := range pod.Spec.ResourceClaims {
+		if claim.ResourceClaimName != nil && *claim.ResourceClaimName != "" {
+			resourceClaimNames = append(resourceClaimNames, *claim.ResourceClaimName)
+		}
+	}
+
 	var rtcName string
 	if pod.Spec.RuntimeClassName != nil {
 		rtcName = *pod.Spec.RuntimeClassName
@@ -361,6 +376,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		Phase:                      string(pod.Status.Phase),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: pvcNames,
+		ResourceClaimNames:         resourceClaimNames,
 		Ready:                      ready,
 		IP:                         pod.Status.PodIP,
 		PriorityClass:              pod.Spec.PriorityClassName,
