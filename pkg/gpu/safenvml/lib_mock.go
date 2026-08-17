@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -32,7 +33,11 @@ func init() {
 
 // WithMockNVML calls the WithPartialMockNVML with all symbols available
 func WithMockNVML(tb testing.TB, lib nvml.Interface) {
-	WithPartialMockNVML(tb, lib, allSymbols)
+	capabilities := maps.Clone(allSymbols)
+	// The generated NVML mock cannot construct GpuFabricInfoHandler, which is
+	// required to invoke the versioned fabric API.
+	delete(capabilities, toNativeName("GetGpuFabricInfoV"))
+	WithPartialMockNVML(tb, lib, capabilities)
 }
 
 func resetSingleton() {

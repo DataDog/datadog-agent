@@ -4,10 +4,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "procscan",
     srcs = [
+        "executable_filter.go",
         "list_pids.go",
         "proc_stat_reader.go",
         "scanner.go",
-        "start_time_cache.go",
         "time_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan",
@@ -16,10 +16,10 @@ go_library(
     deps = [
         "//pkg/discovery/tracermetadata",
         "//pkg/discovery/tracermetadata/model",
+        "//pkg/dyninst/object",
         "//pkg/dyninst/process",
+        "//pkg/util/kernel",
         "//pkg/util/log",
-        "@com_github_google_btree//:btree",
-        "@org_golang_x_sys//unix",
         "@org_golang_x_time//rate",
     ],
 )
@@ -29,8 +29,8 @@ dd_agent_go_test(
     srcs = [
         "list_pids_test.go",
         "proc_stat_reader_test.go",
+        "scanner_bench_test.go",
         "scanner_test.go",
-        "start_time_cache_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":procscan"],
@@ -52,10 +52,11 @@ dd_agent_go_test(
     ],
     gotags_sets = [["linux_bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
+        "//pkg/discovery/tracermetadata",
         "//pkg/discovery/tracermetadata/model",
         "//pkg/dyninst/process",
+        "//pkg/util/kernel",
         "@com_github_goccy_go_yaml//:go-yaml",
         "@com_github_goccy_go_yaml//ast",
         "@com_github_goccy_go_yaml//lexer",

@@ -16,6 +16,9 @@ import (
 // ConfigRequest represents the type configuration for a network test.
 type ConfigRequest interface {
 	GetSubType() payload.Protocol
+	// GetNamespace returns the NDM namespace configured on the test, or nil
+	// when the test does not override the Agent's default namespace.
+	GetNamespace() *string
 }
 
 // NetworkConfigRequest represents the generic part of the network test configuration.
@@ -25,7 +28,14 @@ type NetworkConfigRequest struct {
 	ProbeCount         *int    `json:"probe_count,omitempty"`
 	TracerouteCount    *int    `json:"traceroute_count,omitempty"`
 	MaxTTL             *int    `json:"max_ttl,omitempty"`
-	Timeout            *int    `json:"timeout,omitempty"` // in seconds
+	Timeout            *int    `json:"timeout,omitempty"`   // in seconds
+	Namespace          *string `json:"namespace,omitempty"` // NDM namespace used to resolve devices; overrides the Agent default when set
+}
+
+// GetNamespace returns the namespace override configured on the test, if any.
+// It is promoted to every request type embedding NetworkConfigRequest.
+func (n NetworkConfigRequest) GetNamespace() *string {
+	return n.Namespace
 }
 
 // UDPConfigRequest represents a udp network test configuration.
