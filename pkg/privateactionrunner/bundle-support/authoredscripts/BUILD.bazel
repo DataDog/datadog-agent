@@ -3,15 +3,28 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "authoredscripts",
-    srcs = ["manifest.go"],
+    srcs = [
+        "layout.go",
+        "manifest.go",
+        "package.go",
+        "resolver.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts",
     visibility = ["//visibility:public"],
-    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_masterminds_semver_v3//:semver",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
 )
 
 dd_agent_go_test(
     name = "authoredscripts_test",
-    srcs = ["manifest_test.go"],
+    srcs = [
+        "manifest_test.go",
+        "package_test.go",
+        "resolver_test.go",
+    ],
     embed = [":authoredscripts"],
     deps = [
         "@com_github_stretchr_testify//assert",

@@ -18,7 +18,6 @@ import (
 
 const (
 	manifestSchemaVersion    = "v1"
-	scriptDirectory          = "script"
 	manifestFile             = "package.yaml"
 	maxManifestSize          = 1 << 20
 	environmentKindValue     = "value"
