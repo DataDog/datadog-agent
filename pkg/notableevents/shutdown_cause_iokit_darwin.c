@@ -50,11 +50,11 @@ static bool dd_pkg_notableevents_append(
 
 // dd_pkg_notableevents_append_tokens flattens one service's IOPMUBootFaultInfo
 // array into buffer, continuing the flat, DD_PMU_TOKEN_SEPARATOR-delimited
-// sequence started by an earlier call: *emitted is shared across every
-// service so a separator lands between services too, with no boundary marker
-// distinguishing one service's tokens from the next. Returns 0 on success, -2
-// when buffer was too small and -3 when the array could not be rendered in
-// full.
+// sequence started by an earlier call: every token is followed by a
+// separator, including the last one written by the last service, so the
+// caller trims that single trailing separator once every service has been
+// processed. Returns 0 on success, -2 when buffer was too small and -3 when
+// the array could not be rendered in full.
 //
 // A token is never shortened and never skipped for its length. Classification
 // runs over the whole set and a missing token can change the elected class, so
@@ -63,8 +63,7 @@ static int dd_pkg_notableevents_append_tokens(
     CFArrayRef tokens,
     char *buffer,
     size_t size,
-    size_t *written,
-    size_t *emitted) {
+    size_t *written) {
     CFIndex count = CFArrayGetCount(tokens);
     if (count > DD_PMU_MAX_TOKENS_PER_SERVICE) {
         return -3;
@@ -117,18 +116,15 @@ static int dd_pkg_notableevents_append_tokens(
             continue;
         }
 
-        if (*emitted > 0) {
-            const char separator = DD_PMU_TOKEN_SEPARATOR;
-            if (!dd_pkg_notableevents_append(buffer, size, written, &separator, 1)) {
-                free(heap_token);
-                return -2;
-            }
-        }
         if (!dd_pkg_notableevents_append(buffer, size, written, token, strlen(token))) {
             free(heap_token);
             return -2;
         }
-        (*emitted)++;
+        const char separator = DD_PMU_TOKEN_SEPARATOR;
+        if (!dd_pkg_notableevents_append(buffer, size, written, &separator, 1)) {
+            free(heap_token);
+            return -2;
+        }
         free(heap_token);
     }
 
@@ -164,10 +160,6 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
 
     int status = 0;
     size_t services = 0;
-    // Shared across every service's dd_pkg_notableevents_append_tokens call
-    // so the token separator is placed correctly between services too: the
-    // property is flattened into one token sequence with no service boundary.
-    size_t emitted = 0;
     io_object_t entry = IO_OBJECT_NULL;
     while ((entry = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
         if (services >= DD_PMU_MAX_SERVICES) {
@@ -190,7 +182,7 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
         }
 
         size_t candidate = *written;
-        status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate, &emitted);
+        status = dd_pkg_notableevents_append_tokens(property, buffer, size, &candidate);
         CFRelease(property);
         if (status != 0) {
             break;
@@ -203,6 +195,12 @@ int dd_pkg_notableevents_read_pmu_boot_fault_info(
     IOObjectRelease(iterator);
     if (status != 0) {
         *written = 0;
+    } else if (*written > 0 && buffer[*written - 1] == DD_PMU_TOKEN_SEPARATOR) {
+        // Every emitted token is followed by a separator, so the very last
+        // token wrote one that has nothing after it. Trim it here rather
+        // than avoid writing it in dd_pkg_notableevents_append_tokens, which
+        // would need to know whether more tokens follow from a later service.
+        *written -= 1;
     }
     return status;
 }
