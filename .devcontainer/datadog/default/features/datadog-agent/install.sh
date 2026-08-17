@@ -2,8 +2,9 @@
 set -euo pipefail
 featureDir=$(cd "$(dirname "$0")"; pwd)
 
-# Get claude from the buildimages /root/.local/bin
-# cp /root/.local/bin/claude /home/bits/.local/bin/claude
+# Install tailscale so workspace devcontainers can connect to the Headscale
+# overlay network and reach agent-sandbox private VMs
+curl -fsSL https://tailscale.com/install.sh | sh
 
 # Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
 usermod -aG docker bits
