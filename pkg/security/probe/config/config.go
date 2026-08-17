@@ -100,6 +100,11 @@ type Config struct {
 	// multiplied by the number of CPUs on the system to compute the final dispatcher queue size.
 	EventStreamDispatcherQueueSizePerCore bool
 
+	// EventStreamDispatcherQueueSizeMin specifies the minimum size of the user space dispatcher queue,
+	// regardless of the number of CPUs. It acts as a global floor applied after EventStreamDispatcherQueueSize
+	// and the optional per-core multiplication.
+	EventStreamDispatcherQueueSizeMin int
+
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
@@ -224,6 +229,7 @@ func NewConfig() (*Config, error) {
 		EventStreamBufferSize:                 getInt("event_stream.buffer_size"),
 		EventStreamDispatcherQueueSize:        getInt("event_stream.dispatcher_queue_size"),
 		EventStreamDispatcherQueueSizePerCore: getBool("event_stream.dispatcher_queue_size_per_core"),
+		EventStreamDispatcherQueueSizeMin:     getInt("event_stream.dispatcher_queue_size_min"),
 		EventStreamUseFentry:                  getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:          getBool("event_stream.use_kprobe_fallback"),
 		EventStreamKretprobeMaxActive:         getInt("event_stream.kretprobe_max_active"),

@@ -1144,6 +1144,19 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+          dispatcher_queue_size_min:
+            node_type: setting
+            type: integer
+            default: 65535
+            comment: |-
+              Minimum size of the user space dispatcher queue, regardless of the
+              number of CPUs. It acts as a global floor: after applying
+              dispatcher_queue_size (and the per-core multiplication when
+              dispatcher_queue_size_per_core is true), the final queue size is
+              raised to this value if it would otherwise be smaller.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
           kretprobe_max_active:
             node_type: setting
             type: integer
