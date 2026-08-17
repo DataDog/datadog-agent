@@ -85,6 +85,58 @@ func TestPrometheusServicesEPS_Collect(t *testing.T) {
 			},
 		},
 		{
+			name: "skip check with kubernetes_container_names",
+			checks: []*types.PrometheusCheck{
+				{
+					Instances: types.DefaultPrometheusCheck.Instances,
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
+							Excl: map[string]string{"prometheus.io/scrape": "false"},
+							Incl: map[string]string{"prometheus.io/scrape": "true"},
+						},
+						KubeContainerNames: []string{"example-container"},
+					},
+				},
+			},
+			services: []*v1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       k8stypes.UID("test"),
+						Name:      "svc",
+						Namespace: "ns",
+						Annotations: map[string]string{
+							"prometheus.io/scrape": "true",
+							"prometheus.io/path":   "/mewtrix",
+							"prometheus.io/port":   "1234",
+						},
+					},
+				},
+			},
+			collectEndpoints: true,
+			endpointSlices: []*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc-abc123",
+						Namespace: "ns",
+						Labels: map[string]string{
+							"kubernetes.io/service-name": "svc",
+						},
+					},
+					Endpoints: []discv1.Endpoint{
+						{
+							Addresses: []string{"10.0.0.1"},
+							TargetRef: &v1.ObjectReference{
+								Kind: "Pod",
+								UID:  "svc-pod-1",
+							},
+							NodeName: &nodeNames[0],
+						},
+					},
+				},
+			},
+			expectConfigs: nil,
+		},
+		{
 			name:   "collect only endpointslices",
 			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
 			services: []*v1.Service{
