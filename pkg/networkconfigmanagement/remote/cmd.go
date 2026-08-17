@@ -34,13 +34,43 @@ func errorStr(e error) string {
 // Execute runs a command and validates the output with its validation rules.
 // The validation runs on the combined stdout and stderr of the command.
 func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
-	// Setup commands (e.g. "terminal pager 0") run in their own exec session
-	// before the main command: many devices execute only the first command of a
-	// multi-command exec, but the effect persists across sessions on the same connection.
-	for _, setup := range cmd.SetupCommands {
-		_ = runExec(ctx, client, setup)
+	var result *types.CommandResult
+	// run executes the setup commands and the main command on a single
+	// connection. Setup commands (e.g. "terminal pager 0") run first, each in
+	// its own exec session because many devices execute only the first command
+	// of a multi-command exec; their side effect is scoped to the connection, so
+	// the main command must run on that same connection.
+	run := func(conn sshClient) error {
+		// Setup commands are best-effort, but honor cancellation.
+		for _, setup := range cmd.SetupCommands {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			_ = runExec(ctx, conn, setup)
+		}
+		r, err := runMain(ctx, conn, cmd)
+		result = r
+		return err
 	}
 
+	// A RetryingSSHClient can reconnect between sessions, which would strand the
+	// setup commands on the previous connection; run the whole sequence on one
+	// pinned connection and retry it as a unit instead.
+	if rc, ok := client.(*RetryingSSHClient); ok {
+		if err := rc.Pinned(run); err != nil {
+			return nil, err
+		}
+	} else if err := run(client); err != nil {
+		return nil, err
+	}
+	return result, result.FormattedError()
+}
+
+// runMain runs the command, captures its output, and validates it.
+func runMain(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, err
@@ -59,7 +89,7 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	select {
 	case r := <-ch:
 		cmd.Validator.ValidateResult(r)
-		return r, r.FormattedError()
+		return r, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
