@@ -69,6 +69,13 @@ type Builder struct {
 	eventMutex     sync.RWMutex
 }
 
+// ksmBuilderMu serializes access to the kube-state-metrics library's
+// package-level availableStores map, which is shared across all Builder
+// instances and mutated by WithCustomResourceStoreFactories / read by
+// BuildStores without internal synchronization. Without this lock, two
+// concurrent KSM check workers calling buildStores() race on that map.
+var ksmBuilderMu sync.Mutex
+
 // New returns new Builder instance
 func New() *Builder {
 	return &Builder{
@@ -174,6 +181,8 @@ func (b *Builder) WithGenerateCustomResourceStoresFunc(f ksmtypes.BuildCustomRes
 
 // WithCustomResourceStoreFactories configures a constom store factory
 func (b *Builder) WithCustomResourceStoreFactories(fs ...customresource.RegistryFactory) {
+	ksmBuilderMu.Lock()
+	defer ksmBuilderMu.Unlock()
 	b.ksmBuilder.WithCustomResourceStoreFactories(fs...)
 }
 
@@ -211,7 +220,9 @@ func (b *Builder) Build() metricsstore.MetricsWriterList {
 // BuildStores initializes and registers all enabled stores.
 // It returns metric cache stores.
 func (b *Builder) BuildStores() [][]cache.Store {
+	ksmBuilderMu.Lock()
 	stores := b.ksmBuilder.BuildStores()
+	ksmBuilderMu.Unlock()
 
 	if b.WorkloadmetaReflector != nil {
 		// Starting the workloadmeta reflector here allows us to start just one for all stores.
