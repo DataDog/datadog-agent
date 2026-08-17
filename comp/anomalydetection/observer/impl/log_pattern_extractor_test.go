@@ -479,7 +479,7 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	// seen leaves a series behind). With it, the LRU eviction during the 3rd
 	// ingest removes cluster #1 from storage before cluster #3's series is
 	// added, so count is 2.
-	require.Equal(t, 2, storage.TotalSeriesCount(""),
+	require.Equal(t, 2, storage.TotalSeriesCount(),
 		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
 
 	// Surviving series must have context stored on them.
@@ -568,7 +568,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	// Storage shrunk to two series (LRU cap), so detector maps must now
 	// have at most two entries per agg too. Without the fan-out, they
 	// would still hold three entries (one per series ever observed).
-	require.Equal(t, 2, storage.TotalSeriesCount(""), "LRU should keep storage bounded")
+	require.Equal(t, 2, storage.TotalSeriesCount(), "LRU should keep storage bounded")
 
 	// Each detector defaults to 2 aggregations (Average, Count). Before the
 	// fan-out fix, the maps held 3 series × 2 aggs = 6 entries even though

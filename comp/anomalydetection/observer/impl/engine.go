@@ -870,7 +870,7 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 		e.baseline.recordMutedNames(displayNames)
 	}
 
-	totalSeries := e.storage.TotalSeriesCount("")
+	totalSeries := e.storage.TotalSeriesCount()
 
 	// Emit before removal so testbench sinks can read metadata. The controller
 	// uses copy-on-write snapshots, so this immutable union can be published to

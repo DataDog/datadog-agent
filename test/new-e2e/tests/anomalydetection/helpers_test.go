@@ -50,6 +50,12 @@ const (
 	// Full example: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
 	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
 
+	// scorerEpisodeStartedMarker is emitted by the stdout reporter when the
+	// scorer opens an episode after reaching High severity. The reporter appends
+	// either the scorer metadata or a multiline contributor summary, so retain
+	// only the prefix common to both renderings.
+	scorerEpisodeStartedMarker = "[observer] scorer episode started:"
+
 	// scorerHelperRegisteredMarker is logged once at agent startup when the
 	// anomaly scorer is successfully wired with telemetry. Waiting for it
 	// before sending metrics ensures the scorer is active.
@@ -192,14 +198,17 @@ func sendGauge(s observerTestSuite, name string, value float64) {
 	}
 }
 
-func waitForReportsTelemetry(s observerTestSuite) {
+func waitForScorerEpisode(s observerTestSuite, expectedAnomalySource string) {
 	s.T().Helper()
-	s.T().Log("waiting for observer reports telemetry...")
+	s.T().Log("waiting for anomaly scorer episode...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assert.True(c, s.Env().Agent.Client.IsReady(), "agent should be ready")
-		tel := observerTelemetryOutput(s)
-		assert.True(c, containsMetric(tel, telemetryReportsEmitted),
-			"observer telemetry should expose reports emitted counter after anomalies")
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
+		assert.NoError(c, err, "journalctl execution failed")
+		assert.Contains(c, out, scorerEpisodeStartedMarker,
+			"journal should contain the scorer episode-started marker after anomalies")
+		assert.Contains(c, out, expectedAnomalySource,
+			"journal should contain an anomaly from the test input source")
 	}, 3*time.Minute, 5*time.Second)
-	s.T().Log("observer reports telemetry detected")
+	s.T().Log("anomaly scorer episode detected")
 }
