@@ -76,6 +76,15 @@ func TestNewFlareBuilder(t *testing.T) {
 }
 
 func TestSave(t *testing.T) {
+	// Save() moves the final archive into os.TempDir(), which on a CI runner is shared with
+	// every other test process running at the same time. Point it at a directory unique to this
+	// test so a same-second archive name picked by another concurrent process can't collide with
+	// this one's file (see FLREM-148).
+	isolatedTmpDir := t.TempDir()
+	t.Setenv("TMPDIR", isolatedTmpDir) // unix
+	t.Setenv("TMP", isolatedTmpDir)    // windows
+	t.Setenv("TEMP", isolatedTmpDir)   // windows
+
 	fb := getNewBuilder(t)
 
 	root := setupDirWithData(t)

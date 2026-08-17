@@ -143,12 +143,7 @@ type builder struct {
 	nonScrubbedFiles map[string]bool
 }
 
-// getArchiveName builds the name of the flare archive. uniqueSuffix must be unique across
-// concurrently running flare builders (for example the random suffix of a temp dir), so that two
-// flares created within the same second don't end up with the same final archive name. The
-// archive file is moved into the shared system temp directory (see Save), so a name collision
-// between two unrelated flare builds could make one overwrite, or race with, the other's file.
-func getArchiveName(uniqueSuffix string) string {
+func getArchiveName() string {
 	t := time.Now().UTC()
 	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
 
@@ -158,7 +153,7 @@ func getArchiveName(uniqueSuffix string) string {
 		logLevelString = "-" + logLevel.String()
 	}
 
-	return fmt.Sprintf("datadog-agent-%s-%s%s.zip", timeString, uniqueSuffix, logLevelString)
+	return fmt.Sprintf("datadog-agent-%s%s.zip", timeString, logLevelString)
 }
 
 func (fb *builder) Save() (string, error) {
@@ -203,7 +198,7 @@ func (fb *builder) Save() (string, error) {
 	defer fb.Unlock()
 	fb.isClosed = true
 
-	archiveName := getArchiveName(filepath.Base(fb.tmpDir))
+	archiveName := getArchiveName()
 	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
 	archiveFinalPath := filepath.Join(os.TempDir(), archiveName)
 
