@@ -265,6 +265,12 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
     return is_network_flow_monitor_enabled;
 }
 
+static __attribute__((always_inline)) u64 is_span_tracking_enabled() {
+    u64 is_span_tracking_enabled;
+    LOAD_CONSTANT("is_span_tracking_enabled", is_span_tracking_enabled);
+    return is_span_tracking_enabled;
+}
+
 #define SYSCTL_OK 1
 
 #define MAX_SYSCTL_BUFFER_LEN 1024

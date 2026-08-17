@@ -1191,8 +1191,8 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 }
 
 // AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
-// If the metadata is successfully parsed and the tracer is a Go runtime, it also resolves the
-// pprof label offsets and populates the go_labels_procs BPF map.
+// If the metadata is successfully parsed, the tracer is a Go runtime, and span tracking is
+// enabled, it also resolves the pprof label offsets and populates the go_labels_procs BPF map.
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1233,10 +1233,10 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	p.applyTracerMetadata(pid, tmeta)
 }
 
-// applyTracerMetadata stores tracer metadata on the process cache entry and,
-// for Go processes, resolves the pprof label offsets for goroutine-level span
-// context. Must be called WITHOUT the resolver lock held; ELF I/O happens
-// outside the lock.
+// applyTracerMetadata stores tracer metadata on the process cache entry and, for Go
+// processes when span tracking is enabled, resolves the pprof label offsets for
+// goroutine-level span context. Must be called WITHOUT the resolver lock held; ELF I/O
+// happens outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
@@ -1244,7 +1244,7 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	}
 	p.Unlock()
 
-	if tmeta.TracerLanguage == "go" {
+	if p.config.SpanTrackingEnabled && tmeta.TracerLanguage == "go" {
 		// Go: resolve pprof label offsets for goroutine-level span context.
 		if err := p.resolveGoLabels(pid); err != nil {
 			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
