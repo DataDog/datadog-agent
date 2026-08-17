@@ -140,10 +140,7 @@ mod tests {
         let pending = tokio::time::timeout(std::time::Duration::from_secs(1), restart_rx.recv())
             .await
             .expect("timed out waiting for restart after spawn failure");
-        assert_eq!(
-            pending.as_deref(),
-            Some(expected_uuid.as_str())
-        );
+        assert_eq!(pending.as_deref(), Some(expected_uuid.as_str()));
         Ok(())
     }
 
