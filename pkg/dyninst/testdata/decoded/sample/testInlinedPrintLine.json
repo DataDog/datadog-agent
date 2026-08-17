@@ -33,7 +33,7 @@
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 61
+            "lineNumber": 62
           },
           {
             "function": "main.main",
@@ -117,7 +117,7 @@
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 61
+            "lineNumber": 62
           },
           {
             "function": "main.main",
@@ -201,7 +201,7 @@
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 61
+            "lineNumber": 62
           },
           {
             "function": "main.main",
@@ -290,7 +290,7 @@
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 61
+            "lineNumber": 62
           },
           {
             "function": "main.main",
@@ -369,7 +369,7 @@
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 61
+            "lineNumber": 62
           },
           {
             "function": "main.main",

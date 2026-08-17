@@ -22,6 +22,7 @@ const (
 	// General config
 	PARTaskConcurrency       = "private_action_runner.task_concurrency"
 	PARTaskTimeoutSeconds    = "private_action_runner.task_timeout_seconds"
+	PARIdleTimeoutSeconds    = "private_action_runner.idle_timeout_seconds"
 	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 

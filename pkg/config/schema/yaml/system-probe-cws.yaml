@@ -260,6 +260,14 @@ properties:
     node_type: section
     type: object
     properties:
+      cgroup_kill:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
       disarmer:
         node_type: section
         type: object

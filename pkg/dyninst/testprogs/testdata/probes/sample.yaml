@@ -3057,3 +3057,15 @@ probes:
           ref: "c"
         dsl: "c"
     captureSnapshot: true
+  - id: testHandleOrder
+    type: LOG_PROBE
+    where:
+      methodName: "main.(*Server).handleOrder"
+    template: "{req}"
+    segments:
+      - json:
+          ref: "req"
+        dsl: "req"
+    captureSnapshot: true
+    sampling:
+      snapshotsPerSecond: 10
