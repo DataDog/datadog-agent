@@ -23,7 +23,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.83.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.83.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.83.0-rc.3
-	github.com/DataDog/datadog-go/v5 v5.9.0
+	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/config/confignet v1.64.0
