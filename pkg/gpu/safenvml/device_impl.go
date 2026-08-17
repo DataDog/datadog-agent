@@ -109,6 +109,10 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
 	}
+
+	d.lib.fieldValuesLock()
+	defer d.lib.fieldValuesUnlock()
+
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
 }
@@ -137,6 +141,17 @@ func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanc
 	}
 	info, ret := d.nvmlDevice.GetGpuInstanceProfileInfo(profile)
 	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuFabricInfoV")); err != nil {
+		return nvml.GpuFabricInfo_v2{}, err
+	}
+	info, ret := d.nvmlDevice.GetGpuFabricInfoV().V2()
+	if err := NewNvmlAPIErrorOrNil("GetGpuFabricInfoV", ret); err != nil {
+		return nvml.GpuFabricInfo_v2{}, err
+	}
+	return info, nil
 }
 
 func (d *safeDeviceImpl) GetIndex() (int, error) {

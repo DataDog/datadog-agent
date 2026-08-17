@@ -65,7 +65,6 @@ from tasks import (
     owners,
     package,
     pipeline,
-    pkg_template,
     pre_commit,
     privateactionrunner,
     process_agent,
@@ -133,6 +132,7 @@ from tasks.gotest import (
     lint_go,
     send_unit_tests_stats,
     test,
+    test_new,
 )
 from tasks.install_tasks import (
     download_tools,
@@ -156,6 +156,7 @@ ns = Collection()
 
 # add single tasks to the root
 ns.add_task(test)
+ns.add_task(test_new)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -278,7 +279,6 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(schema)
 ns.add_collection(sbomgen)
-ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
 ns.add_collection(files_inventory)
 

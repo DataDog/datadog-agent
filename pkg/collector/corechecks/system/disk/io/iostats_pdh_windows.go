@@ -133,9 +133,7 @@ func (c *IOCheck) Run() error {
 				}
 				tagbuff.Reset()
 				tagbuff.WriteString("device:")
-				if c.lowercaseDeviceTag {
-					inst = strings.ToLower(inst)
-				}
+				inst = normalizeWindowsDeviceName(inst, c.lowercaseDeviceTag)
 				tagbuff.WriteString(inst)
 				tags := []string{tagbuff.String()}
 
@@ -162,4 +160,15 @@ func (c *IOCheck) Run() error {
 
 	sender.Commit()
 	return nil
+}
+
+func normalizeWindowsDeviceName(deviceName string, lowercase bool) string {
+	// Backslashes must never reach the backend: metric intake normalizes the
+	// device resource with \ -> / but tag values with \ -> _, which yields two
+	// device values for the same folder-mounted volume.
+	deviceName = strings.ReplaceAll(deviceName, "\\", "/")
+	if lowercase {
+		deviceName = strings.ToLower(deviceName)
+	}
+	return deviceName
 }

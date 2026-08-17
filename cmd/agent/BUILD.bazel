@@ -2,6 +2,8 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "AGENT_TAGS")
 
+exports_files(["macos/uninstall_mac_os.sh"])
+
 go_library(
     name = "agent_lib",
     srcs = [

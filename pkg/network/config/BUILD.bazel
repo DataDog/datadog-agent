@@ -47,9 +47,6 @@ dd_agent_go_test(
     ],
     embed = [":config"],
     gotags_sets = [["linux_bpf"]],
-    # keep: the linux_bpf variant needs a privileged host with a live kernel;
-    # it runs in the system-probe lane, not under wildcard builds.
-    tags = ["manual"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/config/mock",

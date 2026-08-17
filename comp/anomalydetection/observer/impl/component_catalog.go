@@ -90,6 +90,52 @@ type ComponentSettings struct {
 	configs map[string]any
 }
 
+// ApplyTestbenchDefaults applies replay-specific defaults used by the offline
+// testbench. Production builds ComponentSettings from the agent config and
+// never calls this function. Explicit testbench --config component entries
+// take precedence over this profile.
+func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
+	if settings.Enabled == nil {
+		settings.Enabled = make(map[string]bool)
+	}
+	if settings.configs == nil {
+		settings.configs = make(map[string]any)
+	}
+
+	bocpd := DefaultBOCPDConfig()
+	bocpd.WarmupPoints = 40
+	holt := DefaultHoltResidualConfig()
+	holt.WarmupPoints = 15
+	holt.ResidualWindow = 25
+	tukey := DefaultTukeyBiweightConfig()
+	tukey.WindowSize = 40
+	tukey.MinPoints = 40
+
+	for name, cfg := range map[string]any{
+		"bocpd":          bocpd,
+		"holt_residual":  holt,
+		"tukey_biweight": tukey,
+	} {
+		if _, explicitlyConfigured := settings.configs[name]; !explicitlyConfigured {
+			settings.configs[name] = cfg
+		}
+	}
+
+	// Evals should score the scorer's correlation episodes. Preserve explicit
+	// component choices in --config, which are used for ablations and manual
+	// comparisons.
+	if _, explicitlyEnabled := settings.Enabled["anomaly_scorer"]; !explicitlyEnabled {
+		settings.Enabled["anomaly_scorer"] = true
+	}
+	if _, explicitlyConfigured := settings.configs["anomaly_scorer"]; !explicitlyConfigured {
+		scorer := DefaultAnomalyScorerConfig()
+		scorer.CorrelationEvents = true
+		scorer.CooldownSecs = 0
+		settings.configs["anomaly_scorer"] = scorer
+	}
+	return settings
+}
+
 // componentCatalog is the shared registry of all available pipeline components.
 // Both the live observer and the testbench use this to discover and instantiate
 // detectors, correlators, and extractors.
@@ -246,7 +292,7 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentCorrelator,
 				defaultConfig:  DefaultTimeClusterConfig(),
 				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
-				defaultEnabled: true,
+				defaultEnabled: false,
 				readConfig:     readTimeClusterConfig,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TimeClusterConfig)

@@ -1,7 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-load("//tasks:build_tags.bzl", "COMMON_TAGS", "TRACE_AGENT_TAGS")
-
-# gazelle:dd_agent_go_test off
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -111,7 +109,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "aliases_test.go",
@@ -122,7 +120,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":impl"],
     embedsrcs = ["testdata/stringcode.go.tmpl"],
-    gotags = sorted(["test"] + list(COMMON_TAGS) + list(TRACE_AGENT_TAGS)),
+    gotags_sets = [["otlp"]],
     tags = ["manual"],
     deps = [
         "//comp/core/config",

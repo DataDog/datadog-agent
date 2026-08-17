@@ -1,6 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test off
+# gazelle:go_canonical_test_tag_set functionaltests linux_bpf
 
 go_library(
     name = "tests",
@@ -64,6 +65,7 @@ go_library(
             "//comp/core/tagger/types",
             "//comp/serializer/logscompression/impl",
             "//pkg/config/setup/constants",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/telemetry",
             "//pkg/eventmonitor",
             "//pkg/security/ebpf/kernel",
@@ -98,6 +100,7 @@ go_library(
             "//comp/core/tagger/types",
             "//comp/serializer/logscompression/impl",
             "//pkg/config/setup/constants",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/telemetry",
             "//pkg/eventmonitor",
             "//pkg/security/ebpf/kernel",
@@ -143,7 +146,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "tests_test",
     srcs = [
         "accept_test.go",
@@ -244,12 +247,12 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-    gotags = [
-        "test",
+    gotags_sets = [[
         "functionaltests",
         "linux_bpf",
-    ],  # keep
-    tags = ["manual"],  # keep
+    ]],
+    include_default = False,
+    tags = ["manual"],
     deps = [
         "//pkg/security/secl/rules",
         "//pkg/util/log",
