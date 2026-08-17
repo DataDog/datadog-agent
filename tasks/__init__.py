@@ -132,6 +132,7 @@ from tasks.gotest import (
     lint_go,
     send_unit_tests_stats,
     test,
+    test_new,
 )
 from tasks.install_tasks import (
     download_tools,
@@ -155,6 +156,7 @@ ns = Collection()
 
 # add single tasks to the root
 ns.add_task(test)
+ns.add_task(test_new)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)

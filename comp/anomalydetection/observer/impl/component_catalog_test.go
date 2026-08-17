@@ -67,8 +67,8 @@ func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
 	require.NoError(t, cat.validateDetectorTeardownContract())
 }
 
-func TestApplyTestbenchDetectorDefaults(t *testing.T) {
-	settings := ApplyTestbenchDetectorDefaults(ComponentSettings{})
+func TestApplyTestbenchDefaults(t *testing.T) {
+	settings := ApplyTestbenchDefaults(ComponentSettings{})
 
 	require.Equal(t, 40, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
 	holt := settings.configs["holt_residual"].(HoltResidualConfig)
@@ -77,16 +77,25 @@ func TestApplyTestbenchDetectorDefaults(t *testing.T) {
 	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
 	require.Equal(t, 40, tukey.WindowSize)
 	require.Equal(t, 40, tukey.MinPoints)
+	require.True(t, settings.Enabled["anomaly_scorer"])
+	require.NotContains(t, settings.Enabled, "time_cluster")
+	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	require.True(t, scorer.CorrelationEvents)
+	require.Zero(t, scorer.CooldownSecs)
 }
 
-func TestApplyTestbenchDetectorDefaults_PreservesExplicitConfig(t *testing.T) {
+func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
-		"bocpd": json.RawMessage(`{"warmup_points": 42}`),
+		"bocpd":          json.RawMessage(`{"warmup_points": 42}`),
+		"anomaly_scorer": json.RawMessage(`{"enabled":false}`),
+		"time_cluster":   json.RawMessage(`{"enabled":true}`),
 	})
 	require.NoError(t, err)
 
-	settings = ApplyTestbenchDetectorDefaults(settings)
+	settings = ApplyTestbenchDefaults(settings)
 	require.Equal(t, 42, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	require.False(t, settings.Enabled["anomaly_scorer"])
+	require.True(t, settings.Enabled["time_cluster"])
 }
 
 // bareDetectorForValidator is a minimal observerdef.Detector that

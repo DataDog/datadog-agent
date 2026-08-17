@@ -205,7 +205,8 @@ def eval_scenarios(
     source of truth for anomaly detection accuracy.
 
     Uses testbench --only to control which components are active.
-    Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
+    Default (no --only): uses testbench defaults (bocpd, rrcf, and
+      anomaly_scorer; time_cluster is disabled).
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
     With --config: JSON params file for testbench; overrides --only when both are set.

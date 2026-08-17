@@ -998,28 +998,6 @@ workflow:
         - release.json
       compare_to: $COMPARE_TO_BRANCH
 
-.except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_e2e_tests
-    when: never
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: never
-  - changes:
-      paths:
-        - .gitlab/test/e2e/e2e.yml
-        - test/e2e-framework/testing/**/*
-        - test/new-e2e/go.mod
-        - flakes.yaml
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-    when: never
-
 .dynamic_tests:
   - changes:
       paths:
