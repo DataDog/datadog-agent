@@ -246,5 +246,9 @@ func replayViaADP(cliParams *cliParams) error {
 	cmd := exec.Command(adpBin, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	fmt.Println("replay done")
+	return nil
 }
