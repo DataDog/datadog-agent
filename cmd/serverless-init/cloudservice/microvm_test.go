@@ -234,8 +234,9 @@ func TestMicroVM_LogsTagSetter_InvokedOnRun(t *testing.T) {
 		(&MicroVM{}).GetSource(),
 		time.Second,
 		lifecycle.NewNoopChildHandle(),
-		nil, // no forwarder
-		nil, // no heartbeat
+		nil,                     // no forwarder
+		lifecycle.HookToggles{}, // no hooks enabled
+		nil,                     // no heartbeat
 	)
 	// This is the call Init makes when lc.LogsTagSetter != nil.
 	srv.SetLogsTagSetter(setter, baseTags)
@@ -294,8 +295,9 @@ func TestMicroVM_TraceTagSetter_InvokedOnRun(t *testing.T) {
 		(&MicroVM{}).GetSource(),
 		time.Second,
 		lifecycle.NewNoopChildHandle(),
-		nil, // no forwarder
-		nil, // no heartbeat
+		nil,                     // no forwarder
+		lifecycle.HookToggles{}, // no hooks enabled
+		nil,                     // no heartbeat
 	)
 	// This is the call Init makes when lc.TraceTagSetter != nil.
 	srv.SetTraceTagSetter(setter, baseTraceTags)
@@ -371,8 +373,9 @@ func TestMicroVMShutdown_LiveServer_StopsCleanly(t *testing.T) {
 		(&MicroVM{}).GetSource(),
 		time.Second,
 		lifecycle.NewNoopChildHandle(),
-		nil, // no forwarder
-		nil, // no heartbeat
+		nil,                     // no forwarder
+		lifecycle.HookToggles{}, // no hooks enabled
+		nil,                     // no heartbeat
 	)
 	require.NoError(t, srv.ListenAndServe(nil))
 

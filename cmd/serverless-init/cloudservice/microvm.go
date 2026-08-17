@@ -172,6 +172,7 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 		lc.FlushTimeout,
 		components.Handle,
 		components.Forwarder,
+		components.EnabledHooks,
 		heartbeat,
 	)
 	if lc.LogsTagSetter != nil {
@@ -227,9 +228,6 @@ func (m *MicroVM) Shutdown(_ *serverlessMetrics.ServerlessMetricAgent, _ bool, _
 // AddStartMetric is a no-op for MicroVM. The lifecycle server emits the run
 // metric when the /run hook fires; emitting it here would double-count.
 func (m *MicroVM) AddStartMetric(_ *serverlessMetrics.ServerlessMetricAgent) {}
-
-// ShouldForceFlushAllOnForceFlushToSerializer returns false for MicroVM.
-func (m *MicroVM) ShouldForceFlushAllOnForceFlushToSerializer() bool { return false }
 
 // isMicroVM returns true when running inside an AWS Lambda MicroVM.
 func isMicroVM() bool {

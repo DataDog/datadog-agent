@@ -488,6 +488,7 @@ func setup(
 				MetricFlusher: metricAgent,
 				LogsFlusher:   logsAgent,
 				MetricEmitter: metricAgent,
+				SampleDrainer: metricAgent,
 				FlushTimeout:  agentLogConfig.FlushTimeout,
 				SidecarMode:   modeConf.SidecarMode,
 				LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {
@@ -528,6 +529,7 @@ func setup(
 			MetricFlusher: metricAgent,
 			LogsFlusher:   logsAgent,
 			MetricEmitter: metricAgent,
+			SampleDrainer: metricAgent,
 			FlushTimeout:  agentLogConfig.FlushTimeout,
 			SidecarMode:   modeConf.SidecarMode,
 			LogsTagSetter: lifecycle.LogsTagSetterFunc(func(tags []string) {

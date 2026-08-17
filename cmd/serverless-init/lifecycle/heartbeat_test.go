@@ -275,15 +275,15 @@ func TestHeartbeat_ResumeDuringStuckStopRestartsHeartbeat(t *testing.T) {
 	hb.Stop() // clean up the relaunched goroutine
 }
 
-// Until SetMicroVMID is called, the heartbeat tags microvm_id with the
-// placeholder "unknown". Production wiring sets the ID at /run before
+// Until SetMicroVMID is called, the heartbeat tags lambda_microvm_id with
+// the placeholder "unknown". Production wiring sets the ID at /run before
 // Start, so this state should never reach an emitted metric in practice;
 // the test pins the contract anyway in case wiring changes.
 func TestHeartbeat_TagsForEmit_DefaultsMicroVMIDToUnknown(t *testing.T) {
 	hb := NewHeartbeat(time.Hour, &mockMetricEmitter{}, metrics.MetricSourceAWSMicroVMEnhanced, []string{"microvm_image_arn:test-arn"})
 	tags := hb.tagsForEmit()
 	assert.Contains(t, tags, "microvm_image_arn:test-arn")
-	assert.Contains(t, tags, "microvm_id:unknown")
+	assert.Contains(t, tags, "lambda_microvm_id:unknown")
 }
 
 // When resourceName is empty the microvm_image_arn tag must be absent — an
@@ -301,7 +301,7 @@ func TestHeartbeat_SetMicroVMID_ReflectsOnEmittedTags(t *testing.T) {
 	hb.SetMicroVMID("mvm-abc123")
 	tags := hb.tagsForEmit()
 	assert.Contains(t, tags, "microvm_image_arn:test-arn")
-	assert.Contains(t, tags, "microvm_id:mvm-abc123")
+	assert.Contains(t, tags, "lambda_microvm_id:mvm-abc123")
 }
 
 // TestHeartbeat_EmittedMetric_CarriesARNTag verifies end-to-end that the
@@ -340,7 +340,7 @@ func TestHeartbeat_SetMicroVMID_EmptyIsIgnored(t *testing.T) {
 	hb.SetMicroVMID("first-id")
 	hb.SetMicroVMID("")
 	tags := hb.tagsForEmit()
-	assert.Contains(t, tags, "microvm_id:first-id", "empty ID must not clobber the existing value")
+	assert.Contains(t, tags, "lambda_microvm_id:first-id", "empty ID must not clobber the existing value")
 }
 
 func TestHeartbeat_SetMicroVMID_OnNilReceiverIsSafe(t *testing.T) {
@@ -371,7 +371,7 @@ func TestHeartbeat_SetMicroVMID_VisibleOnNextTick(t *testing.T) {
 	// The most recent emission must carry the updated ID.
 	last := emitter.lastTags()
 	require.NotNil(t, last)
-	assert.Contains(t, last, "microvm_id:mvm-after-start")
+	assert.Contains(t, last, "lambda_microvm_id:mvm-after-start")
 }
 
 // TestHeartbeat_EmittedMetricsCarryCurrentTimestamp verifies that heartbeat
