@@ -260,6 +260,10 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 			}
 			sk := holtStateKey{ref: meta.Ref, agg: agg}
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.WarmupPoints {
+				// The threshold-crossing pass replays all retained warmup points.
+				continue
+			}
 			if !exists {
 				state = d.newState()
 				d.series[sk] = state

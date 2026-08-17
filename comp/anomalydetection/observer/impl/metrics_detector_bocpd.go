@@ -204,9 +204,14 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
+			// Do not retain cold per-series posterior state. On the first
+			// eligible call the zero cursor replays the full retained history.
+			visibleCount := storage.PointCountUpTo(ref, dataTime)
 			sk := bocpdStateKey{ref: ref, agg: agg}
-
 			state, exists := b.series[sk]
+			if !exists && visibleCount < b.config.WarmupPoints {
+				continue
+			}
 			if !exists {
 				state = &bocpdSeriesState{}
 				b.series[sk] = state
@@ -217,7 +222,6 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			// advances) and the common live case. WriteGeneration catches
 			// same-bucket merges and retention-churn scenarios where point
 			// count stays constant but stored values changed.
-			visibleCount := storage.PointCountUpTo(ref, dataTime)
 			writeGen := storage.WriteGeneration(ref)
 			if visibleCount <= state.lastProcessedCount && writeGen == state.lastWriteGen {
 				continue

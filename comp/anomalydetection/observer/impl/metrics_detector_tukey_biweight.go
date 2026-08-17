@@ -215,6 +215,10 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 			sk := tbStateKey{ref: meta.Ref, agg: agg}
 
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.MinPoints {
+				// Keep cold series state-free; first activation replays from zero.
+				continue
+			}
 			if !exists {
 				state = &tbSeriesState{}
 				d.series[sk] = state

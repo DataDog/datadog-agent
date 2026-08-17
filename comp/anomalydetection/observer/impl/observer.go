@@ -686,6 +686,13 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 	for _, ref := range a.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
+		// CUSUM cannot produce a result before its own configured warmup.
+		// Keep cold sparse series out of the adapter cursor map and avoid the
+		// range allocation. The threshold-crossing call still reads the full
+		// retained range from the beginning.
+		if cusum, ok := a.detector.(*CUSUMDetector); ok && visibleCount < cusum.config.MinPoints {
+			continue
+		}
 		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
 			continue
 		}

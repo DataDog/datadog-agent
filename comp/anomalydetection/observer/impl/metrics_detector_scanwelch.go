@@ -149,6 +149,11 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			sk := scanwelchStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
+			firstActivation := !exists
+			if !exists && status.pointCount < d.MinPoints {
+				// Keep no state until a full retained first scan is possible.
+				continue
+			}
 			if !exists {
 				state = &scanwelchSeriesState{}
 				d.series[sk] = state
@@ -192,6 +197,11 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			}
 
 			state.lastProcessedCount = status.pointCount
+			if firstActivation {
+				// Preserve the existing MinSegment scan cadence after the
+				// threshold-crossing full-history scan.
+				state.lastProcessedCount -= state.lastProcessedCount % d.MinSegment
+			}
 			state.lastWriteGen = status.writeGeneration
 		}
 	}

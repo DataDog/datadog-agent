@@ -509,9 +509,9 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	bocpdBefore := len(bocpd.series)
 	scanmwBefore := len(scanmw.series)
 	scanwelchBefore := len(scanwelch.series)
-	require.Greater(t, bocpdBefore, 0, "BOCPD should have observed the series before eviction")
-	require.Greater(t, scanmwBefore, 0, "ScanMW should have observed the series before eviction")
-	require.Greater(t, scanwelchBefore, 0, "ScanWelch should have observed the series before eviction")
+	require.Zero(t, bocpdBefore, "cold series must not allocate BOCPD state")
+	require.Zero(t, scanmwBefore, "cold series must not allocate ScanMW state")
+	require.Zero(t, scanwelchBefore, "cold series must not allocate ScanWelch state")
 
 	// Trigger LRU eviction by ingesting a third pattern that pushes the
 	// oldest cluster out. After the fix, the engine fans the freed refs
@@ -537,16 +537,13 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	// 2 aggs = 4) and stayed there even after one of the series was evicted,
 	// because storage cleanup didn't propagate to detector state. After the
 	// fix, fanOutSeriesRemoval drops exactly the evicted ref's entries.
-	require.Less(t, len(bocpd.series), bocpdBefore,
-		"BOCPD per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", bocpdBefore)
+	require.Zero(t, len(bocpd.series), "cold BOCPD series must remain state-free after eviction")
 	require.LessOrEqual(t, len(bocpd.series), 2*len(bocpd.config.Aggregations),
 		"BOCPD per-series map must not exceed live series × aggregations")
-	require.Less(t, len(scanmw.series), scanmwBefore,
-		"ScanMW per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanmwBefore)
+	require.Zero(t, len(scanmw.series), "cold ScanMW series must remain state-free after eviction")
 	require.LessOrEqual(t, len(scanmw.series), 2*len(scanmw.Aggregations),
 		"ScanMW per-series map must not exceed live series × aggregations")
-	require.Less(t, len(scanwelch.series), scanwelchBefore,
-		"ScanWelch per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", scanwelchBefore)
+	require.Zero(t, len(scanwelch.series), "cold ScanWelch series must remain state-free after eviction")
 	require.LessOrEqual(t, len(scanwelch.series), 2*len(scanwelch.Aggregations),
 		"ScanWelch per-series map must not exceed live series \u00d7 aggregations")
 

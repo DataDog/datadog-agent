@@ -347,7 +347,9 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 	d.ResidualWindow = 4
 	storage := newDetectorTestStorage()
 
-	storage.Add("ns", "metric", 10.0, 10, nil)
+	for ts := int64(1); ts <= 10; ts++ {
+		storage.Add("ns", "metric", 10.0, ts, nil)
+	}
 	d.Detect(storage, 10)
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
@@ -356,24 +358,24 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
 	series := storage.GetSeriesRange(ref, 0, 10, observer.AggregateAverage)
 	require.NotNil(t, series)
-	require.Len(t, series.Points, 1)
-	require.Equal(t, 20.0, series.Points[0].Value, "storage should expose the merged average")
+	require.Len(t, series.Points, 10)
+	require.Equal(t, 20.0, series.Points[9].Value, "storage should expose the merged average")
 
 	d.Detect(storage, 20)
 	state = d.series[key]
-	require.Equal(t, []float64{20.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime, "merge replay must not advance to dataTime")
 
 	storage.Add("ns", "metric", 50.0, 15, nil)
 	d.Detect(storage, 20)
 	state = d.series[key]
-	require.Equal(t, []float64{20.0, 50.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	assert.Equal(t, int64(15), state.lastProcessedTime)
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
 }
@@ -384,7 +386,9 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	d.ResidualWindow = 4
 	storage := newDetectorTestStorage()
 
-	storage.Add("ns", "metric", 10.0, 10, nil)
+	for ts := int64(1); ts <= 10; ts++ {
+		storage.Add("ns", "metric", 10.0, ts, nil)
+	}
 	d.Detect(storage, 10)
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
@@ -393,7 +397,7 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 5.0, 5, nil)
@@ -401,8 +405,8 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	assert.Equal(t, []float64{5.0, 10.0}, state.warmupBuf)
-	assert.Equal(t, 2, state.lastProcessedCount)
+	assert.True(t, state.warmedUp)
+	assert.Equal(t, 10, state.lastProcessedCount)
 	assert.Equal(t, int64(10), state.lastProcessedTime)
 }
 
@@ -412,7 +416,9 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	d.ResidualWindow = 4
 	storage := newDetectorTestStorage()
 
-	storage.Add("ns", "metric", 10.0, 10, nil)
+	for ts := int64(1); ts <= 10; ts++ {
+		storage.Add("ns", "metric", 10.0, ts, nil)
+	}
 	d.Detect(storage, 10)
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
@@ -421,7 +427,7 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
@@ -430,8 +436,8 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	assert.Equal(t, []float64{20.0, 40.0}, state.warmupBuf)
-	assert.Equal(t, 2, state.lastProcessedCount)
+	assert.True(t, state.warmedUp)
+	assert.Equal(t, 11, state.lastProcessedCount)
 	assert.Equal(t, int64(11), state.lastProcessedTime)
 }
 

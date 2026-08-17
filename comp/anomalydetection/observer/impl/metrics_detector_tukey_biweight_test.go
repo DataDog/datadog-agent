@@ -94,8 +94,10 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
-	storage.Add("ns", "metric", 10.0, 1, nil)
-	d.Detect(storage, 1)
+	for ts := int64(1); ts <= 4; ts++ {
+		storage.Add("ns", "metric", 10.0, ts, nil)
+	}
+	d.Detect(storage, 4)
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, metas, 1)
@@ -103,20 +105,20 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 1, state.lastProcessedCount)
+	require.Equal(t, 4, state.lastProcessedCount)
 	assert.Equal(t, 10.0, state.lastProcessedValue)
 
-	storage.Add("ns", "metric", 30.0, 1, nil)
-	series := storage.GetSeriesRange(ref, 0, 1, observer.AggregateAverage)
+	storage.Add("ns", "metric", 30.0, 4, nil)
+	series := storage.GetSeriesRange(ref, 0, 4, observer.AggregateAverage)
 	require.NotNil(t, series)
-	require.Len(t, series.Points, 1)
-	require.Equal(t, 20.0, series.Points[0].Value, "storage should expose the merged average")
+	require.Len(t, series.Points, 4)
+	require.Equal(t, 20.0, series.Points[3].Value, "storage should expose the merged average")
 
-	d.Detect(storage, 1)
+	d.Detect(storage, 4)
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 1, state.lastProcessedCount, "same-bucket merge should replace the stale aggregate")
+	require.Equal(t, 4, state.lastProcessedCount, "same-bucket merge should replace the stale aggregate")
 	assert.Equal(t, 20.0, state.lastProcessedValue)
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
 }
@@ -128,7 +130,9 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
-	storage.Add("ns", "metric", 10.0, 10, nil)
+	for ts := int64(7); ts <= 10; ts++ {
+		storage.Add("ns", "metric", 10.0, ts, nil)
+	}
 	d.Detect(storage, 10)
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
@@ -145,10 +149,10 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	state = d.series[key]
 	require.NotNil(t, state)
 	points := storage.RecentPoints(ref, 10, observer.AggregateAverage, 4, nil)
-	require.Len(t, points, 2)
-	assert.Equal(t, int64(5), points[0].Timestamp)
-	assert.Equal(t, int64(10), points[1].Timestamp)
-	assert.Equal(t, 2, state.lastProcessedCount)
+	require.Len(t, points, 4)
+	assert.Equal(t, int64(7), points[0].Timestamp)
+	assert.Equal(t, int64(10), points[3].Timestamp)
+	assert.Equal(t, 5, state.lastProcessedCount)
 	assert.Equal(t, int64(10), state.lastProcessedTime)
 }
 
@@ -159,7 +163,9 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	d.ScoreEvery = 100
 	storage := newDetectorTestStorage()
 
-	storage.Add("ns", "metric", 10.0, 10, nil)
+	for ts := int64(7); ts <= 10; ts++ {
+		storage.Add("ns", "metric", 10.0, ts, nil)
+	}
 	d.Detect(storage, 10)
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
@@ -168,7 +174,7 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, 1, state.lastProcessedCount)
+	require.Equal(t, 4, state.lastProcessedCount)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
@@ -178,12 +184,13 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	state = d.series[key]
 	require.NotNil(t, state)
 	points := storage.RecentPoints(ref, 11, observer.AggregateAverage, 4, nil)
-	require.Len(t, points, 2)
-	assert.Equal(t, int64(10), points[0].Timestamp)
-	assert.Equal(t, 20.0, points[0].Value)
-	assert.Equal(t, int64(11), points[1].Timestamp)
-	assert.Equal(t, 40.0, points[1].Value)
-	assert.Equal(t, 2, state.lastProcessedCount)
+	require.Len(t, points, 4)
+	assert.Equal(t, int64(8), points[0].Timestamp)
+	assert.Equal(t, int64(10), points[2].Timestamp)
+	assert.Equal(t, 20.0, points[2].Value)
+	assert.Equal(t, int64(11), points[3].Timestamp)
+	assert.Equal(t, 40.0, points[3].Value)
+	assert.Equal(t, 5, state.lastProcessedCount)
 	assert.Equal(t, int64(11), state.lastProcessedTime)
 }
 
@@ -381,12 +388,12 @@ func TestTukeyBiweight_RemoveSeries(t *testing.T) {
 	// Three series, each populated with enough points to allocate state.
 	for s := 0; s < 3; s++ {
 		name := "metric" + string(rune('A'+s))
-		for i := 0; i < 8; i++ {
+		for i := 0; i < 80; i++ {
 			storage.Add("ns", name, float64(i), int64(i+1), nil)
 		}
 	}
 
-	d.Detect(storage, 8)
+	d.Detect(storage, 80)
 	require.Len(t, d.series, 3*len(d.Aggregations),
 		"each series should have one state entry per aggregation")
 

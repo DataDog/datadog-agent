@@ -103,6 +103,21 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 	}
 }
 
+func TestSeriesDetectorAdapter_DefersCUSUMCursorUntilWarmup(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	adapter := newSeriesDetectorAdapter(NewCUSUMDetector(CUSUMConfig{MinPoints: 5}), []observerdef.Aggregate{observerdef.AggregateAverage})
+
+	for ts := int64(1); ts <= 4; ts++ {
+		storage.Add("ns", "cpu", float64(ts), ts, nil)
+	}
+	adapter.Detect(storage, 4)
+	require.Empty(t, adapter.lastVisibleCount)
+
+	storage.Add("ns", "cpu", 5, 5, nil)
+	adapter.Detect(storage, 5)
+	require.Len(t, adapter.lastVisibleCount, 1)
+}
+
 func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) {
 	telComp := telemetryimpl.GetCompatComponent()
 	telComp.Reset()
