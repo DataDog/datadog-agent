@@ -496,17 +496,27 @@ func (c *Client) GetRawPayloads(endpoint string) ([]api.Payload, error) {
 	return c.getFakePayloads(endpoint)
 }
 
+// fakePayloadsPageSize is the number of payloads to fetch per page.
+const fakePayloadsPageSize = 500
+
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	body, err := c.get("fakeintake/payloads?endpoint=" + endpoint)
-	if err != nil {
-		return nil, err
+	var afterSeq uint64
+	for {
+		body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s&after=%d&limit=%d", endpoint, afterSeq, fakePayloadsPageSize))
+		if err != nil {
+			return nil, err
+		}
+		var response api.APIFakeIntakePayloadsRawGETResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			return nil, err
+		}
+		rawPayloads = append(rawPayloads, response.Payloads...)
+		if !response.HasMore {
+			break
+		}
+		afterSeq = response.NextCursor
 	}
-	var response api.APIFakeIntakePayloadsRawGETResponse
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return nil, err
-	}
-	return response.Payloads, nil
+	return rawPayloads, nil
 }
 
 // ComplianceFinding is a compliance check event received at /api/v2/compliance.

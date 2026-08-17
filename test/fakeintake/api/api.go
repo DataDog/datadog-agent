@@ -18,6 +18,7 @@ type Payload struct {
 	Data        []byte    `json:"data"`
 	Encoding    string    `json:"encoding"`
 	ContentType string    `json:"content_type"`
+	Seq         uint64    `json:"seq"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter
@@ -30,12 +31,16 @@ type ParsedPayload struct {
 
 //nolint:revive // TODO(APL) Fix revive linter
 type APIFakeIntakePayloadsRawGETResponse struct {
-	Payloads []Payload `json:"payloads"`
+	Payloads   []Payload `json:"payloads"`
+	NextCursor uint64    `json:"next_cursor"`
+	HasMore    bool      `json:"has_more"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter
 type APIFakeIntakePayloadsJsonGETResponse struct {
-	Payloads []ParsedPayload `json:"payloads"`
+	Payloads   []ParsedPayload `json:"payloads"`
+	NextCursor uint64          `json:"next_cursor"`
+	HasMore    bool            `json:"has_more"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter

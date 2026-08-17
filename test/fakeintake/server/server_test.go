@@ -194,14 +194,17 @@ func TestServer(t *testing.T) {
 					Encoding:    "text/plain",
 					Data:        []byte("totoro|7|tag:valid,owner:pducolin"),
 					ContentType: "text/plain",
+					Seq:         1,
 				},
 				{
 					Timestamp:   clock.Now().UTC(),
 					Encoding:    "text/plain",
 					Data:        []byte("totoro|5|tag:valid,owner:kiki"),
 					ContentType: "text/plain",
+					Seq:         2,
 				},
 			},
+			NextCursor: 2,
 		}
 		for i := range actualGETResponse.Payloads {
 			actualGETResponse.Payloads[i].Timestamp = actualGETResponse.Payloads[i].Timestamp.UTC()
@@ -236,6 +239,7 @@ func TestServer(t *testing.T) {
 					Encoding: "gzip",
 				},
 			},
+			NextCursor: 1,
 		}
 		actualGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{}
 		body, err := io.ReadAll(response.Body)
