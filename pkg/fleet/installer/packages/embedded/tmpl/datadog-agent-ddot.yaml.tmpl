@@ -18,5 +18,6 @@ environment_file: -${DD_CONF_DIR}/environment
 env:
   DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable
   DD_OTELCOLLECTOR_INSTALLATION_METHOD: bare-metal
+  DD_INVENTORIES_FIRST_RUN_DELAY: -${DD_INVENTORIES_FIRST_RUN_DELAY}
 stdout: inherit
 stderr: inherit

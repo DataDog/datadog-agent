@@ -14,6 +14,7 @@ Environment="DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d"
 Environment="DD_CONF_DIR=/etc/datadog-agent-exp"
 Environment="DD_PID_DIR=/opt/datadog-agent"
 Environment="DD_INSTALL_DIR=/opt/datadog-agent"
+Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 RuntimeDirectory=datadog-procmgrd
 ExecStart=/opt/datadog-agent/embedded/bin/dd-procmgrd
 StartLimitInterval=10
