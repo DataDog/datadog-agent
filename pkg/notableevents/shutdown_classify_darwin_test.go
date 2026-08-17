@@ -304,9 +304,13 @@ func TestValidatePMUBootFaultInfoAcceptsTheFullDictionary(t *testing.T) {
 	}
 }
 
-// TestPMUFaultTokenDictionaryCoverage asserts the documented 61 fault / 19
+// TestPMUFaultTokenDictionaryCoverage asserts the documented 59 fault / 21
 // benign split over all 80 tokens the measured PMU can name. It catches a typo
 // in shutdownFaultFamilies that would otherwise silently misclassify.
+//
+// The split follows classification, so it accounts for shutdownBenignTokens as
+// well as the family map: two tokens whose family is a fault family are named
+// benign by the hardware.
 func TestPMUFaultTokenDictionaryCoverage(t *testing.T) {
 	tokens := allPMUFaultTokens()
 	require.Len(t, tokens, 80)
@@ -318,6 +322,9 @@ func TestPMUFaultTokenDictionaryCoverage(t *testing.T) {
 		require.NotEmpty(t, family, token)
 
 		class, isFault := shutdownFaultFamilies[family]
+		if _, excluded := shutdownBenignTokens[token]; excluded {
+			isFault = false
+		}
 		if !isFault {
 			benign++
 			continue
@@ -326,15 +333,57 @@ func TestPMUFaultTokenDictionaryCoverage(t *testing.T) {
 		byClass[class]++
 	}
 
-	assert.Equal(t, 61, faults, "fault tokens")
-	assert.Equal(t, 19, benign, "benign tokens")
+	assert.Equal(t, 59, faults, "fault tokens")
+	assert.Equal(t, 21, benign, "benign tokens")
 	assert.Equal(t, map[shutdownClass]int{
 		shutdownClassThermal:  14,
-		shutdownClassPower:    30,
+		shutdownClassPower:    29,
 		shutdownClassCrash:    6,
-		shutdownClassWatchdog: 6,
+		shutdownClassWatchdog: 5,
 		shutdownClassHardware: 5,
 	}, byClass)
+}
+
+// TestShutdownBenignTokensAreOtherwiseFaults guards the list against dead
+// weight: an entry whose family is not a fault family changes nothing, and an
+// entry absent from the dictionary is either a typo or hardware this list was
+// never measured against.
+func TestShutdownBenignTokensAreOtherwiseFaults(t *testing.T) {
+	dictionary := make(map[string]struct{})
+	for _, token := range allPMUFaultTokens() {
+		dictionary[token] = struct{}{}
+	}
+
+	for token := range shutdownBenignTokens {
+		assert.Contains(t, dictionary, token, "token is not in the measured dictionary")
+		_, isFault := shutdownFaultFamilies[tokenFamily(token)]
+		assert.True(t, isFault, "%s would be benign without the exclusion", token)
+	}
+}
+
+// TestClassifyShutdownTokensExcludesBenignTokens pins both halves of the
+// exclusion: a benign token cannot elect a class on its own, and it cannot
+// suppress a genuine fault it happens to accompany.
+func TestClassifyShutdownTokensExcludesBenignTokens(t *testing.T) {
+	for token := range shutdownBenignTokens {
+		t.Run(token+" alone stays silent", func(t *testing.T) {
+			result, emit := classifyShutdownTokens(pmuBootFaultInfo{Groups: [][]string{{token}}})
+			assert.False(t, emit)
+			assert.Empty(t, result.Class)
+		})
+
+		t.Run(token+" retained beside a real fault", func(t *testing.T) {
+			result, emit := classifyShutdownTokens(pmuBootFaultInfo{
+				Groups: [][]string{{token, "uv,vddmain_uvlo"}},
+			})
+			require.True(t, emit)
+			assert.Equal(t, shutdownClassPower, result.Class)
+			// Excluded from the fault set, still present in the payload.
+			assert.Equal(t, []string{"uv,vddmain_uvlo"}, result.FaultTokens)
+			assert.Contains(t, result.Tokens, token)
+			assert.Contains(t, result.Families, tokenFamily(token))
+		})
+	}
 }
 
 // TestThermalTokenSet pins the 14 thermal tokens the classifier must match.

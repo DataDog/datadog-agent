@@ -109,6 +109,28 @@ var shutdownFaultFamilies = map[string]shutdownClass{
 	"otp_crc": shutdownClassHardware, // OTP trim-memory CRC failure
 }
 
+// shutdownBenignTokens lists tokens whose family classifies as a fault but
+// which the hardware names for a benign or user-driven condition. Family
+// granularity is coarser than the dictionary, so these are the cases where
+// inheriting the family's class would report a fault that did not happen.
+//
+// Excluding a token only changes the outcome when it is the sole evidence for
+// its class: classification unions every token, so a machine that genuinely
+// browns out still classifies on its other power tokens. That is what keeps
+// this list from turning false positives into false negatives.
+//
+// Entries need a reason. A token that merely looks benign is not enough:
+// vddio,vddio_1v2_sgpio0_ok reads like a rail-OK status but appears in a
+// dictionary of fault names, where it means the rail-OK signal dropped.
+var shutdownBenignTokens = map[string]struct{}{
+	// Booting after the battery was charged from depleted, not a regulator
+	// failure. The other buck_ tokens do name real faults.
+	"buck_boot_charge": {},
+	// The power-button double-click window, which is a user interaction rather
+	// than a watchdog expiring.
+	"timeout,dblclick_timeout": {},
+}
+
 // shutdownUnderscoreFamilies lists families whose tokens separate the family
 // from the detail with an underscore instead of a comma. Without them
 // buck_en_err and pgood_error_idx0 would each resolve to their own family and
@@ -220,6 +242,13 @@ func classifyShutdownTokens(info pmuBootFaultInfo) (shutdownCauseResult, bool) {
 
 		family := tokenFamily(token)
 		families[family] = struct{}{}
+
+		// Checked before the family lookup, and after Families is recorded: a
+		// benign token is still part of the payload, it just cannot elect a
+		// class or land in FaultTokens.
+		if _, benign := shutdownBenignTokens[token]; benign {
+			continue
+		}
 
 		class, isFault := shutdownFaultFamilies[family]
 		if !isFault {

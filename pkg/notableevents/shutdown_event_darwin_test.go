@@ -112,7 +112,7 @@ func TestShutdownCauseEventFitsWireLimit(t *testing.T) {
 	require.True(t, emit)
 	require.Equal(t, shutdownClassThermal, result.Class)
 	require.Len(t, result.Tokens, 80)
-	require.Len(t, result.FaultTokens, 61)
+	require.Len(t, result.FaultTokens, 59)
 
 	event := result.event(
 		shutdownCauseIdentity(testBootUUID, result.FaultTokens),
