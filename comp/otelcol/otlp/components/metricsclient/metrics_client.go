@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -22,6 +23,7 @@ const (
 )
 
 type metricsClient struct {
+	mu     sync.RWMutex
 	meter  metric.Meter
 	source string
 }
@@ -34,10 +36,17 @@ func InitializeMetricClient(mp metric.MeterProvider, source string) (statsd.Clie
 	if meter == nil {
 		return nil, errNilMeter
 	}
-	return &metricsClient{
+	m := &metricsClient{
 		meter:  meter,
 		source: source,
-	}, nil
+	}
+	// Lock and unlock to establish a happens-before relationship with
+	// future RLock callers, ensuring the fields written above are
+	// visible to goroutines that access this instance concurrently.
+	m.mu.Lock()
+	m.source = m.source // nolint:govet,staticcheck // intentional for memory barrier
+	m.mu.Unlock()
+	return m, nil
 }
 
 // Gauge implements the Statsd Gauge interface
@@ -45,7 +54,11 @@ func (m *metricsClient) Gauge(name string, value float64, tags []string, _ float
 	// The last parameter is rate, but we're omitting it because rate does not have effect for gauge points:
 	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/dedd44436ae064f5a0b43769d24adf897533957b/receiver/statsdreceiver/internal/protocol/metric_translator.go#L153-L156
 
-	gauge, err := m.meter.Float64Gauge(name)
+	m.mu.RLock()
+	meter := m.meter
+	m.mu.RUnlock()
+
+	gauge, err := meter.Float64Gauge(name)
 	if err != nil {
 		return err
 	}
@@ -56,7 +69,11 @@ func (m *metricsClient) Gauge(name string, value float64, tags []string, _ float
 
 // Count implements the Statsd Count interface
 func (m *metricsClient) Count(name string, value int64, tags []string, _ float64) error {
-	counter, err := m.meter.Int64Counter(name)
+	m.mu.RLock()
+	meter := m.meter
+	m.mu.RUnlock()
+
+	counter, err := meter.Int64Counter(name)
 	if err != nil {
 		return err
 	}
@@ -66,10 +83,14 @@ func (m *metricsClient) Count(name string, value int64, tags []string, _ float64
 }
 
 func (m *metricsClient) attributeFromTags(tags []string) attribute.Set {
+	m.mu.RLock()
+	source := m.source
+	m.mu.RUnlock()
+
 	attr := make([]attribute.KeyValue, 0, len(tags)+1)
 	attr = append(attr, attribute.KeyValue{
 		Key:   "source",
-		Value: attribute.StringValue(m.source),
+		Value: attribute.StringValue(source),
 	})
 	for _, t := range tags {
 		kv := strings.Split(t, ":")
@@ -83,7 +104,11 @@ func (m *metricsClient) attributeFromTags(tags []string) attribute.Set {
 
 // Histogram implements the Statsd Histogram interface
 func (m *metricsClient) Histogram(name string, value float64, tags []string, _ float64) error {
-	hist, err := m.meter.Float64Histogram(name)
+	m.mu.RLock()
+	meter := m.meter
+	m.mu.RUnlock()
+
+	hist, err := meter.Float64Histogram(name)
 	if err != nil {
 		return err
 	}

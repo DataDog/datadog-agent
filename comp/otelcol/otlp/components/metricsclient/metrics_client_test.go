@@ -247,3 +247,47 @@ func TestNoNilMeter(t *testing.T) {
 	_, err := InitializeMetricClient(&nilMeterProvider{}, ExporterSourceTag)
 	assert.ErrorIs(t, err, errNilMeter)
 }
+
+// TestMetricsClientConcurrentInitializeAndCount verifies that concurrent
+// InitializeMetricClient (which writes the metricsClient fields during
+// construction) and Count (which reads those fields) don't race. The
+// StatsdClientWrapper.SetDelegate provides the pointer to the new
+// metricsClient, but without synchronization on the wrapper side the
+// metricsClient's own mutex must establish the happens-before relationship.
+func TestMetricsClientConcurrentInitializeAndCount(t *testing.T) {
+	t.Parallel()
+
+	wrapper := NewStatsdClientWrapper(&statsd.NoOpClient{})
+
+	reader := metric.NewManualReader()
+	meterProvider := metric.NewMeterProvider(metric.WithReader(reader))
+
+	const iterations = 5000
+	var wg sync.WaitGroup
+	var start sync.WaitGroup
+	start.Add(1)
+
+	// Writer: repeatedly initialize a new metricsClient and set it as delegate
+	wg.Go(func() {
+		start.Wait()
+		for range iterations {
+			otelmclient, err := InitializeMetricClient(meterProvider, ExporterSourceTag)
+			if err != nil {
+				t.Errorf("InitializeMetricClient failed: %v", err)
+				return
+			}
+			wrapper.SetDelegate(otelmclient)
+		}
+	})
+
+	// Reader: repeatedly call Count through the wrapper
+	wg.Go(func() {
+		start.Wait()
+		for range iterations {
+			_ = wrapper.Count("test_count", 1, []string{"otlp:true"}, 1)
+		}
+	})
+
+	start.Done()
+	wg.Wait()
+}
