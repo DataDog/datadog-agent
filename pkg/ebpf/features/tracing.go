@@ -23,13 +23,22 @@ import (
 
 // HaveHelperInFentry returns whether the helper and attach type are supported together.
 var HaveHelperInFentry = funcs.MemoizeArgNoError(func(helper asm.BuiltinFunc) error {
+	return haveHelper(helper, "tcp_connect", ebpf.AttachTraceFEntry)
+})
+
+// HaveHelperInRawTracepoint returns whether the helper is available for raw tracepoints
+var HaveHelperInRawTracepoint = funcs.MemoizeArgNoError(func(helper asm.BuiltinFunc) error {
+	return haveHelper(helper, "sys_enter", ebpf.AttachTraceRawTp)
+})
+
+func haveHelper(helper asm.BuiltinFunc, attachTo string, attachType ebpf.AttachType) error {
 	if err := features.HaveProgramType(ebpf.Tracing); err != nil {
 		return err
 	}
 
 	spec := &ebpf.ProgramSpec{
-		AttachType: ebpf.AttachTraceFEntry,
-		AttachTo:   "tcp_connect",
+		AttachType: attachType,
+		AttachTo:   attachTo,
 		Type:       ebpf.Tracing,
 		Instructions: asm.Instructions{
 			helper.Call(),
@@ -79,7 +88,7 @@ var HaveHelperInFentry = funcs.MemoizeArgNoError(func(helper asm.BuiltinFunc) er
 	}
 
 	return err
-})
+}
 
 func logContainsAll(log []string, needles ...string) bool {
 	first := max(len(log)-5, 0) // Check last 5 lines.
