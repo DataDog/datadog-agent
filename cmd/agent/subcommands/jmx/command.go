@@ -46,6 +46,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -136,6 +137,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 			}),
 			haagentfx.Module(),
+			workloadbalancingfx.Module(),
 			logscompression.Module(),
 			metricscompression.Module(),
 			ipcfx.ModuleReadOnly(),
