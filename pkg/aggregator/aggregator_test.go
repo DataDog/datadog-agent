@@ -690,6 +690,27 @@ func TestConfigIDTags(t *testing.T) {
 	}
 }
 
+func TestConfigHashTags(t *testing.T) {
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+	agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second, filterlistmock.NewMockFilterList())
+
+	// no config wired in: no tag
+	assert.Empty(t, agg.configHashTags())
+
+	mockConfig := configmock.New(t)
+	agg.SetConfigHash(mockConfig)
+
+	hash := mockConfig.GetHash()
+	require.NotEmpty(t, hash)
+	assert.Equal(t, []string{"config_hash:" + hash}, agg.configHashTags())
+
+	// changing the config changes the tag
+	mockConfig.SetInTest("app_key", "changed-value")
+	assert.Equal(t, []string{"config_hash:" + mockConfig.GetHash()}, agg.configHashTags())
+	assert.NotEqual(t, hash, mockConfig.GetHash())
+}
+
 func TestTimeSamplerFlush(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("dogstatsd_pipeline_count", 1)
