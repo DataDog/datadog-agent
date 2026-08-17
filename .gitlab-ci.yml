@@ -133,7 +133,11 @@
   - Cargo.toml
   - Cargo.lock
 
+dynamic-build-run:
+  stage: .pre
+
 include:
+  - remote: https://gitlab-templates.ddbuild.io/dynamic-build/release/v122612799-df5ca437.yml
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
