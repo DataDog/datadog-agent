@@ -58,7 +58,7 @@ type kubeletCollector struct {
 	refreshLock   sync.Mutex
 }
 
-func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
+func newKubeletCollector(cache *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
 	if !env.IsFeaturePresent(env.Kubernetes) {
@@ -76,11 +76,7 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 		metadataStore: wmeta,
 	}
 
-	collectors := &provider.Collectors{
-		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
-		Network:                         provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
-		ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](collector, collectorPriority),
-	}
+	collectors := newCollectors(collector, cache)
 
 	return provider.CollectorMetadata{
 		ID: collectorID,
@@ -92,6 +88,25 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRINonstandard), ""):                             collectors,
 		},
 	}, nil
+}
+
+func newCollectors(collector *kubeletCollector, cache *provider.Cache) *provider.Collectors {
+	collectors := &provider.Collectors{
+		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network:                         provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](collector, collectorPriority),
+	}
+
+	// Only the container ID lookup goes through the shared caching layer: Stats and Network are
+	// already cached in bulk by refreshContainerCache. The cached ref is built from a separate
+	// Collectors so that the cache's fallback keeps pointing at the raw collector rather than at
+	// itself, which would recurse.
+	cachedCID := provider.MakeCached(collectorID, cache, &provider.Collectors{
+		ContainerIDForPodUIDAndContName: collectors.ContainerIDForPodUIDAndContName,
+	})
+	collectors.ContainerIDForPodUIDAndContName = cachedCID.ContainerIDForPodUIDAndContName
+
+	return collectors
 }
 
 // ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
