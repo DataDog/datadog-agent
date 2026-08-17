@@ -255,6 +255,46 @@ func TestNewStatelessCollector(t *testing.T) {
 	require.NotEmpty(t, metrics) // Should have some metrics
 }
 
+func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
+	var maxClockInfoCalls, virtualizationModeCalls int
+	device := setupMockDevice(t,
+		testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
+		testutil.WithMockAllFunctions(),
+		testutil.WithCustomHook(func(device *mock.Device) {
+			device.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				virtualizationModeCalls++
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
+			}
+			device.GetMaxClockInfoFunc = func(nvml.ClockType) (uint32, nvml.Return) {
+				maxClockInfoCalls++
+				return 0, nvml.ERROR_UNKNOWN
+			}
+		}),
+	)
+	require.Equal(t, 1, virtualizationModeCalls, "virtualization mode should be cached during device initialization")
+	require.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, device.GetDeviceInfo().VirtualizationMode)
+
+	collector, err := newStatelessCollector(device, &CollectorDependencies{})
+	require.NoError(t, err)
+	require.Zero(t, maxClockInfoCalls, "vGPU collector should not probe max clock info")
+
+	baseCollector := collector.(*baseCollector)
+	for _, apiName := range []string{
+		"max_clock_speed_sm",
+		"max_clock_speed_memory",
+		"max_clock_speed_graphics",
+		"max_clock_speed_video",
+	} {
+		for _, api := range baseCollector.supportedAPIs {
+			require.NotEqual(t, apiName, api.Name, "vGPU collector should not include %s", apiName)
+		}
+	}
+
+	_, err = collector.Collect()
+	require.NoError(t, err)
+	require.Zero(t, maxClockInfoCalls, "vGPU collector should not collect max clock info")
+}
+
 // TestCollectProcessMemory tests the process memory collection with different process scenarios
 func TestCollectProcessMemory(t *testing.T) {
 	tests := []struct {

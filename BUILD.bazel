@@ -68,7 +68,6 @@ exports_files(["go.mod"])
 # gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
-# gazelle:exclude tools/retry_file_dump
 # gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======

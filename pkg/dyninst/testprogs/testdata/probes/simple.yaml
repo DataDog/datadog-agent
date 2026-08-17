@@ -846,6 +846,110 @@ probes:
   tags:
     - "issue:UnsupportedFeature"
 
+- id: condErr_startsWith
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "startsWith(tag, \"pre\")"
+    json: {startsWith: [{ref: "tag"}, "pre"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condErr_endsWith
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "endsWith(tag, \"post\")"
+    json: {endsWith: [{ref: "tag"}, "post"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condErr_matches
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "matches(tag, \"[0-9]+\")"
+    json: {matches: [{ref: "tag"}, "[0-9]+"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condErr_isDefined
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "isDefined(tag)"
+    json: {isDefined: {ref: "tag"}}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condErr_instanceof
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "tag instanceof \"string\""
+    json: {instanceof: [{ref: "tag"}, "string"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condErr_not_startsWith
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "!startsWith(tag, \"pre\")"
+    json: {not: {startsWith: [{ref: "tag"}, "pre"]}}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condErr_substring_operand
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "substring(tag, 0, 3) == \"abc\""
+    json: {eq: [{substring: [{ref: "tag"}, 0, 3]}, "abc"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+- id: condErr_count_operand
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condString
+  when:
+    dsl: "count(tag) == 3"
+    json: {eq: [{count: {ref: "tag"}}, 3]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
 # when expression is not an EqExpr (bare ref).
 - id: condErr_bare_ref
   type: LOG_PROBE
