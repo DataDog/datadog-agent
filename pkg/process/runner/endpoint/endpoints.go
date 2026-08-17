@@ -13,6 +13,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // GetAPIEndpoints returns the list of api endpoints from the config
@@ -47,4 +48,18 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 		}
 	}
 	return
+}
+
+// CheckAPIKeysResolved rejects endpoints whose API key is still an unresolved secret handle
+// (e.g. 'ENC[...]'). Callers that do not resolve secret-backend handles themselves (system-probe)
+// would otherwise send the handle verbatim as the API key.
+func CheckAPIKeysResolved(eps []apicfg.Endpoint) error {
+	for _, ep := range eps {
+		if scrubber.IsEnc(ep.APIKey) {
+			return fmt.Errorf("%s is an unresolved secret handle (%q): this process does not resolve secret-backend handles, "+
+				"provide the api_key as a plain value or enable config sync from the core agent "+
+				"(agent_ipc.config_refresh_interval)", ep.ConfigSettingPath, ep.APIKey)
+		}
+	}
+	return nil
 }
