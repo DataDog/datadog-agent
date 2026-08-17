@@ -61,7 +61,6 @@ import (
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
@@ -179,7 +178,6 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		healthprobefx.Module(),
 		haagentfx.Module(),
-		workloadbalancingfx.Module(),
 	)
 }
 

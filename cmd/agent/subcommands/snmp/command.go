@@ -40,7 +40,6 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
-	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/analyzer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
@@ -127,7 +126,6 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
 				haagentfx.Module(),
-				workloadbalancingfx.Module(),
 				metricscompression.Module(),
 				logscompression.Module(),
 				ipcfx.ModuleReadOnly(),
@@ -193,7 +191,6 @@ With --analyze, the walk is matched against SNMP device profiles and a summary r
 				nooptagger.Module(),
 				snmpscanfx.Module(),
 				haagentfx.Module(),
-				workloadbalancingfx.Module(),
 				metricscompression.Module(),
 				logscompression.Module(),
 				ipcfx.ModuleReadOnly(),
