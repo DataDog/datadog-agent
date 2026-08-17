@@ -1341,12 +1341,7 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 					continue
 				}
 				report.Contributors = append(report.Contributors, scorerReportContributor{
-					Name: observerdef.SeriesDescriptor{
-						Namespace: meta.Namespace,
-						Name:      meta.Name,
-						Tags:      meta.Tags,
-						Aggregate: contributor.Handle.Aggregate,
-					}.DisplayName(),
+					Name:  scorerReportContributorName(meta, storage.GetContext(contributor.Handle.Ref), contributor.Handle.Aggregate),
 					Share: contributor.Share,
 				})
 			}
@@ -1361,6 +1356,41 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		Events  []severityeventsdef.SeverityEvent `json:"events"`
 		Reports []scorerReport                    `json:"reports"`
 	}{AnomalyScoreState: state, Events: collector.events, Reports: reports})
+}
+
+// scorerReportContributorName presents log-derived metrics with the same
+// readable example/pattern used by reporter events. The scorer UI otherwise
+// displays the regular metric descriptor.
+func scorerReportContributorName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+	if context != nil {
+		switch meta.Namespace {
+		case "log_metrics_extractor":
+			if example := strings.TrimSpace(context.Example); example != "" {
+				return logReportContributorName(example, meta.Tags)
+			}
+			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+				return logReportContributorName(pattern, meta.Tags)
+			}
+		case "log_pattern_extractor":
+			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+				return logReportContributorName(pattern, meta.Tags)
+			}
+		}
+	}
+	return observerdef.SeriesDescriptor{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Tags:      meta.Tags,
+		Aggregate: aggregate,
+	}.DisplayName()
+}
+
+func logReportContributorName(name string, tags []string) string {
+	name = "log: " + name
+	if len(tags) == 0 {
+		return name
+	}
+	return name + " — {" + strings.Join(tags, ",") + "}"
 }
 
 // scorerEventCollector implements severityeventsdef.SeverityEventListener, accumulating
