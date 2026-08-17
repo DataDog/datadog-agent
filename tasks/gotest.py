@@ -11,6 +11,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -464,10 +465,10 @@ def test_flavor(
                 ignore_errors=True,
             )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-            if res is not None and res.returncode == 130:
+            if res is not None and res.returncode in (130, -signal.SIGINT):
                 raise KeyboardInterrupt()
 
-        if res is not None and res.returncode > 0:
+        if res is not None and res.returncode != 0:
             result.failed = True
         elif not skip_tests_covered_by_bazel:
             lines = res.stdout.splitlines()

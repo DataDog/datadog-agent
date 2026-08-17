@@ -238,7 +238,7 @@ def bazel(
         cmd,
         cmdline=cmdline,
         capture_stdout=capture_output,
-        capture_for_result=ignore_errors and not capture_output,
+        capture_for_result=ignore_errors,
         env=env,
         input=input,
     )
