@@ -58,7 +58,8 @@ func CheckAPIKeysResolved(eps []apicfg.Endpoint) error {
 		if scrubber.IsEnc(ep.APIKey) {
 			return fmt.Errorf("%s is an unresolved secret handle (%q): this process does not resolve secret-backend handles, "+
 				"provide the api_key as a plain value or enable config sync from the core agent "+
-				"(agent_ipc.config_refresh_interval)", ep.ConfigSettingPath, ep.APIKey)
+				"(a positive agent_ipc.config_refresh_interval, plus either a positive agent_ipc.port "+
+				"or agent_ipc.use_socket with a reachable agent_ipc.socket_path)", ep.ConfigSettingPath, ep.APIKey)
 		}
 	}
 	return nil
