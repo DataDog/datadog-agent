@@ -42,7 +42,6 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -75,7 +74,6 @@ func bundleOptions(t *testing.T, taggerComp tagger.Component, forwarderOpts fx.O
 		eventplatformfx.Module(eventplatform.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		haagentfx.Module(),
-		workloadbalancingfx.Module(),
 		metricscompressionfx.Module(),
 		logscompressionfx.Module(),
 		filterlistfx.Module(),
