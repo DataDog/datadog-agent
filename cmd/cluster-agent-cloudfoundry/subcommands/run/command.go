@@ -71,6 +71,7 @@ import (
 	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	clusterchecksmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/fx"
+	workloadbalancingfx "github.com/DataDog/datadog-agent/comp/workloadbalancing/fx"
 
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -158,6 +159,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 				}),
 				haagentfx.Module(),
+				workloadbalancingfx.Module(),
 				logscompressionfx.Module(),
 				metricscompressionfx.Module(),
 				diagnosefx.Module(),
