@@ -259,6 +259,9 @@ func NewComponent(deps Requires) (Provides, error) {
 	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
 
 	storageCfg := DefaultStorageConfig()
+	requiredPoints, requiredDurationSecs := storageHistoryDefaults(detectors)
+	pointRetentionConfigured := false
+	maxPointsConfigured := false
 	if cfg != nil {
 		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
 			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
@@ -267,13 +270,33 @@ func NewComponent(deps Requires) (Provides, error) {
 			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
 		}
 		if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
+			pointRetentionConfigured = true
 			d := cfg.GetDuration("anomaly_detection.storage.point_retention")
 			if d < 0 {
 				pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s — using default", d)
+				pointRetentionConfigured = false
 			} else {
 				storageCfg.PointRetentionSecs = int64(d.Seconds())
 			}
 		}
+		if cfg.IsConfigured("anomaly_detection.storage.max_points_per_series") {
+			maxPointsConfigured = true
+			storageCfg.MaxPointsPerSeries = cfg.GetInt("anomaly_detection.storage.max_points_per_series")
+			if storageCfg.MaxPointsPerSeries < 0 {
+				pkglog.Warnf("anomaly_detection.storage.max_points_per_series must be >= 0, got %d — using default", storageCfg.MaxPointsPerSeries)
+				storageCfg.MaxPointsPerSeries = 0
+				maxPointsConfigured = false
+			}
+		}
+	}
+	if requiredPoints > 0 {
+		if !pointRetentionConfigured {
+			storageCfg.PointRetentionSecs = requiredDurationSecs
+		}
+		if !maxPointsConfigured {
+			storageCfg.MaxPointsPerSeries = int(requiredPoints)
+		}
+		warnInsufficientStorageHistory(detectors, storageCfg)
 	}
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
@@ -453,6 +476,43 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	return Provides{Comp: obs}, nil
+}
+
+const assumedStorageHistoryCadenceSecs int64 = 15
+
+// storageHistoryDefaults derives retention sufficient for fixed raw-input
+// windows at the observed 15-second cadence, with one extra bucket of slack.
+func storageHistoryDefaults(detectors []observerdef.Detector) (points, durationSecs int64) {
+	for _, detector := range detectors {
+		requirement, ok := detector.(observerdef.StorageHistoryRequirement)
+		if !ok {
+			continue
+		}
+		if required := int64(requirement.RequiredHistoryPoints()); required > points {
+			points = required
+		}
+	}
+	if points > 0 {
+		durationSecs = assumedStorageHistoryCadenceSecs*points + assumedStorageHistoryCadenceSecs
+	}
+	return points, durationSecs
+}
+
+func warnInsufficientStorageHistory(detectors []observerdef.Detector, cfg StorageConfig) {
+	for _, detector := range detectors {
+		requirement, ok := detector.(observerdef.StorageHistoryRequirement)
+		if !ok || requirement.RequiredHistoryPoints() <= 0 {
+			continue
+		}
+		requiredPoints := requirement.RequiredHistoryPoints()
+		requiredDuration := assumedStorageHistoryCadenceSecs*int64(requiredPoints) + assumedStorageHistoryCadenceSecs
+		if cfg.MaxPointsPerSeries > 0 && cfg.MaxPointsPerSeries < requiredPoints {
+			pkglog.Warnf("[observer] detector %s requires %d points at assumed %ds cadence (%ds); max_points_per_series=%d, point_retention=%ds", detector.Name(), requiredPoints, assumedStorageHistoryCadenceSecs, requiredDuration, cfg.MaxPointsPerSeries, cfg.PointRetentionSecs)
+		}
+		if cfg.PointRetentionSecs > 0 && cfg.PointRetentionSecs < requiredDuration {
+			pkglog.Warnf("[observer] detector %s requires %d points at assumed %ds cadence (%ds); point_retention=%ds is too low, max_points_per_series=%d", detector.Name(), requiredPoints, assumedStorageHistoryCadenceSecs, requiredDuration, cfg.PointRetentionSecs, cfg.MaxPointsPerSeries)
+		}
+	}
 }
 
 // observerImpl is the implementation of the observer component.

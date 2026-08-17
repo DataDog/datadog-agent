@@ -5444,11 +5444,17 @@ properties:
             type: integer
             default: 50000
             comment: Storage tuning. See storageConfig in the observer component.
+          max_points_per_series:
+            node_type: setting
+            type: integer
+            default: 0
+            comment: Maximum newest one-second buckets retained per series. 0 is unlimited; when unset, fixed-window anomaly detectors derive a safe value from their history requirements.
           point_retention:
             node_type: setting
             type: string
-            default: 2m0s
+            default: 0s
             format: duration
+            comment: Maximum age of retained points. 0s is unlimited; when unset, fixed-window anomaly detectors derive a safe value from their history requirements and a 15-second cadence.
             tags:
             - golang_type:duration
     tags:

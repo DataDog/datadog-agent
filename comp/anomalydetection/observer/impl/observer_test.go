@@ -246,3 +246,24 @@ func (d *countingSeriesDetector) Detect(_ observerdef.Series) observerdef.Detect
 		Anomalies: append([]observerdef.Anomaly(nil), d.anomalies...),
 	}
 }
+
+func TestStorageHistoryDefaults(t *testing.T) {
+	tests := []struct {
+		name      string
+		detectors []observerdef.Detector
+		points    int64
+		duration  int64
+	}{
+		{name: "no fixed window"},
+		{name: "holt", detectors: []observerdef.Detector{NewHoltResidualDetector()}, points: 60, duration: 915},
+		{name: "tukey", detectors: []observerdef.Detector{NewTukeyBiweightDetector()}, points: 80, duration: 1215},
+		{name: "both", detectors: []observerdef.Detector{NewHoltResidualDetector(), NewTukeyBiweightDetector()}, points: 80, duration: 1215},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			points, duration := storageHistoryDefaults(tt.detectors)
+			require.Equal(t, tt.points, points)
+			require.Equal(t, tt.duration, duration)
+		})
+	}
+}
