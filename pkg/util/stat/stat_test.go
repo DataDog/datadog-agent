@@ -8,6 +8,7 @@ package stat
 import (
 	"expvar"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -15,33 +16,36 @@ import (
 )
 
 func TestStats(t *testing.T) {
-	myStat := expvar.Int{}
+	synctest.Test(t, func(t *testing.T) {
+		myStat := expvar.Int{}
 
-	s, err := NewStats(10)
-	require.NoError(t, err)
+		s, err := NewStats(10)
+		require.NoError(t, err)
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	require.NotNil(t, ticker)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		require.NotNil(t, ticker)
 
-	go s.Process()
-	go s.Update(&myStat)
+		go s.Process()
+		go s.Update(&myStat)
 
-	deadline := time.After(2 * time.Second)
+		deadline := time.After(2 * time.Second)
 
-loop:
-	for {
-		select {
-		case <-ticker.C:
-			// send a few events per second
-			for i := 0; i < 10; i++ {
-				s.StatEvent(int64(i))
+	loop:
+		for {
+			select {
+			case <-ticker.C:
+				// send a few events per second
+				for i := 0; i < 10; i++ {
+					s.StatEvent(int64(i))
+				}
+			case <-deadline:
+				s.Stop()
+				break loop
 			}
-		case <-deadline:
-			s.Stop()
-			break loop
 		}
-	}
 
-	assert.NotEqual(t, myStat.Value(), 0)
+		synctest.Wait()
+		assert.NotEqual(t, myStat.Value(), 0)
+	})
 }
