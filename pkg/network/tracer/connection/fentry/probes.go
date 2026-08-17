@@ -170,11 +170,14 @@ func enableProgram(enabled map[string]struct{}, name string) {
 	}
 }
 
-// classificationSupported returns true if protocol classification is supported.
+// ClassificationSupported returns true if protocol classification is supported.
 // Note: fentry requires kernel 5.8+ which is well above the 4.11 minimum for
 // bpf_skb_load_bytes in socket filters, so no kernel version check is needed
 // for that. However, RHEL 9+ has a known issue with protocol classification.
-func classificationSupported(c *config.Config) bool {
+//
+// Exported so that tests can ask this question of the fentry tracer the same
+// way kprobe.ClassificationSupported answers it for the kprobe tracer.
+func ClassificationSupported(c *config.Config) bool {
 	if !c.ProtocolClassificationEnabled {
 		return false
 	}
