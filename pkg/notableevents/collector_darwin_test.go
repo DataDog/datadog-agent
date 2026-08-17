@@ -1892,6 +1892,58 @@ func TestDarwinCollectorLeavesNoShutdownStateWhenSaveFails(t *testing.T) {
 
 	assert.Empty(t, collector.Pending())
 	assert.Nil(t, collector.state.ShutdownCause)
+	collector.stateMu.Lock()
+	assert.True(t, collector.shutdownCauseDeferred, "a failed save must leave the check retryable")
+	assert.True(t, collector.shutdownCauseSaveWarned)
+	collector.stateMu.Unlock()
+
+	// A failure that never clears must stay deferred without warning again.
+	// Reading the property is cheap; a warning per reconcile tick is not.
+	for iteration := 0; iteration < 3; iteration++ {
+		collector.retryShutdownCauseIfDeferred()
+		collector.scanOnce(context.Background())
+	}
+
+	assert.Empty(t, collector.Pending())
+	collector.stateMu.Lock()
+	defer collector.stateMu.Unlock()
+	assert.Nil(t, collector.state.ShutdownCause)
+	assert.True(t, collector.shutdownCauseDeferred)
+	assert.True(t, collector.shutdownCauseSaveWarned)
+}
+
+// TestDarwinCollectorRecoversShutdownCauseFromATransientSaveFailure covers the
+// reconcile tick outliving the failure. Without the deferral a full disk at the
+// moment of the opening check withheld the fault for the process lifetime, which
+// on a workstation is weeks.
+//
+// The recovery drives two reconcile iterations because the same failure also
+// staged the crash scan: the first retry defers again behind that staged commit
+// and the scan that follows it clears the way. Reaching the event on the second
+// tick is the behaviour, not a shortcoming of the test.
+func TestDarwinCollectorRecoversShutdownCauseFromATransientSaveFailure(t *testing.T) {
+	store := &fakeDarwinBookmarkStore{saveErr: errors.New("disk full")}
+	collector := newShutdownTestCollector(t, realTempDir(t), store, testBootUUID, thermalPMUPayload)
+
+	runShutdownCheck(t, collector)
+	require.Empty(t, collector.Pending())
+
+	store.mu.Lock()
+	store.saveErr = nil
+	store.mu.Unlock()
+
+	// Mirrors run()'s reconcile arm: retry the deferred check, then scan.
+	for iteration := 0; iteration < 2; iteration++ {
+		collector.retryShutdownCauseIfDeferred()
+		collector.scanOnce(context.Background())
+	}
+
+	require.Len(t, collector.Pending(), 1)
+	collector.stateMu.Lock()
+	defer collector.stateMu.Unlock()
+	require.NotNil(t, collector.state.ShutdownCause)
+	assert.Equal(t, testBootUUID, collector.state.ShutdownCause.BootUUID)
+	assert.False(t, collector.shutdownCauseDeferred)
 }
 
 // TestDarwinCollectorSurvivesShutdownCauseReadFailures asserts the check is

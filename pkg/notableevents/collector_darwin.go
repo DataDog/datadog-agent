@@ -154,9 +154,16 @@ type Collector struct {
 	generation        uint64
 	commitReservation *darwinCommitReservation
 	nextCommitID      uint64
-	// shutdownCauseDeferred records that the shutdown-cause check found the
-	// bookmark owned by another commit. Guarded by stateMu.
+	// shutdownCauseDeferred records that the shutdown-cause check could not be
+	// committed yet: the bookmark was owned by another commit, or its Save
+	// failed. Guarded by stateMu.
 	shutdownCauseDeferred bool
+	// shutdownCauseSaveWarned latches the save-failure warning. Deferring makes
+	// the path re-entrant, so a failure that never clears — a read-only state
+	// directory rather than a full disk — would otherwise warn on every
+	// reconcile tick for the collector's life. It is never cleared: a save that
+	// succeeds publishes, and the check never runs again. Guarded by stateMu.
+	shutdownCauseSaveWarned bool
 
 	now               func() time.Time
 	identityRetention time.Duration
@@ -583,12 +590,22 @@ func (c *Collector) publishShutdownCause(bootUUID string, event *Event) {
 	c.stateMu.Unlock()
 
 	if err := c.store.Save(cloneDarwinBookmarkState(candidate)); err != nil {
-		// Nothing becomes pending and no boot is recorded, so the next Agent
-		// start re-reads the property and can report the same fault.
+		// Nothing becomes pending and no boot is recorded, so the read stays
+		// available. Deferring is what makes a transient failure recoverable
+		// within this process instead of only at the next Agent start: the
+		// candidate is cheap to rebuild, because the property it derives from
+		// does not change until the machine reboots.
 		c.stateMu.Lock()
+		c.shutdownCauseDeferred = true
+		firstWarning := !c.shutdownCauseSaveWarned
+		c.shutdownCauseSaveWarned = true
 		c.releaseCommitLocked(reservation)
 		c.stateMu.Unlock()
-		log.Warnf("Failed to save macOS shutdown-cause bookmark: %v", err)
+		if firstWarning {
+			log.Warnf("Failed to save macOS shutdown-cause bookmark: %v", err)
+		} else {
+			log.Debugf("Failed to save macOS shutdown-cause bookmark again: %v", err)
+		}
 		return
 	}
 
