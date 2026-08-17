@@ -126,7 +126,9 @@ A few invoke tasks are available that help with automatically updating module ve
 
     Agent 6 release candidates do not receive nested module tags. Use the commit
     referenced by the global release candidate tag to derive a Go pseudo-version
-    instead. Final Agent 6 releases continue to receive nested module tags.
+    instead. During an Agent 6 release candidate, internal module requirements
+    remain pinned to the last published module versions so they stay resolvable.
+    Final Agent 6 releases continue to receive nested module tags.
     ///
 
 * `dda inv release.update-modules`

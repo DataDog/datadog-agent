@@ -908,6 +908,16 @@ class TestCheckForChanges(unittest.TestCase):
 
 
 class TestUpdateModules(unittest.TestCase):
+    @patch('tasks.release.get_default_modules')
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_skips_agent6_rc_dependency_updates(self, get_default_modules_mock):
+        c = MockContext(run=Result("yolo"))
+
+        release.update_modules(c, version="6.53.5-rc.2")
+
+        get_default_modules_mock.assert_not_called()
+        self.assertEqual(c.run.call_count, 0)
+
     @patch('tasks.release.agent_context', new=MagicMock())
     def test_update_module_no_run_for_optional_in_agent_6(self):
         c = MockContext(run=Result("yolo"))

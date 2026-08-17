@@ -84,6 +84,8 @@ QUALIFICATION_TAG = "qualification"
 def update_modules(ctx, release_branch=None, version=None, trust=False):
     """Update internal dependencies between the different Agent modules.
 
+    Agent 6 release candidates are skipped because their nested modules are not tagged.
+
     Args:
         verify: Checks for correctness on the Agent Version (on by default).
 
@@ -94,6 +96,12 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
     assert release_branch or version
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
+
+    # Agent 6 RCs do not have nested module tags. Keep their dependencies pinned
+    # to the last published versions so pseudo-version consumers can resolve them.
+    if RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6:
+        print(f"Skipping module dependency updates for Agent 6 release candidate {agent_version}")
+        return
 
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
@@ -420,7 +428,9 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
-        Updates internal module dependencies with the new RC.
+        Updates internal module dependencies with the new RC, except for Agent 6.
+        Agent 6 RCs keep the last published module dependencies because RC module
+        tags are not created.
 
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 
