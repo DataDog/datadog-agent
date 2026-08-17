@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	// DefaultTimeout is a sensible upper bound for WaitForInitialization. The store waits up to
-	// 30s for its collectors to start before doing its first pull and reporting itself as
-	// initialized regardless, so waiting much longer than that brings nothing.
+	// DefaultTimeout is a sensible default for WaitForInitialization: the store gives its
+	// collectors 30s to start before reporting itself as initialized regardless, so waiting much
+	// longer than that brings nothing.
 	DefaultTimeout = 40 * time.Second
 
 	// pollInterval is how often the readiness of the workloadmeta store is polled.
@@ -26,41 +26,40 @@ const (
 )
 
 // WaitForInitialization blocks until the workloadmeta store reports itself as initialized, and
-// reports whether it did before timeout expired. A timeout of 0 or less returns immediately.
+// reports whether it did. A timeout of 0 or less does not wait at all and returns false.
 //
-// One-shot commands that build their own workloadmeta store start its collectors
-// asynchronously, and a command that reads from the store before that happened gets no data
-// rather than an error.
+// One-shot commands that build their own workloadmeta store start its collectors asynchronously.
+// A command reading from the store before its collectors have published their entities gets no
+// data rather than an error, so waiting here is what makes such commands report anything useful.
 //
-// This waits on workloadmeta's own best-effort readiness signal, the same one autodiscovery
-// waits on: the store reports itself as initialized once at least one of its collectors has
-// started — or, at worst, once it stops waiting for them before its first pull — and that first
-// pull round has been kicked off. It is not a guarantee that every collector has started, so it
-// closes the multi-second startup race rather than making it impossible.
+// timeout is when to give up, not a hard bound on how long this blocks: probing the store takes a
+// lock that collector startup holds, so a probe can return after the deadline, in which case the
+// state it found is reported rather than discarded.
 //
-// Nothing is written directly to stdout, which commands such as `agent check --json` expect to
-// be valid JSON: progress goes through the log component, and is therefore subject to the log
-// level the command was configured with. Callers that need to surface a failed wait to the user
-// regardless of that level should do so from the returned value.
+// Progress is reported through the log component, never on stdout, which commands such as
+// `agent check --json` expect to be valid JSON. Callers needing to surface a failed wait
+// regardless of the configured log level should do so from the returned value.
 func WaitForInitialization(wmeta workloadmeta.Component, timeout time.Duration, logger log.Component) bool {
 	return waitForInitialization(wmeta, timeout, logger, clock.New())
 }
 
-// waitForInitialization is WaitForInitialization with an injectable clock, so that tests can
-// drive the poll interval and the timeout without waiting on wall-clock time.
+// waitForInitialization is WaitForInitialization with an injectable clock, so that tests do not
+// wait on wall-clock time.
 func waitForInitialization(wmeta workloadmeta.Component, timeout time.Duration, logger log.Component, clk clock.Clock) bool {
-	if wmeta.IsInitialized() {
-		return true
-	}
 	if timeout <= 0 {
 		return false
 	}
 
-	logger.Info("Waiting for workloadmeta to be initialized...")
+	// Started before the first probe, so that the deadline covers it too.
 	start := clk.Now()
-
 	deadline := clk.Timer(timeout)
 	defer deadline.Stop()
+
+	if wmeta.IsInitialized() {
+		return true
+	}
+
+	logger.Info("Waiting for workloadmeta to be initialized...")
 
 	ticker := clk.Ticker(pollInterval)
 	defer ticker.Stop()

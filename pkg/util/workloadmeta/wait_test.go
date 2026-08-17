@@ -18,8 +18,8 @@ import (
 )
 
 // fakeStore reports itself as initialized after readyAfter calls to IsInitialized, or never if
-// neverReady is set. waitForInitialization polls from a single goroutine, and the tests only read
-// calls after that goroutine has handed its result over a channel, so a plain counter is enough.
+// neverReady is set. It is only ever polled from one goroutine, and calls is only read once that
+// goroutine has handed its result over a channel, so a plain counter is enough.
 type fakeStore struct {
 	workloadmeta.Component
 
@@ -34,9 +34,9 @@ func (f *fakeStore) IsInitialized() bool {
 }
 
 // runWithMockClock calls waitForInitialization on its own goroutine and steps a mock clock forward
-// one poll interval at a time until it returns. The timer and the ticker are registered on the
-// mock clock by that goroutine, so time cannot be advanced in a single jump beforehand.
-// It reports what waitForInitialization returned, and how much mock time it took to get there.
+// one poll interval at a time until it returns, reporting the result and the mock time it took.
+// Stepping has to be incremental: that goroutine is what registers the timer and the ticker on the
+// mock clock, so time cannot be advanced in a single jump beforehand.
 func runWithMockClock(t *testing.T, wmeta workloadmeta.Component, timeout time.Duration) (bool, time.Duration) {
 	t.Helper()
 
@@ -77,8 +77,7 @@ func TestWaitForInitializationWhilePolling(t *testing.T) {
 	ready, _ := runWithMockClock(t, wmeta, time.Minute)
 
 	assert.True(t, ready)
-	// The store is polled exactly once per tick, and the wait returns on the first poll that
-	// reports it ready.
+	// One poll per tick, returning on the first one that reports ready.
 	assert.Equal(t, 4, wmeta.calls)
 }
 
@@ -89,8 +88,7 @@ func TestWaitForInitializationTimeout(t *testing.T) {
 	ready, elapsed := runWithMockClock(t, wmeta, timeout)
 
 	assert.False(t, ready)
-	// The wait is bounded: it gives up instead of blocking the command forever, and it does so
-	// after the timeout rather than before it.
+	// It gives up rather than polling forever, and not before the timeout has elapsed.
 	assert.GreaterOrEqual(t, elapsed, timeout)
 }
 
@@ -98,6 +96,7 @@ func TestWaitForInitializationDisabled(t *testing.T) {
 	wmeta := &fakeStore{neverReady: true}
 
 	assert.False(t, waitForInitialization(wmeta, 0, logmock.New(t), clock.NewMock()))
-	// A zero timeout still reports the current state, it just never polls again.
-	assert.Equal(t, 1, wmeta.calls)
+	// Not even one probe: answering takes a lock that collector startup holds, so probing can
+	// block, which a disabled wait must not do.
+	assert.Zero(t, wmeta.calls)
 }

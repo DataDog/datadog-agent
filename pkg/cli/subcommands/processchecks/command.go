@@ -41,8 +41,7 @@ import (
 
 const (
 	defaultWaitInterval = time.Second
-	// workloadmetaTimeout keeps this command's historical bound, shorter than
-	// wmetautil.DefaultTimeout.
+	// workloadmetaTimeout is how long to wait for workloadmeta before running the checks anyway.
 	workloadmetaTimeout = 10 * time.Second
 )
 
