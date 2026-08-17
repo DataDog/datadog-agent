@@ -217,7 +217,7 @@ func TestPagerCommand(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.Error)
 	assert.Equal(t, config, result.Output)
-	assert.Equal(t, []string{"terminal pager 0\nmore system:running-config"}, srv.Received())
+	assert.Equal(t, []string{"terminal pager 0", "more system:running-config"}, srv.Received())
 }
 
 func TestPagerCommand_MoreMarkerRejected(t *testing.T) {

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -35,21 +34,22 @@ func errorStr(e error) string {
 // Execute runs a command and validates the output with its validation rules.
 // The validation runs on the combined stdout and stderr of the command.
 func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	// Setup commands (e.g. "terminal pager 0") run in their own exec session
+	// before the main command: many devices execute only the first command of a
+	// multi-command exec, but the effect persists across sessions on the same connection.
+	for _, setup := range cmd.SetupCommands {
+		_ = runExec(ctx, client, setup)
+	}
+
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, err
 	}
 	defer session.Close()
 
-	command := cmd.Command
-	if len(cmd.SetupCommands) > 0 {
-		lines := append(append([]string{}, cmd.SetupCommands...), cmd.Command)
-		command = strings.Join(lines, "\n")
-	}
-
 	ch := make(chan *types.CommandResult, 1)
 	go func() {
-		output, err := session.CombinedOutput(command)
+		output, err := session.CombinedOutput(cmd.Command)
 		ch <- &types.CommandResult{
 			CommandStr: cmd.Command,
 			Output:     string(output),
@@ -62,6 +62,28 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 		return r, r.FormattedError()
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	}
+}
+
+// runExec runs a command in its own session and discards its output, used for
+// setup commands whose only purpose is a side effect on the connection.
+func runExec(ctx context.Context, client sshClient, command string) error {
+	session, err := client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	ch := make(chan error, 1)
+	go func() {
+		_, err := session.CombinedOutput(command)
+		ch <- err
+	}()
+	select {
+	case err := <-ch:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
