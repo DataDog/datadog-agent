@@ -282,32 +282,6 @@ stderr: inherit
 `, windowsDDOTDescOriginalLine, exe, otelCfg, ddCfg, exe, fleet)
 }
 
-func (s *procmgrWindowsSuite) requireDDOTWindows() {
-	s.T().Helper()
-	if !s.hasDDOT {
-		s.T().Skip("windows ddot procmgr: embedded otel-agent or otel-config bootstrap not available on this image")
-	}
-	s.requireCLI()
-}
-
-func (s *procmgrWindowsSuite) waitWindowsDDOTRunning(timeout time.Duration) string {
-	s.T().Helper()
-	var pid string
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe datadog-agent-ddot"))
-		assertField(ct, out, "State", "Running")
-		p := fieldValue(out, "PID")
-		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
-			return
-		}
-		cmd := fieldValue(out, "Command")
-		assert.Contains(ct, strings.ToLower(cmd), "otel-agent.exe")
-		assert.Contains(ct, strings.ToLower(cmd), "ddot")
-		pid = p
-	}, timeout, 2*time.Second)
-	return pid
-}
-
 // ---------------------------------------------------------------------------
 // Windows-only: ADP tests
 // ---------------------------------------------------------------------------
