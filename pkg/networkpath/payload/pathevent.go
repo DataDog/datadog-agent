@@ -248,12 +248,11 @@ type TracerouteDestination struct {
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
-	Timestamp    int64  `json:"timestamp"`
-	AgentVersion string `json:"agent_version"`
-	Namespace    string `json:"namespace"`      // namespace used to resolve NDM resources
-	TestConfigID string `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
-	// TestConfigName is always serialized and may be empty for legacy or unmanaged test configurations.
-	TestConfigName   string                 `json:"test_config_name"`
+	Timestamp        int64                  `json:"timestamp"`
+	AgentVersion     string                 `json:"agent_version"`
+	Namespace        string                 `json:"namespace"`      // namespace used to resolve NDM resources
+	TestConfigID     string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
+	TestConfigName   string                 `json:"test_config_name,omitempty"`
 	TestResultID     string                 `json:"test_result_id"` // ID of specific test result (test run)
 	TestRunID        string                 `json:"test_run_id"`
 	Origin           PathOrigin             `json:"origin"`
