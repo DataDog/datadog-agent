@@ -6,9 +6,14 @@
 use crate::process::ManagedProcess;
 
 /// Shut down processes in the given index order (typically reverse startup order).
+/// Sends graceful stop to all first, then waits for each in order so total shutdown
+/// time is bounded by the slowest process rather than the sum of per-process timeouts.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
-        processes[idx].stop().await;
+        processes[idx].request_stop();
+    }
+    for &idx in order {
+        processes[idx].wait_for_stop().await;
     }
 }
 
