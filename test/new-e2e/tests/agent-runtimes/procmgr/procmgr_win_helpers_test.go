@@ -7,7 +7,6 @@ package procmgr
 
 import (
 	"encoding/base64"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -17,46 +16,6 @@ import (
 
 	e2ecomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
-
-// psRemote builds a PowerShell script for RemoteHost.Execute; string args are escaped for single-quoted literals.
-func psRemote(format string, args ...any) string {
-	for i, a := range args {
-		if s, ok := a.(string); ok {
-			args[i] = escapePSSingleQuotedLiteral(s)
-		}
-	}
-	if len(args) == 0 {
-		return format
-	}
-	return fmt.Sprintf(format, args...)
-}
-
-func escapePSSingleQuotedLiteral(s string) string {
-	s = strings.ReplaceAll(s, `%`, `%%`)
-	s = strings.ReplaceAll(s, `'`, `''`)
-	return s
-}
-
-// Path helpers for remote PowerShell: the e2e runner is Linux/macOS, so registry paths
-// need explicit slash normalization instead of filepath.Join.
-func toWindowsSlashPath(p string) string {
-	p = strings.ReplaceAll(strings.TrimSpace(p), `\`, `/`)
-	for strings.Contains(p, "//") {
-		p = strings.ReplaceAll(p, "//", "/")
-	}
-	return p
-}
-
-func joinWindowsPath(base string, elems ...string) string {
-	parts := make([]string, 0, len(elems)+1)
-	parts = append(parts, strings.TrimRight(toWindowsSlashPath(base), `/`))
-	parts = append(parts, elems...)
-	return strings.Join(parts, "/")
-}
-
-func ensureWindowsDirPS(dir string) string {
-	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
-}
 
 // writeProcessesDYamlContent writes a processes.d YAML file as UTF-8 without a BOM.
 // Set-Content -Encoding utf8 adds a BOM on Windows PowerShell 5.1, which breaks dd-procmgr parsing.
