@@ -37,6 +37,13 @@ type testCase struct {
 }
 
 func TestPolicyMonitorPolicyState(t *testing.T) {
+	// CWS is not supported on AIX: the secl model ships an empty SignalConstants
+	// map on AIX (see pkg/security/secl/model/consts_unsupported.go), so the
+	// kill action is rejected during policy loading and the expected policy
+	// states never match.
+	if runtime.GOOS == "aix" {
+		t.Skip("CWS kill actions are not supported on AIX")
+	}
 
 	testCases := []*testCase{
 		{

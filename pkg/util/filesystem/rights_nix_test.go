@@ -9,6 +9,7 @@ package filesystem
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,11 @@ func TestWrongPath(t *testing.T) {
 }
 
 func TestGroupOtherRights(t *testing.T) {
+	// On AIX, access(X_OK) for root succeeds even on files without any execute
+	// bit, so CheckRights does not flag a 0600 file as missing execute rights.
+	if runtime.GOOS == "aix" {
+		t.Skip("AIX root access(X_OK) succeeds regardless of execute bits")
+	}
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())

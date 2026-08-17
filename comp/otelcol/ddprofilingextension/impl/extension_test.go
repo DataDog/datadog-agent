@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 	"time"
 
@@ -90,6 +91,9 @@ func testServer(t *testing.T, got chan string) *httptest.Server {
 }
 
 func TestAgentExtension(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("dd-trace-go profiler upload is not reliable on AIX")
+	}
 	// fake intake
 	got := make(chan string, 1)
 	server := testServer(t, got)
@@ -136,6 +140,9 @@ func TestAgentExtension(t *testing.T) {
 }
 
 func TestStandaloneExtension(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("dd-trace-go profiler upload is not reliable on AIX")
+	}
 	got := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		assert.Equal(t, "/profiling/v1/input", req.URL.Path)

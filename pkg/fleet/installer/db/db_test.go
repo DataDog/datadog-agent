@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -105,6 +106,12 @@ func TestHasPackage(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
+	// bbolt's file locking does not conflict on AIX: a second open of an
+	// already-locked db returns immediately instead of waiting for the timeout,
+	// so the expected ErrTimeout is never produced.
+	if runtime.GOOS == "aix" {
+		t.Skip("bbolt file locking does not block on AIX")
+	}
 	dbFile := filepath.Join(t.TempDir(), "test.db")
 	dbLock, err := New(context.Background(), dbFile)
 	assert.NoError(t, err)

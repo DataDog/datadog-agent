@@ -16,6 +16,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -187,6 +188,12 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 }
 
 func TestIntegration(t *testing.T) {
+	// The upstream opentelemetry-collector-contrib datadogextension panics
+	// with "aix is not supported" (factory_aix.go) when the OTel collector
+	// component set is assembled.
+	if runtime.GOOS == "aix" {
+		t.Skip("OTel datadogextension is not supported on AIX")
+	}
 	var app *fx.App
 	var err error
 

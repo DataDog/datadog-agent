@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    Skip unit tests that exercise features unsupported on AIX: CWS kill actions,
+    the OTel datadogextension (which panics on AIX), the dd-trace-go profiling
+    extension upload, the fleet installer disk-space checks (gopsutil has no AIX
+    disk implementation), and bbolt file-lock timeout behavior.

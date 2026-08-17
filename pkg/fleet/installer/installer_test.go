@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// The fleet installer is not supported on AIX: its available-disk-space check
+// relies on gopsutil, which has no AIX disk implementation.
+//go:build !aix
+
 package installer
 
 import (
