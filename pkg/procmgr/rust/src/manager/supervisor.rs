@@ -104,6 +104,8 @@ impl Supervisor {
 
     /// Run the daemon until a platform shutdown signal is received.
     pub async fn run(self) -> Result<()> {
+        info!("dd-procmgrd starting");
+
         let manager = self.manager;
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
